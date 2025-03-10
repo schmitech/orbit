@@ -21,7 +21,7 @@ chroma:
 
 eleven_labs:
   api_key: "your api key"
-  voice_id: "kPzsL2i3teMYv0FxEYQ6"
+  voice_id: "your voice id"
 
 system:
   template_path: "./templates/qa.txt"

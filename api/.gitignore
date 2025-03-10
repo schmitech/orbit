@@ -61,4 +61,5 @@ coverage/
 .yarn-integrity
 
 # Vite
-.vite/ 
+.vite/
+package-lock.json
