@@ -1,0 +1,38 @@
+{
+    "name": "chatbot-server",
+    "version": "1.0.0",
+    "type": "module",
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js"
+        }
+    },
+    "scripts": {
+        "start": "node dist/server.js",
+        "dev": "tsx watch src/server.ts",
+        "clean": "rimraf dist",
+        "build": "npm run clean && tsc",
+        "server": "tsx src/server.ts"
+    },
+    "dependencies": {
+        "@huggingface/inference": "^2.6.4",
+        "@langchain/community": "^0.0.26",
+        "@langchain/core": "^0.1.26",
+        "chromadb": "^1.7.3",
+        "cors": "^2.8.5",
+        "dotenv": "^16.4.1",
+        "express": "^4.18.2",
+        "langchain": "^0.1.9"
+    },
+    "devDependencies": {
+        "@types/cors": "^2.8.17",
+        "@types/express": "^4.17.21",
+        "@types/node": "^20.11.16",
+        "rimraf": "^6.0.1",
+        "tsx": "^4.7.0",
+        "typescript": "^5.3.3"
+    }
+}

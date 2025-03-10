@@ -1,0 +1,7 @@
+node_modules
+package-lock.json
+.env
+chroma_db
+*.log
+config.yaml
+venv

@@ -1,0 +1,30 @@
+ollama:
+  base_url: "http://localhost:11434"
+  temperature: 0.1
+  top_p: 0.5
+  top_k: 50
+  repeat_penalty: 1.0
+  num_predict: 1024
+  num_ctx: 2048
+  num_threads: 8
+  model: "llama3.1:8b"
+  embed_model: "nomic-embed-text"
+
+huggingface:
+  api_key: "your api key"
+  model: "deepset/roberta-base-squad2"
+
+chroma:
+  host: "localhost"
+  port: 8000
+  collection: "qa-chatbot"
+
+eleven_labs:
+  api_key: "your api key"
+  voice_id: "kPzsL2i3teMYv0FxEYQ6"
+
+system:
+  template_path: "./templates/qa.txt"
+
+general:
+  verbose: "false"
