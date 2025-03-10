@@ -37,11 +37,11 @@ chroma run --host localhost --port 8000 --path ./chroma_db
 
 5. Ingest data (in another simple-qa-chatbot terminal)
 ```bash
-python ./chroma-utils/create-chroma-collection.py qa-pairs.json
+python ../chroma/create-chroma-collection.py qa-pairs.json
 ```
 5.1 Test ingested data, example:
 ```bash
-python ./chroma-utils/query-chroma-collection.py "Where can I view the assessment roll for my property taxes?"
+python ../chroma/query-chroma-collection.py "Where can I view the assessment roll for my property taxes?"
 ```
 
 ## Testing Text-to-Speech
@@ -56,7 +56,7 @@ curl -X POST "https://api.elevenlabs.io/v1/text-to-speech/XrExE9yKIg1WjnnlVkGX" 
 
 6. Start the server:
 ```bash
-npm run dev
+npm run server -- ollama #or hf for hugging face
 ```
 
 ## API Client
