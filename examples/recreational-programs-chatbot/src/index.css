@@ -1,0 +1,91 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  
+  body {
+    @apply font-sans text-neutral-800 bg-neutral-50;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-heading font-semibold;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center px-4 py-2 rounded-lg font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2;
+  }
+  
+  .btn-primary {
+    @apply bg-primary-600 hover:bg-primary-700 text-white focus:ring-primary-500;
+  }
+  
+  .btn-secondary {
+    @apply bg-secondary-600 hover:bg-secondary-700 text-white focus:ring-secondary-500;
+  }
+  
+  .btn-accent {
+    @apply bg-accent-500 hover:bg-accent-600 text-white focus:ring-accent-400;
+  }
+  
+  .btn-outline {
+    @apply border border-neutral-300 hover:bg-neutral-100 text-neutral-700 focus:ring-neutral-400;
+  }
+  
+  .card {
+    @apply bg-white rounded-xl shadow-card p-4 transition-shadow duration-200 hover:shadow-lg;
+  }
+  
+  .input {
+    @apply w-full border border-neutral-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent;
+  }
+  
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+  
+  .badge-primary {
+    @apply bg-primary-100 text-primary-800;
+  }
+  
+  .badge-secondary {
+    @apply bg-secondary-100 text-secondary-800;
+  }
+  
+  .badge-accent {
+    @apply bg-accent-100 text-accent-800;
+  }
+  
+  .badge-neutral {
+    @apply bg-neutral-100 text-neutral-800;
+  }
+}
+
+@layer utilities {
+  .overflow-wrap-anywhere {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    hyphens: auto;
+  }
+  
+  /* Ensure links in mobile chat don't overflow */
+  .mobile-chat-message a {
+    word-break: break-all;
+    overflow-wrap: break-word;
+    display: inline-block;
+    max-width: 100%;
+    text-decoration: underline;
+    color: #0284c7; /* primary-600 */
+  }
+  
+  /* Fix for markdown link syntax showing up */
+  .mobile-chat-message p {
+    overflow-wrap: break-word;
+    word-break: break-word;
+  }
+}

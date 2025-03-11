@@ -6,10 +6,10 @@ An open source conversational AI assistant, featuring text-to-speech capabilitie
 
 This repository contains four interconnected projects:
 
-1. **Server** - Backend server application
-2. **Client** - Frontend web application
-3. **Chroma** - Vector database for embeddings
-4. **API** - JavaScript/TypeScript client library
+1. **server** - Backend server application
+2. **examples** - Sample applications using the server api
+3. **chroma** - Vector database for embeddings
+4. **api** - JavaScript/TypeScript client library
 
 ## Prerequisites
 
@@ -77,15 +77,16 @@ curl -X POST "https://api.elevenlabs.io/v1/text-to-speech/XrExE9yKIg1WjnnlVkGX" 
 npm run server -- ollama #or hf for hugging face
 ```
 
-## Client
+## Examples
 
-The client is a web-based frontend application that interacts with the server and API.
+These are simple web chatbots that interacts with the server using the API.
 
 ### Setup and Installation
 
 ```bash
-cd client
+cd examples/simple-chatbot
 npm install
+npm run dev
 ```
 
 ### Configuration

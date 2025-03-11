@@ -22,7 +22,7 @@ Create a `.env` by copying from .env.example:
 
 3. Build the api interface:
 ```bash
-cd ../api
+cd ../../api
 npm install
 npm test
 npm run build
