@@ -7,7 +7,7 @@ ollama:
   num_predict: 1024
   num_ctx: 2048
   num_threads: 8
-  model: "llama3.1:8b"
+  model: "llama3.2:3b"
   embed_model: "nomic-embed-text"
 
 huggingface:

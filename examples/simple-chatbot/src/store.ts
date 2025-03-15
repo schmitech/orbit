@@ -35,9 +35,18 @@ export const useChatStore = create<ChatState>((set) => ({
       const messages = [...state.messages];
       if (messages.length > 0) {
         const lastMessage = messages[messages.length - 1];
+        
+        // Check if the content contains audio data markers and strip them out
+        // This prevents audio data from being displayed in the message
+        let cleanContent = content;
+        if (content.includes('//')) {
+          // Only keep the text part before the audio data marker
+          cleanContent = content.split('//')[0];
+        }
+        
         messages[messages.length - 1] = {
           ...lastMessage,
-          content: lastMessage.content + content,
+          content: lastMessage.content + cleanContent,
         };
       }
       return { messages };

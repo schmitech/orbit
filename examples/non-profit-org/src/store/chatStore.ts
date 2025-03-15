@@ -44,7 +44,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       let receivedAnyText = false;
       
       try {
-        // Use the streamChat function from api.ts with the voiceEnabled state
+        // Use the streamChat function from chatbot-api with the voiceEnabled state
         for await (const chunk of streamChat(content, get().voiceEnabled)) {
           if (chunk.text) {
             // Append the text to the last message
