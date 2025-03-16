@@ -90,24 +90,57 @@ const client = new ChromaClient({
 // Modify the template loading function
 async function loadSystemTemplate(templatePath: string): Promise<string> {
   try {
-    console.log('Loading system template from:', path.resolve(templatePath));
-    const template = await fs.readFile(templatePath, 'utf-8');
-    const systemMatch = template.match(/SYSTEM\s*"""\s*([\s\S]*?)\s*"""/);
-    const systemPrompt = systemMatch ? systemMatch[1].trim() : '';
+    // Handle relative paths that start with ../ by resolving from __dirname
+    let resolvedPath;
+    if (templatePath.startsWith('../')) {
+      // Remove the src part from __dirname when using ../ paths
+      const parentDir = path.dirname(__dirname);
+      resolvedPath = path.resolve(parentDir, templatePath.substring(3));
+    } else {
+      resolvedPath = path.resolve(__dirname, templatePath);
+    }
     
-    console.log('Loaded system prompt (first 100 chars):', systemPrompt.substring(0, 100) + '...');
+    if (process.env.VERBOSE === 'true') {
+      console.log('Loading system template from:', resolvedPath);
+    }
+    
+    const template = await fs.readFile(resolvedPath, 'utf-8');
+    const systemMatch = template.match(/SYSTEM\s*"""\s*([\s\S]*?)\s*"""/);
+    
+    if (!systemMatch) {
+      console.error('No SYSTEM section found in template file');
+      return '';
+    }
+    
+    const systemPrompt = systemMatch[1].trim();
+    if (process.env.VERBOSE === 'true') {
+      console.log('Loaded system prompt (first 100 chars):', systemPrompt.substring(0, 100) + '...');
+      console.log('Full system prompt length:', systemPrompt.length);
+    }
+    
+    if (!systemPrompt) {
+      console.error('Empty system prompt found in template');
+      return '';
+    }
+    
     return systemPrompt;
   } catch (error) {
     console.error('Error loading system template:', error);
     if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
-      console.error('Template file not found at:', path.resolve(templatePath));
+      console.error('Template file not found at:', templatePath);
+      console.error('Resolved path:', path.resolve(__dirname, templatePath));
     }
     return '';
   }
 }
 
 // Modify Ollama initialization with additional parameters
-const systemTemplate = await loadSystemTemplate(process.env.SYSTEM_TEMPLATE_PATH || './templates/default.txt');
+const systemTemplate = await loadSystemTemplate(process.env.SYSTEM_TEMPLATE_PATH || './templates/qa.txt');
+
+if (!systemTemplate) {
+  console.error('Failed to load system template. Exiting...');
+  process.exit(1);
+}
 
 const llm = new Ollama({
   baseUrl: process.env.OLLAMA_BASE_URL,
@@ -123,25 +156,27 @@ const llm = new Ollama({
   // stop: ['<|start_header_id|>', '<|end_header_id|>', '<|eot_id|>'],
   fetch: async (input: RequestInfo, init?: RequestInit) => {
     const url = typeof input === 'string' ? input : input.url;
-    console.log('\n--- Ollama API Call ---');
-    console.log('Endpoint:', url.replace(process.env.OLLAMA_BASE_URL!, ''));
-    
-    if (init?.body) {
-      const body = JSON.parse(init.body.toString());
-      console.log('Payload:', {
-        model: body.model,
-        prompt: body.prompt,  // Log full prompt
-        system: body.system,  // Log system prompt
-        options: body.options
-      });
+    if (process.env.VERBOSE === 'true') {
+      console.log('\n--- Ollama API Call ---');
+      console.log('Endpoint:', url.replace(process.env.OLLAMA_BASE_URL!, ''));
+      
+      if (init?.body) {
+        const body = JSON.parse(init.body.toString());
+        console.log('\nFull Request Body:');
+        console.log(JSON.stringify(body, null, 2));
+        console.log('\nSystem Prompt:', body.system);
+        console.log('\nUser Prompt:', body.prompt);
+        console.log('\nOptions:', body.options);
+      }
+      
+      const start = Date.now();
+      const response = await fetch(input, init);
+      console.log(`\nDuration: ${Date.now() - start}ms`);
+      console.log('Status:', response.status);
+      
+      return response;
     }
-    
-    const start = Date.now();
-    const response = await fetch(input, init);
-    console.log(`Duration: ${Date.now() - start}ms`);
-    console.log('Status:', response.status);
-    
-    return response;
+    return fetch(input, init);
   }
 } as any);
 
@@ -157,16 +192,16 @@ const embeddingWrapper = new OllamaEmbeddingWrapper(embeddings);
 // Use the wrapper in Chroma collection methods
 let collection;
 try {
-  collection = await client.createCollection({
-    name: process.env.CHROMA_COLLECTION || 'qa-chatbot',
-    embeddingFunction: embeddingWrapper,
-    metadata: { "hnsw:space": "cosine" }
-  });
-} catch (error) {
   collection = await client.getCollection({
     name: process.env.CHROMA_COLLECTION || 'qa-chatbot',
     embeddingFunction: embeddingWrapper
   });
+  if (process.env.VERBOSE === 'true') {
+    console.log('Successfully connected to existing Chroma collection');
+  }
+} catch (error) {
+  console.error('Failed to get Chroma collection:', error);
+  process.exit(1);
 }
 
 const retriever = new ChromaRetriever(collection, embeddingWrapper);
@@ -176,23 +211,38 @@ const formatDocuments = (docs: Document[]): string => {
   const verbose = process.env.VERBOSE === 'true';
   
   if (verbose) {
-    console.log('\n=== Retrieved Documents ===');
+    console.log('\n=== Format Documents ===');
     console.log('Number of documents:', docs.length);
-    console.log('First document:', docs[0]);
-    console.log('First document metadata:', docs[0]?.metadata);
+    if (docs.length > 0) {
+      console.log('First document content:', docs[0].pageContent);
+      console.log('First document metadata:', JSON.stringify(docs[0].metadata, null, 2));
+    }
   }
   
-  if (!docs.length || docs[0]?.metadata?.isGeneral) {
+  // Check if we have any documents
+  if (!docs.length) {
+    console.error('No documents returned from retriever');
+    return 'NO_RELEVANT_CONTEXT';
+  }
+  
+  // Check if the document is a general flag
+  if (docs[0]?.metadata?.isGeneral) {
     if (verbose) {
-      console.log('No relevant documents found or general document returned');
+      console.log('General document flag detected');
     }
+    return 'NO_RELEVANT_CONTEXT';
+  }
+  
+  // Check for empty content
+  if (!docs[0].pageContent || docs[0].pageContent.trim() === '') {
+    console.error('Empty document content returned');
     return 'NO_RELEVANT_CONTEXT';
   }
   
   // If the document has metadata with an answer field, return just that answer
   if (docs[0]?.metadata?.answer) {
     if (verbose) {
-      console.log('\n=== Using Answer from Metadata ===');
+      console.log('\nUsing Answer from Metadata:');
       console.log('Answer:', docs[0].metadata.answer);
       console.log('Distance:', docs[0].metadata.distance || 'N/A');
     }
@@ -201,7 +251,7 @@ const formatDocuments = (docs: Document[]): string => {
   
   // Fallback to original behavior if no metadata
   if (verbose) {
-    console.log('\n=== Using Document Content (Fallback) ===');
+    console.log('\nUsing Document Content (Fallback):');
     console.log('Content:', docs[0].pageContent);
   }
   return docs[0].pageContent;
@@ -217,44 +267,28 @@ if (!['ollama', 'hf'].includes(backend)) {
   process.exit(1);
 }
 
-console.log(`Using ${backend} backend`);
-
-// Add this logging block after backend selection
-console.log('Environment Variables:');
-const commonVars = {
-  CHROMA_HOST: process.env.CHROMA_HOST,
-  CHROMA_PORT: process.env.CHROMA_PORT,
-  CHROMA_COLLECTION: process.env.CHROMA_COLLECTION,
-  SYSTEM_TEMPLATE_PATH: process.env.SYSTEM_TEMPLATE_PATH,
-  VERBOSE: process.env.VERBOSE,
-};
-
-if (backend === 'ollama') {
-  console.log({
-    ...commonVars,
-    OLLAMA_BASE_URL: process.env.OLLAMA_BASE_URL,
-    OLLAMA_MODEL: process.env.OLLAMA_MODEL,
-    OLLAMA_EMBED_MODEL: process.env.OLLAMA_EMBED_MODEL,
-    OLLAMA_TEMPERATURE: process.env.OLLAMA_TEMPERATURE,
-    OLLAMA_NUM_PREDICT: process.env.OLLAMA_NUM_PREDICT,
-    OLLAMA_NUM_CTX: process.env.OLLAMA_NUM_CTX,
-    OLLAMA_NUM_THREADS: process.env.OLLAMA_NUM_THREADS,
-    OLLAMA_TOP_P: process.env.OLLAMA_TOP_P,
-    OLLAMA_TOP_K: process.env.OLLAMA_TOP_K,
-    OLLAMA_REPEAT_PENALTY: process.env.OLLAMA_REPEAT_PENALTY,
-  });
-} else {
-  console.log({
-    ...commonVars,
-    HUGGINGFACE_MODEL: process.env.HUGGINGFACE_MODEL,
-    // Masking sensitive data
-    HUGGINGFACE_API_KEY: process.env.HUGGINGFACE_API_KEY ? '****' : undefined,
-  });
+if (process.env.VERBOSE === 'true') {
+  console.log(`Using ${backend} backend`);
+  console.log('Environment Variables:');
+  const commonVars = {
+    CHROMA_HOST: process.env.CHROMA_HOST,
+    CHROMA_PORT: process.env.CHROMA_PORT,
+    CHROMA_COLLECTION: process.env.CHROMA_COLLECTION,
+    SYSTEM_TEMPLATE_PATH: process.env.SYSTEM_TEMPLATE_PATH,
+    VERBOSE: process.env.VERBOSE,
+  };
+  console.log(commonVars);
 }
 
 // Modify the chain creation to add logging
 const createChain = (backend: Backend) => {
   const verbose = process.env.VERBOSE === 'true';
+  
+  if (verbose) {
+    console.log('\n=== Chain Configuration ===');
+    console.log('System template length:', systemTemplate.length);
+    console.log('System template preview:', systemTemplate.substring(0, 100) + '...');
+  }
   
   if (backend === 'ollama') {
     return RunnableSequence.from([
@@ -275,6 +309,15 @@ const createChain = (backend: Backend) => {
           console.log(context);
         }
         
+        // Handle the case where no relevant context is found
+        if (context === 'NO_RELEVANT_CONTEXT') {
+          return {
+            context: "NO_RELEVANT_CONTEXT",
+            question: input.query,
+            system: systemTemplate,
+          };
+        }
+        
         return {
           context,
           question: input.query,
@@ -290,9 +333,17 @@ USER QUESTION: {question}
 ANSWER:`),
       async (input: string) => {
         if (verbose) {
-          console.log('\n=== Final Prompt to Ollama ===\n', input);
+          console.log('\n=== Final Prompt to Ollama ===');
+          console.log('Complete Prompt:');
+          console.log(input);
+          console.log('\nPrompt Length:', input.length);
         }
-        return llm.invoke(input);
+        const response = await llm.invoke(input);
+        if (verbose) {
+          console.log('\n=== Ollama Response ===');
+          console.log(response);
+        }
+        return response;
       },
       new StringOutputParser(),
     ]);
@@ -305,7 +356,10 @@ ANSWER:`),
         
         if (context === 'NO_RELEVANT_CONTEXT') {
           return {
-            answer: "I'm sorry, but I don't have enough relevant information to answer your question accurately.",
+            context: "NO_RELEVANT_CONTEXT",
+            question: input.query,
+            system: systemTemplate,
+            directAnswer: "I don't have specific information about that in my database."
           };
         }
 
@@ -328,6 +382,10 @@ ANSWER:`),
         };
       },
       async (input: any) => {
+        if (input.directAnswer) {
+          return input.directAnswer;
+        }
+        
         if (input.useOllama) {
           const prompt = PromptTemplate.fromTemplate(`SYSTEM: {system}
 
