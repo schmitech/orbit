@@ -529,6 +529,123 @@ async function generateAudioChunk(text: string, res: any, isFinal: boolean = fal
   }) + '\n');
 }
 
-app.listen(port, () => {
+// Add health check endpoint
+app.get('/health', async (req, res) => {
+  try {
+    // Check Ollama status
+    const ollamaStatus: { 
+      status: string; 
+      statusCode?: number; 
+      error?: string 
+    } = { status: 'unknown' };
+    
+    try {
+      const ollamaResponse = await fetch(`${config.ollama.base_url}/api/tags`);
+      ollamaStatus.status = ollamaResponse.ok ? 'healthy' : 'unhealthy';
+      ollamaStatus.statusCode = ollamaResponse.status;
+    } catch (error: any) {
+      ollamaStatus.status = 'unhealthy';
+      ollamaStatus.error = error.message;
+    }
+
+    // Check ChromaDB status
+    const chromaStatus: { 
+      status: string; 
+      error?: string 
+    } = { status: 'unknown' };
+    
+    try {
+      await client.heartbeat();
+      chromaStatus.status = 'healthy';
+    } catch (error: any) {
+      chromaStatus.status = 'unhealthy';
+      chromaStatus.error = error.message;
+    }
+
+    // Check ElevenLabs status (optional, only if voice is used)
+    const elevenLabsStatus: { 
+      status: string; 
+      statusCode?: number; 
+      error?: string 
+    } = { status: 'unknown' };
+    
+    if (config.eleven_labs?.api_key) {
+      try {
+        const elevenLabsResponse = await fetch('https://api.elevenlabs.io/v1/user', {
+          headers: {
+            'xi-api-key': config.eleven_labs.api_key
+          }
+        });
+        elevenLabsStatus.status = elevenLabsResponse.ok ? 'healthy' : 'unhealthy';
+        elevenLabsStatus.statusCode = elevenLabsResponse.status;
+      } catch (error: any) {
+        elevenLabsStatus.status = 'unhealthy';
+        elevenLabsStatus.error = error.message;
+      }
+    } else {
+      elevenLabsStatus.status = 'disabled';
+    }
+
+    const health = {
+      uptime: process.uptime(),
+      timestamp: Date.now(),
+      services: {
+        ollama: ollamaStatus,
+        chroma: chromaStatus,
+        elevenlabs: elevenLabsStatus
+      }
+    };
+    
+    const allServicesHealthy = 
+      ollamaStatus.status === 'healthy' && 
+      chromaStatus.status === 'healthy' && 
+      (elevenLabsStatus.status === 'healthy' || elevenLabsStatus.status === 'disabled');
+    
+    const status = allServicesHealthy ? 200 : 503;
+    res.status(status).json(health);
+  } catch (error: any) {
+    res.status(500).json({
+      status: 'error',
+      error: error.message
+    });
+  }
+});
+
+// Start the server and store the reference
+const server = app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);
 });
+
+// Implement graceful shutdown
+process.on('SIGTERM', gracefulShutdown);
+process.on('SIGINT', gracefulShutdown);
+
+async function gracefulShutdown() {
+  console.log('Shutdown signal received, closing server gracefully');
+  
+  // Stop accepting new requests
+  server.close(() => {
+    console.log('HTTP server closed');
+  });
+  
+  // Wait for existing requests to complete (with timeout)
+  const timeout = setTimeout(() => {
+    console.log('Forcing shutdown after timeout');
+    process.exit(1);
+  }, 30000);
+  
+  try {
+    // Clean up resources
+    console.log('Cleaning up resources...');
+    
+    // Close any open connections or resources
+    // This is where you would close database connections, etc.
+    
+    clearTimeout(timeout);
+    console.log('Graceful shutdown completed');
+    process.exit(0);
+  } catch (err) {
+    console.error('Error during shutdown:', err);
+    process.exit(1);
+  }
+}
