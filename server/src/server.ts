@@ -99,10 +99,8 @@ async function loadSystemTemplate(templatePath: string): Promise<string> {
     } else {
       resolvedPath = path.resolve(__dirname, templatePath);
     }
-    
-    if (process.env.VERBOSE === 'true') {
-      console.log('Loading system template from:', resolvedPath);
-    }
+  
+    console.log('Loading system template from:', resolvedPath);  
     
     const template = await fs.readFile(resolvedPath, 'utf-8');
     const systemMatch = template.match(/SYSTEM\s*"""\s*([\s\S]*?)\s*"""/);
@@ -183,7 +181,7 @@ const llm = new Ollama({
 // Initialize Ollama embeddings instead of OpenAI
 const embeddings = new OllamaEmbeddings({
   baseUrl: process.env.OLLAMA_BASE_URL,
-  model: process.env.OLLAMA_EMBED_MODEL || 'bge-m3',
+  model: process.env.OLLAMA_EMBED_MODEL || 'nomic-embed-text',
 });
 
 // Create the wrapper instance
@@ -196,9 +194,9 @@ try {
     name: process.env.CHROMA_COLLECTION || 'qa-chatbot',
     embeddingFunction: embeddingWrapper
   });
-  if (process.env.VERBOSE === 'true') {
-    console.log('Successfully connected to existing Chroma collection');
-  }
+  
+  console.log('Successfully connected to existing Chroma collection: ' + process.env.CHROMA_COLLECTION);
+  
 } catch (error) {
   console.error('Failed to get Chroma collection:', error);
   process.exit(1);
