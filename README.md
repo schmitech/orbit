@@ -34,19 +34,33 @@ npm install
 
 Create a `.env` file in the server directory based on the provided `.env.example` template.
 
-### Setting up ChromaDB (if not running separately)
+### Setting up ChromaDB
 
+#### Option 1: Using Python venv (Recommended)
 ```bash
 cd server
 python -m venv venv 
-source venv/bin/activate
+source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
+
+#### Option 2: Using Docker
+```bash
+docker pull chromadb/chroma
+docker run -p 8000:8000 chromadb/chroma
+```
+
+> **Note:** If you have Conda installed and see `(base)` in your terminal prompt, it may interfere with Python venv creation. Run `conda deactivate` before creating venv environments or use `conda config --set auto_activate_base false` to prevent automatic activation.
 
 ### Running ChromaDB
 
 ```bash
 chroma run --host localhost --port 8000 --path ./chroma_db
+```
+
+To check your ChromaDB version:
+```bash
+python -c "import chromadb; print(chromadb.__version__)"
 ```
 
 ### Ingesting Data
