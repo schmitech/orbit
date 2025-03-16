@@ -1,6 +1,5 @@
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import { ChromaClient } from 'chromadb';
 import { Ollama } from '@langchain/community/llms/ollama';
 import { RunnableSequence } from '@langchain/core/runnables';
@@ -14,57 +13,68 @@ import path from 'path';
 import { fileURLToPath } from 'node:url';
 import { questionAnswerWithHuggingFace } from './huggingface';
 import fs from 'fs/promises';
+import yaml from 'js-yaml';
+
+// Define config interface
+interface AppConfig {
+  ollama: {
+    base_url: string;
+    temperature: number | string;
+    top_p: number | string;
+    top_k: number | string;
+    repeat_penalty: number | string;
+    num_predict: number | string;
+    num_ctx: number | string;
+    num_threads: number | string;
+    model: string;
+    embed_model: string;
+  };
+  huggingface: {
+    api_key: string;
+    model: string;
+  };
+  chroma: {
+    host: string;
+    port: number | string;
+    collection: string;
+  };
+  eleven_labs: {
+    api_key: string;
+    voice_id: string;
+  };
+  system: {
+    template_path: string;
+  };
+  general: {
+    verbose: string;
+  };
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Add this before dotenv.config()
-const envVarsToReset = [
-  'OLLAMA_BASE_URL',
-  'OLLAMA_MODEL',
-  'OLLAMA_EMBED_MODEL',
-  'CHROMA_HOST',
-  'CHROMA_COLLECTION',
-  'CHROMA_PORT',
-  'OLLAMA_NUM_PREDICT',
-  'OLLAMA_NUM_CTX',
-  'OLLAMA_NUM_THREADS',
-  'OLLAMA_TOP_P',
-  'OLLAMA_TOP_K',
-  'OLLAMA_REPEAT_PENALTY',
-  'HUGGINGFACE_API_KEY',
-  'HUGGINGFACE_MODEL',
-  'ELEVEN_LABS_API_KEY',
-  'ELEVEN_LABS_VOICE_ID',
-  'SYSTEM_TEMPLATE_PATH',
-];
-
-envVarsToReset.forEach(variable => {
-  if (process.env[variable]) {
-    console.log(`Clearing existing ${variable}`);
-    delete process.env[variable];
-  }
-});
-
-// Add after path resolution but before dotenv.config()
+// Replace env vars reset with config loading
+// Load config.yaml instead of .env
+let config: AppConfig;
 try {
-  const envPath = path.resolve(__dirname, '../.env');
-  console.log('Loading .env from:', envPath);
+  const configPath = path.resolve(__dirname, '../config.yaml');
+  console.log('Loading config from:', configPath);
   
-  // const envContents = await fs.readFile(envPath, 'utf-8');
-  // console.log('.env file contents:\n', envContents);
+  const configFile = await fs.readFile(configPath, 'utf-8');
+  config = yaml.load(configFile) as AppConfig;
+  
+  if (config.general?.verbose === 'true') {
+    console.log('Loaded configuration:', JSON.stringify(config, null, 2));
+  }
 } catch (error) {
-  console.error('Error reading .env file:', error);
+  console.error('Error reading config file:', error);
   process.exit(1);
 }
 
-// Then load .env
-dotenv.config({ path: path.resolve(__dirname, '../.env') });
-
-// Add this after the environment variables log
+// Add this after the config loading
 async function verifyOllamaConnection() {
   try {
-    const response = await fetch(`${process.env.OLLAMA_BASE_URL}/api/tags`);
+    const response = await fetch(`${config.ollama.base_url}/api/tags`);
     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
     console.log('Ollama connection successful');
   } catch (error) {
@@ -84,23 +94,26 @@ const port = 3000;
 
 // Initialize ChromaDB with proper configuration
 const client = new ChromaClient({
-    path: `http://${process.env.CHROMA_HOST}:${process.env.CHROMA_PORT}`
-  });
+    path: `http://${config.chroma.host}:${config.chroma.port}`
+});
 
-// Modify the template loading function
+// Modify the template loading function to use config
 async function loadSystemTemplate(templatePath: string): Promise<string> {
   try {
-    // Handle relative paths that start with ../ by resolving from __dirname
+    // Handle relative paths that start with ./ by resolving from __dirname
     let resolvedPath;
-    if (templatePath.startsWith('../')) {
-      // Remove the src part from __dirname when using ../ paths
+    if (templatePath.startsWith('./')) {
+      resolvedPath = path.resolve(__dirname, templatePath);
+    } else if (templatePath.startsWith('../')) {
       const parentDir = path.dirname(__dirname);
       resolvedPath = path.resolve(parentDir, templatePath.substring(3));
     } else {
       resolvedPath = path.resolve(__dirname, templatePath);
     }
-  
-    console.log('Loading system template from:', resolvedPath);  
+    
+    if (config.general?.verbose === 'true') {
+      console.log('Loading system template from:', resolvedPath);
+    }
     
     const template = await fs.readFile(resolvedPath, 'utf-8');
     const systemMatch = template.match(/SYSTEM\s*"""\s*([\s\S]*?)\s*"""/);
@@ -111,7 +124,7 @@ async function loadSystemTemplate(templatePath: string): Promise<string> {
     }
     
     const systemPrompt = systemMatch[1].trim();
-    if (process.env.VERBOSE === 'true') {
+    if (config.general?.verbose === 'true') {
       console.log('Loaded system prompt (first 100 chars):', systemPrompt.substring(0, 100) + '...');
       console.log('Full system prompt length:', systemPrompt.length);
     }
@@ -132,8 +145,8 @@ async function loadSystemTemplate(templatePath: string): Promise<string> {
   }
 }
 
-// Modify Ollama initialization with additional parameters
-const systemTemplate = await loadSystemTemplate(process.env.SYSTEM_TEMPLATE_PATH || './templates/qa.txt');
+// Modify Ollama initialization with config parameters
+const systemTemplate = await loadSystemTemplate(config.system.template_path);
 
 if (!systemTemplate) {
   console.error('Failed to load system template. Exiting...');
@@ -141,22 +154,22 @@ if (!systemTemplate) {
 }
 
 const llm = new Ollama({
-  baseUrl: process.env.OLLAMA_BASE_URL,
-  model: process.env.OLLAMA_MODEL || 'llama3.2:3b',
-  temperature: process.env.OLLAMA_TEMPERATURE ? parseFloat(process.env.OLLAMA_TEMPERATURE) : 0.1,
+  baseUrl: config.ollama.base_url,
+  model: config.ollama.model,
+  temperature: parseFloat(String(config.ollama.temperature)),
   system: systemTemplate,
-  numPredict: process.env.OLLAMA_NUM_PREDICT ? parseInt(process.env.OLLAMA_NUM_PREDICT) : 1024,
-  repeatPenalty: process.env.OLLAMA_REPEAT_PENALTY ? parseFloat(process.env.OLLAMA_REPEAT_PENALTY) : 1.0,
-  numCtx: process.env.OLLAMA_NUM_CTX ? parseInt(process.env.OLLAMA_NUM_CTX) : 2048,
-  numThread: process.env.OLLAMA_NUM_THREADS ? parseInt(process.env.OLLAMA_NUM_THREADS) : 8,
-  top_p: process.env.OLLAMA_TOP_P ? parseFloat(process.env.OLLAMA_TOP_P) : 0.9,
-  top_k: process.env.OLLAMA_TOP_K ? parseInt(process.env.OLLAMA_TOP_K) : 50,
+  numPredict: parseInt(String(config.ollama.num_predict)),
+  repeatPenalty: parseFloat(String(config.ollama.repeat_penalty)),
+  numCtx: parseInt(String(config.ollama.num_ctx)),
+  numThread: parseInt(String(config.ollama.num_threads)),
+  top_p: parseFloat(String(config.ollama.top_p)),
+  top_k: parseInt(String(config.ollama.top_k)),
   // stop: ['<|start_header_id|>', '<|end_header_id|>', '<|eot_id|>'],
   fetch: async (input: RequestInfo, init?: RequestInit) => {
     const url = typeof input === 'string' ? input : input.url;
-    if (process.env.VERBOSE === 'true') {
+    if (config.general?.verbose === 'true') {
       console.log('\n--- Ollama API Call ---');
-      console.log('Endpoint:', url.replace(process.env.OLLAMA_BASE_URL!, ''));
+      console.log('Endpoint:', url.replace(config.ollama.base_url!, ''));
       
       if (init?.body) {
         const body = JSON.parse(init.body.toString());
@@ -178,10 +191,10 @@ const llm = new Ollama({
   }
 } as any);
 
-// Initialize Ollama embeddings instead of OpenAI
+// Initialize Ollama embeddings with config
 const embeddings = new OllamaEmbeddings({
-  baseUrl: process.env.OLLAMA_BASE_URL,
-  model: process.env.OLLAMA_EMBED_MODEL || 'nomic-embed-text',
+  baseUrl: config.ollama.base_url,
+  model: config.ollama.embed_model,
 });
 
 // Create the wrapper instance
@@ -191,11 +204,11 @@ const embeddingWrapper = new OllamaEmbeddingWrapper(embeddings);
 let collection;
 try {
   collection = await client.getCollection({
-    name: process.env.CHROMA_COLLECTION || 'qa-chatbot',
+    name: config.chroma.collection || 'qa-chatbot',
     embeddingFunction: embeddingWrapper
   });
   
-  console.log('Successfully connected to existing Chroma collection: ' + process.env.CHROMA_COLLECTION);
+  console.log('Successfully connected to existing Chroma collection: ' + config.chroma.collection);
   
 } catch (error) {
   console.error('Failed to get Chroma collection:', error);
@@ -206,7 +219,7 @@ const retriever = new ChromaRetriever(collection, embeddingWrapper);
 
 // Helper function to format documents as string
 const formatDocuments = (docs: Document[]): string => {
-  const verbose = process.env.VERBOSE === 'true';
+  const verbose = config.general?.verbose === 'true';
   
   if (verbose) {
     console.log('\n=== Format Documents ===');
@@ -265,22 +278,22 @@ if (!['ollama', 'hf'].includes(backend)) {
   process.exit(1);
 }
 
-if (process.env.VERBOSE === 'true') {
+if (config.general?.verbose === 'true') {
   console.log(`Using ${backend} backend`);
   console.log('Environment Variables:');
   const commonVars = {
-    CHROMA_HOST: process.env.CHROMA_HOST,
-    CHROMA_PORT: process.env.CHROMA_PORT,
-    CHROMA_COLLECTION: process.env.CHROMA_COLLECTION,
-    SYSTEM_TEMPLATE_PATH: process.env.SYSTEM_TEMPLATE_PATH,
-    VERBOSE: process.env.VERBOSE,
+    CHROMA_HOST: config.chroma.host,
+    CHROMA_PORT: config.chroma.port,
+    CHROMA_COLLECTION: config.chroma.collection,
+    SYSTEM_TEMPLATE_PATH: config.system.template_path,
+    VERBOSE: config.general.verbose,
   };
   console.log(commonVars);
 }
 
 // Modify the chain creation to add logging
 const createChain = (backend: Backend) => {
-  const verbose = process.env.VERBOSE === 'true';
+  const verbose = config.general?.verbose === 'true';
   
   if (verbose) {
     console.log('\n=== Chain Configuration ===');
@@ -361,7 +374,7 @@ ANSWER:`),
           };
         }
 
-        const qaResult = await questionAnswerWithHuggingFace(context, input.query);
+        const qaResult = await questionAnswerWithHuggingFace(context, input.query, config);
         
         // If confidence is too low, fall back to Ollama
         if (qaResult.score < 0.1) {
@@ -478,13 +491,13 @@ async function generateAudioChunk(text: string, res: any, isFinal: boolean = fal
   console.log('Generating audio for:', text);
 
   const response = await fetch(
-    `https://api.elevenlabs.io/v1/text-to-speech/${process.env.ELEVEN_LABS_VOICE_ID}/stream`,
+    `https://api.elevenlabs.io/v1/text-to-speech/${config.eleven_labs.voice_id}/stream`,
     {
       method: 'POST',
       headers: {
         'Accept': 'audio/mpeg',
         'Content-Type': 'application/json',
-        'xi-api-key': process.env.ELEVEN_LABS_API_KEY || '',
+        'xi-api-key': config.eleven_labs.api_key || '',
       },
       body: JSON.stringify({
         text,

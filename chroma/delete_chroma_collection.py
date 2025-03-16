@@ -3,7 +3,7 @@ import yaml
 import chromadb
 
 def load_config():
-    with open('../config.yaml', 'r') as file:
+    with open('config.yaml', 'r') as file:
         return yaml.safe_load(file)
 
 def delete_chroma_collection(collection_name: str):

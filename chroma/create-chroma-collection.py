@@ -8,7 +8,7 @@ import chromadb
 import argparse
 
 def load_config():
-    with open('../config.yaml', 'r') as file:
+    with open('config.yaml', 'r') as file:
         return yaml.safe_load(file)
 
 def ingest_to_chroma(

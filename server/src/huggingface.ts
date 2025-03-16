@@ -7,13 +7,14 @@ interface QAResponse {
 
 export async function questionAnswerWithHuggingFace(
   context: string,
-  question: string
+  question: string,
+  config: any
 ): Promise<QAResponse> {
-  const verbose = process.env.VERBOSE === 'true';
-  const hf = new HfInference(process.env.HUGGINGFACE_API_KEY);
+  const verbose = config.general?.verbose === 'true';
+  const hf = new HfInference(config.huggingface.api_key);
   
   const result = await hf.questionAnswering({
-    model: 'deepset/roberta-base-squad2',
+    model: config.huggingface.model || 'deepset/roberta-base-squad2',
     inputs: {
       question: question,
       context: context

@@ -6,7 +6,7 @@ import chromadb
 from dotenv import load_dotenv
 
 def load_config():
-    with open('../config.yaml', 'r') as file:
+    with open('config.yaml', 'r') as file:
         return yaml.safe_load(file)
 
 def test_chroma_ingestion(ollama_base_url: str, test_query: str):

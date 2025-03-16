@@ -21,7 +21,21 @@ A Node.js server for Q/A chatbots with text-to-speech capabilities.
 npm install
 ```
 
-2. Create .env from .env.example
+2. Configure the application
+   
+   The application uses a YAML configuration file (`config.yaml`) instead of environment variables. A sample configuration file is provided:
+   
+   ```bash
+   # Copy the example config and modify as needed
+   cp config.yaml.example config.yaml
+   ```
+   
+   Edit the `config.yaml` file to set your:
+   - Ollama parameters (model, temperature, etc.)
+   - HuggingFace API key
+   - ChromaDB connection details
+   - ElevenLabs API key and voice ID
+   - System template path
 
 3. Install Chroma server (skip if chroma is running separately)
    ```bash
@@ -42,6 +56,43 @@ python ../chroma/create-chroma-collection.py qa-pairs.json
 5.1 Test ingested data, example:
 ```bash
 python ../chroma/query-chroma-collection.py "Where can I view the assessment roll for my property taxes?"
+```
+
+## Configuration Options
+
+The `config.yaml` file contains the following sections:
+
+```yaml
+ollama:
+  base_url: "http://localhost:11434"  # URL of your Ollama server
+  temperature: 0.0                    # Controls randomness (0.0 = deterministic)
+  top_p: 0.1                          # Nucleus sampling parameter
+  top_k: 10                           # Limits token selection to top K options
+  repeat_penalty: 1.2                 # Penalizes repetition
+  num_predict: 256                    # Maximum tokens to generate
+  num_ctx: 2048                       # Context window size
+  num_threads: 8                      # CPU threads to use
+  model: "llama3.2:3b"                # Ollama model to use
+  embed_model: "nomic-embed-text"     # Embedding model for vector search
+
+huggingface:
+  api_key: "your-api-key"             # HuggingFace API key
+  model: "deepset/roberta-base-squad2" # HF model for question answering
+
+chroma:
+  host: "localhost"                   # ChromaDB host
+  port: 8000                          # ChromaDB port
+  collection: "qa-chatbot"            # Collection name
+
+eleven_labs:
+  api_key: "your-api-key"             # ElevenLabs API key
+  voice_id: "voice-id"                # Voice ID to use
+
+system:
+  template_path: "../templates/qa.txt" # Path to system prompt template
+
+general:
+  verbose: "false"                    # Enable verbose logging
 ```
 
 ## Testing Text-to-Speech
