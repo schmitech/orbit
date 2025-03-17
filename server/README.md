@@ -2,10 +2,6 @@
 
 A Node.js server for Q/A chatbots with text-to-speech capabilities.
 
-## Architecture
-
-![Architecture Overview](llm-chatbot-architecture.png)
-
 ## Prerequisites
 
 - Node.js (v16 or higher)

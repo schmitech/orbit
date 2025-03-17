@@ -11,6 +11,10 @@ This repository contains four interconnected projects:
 3. **chroma** - Vector database for embeddings
 4. **api** - JavaScript/TypeScript client library
 
+## Architecture
+
+![Architecture Overview](llm-chatbot-architecture.png)
+
 ## Prerequisites
 
 - Node.js (v16 or higher)
