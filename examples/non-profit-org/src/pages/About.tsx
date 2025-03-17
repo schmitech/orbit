@@ -80,7 +80,7 @@ export default function About() {
           <h2 className="text-3xl font-bold text-[#2C3E50] mb-8">Our History</h2>
           <div className="prose max-w-none text-gray-600">
             <p className="mb-4 text-lg">
-              Founded in 1985, the Demo Community Center began as a small gathering place
+              Founded in 1985, the City Community Center began as a small gathering place
               for neighborhood residents. Over the years, we've grown into a comprehensive
               community resource center, serving thousands of individuals and families
               annually.

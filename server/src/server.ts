@@ -43,7 +43,7 @@ interface AppConfig {
     voice_id: string;
   };
   system: {
-    template_path: string;
+    prompt: string;
   };
   general: {
     verbose: string;
@@ -97,74 +97,33 @@ const client = new ChromaClient({
     path: `http://${config.chroma.host}:${config.chroma.port}`
 });
 
-// Modify the template loading function to use config
-async function loadSystemTemplate(templatePath: string): Promise<string> {
-  try {
-    // Handle relative paths that start with ./ by resolving from __dirname
-    let resolvedPath;
-    if (templatePath.startsWith('./')) {
-      resolvedPath = path.resolve(__dirname, templatePath);
-    } else if (templatePath.startsWith('../')) {
-      const parentDir = path.dirname(__dirname);
-      resolvedPath = path.resolve(parentDir, templatePath.substring(3));
-    } else {
-      resolvedPath = path.resolve(__dirname, templatePath);
-    }
-    
-    if (config.general?.verbose === 'true') {
-      console.log('Loading system template from:', resolvedPath);
-    }
-    
-    const template = await fs.readFile(resolvedPath, 'utf-8');
-    const systemMatch = template.match(/SYSTEM\s*"""\s*([\s\S]*?)\s*"""/);
-    
-    if (!systemMatch) {
-      console.error('No SYSTEM section found in template file');
-      return '';
-    }
-    
-    const systemPrompt = systemMatch[1].trim();
-    if (config.general?.verbose === 'true') {
-      console.log('Loaded system prompt (first 100 chars):', systemPrompt.substring(0, 100) + '...');
-      console.log('Full system prompt length:', systemPrompt.length);
-    }
-    
-    if (!systemPrompt) {
-      console.error('Empty system prompt found in template');
-      return '';
-    }
-    
-    return systemPrompt;
-  } catch (error) {
-    console.error('Error loading system template:', error);
-    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
-      console.error('Template file not found at:', templatePath);
-      console.error('Resolved path:', path.resolve(__dirname, templatePath));
-    }
-    return '';
-  }
+// Check if system prompt exists in config
+if (!config.system?.prompt) {
+  console.error('No system prompt found in config.yaml. Exiting...');
+  process.exit(1);
 }
 
-// Modify Ollama initialization with config parameters
-const systemTemplate = await loadSystemTemplate(config.system.template_path);
+// Use the system prompt directly from config
+const systemPrompt = config.system.prompt;
 
-if (!systemTemplate) {
-  console.error('Failed to load system template. Exiting...');
-  process.exit(1);
+if (config.general?.verbose === 'true') {
+  console.log('Using system prompt from config.yaml:');
+  console.log(systemPrompt.substring(0, 100) + '...');
+  console.log('Full system prompt length:', systemPrompt.length);
 }
 
 const llm = new Ollama({
   baseUrl: config.ollama.base_url,
   model: config.ollama.model,
   temperature: parseFloat(String(config.ollama.temperature)),
-  system: systemTemplate,
+  system: systemPrompt,
   numPredict: parseInt(String(config.ollama.num_predict)),
   repeatPenalty: parseFloat(String(config.ollama.repeat_penalty)),
   numCtx: parseInt(String(config.ollama.num_ctx)),
   numThread: parseInt(String(config.ollama.num_threads)),
   top_p: parseFloat(String(config.ollama.top_p)),
   top_k: parseInt(String(config.ollama.top_k)),
-  // stop: ['<|start_header_id|>', '<|end_header_id|>', '<|eot_id|>'],
+  
   fetch: async (input: RequestInfo, init?: RequestInit) => {
     const url = typeof input === 'string' ? input : input.url;
     if (config.general?.verbose === 'true') {
@@ -285,7 +244,6 @@ if (config.general?.verbose === 'true') {
     CHROMA_HOST: config.chroma.host,
     CHROMA_PORT: config.chroma.port,
     CHROMA_COLLECTION: config.chroma.collection,
-    SYSTEM_TEMPLATE_PATH: config.system.template_path,
     VERBOSE: config.general.verbose,
   };
   console.log(commonVars);
@@ -297,8 +255,8 @@ const createChain = (backend: Backend) => {
   
   if (verbose) {
     console.log('\n=== Chain Configuration ===');
-    console.log('System template length:', systemTemplate.length);
-    console.log('System template preview:', systemTemplate.substring(0, 100) + '...');
+    console.log('System prompt length:', systemPrompt.length);
+    console.log('System prompt preview:', systemPrompt.substring(0, 100) + '...');
   }
   
   if (backend === 'ollama') {
@@ -325,14 +283,14 @@ const createChain = (backend: Backend) => {
           return {
             context: "NO_RELEVANT_CONTEXT",
             question: input.query,
-            system: systemTemplate,
+            system: systemPrompt,
           };
         }
         
         return {
           context,
           question: input.query,
-          system: systemTemplate,
+          system: systemPrompt,
         };
       },
       PromptTemplate.fromTemplate(`SYSTEM: {system}
@@ -369,7 +327,7 @@ ANSWER:`),
           return {
             context: "NO_RELEVANT_CONTEXT",
             question: input.query,
-            system: systemTemplate,
+            system: systemPrompt,
             directAnswer: "I don't have specific information about that in my database."
           };
         }
@@ -381,7 +339,7 @@ ANSWER:`),
           return {
             context,
             question: input.query,
-            system: systemTemplate,
+            system: systemPrompt,
             useOllama: true,
           };
         }

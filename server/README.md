@@ -61,14 +61,14 @@ The `config.yaml` file contains the following sections:
 ```yaml
 ollama:
   base_url: "http://localhost:11434"  # URL of your Ollama server
-  temperature: 0.0                    # Controls randomness (0.0 = deterministic)
-  top_p: 0.1                          # Nucleus sampling parameter
-  top_k: 10                           # Limits token selection to top K options
-  repeat_penalty: 1.2                 # Penalizes repetition
-  num_predict: 256                    # Maximum tokens to generate
-  num_ctx: 2048                       # Context window size
+  temperature: 0.01                   # Controls randomness (0.01 = very deterministic)
+  top_p: 0.9                          # Nucleus sampling parameter
+  top_k: 40                           # Limits token selection to top K options
+  repeat_penalty: 1.0                 # Penalizes repetition
+  num_predict: 1024                   # Maximum tokens to generate
+  num_ctx: 8192                       # Context window size
   num_threads: 8                      # CPU threads to use
-  model: "llama3.2:3b"                # Ollama model to use
+  model: "phi4-mini"                  # Ollama model to use
   embed_model: "nomic-embed-text"     # Embedding model for vector search
 
 huggingface:
@@ -78,14 +78,14 @@ huggingface:
 chroma:
   host: "localhost"                   # ChromaDB host
   port: 8000                          # ChromaDB port
-  collection: "qa-chatbot"            # Collection name
+  collection: "non-profit"            # Collection name
 
 eleven_labs:
   api_key: "your-api-key"             # ElevenLabs API key
-  voice_id: "voice-id"                # Voice ID to use
+  voice_id: "kPzsL2i3teMYv0FxEYQ6"    # Voice ID to use
 
 system:
-  template_path: "../templates/qa.txt" # Path to system prompt template
+  prompt: "You are a helpful assistant for a non-profit organization. ALWAYS use the information provided in the CONTEXT section to answer questions. If the exact answer is in the context, use it directly. Never say you don't have information if it's clearly provided in the context. If you're unsure, quote directly from the context."  # System prompt for the LLM
 
 general:
   verbose: "false"                    # Enable verbose logging

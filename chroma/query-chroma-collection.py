@@ -1,24 +1,70 @@
+"""
+Chroma Collection Query Tool
+===========================
+
+This script queries a Chroma vector database collection using semantic search.
+It takes a query string, generates an embedding using Ollama, and retrieves the most relevant Q&A pairs.
+
+Usage:
+    python query-chroma-collection.py [collection_name] "your query text"
+
+Arguments:
+    collection_name: (Optional) Name of the Chroma collection to query
+                     If not provided, uses the collection specified in config.yaml
+    query: The search query text (in quotes if it contains spaces)
+
+Example:
+    python query-chroma-collection.py "What are the parking rules?"
+    python query-chroma-collection.py my_collection "What are the parking rules?"
+
+Requirements:
+    - config.yaml file with Ollama and Chroma configuration
+    - Running Ollama server with the specified embedding model
+    - Running Chroma server with an existing collection
+
+Configuration (config.yaml):
+    ollama:
+      base_url: URL of the Ollama server (e.g., http://localhost:11434)
+      embed_model: Name of the embedding model to use (e.g., mxbai-embed-large)
+    chroma:
+      host: Hostname of the Chroma server
+      port: Port of the Chroma server
+      collection: Default collection name (used if not specified as argument)
+
+Process:
+    1. Connects to the Ollama server to generate embeddings
+    2. Connects to the Chroma server to access the vector database
+    3. Converts the query text into an embedding vector
+    4. Searches the collection for semantically similar content
+    5. Returns the most relevant answers with confidence scores
+"""
+
 import os
 import sys
 import yaml
 from langchain_ollama import OllamaEmbeddings
 import chromadb
+import argparse
 from dotenv import load_dotenv
 
 def load_config():
     with open('config.yaml', 'r') as file:
         return yaml.safe_load(file)
 
-def test_chroma_ingestion(ollama_base_url: str, test_query: str):
+def test_chroma_ingestion(ollama_base_url: str, test_query: str, collection_name: str = None):
     config = load_config()
 
     # Print environment variables being used
     print("\nConfiguration Variables:")
     print(f"OLLAMA_BASE_URL: {ollama_base_url}")
     print(f"OLLAMA_EMBED_MODEL: {config['ollama']['embed_model']}")
-    print(f"CHROMA_COLLECTION: {config['chroma']['collection']}")
     print(f"CHROMA_HOST: {config['chroma']['host']}")
-    print(f"CHROMA_PORT: {config['chroma']['port']}\n")
+    print(f"CHROMA_PORT: {config['chroma']['port']}")
+    
+    # Use provided collection name or fall back to config
+    if not collection_name:
+        collection_name = config['chroma']['collection']
+    print(f"CHROMA_COLLECTION: {collection_name}\n")
 
     print(f"Using Ollama server at: {ollama_base_url}")
     
@@ -31,9 +77,8 @@ def test_chroma_ingestion(ollama_base_url: str, test_query: str):
     client = chromadb.HttpClient(host=chroma_host, port=int(chroma_port))
     
     # Get the collection
-    collection_name = config['chroma']['collection']
     if not collection_name:
-        raise ValueError("CHROMA_COLLECTION environment variable is not set")
+        raise ValueError("Collection name is not provided and not set in config.yaml")
     collection = client.get_collection(name=collection_name)
     
     # Initialize the same embeddings model used in ingestion
@@ -78,7 +123,17 @@ if __name__ == "__main__":
     if not ollama_base_url:
         raise ValueError("OLLAMA_BASE_URL environment variable is not set")
     
-    # Get query from command line argument, or use default
-    test_query = " ".join(sys.argv[1:]) if len(sys.argv) > 1 else "What are the parking rules?"
+    # Set up argument parser
+    parser = argparse.ArgumentParser(description='Query a Chroma collection using semantic search')
+    parser.add_argument('query_args', nargs='+', help='Collection name (optional) followed by query text')
+    args = parser.parse_args()
     
-    test_chroma_ingestion(ollama_base_url, test_query)
+    # Check if first argument might be a collection name
+    if len(args.query_args) > 1:
+        collection_name = args.query_args[0]
+        test_query = " ".join(args.query_args[1:])
+    else:
+        collection_name = None
+        test_query = args.query_args[0]
+    
+    test_chroma_ingestion(ollama_base_url, test_query, collection_name)

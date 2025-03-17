@@ -187,7 +187,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </div>
           </div>
           <div className="border-t border-gray-600 mt-8 pt-8 text-center text-gray-300">
-            <p>© 2024 Demo Community Center. This is a demonstration website.</p>
+            <p>© 2024 City Community Center. This is a demonstration website.</p>
           </div>
         </div>
       </footer>

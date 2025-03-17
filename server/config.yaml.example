@@ -1,13 +1,13 @@
 ollama:
   base_url: "http://localhost:11434"
-  temperature: 0.0
-  top_p: 0.1
-  top_k: 10
-  repeat_penalty: 1.2
-  num_predict: 256
-  num_ctx: 2048
+  temperature: 0.01
+  top_p: 0.9
+  top_k: 40
+  repeat_penalty: 1.0
+  num_predict: 1024
+  num_ctx: 8192
   num_threads: 8
-  model: "llama3.2:3b"
+  model: "phi4-mini"
   embed_model: "nomic-embed-text"
 
 huggingface:
@@ -17,14 +17,14 @@ huggingface:
 chroma:
   host: "localhost"
   port: 8000
-  collection: "qa-chatbot"
+  collection: "non-profit"
 
 eleven_labs:
-  api_key: "your-api_key"
+  api_key: "your-api-key"
   voice_id: "kPzsL2i3teMYv0FxEYQ6"
 
 system:
-  template_path: "../templates/qa.txt"
+  prompt: "You are a helpful assistant for a non-profit organization. ALWAYS use the information provided in the CONTEXT section to answer questions. If the exact answer is in the context, use it directly. Never say you don't have information if it's clearly provided in the context. If you're unsure, quote directly from the context."
 
 general:
   verbose: "false"

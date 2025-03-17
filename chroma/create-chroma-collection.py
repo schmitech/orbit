@@ -1,3 +1,42 @@
+"""
+Chroma Collection Creator
+=========================
+
+This script creates a vector database collection in Chroma from a JSON file containing Q&A pairs.
+It processes the Q&A pairs, generates embeddings using Ollama, and stores them in a Chroma collection.
+
+Usage:
+    python create-chroma-collection.py <collection_name> <json_file_path>
+
+Arguments:
+    collection_name: Name of the Chroma collection to create
+    json_file_path: Path to the JSON file containing Q&A pairs
+
+Example:
+    python create-chroma-collection.py my_qa_collection data/qa_pairs.json
+
+Requirements:
+    - config.yaml file with Ollama and Chroma configuration
+    - Running Ollama server with the specified embedding model
+    - Running Chroma server
+    - JSON file with Q&A pairs in the format: [{"question": "...", "answer": "..."}, ...]
+
+Configuration (config.yaml):
+    ollama:
+      base_url: URL of the Ollama server (e.g., http://localhost:11434)
+      embed_model: Name of the embedding model to use (e.g., mxbai-embed-large)
+    chroma:
+      host: Hostname of the Chroma server
+      port: Port of the Chroma server
+
+Process:
+    1. Loads Q&A pairs from the JSON file
+    2. Splits longer Q&A pairs into smaller chunks
+    3. Generates embeddings for each chunk using Ollama
+    4. Stores the embeddings and metadata in a Chroma collection
+    5. Processes in batches to handle large datasets efficiently
+"""
+
 import os
 import json
 import yaml
@@ -16,8 +55,8 @@ def ingest_to_chroma(
     ollama_base_url: str,
     chroma_host: str,
     chroma_port: str,
-    collection_name: str,
     model: str,
+    collection_name: str,
     batch_size: int = 50
 ):
     print(f"Function received ollama_base_url: {ollama_base_url}")
@@ -28,7 +67,7 @@ def ingest_to_chroma(
     
     # Create or get collection
     if not collection_name:
-        raise ValueError("CHROMA_COLLECTION is not set in the configuration file.")
+        raise ValueError("Collection name cannot be empty.")
     
     # Delete existing collection if it exists
     existing_collections = client.list_collections()
@@ -128,6 +167,7 @@ if __name__ == "__main__":
 
     # Set up argument parser
     parser = argparse.ArgumentParser(description='Ingest Q&A pairs into Chroma database')
+    parser.add_argument('collection_name', help='Name of the Chroma collection to create')
     parser.add_argument('json_file_path', help='Path to the JSON file containing Q&A pairs')
     args = parser.parse_args()
     
@@ -138,7 +178,7 @@ if __name__ == "__main__":
         "batch_size": 50,
         "chroma_host": config['chroma']['host'],
         "chroma_port": config['chroma']['port'],
-        "collection_name": config['chroma']['collection'],
+        "collection_name": args.collection_name,  # Use the command-line argument
         "model": config['ollama']['embed_model']
     }
     

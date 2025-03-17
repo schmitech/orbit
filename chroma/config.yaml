@@ -5,4 +5,3 @@ ollama:
 chroma:
   host: "localhost"
   port: 8000
-  collection: "qa-chatbot"
