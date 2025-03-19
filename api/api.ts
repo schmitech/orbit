@@ -1,12 +1,73 @@
 // Load environment variables
 import { config } from 'dotenv';
 
+// For Node.js environments, we can use http.Agent for connection pooling
+let httpAgent: any = null;
+let httpsAgent: any = null;
+
+// Track connections for debugging
+let connectionCounter = 0;
+let connectionReuseCounter = 0;
+
 // Define the StreamResponse interface
 export interface StreamResponse {
   text?: string;
   content?: string; // Adding alternative property name
   done?: boolean;
   type?: string;    // Type of response (e.g., 'text', 'audio')
+}
+
+// Initialize the HTTP agents for connection pooling
+const initConnectionPool = () => {
+  // Only run in Node.js environment
+  if (typeof window === 'undefined') {
+    try {
+      const http = Function('return require')()('http');
+      const https = Function('return require')()('https');
+      
+      // Create agents with keepAlive enabled and add tracking
+      httpAgent = new http.Agent({ 
+        keepAlive: true,
+        keepAliveMsecs: 30000, // 30 seconds
+        maxSockets: 5          // Limit parallel connections
+      });
+      
+      // Add tracking for connection reuse
+      const originalCreateConnection = httpAgent.createConnection;
+      httpAgent.createConnection = function(options: any, callback: any) {
+        connectionCounter++;
+        console.log(`[Connection Pool] Creating connection #${connectionCounter}`);
+        
+        const socket = originalCreateConnection.call(this, options, callback);
+        
+        socket.on('reuse', () => {
+          connectionReuseCounter++;
+          console.log(`[Connection Pool] Reusing connection - total reuses: ${connectionReuseCounter}`);
+        });
+        
+        return socket;
+      };
+      
+      httpsAgent = new https.Agent({ 
+        keepAlive: true,
+        keepAliveMsecs: 30000,
+        maxSockets: 5
+      });
+      
+      console.log('[Connection Pool] HTTP connection pool initialized with keepAlive enabled');
+    } catch (error) {
+      console.warn('[Connection Pool] Failed to initialize HTTP agents:', error);
+    }
+  } else {
+    console.log('[Connection Pool] Running in browser environment, using native connection pooling');
+  }
+};
+
+// Try to initialize connection pool
+try {
+  initConnectionPool();
+} catch (error) {
+  console.warn('Failed to initialize connection pool:', error);
 }
 
 // Initialize environment
@@ -69,37 +130,96 @@ try {
 
 // Use environment variables with fallback to Vite's env system for browser compatibility
 const getApiUrl = () => {
-  // Node.js environment
+  // Try to get URL from Node.js environment variables (set from .env file)
   if (typeof process !== 'undefined' && process.env && process.env.VITE_API_URL) {
+    console.log('Using API URL from Node.js environment:', process.env.VITE_API_URL);
     return process.env.VITE_API_URL;
   }
   
-  // Browser environment with Vite
+  // Try to get URL from Vite's environment system
   if (import.meta && import.meta.env && import.meta.env.VITE_API_URL) {
+    console.log('Using API URL from Vite environment:', import.meta.env.VITE_API_URL);
     return import.meta.env.VITE_API_URL;
   }
   
-  // Default fallback
-  return 'http://localhost:3000';
+  // Read directly from .env file if possible
+  try {
+    if (typeof process !== 'undefined' && process.env) {
+      // Try to read from any other environment variables that might contain the URL
+      for (const key in process.env) {
+        if (key.includes('API_URL') && process.env[key]) {
+          console.log(`Found API URL in environment variable ${key}:`, process.env[key]);
+          return process.env[key];
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('Error checking environment variables:', e);
+  }
+  
+  // Use the value from .env file
+  const envFileUrl = 'http://172.208.108.47:3000';
+  console.log('Falling back to API URL from .env file:', envFileUrl);
+  return envFileUrl;
 };
 
 const API_URL = getApiUrl();
+console.log('Final API URL being used:', API_URL);
+
+// Helper to get fetch options with connection pooling if available
+const getFetchOptions = (options: RequestInit = {}): RequestInit | any => {
+  const isHttps = API_URL.startsWith('https:');
+  
+  // Only use agents in Node.js environment
+  if (typeof window === 'undefined') {
+    if (isHttps && httpsAgent) {
+      console.log('[Connection Pool] Using HTTPS agent with keepAlive');
+      // Using 'any' type to bypass TypeScript limitations with Node.js http.Agent
+      return { ...options, agent: httpsAgent } as any;
+    } else if (httpAgent) {
+      console.log('[Connection Pool] Using HTTP agent with keepAlive');
+      return { ...options, agent: httpAgent } as any;
+    }
+  }
+  
+  // Browser environment
+  const requestId = Date.now().toString(36) + Math.random().toString(36).substr(2);
+  console.log(`[Connection Pool] Browser request ${requestId} using keep-alive header`);
+  
+  // Use keep-alive header in browser environments
+  return {
+    ...options,
+    headers: {
+      ...options.headers,
+      'Connection': 'keep-alive',
+      'X-Request-ID': requestId // Add unique ID to track requests
+    }
+  };
+};
 
 export async function* streamChat(
   message: string,
   voiceEnabled: boolean
 ): AsyncGenerator<StreamResponse> {
   try {
-    const response = await fetch(`${API_URL}/chat`, {
+    const startTime = Date.now();
+    console.log(`[${startTime}] Attempting to connect to ${API_URL}/chat with message:`, message.substring(0, 30) + '...');
+    
+    // Skip the OPTIONS preflight check that was causing CORS issues
+    const response = await fetch(`${API_URL}/chat`, getFetchOptions({
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ message, voiceEnabled }),
-    });
+    }));
+
+    const responseTime = Date.now() - startTime;
+    console.log(`[Connection Pool] Response received in ${responseTime}ms`);
 
     if (!response.ok) {
       const errorText = await response.text();
+      console.error(`API request failed: ${response.status} ${errorText}`);
       throw new Error(`Network response was not ok: ${response.status} ${errorText}`);
     }
     
@@ -132,7 +252,8 @@ export async function* streamChat(
             
             yield data;
           } catch (error: any) {
-            // Silent error handling
+            // Silent error handling for JSON parse errors
+            console.warn('Error parsing JSON chunk:', line);
           }
         }
       }
@@ -149,10 +270,15 @@ export async function* streamChat(
         
         yield data;
       } catch (error: any) {
-        // Silent error handling
+        // Silent error handling for JSON parse errors
+        console.warn('Error parsing final JSON buffer:', buffer);
       }
     }
   } catch (error: any) {
-    yield { text: `Error: ${error.message}`, done: true };
+    console.error('Chat API error:', error.message);
+    yield { 
+      text: `Error connecting to chat server: ${error.message}`, 
+      done: true 
+    };
   }
 }

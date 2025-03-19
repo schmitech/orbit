@@ -6,6 +6,14 @@
  */
 
 import fetch from 'node-fetch';
+import { config } from 'dotenv';
+import { dirname, resolve } from 'path';
+import { fileURLToPath } from 'url';
+
+// Load environment variables from .env file
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+config({ path: resolve(__dirname, '../.env') });
 
 // Get the query from command line arguments
 const query = process.argv[2];
@@ -16,11 +24,14 @@ if (!query) {
   process.exit(1);
 }
 
+// Get API URL from environment variable or use default
+const API_URL = process.env.VITE_API_URL || 'http://localhost:3000';
+console.log(`Using API URL: ${API_URL}`);
 console.log(`\n🔍 Testing query: "${query}"\n`);
 
 async function runQuery() {
   try {
-    const response = await fetch('http://localhost:3000/chat', {
+    const response = await fetch(`${API_URL}/chat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
