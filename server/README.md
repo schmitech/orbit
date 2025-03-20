@@ -89,6 +89,14 @@ system:
 
 general:
   verbose: "false"                    # Enable verbose logging
+
+elasticsearch:
+  enabled: true                       # Enable/disable Elasticsearch logging
+  node: "your-elasticsearch-endpoint" # Elasticsearch server endpoint
+  index: "your-index-name"           # Index name for chat logs
+  auth:
+    username: "your-username"         # Elasticsearch username
+    password: "your-password"         # Elasticsearch password
 ```
 
 ## Testing Text-to-Speech
@@ -158,3 +166,85 @@ The test suite uses MSW to mock server responses, so you don't need an actual se
 For more details on the tests, see the [API tests README](api/test/README.md).
 
 See the [API client README](api/README.md) for more details on usage.
+
+## Running as a Service
+
+There are several ways to run the server in the background:
+
+### 1. Using Systemd (Recommended)
+
+Create a systemd service file:
+
+```bash
+sudo vim /etc/systemd/system/qa-chatbot.service
+```
+
+Add this content:
+
+```bash
+[Unit]
+Description=QA Chatbot Node.js Server
+After=network.target
+
+[Service]
+Type=simple
+User=YOUR_USERNAME
+WorkingDirectory=/path/to/your/project
+ExecStart=/usr/bin/npm run server -- ollama
+Restart=always
+RestartSec=3
+StandardOutput=append:/var/log/qa-chatbot.log
+StandardError=append:/var/log/qa-chatbot.error.log
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Replace:
+- `YOUR_USERNAME` with your actual username (run `whoami` to get it)
+- `/path/to/your/project` with the full path to your project directory
+- Update the ExecStart path if npm is installed elsewhere (use `which npm` to check)
+
+Manage the service:
+```bash
+# Reload systemd to recognize the new service
+sudo systemctl daemon-reload
+
+# Enable the service to start on boot
+sudo systemctl enable qa-chatbot
+
+# Start the service
+sudo systemctl start qa-chatbot
+
+# Check the status
+sudo systemctl status qa-chatbot
+
+# View logs in real-time
+sudo journalctl -u qa-chatbot -f
+```
+
+To remove the service:
+```bash
+sudo systemctl stop qa-chatbot
+sudo systemctl disable qa-chatbot
+sudo rm /etc/systemd/system/qa-chatbot.service
+sudo systemctl daemon-reload
+sudo systemctl reset-failed
+```
+
+### 2. Using Background Process
+
+Simple background process with output handling:
+
+```bash
+# Save output to a file
+npm run server -- ollama > output.log 2>&1 &
+
+# Discard all output
+npm run server -- ollama > /dev/null 2>&1 &
+
+# Save stdout and stderr to separate files
+npm run server -- ollama > output.log 2> error.log &
+```
+
+Note: Using just `&` is less robust than systemd as the process might terminate when closing the terminal session. For production environments, the systemd service approach is recommended.
