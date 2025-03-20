@@ -4,3 +4,5 @@ package-lock.json
 chroma_db
 *.log
 config.yaml
+data
+*.aws

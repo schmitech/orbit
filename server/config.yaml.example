@@ -7,7 +7,7 @@ ollama:
   num_predict: 1024
   num_ctx: 8192
   num_threads: 8
-  model: "phi4-mini"
+  model: "gemma3:1b"
   embed_model: "nomic-embed-text"
 
 huggingface:
@@ -17,7 +17,7 @@ huggingface:
 chroma:
   host: "localhost"
   port: 8000
-  collection: "non-profit"
+  collection: "qa-chatbot"
 
 eleven_labs:
   api_key: "your-api-key"
@@ -28,3 +28,11 @@ system:
 
 general:
   verbose: "false"
+
+elasticsearch:
+  enabled: true
+  node: 'https://localhost:9200'
+  index: 'chatbot'
+  auth:
+    username: 'elastic'
+    password: 'es-password'

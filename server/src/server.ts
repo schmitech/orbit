@@ -14,6 +14,7 @@ import { fileURLToPath } from 'node:url';
 import { questionAnswerWithHuggingFace } from './huggingface';
 import fs from 'fs/promises';
 import yaml from 'js-yaml';
+import { Client } from '@elastic/elasticsearch';
 
 // Define config interface
 interface AppConfig {
@@ -48,6 +49,15 @@ interface AppConfig {
   general: {
     verbose: string;
   };
+  elasticsearch: {
+    enabled: boolean;
+    node: string;
+    index: string;
+    auth: {
+      username: string;
+      password: string;
+    }
+  }
 }
 
 const __filename = fileURLToPath(import.meta.url);
@@ -376,7 +386,85 @@ ANSWER:`);
 
 const chain = createChain(backend);
 
+// Initialize Elasticsearch client
+const esClient = config.elasticsearch.enabled ? new Client({
+  node: config.elasticsearch.node,
+  auth: {
+    username: config.elasticsearch.auth.username,
+    password: config.elasticsearch.auth.password
+  }
+}) : null;
+
+// Update the logging function type and implementation
+async function logChatInteraction(data: {
+  timestamp: Date;
+  query: string;
+  response: string;
+  backend: 'ollama' | 'hf';
+}) {
+  if (!config.elasticsearch.enabled || !esClient) {
+    if (config.general?.verbose === 'true') {
+      console.log('Elasticsearch logging disabled, skipping log:', data);
+    }
+    return;
+  }
+
+  try {
+    await esClient.index({
+      index: config.elasticsearch.index,
+      document: {
+        timestamp: data.timestamp.toISOString(),
+        query: data.query,
+        response: data.response,
+        backend: data.backend
+      }
+    });
+  } catch (error) {
+    console.error('Failed to log to Elasticsearch:', error);
+  }
+}
+
+// Update the index mapping
+if (config.elasticsearch.enabled && esClient) {
+  try {
+    await esClient.ping();
+    console.log('Successfully connected to Elasticsearch');
+    
+    // Check if index exists
+    const indexExists = await esClient.indices.exists({ index: config.elasticsearch.index });
+    if (!indexExists) {
+      // Create index with basic settings
+      await esClient.indices.create({ 
+        index: config.elasticsearch.index,
+        body: {
+          settings: {
+            number_of_shards: 1,
+            number_of_replicas: 0
+          },
+          mappings: {
+            properties: {
+              timestamp: { type: 'date' },
+              query: { type: 'text' },
+              response: { type: 'text' },
+              backend: { type: 'keyword' }
+            }
+          }
+        }
+      });
+      console.log(`Created new Elasticsearch index: ${config.elasticsearch.index}`);
+    } else {
+      console.log(`Using existing Elasticsearch index: ${config.elasticsearch.index}`);
+    }
+  } catch (error) {
+    console.error('Failed to connect to Elasticsearch:', error);
+    process.exit(1);
+  }
+} else if (config.general?.verbose === 'true') {
+  console.log('Elasticsearch logging is disabled');
+}
+
 app.post('/chat', async (req, res) => {
+  const startTime = Date.now();
   const { message, voiceEnabled } = req.body;
 
   res.setHeader('Content-Type', 'text/event-stream');
@@ -386,11 +474,13 @@ app.post('/chat', async (req, res) => {
   try {
     let textBuffer = '';
     let isFirstChunk = true;
+    let fullResponse = '';
     
     const stream = await chain.stream({ query: message });
     
     for await (const chunk of stream) {
       if (chunk) {
+        fullResponse += chunk;
         textBuffer += chunk;
         res.write(JSON.stringify({ type: 'text', content: chunk }) + '\n');
 
@@ -437,9 +527,26 @@ app.post('/chat', async (req, res) => {
       }
     }
     
+    // Log the interaction
+    await logChatInteraction({
+      timestamp: new Date(),
+      query: message,
+      response: fullResponse,
+      backend,
+    });
+
     res.end();
   } catch (error) {
     console.error('Error:', error);
+    
+    // Log errors too
+    await logChatInteraction({
+      timestamp: new Date(),
+      query: message,
+      response: 'ERROR',
+      backend,
+    });
+
     res.write(JSON.stringify({ type: 'text', content: 'An error occurred while processing your request.' }) + '\n');
     res.end();
   }
