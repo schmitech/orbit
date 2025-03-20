@@ -40,18 +40,13 @@ Create a `.env` file in the server directory based on the provided `.env.example
 
 ### Setting up ChromaDB
 
-#### Option 1: Using Python venv (Recommended)
+Chroma is a vector database used for storing and retrieving embeddings for semantic search and AI operations.
+
 ```bash
-cd server
+cd chroma
 python -m venv venv 
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
-```
-
-#### Option 2: Using Docker
-```bash
-docker pull chromadb/chroma
-docker run -p 8000:8000 chromadb/chroma
 ```
 
 > **Note:** If you have Conda installed and see `(base)` in your terminal prompt, it may interfere with Python venv creation. Run `conda deactivate` before creating venv environments or use `conda config --set auto_activate_base false` to prevent automatic activation.
@@ -59,8 +54,9 @@ docker run -p 8000:8000 chromadb/chroma
 ### Running ChromaDB
 
 ```bash
-chroma run --host localhost --port 8000 --path ./chroma_db
+chroma run --host localhost --port 8000 --path ./chroma_db # use 0.0.0.0 is you want to expose the server
 ```
+By default, Chroma will run on port 8000. You can access the Chroma dashboard at `http://localhost:8000`.
 
 To check your ChromaDB version:
 ```bash
@@ -70,12 +66,12 @@ python -c "import chromadb; print(chromadb.__version__)"
 ### Ingesting Data
 
 ```bash
-python ./chroma/create-chroma-collection.py qa-pairs.json
+python create-chroma-collection.py qa-pairs.json
 ```
 
 You can test the ingested data with:
 ```bash
-python ./chroma/query-chroma-collection.py "Your test query here"
+python query-chroma-collection.py "Your test query here"
 ```
 
 ### Testing Text-to-Speech
@@ -92,8 +88,23 @@ curl -X POST "https://api.elevenlabs.io/v1/text-to-speech/XrExE9yKIg1WjnnlVkGX" 
 ### Running the Server
 
 ```bash
+cd server
 npm run server -- ollama #or hf for hugging face
 ```
+
+## API
+
+The API is a JavaScript/TypeScript client library for interacting with the Chatbot server, not a RESTful API service. It provides a convenient interface for applications to communicate with the server.
+
+### Setup and Installation
+
+```bash
+cd api
+npm install
+npm run build
+```
+
+The API will be available at `http://localhost:3001`.
 
 ## Examples
 
@@ -106,71 +117,8 @@ cd examples/simple-chatbot
 npm install
 npm run dev
 ```
-
-### Configuration
-
-Create a `.env` file in the client directory:
-
-```
-REACT_APP_API_URL=http://localhost:3001/api
-```
-
-### Running the Client
-
-```bash
-npm run dev
-```
-
 The application will be available at `http://localhost:5173`.
 
-## Chroma
-
-Chroma is a vector database used for storing and retrieving embeddings for semantic search and AI operations.
-
-### Basic Setup and Installation
-
-```bash
-cd chroma
-python3 -m venv myenv
-source myenv/bin/activate
-pip install -r requirements.txt
-```
-
-### Running Chroma Locally
-
-```bash
-chroma run --host localhost --port 8000 --path ./chroma_db # use 0.0.0.0 is you want to expose the server
-```
-By default, Chroma will run on port 8000. You can access the Chroma dashboard at `http://localhost:8000`.
-
-## API
-
-The API is a JavaScript/TypeScript client library for interacting with the Chatbot server, not a RESTful API service. It provides a convenient interface for applications to communicate with the server.
-
-### Setup and Installation
-
-```bash
-cd api
-npm install
-```
-
-### Configuration
-
-Create a `.env` file in the api directory:
-
-```
-PORT=3001
-CHROMA_URL=http://localhost:8000
-SERVER_URL=http://localhost:3000
-```
-
-### Building API
-
-```bash
-npm run build
-```
-
-The API will be available at `http://localhost:3001`.
 
 ## Integrated Usage
 
