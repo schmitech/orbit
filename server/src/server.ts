@@ -45,6 +45,7 @@ interface AppConfig {
   };
   system: {
     prompt: string;
+    guardrail_prompt: string;
   };
   general: {
     verbose: string;
@@ -395,12 +396,74 @@ const esClient = config.elasticsearch.enabled ? new Client({
   }
 }) : null;
 
+// Define guardrail check function
+async function checkGuardrail(query: string): Promise<{ safe: boolean }> {
+  const verbose = config.general?.verbose === 'true';
+  
+  if (verbose) {
+    console.log('\n=== Guardrail Check ===');
+    console.log('Query:', query);
+  }
+  
+  try {
+    // Create request payload with the guardrail prompt
+    const payload = {
+      model: config.ollama.model,
+      prompt: `${config.system.guardrail_prompt}\n\nQuery: ${query}\n\nRespond with ONLY 'SAFE: true' or 'SAFE: false':`,
+      temperature: 0.0,  // Set to 0 for deterministic response
+      top_p: 1.0,
+      top_k: 1,
+      repeat_penalty: parseFloat(String(config.ollama.repeat_penalty)),
+      num_predict: 20,   // Limit response length
+      stream: false
+    };
+    
+    if (verbose) {
+      console.log('\n=== Guardrail Prompt ===');
+      console.log(payload.prompt);
+    }
+    
+    // Make request to Ollama
+    const response = await fetch(`${config.ollama.base_url}/api/generate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+    
+    const responseData = await response.json();
+    const result = responseData.response?.trim();
+    
+    if (verbose) {
+      console.log('\n=== Guardrail Response ===');
+      console.log('Response:', result);
+    }
+    
+    // Check if the response matches the expected format
+    if (result === 'SAFE: true') {
+      return { safe: true };
+    } else if (result === 'SAFE: false') {
+      return { safe: false };
+    } else {
+      console.warn('Guardrail response does not match expected format:', result);
+      // Default to safe for non-matching responses, but log the warning
+      return { safe: true };
+    }
+  } catch (error) {
+    console.error('Error in guardrail check:', error);
+    // Default to safe on error to prevent complete service failure
+    return { safe: true };
+  }
+}
+
 // Update the logging function type and implementation
 async function logChatInteraction(data: {
   timestamp: Date;
   query: string;
   response: string;
   backend: 'ollama' | 'hf';
+  blocked?: boolean;
 }) {
   if (!config.elasticsearch.enabled || !esClient) {
     if (config.general?.verbose === 'true') {
@@ -416,7 +479,8 @@ async function logChatInteraction(data: {
         timestamp: data.timestamp.toISOString(),
         query: data.query,
         response: data.response,
-        backend: data.backend
+        backend: data.backend,
+        blocked: data.blocked || false
       }
     });
   } catch (error) {
@@ -446,7 +510,8 @@ if (config.elasticsearch.enabled && esClient) {
               timestamp: { type: 'date' },
               query: { type: 'text' },
               response: { type: 'text' },
-              backend: { type: 'keyword' }
+              backend: { type: 'keyword' },
+              blocked: { type: 'boolean' }
             }
           }
         }
@@ -472,6 +537,24 @@ app.post('/chat', async (req, res) => {
   res.setHeader('Connection', 'keep-alive');
 
   try {
+    // Add guardrail check before processing the message
+    const guardrailResult = await checkGuardrail(message);
+    if (!guardrailResult.safe) {
+      // Log the blocked query to Elasticsearch
+      await logChatInteraction({
+        timestamp: new Date(),
+        query: message,
+        response: 'BLOCKED: Failed guardrail check',
+        backend,
+        blocked: true
+      });
+
+      // Send the blocked response
+      res.write(JSON.stringify({ type: 'text', content: 'Sorry but I cannot help you with that.' }) + '\n');
+      res.end();
+      return;
+    }
+
     let textBuffer = '';
     let isFirstChunk = true;
     let fullResponse = '';
