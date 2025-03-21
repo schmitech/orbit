@@ -1,0 +1,4 @@
+venv
+chroma_db
+*.log
+config.yaml

@@ -15,51 +15,8 @@ import { questionAnswerWithHuggingFace } from './huggingface';
 import fs from 'fs/promises';
 import yaml from 'js-yaml';
 import { Client } from '@elastic/elasticsearch';
-
-// Define config interface
-interface AppConfig {
-  ollama: {
-    base_url: string;
-    temperature: number | string;
-    top_p: number | string;
-    top_k: number | string;
-    repeat_penalty: number | string;
-    num_predict: number | string;
-    num_ctx: number | string;
-    num_threads: number | string;
-    model: string;
-    embed_model: string;
-  };
-  huggingface: {
-    api_key: string;
-    model: string;
-  };
-  chroma: {
-    host: string;
-    port: number | string;
-    collection: string;
-  };
-  eleven_labs: {
-    api_key: string;
-    voice_id: string;
-  };
-  system: {
-    prompt: string;
-    guardrail_prompt: string;
-  };
-  general: {
-    verbose: string;
-  };
-  elasticsearch: {
-    enabled: boolean;
-    node: string;
-    index: string;
-    auth: {
-      username: string;
-      password: string;
-    }
-  }
-}
+import { AppConfig } from './types';
+import { VLLMClient } from './vllm';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -239,12 +196,12 @@ const formatDocuments = (docs: Document[]): string => {
 };
 
 // Add new type for backend selection
-type Backend = 'ollama' | 'hf';
+type Backend = 'ollama' | 'hf' | 'vllm';
 
 // Add command line argument parsing
 const backend: Backend = process.argv[2] as Backend || 'ollama';
-if (!['ollama', 'hf'].includes(backend)) {
-  console.error('Invalid backend specified. Use either "ollama" or "hf"');
+if (!['ollama', 'hf', 'vllm'].includes(backend)) {
+  console.error('Invalid backend specified. Use either "ollama", "hf", or "vllm"');
   process.exit(1);
 }
 
@@ -261,7 +218,7 @@ if (config.general?.verbose === 'true') {
 }
 
 // Modify the chain creation to add logging
-const createChain = (backend: Backend) => {
+const createChain = async (backend: Backend) => {
   const verbose = config.general?.verbose === 'true';
   
   if (verbose) {
@@ -327,6 +284,9 @@ ANSWER:`),
       },
       new StringOutputParser(),
     ]);
+  } else if (backend === 'vllm') {
+    const vllmClient = new VLLMClient(config, retriever);
+    return vllmClient.createChain();
   } else {
     // HuggingFace QA chain
     return RunnableSequence.from([
@@ -385,7 +345,8 @@ ANSWER:`);
   }
 };
 
-const chain = createChain(backend);
+// Create and await the chain
+const chain = await createChain(backend);
 
 // Initialize Elasticsearch client
 const esClient = config.elasticsearch.enabled ? new Client({
@@ -398,6 +359,11 @@ const esClient = config.elasticsearch.enabled ? new Client({
 
 // Define guardrail check function
 async function checkGuardrail(query: string): Promise<{ safe: boolean }> {
+  if (backend === 'vllm') {
+    const vllmClient = new VLLMClient(config, retriever);
+    return vllmClient.checkGuardrail(query);
+  }
+
   const verbose = config.general?.verbose === 'true';
   
   if (verbose) {
@@ -462,7 +428,7 @@ async function logChatInteraction(data: {
   timestamp: Date;
   query: string;
   response: string;
-  backend: 'ollama' | 'hf';
+  backend: 'ollama' | 'hf' | 'vllm';
   blocked?: boolean;
 }) {
   if (!config.elasticsearch.enabled || !esClient) {
