@@ -11,8 +11,10 @@
     "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "noEmit": true,
+    "noEmit": false,
     "declaration": true,
+    "declarationDir": ".",
+    "emitDeclarationOnly": true,
     "jsx": "react-jsx",
 
     /* Linting */
@@ -21,7 +23,7 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["**/*.ts", "**/*.d.ts"],
+  "include": ["api.ts"],
   "exclude": ["vite.config.ts", "vitest.config.ts", "node_modules", "test/**/*"],
   "references": [{ "path": "./tsconfig.node.json" }]
 } 

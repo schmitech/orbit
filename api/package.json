@@ -6,23 +6,23 @@
     "type": "module",
     "main": "./dist/api.cjs",
     "module": "./dist/api.mjs",
-    "types": "./dist/api.d.ts",
+    "types": "./api.d.ts",
     "exports": {
         ".": {
             "import": "./dist/api.mjs",
-            "require": "./dist/api.cjs",
-            "types": "./dist/api.d.ts"
+            "require": "./dist/api.cjs"
         }
     },
     "files": [
-        "dist"
+        "dist",
+        "api.d.ts"
     ],
     "scripts": {
         "dev": "vite",
-        "build": "tsc && vite build",
+        "build": "tsc --emitDeclarationOnly && vite build",
         "lint": "eslint .",
         "preview": "vite preview",
-        "test": "vitest run",
+        "test": "vitest",
         "test:watch": "vitest",
         "test-query": "node --import 'data:text/javascript,import { register } from \"node:module\"; import { pathToFileURL } from \"node:url\"; register(\"ts-node/esm\", pathToFileURL(\"./\"));' ./test/run-query.js"
     },

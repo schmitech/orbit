@@ -11,4 +11,6 @@ declare module 'chatbot-api' {
     message: string,
     voiceEnabled: boolean
   ): AsyncGenerator<StreamResponse>;
+  
+  export function configureApi(apiUrl: string): void;
 } 

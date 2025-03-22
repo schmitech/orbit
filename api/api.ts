@@ -81,7 +81,7 @@ const initConnectionPool = async () => {
 let configuredApiUrl: string | null = null;
 
 // Configure the API with a custom URL
-export function configureApi(apiUrl: string): void {
+export const configureApi = (apiUrl: string): void => {
   if (!apiUrl || typeof apiUrl !== 'string') {
     throw new Error('API URL must be a valid string');
   }

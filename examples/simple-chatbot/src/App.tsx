@@ -3,7 +3,17 @@ import { ChatMessage } from './components/ChatMessage';
 import { ChatInput } from './components/ChatInput';
 import { Sidebar } from './components/Sidebar';
 import { useChatStore } from './store';
-import { streamChat } from 'chatbot-api';
+import { streamChat, configureApi } from 'chatbot-api';
+
+// Configure the API with the endpoint from environment variables
+const apiEndpoint = import.meta.env.VITE_API_ENDPOINT;
+if (!apiEndpoint) {
+  throw new Error('VITE_API_ENDPOINT is not configured in .env file');
+}
+
+// Initialize the API client with the configured endpoint
+configureApi(apiEndpoint);
+console.log('API configured with endpoint:', apiEndpoint);
 
 function App() {
   const { messages, isLoading, voiceEnabled, addMessage, setIsLoading, appendToLastMessage } = useChatStore();
