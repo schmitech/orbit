@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { streamChat, StreamResponse } from '../api';
+import { streamChat, StreamResponse, configureApi } from '../api';
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 
@@ -9,6 +9,9 @@ import { setupServer } from 'msw/node';
 describe('Query Testing', () => {
   // Add query-specific handlers before each test
   beforeEach(() => {
+    // Configure API with test URL
+    configureApi('http://test-api-server.com');
+    
     // Reset the server handlers and add our custom handler
     vi.stubGlobal('fetch', vi.fn().mockImplementation(async (url, options) => {
       if (url.toString().includes('/chat')) {

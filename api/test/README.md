@@ -24,8 +24,12 @@ npm run test:watch
 npm test -- --coverage
 
 # Test a specific query
-npm run test-query "your query here"
+npm run test-query "your query here" "http://your-api-server.com"
 ```
+
+## API Configuration
+
+The tests use the new `configureApi` function to set the API URL for testing purposes. This reflects the way the library will be used in production, where clients must explicitly configure the API URL before using any other functions.
 
 ## Mock Server
 
@@ -55,21 +59,22 @@ The tests cover:
 The `test-query` command allows you to quickly test how the chatbot responds to specific queries:
 
 ```bash
-npm run test-query "how much is the fee?"
+npm run test-query "how much is the fee?" "http://your-api-server.com"
 ```
 
-This will simulate the chatbot's response, showing:
-1. An acknowledgment of the query
-2. A response based on the content of the query
-3. A final message asking if there's anything else the user would like to know
+This will:
+1. Configure the API with the provided server URL
+2. Send the query to the API
+3. Stream and display the responses
 
-The implementation uses a simple simulation that matches keywords in the query to provide appropriate responses.
+The implementation uses our SDK's `configureApi` and `streamChat` functions to illustrate the proper usage pattern.
 
 ## Adding New Tests
 
 When adding new tests:
 
 1. Add new test cases to the appropriate test file
-2. If needed, add new mock handlers in `setup.ts`
-3. To add new query types, update the `query.test.ts` file and the `getMockResponse` function in `run-query.js`
-4. Run the tests to ensure they pass 
+2. Remember to call `configureApi` before using any other SDK functions
+3. If needed, add new mock handlers in `setup.ts`
+4. To add new query types, update the `query.test.ts` file
+5. Run the tests to ensure they pass 

@@ -1,25 +1,17 @@
 import { afterAll, afterEach, beforeAll } from 'vitest';
 import { setupServer } from 'msw/node';
 import { http, HttpResponse } from 'msw';
-import { config } from 'dotenv';
-import { dirname, resolve } from 'path';
-import { fileURLToPath } from 'url';
+import { configureApi } from '../api';
 
-// Load environment variables 
-try {
-  const __filename = fileURLToPath(import.meta.url);
-  const __dirname = dirname(__filename);
-  config({ path: resolve(__dirname, '../.env') });
-} catch (e) {
-  console.warn('Error loading .env file in test setup:', e);
-}
+// Define the default test API URL
+const TEST_API_URL = 'http://test-api-server.com';
 
-// Get API URL from environment variable or use default
-const API_URL = process.env.VITE_API_URL || 'http://172.208.108.47:3000';
+// Configure the API with the test URL
+configureApi(TEST_API_URL);
 
 // Define mock handlers
 const handlers = [
-  http.post(`${API_URL}/chat`, async ({ request }) => {
+  http.post(`${TEST_API_URL}/chat`, async ({ request }) => {
     // Add type annotation to fix linter error
     interface ChatRequest {
       message: string;

@@ -1,6 +1,3 @@
-// Load environment variables
-import { config } from 'dotenv';
-
 // For Node.js environments, we can use http.Agent for connection pooling
 let httpAgent: any = null;
 let httpsAgent: any = null;
@@ -18,12 +15,20 @@ export interface StreamResponse {
 }
 
 // Initialize the HTTP agents for connection pooling
-const initConnectionPool = () => {
+const initConnectionPool = async () => {
   // Only run in Node.js environment
   if (typeof window === 'undefined') {
     try {
-      const http = Function('return require')()('http');
-      const https = Function('return require')()('https');
+      // Use dynamic imports for Node.js modules in ESM context
+      let http, https;
+      
+      try {
+        http = await import('node:http');
+        https = await import('node:https');
+      } catch (e) {
+        console.warn('[Connection Pool] Failed to import Node.js modules:', e);
+        return;
+      }
       
       // Create agents with keepAlive enabled and add tracking
       httpAgent = new http.Agent({ 
@@ -63,112 +68,38 @@ const initConnectionPool = () => {
   }
 };
 
-// Try to initialize connection pool
-try {
-  initConnectionPool();
-} catch (error) {
-  console.warn('Failed to initialize connection pool:', error);
-}
-
-// Initialize environment
-const initEnvironment = () => {
-  // Only run Node.js specific code in a Node.js environment
-  if (typeof window === 'undefined') {
-    try {
-      // Use a more compatible approach for importing Node.js modules
-      // This avoids issues with ESM vs CommonJS
-      let url, path, fs;
-      
-      // Use a function to safely evaluate requires without breaking browser builds
-      const safeRequire = (moduleName: string) => {
-        try {
-          // Using Function constructor to avoid static analysis issues
-          // This is a workaround that prevents bundlers from trying to process these requires
-          return Function('return require')()(moduleName);
-        } catch (e) {
-          return null;
-        }
-      };
-      
-      url = safeRequire('url');
-      path = safeRequire('path');
-      fs = safeRequire('fs');
-      
-      if (url && path && fs) {
-        const fileURLToPath = url.fileURLToPath;
-        const { dirname, resolve } = path;
-        const { existsSync } = fs;
-        
-        // Get the directory of the current module
-        const __filename = fileURLToPath(import.meta.url);
-        const __dirname = dirname(__filename);
-        
-        // Path to .env file in the same directory as this file
-        const envPath = resolve(__dirname, '.env');
-        
-        if (existsSync(envPath)) {
-          config({ path: envPath });
-          console.log(`Loaded environment variables from ${envPath}`);
-        }
-      }
-    } catch (error) {
-      // Silently fail if we're in a browser environment or imports fail
-      console.warn('Environment loading skipped: running in browser or missing modules');
-    }
-  } else {
-    // Browser environment - no need to load .env file
-    console.log('Running in browser environment');
-  }
-};
-
-// Try to initialize the environment
-try {
-  initEnvironment();
-} catch (error) {
-  console.warn('Failed to initialize environment:', error);
-}
-
-// Use environment variables with fallback to Vite's env system for browser compatibility
-const getApiUrl = () => {
-  // Try to get URL from Node.js environment variables (set from .env file)
-  if (typeof process !== 'undefined' && process.env && process.env.VITE_API_URL) {
-    console.log('Using API URL from Node.js environment:', process.env.VITE_API_URL);
-    return process.env.VITE_API_URL;
-  }
-  
-  // Try to get URL from Vite's environment system
-  if (import.meta && import.meta.env && import.meta.env.VITE_API_URL) {
-    console.log('Using API URL from Vite environment:', import.meta.env.VITE_API_URL);
-    return import.meta.env.VITE_API_URL;
-  }
-  
-  // Read directly from .env file if possible
+// Try to initialize connection pool (as an async function)
+(async () => {
   try {
-    if (typeof process !== 'undefined' && process.env) {
-      // Try to read from any other environment variables that might contain the URL
-      for (const key in process.env) {
-        if (key.includes('API_URL') && process.env[key]) {
-          console.log(`Found API URL in environment variable ${key}:`, process.env[key]);
-          return process.env[key];
-        }
-      }
-    }
-  } catch (e) {
-    console.warn('Error checking environment variables:', e);
+    await initConnectionPool();
+  } catch (error) {
+    console.warn('Failed to initialize connection pool:', error);
   }
-  
-  // Use the value from .env file
-  const envFileUrl = 'http://172.208.108.47:3000';
-  console.log('Falling back to API URL from .env file:', envFileUrl);
-  return envFileUrl;
-};
+})();
 
-const API_URL = getApiUrl();
-console.log('Final API URL being used:', API_URL);
+// Store the configured API URL
+let configuredApiUrl: string | null = null;
+
+// Configure the API with a custom URL
+export function configureApi(apiUrl: string): void {
+  if (!apiUrl || typeof apiUrl !== 'string') {
+    throw new Error('API URL must be a valid string');
+  }
+  configuredApiUrl = apiUrl;
+  console.log('API configured with custom URL:', apiUrl);
+}
+
+// Get the configured API URL or throw an error if not configured
+const getApiUrl = (): string => {
+  if (!configuredApiUrl) {
+    throw new Error('API URL not configured. Please call configureApi() with your server URL before using any API functions.');
+  }
+  return configuredApiUrl;
+};
 
 // Helper to get fetch options with connection pooling if available
-const getFetchOptions = (options: RequestInit = {}): RequestInit | any => {
-  const isHttps = API_URL.startsWith('https:');
+const getFetchOptions = (apiUrl: string, options: RequestInit = {}): RequestInit | any => {
+  const isHttps = apiUrl.startsWith('https:');
   
   // Only use agents in Node.js environment
   if (typeof window === 'undefined') {
@@ -202,11 +133,14 @@ export async function* streamChat(
   voiceEnabled: boolean
 ): AsyncGenerator<StreamResponse> {
   try {
+    // Get the API URL at the time of the request (allows for dynamic configuration)
+    const API_URL = getApiUrl();
+    
     const startTime = Date.now();
     console.log(`[${startTime}] Attempting to connect to ${API_URL}/chat with message:`, message.substring(0, 30) + '...');
     
     // Skip the OPTIONS preflight check that was causing CORS issues
-    const response = await fetch(`${API_URL}/chat`, getFetchOptions({
+    const response = await fetch(`${API_URL}/chat`, getFetchOptions(API_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

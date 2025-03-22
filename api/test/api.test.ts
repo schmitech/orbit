@@ -1,7 +1,13 @@
-import { describe, it, expect, vi } from 'vitest';
-import { streamChat, StreamResponse } from '../api';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { streamChat, StreamResponse, configureApi } from '../api';
 
 describe('Chatbot API', () => {
+  // Set up the API configuration before each test
+  beforeEach(() => {
+    // Configure with the test server URL - matches the one in setup.ts
+    configureApi('http://test-api-server.com');
+  });
+
   describe('streamChat', () => {
     it('should stream chat responses without voice', async () => {
       const responses: StreamResponse[] = [];
@@ -74,7 +80,7 @@ describe('Chatbot API', () => {
         
         // Should only get one error response
         expect(responses.length).toBe(1);
-        expect(responses[0].text).toContain('Error: Network error');
+        expect(responses[0].text).toContain('Error connecting to chat server: Network error');
         expect(responses[0].done).toBe(true);
       } finally {
         // Restore the original fetch implementation
