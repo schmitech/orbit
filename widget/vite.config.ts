@@ -2,13 +2,26 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
+import dts from 'vite-plugin-dts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    dts({
+      include: ['src/**/*.ts', 'src/**/*.tsx'],
+      exclude: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
+      rollupTypes: true,
+      insertTypesEntry: true,
+      beforeWriteFile: (filePath, content) => ({
+        filePath: filePath.replace('/src/', '/'),
+        content
+      })
+    })
+  ],
   define: {
     'process.env': JSON.stringify({
       NODE_ENV: 'production'
