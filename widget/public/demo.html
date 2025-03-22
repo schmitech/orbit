@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chatbot Widget Demo</title>
+  <!-- Load React and ReactDOM first - make sure these are loaded completely -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <!-- Load the widget styles -->
+  <link rel="stylesheet" href="../dist/style.css">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      line-height: 1.6;
+      color: #333;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    h1 {
+      color: #2C3E50;
+      margin-bottom: 1rem;
+    }
+    .container {
+      display: flex;
+      flex-direction: column;
+      gap: 2rem;
+    }
+    .card {
+      background-color: #fff;
+      border-radius: 8px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      padding: 2rem;
+      margin-bottom: 2rem;
+    }
+    .button {
+      background-color: #2C3E50;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 1rem;
+    }
+    .button:hover {
+      background-color: #3a526a;
+    }
+    code {
+      background-color: #f5f5f5;
+      padding: 2px 4px;
+      border-radius: 4px;
+      font-family: monospace;
+    }
+    pre {
+      background-color: #f5f5f5;
+      padding: 1rem;
+      border-radius: 4px;
+      overflow-x: auto;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <h1>Chatbot Widget Demo</h1>
+      <p>This page demonstrates how to integrate the chatbot widget into your website.</p>
+      <p>You should see a chat icon in the bottom right corner. Click it to open the chat!</p>
+      
+      <h2>How to integrate</h2>
+      <p>Add the following code to your website:</p>
+      
+      <pre><code>&lt;!-- Include React and ReactDOM first --&gt;
+&lt;script src="https://unpkg.com/react@18/umd/react.production.min.js"&gt;&lt;/script&gt;
+&lt;script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"&gt;&lt;/script&gt;
+&lt;!-- Include the widget --&gt;
+&lt;script src="https://cdn.example.com/chatbot-widget.umd.js"&gt;&lt;/script&gt;
+&lt;link rel="stylesheet" href="https://cdn.example.com/style.css"&gt;
+
+&lt;script&gt;
+  // Initialize after everything is loaded
+  setTimeout(function() {
+    if (window.initChatbotWidget) {
+      initChatbotWidget({
+        apiUrl: 'https://your-api-server.com'
+      });
+    }
+  }, 500);
+&lt;/script&gt;</code></pre>
+    </div>
+    
+    <div class="card">
+      <h2>Custom Container</h2>
+      <p>You can also render the widget in a specific container:</p>
+      <div id="custom-container" style="min-height: 400px; border: 1px dashed #ccc; padding: 1rem;">
+        Widget will appear here if you click the button below.
+      </div>
+      <button class="button" id="load-in-container">Load Widget in Container</button>
+    </div>
+  </div>
+
+  <!-- Verify React is loaded -->
+  <script>
+    console.log('React version:', window.React ? window.React.version : 'not loaded');
+    console.log('ReactDOM version:', window.ReactDOM ? window.ReactDOM.version : 'not loaded');
+  </script>
+
+  <!-- Load the widget script -->
+  <script src="../dist/chatbot-widget.umd.js"></script>
+
+  <!-- Initialize the widget after everything is loaded -->
+  <script>
+    // Wait for everything to be available
+    setTimeout(function() {
+      console.log('Initializing widget with delay...');
+      console.log('initChatbotWidget available:', typeof window.initChatbotWidget === 'function');
+      
+      if (typeof window.initChatbotWidget === 'function') {
+        // Initialize the main widget
+        window.initChatbotWidget({
+          apiUrl: 'http://localhost:3000'
+        });
+        
+        // Set up the button for custom container
+        document.getElementById('load-in-container').addEventListener('click', function() {
+          console.log('Loading widget in custom container');
+          window.initChatbotWidget({
+            apiUrl: 'http://localhost:3000',
+            containerSelector: '#custom-container'
+          });
+          this.disabled = true;
+        });
+      } else {
+        console.error('Widget initialization function not available. Check if the widget script loaded correctly.');
+      }
+    }, 500);  // Use a longer delay to ensure everything is initialized
+  </script>
+</body>
+</html>
