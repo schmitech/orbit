@@ -1,3 +1,30 @@
+"""
+Ollama Service Check Script
+
+This script tests the connection and functionality of the Ollama service by sending
+a test query and verifying the response. It's useful for:
+- Verifying Ollama is running and accessible
+- Testing the model configuration
+- Checking response format and content
+- Debugging connection issues
+
+Usage:
+    python3 check_ollama.py
+
+The script will:
+1. Load the Ollama configuration from config.yaml
+2. Send a test query to the Ollama service
+3. Display the configuration and response
+
+Example Output:
+    Loaded configuration: {
+        "base_url": "http://localhost:11434",
+        "model": "gemma3:1b",
+        ...
+    }
+    Response: [Ollama's response to the test query]
+"""
+
 import requests
 import yaml
 import json
@@ -22,8 +49,17 @@ payload = {
     "stream": False
 }
 
-# Make request to Ollama
-response = requests.post(f"{ollama_config['base_url']}/api/generate", json=payload)
-
-# Print response
-print("Response:", response.json()["response"])
+try:
+    # Make request to Ollama
+    response = requests.post(f"{ollama_config['base_url']}/api/generate", json=payload)
+    response_data = response.json()
+    
+    # Print response
+    print("\nResponse:", response_data["response"])
+except requests.exceptions.RequestException as e:
+    print("\nError connecting to Ollama service:", str(e))
+except json.JSONDecodeError as e:
+    print("\nError parsing response:", str(e))
+    print("Raw response:", response.text)
+except Exception as e:
+    print("\nUnexpected error:", str(e))

@@ -1,3 +1,4 @@
+/// <reference path="./types/chatbot-widget.d.ts" />
 import { Routes, Route } from 'react-router-dom';
 import Layout from './components/Layout';
 import Home from './pages/Home';
@@ -9,10 +10,16 @@ import SeniorServices from './pages/programs/SeniorServices.tsx';
 import AdultEducation from './pages/programs/AdultEducation.tsx';
 import FamilyServices from './pages/programs/FamilyServices.tsx';
 import FinancialLiteracy from './pages/programs/FinancialLiteracy.tsx';
-import ChatWidget from './ChatWidget.tsx';
+import { ChatWidget } from 'chatbot-widget';
+import 'chatbot-widget/style.css';
 import CommunityOutreach from './pages/programs/CommunityOutreach.tsx';
+import { useEffect } from 'react';
 
 function App() {
+  useEffect(() => {
+    window.ChatbotWidget.setApiUrl('http://localhost:3000');
+  }, []);
+
   return (
     <Layout>
       <Routes>

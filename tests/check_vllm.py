@@ -1,3 +1,41 @@
+"""
+vLLM Service Check Script
+
+This script tests the connection and functionality of the vLLM service by sending
+a test query and verifying the response. It's useful for:
+- Verifying vLLM server is running and accessible
+- Testing the model configuration
+- Checking response format and content
+- Debugging connection issues
+- Validating API endpoint functionality
+
+Usage:
+    python3 check_vllm.py
+
+The script will:
+1. Load the vLLM configuration from config.yaml
+2. Send a test query to the vLLM service
+3. Display the configuration, request payload, and response
+4. Handle various types of errors that might occur
+
+Example Output:
+    Loaded vLLM configuration: {
+        "base_url": "http://15.156.8.133:5000",
+        "model": "VLLMQwen2.5-14B",
+        ...
+    }
+    
+    Sending request to vLLM server...
+    Payload: {
+        "model": "VLLMQwen2.5-14B",
+        "prompt": "What is the capital of Canada?",
+        ...
+    }
+    
+    Response status code: 200
+    Response content: [vLLM's response to the test query]
+"""
+
 import requests
 import yaml
 import json

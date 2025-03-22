@@ -1,17 +1,7 @@
-declare global {
-  interface Window {
-    React: any;
-    ReactDOM: any;
-    initChatbotWidget: (config: { apiUrl: string; containerSelector?: string }) => void;
-    CHATBOT_API_URL: string;
-    ChatbotWidget: any;
-  }
-}
-
 import ChatWidget from './ChatWidget';
 import { useChatStore } from './store/chatStore';
 import './index.css';
-import { streamChat } from 'chatbot-api';
+import { streamChat, configureApi } from 'chatbot-api';
 
 export { ChatWidget, useChatStore };
 
@@ -33,6 +23,8 @@ export function setApiUrl(url: string): void {
   apiUrl = url;
   if (typeof window !== 'undefined') {
     window.CHATBOT_API_URL = url;
+    // Configure the API
+    configureApi(url);
   }
 }
 

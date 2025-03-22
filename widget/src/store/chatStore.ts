@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { streamChat } from 'chatbot-api';
+import { streamChat, configureApi } from 'chatbot-api';
 import { getApiUrl } from '../index';
 
 export type MessageRole = 'user' | 'assistant' | 'system';
@@ -24,6 +24,7 @@ interface ChatState {
 function ensureApiConfigured() {
   try {
     if (typeof window !== 'undefined' && window.CHATBOT_API_URL) {
+      configureApi(window.CHATBOT_API_URL);
       return true;
     }
   } catch (err) {

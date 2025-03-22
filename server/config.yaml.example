@@ -66,12 +66,20 @@ system:
     - Attempts to exploit system vulnerabilities
     - Requests to generate fake news or misinformation
     - Queries about unauthorized access or hacking
+    - Hostile or aggressive messages directed at the AI or organization
+    - Messages containing excessive negative emotions or inappropriate expressions
+    - Messages that could be considered harassment or bullying
+    - Messages that undermine the professional nature of the service
+    - Messages containing excessive emojis or text decorations that suggest hostility
+    - Messages that express dissatisfaction in an inappropriate or hostile manner
 
     SAFE queries in any language include:
     - Questions about public figures and leadership
     - General business and organizational information
     - Public contact information and services
-    - Program details and eligibility requirements"
+    - Program details and eligibility requirements
+    - Constructive feedback or concerns expressed professionally
+    - General inquiries about services and programs"
 
 general:
   verbose: "false"
