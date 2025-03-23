@@ -117,6 +117,15 @@ npm run build
 
 The API will be available at `http://localhost:3001`.
 
+## Chatbot Widget
+
+The widget provides a ready-to-use UI component that can be integrated into any website.
+```bash
+cd widget
+npm install
+npx vite build
+```
+
 ## Examples
 
 These are simple web chatbots that interacts with the server using the API.
@@ -131,22 +140,6 @@ npm run dev
 The application will be available at `http://localhost:5173`.
 
 
-## Integrated Usage
-
-The four components work together as follows:
-
-1. **Client** makes requests to both the **Server** and **API**
-2. **API** processes requests and communicates with **Chroma** for vector operations
-3. **Server** handles business logic and may also interact with **Chroma**
-
-### Example Workflow
-
-1. User interacts with the **Client** interface
-2. **Client** sends requests to the **API**
-3. **API** processes the request, potentially querying **Chroma** for vector similarity
-4. **API** may communicate with the **Server** for additional processing
-5. Results are returned to the **Client** for display
-
 ## Development
 
 To run the entire system locally for development:
@@ -154,7 +147,8 @@ To run the entire system locally for development:
 1. Start Chroma: `cd chroma && chroma run --host localhost --port 8000 --path ./chroma_db`
 2. Start the Server: `cd server && npm run server -- ollama`
 3. Build the API: `cd api && npm run build`
-4. Start the Client: `cd client && npm run dev`
+4. Build the Widget: `cd widget && npm vite build`
+5. Start the Client: `cd client && npm run dev`
 
 ## License
 
