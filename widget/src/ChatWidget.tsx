@@ -3,6 +3,7 @@ import { MessageSquare, X, Minimize2, Send, Copy, Trash2, Heart } from 'lucide-r
 import { useChatStore, Message } from './store/chatStore';
 import ReactMarkdown from 'react-markdown';
 import clsx from 'clsx';
+import { getChatConfig } from './config';
 
 // Custom link component for ReactMarkdown
 const MarkdownLink = (props: React.AnchorHTMLAttributes<HTMLAnchorElement>) => {
@@ -25,6 +26,9 @@ const ChatWidget: React.FC = () => {
   const [isButtonHovered, setIsButtonHovered] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  
+  // Load configuration
+  const config = getChatConfig();
   
   const { 
     messages, 
@@ -109,7 +113,7 @@ const ChatWidget: React.FC = () => {
           <div className="bg-[#2C3E50] text-white p-3 flex justify-between items-center">
             <div className="flex items-center">
               <Heart size={20} className="mr-2 text-orange-400" />
-              <h3 className="font-medium">Community Support</h3>
+              <h3 className="font-medium">{config.header.title}</h3>
             </div>
             <div className="flex items-center space-x-2">
               <button 
@@ -134,29 +138,20 @@ const ChatWidget: React.FC = () => {
             {messages.length === 0 ? (
               <div className="text-center py-8">
                 <Heart size={40} className="mx-auto text-orange-400 mb-3" />
-                <h4 className="font-medium text-[#2C3E50] mb-1">Welcome to Community Support!</h4>
+                <h4 className="font-medium text-[#2C3E50] mb-1">{config.welcome.title}</h4>
                 <p className="text-sm text-gray-600 mb-4">
-                  I can help you learn about our programs, services, and how to get involved with our organization.
+                  {config.welcome.description}
                 </p>
                 <div className="space-y-2">
-                  <button 
-                    onClick={() => sendMessage("What programs do you offer for youth?")}
-                    className="w-full text-left text-sm bg-orange-50 hover:bg-orange-100 text-[#2C3E50] p-2 rounded-lg transition-colors"
-                  >
-                    What programs do you offer for youth?
-                  </button>
-                  <button 
-                    onClick={() => sendMessage("How can I volunteer with your organization?")}
-                    className="w-full text-left text-sm bg-orange-50 hover:bg-orange-100 text-[#2C3E50] p-2 rounded-lg transition-colors"
-                  >
-                    How can I volunteer with your organization?
-                  </button>
-                  <button 
-                    onClick={() => sendMessage("What services do you provide for seniors?")}
-                    className="w-full text-left text-sm bg-orange-50 hover:bg-orange-100 text-[#2C3E50] p-2 rounded-lg transition-colors"
-                  >
-                    What services do you provide for seniors?
-                  </button>
+                  {config.suggestedQuestions.map((question, index) => (
+                    <button 
+                      key={index}
+                      onClick={() => sendMessage(question.query)}
+                      className="w-full text-left text-sm bg-orange-50 hover:bg-orange-100 text-[#2C3E50] p-2 rounded-lg transition-colors"
+                    >
+                      {question.text}
+                    </button>
+                  ))}
                 </div>
               </div>
             ) : (

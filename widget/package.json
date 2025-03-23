@@ -27,8 +27,8 @@
     "chatbot-api": "file:../api",
     "clsx": "^2.1.0",
     "lucide-react": "^0.344.0",
-    "react": ">=16.8.0",
-    "react-dom": ">=16.8.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "react-markdown": "^9.0.1",
     "zustand": "^4.5.0"
   },
@@ -51,7 +51,7 @@
     "vite-plugin-dts": "^4.5.3"
   },
   "peerDependencies": {
-    "react": ">=16.8.0",
-    "react-dom": ">=16.8.0"
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
   }
 }

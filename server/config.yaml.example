@@ -85,7 +85,7 @@ general:
   verbose: "false"
 
 elasticsearch:
-  enabled: true
+  enabled: false
   node: 'https://localhost:9200'
   index: 'chatbot'
   auth:

@@ -109,35 +109,51 @@ You can customize the widget by specifying a container:
 </script>
 ```
 
-## Testing the Widget
+## Customizing the Widget
 
-After building, you can test the widget using the included demo page:
+### Custom Configuration
 
-1. Make sure your API server is running at `http://localhost:3000` (or update the URL in demo.html)
-2. Build the widget: `npx vite build`
-3. Serve the files locally:
+You can customize the widget's welcome message, header, and suggested questions by providing a custom configuration file:
+
+1. Create a custom configuration file based on the sample:
    ```bash
-   # Use a static file server
-   npx serve .
-   # Then navigate to http://localhost:3000/public/demo.html
+   cp custom-chat-config.sample.json custom-chat-config.json
    ```
-   
-   Or open the demo file directly (may not work with all browsers due to CORS):
+
+2. Edit the `custom-chat-config.json` file to change:
+   - Welcome title and description
+   - Suggested questions
+   - Header title
+
+3. Build with your custom configuration:
    ```bash
-   # On macOS
-   open public/demo.html
+   # Use default location (./custom-chat-config.json)
+   npx vite build
    
-   # On Linux
-   xdg-open public/demo.html
-   
-   # On Windows
-   start public/demo.html
+   # Or specify a custom path
+   CHAT_CONFIG_PATH=/path/to/your/config.json npx vite build
    ```
-4. You should see a chat icon in the bottom right corner - click it to open the chat
-5. If you encounter any errors:
-   - Check the browser console for error messages
-   - Make sure React and ReactDOM are properly loaded
-   - Verify your API server is running and accessible
+
+The configuration file has the following structure:
+
+```json
+{
+  "welcome": {
+    "title": "Welcome message title",
+    "description": "Welcome message description"
+  },
+  "suggestedQuestions": [
+    {
+      "text": "Question as displayed to user",
+      "query": "Question sent to the API"
+    },
+    // Add more questions as needed
+  ],
+  "header": {
+    "title": "Header title"
+  }
+}
+```
 
 ## Deployment
 

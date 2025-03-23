@@ -1,0 +1,23 @@
+{
+  "welcome": {
+    "title": "Welcome to City Services Help Center!",
+    "description": "I can help you with questions about property taxes, revenue services, permits, and other city services."
+  },
+  "suggestedQuestions": [
+    {
+      "text": "What are the office hours for Revenue Services?",
+      "query": "What are the office hours for Revenue Services?"
+    },
+    {
+      "text": "How do I pay my property taxes?",
+      "query": "Where can I pay my property taxes?"
+    },
+    {
+      "text": "What is the deadline for property tax payments?",
+      "query": "What is the deadline for property tax payments?"
+    }
+  ],
+  "header": {
+    "title": "City Services"
+  }
+} 

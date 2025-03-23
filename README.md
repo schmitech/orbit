@@ -1,6 +1,14 @@
-# AI Q/A Chatbot
+# AI-Driven Q&A Assistant Framework
 
-An open source conversational AI assistant, featuring text-to-speech capabilities.
+A simple, fully customizable AI chatbot engine designed for privacy, control, and independence from proprietary models.
+
+## Motivation
+Most AI chatbots require costly subscriptions or API key credits for inference services, introducing several challenges:
+
+1. **Privacy Risks**: Organizations with strict data privacy regulations cannot send sensitive data to external APIs.
+2. **Vendor Lock-in**: Relying on proprietary APIs leads to dependency, limiting control over inference models and data.
+3. **Limited Deployment Options**: Traditional services lack flexibility for deployment across diverse infrastructures, including on-premise or private cloud environments.
+4. **Reduced Customization**: Closed models prevent businesses from fine-tuning inference capabilities to address their unique domain-specific needs.
 
 ## Project Overview
 
@@ -13,7 +21,10 @@ This repository contains four interconnected projects:
 
 ## Architecture
 
-![Architecture Overview](llm-chatbot-architecture.png)
+![Architecture Overview](architecture.png)
+
+## How it works
+![How it Worls](llm-chatbot-architecture.png)
 
 ## Prerequisites
 

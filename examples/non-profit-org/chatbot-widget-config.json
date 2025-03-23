@@ -1,0 +1,23 @@
+{
+  "welcome": {
+    "title": "Welcome to Community Support!",
+    "description": "I can help you learn about our programs, services, and how to get involved with our organization."
+  },
+  "suggestedQuestions": [
+    {
+      "text": "What programs do you offer for youth?",
+      "query": "What programs do you offer for youth?"
+    },
+    {
+      "text": "How can I volunteer with your organization?",
+      "query": "How can I volunteer with your organization?"
+    },
+    {
+      "text": "What services do you provide for seniors?",
+      "query": "What services do you provide for seniors?"
+    }
+  ],
+  "header": {
+    "title": "Community Support"
+  }
+} 
