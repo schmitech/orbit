@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { streamChat, configureApi } from 'chatbot-api';
+import { streamChat, configureApi } from '@schmitech/chatbot-api';
 import { getApiUrl } from '../index';
 
 export type MessageRole = 'user' | 'assistant' | 'system';

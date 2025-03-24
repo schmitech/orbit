@@ -362,13 +362,13 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
             isButtonHovered && !isOpen && "animate-pulse"
           )}
           style={{
-            backgroundColor: isOpen ? '#ef4444' : theme.primary,
+            backgroundColor: isOpen ? theme.primary : theme.primary,
             color: theme.text.inverse
           }}
-          aria-label={isOpen ? "Close chat" : "Open chat"}
+          aria-label={isOpen ? "Minimize chat" : "Open chat"}
         >
           {isOpen ? (
-            <X size={24} className="text-white" />
+            <Minimize2 size={24} className="text-white" style={{ opacity: 0.9 }} />
           ) : (
             <ChatIcon iconName="message-square" size={24} className="text-white" />
           )}

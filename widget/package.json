@@ -24,7 +24,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "chatbot-api": "file:../api",
+    "@schmitech/chatbot-api": "^0.1.1",
     "clsx": "^2.1.0",
     "lucide-react": "^0.344.0",
     "react": "^18.3.1",

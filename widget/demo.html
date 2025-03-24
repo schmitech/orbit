@@ -1005,7 +1005,9 @@
             
             try {
                 const apiUrl = document.getElementById('api-url').value || 'http://localhost:3000';
-                const config = window.ChatbotWidget.getCurrentConfig();
+                
+                // Fallback to default config if getCurrentConfig is not available
+                const config = window.ChatbotWidget.getCurrentConfig?.() || defaultConfig;
                 
                 // Create display-friendly config
                 const displayConfig = {
@@ -1066,40 +1068,30 @@
         }
 
         // Initialize on page load
-        document.addEventListener('DOMContentLoaded', initWidget);
-
-        // Add getCurrentConfig method to ChatbotWidget for retrieving config for code examples
         document.addEventListener('DOMContentLoaded', function() {
-            // Wait for widget to be initialized
-            setTimeout(function() {
+            initWidget();
+            
+            // Add getCurrentConfig method to ChatbotWidget
+            const initChatbotConfig = function() {
                 if (window.ChatbotWidget && !window.ChatbotWidget.getCurrentConfig) {
-                    // Add a method to get current configuration
-                    window.ChatbotWidget.getCurrentConfig = function() {
-                        return {
-                            header: this._latestConfig?.header || defaultConfig.header,
-                            welcome: this._latestConfig?.welcome || defaultConfig.welcome,
-                            suggestedQuestions: this._latestConfig?.suggestedQuestions || defaultConfig.suggestedQuestions,
-                            theme: this._latestConfig?.theme || defaultConfig.theme,
-                            icon: this._latestConfig?.icon || defaultConfig.icon
-                        };
-                    };
-
-                    // Store the latest config when updated
-                    const originalUpdateMethod = window.ChatbotWidget.updateWidgetConfig;
                     window.ChatbotWidget._latestConfig = {...defaultConfig};
                     
+                    window.ChatbotWidget.getCurrentConfig = function() {
+                        return this._latestConfig || defaultConfig;
+                    };
+
+                    const originalUpdateMethod = window.ChatbotWidget.updateWidgetConfig;
                     window.ChatbotWidget.updateWidgetConfig = function(config) {
-                        // Store the updated config
                         this._latestConfig = {...this._latestConfig, ...config};
-                        
-                        // Call the original method
                         originalUpdateMethod.call(this, config);
-                        
-                        // Update code example after a short delay
                         setTimeout(updateCodeExample, 100);
                     };
                 }
-            }, 1000);
+            };
+
+            // Try to initialize immediately and also after a delay
+            initChatbotConfig();
+            setTimeout(initChatbotConfig, 1000);
         });
 
         // Function to update color preview elements

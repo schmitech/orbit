@@ -3,7 +3,7 @@ import { ChatMessage } from './components/ChatMessage';
 import { ChatInput } from './components/ChatInput';
 import { Sidebar } from './components/Sidebar';
 import { useChatStore } from './store';
-import { streamChat, configureApi } from 'chatbot-api';
+import { streamChat, configureApi } from '@schmitech/chatbot-api';
 
 // Configure the API with the endpoint from environment variables
 const apiEndpoint = import.meta.env.VITE_API_ENDPOINT;

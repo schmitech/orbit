@@ -58,6 +58,36 @@ To make this library available to anyone via npm:
    npm publish
    ```
 
+### Option 4: Using via CDN (for websites)
+
+You can include the library directly in your website using jsDelivr CDN:
+
+```html
+<!-- For ESM (modern browsers) -->
+<script type="module">
+  import { configureApi, streamChat } from 'https://cdn.jsdelivr.net/npm/@schmitech/chatbot-api@0.1.0/dist/api.mjs';
+  
+  // Configure the API with your server URL
+  configureApi('https://your-api-server.com');
+  
+  // Use the API functions
+  async function handleChat() {
+    for await (const response of streamChat('Hello', false)) {
+      console.log(response.text);
+    }
+  }
+</script>
+```
+
+For production use, you can omit the version to always get the latest:
+
+```html
+<script type="module">
+  import { configureApi, streamChat } from 'https://cdn.jsdelivr.net/npm/@schmitech/chatbot-api/dist/api.mjs';
+  // ...
+</script>
+```
+
 ## Usage
 
 ### Configuration (Required)
@@ -207,6 +237,107 @@ function ChatComponent() {
 
 export default ChatComponent;
 ```
+
+## Usage with Native Mobile Platforms
+
+### React Native
+
+If using React Native, you can use the npm package directly:
+
+```javascript
+import { configureApi, streamChat } from '@schmitech/chatbot-api';
+
+// Configure API
+configureApi('https://your-api-server.com');
+
+// Usage in React Native component
+async function handleChat(message) {
+  try {
+    for await (const response of streamChat(message, false)) {
+      // Update UI with response.text
+    }
+  } catch (error) {
+    console.error('Chat error:', error);
+  }
+}
+```
+
+### Native iOS (Swift)
+
+For pure native iOS, you'll need to create a Swift wrapper:
+
+```swift
+// ChatService.swift
+import Foundation
+
+class ChatService {
+    private let apiUrl: String
+    
+    init(apiUrl: String) {
+        self.apiUrl = apiUrl
+    }
+    
+    func sendMessage(_ message: String, voiceEnabled: Bool, 
+                     onResponse: @escaping (String, Bool) -> Void,
+                     onError: @escaping (Error) -> Void) {
+        
+        guard let url = URL(string: "\(apiUrl)/chat") else {
+            onError(NSError(domain: "Invalid URL", code: 0))
+            return
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        let body: [String: Any] = ["message": message, "voiceEnabled": voiceEnabled]
+        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        
+        let task = URLSession.shared.dataTask(with: request) { data, response, error in
+            // Handle streaming responses
+            // ...
+        }
+        task.resume()
+    }
+}
+```
+
+### Native Android (Kotlin)
+
+For pure native Android, you'd implement:
+
+```kotlin
+// ChatService.kt
+class ChatService(private val apiUrl: String) {
+    fun sendMessage(
+        message: String,
+        voiceEnabled: Boolean,
+        onResponse: (text: String, isDone: Boolean) -> Unit,
+        onError: (error: Throwable) -> Unit
+    ) {
+        val client = OkHttpClient()
+        
+        val requestBody = JSONObject().apply {
+            put("message", message)
+            put("voiceEnabled", voiceEnabled)
+        }.toString().toRequestBody("application/json".toMediaType())
+        
+        val request = Request.Builder()
+            .url("$apiUrl/chat")
+            .post(requestBody)
+            .build()
+            
+        // Set up streaming response handling
+        // ...
+    }
+}
+```
+
+### Alternative Approaches
+
+1. **Flutter**: Create Dart implementation using http package
+2. **WebView**: Embed a web component in your app that uses the JS client
+3. **Capacitor/Cordova**: Create a hybrid app, use the npm package directly
 
 ## API Reference
 

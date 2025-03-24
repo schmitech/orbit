@@ -1,7 +1,7 @@
 {
-    "name": "chatbot-api",
+    "name": "@schmitech/chatbot-api",
     "private": false,
-    "version": "0.1.0",
+    "version": "0.1.1",
     "description": "API client for the Chatbot server",
     "type": "module",
     "main": "./dist/api.cjs",
@@ -10,7 +10,8 @@
     "exports": {
         ".": {
             "import": "./dist/api.mjs",
-            "require": "./dist/api.cjs"
+            "require": "./dist/api.cjs",
+            "types": "./api.d.ts"
         }
     },
     "files": [

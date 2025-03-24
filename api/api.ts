@@ -41,13 +41,12 @@ const initConnectionPool = async () => {
       const originalCreateConnection = httpAgent.createConnection;
       httpAgent.createConnection = function(options: any, callback: any) {
         connectionCounter++;
-        console.log(`[Connection Pool] Creating connection #${connectionCounter}`);
+        
         
         const socket = originalCreateConnection.call(this, options, callback);
         
         socket.on('reuse', () => {
           connectionReuseCounter++;
-          console.log(`[Connection Pool] Reusing connection - total reuses: ${connectionReuseCounter}`);
         });
         
         return socket;
@@ -59,12 +58,9 @@ const initConnectionPool = async () => {
         maxSockets: 5
       });
       
-      console.log('[Connection Pool] HTTP connection pool initialized with keepAlive enabled');
     } catch (error) {
       console.warn('[Connection Pool] Failed to initialize HTTP agents:', error);
     }
-  } else {
-    console.log('[Connection Pool] Running in browser environment, using native connection pooling');
   }
 };
 
@@ -86,7 +82,6 @@ export const configureApi = (apiUrl: string): void => {
     throw new Error('API URL must be a valid string');
   }
   configuredApiUrl = apiUrl;
-  console.log('API configured with custom URL:', apiUrl);
 }
 
 // Get the configured API URL or throw an error if not configured
@@ -104,18 +99,15 @@ const getFetchOptions = (apiUrl: string, options: RequestInit = {}): RequestInit
   // Only use agents in Node.js environment
   if (typeof window === 'undefined') {
     if (isHttps && httpsAgent) {
-      console.log('[Connection Pool] Using HTTPS agent with keepAlive');
       // Using 'any' type to bypass TypeScript limitations with Node.js http.Agent
       return { ...options, agent: httpsAgent } as any;
     } else if (httpAgent) {
-      console.log('[Connection Pool] Using HTTP agent with keepAlive');
       return { ...options, agent: httpAgent } as any;
     }
   }
   
   // Browser environment
-  const requestId = Date.now().toString(36) + Math.random().toString(36).substr(2);
-  console.log(`[Connection Pool] Browser request ${requestId} using keep-alive header`);
+  const requestId = Date.now().toString(36) + Math.random().toString(36).substring(2);
   
   // Use keep-alive header in browser environments
   return {
@@ -136,9 +128,6 @@ export async function* streamChat(
     // Get the API URL at the time of the request (allows for dynamic configuration)
     const API_URL = getApiUrl();
     
-    const startTime = Date.now();
-    console.log(`[${startTime}] Attempting to connect to ${API_URL}/chat with message:`, message.substring(0, 30) + '...');
-    
     // Skip the OPTIONS preflight check that was causing CORS issues
     const response = await fetch(`${API_URL}/chat`, getFetchOptions(API_URL, {
       method: 'POST',
@@ -147,9 +136,6 @@ export async function* streamChat(
       },
       body: JSON.stringify({ message, voiceEnabled }),
     }));
-
-    const responseTime = Date.now() - startTime;
-    console.log(`[Connection Pool] Response received in ${responseTime}ms`);
 
     if (!response.ok) {
       const errorText = await response.text();

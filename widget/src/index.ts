@@ -1,7 +1,9 @@
+import React from 'react';
+import ReactDOM from 'react-dom/client';
 import { ChatWidget, ChatWidgetProps } from './ChatWidget';
 import { useChatStore } from './store/chatStore';
 import './index.css';
-import { streamChat, configureApi } from 'chatbot-api';
+import { streamChat, configureApi } from '@schmitech/chatbot-api';
 import { getChatConfig, ChatConfig, defaultConfig } from './config/index';
 
 export { ChatWidget, useChatStore, getChatConfig };
