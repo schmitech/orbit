@@ -1,12 +1,18 @@
-import ChatWidget from './ChatWidget';
+import { ChatWidget, ChatWidgetProps } from './ChatWidget';
 import { useChatStore } from './store/chatStore';
 import './index.css';
 import { streamChat, configureApi } from 'chatbot-api';
+import { getChatConfig, ChatConfig, defaultConfig } from './config/index';
 
-export { ChatWidget, useChatStore };
+export { ChatWidget, useChatStore, getChatConfig };
+export type { ChatWidgetProps, ChatConfig };
+
+// Also export as default for backward compatibility
+export default ChatWidget;
 
 // This will be the global API URL that components can import
 let apiUrl: string | null = null;
+let currentConfig: ChatConfig | null = null;
 
 export function getApiUrl(): string {
   if (!apiUrl) {
@@ -28,16 +34,55 @@ export function setApiUrl(url: string): void {
   }
 }
 
+// Function to update widget configuration at runtime
+export function updateWidgetConfig(config: Partial<ChatConfig>): void {
+  if (typeof window === 'undefined') return;
+  
+  currentConfig = {
+    ...defaultConfig,  // Start with default config
+    ...currentConfig,  // Keep existing config
+    ...config,         // Apply new config
+    // Ensure required properties are present
+    header: {
+      ...defaultConfig.header,  // Keep default header
+      ...currentConfig?.header, // Keep existing header
+      ...config.header         // Apply new header
+    },
+    welcome: {
+      ...defaultConfig.welcome,  // Keep default welcome
+      ...currentConfig?.welcome, // Keep existing welcome
+      ...config.welcome         // Apply new welcome
+    },
+    suggestedQuestions: config.suggestedQuestions || currentConfig?.suggestedQuestions || defaultConfig.suggestedQuestions,
+    theme: {
+      ...defaultConfig.theme,  // Keep default theme
+      ...currentConfig?.theme, // Keep existing theme
+      ...config.theme         // Apply new theme
+    }
+  };
+  
+  // Dispatch a custom event to notify the widget of the config change
+  window.dispatchEvent(new CustomEvent('chatbot-config-update', { 
+    detail: currentConfig 
+  }));
+}
+
 // Function to inject the widget into any website
 export function injectChatWidget(config: { 
   apiUrl: string,
-  containerSelector?: string 
+  containerSelector?: string,
+  widgetConfig?: Partial<ChatConfig>
 }): void {
   // Ensure we're in a browser environment
   if (typeof window === 'undefined') return;
 
   // Set API URL and configure API
   setApiUrl(config.apiUrl);
+  
+  // Store initial config if provided
+  if (config.widgetConfig) {
+    currentConfig = config.widgetConfig as ChatConfig;
+  }
   
   // We need to ensure this function is called only after React and ReactDOM are fully loaded
   function tryInitialize() {
@@ -89,10 +134,9 @@ if (typeof window !== 'undefined') {
     useChatStore,
     injectChatWidget,
     setApiUrl,
-    getApiUrl
+    getApiUrl,
+    updateWidgetConfig
   };
   
   console.log('Chatbot widget loaded. initChatbotWidget function is available.');
-}
-
-export default ChatWidget; 
+} 

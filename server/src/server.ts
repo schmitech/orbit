@@ -479,7 +479,6 @@ async function logChatInteraction(data: {
 if (config.elasticsearch.enabled && esClient) {
   try {
     await esClient.ping();
-    console.log('Successfully connected to Elasticsearch');
     
     // Check if index exists
     const indexExists = await esClient.indices.exists({ index: config.elasticsearch.index });

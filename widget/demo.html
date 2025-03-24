@@ -1,0 +1,1133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chatbot Widget Demo</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+            color: #333;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2C3E50;
+            margin-bottom: 10px;
+            border-bottom: 2px solid #f97316;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #2C3E50;
+            margin-top: 25px;
+            font-size: 20px;
+        }
+        .subtitle {
+            color: #666;
+            margin-top: 0;
+            margin-bottom: 25px;
+        }
+        .demo-controls {
+            margin: 20px 0;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #f97316;
+        }
+        .button-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin: 15px 0;
+        }
+        button {
+            padding: 10px 18px;
+            border: none;
+            border-radius: 6px;
+            background: #2C3E50;
+            color: white;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+        button:hover {
+            background: #1a202c;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        button.secondary {
+            background: #f97316;
+        }
+        button.secondary:hover {
+            background: #ea580c;
+        }
+        button.tertiary {
+            background: #64748b;
+        }
+        button.tertiary:hover {
+            background: #475569;
+        }
+        .code-block {
+            background: #1a202c;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-family: monospace;
+            margin: 15px 0;
+        }
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .feature-card {
+            background: #fff;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .feature-card h3 {
+            margin-top: 0;
+            color: #2C3E50;
+        }
+        .custom-container {
+            border: 2px dashed #cbd5e1;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            text-align: center;
+            min-height: 100px;
+        }
+        .api-url-form {
+            display: flex;
+            gap: 10px;
+            margin: 20px 0;
+        }
+        .api-url-form input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+        }
+        footer {
+            text-align: center;
+            margin-top: 40px;
+            color: #64748b;
+            font-size: 14px;
+        }
+        .color-customizer {
+            background: #f8fafc;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            border-left: 4px solid #3b82f6;
+        }
+        .color-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin: 15px 0;
+            align-items: center;
+        }
+        .color-field {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .color-field label {
+            font-size: 14px;
+            width: 120px;
+        }
+        .theme-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 15px;
+            margin: 15px 0;
+        }
+        .theme-card {
+            border-radius: 8px;
+            overflow: hidden;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: all 0.2s ease;
+            position: relative;
+        }
+        .theme-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+        .theme-card.active {
+            outline: 3px solid #3b82f6;
+        }
+        .theme-card-header {
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+        .theme-card-body {
+            height: 60px;
+            padding: 10px;
+        }
+        .theme-card-name {
+            text-align: center;
+            font-weight: 500;
+            margin-bottom: 5px;
+        }
+        .theme-accent {
+            height: 5px;
+        }
+        .apply-custom-btn {
+            background: #f1f5f9;
+            color: #1e293b;
+            border: 1px solid #cbd5e1;
+            font-weight: 600;
+            margin-top: 15px;
+            transition: all 0.2s ease;
+        }
+        .apply-custom-btn:hover {
+            background: #e2e8f0;
+            color: #0f172a;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .icon-btn {
+            background: #f8f9fa;
+            border: 1px solid #e5e7eb;
+            color: #1e293b;
+            padding: 8px 12px;
+            transition: all 0.2s ease;
+        }
+        .icon-btn:hover {
+            background: #f1f5f9;
+            transform: translateY(-2px);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            color: #0f172a;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Chatbot Widget Demo</h1>
+        <p class="subtitle">Test and configure the chatbot widget in real-time</p>
+
+        <div class="api-url-form">
+            <input type="text" id="api-url" placeholder="API URL (e.g., http://localhost:3000)" value="http://localhost:3000">
+            <button onclick="updateApiUrl()">Update API URL</button>
+        </div>
+
+        <h2>Built-in Themes</h2>
+        <div class="theme-cards">
+            <div class="theme-card active" onclick="updateTheme('default')">
+                <div class="theme-card-header" style="background: #2C3E50;">
+                    Demo Chat
+                </div>
+                <div class="theme-accent" style="background: #f97316;"></div>
+                <div class="theme-card-body">
+                    <div class="theme-card-name">Default Theme</div>
+                </div>
+            </div>
+
+            <div class="theme-card" onclick="updateTheme('dark')">
+                <div class="theme-card-header" style="background: #111827;">
+                    Demo Chat
+                </div>
+                <div class="theme-accent" style="background: #6366f1;"></div>
+                <div class="theme-card-body" style="background: #1f2937; color: #f3f4f6;">
+                    <div class="theme-card-name">Dark Theme</div>
+                </div>
+            </div>
+
+            <div class="theme-card" onclick="updateTheme('light')">
+                <div class="theme-card-header" style="background: #e2e8f0; color: #1e293b;">
+                    Demo Chat
+                </div>
+                <div class="theme-accent" style="background: #3b82f6;"></div>
+                <div class="theme-card-body">
+                    <div class="theme-card-name">Light Theme</div>
+                </div>
+            </div>
+
+            <div class="theme-card" onclick="updateTheme('nature')">
+                <div class="theme-card-header" style="background: #065f46;">
+                    Demo Chat
+                </div>
+                <div class="theme-accent" style="background: #10b981;"></div>
+                <div class="theme-card-body">
+                    <div class="theme-card-name">Nature Theme</div>
+                </div>
+            </div>
+
+            <div class="theme-card" onclick="updateTheme('sunset')">
+                <div class="theme-card-header" style="background: #7c2d12;">
+                    Demo Chat
+                </div>
+                <div class="theme-accent" style="background: #f59e0b;"></div>
+                <div class="theme-card-body">
+                    <div class="theme-card-name">Sunset Theme</div>
+                </div>
+            </div>
+
+            <div class="theme-card" onclick="updateTheme('ocean')">
+                <div class="theme-card-header" style="background: #0c4a6e;">
+                    Demo Chat
+                </div>
+                <div class="theme-accent" style="background: #0ea5e9;"></div>
+                <div class="theme-card-body">
+                    <div class="theme-card-name">Ocean Theme</div>
+                </div>
+            </div>
+
+            <div class="theme-card" onclick="updateTheme('berry')">
+                <div class="theme-card-header" style="background: #701a75;">
+                    Demo Chat
+                </div>
+                <div class="theme-accent" style="background: #ec4899;"></div>
+                <div class="theme-card-body">
+                    <div class="theme-card-name">Berry Theme</div>
+                </div>
+            </div>
+
+            <div class="theme-card" onclick="updateTheme('royal')">
+                <div class="theme-card-header" style="background: #312e81;">
+                    Demo Chat
+                </div>
+                <div class="theme-accent" style="background: #8b5cf6;"></div>
+                <div class="theme-card-body">
+                    <div class="theme-card-name">Royal Theme</div>
+                </div>
+            </div>
+        </div>
+
+        <h2>Custom Color Picker</h2>
+        <div class="color-customizer">
+            <p>Fine-tune the widget's colors to match your brand perfectly:</p>
+            
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin-bottom: 20px;">
+                <!-- Main Colors Section -->
+                <div style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 15px; background: #fafafa;">
+                    <h3 style="margin-top: 0; margin-bottom: 15px; font-size: 16px; color: #2C3E50; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px;">Main Colors</h3>
+                    
+                    <div class="color-field" style="margin-bottom: 12px;">
+                        <label for="primary-color">Primary Color:</label>
+                        <div style="display: flex; align-items: center;">
+                            <input type="color" id="primary-color" value="#2C3E50">
+                            <div style="margin-left: 10px; height: 24px; width: 100px; background: #2C3E50; border-radius: 4px; border: 1px solid #e5e7eb;"></div>
+                        </div>
+                    </div>
+                    <div class="color-field" style="margin-bottom: 12px;">
+                        <label for="secondary-color">Accent Color:</label>
+                        <div style="display: flex; align-items: center;">
+                            <input type="color" id="secondary-color" value="#f97316">
+                            <div style="margin-left: 10px; height: 24px; width: 100px; background: #f97316; border-radius: 4px; border: 1px solid #e5e7eb;"></div>
+                        </div>
+                    </div>
+                    <div class="color-field" style="margin-bottom: 12px;">
+                        <label for="background-color">Background:</label>
+                        <div style="display: flex; align-items: center;">
+                            <input type="color" id="background-color" value="#ffffff">
+                            <div style="margin-left: 10px; height: 24px; width: 100px; background: #ffffff; border-radius: 4px; border: 1px solid #e5e7eb;"></div>
+                        </div>
+                    </div>
+                    <div class="color-field">
+                        <label for="text-primary-color">Primary Text:</label>
+                        <div style="display: flex; align-items: center;">
+                            <input type="color" id="text-primary-color" value="#1a1a1a">
+                            <div style="margin-left: 10px; height: 24px; width: 100px; background: #1a1a1a; border-radius: 4px; border: 1px solid #e5e7eb;"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Message Bubbles Section -->
+                <div style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 15px; background: #fafafa;">
+                    <h3 style="margin-top: 0; margin-bottom: 15px; font-size: 16px; color: #2C3E50; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px;">Message Bubbles</h3>
+                    
+                    <div class="color-field" style="margin-bottom: 12px;">
+                        <label for="user-bubble-color">User Bubble:</label>
+                        <div style="display: flex; align-items: center;">
+                            <input type="color" id="user-bubble-color" value="#2C3E50">
+                            <div style="margin-left: 10px; height: 24px; width: 100px; background: #2C3E50; border-radius: 4px; border: 1px solid #e5e7eb;"></div>
+                        </div>
+                    </div>
+                    <div class="color-field">
+                        <label for="assistant-bubble-color">Assistant Bubble:</label>
+                        <div style="display: flex; align-items: center;">
+                            <input type="color" id="assistant-bubble-color" value="#ffffff">
+                            <div style="margin-left: 10px; height: 24px; width: 100px; background: #ffffff; border-radius: 4px; border: 1px solid #e5e7eb;"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Suggested Questions Section -->
+                <div style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 15px; background: #fafafa;">
+                    <h3 style="margin-top: 0; margin-bottom: 15px; font-size: 16px; color: #2C3E50; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px;">Suggested Questions</h3>
+                    
+                    <div class="color-field" style="margin-bottom: 12px;">
+                        <label for="suggested-bg-color">Background:</label>
+                        <div style="display: flex; align-items: center;">
+                            <input type="color" id="suggested-bg-color" value="#fff7ed">
+                            <div style="margin-left: 10px; height: 24px; width: 100px; background: #fff7ed; border-radius: 4px; border: 1px solid #e5e7eb;"></div>
+                        </div>
+                    </div>
+                    <div class="color-field" style="margin-bottom: 12px;">
+                        <label for="suggested-hover-color">Hover Background:</label>
+                        <div style="display: flex; align-items: center;">
+                            <input type="color" id="suggested-hover-color" value="#ffedd5">
+                            <div style="margin-left: 10px; height: 24px; width: 100px; background: #ffedd5; border-radius: 4px; border: 1px solid #e5e7eb;"></div>
+                        </div>
+                    </div>
+                    <div class="color-field">
+                        <label for="suggested-text-color">Text Color:</label>
+                        <div style="display: flex; align-items: center;">
+                            <input type="color" id="suggested-text-color" value="#2C3E50">
+                            <div style="margin-left: 10px; height: 24px; width: 100px; background: #2C3E50; border-radius: 4px; border: 1px solid #e5e7eb;"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Icon Color Section -->
+                <div style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 15px; background: #fafafa;">
+                    <h3 style="margin-top: 0; margin-bottom: 15px; font-size: 16px; color: #2C3E50; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px;">Icon</h3>
+                    
+                    <div class="color-field">
+                        <label for="icon-color">Icon Color:</label>
+                        <div style="display: flex; align-items: center;">
+                            <input type="color" id="icon-color" value="#f97316">
+                            <div style="margin-left: 10px; height: 24px; width: 100px; background: #f97316; border-radius: 4px; border: 1px solid #e5e7eb;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div style="display: flex; justify-content: center;">
+                <button onclick="applyCustomColors()" class="apply-custom-btn" style="padding: 12px 24px; font-size: 16px; background: #f1f5f9; color: #1e293b; border: 1px solid #cbd5e1; font-weight: 600;">Apply Custom Colors</button>
+            </div>
+        </div>
+
+        <h2>Icon Selection</h2>
+        <div class="demo-controls">
+            <p>Choose an icon for your chatbot widget:</p>
+            <div class="button-group">
+                <button onclick="updateIcon('heart')" class="icon-btn">❤️ Heart</button>
+                <button onclick="updateIcon('message-square')" class="icon-btn">💬 Message Square</button>
+                <button onclick="updateIcon('message-circle')" class="icon-btn">🗨️ Message Circle</button>
+                <button onclick="updateIcon('help-circle')" class="icon-btn">❓ Help Circle</button>
+                <button onclick="updateIcon('info')" class="icon-btn">ℹ️ Info</button>
+                <button onclick="updateIcon('bot')" class="icon-btn">🤖 Bot</button>
+                <button onclick="updateIcon('sparkles')" class="icon-btn">✨ Sparkles</button>
+            </div>
+        </div>
+
+        <h2>Widget Controls</h2>
+        <div class="demo-controls">
+            <div class="button-group">
+                <button onclick="updateContent('default')">Default Content</button>
+                <button onclick="updateContent('custom')" class="secondary">Custom Content</button>
+            </div>
+            <div class="button-group">
+                <button onclick="toggleChat()">Toggle Chat</button>
+                <button onclick="resetWidget()" class="tertiary">Reset Widget</button>
+            </div>
+        </div>
+
+        <h2>Custom Container Demo</h2>
+        <p>You can render the widget in a custom container instead of the bottom-right corner:</p>
+        <button onclick="initInCustomContainer()">Initialize in Custom Container</button>
+        <div id="custom-container" class="custom-container">
+            <p>Widget will appear here when you click the button above</p>
+        </div>
+
+        <h2>Implementation Code</h2>
+        <p>Copy and paste this code into your website to add the chatbot widget:</p>
+        <div class="code-block">
+            <pre><code id="implementation-code">&lt;!-- Include dependencies -->
+&lt;script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin>&lt;/script>
+&lt;script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin>&lt;/script>
+&lt;script src="/chatbot-widget.umd.js">&lt;/script>
+&lt;link rel="stylesheet" href="/style.css">
+
+&lt;script>
+  window.addEventListener('load', function() {
+    window.initChatbotWidget({
+      apiUrl: 'http://localhost:3000',
+      widgetConfig: {
+        header: { title: "Demo Chat" },
+        welcome: { 
+          title: "Welcome to the Demo!",
+          description: "This is a test of the chatbot widget. Try asking about the features or customization options."
+        },
+        suggestedQuestions: [
+          {
+            text: "What can you do?",
+            query: "What features do you have?"
+          },
+          {
+            text: "Change theme",
+            query: "How do I customize the appearance?"
+          },
+          {
+            text: "API integration",
+            query: "How do I connect to my own API?"
+          }
+        ],
+        theme: {
+          primary: '#2C3E50',
+          secondary: '#f97316',
+          background: '#ffffff',
+          text: {
+            primary: '#1a1a1a',
+            secondary: '#666666',
+            inverse: '#ffffff'
+          },
+          input: {
+            background: '#f9fafb',
+            border: '#e5e7eb'
+          },
+          message: {
+            user: '#2C3E50',
+            assistant: '#ffffff',
+            userText: '#ffffff'
+          },
+          suggestedQuestions: {
+            background: '#fff7ed',
+            hoverBackground: '#ffedd5',
+            text: '#2C3E50'
+          },
+          iconColor: '#f97316'
+        },
+        icon: "message-square"
+      }
+    });
+  });
+&lt;/script></code></pre>
+        </div>
+        <button onclick="copyImplementationCode()" class="secondary">Copy Code</button>
+
+        <h2>Widget Features</h2>
+        <div class="feature-grid">
+            <div class="feature-card">
+                <h3>Customizable Theme</h3>
+                <p>Change colors and styling to match your brand</p>
+            </div>
+            <div class="feature-card">
+                <h3>Dynamic Updates</h3>
+                <p>Update content and appearance without refreshing</p>
+            </div>
+            <div class="feature-card">
+                <h3>Markdown Support</h3>
+                <p>Format responses with rich text and links</p>
+            </div>
+            <div class="feature-card">
+                <h3>Responsive Design</h3>
+                <p>Works on desktop and mobile devices</p>
+            </div>
+        </div>
+
+        <footer>
+            <p>Chatbot Widget Demo | Start the API server with <code>npm run start</code> in the api directory</p>
+        </footer>
+    </div>
+
+    <!-- Required dependencies -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <script src="./dist/chatbot-widget.umd.js"></script>
+    <link rel="stylesheet" href="./dist/style.css">
+
+    <script>
+        let widgetInitialized = false;
+        let customWidgetInitialized = false;
+        
+        // Store initial configurations for reset
+        const defaultConfig = {
+            header: {
+                title: "Demo Chat"
+            },
+            welcome: {
+                title: "Welcome to the Demo!",
+                description: "This is a test of the chatbot widget. Try asking about the features or customization options."
+            },
+            suggestedQuestions: [
+                {
+                    text: "What can you do?",
+                    query: "What features do you have?"
+                },
+                {
+                    text: "Change theme",
+                    query: "How do I customize the appearance?"
+                },
+                {
+                    text: "API integration",
+                    query: "How do I connect to my own API?"
+                }
+            ],
+            theme: {
+                primary: '#2C3E50',
+                secondary: '#f97316',
+                background: '#ffffff',
+                text: {
+                    primary: '#1a1a1a',
+                    secondary: '#666666',
+                    inverse: '#ffffff'
+                },
+                input: {
+                    background: '#f9fafb',
+                    border: '#e5e7eb'
+                },
+                message: {
+                    user: '#2C3E50',
+                    assistant: '#ffffff',
+                    userText: '#ffffff'
+                },
+                suggestedQuestions: {
+                    background: '#fff7ed',
+                    hoverBackground: '#ffedd5',
+                    text: '#2C3E50'
+                },
+                iconColor: '#f97316'
+            },
+            icon: 'message-square' // Default icon
+        };
+
+        // Theme presets
+        const themes = {
+            default: defaultConfig.theme,
+            dark: {
+                primary: '#111827',
+                secondary: '#6366f1',
+                background: '#1f2937',
+                text: {
+                    primary: '#f3f4f6',
+                    secondary: '#d1d5db',
+                    inverse: '#ffffff'
+                },
+                input: {
+                    background: '#374151',
+                    border: '#4b5563'
+                },
+                message: {
+                    user: '#6366f1',
+                    assistant: '#1f2937',
+                    userText: '#ffffff'
+                },
+                suggestedQuestions: {
+                    background: '#1f2937',
+                    hoverBackground: '#374151',
+                    text: '#f3f4f6'
+                },
+                iconColor: '#6366f1'
+            },
+            light: {
+                primary: '#e2e8f0',
+                secondary: '#3b82f6',
+                background: '#ffffff',
+                text: {
+                    primary: '#1e293b',
+                    secondary: '#64748b',
+                    inverse: '#1e293b'
+                },
+                input: {
+                    background: '#f8fafc',
+                    border: '#cbd5e1'
+                },
+                message: {
+                    user: '#3b82f6',
+                    assistant: '#f1f5f9',
+                    userText: '#ffffff'
+                },
+                suggestedQuestions: {
+                    background: '#f0f9ff',
+                    hoverBackground: '#e0f2fe',
+                    text: '#1e293b'
+                },
+                iconColor: '#3b82f6'
+            },
+            nature: {
+                primary: '#065f46',
+                secondary: '#10b981',
+                background: '#ffffff',
+                text: {
+                    primary: '#1e293b',
+                    secondary: '#4b5563',
+                    inverse: '#ffffff'
+                },
+                input: {
+                    background: '#f0fdf4',
+                    border: '#d1fae5'
+                },
+                message: {
+                    user: '#065f46',
+                    assistant: '#ecfdf5',
+                    userText: '#ffffff'
+                },
+                suggestedQuestions: {
+                    background: '#ecfdf5',
+                    hoverBackground: '#d1fae5',
+                    text: '#065f46'
+                },
+                iconColor: '#10b981'
+            },
+            sunset: {
+                primary: '#7c2d12',
+                secondary: '#f59e0b',
+                background: '#ffffff',
+                text: {
+                    primary: '#1e293b',
+                    secondary: '#4b5563',
+                    inverse: '#ffffff'
+                },
+                input: {
+                    background: '#fff7ed',
+                    border: '#ffedd5'
+                },
+                message: {
+                    user: '#7c2d12',
+                    assistant: '#fff7ed',
+                    userText: '#ffffff'
+                },
+                suggestedQuestions: {
+                    background: '#fff7ed',
+                    hoverBackground: '#ffedd5',
+                    text: '#7c2d12'
+                },
+                iconColor: '#f59e0b'
+            },
+            ocean: {
+                primary: '#0c4a6e',
+                secondary: '#0ea5e9',
+                background: '#ffffff',
+                text: {
+                    primary: '#1e293b',
+                    secondary: '#4b5563',
+                    inverse: '#ffffff'
+                },
+                input: {
+                    background: '#f0f9ff',
+                    border: '#e0f2fe'
+                },
+                message: {
+                    user: '#0c4a6e',
+                    assistant: '#f0f9ff',
+                    userText: '#ffffff'
+                },
+                suggestedQuestions: {
+                    background: '#f0f9ff',
+                    hoverBackground: '#e0f2fe',
+                    text: '#0c4a6e'
+                },
+                iconColor: '#0ea5e9'
+            },
+            berry: {
+                primary: '#701a75',
+                secondary: '#ec4899',
+                background: '#ffffff',
+                text: {
+                    primary: '#1e293b',
+                    secondary: '#4b5563',
+                    inverse: '#ffffff'
+                },
+                input: {
+                    background: '#fdf2f8',
+                    border: '#fce7f3'
+                },
+                message: {
+                    user: '#701a75',
+                    assistant: '#fdf2f8',
+                    userText: '#ffffff'
+                },
+                suggestedQuestions: {
+                    background: '#fdf2f8',
+                    hoverBackground: '#fce7f3',
+                    text: '#701a75'
+                },
+                iconColor: '#ec4899'
+            },
+            royal: {
+                primary: '#312e81',
+                secondary: '#8b5cf6',
+                background: '#ffffff',
+                text: {
+                    primary: '#1e293b',
+                    secondary: '#4b5563',
+                    inverse: '#ffffff'
+                },
+                input: {
+                    background: '#eef2ff',
+                    border: '#e0e7ff'
+                },
+                message: {
+                    user: '#312e81',
+                    assistant: '#eef2ff',
+                    userText: '#ffffff'
+                },
+                suggestedQuestions: {
+                    background: '#eef2ff',
+                    hoverBackground: '#e0e7ff',
+                    text: '#312e81'
+                },
+                iconColor: '#8b5cf6'
+            }
+        };
+
+        // Content presets
+        const contents = {
+            default: {
+                header: defaultConfig.header,
+                welcome: defaultConfig.welcome,
+                suggestedQuestions: defaultConfig.suggestedQuestions
+            },
+            custom: {
+                header: {
+                    title: "Custom Demo Chat"
+                },
+                welcome: {
+                    title: "Hello there!",
+                    description: "This is a customized welcome message. You can adjust this to fit your needs."
+                },
+                suggestedQuestions: [
+                    {
+                        text: "Tell me a joke",
+                        query: "Tell me a joke"
+                    },
+                    {
+                        text: "Help with installation",
+                        query: "How do I install this widget?"
+                    },
+                    {
+                        text: "Documentation",
+                        query: "Where can I find the documentation?"
+                    }
+                ]
+            }
+        };
+
+        // Initialize the widget
+        function initWidget() {
+            if (!widgetInitialized) {
+                const apiUrl = document.getElementById('api-url').value || 'http://localhost:3000';
+                
+                window.initChatbotWidget({
+                    apiUrl: apiUrl,
+                    widgetConfig: defaultConfig
+                });
+                
+                widgetInitialized = true;
+                
+                // Setup event listeners for code updates
+                document.getElementById('api-url').addEventListener('change', updateCodeExample);
+                
+                // Initial code update
+                setTimeout(updateCodeExample, 1000);
+            }
+        }
+
+        // Initialize widget in custom container
+        function initInCustomContainer() {
+            if (!customWidgetInitialized) {
+                const customContainer = document.getElementById('custom-container');
+                customContainer.innerHTML = ''; // Clear placeholder text
+                
+                const apiUrl = document.getElementById('api-url').value || 'http://localhost:3000';
+                
+                window.initChatbotWidget({
+                    apiUrl: apiUrl,
+                    containerSelector: '#custom-container',
+                    widgetConfig: {
+                        ...defaultConfig,
+                        header: {
+                            title: "Custom Container Chat"
+                        }
+                    }
+                });
+                
+                customWidgetInitialized = true;
+            }
+        }
+
+        // Update API URL
+        function updateApiUrl() {
+            const apiUrl = document.getElementById('api-url').value;
+            if (apiUrl && window.ChatbotWidget) {
+                window.ChatbotWidget.setApiUrl(apiUrl);
+                alert(`API URL updated to: ${apiUrl}`);
+            } else {
+                alert('Please enter a valid API URL');
+            }
+        }
+
+        // Update theme
+        function updateTheme(themeName) {
+            if (window.ChatbotWidget && themes[themeName]) {
+                window.ChatbotWidget.updateWidgetConfig({
+                    theme: themes[themeName]
+                });
+                
+                // Update active class on theme cards
+                document.querySelectorAll('.theme-card').forEach(card => {
+                    card.classList.remove('active');
+                });
+                document.querySelector(`.theme-card[onclick="updateTheme('${themeName}')"]`).classList.add('active');
+                
+                // Update color picker values
+                const theme = themes[themeName];
+                document.getElementById('primary-color').value = theme.primary;
+                document.getElementById('secondary-color').value = theme.secondary;
+                document.getElementById('background-color').value = theme.background;
+                document.getElementById('text-primary-color').value = theme.text.primary;
+                document.getElementById('user-bubble-color').value = theme.message.user;
+                document.getElementById('assistant-bubble-color').value = theme.message.assistant;
+                document.getElementById('icon-color').value = theme.iconColor;
+                document.getElementById('suggested-bg-color').value = theme.suggestedQuestions.background;
+                document.getElementById('suggested-hover-color').value = theme.suggestedQuestions.hoverBackground;
+                document.getElementById('suggested-text-color').value = theme.suggestedQuestions.text;
+                
+                // Update color previews
+                updateColorPreviews();
+                
+                // Update implementation code
+                updateCodeExample();
+            }
+        }
+        
+        // Apply custom colors from the color picker
+        function applyCustomColors() {
+            const customTheme = {
+                primary: document.getElementById('primary-color').value,
+                secondary: document.getElementById('secondary-color').value,
+                background: document.getElementById('background-color').value,
+                text: {
+                    primary: document.getElementById('text-primary-color').value,
+                    secondary: '#666666',
+                    inverse: '#ffffff'
+                },
+                input: {
+                    background: '#f9fafb',
+                    border: '#e5e7eb'
+                },
+                message: {
+                    user: document.getElementById('user-bubble-color').value,
+                    assistant: document.getElementById('assistant-bubble-color').value,
+                    userText: '#ffffff'
+                },
+                suggestedQuestions: {
+                    background: document.getElementById('suggested-bg-color').value,
+                    hoverBackground: document.getElementById('suggested-hover-color').value,
+                    text: document.getElementById('suggested-text-color').value
+                },
+                iconColor: document.getElementById('icon-color').value
+            };
+            
+            if (window.ChatbotWidget) {
+                window.ChatbotWidget.updateWidgetConfig({
+                    theme: customTheme
+                });
+                
+                // Remove active class from all theme cards
+                document.querySelectorAll('.theme-card').forEach(card => {
+                    card.classList.remove('active');
+                });
+                
+                // Update implementation code
+                updateCodeExample();
+            }
+        }
+
+        // Update content
+        function updateContent(contentName) {
+            if (window.ChatbotWidget && contents[contentName]) {
+                window.ChatbotWidget.updateWidgetConfig(contents[contentName]);
+                
+                // Update implementation code
+                updateCodeExample();
+            }
+        }
+
+        // Update icon
+        function updateIcon(iconName) {
+            if (window.ChatbotWidget) {
+                window.ChatbotWidget.updateWidgetConfig({
+                    icon: iconName
+                });
+                
+                // Highlight the active icon button
+                document.querySelectorAll('.icon-btn').forEach(btn => {
+                    if (btn.textContent.toLowerCase().includes(iconName)) {
+                        btn.style.backgroundColor = themes.default.secondary;
+                    } else {
+                        btn.style.backgroundColor = '';
+                    }
+                });
+                
+                // Update implementation code
+                updateCodeExample();
+            }
+        }
+
+        // Toggle chat open/close
+        function toggleChat() {
+            if (window.ChatbotWidget && window.ChatbotWidget.toggleChat) {
+                window.ChatbotWidget.toggleChat();
+            } else {
+                console.log('Chat toggle method not available');
+            }
+        }
+
+        // Reset widget
+        function resetWidget() {
+            if (window.ChatbotWidget) {
+                window.ChatbotWidget.updateWidgetConfig(defaultConfig);
+                
+                // Also update any API URL
+                const apiUrl = document.getElementById('api-url').value;
+                if (apiUrl) {
+                    window.ChatbotWidget.setApiUrl(apiUrl);
+                }
+            }
+        }
+
+        // Function to update the implementation code example
+        function updateCodeExample() {
+            if (!window.ChatbotWidget) return;
+            
+            try {
+                const apiUrl = document.getElementById('api-url').value || 'http://localhost:3000';
+                const config = window.ChatbotWidget.getCurrentConfig();
+                
+                // Create display-friendly config
+                const displayConfig = {
+                    header: config.header,
+                    welcome: config.welcome,
+                    suggestedQuestions: config.suggestedQuestions,
+                    theme: config.theme,
+                    icon: config.icon
+                };
+                
+                // Convert to pretty JSON with JS-friendly formatting
+                let configStr = JSON.stringify(displayConfig, null, 4)
+                    .replace(/"([^"]+)":/g, '$1:')  // Remove quotes from property names
+                    .replace(/"/g, "'");            // Use single quotes instead of double quotes
+                
+                // Build the code example with all dependencies bundled
+                const codeExample = [
+                    '<!-- Include the chatbot widget (all-in-one bundle) -->',
+                    '<script src="/chatbot-widget.umd.js"><\/script>',
+                    '<link rel="stylesheet" href="/style.css">',
+                    '',
+                    '<script>',
+                    '  window.addEventListener("load", function() {',
+                    '    window.initChatbotWidget({',
+                    '      apiUrl: "' + apiUrl + '",',
+                    '      widgetConfig: ' + configStr,
+                    '    });',
+                    '  });',
+                    '<\/script>'
+                ].join('\n');
+                
+                // Update the code display
+                document.getElementById('implementation-code').textContent = codeExample;
+            } catch (error) {
+                console.error('Error updating code example:', error);
+            }
+        }
+        
+        // Copy implementation code to clipboard
+        function copyImplementationCode() {
+            const codeElement = document.getElementById('implementation-code');
+            navigator.clipboard.writeText(codeElement.textContent)
+                .then(() => {
+                    alert('Implementation code copied to clipboard!');
+                })
+                .catch(err => {
+                    console.error('Failed to copy: ', err);
+                    
+                    // Fallback for older browsers
+                    const textArea = document.createElement('textarea');
+                    textArea.value = codeElement.textContent;
+                    document.body.appendChild(textArea);
+                    textArea.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(textArea);
+                    alert('Implementation code copied to clipboard!');
+                });
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', initWidget);
+
+        // Add getCurrentConfig method to ChatbotWidget for retrieving config for code examples
+        document.addEventListener('DOMContentLoaded', function() {
+            // Wait for widget to be initialized
+            setTimeout(function() {
+                if (window.ChatbotWidget && !window.ChatbotWidget.getCurrentConfig) {
+                    // Add a method to get current configuration
+                    window.ChatbotWidget.getCurrentConfig = function() {
+                        return {
+                            header: this._latestConfig?.header || defaultConfig.header,
+                            welcome: this._latestConfig?.welcome || defaultConfig.welcome,
+                            suggestedQuestions: this._latestConfig?.suggestedQuestions || defaultConfig.suggestedQuestions,
+                            theme: this._latestConfig?.theme || defaultConfig.theme,
+                            icon: this._latestConfig?.icon || defaultConfig.icon
+                        };
+                    };
+
+                    // Store the latest config when updated
+                    const originalUpdateMethod = window.ChatbotWidget.updateWidgetConfig;
+                    window.ChatbotWidget._latestConfig = {...defaultConfig};
+                    
+                    window.ChatbotWidget.updateWidgetConfig = function(config) {
+                        // Store the updated config
+                        this._latestConfig = {...this._latestConfig, ...config};
+                        
+                        // Call the original method
+                        originalUpdateMethod.call(this, config);
+                        
+                        // Update code example after a short delay
+                        setTimeout(updateCodeExample, 100);
+                    };
+                }
+            }, 1000);
+        });
+
+        // Function to update color preview elements
+        function updateColorPreviews() {
+            // Get all color input elements
+            const colorInputs = document.querySelectorAll('input[type="color"]');
+            
+            // For each color input, update its corresponding preview
+            colorInputs.forEach(input => {
+                // Find the next sibling div (the preview element)
+                const previewEl = input.parentElement.querySelector('div:last-child');
+                if (previewEl) {
+                    previewEl.style.background = input.value;
+                }
+                
+                // Add event listener to update the preview when color changes
+                input.addEventListener('input', function() {
+                    if (previewEl) {
+                        previewEl.style.background = this.value;
+                    }
+                });
+            });
+        }
+        
+        // Call on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(updateColorPreviews, 500);
+        });
+    </script>
+</body>
+</html> 

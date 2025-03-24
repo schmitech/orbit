@@ -11,9 +11,11 @@
   },
   "dependencies": {
     "chatbot-widget": "file:../../widget",
+    "clsx": "^2.1.0",
     "lucide-react": "^0.344.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "react-markdown": "^9.0.1",
     "react-router-dom": "^6.22.3",
     "socket.io-client": "^4.7.4",
     "zustand": "^4.5.0"
@@ -28,8 +30,6 @@
     "eslint-plugin-react-hooks": "^5.1.0-rc.0",
     "eslint-plugin-react-refresh": "^0.4.11",
     "globals": "^15.9.0",
-    "clsx": "^2.1.0",
-    "react-markdown": "^9.0.1",
     "postcss": "^8.4.35",
     "tailwindcss": "^3.4.1",
     "typescript": "^5.5.3",

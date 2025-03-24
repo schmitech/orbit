@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { MessageSquare, X, Minimize2, Send, Copy, Trash2, Heart } from 'lucide-react';
+import { MessageSquare, X, Minimize2, Send, Copy, Trash2, Heart, HelpCircle, Info, MessageCircle, Bot, Sparkles } from 'lucide-react';
 import { useChatStore, Message } from './store/chatStore';
 import ReactMarkdown from 'react-markdown';
 import clsx from 'clsx';
-import { getChatConfig } from './config';
+import { getChatConfig, defaultTheme, ChatConfig } from './config/index';
 
 // Custom link component for ReactMarkdown
 const MarkdownLink = (props: React.AnchorHTMLAttributes<HTMLAnchorElement>) => {
@@ -19,7 +19,37 @@ const MarkdownLink = (props: React.AnchorHTMLAttributes<HTMLAnchorElement>) => {
   );
 };
 
-const ChatWidget: React.FC = () => {
+// Component to render the appropriate icon
+const ChatIcon = ({ iconName, size, className, style }: { 
+  iconName?: string, 
+  size?: number, 
+  className?: string, 
+  style?: React.CSSProperties 
+}) => {
+  switch(iconName) {
+    case 'heart':
+      return <Heart size={size} className={className} style={style} />;
+    case 'message-circle':
+      return <MessageCircle size={size} className={className} style={style} />;
+    case 'help-circle':
+      return <HelpCircle size={size} className={className} style={style} />;
+    case 'info':
+      return <Info size={size} className={className} style={style} />;
+    case 'bot':
+      return <Bot size={size} className={className} style={style} />;
+    case 'sparkles':
+      return <Sparkles size={size} className={className} style={style} />;
+    case 'message-square':
+    default:
+      return <MessageSquare size={size} className={className} style={style} />;
+  }
+};
+
+export interface ChatWidgetProps extends Partial<ChatConfig> {
+  config?: never; // Make sure no one tries to use the config prop
+}
+
+export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
   const [isOpen, setIsOpen] = useState(false);
   const [message, setMessage] = useState('');
   const [hasNewMessage, setHasNewMessage] = useState(false);
@@ -28,7 +58,34 @@ const ChatWidget: React.FC = () => {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   
   // Load configuration
-  const config = getChatConfig();
+  const baseConfig = getChatConfig();
+  const [currentConfig, setCurrentConfig] = useState({
+    ...baseConfig,
+    ...props // Use all props as config values
+  });
+  const theme = currentConfig.theme || defaultTheme;
+
+  // Listen for configuration updates
+  useEffect(() => {
+    const handleConfigUpdate = (event: CustomEvent) => {
+      setCurrentConfig(event.detail);
+    };
+
+    window.addEventListener('chatbot-config-update', handleConfigUpdate as EventListener);
+    return () => {
+      window.removeEventListener('chatbot-config-update', handleConfigUpdate as EventListener);
+    };
+  }, []);
+
+  // Update config when prop changes
+  useEffect(() => {
+    if (props) {
+      setCurrentConfig(prev => ({
+        ...prev,
+        ...props
+      }));
+    }
+  }, [props]);
   
   const { 
     messages, 
@@ -108,24 +165,28 @@ const ChatWidget: React.FC = () => {
     <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end">
       {/* Chat Window */}
       {isOpen && (
-        <div className="mb-4 w-96 sm:w-[500px] md:w-[600px] bg-white rounded-xl shadow-xl flex flex-col overflow-hidden border border-gray-200 transition-all duration-300 ease-in-out">
+        <div className="mb-4 w-96 sm:w-[500px] md:w-[600px] rounded-xl shadow-xl flex flex-col overflow-hidden border border-gray-200 transition-all duration-300 ease-in-out"
+             style={{ background: theme.background }}>
           {/* Header */}
-          <div className="bg-[#2C3E50] text-white p-3 flex justify-between items-center">
+          <div className="p-3 flex justify-between items-center"
+               style={{ background: theme.primary, color: theme.text.inverse }}>
             <div className="flex items-center">
-              <Heart size={20} className="mr-2 text-orange-400" />
-              <h3 className="font-medium">{config.header.title}</h3>
+              <ChatIcon iconName={currentConfig.icon} size={20} className="mr-2" style={{ color: theme.secondary }} />
+              <h3 className="font-medium">{currentConfig.header.title}</h3>
             </div>
             <div className="flex items-center space-x-2">
               <button 
                 onClick={() => clearMessages()}
-                className="text-white hover:text-orange-400 transition-colors p-1 rounded-full hover:bg-[#3a526a]"
+                className="transition-colors p-1 rounded-full hover:bg-opacity-20 hover:bg-black"
+                style={{ color: theme.text.inverse }}
                 aria-label="Clear conversation"
               >
                 <Trash2 size={18} />
               </button>
               <button 
                 onClick={toggleChat}
-                className="text-white hover:text-orange-400 transition-colors p-1 rounded-full hover:bg-[#3a526a]"
+                className="transition-colors p-1 rounded-full hover:bg-opacity-20 hover:bg-black"
+                style={{ color: theme.text.inverse }}
                 aria-label="Minimize chat"
               >
                 <Minimize2 size={18} />
@@ -134,20 +195,36 @@ const ChatWidget: React.FC = () => {
           </div>
           
           {/* Messages */}
-          <div className="flex-1 p-3 overflow-y-auto max-h-[500px] bg-gray-50">
+          <div className="flex-1 p-3 overflow-y-auto max-h-[500px]"
+               style={{ background: theme.input.background }}>
             {messages.length === 0 ? (
               <div className="text-center py-8">
-                <Heart size={40} className="mx-auto text-orange-400 mb-3" />
-                <h4 className="font-medium text-[#2C3E50] mb-1">{config.welcome.title}</h4>
+                <ChatIcon 
+                  iconName={currentConfig.icon} 
+                  size={40} 
+                  className="mx-auto mb-3" 
+                  style={{ color: theme.iconColor }}
+                />
+                <h4 className="font-medium text-[#2C3E50] mb-1">{currentConfig.welcome.title}</h4>
                 <p className="text-sm text-gray-600 mb-4">
-                  {config.welcome.description}
+                  {currentConfig.welcome.description}
                 </p>
                 <div className="space-y-2">
-                  {config.suggestedQuestions.map((question, index) => (
+                  {currentConfig.suggestedQuestions.map((question, index) => (
                     <button 
                       key={index}
                       onClick={() => sendMessage(question.query)}
-                      className="w-full text-left text-sm bg-orange-50 hover:bg-orange-100 text-[#2C3E50] p-2 rounded-lg transition-colors"
+                      className="w-full text-left text-sm p-2 rounded-lg transition-colors"
+                      style={{
+                        backgroundColor: theme.suggestedQuestions.background,
+                        color: theme.suggestedQuestions.text
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = theme.suggestedQuestions.hoverBackground;
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = theme.suggestedQuestions.background;
+                      }}
                     >
                       {question.text}
                     </button>
@@ -172,10 +249,13 @@ const ChatWidget: React.FC = () => {
                       <div 
                         className={clsx(
                           "max-w-[85%] rounded-xl p-3 shadow-sm",
-                          msg.role === 'user' 
-                            ? "bg-[#2C3E50] text-white rounded-tr-none" 
-                            : "bg-white border border-gray-200 rounded-tl-none"
+                          msg.role === 'user' ? "rounded-tr-none" : "rounded-tl-none"
                         )}
+                        style={{
+                          background: msg.role === 'user' ? theme.message.user : theme.message.assistant,
+                          color: msg.role === 'user' ? theme.message.userText : theme.text.primary,
+                          border: msg.role === 'assistant' ? `1px solid ${theme.input.border}` : 'none'
+                        }}
                       >
                         {msg.role === 'assistant' && (
                           <div className="prose prose-sm max-w-none whitespace-pre-line">
@@ -230,7 +310,8 @@ const ChatWidget: React.FC = () => {
           </div>
           
           {/* Input */}
-          <div className="p-3 border-t border-gray-200 bg-white">
+          <div className="p-3 border-t bg-white"
+               style={{ borderColor: theme.input.border, background: theme.background }}>
             <div className="flex items-end">
               <textarea
                 ref={inputRef}
@@ -238,8 +319,13 @@ const ChatWidget: React.FC = () => {
                 onChange={(e) => setMessage(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Type your message..."
-                className="flex-1 resize-none border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-orange-500 min-h-[44px] max-h-32 bg-gray-50"
-                rows={1}
+                className="flex-1 resize-none border rounded-lg py-2 px-3 focus:outline-none focus:ring-2 min-h-[44px] max-h-32"
+                style={{
+                  background: theme.input.background,
+                  borderColor: theme.input.border,
+                  color: theme.text.primary,
+                  '--tw-ring-color': theme.secondary
+                } as React.CSSProperties}
               />
               <button
                 onClick={handleSendMessage}
@@ -247,9 +333,12 @@ const ChatWidget: React.FC = () => {
                 className={clsx(
                   "ml-2 p-2 rounded-full transition-all duration-200",
                   message.trim() && !isLoading
-                    ? "bg-orange-500 text-white hover:bg-orange-600 hover:shadow-md transform hover:-translate-y-0.5"
+                    ? "text-white hover:shadow-md transform hover:-translate-y-0.5"
                     : "bg-gray-200 text-gray-400 cursor-not-allowed"
                 )}
+                style={{
+                  backgroundColor: message.trim() && !isLoading ? theme.secondary : undefined
+                }}
                 aria-label="Send message"
               >
                 <Send size={18} />
@@ -270,22 +359,21 @@ const ChatWidget: React.FC = () => {
           onMouseLeave={() => setIsButtonHovered(false)}
           className={clsx(
             "rounded-full p-3 shadow-lg flex items-center justify-center transition-all duration-300",
-            isOpen 
-              ? "bg-red-500 hover:bg-red-600" 
-              : "bg-[#2C3E50] hover:bg-[#3a526a]",
             isButtonHovered && !isOpen && "animate-pulse"
           )}
+          style={{
+            backgroundColor: isOpen ? '#ef4444' : theme.primary,
+            color: theme.text.inverse
+          }}
           aria-label={isOpen ? "Close chat" : "Open chat"}
         >
           {isOpen ? (
             <X size={24} className="text-white" />
           ) : (
-            <MessageSquare size={24} className="text-white" />
+            <ChatIcon iconName="message-square" size={24} className="text-white" />
           )}
         </button>
       </div>
     </div>
   );
 };
-
-export default ChatWidget;
