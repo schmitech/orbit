@@ -17,9 +17,15 @@ import yaml from 'js-yaml';
 import { Client } from '@elastic/elasticsearch';
 import { AppConfig } from './types';
 import { VLLMClient } from './vllm';
+import dotenv from 'dotenv';
+import winston from 'winston';
+import 'winston-daily-rotate-file';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Load .env file
+dotenv.config();
 
 // Replace env vars reset with config loading
 // Load config.yaml instead of .env
@@ -30,6 +36,22 @@ try {
   
   const configFile = await fs.readFile(configPath, 'utf-8');
   config = yaml.load(configFile) as AppConfig;
+  
+  // Update config with environment variables
+  if (process.env.ELASTICSEARCH_USERNAME && process.env.ELASTICSEARCH_PASSWORD) {
+    config.elasticsearch.auth = {
+      username: process.env.ELASTICSEARCH_USERNAME,
+      password: process.env.ELASTICSEARCH_PASSWORD
+    };
+  }
+  
+  if (process.env.ELEVEN_LABS_API_KEY) {
+    config.eleven_labs.api_key = process.env.ELEVEN_LABS_API_KEY;
+  }
+  
+  if (process.env.HUGGINGFACE_API_KEY) {
+    config.huggingface.api_key = process.env.HUGGINGFACE_API_KEY;
+  }
   
   if (config.general?.verbose === 'true') {
     console.log('Loaded configuration:', JSON.stringify(config, null, 2));
@@ -348,14 +370,150 @@ ANSWER:`);
 // Create and await the chain
 const chain = await createChain(backend);
 
-// Initialize Elasticsearch client
-const esClient = config.elasticsearch.enabled ? new Client({
-  node: config.elasticsearch.node,
-  auth: {
-    username: config.elasticsearch.auth.username,
-    password: config.elasticsearch.auth.password
+// Initialize Elasticsearch client with better error handling and timeout
+const initializeElasticsearch = async () => {
+  if (!config.elasticsearch.enabled) {
+    console.log('Elasticsearch logging is disabled in config');
+    return null;
   }
-}) : null;
+
+  if (!process.env.ELASTICSEARCH_USERNAME || !process.env.ELASTICSEARCH_PASSWORD) {
+    console.warn('Elasticsearch credentials not found in environment variables');
+    config.elasticsearch.enabled = false;
+    return null;
+  }
+
+  try {
+    const esClient = new Client({
+      node: config.elasticsearch.node,
+      auth: {
+        username: process.env.ELASTICSEARCH_USERNAME,
+        password: process.env.ELASTICSEARCH_PASSWORD
+      },
+      tls: {
+        rejectUnauthorized: false
+      },
+      requestTimeout: 5000, // 5 second timeout
+      pingTimeout: 3000    // 3 second ping timeout
+    });
+
+    // Test connection with timeout
+    const pingPromise = esClient.ping();
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Elasticsearch connection timeout')), 5000)
+    );
+
+    await Promise.race([pingPromise, timeoutPromise]);
+    console.log('Successfully connected to Elasticsearch');
+    return esClient;
+  } catch (error: any) {
+    console.error('Failed to connect to Elasticsearch:', error.message);
+    console.log('Continuing without Elasticsearch logging...');
+    config.elasticsearch.enabled = false;
+    return null;
+  }
+};
+
+// Initialize ES client
+const esClient = await initializeElasticsearch();
+
+// Initialize logger
+const logger = winston.createLogger({
+  level: 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.json()
+  ),
+  transports: [
+    new winston.transports.DailyRotateFile({
+      filename: path.join(__dirname, '../logs/chat-%DATE%.log'),
+      datePattern: 'YYYY-MM-DD',
+      maxSize: '20m',
+      maxFiles: '14d'
+    })
+  ]
+});
+
+// Modify the logging function to handle both ES and file logging
+async function logChatInteraction(data: {
+  timestamp: Date;
+  query: string;
+  response: string;
+  backend: 'ollama' | 'hf' | 'vllm';
+  blocked?: boolean;
+}) {
+  // Always log to file with full data
+  logger.info('Chat Interaction', {
+    timestamp: data.timestamp.toISOString(),
+    query: data.query,
+    response: data.response,
+    backend: data.backend,
+    blocked: data.blocked || false,
+    elasticsearch_status: config.elasticsearch.enabled ? 'enabled' : 'disabled'
+  });
+
+  // Log to Elasticsearch if enabled and available
+  if (config.elasticsearch.enabled && esClient) {
+    try {
+      await esClient.index({
+        index: config.elasticsearch.index,
+        document: {
+          timestamp: data.timestamp.toISOString(),
+          query: data.query,
+          response: data.response,
+          backend: data.backend,
+          blocked: data.blocked || false
+        }
+      });
+    } catch (error: any) {
+      logger.error('Failed to log to Elasticsearch:', { 
+        error: error.message, 
+        data,
+        elasticsearch_status: 'error'
+      });
+    }
+  }
+}
+
+// Update the index mapping
+if (config.elasticsearch.enabled && esClient) {
+  try {
+    await esClient.ping();
+    console.log('Successfully connected to Elasticsearch');
+    
+    // Check if index exists
+    const indexExists = await esClient.indices.exists({ index: config.elasticsearch.index });
+    if (!indexExists) {
+      // Create index with basic settings
+      await esClient.indices.create({ 
+        index: config.elasticsearch.index,
+        body: {
+          settings: {
+            number_of_shards: 1,
+            number_of_replicas: 0
+          },
+          mappings: {
+            properties: {
+              timestamp: { type: 'date' },
+              query: { type: 'text' },
+              response: { type: 'text' },
+              backend: { type: 'keyword' },
+              blocked: { type: 'boolean' }
+            }
+          }
+        }
+      });
+      console.log(`Created new Elasticsearch index: ${config.elasticsearch.index}`);
+    } else {
+      console.log(`Using existing Elasticsearch index: ${config.elasticsearch.index}`);
+    }
+  } catch (error) {
+    console.error('Failed to connect to Elasticsearch:', error);
+    process.exit(1);
+  }
+} else if (config.general?.verbose === 'true') {
+  console.log('Elasticsearch logging is disabled');
+}
 
 // Define guardrail check function
 async function checkGuardrail(query: string): Promise<{ safe: boolean }> {
@@ -416,82 +574,11 @@ async function checkGuardrail(query: string): Promise<{ safe: boolean }> {
       // Default to safe for non-matching responses, but log the warning
       return { safe: true };
     }
-  } catch (error) {
-    console.error('Error in guardrail check:', error);
+  } catch (error: any) {
+    console.error('Error in guardrail check:', error.message);
     // Default to safe on error to prevent complete service failure
     return { safe: true };
   }
-}
-
-// Update the logging function type and implementation
-async function logChatInteraction(data: {
-  timestamp: Date;
-  query: string;
-  response: string;
-  backend: 'ollama' | 'hf' | 'vllm';
-  blocked?: boolean;
-}) {
-  if (!config.elasticsearch.enabled || !esClient) {
-    if (config.general?.verbose === 'true') {
-      console.log('Elasticsearch logging disabled, skipping log:', data);
-    }
-    return;
-  }
-
-  try {
-    await esClient.index({
-      index: config.elasticsearch.index,
-      document: {
-        timestamp: data.timestamp.toISOString(),
-        query: data.query,
-        response: data.response,
-        backend: data.backend,
-        blocked: data.blocked || false
-      }
-    });
-  } catch (error) {
-    console.error('Failed to log to Elasticsearch:', error);
-  }
-}
-
-// Update the index mapping
-if (config.elasticsearch.enabled && esClient) {
-  try {
-    await esClient.ping();
-    console.log('Successfully connected to Elasticsearch');
-    
-    // Check if index exists
-    const indexExists = await esClient.indices.exists({ index: config.elasticsearch.index });
-    if (!indexExists) {
-      // Create index with basic settings
-      await esClient.indices.create({ 
-        index: config.elasticsearch.index,
-        body: {
-          settings: {
-            number_of_shards: 1,
-            number_of_replicas: 0
-          },
-          mappings: {
-            properties: {
-              timestamp: { type: 'date' },
-              query: { type: 'text' },
-              response: { type: 'text' },
-              backend: { type: 'keyword' },
-              blocked: { type: 'boolean' }
-            }
-          }
-        }
-      });
-      console.log(`Created new Elasticsearch index: ${config.elasticsearch.index}`);
-    } else {
-      console.log(`Using existing Elasticsearch index: ${config.elasticsearch.index}`);
-    }
-  } catch (error) {
-    console.error('Failed to connect to Elasticsearch:', error);
-    process.exit(1);
-  }
-} else if (config.general?.verbose === 'true') {
-  console.log('Elasticsearch logging is disabled');
 }
 
 app.post('/chat', async (req, res) => {
@@ -611,7 +698,7 @@ async function generateAudioChunk(text: string, res: any, isFinal: boolean = fal
       headers: {
         'Accept': 'audio/mpeg',
         'Content-Type': 'application/json',
-        'xi-api-key': config.eleven_labs.api_key || '',
+        'xi-api-key': process.env.ELEVEN_LABS_API_KEY || '',
       },
       body: JSON.stringify({
         text,

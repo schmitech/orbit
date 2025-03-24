@@ -24,10 +24,12 @@
         "@langchain/core": "^0.1.26",
         "chromadb": "^1.7.3",
         "cors": "^2.8.5",
-        "dotenv": "^16.4.1",
+        "dotenv": "^16.4.7",
         "express": "^4.18.2",
         "js-yaml": "^4.1.0",
-        "langchain": "^0.1.9"
+        "langchain": "^0.1.9",
+        "winston": "^3.17.0",
+        "winston-daily-rotate-file": "^5.0.0"
     },
     "devDependencies": {
         "@types/cors": "^2.8.17",

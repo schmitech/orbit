@@ -1,9 +1,9 @@
 ollama:
   base_url: "http://localhost:11434"
   temperature: 0.01
-  top_p: 0.9
-  top_k: 40
-  repeat_penalty: 1.0
+  top_p: 0.8
+  top_k: 20
+  repeat_penalty: 1.2
   num_predict: 1024
   num_ctx: 8192
   num_threads: 8
@@ -14,7 +14,7 @@ vllm:
   base_url: "http://localhost:5000"
   temperature: 0.01
   max_tokens: 32
-  model: "gemma3:1b"
+  model: "VLLMQwen2.5-14B"
   top_p: 0.8
   frequency_penalty: 0.0
   presence_penalty: 0.0
@@ -28,7 +28,7 @@ vllm:
   guardrail_top_p: 1.0
 
 huggingface:
-  api_key: "your-api-key"
+  api_key: null  # API key now loaded from .env
   model: "deepset/roberta-base-squad2"
 
 chroma:
@@ -37,11 +37,50 @@ chroma:
   collection: "qa-chatbot"
 
 eleven_labs:
-  api_key: "your-api-key"
+  api_key: null  # API key now loaded from .env
   voice_id: "kPzsL2i3teMYv0FxEYQ6"
 
 system:
-  prompt: "You are a helpful assistant for a non-profit organization. ALWAYS use the information provided in the CONTEXT section to answer questions. If the exact answer is in the context, use it directly. Never say you don't have information if it's clearly provided in the context. If you're unsure, quote directly from the context."
+  prompt: "You are a helpful assistant. Provide direct, professional responses without using generic greetings. When answering questions:
+
+1. RESPONSE PROTOCOLS:
+   A. EMERGENCIES:
+      - For explicit mentions of emergency or crisis, respond ONLY with:
+        'If you are experiencing an emergency, please call 911 immediately.'
+   
+   B. INAPPROPRIATE REQUESTS:  
+      - For casual questions or harmless off-topic conversation, respond naturally and politely.
+   
+2. OFF-TOPIC CONVERSATIONS:
+   - For casual questions or small talk unrelated to services:
+     * Respond naturally to maintain conversation flow
+     * After briefly engaging, gently guide the conversation back to relevant topics when appropriate
+     * Example: 'While I primarily help with relevant information, I'm happy to chat briefly. Is there something about our community services I can help with today?'
+
+3. LANGUAGE ADAPTATION:
+   - CRITICAL: Always respond in EXACTLY THE SAME LANGUAGE as the user's question
+   - For English questions, respond ONLY in English
+   - For French questions, respond ONLY in French
+   - For Spanish questions, respond ONLY in Spanish
+   - Never provide translations of your response into other languages
+   - If unsure about the language, default to English
+
+5. ACCURACY: 
+   - Provide information ONLY about confirmed services and programs listed in this prompt
+   - Never make assumptions about the user or their situation
+   - When in doubt, ask clarifying questions
+
+
+6. MISSING INFORMATION: If information is not explicitly included in this prompt, say:
+   'Unfortunately, I don't have information about that. For the most current details about this.'
+
+8. MULTILINGUAL SUPPORT: Reference language services only in:
+   - English
+   - French
+   - Spanish
+
+Start responses directly with relevant information rather than greetings."
+  
   guardrail_prompt: "You are a multilingual query guardrail agent. Your task is to determine if a query is safe to pass to an inference model. You should evaluate queries in any language including English, French, Mandarin, Cantonese, Arabic, Spanish, and others.
 
     Regardless of the query language, respond with ONLY 'SAFE: true' or 'SAFE: false'
@@ -85,9 +124,7 @@ general:
   verbose: "false"
 
 elasticsearch:
-  enabled: false
-  node: 'https://localhost:9200'
-  index: 'chatbot'
-  auth:
-    username: 'elastic'
-    password: 'es-password'
+  enabled: true
+  node: 'https://88cace70a265464fafe6a13550b69c19.ca-central-1.aws.elastic-cloud.com:443'
+  index: 'occsc'
+  auth: {}  # Credentials now loaded from .env

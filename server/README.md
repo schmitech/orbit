@@ -19,19 +19,30 @@ npm install
 
 2. Configure the application
    
-   The application uses a YAML configuration file (`config.yaml`) instead of environment variables. A sample configuration file is provided:
+   The application uses both a YAML configuration file (`config.yaml`) and environment variables (`.env`) for sensitive data. Sample configuration files are provided:
    
    ```bash
    # Copy the example config and modify as needed
    cp config.yaml.example config.yaml
+   cp .env.example .env
    ```
    
    Edit the `config.yaml` file to set your:
    - Ollama parameters (model, temperature, etc.)
    - HuggingFace API key
    - ChromaDB connection details
-   - ElevenLabs API key and voice ID
+   - ElevenLabs voice ID
    - System template path
+
+   Edit the `.env` file to set your sensitive credentials:
+   ```env
+   ELASTICSEARCH_USERNAME=your-username
+   ELASTICSEARCH_PASSWORD=your-password
+   ELEVEN_LABS_API_KEY=your-api-key
+   HUGGINGFACE_API_KEY=your-api-key
+   ```
+
+   Note: Make sure to add `.env` to your `.gitignore` file to prevent committing sensitive data.
 
 3. Install Chroma server (skip if chroma is running separately)
    ```bash
@@ -72,7 +83,7 @@ ollama:
   embed_model: "nomic-embed-text"     # Embedding model for vector search
 
 huggingface:
-  api_key: "your-api-key"             # HuggingFace API key
+  api_key: null                       # API key loaded from .env
   model: "deepset/roberta-base-squad2" # HF model for question answering
 
 chroma:
@@ -81,7 +92,7 @@ chroma:
   collection: "non-profit"            # Collection name
 
 eleven_labs:
-  api_key: "your-api-key"             # ElevenLabs API key
+  api_key: null                       # API key loaded from .env
   voice_id: "kPzsL2i3teMYv0FxEYQ6"    # Voice ID to use
 
 system:
@@ -94,9 +105,54 @@ elasticsearch:
   enabled: true                       # Enable/disable Elasticsearch logging
   node: "your-elasticsearch-endpoint" # Elasticsearch server endpoint
   index: "your-index-name"           # Index name for chat logs
-  auth:
-    username: "your-username"         # Elasticsearch username
-    password: "your-password"         # Elasticsearch password
+  auth: {}                           # Auth credentials loaded from .env
+```
+
+## Logging
+
+The application implements a dual logging system:
+
+1. **Filesystem Logging (Always Active)**
+   - Logs are stored in the `logs` directory
+   - Uses daily rotation with format `chat-YYYY-MM-DD.log`
+   - Each log file is limited to 20MB
+   - Logs are retained for 14 days
+   - Includes all chat interactions, errors, and system status
+   - Logs are in JSON format for easy parsing
+
+2. **Elasticsearch Logging (Optional)**
+   - Enabled/disabled via `elasticsearch.enabled` in config
+   - Requires valid credentials in `.env`
+   - Falls back to filesystem-only logging if Elasticsearch is unavailable
+
+Example log entry:
+```json
+{
+  "timestamp": "2024-03-21T10:30:00.000Z",
+  "query": "user question",
+  "response": "bot response",
+  "backend": "ollama",
+  "blocked": false,
+  "elasticsearch_status": "enabled"
+}
+```
+
+Note: The `logs` directory is automatically created when needed and should be added to `.gitignore`.
+
+## Environment Variables
+
+The following sensitive credentials are stored in `.env`:
+
+```env
+# Elasticsearch credentials
+ELASTICSEARCH_USERNAME=your-username
+ELASTICSEARCH_PASSWORD=your-password
+
+# ElevenLabs API key
+ELEVEN_LABS_API_KEY=your-api-key
+
+# HuggingFace API key
+HUGGINGFACE_API_KEY=your-api-key
 ```
 
 ## Testing Text-to-Speech

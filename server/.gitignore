@@ -1,8 +1,18 @@
 node_modules
 package-lock.json
-.env
 chroma_db
 *.log
 config.yaml
 data
 *.aws
+
+# Logs
+logs/
+*.log
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
