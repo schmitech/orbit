@@ -1,5 +1,5 @@
 {
-  "name": "chatbot-widget",
+  "name": "@schmitech/chatbot-widget",
   "private": false,
   "version": "0.1.0",
   "type": "module",
@@ -8,14 +8,15 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
       "import": "./dist/chatbot-widget.es.js",
       "require": "./dist/chatbot-widget.umd.js"
     },
-    "./style.css": "./dist/style.css"
+    "./bundle": "./dist/chatbot-widget.bundle.js",
+    "./style.css": "./dist/chatbot-widget.css"
   },
   "files": [
-    "dist"
+    "dist",
+    "README.md"
   ],
   "scripts": {
     "dev": "vite",

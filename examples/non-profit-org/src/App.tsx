@@ -17,7 +17,46 @@ declare global {
   interface Window {
     initChatbotWidget?: (config: {
       apiUrl: string,
-      widgetConfig?: any
+      containerSelector?: string,
+      widgetConfig?: {
+        header?: {
+          title: string
+        },
+        welcome?: {
+          title: string,
+          description: string
+        },
+        suggestedQuestions?: Array<{
+          text: string,
+          query: string
+        }>,
+        theme?: {
+          primary: string,
+          secondary: string,
+          background: string,
+          text: {
+            primary: string,
+            secondary: string,
+            inverse: string
+          },
+          input: {
+            background: string,
+            border: string
+          },
+          message: {
+            user: string,
+            assistant: string,
+            userText: string
+          },
+          suggestedQuestions: {
+            background: string,
+            hoverBackground: string,
+            text: string
+          },
+          iconColor: string
+        },
+        icon?: string
+      }
     }) => void;
   }
 }

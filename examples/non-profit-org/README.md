@@ -15,43 +15,7 @@ npm run dev
 npm run build
 ```
 
-## Chatbot Widget Integration Guide
-
-The chatbot widget provides an interactive chat interface that can be added to any website. Here's how to integrate it into your own project:
-
-### Step 1: Build the Widget
-
-```bash
-cd widget
-npm install
-npx vite build
-```
-
-This generates the following files in the `widget/dist` folder:
-- `chatbot-widget.umd.js` - UMD module for direct script tag usage
-- `chatbot-widget.es.js` - ES module for import usage
-- `style.css` - Widget styling
-
-### Step 2: Copy Widget Files
-
-Copy these files to your website's static/public folder:
-- `chatbot-widget.umd.js`
-- `style.css`
-
-### Step 3: Add to HTML
-
-Include these scripts and styles in your HTML file:
-
-```html
-<!-- Include React and ReactDOM first -->
-<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
-<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-<!-- Include the widget -->
-<script src="/chatbot-widget.umd.js"></script>
-<link rel="stylesheet" href="/style.css">
-```
-
-### Step 4: Initialize the Widget
+### How to Initialize the Chatbot Widget
 
 Add this script to initialize the widget:
 

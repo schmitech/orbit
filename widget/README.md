@@ -201,45 +201,116 @@ You can also install the package directly from the local directory:
 
 To make this widget available to anyone via npm:
 
-1. Create an account on npmjs.com if you don't have one
-2. Login to npm from the command line:
+1. Build the widget and create the bundle:
+   ```bash
+   npm run build
+   npm run build:bundle
+   ```
+
+2. Login to npm with your account:
    ```bash
    npm login
    ```
-3. Update the package name in package.json to ensure it's unique
-4. Publish the package:
+
+3. Publish the package (if you're publishing for the first time, or updating the version):
    ```bash
-   npm publish
+   npm publish --access public
    ```
 
-### Option 4: Using via CDN (for websites)
+4. To update an existing package, first update the version in package.json, then run:
+   ```bash
+   npm version patch # or minor or major
+   npm publish --access public
+   ```
 
-You can include the widget directly in your website using jsDelivr CDN:
+### After Publishing
+
+The package has been successfully published to npm as `@schmitech/chatbot-widget` version 0.1.0!
+
+You can now use it in any project:
+
+1. Visit the package on npm:
+   ```
+   https://www.npmjs.com/package/@schmitech/chatbot-widget
+   ```
+
+2. Install it in any project:
+   ```bash
+   npm install @schmitech/chatbot-widget
+   ```
+
+3. Test the bundle in a simple HTML file:
+   ```html
+   <!DOCTYPE html>
+   <html>
+   <head>
+     <title>Chatbot Widget Test</title>
+   </head>
+   <body>
+     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+     <script src="https://unpkg.com/@schmitech/chatbot-widget@0.1.0/dist/chatbot-widget.bundle.js"></script>
+     <script>
+       window.addEventListener('load', function() {
+         window.initChatbotWidget({
+           apiUrl: 'https://your-api-server.com'
+         });
+       });
+     </script>
+   </body>
+   </html>
+   ```
+
+4. Verify the files in an existing installation:
+   ```bash
+   ls -la node_modules/@schmitech/chatbot-widget/dist
+   ```
+   
+   You should see these files:
+   - `chatbot-widget.bundle.js` - The bundled JS+CSS file
+   - `chatbot-widget.umd.js` - The UMD module 
+   - `chatbot-widget.css` - The CSS file
+
+### Troubleshooting npm Publishing
+
+If you encounter issues publishing to npm, check the following:
+
+1. **Package Not Found (404)**
+   - Confirm you've successfully completed the `npm publish --access public` command
+   - Ensure there were no errors during publishing
+   - Wait a few minutes as npm registry might take time to update
+
+2. **Authentication Issues**
+   - Make sure you're logged in with `npm login`
+   - Verify your account has permission to publish
+
+3. **Name Already Taken**
+   - If the package name is already taken, modify the name in package.json
+   - Use a more specific scoped name like `@your-username/chatbot-widget`
+
+4. **Local Testing Before Publishing**
+   - To test locally before publishing, use Option 1 or 2 described above
+
+### Importing the Bundled Version
+
+After publishing, users can import your bundled widget in different ways:
 
 ```html
-<!-- For ESM (modern browsers) -->
-<script type="module">
-  import { ChatWidget } from 'https://cdn.jsdelivr.net/npm/@schmitech/chatbot-widget@0.1.0/dist/chatbot-widget.es.js';
-  
-  // Use the widget in your React component
-  function App() {
-    return (
-      <div className="App">
-        <ChatWidget />
-      </div>
-    );
-  }
-</script>
+<!-- HTML - Using the full bundle (JS + CSS combined) -->
+<script src="https://unpkg.com/@schmitech/chatbot-widget/dist/chatbot-widget.bundle.js"></script>
+
+<!-- Using UMD version + separate CSS -->
+<script src="https://unpkg.com/@schmitech/chatbot-widget"></script>
+<link rel="stylesheet" href="https://unpkg.com/@schmitech/chatbot-widget/dist/chatbot-widget.css" />
 ```
 
-For production use, you can omit the version to always get the latest:
-
-```html
-<script type="module">
-  import { ChatWidget } from 'https://cdn.jsdelivr.net/npm/@schmitech/chatbot-widget/dist/chatbot-widget.es.js';
-  // ...
-</script>
+```javascript
+// ES Module - Using direct import from node_modules
+import { ChatWidget } from '@schmitech/chatbot-widget';
+// For the bundled version (if you're using a bundler like webpack)
+import '@schmitech/chatbot-widget/bundle';
 ```
+
 ### Known Limitations and Troubleshooting
 
 #### Scrolling Behavior
