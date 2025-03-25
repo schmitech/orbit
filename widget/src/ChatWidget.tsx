@@ -56,6 +56,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
   const [isButtonHovered, setIsButtonHovered] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const MAX_MESSAGE_LENGTH = 500;
   
   // Load configuration
   const baseConfig = getChatConfig();
@@ -160,6 +161,14 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
       inputRef.current.focus();
     }
   }, [isOpen]);
+
+  // Modify the onChange handler to limit input
+  const handleMessageChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const input = e.target.value;
+    if (input.length <= MAX_MESSAGE_LENGTH) {
+      setMessage(input);
+    }
+  };
 
   return (
     <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end">
@@ -312,36 +321,60 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
           {/* Input */}
           <div className="p-3 border-t bg-white"
                style={{ borderColor: theme.input.border, background: theme.background }}>
-            <div className="flex items-end">
-              <textarea
-                ref={inputRef}
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="Type your message..."
-                className="flex-1 resize-none border rounded-lg py-2 px-3 focus:outline-none focus:ring-2 min-h-[44px] max-h-32"
-                style={{
-                  background: theme.input.background,
-                  borderColor: theme.input.border,
-                  color: theme.text.primary,
-                  '--tw-ring-color': theme.secondary
-                } as React.CSSProperties}
-              />
+            <div className="flex items-center gap-2">
+              <div className="flex-1 relative">
+                <textarea
+                  ref={inputRef}
+                  value={message}
+                  onChange={handleMessageChange}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Type your message..."
+                  maxLength={MAX_MESSAGE_LENGTH}
+                  className="w-full resize-none border rounded-lg focus:outline-none focus:ring-2"
+                  style={{
+                    background: theme.input.background,
+                    borderColor: theme.input.border,
+                    color: theme.text.primary,
+                    '--tw-ring-color': theme.secondary,
+                    lineHeight: '20px',
+                    padding: '8px 12px',
+                    height: '40px',
+                    minHeight: '40px',
+                    boxSizing: 'border-box'
+                  } as React.CSSProperties}
+                />
+                {message.length > 0 && (
+                  <div 
+                    className="absolute bottom-1 right-2 text-xs"
+                    style={{ 
+                      color: message.length >= MAX_MESSAGE_LENGTH * 0.9 ? '#ef4444' : '#6b7280',
+                      fontSize: '0.7rem'
+                    }}
+                  >
+                    {message.length}/{MAX_MESSAGE_LENGTH}
+                  </div>
+                )}
+              </div>
               <button
                 onClick={handleSendMessage}
                 disabled={!message.trim() || isLoading}
                 className={clsx(
-                  "ml-2 p-2 rounded-full transition-all duration-200",
+                  "rounded-lg transition-all duration-200 flex items-center justify-center shrink-0",
                   message.trim() && !isLoading
                     ? "text-white hover:shadow-md transform hover:-translate-y-0.5"
                     : "bg-gray-200 text-gray-400 cursor-not-allowed"
                 )}
                 style={{
-                  backgroundColor: message.trim() && !isLoading ? theme.secondary : undefined
+                  backgroundColor: message.trim() && !isLoading ? theme.secondary : undefined,
+                  height: '40px',
+                  width: '44px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
                 }}
                 aria-label="Send message"
               >
-                <Send size={18} />
+                <Send size={24} />
               </button>
             </div>
           </div>
