@@ -29,7 +29,7 @@ function App() {
     if (typeof window !== 'undefined' && window.initChatbotWidget) {
       setTimeout(() => {
         window.initChatbotWidget!({
-          apiUrl: 'http://localhost:3000',
+          apiUrl: import.meta.env.VITE_API_ENDPOINT,
           widgetConfig: {
             header: {
               title: "Community Services Help Center"

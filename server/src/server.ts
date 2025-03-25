@@ -76,7 +76,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const port = 3000;
+const port = config.general?.port || 3000;
 
 // Initialize ChromaDB with proper configuration
 const client = new ChromaClient({

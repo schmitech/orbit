@@ -122,8 +122,9 @@ Start responses directly with relevant information rather than greetings."
     - General inquiries about services and programs"
 
 general:
+  port: 3000
   verbose: "false"
-
+  
 elasticsearch:
   enabled: true
   node: 'https://88cace70a265464fafe6a13550b69c19.ca-central-1.aws.elastic-cloud.com:443'

@@ -70,6 +70,7 @@ export interface AppConfig {
   };
   general: {
     verbose: string;
+    port: number | string;
   };
   elasticsearch: {
     enabled: boolean;
