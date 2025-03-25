@@ -83,7 +83,10 @@ export function injectChatWidget(config: {
   
   // Store initial config if provided
   if (config.widgetConfig) {
-    currentConfig = config.widgetConfig as ChatConfig;
+    currentConfig = {
+      ...defaultConfig,  // Start with default config
+      ...config.widgetConfig  // Override with provided config
+    };
   }
   
   // We need to ensure this function is called only after React and ReactDOM are fully loaded
@@ -112,9 +115,9 @@ export function injectChatWidget(config: {
         document.body.appendChild(container);
       }
 
-      // Create root and render the widget with the window's React version
+      // Create root and render the widget with the window's React version and pass the config
       const root = window.ReactDOM.createRoot(container as HTMLElement);
-      root.render(window.React.createElement(ChatWidget));
+      root.render(window.React.createElement(ChatWidget, currentConfig));
       
       console.log('Widget initialized successfully!');
     } catch (err) {

@@ -180,7 +180,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
           <div className="p-3 flex justify-between items-center"
                style={{ background: theme.primary, color: theme.text.inverse }}>
             <div className="flex items-center">
-              <ChatIcon iconName={currentConfig.icon} size={20} className="mr-2" style={{ color: theme.secondary }} />
+              <ChatIcon iconName={currentConfig.icon} size={28} className="mr-2" style={{ color: theme.secondary }} />
               <h3 className="font-medium">{currentConfig.header.title}</h3>
             </div>
             <div className="flex items-center space-x-2">
@@ -401,9 +401,9 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
           aria-label={isOpen ? "Minimize chat" : "Open chat"}
         >
           {isOpen ? (
-            <Minimize2 size={24} className="text-white" style={{ opacity: 0.9 }} />
+            <Minimize2 size={32} className="text-white" style={{ opacity: 0.9 }} />
           ) : (
-            <ChatIcon iconName="message-square" size={24} className="text-white" />
+            <ChatIcon iconName="message-square" size={32} className="text-white" />
           )}
         </button>
       </div>

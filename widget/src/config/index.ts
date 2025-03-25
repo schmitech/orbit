@@ -44,5 +44,9 @@ export const defaultConfig: ChatConfig = {
 
 // Get the configuration
 export const getChatConfig = (): ChatConfig => {
+  // If we're in a browser environment and have a current config, use it
+  if (typeof window !== 'undefined' && window.ChatbotWidget?._latestConfig) {
+    return window.ChatbotWidget._latestConfig;
+  }
   return defaultConfig;
 }; 

@@ -18,5 +18,6 @@ interface Window {
     setApiUrl: (url: string) => void;
     getApiUrl: () => string;
     updateWidgetConfig: (config: Partial<ChatConfig>) => void;
+    _latestConfig?: ChatConfig;
   };
 } 
