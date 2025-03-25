@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { MessageSquare, X, Minimize2, Send, Copy, Trash2, Heart, HelpCircle, Info, MessageCircle, Bot, Sparkles } from 'lucide-react';
+import { MessageSquare, X, Minimize2, Send, Copy, Trash2, Heart, HelpCircle, Info, MessageCircle, Bot, Sparkles, ChevronUp } from 'lucide-react';
 import { useChatStore, Message } from './store/chatStore';
 import ReactMarkdown from 'react-markdown';
 import clsx from 'clsx';
@@ -57,6 +57,8 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const MAX_MESSAGE_LENGTH = 500;
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const [showScrollTop, setShowScrollTop] = useState(false);
   
   // Load configuration
   const baseConfig = getChatConfig();
@@ -143,6 +145,24 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
+  // Check scroll position to determine if scroll-to-top button should be shown
+  const handleScroll = () => {
+    if (messagesContainerRef.current) {
+      const { scrollTop } = messagesContainerRef.current;
+      setShowScrollTop(scrollTop > 200);
+    }
+  };
+
+  // Scroll to top function
+  const scrollToTop = () => {
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+      });
+    }
+  };
+
   // Scroll to bottom when messages change
   useEffect(() => {
     if (messagesEndRef.current) {
@@ -174,10 +194,13 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
     <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end">
       {/* Chat Window */}
       {isOpen && (
-        <div className="mb-4 w-96 sm:w-[500px] md:w-[600px] rounded-xl shadow-xl flex flex-col overflow-hidden border border-gray-200 transition-all duration-300 ease-in-out"
-             style={{ background: theme.background }}>
+        <div className="mb-4 w-96 sm:w-[500px] md:w-[600px] rounded-xl shadow-xl flex flex-col overflow-hidden border border-gray-200 transition-all duration-300 ease-in-out h-[500px]"
+             style={{ 
+               background: theme.background,
+               maxHeight: 'var(--chat-container-height, 500px)' 
+             }}>
           {/* Header */}
-          <div className="p-3 flex justify-between items-center"
+          <div className="p-3 flex justify-between items-center shrink-0"
                style={{ background: theme.primary, color: theme.text.inverse }}>
             <div className="flex items-center">
               <ChatIcon iconName={currentConfig.icon} size={28} className="mr-2" style={{ color: theme.secondary }} />
@@ -189,6 +212,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
                 className="transition-colors p-1 rounded-full hover:bg-opacity-20 hover:bg-black"
                 style={{ color: theme.text.inverse }}
                 aria-label="Clear conversation"
+                title="Clear conversation"
               >
                 <Trash2 size={18} />
               </button>
@@ -204,8 +228,32 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
           </div>
           
           {/* Messages */}
-          <div className="flex-1 p-3 overflow-y-auto max-h-[500px]"
-               style={{ background: theme.input.background }}>
+          <div 
+            ref={messagesContainerRef}
+            className="flex-1 p-3 overflow-y-auto h-full scroll-smooth"
+            style={{ 
+              background: theme.input.background,
+              overflowY: 'auto',
+              scrollbarWidth: 'thin',
+              scrollbarColor: `${theme.secondary} transparent`
+            }}
+            onScroll={handleScroll}
+          >
+            {showScrollTop && (
+              <button
+                onClick={scrollToTop}
+                className="sticky top-2 left-[calc(100%-40px)] z-10 flex items-center justify-center p-2 rounded-full shadow-md"
+                style={{ 
+                  backgroundColor: theme.primary, 
+                  color: theme.text.inverse 
+                }}
+                aria-label="Scroll to top"
+                title="Scroll to top"
+              >
+                <ChevronUp size={18} />
+              </button>
+            )}
+            
             {messages.length === 0 ? (
               <div className="text-center py-8">
                 <ChatIcon 
@@ -319,7 +367,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
           </div>
           
           {/* Input */}
-          <div className="p-3 border-t bg-white"
+          <div className="p-3 border-t bg-white shrink-0"
                style={{ borderColor: theme.input.border, background: theme.background }}>
             <div className="flex items-center gap-2">
               <div className="flex-1 relative">

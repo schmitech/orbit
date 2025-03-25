@@ -46,5 +46,4 @@ dist-ssr
 .temp
 .env
 package-lock.json
-/public/chatbot-widget.umd.js
-/public/style.css
+/public

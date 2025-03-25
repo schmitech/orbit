@@ -36,7 +36,6 @@ const getCustomConfigPlugin = () => {
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
-    getCustomConfigPlugin(),
     react(),
     dts({
       include: ['src/**/*.ts', 'src/**/*.tsx'],
@@ -47,7 +46,8 @@ export default defineConfig({
         filePath: filePath.replace('/src/', '/'),
         content
       })
-    })
+    }),
+    getCustomConfigPlugin(),
   ],
   define: {
     'process.env': JSON.stringify({
@@ -64,7 +64,7 @@ export default defineConfig({
     lib: {
       entry: resolve(__dirname, 'src/index.ts'),
       name: 'ChatbotWidget',
-      formats: ['es', 'umd'],
+      formats: ['umd'],
       fileName: (format) => `chatbot-widget.${format}.js`
     },
     rollupOptions: {
@@ -74,12 +74,15 @@ export default defineConfig({
           react: 'React',
           'react-dom': 'ReactDOM'
         },
-        // Don't split code for UMD builds
-        manualChunks: undefined
-      }
+        inlineDynamicImports: true,
+        assetFileNames: (assetInfo) => {
+          return assetInfo.name === 'style.css' ? 'chatbot-widget.css' : assetInfo.name || 'asset';
+        },
+      },
     },
     sourcemap: true,
     cssCodeSplit: false,
+    cssMinify: true,
     commonjsOptions: {
       include: [/node_modules/],
       transformMixedEsModules: true

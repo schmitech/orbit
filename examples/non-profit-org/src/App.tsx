@@ -9,7 +9,6 @@ import SeniorServices from './pages/programs/SeniorServices.tsx';
 import AdultEducation from './pages/programs/AdultEducation.tsx';
 import FamilyServices from './pages/programs/FamilyServices.tsx';
 import FinancialLiteracy from './pages/programs/FinancialLiteracy.tsx';
-import 'chatbot-widget/style.css';
 import CommunityOutreach from './pages/programs/CommunityOutreach.tsx';
 import { useEffect } from 'react';
 

@@ -119,7 +119,7 @@ export function injectChatWidget(config: {
       const root = window.ReactDOM.createRoot(container as HTMLElement);
       root.render(window.React.createElement(ChatWidget, currentConfig));
       
-      console.log('Widget initialized successfully!');
+      console.log('Chatbot widget initialized successfully!');
     } catch (err) {
       console.error('Error initializing chatbot widget:', err);
     }
@@ -143,5 +143,5 @@ if (typeof window !== 'undefined') {
     updateWidgetConfig
   };
   
-  console.log('Chatbot widget loaded. initChatbotWidget function is available.');
+  console.log('Chatbot widget loaded.');
 } 
