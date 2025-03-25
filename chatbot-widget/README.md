@@ -57,6 +57,96 @@ function App() {
 }
 ```
 
+## Complete Integration Example
+
+Here's a complete example showing how to integrate the chatbot widget into your existing website:
+
+```tsx
+// src/ChatbotProvider.tsx
+import React from 'react';
+import { ChatbotWidget } from '@yourusername/react-chatbot-widget';
+import { useChatStore } from '@yourusername/react-chatbot-widget/store';
+
+const chatbotConfig = {
+  theme: {
+    primaryColor: '#0066cc',
+    size: 'medium',
+    font: 'Inter, sans-serif'
+  },
+  messages: {
+    greeting: 'Welcome! How can I help you today?',
+    title: 'Customer Support'
+  },
+  position: {
+    bottom: 20,
+    right: 20
+  },
+  dimensions: {
+    width: 350,
+    height: 500
+  },
+  api: {
+    endpoint: process.env.REACT_APP_CHATBOT_API || 'http://localhost:3001'
+  }
+};
+
+export const ChatbotProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const setConfig = useChatStore((state) => state.setConfig);
+
+  React.useEffect(() => {
+    setConfig(chatbotConfig);
+  }, []);
+
+  return (
+    <>
+      {children}
+      <ChatbotWidget />
+    </>
+  );
+};
+
+// src/index.tsx or src/main.tsx
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import App from './App';
+import { ChatbotProvider } from './ChatbotProvider';
+
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    <ChatbotProvider>
+      <App />
+    </ChatbotProvider>
+  </React.StrictMode>
+);
+
+// .env
+REACT_APP_CHATBOT_API=https://api.yourdomain.com/chatbot
+
+// Example usage in any component
+import { useChatStore } from '@yourusername/react-chatbot-widget/store';
+
+function MyComponent() {
+  const { addMessage, toggleChat } = useChatStore();
+
+  const handleSupport = () => {
+    // Open chat
+    toggleChat();
+    
+    // Add a custom message
+    addMessage({
+      content: "I need help with my order",
+      sender: 'user'
+    });
+  };
+
+  return (
+    <button onClick={handleSupport}>
+      Get Support
+    </button>
+  );
+}
+```
+
 ## Configuration Options
 
 ### Theme Configuration
@@ -189,4 +279,4 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
-MIT
+See LICENSE file in parent project directory.

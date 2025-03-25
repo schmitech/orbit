@@ -9,6 +9,7 @@ ollama:
   num_threads: 8
   model: "gemma3:1b"
   embed_model: "nomic-embed-text"
+  stream: true
 
 vllm:
   base_url: "http://localhost:5000"

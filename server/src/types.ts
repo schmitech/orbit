@@ -32,6 +32,7 @@ export interface AppConfig {
     num_threads: number | string;
     model: string;
     embed_model: string;
+    stream?: boolean | string;
   };
   vllm: {
     base_url: string;

@@ -25,16 +25,25 @@ configureApi(apiUrl);
 
 async function runQuery() {
   try {
+    let buffer = '';
+    process.stdout.write('🤖 Assistant: ');
+
     // Use our SDK's streamChat function instead of raw fetch
     for await (const response of streamChat(query, false)) {
       if (response.text) {
-        console.log(response.text);
+        // Append new text to the buffer
+        buffer += response.text;
+
+        // Write the buffer from the last known position
+        process.stdout.write(response.text);
       } else if (response.content) {
-        console.log(response.content);
+        console.log('\n' + response.content);
       }
       
       if (response.done) {
-        console.log('\n✅ Query test completed successfully');
+        // Add a newline at the end for clean output
+        console.log('\n\n✅ Query test completed successfully');
+        buffer = ''; // Clear the buffer after the query is complete
       }
     }
   } catch (error) {

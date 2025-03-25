@@ -52,10 +52,6 @@ try {
   if (process.env.HUGGINGFACE_API_KEY) {
     config.huggingface.api_key = process.env.HUGGINGFACE_API_KEY;
   }
-  
-  if (config.general?.verbose === 'true') {
-    console.log('Loaded configuration:', JSON.stringify(config, null, 2));
-  }
 } catch (error) {
   console.error('Error reading config file:', error);
   process.exit(1);
@@ -113,6 +109,7 @@ const llm = new Ollama({
   numThread: parseInt(String(config.ollama.num_threads)),
   top_p: parseFloat(String(config.ollama.top_p)),
   top_k: parseInt(String(config.ollama.top_k)),
+  stream: config.ollama.stream,
   
   fetch: async (input: RequestInfo, init?: RequestInit) => {
     const url = typeof input === 'string' ? input : input.url;
@@ -290,12 +287,12 @@ CONTEXT: {context}
 USER QUESTION: {question}
 
 ANSWER:`),
-      async (input: string) => {
+      async (input: string | any) => {
         if (verbose) {
           console.log('\n=== Final Prompt to Ollama ===');
           console.log('Complete Prompt:');
           console.log(input);
-          console.log('\nPrompt Length:', input.length);
+          console.log('\nPrompt Length:', typeof input === 'string' ? input.length : JSON.stringify(input).length);
         }
         const response = await llm.invoke(input);
         if (verbose) {
@@ -373,7 +370,6 @@ const chain = await createChain(backend);
 // Initialize Elasticsearch client with better error handling and timeout
 const initializeElasticsearch = async () => {
   if (!config.elasticsearch.enabled) {
-    console.log('Elasticsearch logging is disabled in config');
     return null;
   }
 
@@ -533,11 +529,11 @@ async function checkGuardrail(query: string): Promise<{ safe: boolean }> {
     const payload = {
       model: config.ollama.model,
       prompt: `${config.system.guardrail_prompt}\n\nQuery: ${query}\n\nRespond with ONLY 'SAFE: true' or 'SAFE: false':`,
-      temperature: 0.0,  // Set to 0 for deterministic response
+      temperature: 0.0,
       top_p: 1.0,
       top_k: 1,
       repeat_penalty: parseFloat(String(config.ollama.repeat_penalty)),
-      num_predict: 20,   // Limit response length
+      num_predict: 20,
       stream: false
     };
     
