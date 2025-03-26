@@ -1,3 +1,13 @@
+general:
+  port: 3000
+  verbose: "false"
+  
+elasticsearch:
+  enabled: true
+  node: 'https://localhost:9200'
+  index: 'qa-chatbot'
+  auth: {}  # Credentials now loaded from .env
+
 ollama:
   base_url: "http://localhost:11434"
   temperature: 0.01
@@ -120,13 +130,3 @@ Start responses directly with relevant information rather than greetings."
     - Program details and eligibility requirements
     - Constructive feedback or concerns expressed professionally
     - General inquiries about services and programs"
-
-general:
-  port: 3000
-  verbose: "false"
-  
-elasticsearch:
-  enabled: true
-  node: 'https://88cace70a265464fafe6a13550b69c19.ca-central-1.aws.elastic-cloud.com:443'
-  index: 'occsc'
-  auth: {}  # Credentials now loaded from .env

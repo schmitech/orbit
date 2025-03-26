@@ -430,6 +430,85 @@ const logger = winston.createLogger({
   ]
 });
 
+// Add IP formatting utility
+interface IPMetadata {
+  address: string;
+  type: 'ipv4' | 'ipv6' | 'local' | 'unknown';
+  isLocal: boolean;
+  source: 'direct' | 'proxy' | 'unknown';
+  originalValue: string;
+}
+
+function formatIPAddress(ip: string | string[] | undefined): IPMetadata {
+  // Default metadata
+  const metadata: IPMetadata = {
+    address: 'unknown',
+    type: 'unknown',
+    isLocal: false,
+    source: 'unknown',
+    originalValue: Array.isArray(ip) ? ip.join(', ') : (ip || 'unknown')
+  };
+
+  // Handle array from X-Forwarded-For
+  const ipToProcess = Array.isArray(ip) ? ip[0] : ip;
+
+  if (!ipToProcess) {
+    return metadata;
+  }
+
+  // Clean the IP address
+  let cleanIP = ipToProcess.trim();
+
+  // Detect and format IPv6 localhost
+  if (cleanIP === '::1' || cleanIP === '::ffff:127.0.0.1') {
+    return {
+      address: 'localhost',
+      type: 'local',
+      isLocal: true,
+      source: 'direct',
+      originalValue: cleanIP
+    };
+  }
+
+  // Detect and format IPv4 localhost
+  if (cleanIP === '127.0.0.1' || cleanIP.startsWith('::ffff:127.')) {
+    return {
+      address: 'localhost',
+      type: 'local',
+      isLocal: true,
+      source: 'direct',
+      originalValue: cleanIP
+    };
+  }
+
+  // Handle IPv4-mapped IPv6 addresses
+  if (cleanIP.startsWith('::ffff:')) {
+    cleanIP = cleanIP.substring(7);
+    metadata.type = 'ipv4';
+  } else if (cleanIP.includes(':')) {
+    metadata.type = 'ipv6';
+  } else {
+    metadata.type = 'ipv4';
+  }
+
+  metadata.address = cleanIP;
+  metadata.isLocal = isLocalIP(cleanIP);
+  metadata.source = Array.isArray(ip) ? 'proxy' : 'direct';
+
+  return metadata;
+}
+
+function isLocalIP(ip: string): boolean {
+  return ip.startsWith('10.') || 
+         ip.startsWith('172.16.') || 
+         ip.startsWith('192.168.') || 
+         ip === '127.0.0.1' || 
+         ip === '::1' ||
+         ip.startsWith('fc00:') ||
+         ip.startsWith('fd') ||
+         ip.toLowerCase().startsWith('fe80:');
+}
+
 // Modify the logging function to handle both ES and file logging
 async function logChatInteraction(data: {
   timestamp: Date;
@@ -437,7 +516,11 @@ async function logChatInteraction(data: {
   response: string;
   backend: 'ollama' | 'hf' | 'vllm';
   blocked?: boolean;
+  ip?: string | string[];
 }) {
+  const ipMetadata = formatIPAddress(data.ip);
+  const verbose = config.general?.verbose === 'true';
+  
   // Always log to file with full data
   logger.info('Chat Interaction', {
     timestamp: data.timestamp.toISOString(),
@@ -445,33 +528,103 @@ async function logChatInteraction(data: {
     response: data.response,
     backend: data.backend,
     blocked: data.blocked || false,
+    ip: {
+      ...ipMetadata,
+      potentialRisk: data.blocked && !ipMetadata.isLocal,
+      timestamp: data.timestamp.toISOString()
+    },
     elasticsearch_status: config.elasticsearch.enabled ? 'enabled' : 'disabled'
   });
 
   // Log to Elasticsearch if enabled and available
   if (config.elasticsearch.enabled && esClient) {
     try {
-      await esClient.index({
-        index: config.elasticsearch.index,
-        document: {
-          timestamp: data.timestamp.toISOString(),
-          query: data.query,
-          response: data.response,
-          backend: data.backend,
-          blocked: data.blocked || false
+      if (verbose) {
+        console.log('\n=== Elasticsearch Logging ===');
+        console.log('Attempting to index document to:', config.elasticsearch.index);
+      }
+
+      // Convert localhost/friendly names to actual IP for Elasticsearch storage
+      const ipForElastic = ipMetadata.type === 'local' ? '127.0.0.1' : ipMetadata.address;
+
+      const document = {
+        timestamp: data.timestamp.toISOString(),
+        query: data.query,
+        response: data.response,
+        backend: data.backend,
+        blocked: data.blocked || false,
+        ip: ipForElastic, // Store actual IP address
+        ip_metadata: {
+          type: ipMetadata.type,
+          isLocal: ipMetadata.isLocal,
+          source: ipMetadata.source,
+          originalValue: ipMetadata.originalValue,
+          potentialRisk: data.blocked && !ipMetadata.isLocal
         }
+      };
+
+      if (verbose) {
+        console.log('Document to index:', JSON.stringify(document, null, 2));
+      }
+
+      const indexResult = await esClient.index({
+        index: config.elasticsearch.index,
+        document: document,
+        refresh: true // This ensures the document is immediately searchable
       });
+
+      if (verbose) {
+        console.log('Elasticsearch indexing result:', indexResult);
+        
+        // Verify document exists
+        const verifyDoc = await esClient.get({
+          index: config.elasticsearch.index,
+          id: indexResult._id
+        });
+        console.log('Document verification:', verifyDoc);
+      }
+
     } catch (error: any) {
-      logger.error('Failed to log to Elasticsearch:', { 
-        error: error.message, 
-        data,
-        elasticsearch_status: 'error'
+      console.error('Failed to log to Elasticsearch:', { 
+        error: error.message,
+        stack: error.stack,
+        meta: error.meta,
+        statusCode: error.statusCode,
+        name: error.name
       });
+      
+      // Try to diagnose the issue
+      try {
+        const indexExists = await esClient.indices.exists({
+          index: config.elasticsearch.index
+        });
+        
+        console.log('Index exists check:', {
+          index: config.elasticsearch.index,
+          exists: indexExists
+        });
+
+        if (!indexExists) {
+          console.error('Index does not exist! This should not happen as we create it at startup.');
+        }
+
+        const indexSettings = await esClient.indices.get({
+          index: config.elasticsearch.index
+        });
+        
+        console.log('Index settings:', indexSettings);
+      } catch (diagError: any) {
+        console.error('Error during diagnostics:', diagError.message);
+      }
     }
+  } else if (verbose) {
+    console.log('\n=== Elasticsearch Logging Skipped ===');
+    console.log('Elasticsearch enabled:', config.elasticsearch.enabled);
+    console.log('Elasticsearch client available:', !!esClient);
   }
 }
 
-// Update the index mapping
+// Update the Elasticsearch mapping
 if (config.elasticsearch.enabled && esClient) {
   try {
     await esClient.ping();
@@ -493,7 +646,17 @@ if (config.elasticsearch.enabled && esClient) {
               query: { type: 'text' },
               response: { type: 'text' },
               backend: { type: 'keyword' },
-              blocked: { type: 'boolean' }
+              blocked: { type: 'boolean' },
+              ip: { type: 'ip' },  // Main IP field - will store actual IP
+              ip_metadata: {  // Additional IP metadata
+                properties: {
+                  type: { type: 'keyword' },
+                  isLocal: { type: 'boolean' },
+                  source: { type: 'keyword' },
+                  originalValue: { type: 'keyword' },
+                  potentialRisk: { type: 'boolean' }
+                }
+              }
             }
           }
         }
@@ -579,6 +742,11 @@ async function checkGuardrail(query: string): Promise<{ safe: boolean }> {
 app.post('/chat', async (req, res) => {
   const startTime = Date.now();
   const { message, voiceEnabled } = req.body;
+  
+  // Get client IP address
+  const ip = req.headers['x-forwarded-for'] || 
+             req.socket.remoteAddress || 
+             'unknown';
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -594,7 +762,8 @@ app.post('/chat', async (req, res) => {
         query: message,
         response: 'BLOCKED: Failed guardrail check',
         backend,
-        blocked: true
+        blocked: true,
+        ip: typeof ip === 'string' ? ip : ip[0]  // Handle potential array from x-forwarded-for
       });
 
       // Send the blocked response
@@ -658,24 +827,26 @@ app.post('/chat', async (req, res) => {
       }
     }
     
-    // Log the interaction
+    // Log the interaction with IP
     await logChatInteraction({
       timestamp: new Date(),
       query: message,
       response: fullResponse,
       backend,
+      ip: typeof ip === 'string' ? ip : ip[0]  // Handle potential array from x-forwarded-for
     });
 
     res.end();
   } catch (error) {
     console.error('Error:', error);
     
-    // Log errors too
+    // Log errors too with IP
     await logChatInteraction({
       timestamp: new Date(),
       query: message,
       response: 'ERROR',
       backend,
+      ip: typeof ip === 'string' ? ip : ip[0]  // Handle potential array from x-forwarded-for
     });
 
     res.write(JSON.stringify({ type: 'text', content: 'An error occurred while processing your request.' }) + '\n');
