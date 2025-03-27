@@ -1,14 +1,28 @@
-# QA Chatbot Server
+# Q/A Chatbot Server
 
-A Node.js server for Q/A chatbots with text-to-speech capabilities.
+A Node.js server for Q/A chatbots with text-to-speech capabilities. This server provides a robust API for building question-answering systems with the following features:
+
+- **Multiple LLM Backends**: Support for Ollama, HuggingFace, and VLLM inference engines
+- **Vector Search**: Integration with ChromaDB for semantic search and context retrieval
+- **Text-to-Speech**: ElevenLabs integration for natural voice responses
+- **Streaming Responses**: Real-time streaming of both text and audio responses
+- **Multilingual Support**: Handle queries in multiple languages
+- **Security Features**: Built-in guardrails and content filtering
+- **Comprehensive Logging**: Dual logging system with filesystem and Elasticsearch support
+- **Production Ready**: Includes health checks, graceful shutdown, and service management
+
+The server is designed to be:
+- **Scalable**: Handle multiple concurrent connections
+- **Secure**: HTTPS support with proper certificate management
+- **Maintainable**: Well-structured code with comprehensive logging
+- **Flexible**: Easy to configure and extend with different LLM backends
 
 ## Prerequisites
 
-- Node.js (v16 or higher)
-- Python (for ChromaDB)
-- An ElevenLabs API key (for text-to-speech)
-- Ollama server
-- ChromaDB server
+- Node.js (v18 or higher)
+- Python 3.12 (for local ChromaDB server and utilities)
+- An ElevenLabs API key (optional - text-to-speech)
+- Ollama server or vLLM or HuggingFace API Key
 
 ## Setup as Server
 
@@ -127,6 +141,211 @@ system:
   prompt: "You are a helpful assistant..."  # System prompt for the LLM
   guardrail_prompt: "You are a multilingual query guardrail agent..."  # Guardrail prompt for query safety
 ```
+
+## HTTPS Configuration
+
+The server supports both HTTP and HTTPS connections using TLS (Transport Layer Security). Here's how to configure it for different scenarios:
+
+### Development Environment
+
+1. Generate TLS certificates using OpenSSL:
+```bash
+# Generate private key
+openssl genrsa -out key.pem 2048
+
+# Generate self-signed certificate
+openssl req -x509 -new -nodes -key key.pem -sha256 -days 365 -out cert.pem
+```
+
+2. Update your `config.yaml`:
+```yaml
+general:
+  port: 3000
+  verbose: "false"
+  https:
+    enabled: true
+    port: 3443
+    cert_file: "./cert.pem"
+    key_file: "./key.pem"
+```
+
+3. Start the server:
+```bash
+npm run server -- ollama
+```
+
+Note: When using self-signed certificates, browsers will show a security warning. This is normal for development and can be safely bypassed.
+
+### Production Environment
+
+For production, we recommend using Let's Encrypt for TLS certificates:
+
+1. Install Certbot:
+```bash
+# Ubuntu/Debian
+sudo apt-get update
+sudo apt-get install certbot
+
+# macOS (using Homebrew)
+brew install certbot
+```
+
+2. Obtain TLS certificate:
+```bash
+# Replace example.com with your domain
+sudo certbot certonly --standalone -d example.com
+```
+
+### Using Public IP Address
+
+If you don't have a domain name and only have a public IP address, you have two options:
+
+1. **Using Self-Signed Certificates (Quick but Not Recommended for Production)**
+```bash
+# Generate private key
+openssl genrsa -out key.pem 2048
+
+# Generate self-signed certificate (replace YOUR_IP with your public IP)
+openssl req -x509 -new -nodes -key key.pem -sha256 -days 365 -out cert.pem -subj "/CN=YOUR_IP"
+```
+
+2. **Using Let's Encrypt with IP Address (Recommended)**
+```bash
+# Install Certbot with DNS plugin (if using DNS validation)
+sudo apt-get install certbot python3-certbot-dns-cloudflare  # For Cloudflare
+# or
+sudo apt-get install certbot python3-certbot-dns-route53    # For AWS Route 53
+
+# Obtain certificate using DNS validation
+sudo certbot certonly --manual --preferred-challenges dns -d YOUR_IP.nip.io
+```
+
+Note: `nip.io` is a free DNS service that maps IP addresses to domain names. For example, if your IP is `203.0.113.1`, you would use `203.0.113.1.nip.io`.
+
+3. Update your `config.yaml`:
+```yaml
+general:
+  port: 3000
+  verbose: "false"
+  https:
+    enabled: true
+    port: 443
+    cert_file: "/etc/letsencrypt/live/YOUR_IP.nip.io/fullchain.pem"
+    key_file: "/etc/letsencrypt/live/YOUR_IP.nip.io/privkey.pem"
+```
+
+4. Configure your firewall:
+```bash
+# Allow HTTPS traffic (TLS)
+sudo ufw allow 443/tcp
+
+# Only needed if using Let's Encrypt or HTTP-to-HTTPS redirects
+# sudo ufw allow 80/tcp
+```
+
+4.1 **For Cloud Providers**:
+
+**AWS EC2 Security Group**:
+```bash
+# Add inbound rules for HTTPS and HTTP
+- Type: HTTPS (443)
+  Source: 0.0.0.0/0 (or your specific IP range)
+  Description: Allow HTTPS traffic (TLS)
+
+# Only needed if using Let's Encrypt or HTTP-to-HTTPS redirects
+# - Type: HTTP (80)
+#   Source: 0.0.0.0/0 (or your specific IP range)
+#   Description: Allow HTTP traffic for redirects
+```
+
+**Azure Network Security Group**:
+```bash
+# Add inbound security rules
+- Priority: 100
+  Port: 443
+  Protocol: TCP
+  Source: * (or your specific IP range)
+  Destination: *
+  Action: Allow
+  Description: Allow HTTPS traffic (TLS)
+
+# Only needed if using Let's Encrypt or HTTP-to-HTTPS redirects
+# - Priority: 110
+#   Port: 80
+#   Protocol: TCP
+#   Source: * (or your specific IP range)
+#   Destination: *
+#   Action: Allow
+#   Description: Allow HTTP traffic for redirects
+```
+
+Note: Port 80 is only required if you're:
+- Using Let's Encrypt for certificate validation
+- Implementing HTTP-to-HTTPS redirects
+- Using a reverse proxy that handles TLS termination
+
+For development with self-signed certificates or direct HTTPS access, port 80 is not needed.
+
+5. Test your TLS setup:
+```bash
+# Test with curl (replace YOUR_IP with your actual IP)
+curl -k https://YOUR_IP.nip.io/health
+
+# Check TLS certificate info
+openssl s_client -connect YOUR_IP.nip.io:443 -showcerts
+```
+
+Note: While this setup works, having a proper domain name is recommended for production use as it:
+- Provides better security and trust
+- Makes certificate management easier
+- Allows for better monitoring and analytics
+- Enables proper TLS configuration
+
+### Handling Certificate Errors in API Client
+
+When using self-signed certificates, you'll need to handle certificate validation in your API client. Here are the solutions:
+
+1. **For Development (Node.js API Client)**
+```typescript
+// Add this to your API client configuration
+const httpsAgent = new https.Agent({
+  rejectUnauthorized: false // Only use in development!
+});
+
+// Use it in your fetch calls
+fetch('https://localhost:3443/chat', {
+  agent: httpsAgent
+});
+```
+
+2. **For Browser-based API Client**
+```typescript
+// Add this to your API client configuration
+const fetchOptions = {
+  // Skip certificate validation (only for development!)
+  mode: 'cors',
+  credentials: 'include',
+  headers: {
+    'Content-Type': 'application/json'
+  }
+};
+
+// Use it in your fetch calls
+fetch('https://localhost:3443/chat', fetchOptions);
+```
+
+3. **For Production**
+- Use a proper TLS certificate from a trusted CA (like Let's Encrypt)
+- Don't disable certificate validation
+- Use proper domain names instead of IP addresses
+
+4. **Temporary Browser Workaround (Development Only)**
+- Open `https://localhost:3443` directly in your browser
+- Click "Advanced" or "More Information"
+- Click "Proceed to localhost (unsafe)" or "Accept the Risk and Continue"
+- The API client should now work without certificate errors
+
+Note: Disabling certificate validation is only recommended for development. Never disable certificate validation in production as it makes your application vulnerable to man-in-the-middle attacks.
 
 ## Logging
 

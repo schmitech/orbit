@@ -18,3 +18,4 @@ logs/
 .env.production.local
 dist
 *.zip
+*.pem

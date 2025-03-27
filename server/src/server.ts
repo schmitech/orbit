@@ -20,6 +20,7 @@ import { VLLMClient } from './vllm';
 import dotenv from 'dotenv';
 import winston from 'winston';
 import 'winston-daily-rotate-file';
+import https from 'https';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -979,9 +980,29 @@ app.get('/health', async (req, res) => {
 });
 
 // Start the server and store the reference
-const server = app.listen(port, () => {
-  console.log(`Server running at http://localhost:${port}`);
-});
+let server: https.Server | ReturnType<typeof app.listen>;
+if (config.general?.https?.enabled) {
+  try {
+    const httpsOptions = {
+      key: await fs.readFile(config.general.https.key_file),
+      cert: await fs.readFile(config.general.https.cert_file)
+    };
+    
+    server = https.createServer(httpsOptions, app);
+    const httpsPort = config.general.https.port || 3443;
+    
+    server.listen(httpsPort, () => {
+      console.log(`HTTPS Server running at https://localhost:${httpsPort}`);
+    });
+  } catch (error) {
+    console.error('Failed to start HTTPS server:', error);
+    process.exit(1);
+  }
+} else {
+  server = app.listen(port, () => {
+    console.log(`HTTP Server running at http://localhost:${port}`);
+  });
+}
 
 // Implement graceful shutdown
 process.on('SIGTERM', gracefulShutdown);
@@ -992,7 +1013,7 @@ async function gracefulShutdown() {
   
   // Stop accepting new requests
   server.close(() => {
-    console.log('HTTP server closed');
+    console.log('HTTP/HTTPS server closed');
   });
   
   // Wait for existing requests to complete (with timeout)

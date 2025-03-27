@@ -71,6 +71,12 @@ export interface AppConfig {
   general: {
     verbose: string;
     port: number | string;
+    https?: {
+      enabled: boolean;
+      port: number;
+      cert_file: string;
+      key_file: string;
+    };
   };
   elasticsearch: {
     enabled: boolean;
