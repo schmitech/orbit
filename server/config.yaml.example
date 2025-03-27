@@ -10,13 +10,15 @@ general:
 chroma:
   host: "localhost"
   port: 8000
-  collection: "non-profit"
+  collection: "qa-chatbot"
 
 elasticsearch:
   enabled: false
   node: 'https://localhost:9200'
   index: 'qa-chatbot'
-  auth: {}  # Credentials now loaded from .env
+  auth:
+    username: ${ELASTICSEARCH_USERNAME}
+    password: ${ELASTICSEARCH_PASSWORD}
 
 ollama:
   base_url: "http://localhost:11434"
