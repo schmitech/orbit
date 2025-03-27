@@ -11,7 +11,6 @@ import { OllamaEmbeddings } from '@langchain/community/embeddings/ollama';
 import { OllamaEmbeddingWrapper } from './ollamaEmbeddingWrapper';
 import path from 'path';
 import { fileURLToPath } from 'node:url';
-import { questionAnswerWithHuggingFace } from './huggingface';
 import fs from 'fs/promises';
 import yaml from 'js-yaml';
 import { Client } from '@elastic/elasticsearch';
@@ -48,10 +47,6 @@ try {
   
   if (process.env.ELEVEN_LABS_API_KEY) {
     config.eleven_labs.api_key = process.env.ELEVEN_LABS_API_KEY;
-  }
-  
-  if (process.env.HUGGINGFACE_API_KEY) {
-    config.huggingface.api_key = process.env.HUGGINGFACE_API_KEY;
   }
 } catch (error) {
   console.error('Error reading config file:', error);
@@ -215,13 +210,15 @@ const formatDocuments = (docs: Document[]): string => {
   return docs[0].pageContent;
 };
 
-// Add new type for backend selection
-type Backend = 'ollama' | 'hf' | 'vllm';
+// Update backend type
+type Backend = 'ollama' | 'vllm';
 
 // Add command line argument parsing
 const backend: Backend = process.argv[2] as Backend || 'ollama';
-if (!['ollama', 'hf', 'vllm'].includes(backend)) {
-  console.error('Invalid backend specified. Use either "ollama", "hf", or "vllm"');
+
+// Update backend validation
+if (!['ollama', 'vllm'].includes(backend)) {
+  console.error('Invalid backend specified. Use either "ollama" or "vllm"');
   process.exit(1);
 }
 
@@ -304,69 +301,18 @@ ANSWER:`),
       },
       new StringOutputParser(),
     ]);
-  } else if (backend === 'vllm') {
+  } else {
     const vllmClient = new VLLMClient(config, retriever);
     return vllmClient.createChain();
-  } else {
-    // HuggingFace QA chain
-    return RunnableSequence.from([
-      async (input: { query: string }) => {
-        const docs = await retriever.getRelevantDocuments(input.query);
-        const context = formatDocuments(docs);
-        
-        if (context === 'NO_RELEVANT_CONTEXT') {
-          return {
-            context: "NO_RELEVANT_CONTEXT",
-            question: input.query,
-            system: systemPrompt,
-            directAnswer: "I don't have specific information about that in my database."
-          };
-        }
-
-        const qaResult = await questionAnswerWithHuggingFace(context, input.query, config);
-        
-        // If confidence is too low, fall back to Ollama
-        if (qaResult.score < 0.1) {
-          return {
-            context,
-            question: input.query,
-            system: systemPrompt,
-            useOllama: true,
-          };
-        }
-
-        return {
-          answer: qaResult.answer,
-          context,
-          score: qaResult.score,
-        };
-      },
-      async (input: any) => {
-        if (input.directAnswer) {
-          return input.directAnswer;
-        }
-        
-        if (input.useOllama) {
-          const prompt = PromptTemplate.fromTemplate(`SYSTEM: {system}
-
-CONTEXT: {context}
-
-USER QUESTION: {question}
-
-ANSWER:`);
-          return prompt.format(input);
-        }
-        
-        return `Based on the provided information (confidence: ${Math.round(input.score * 100)}%), ${input.answer}`;
-      },
-      input => input.useOllama ? llm : new StringOutputParser(),
-      new StringOutputParser(),
-    ]);
   }
 };
 
 // Create and await the chain
 const chain = await createChain(backend);
+if (!chain) {
+  console.error('Failed to create chain');
+  process.exit(1);
+}
 
 // Initialize Elasticsearch client with better error handling and timeout
 const initializeElasticsearch = async () => {
@@ -515,7 +461,7 @@ async function logChatInteraction(data: {
   timestamp: Date;
   query: string;
   response: string;
-  backend: 'ollama' | 'hf' | 'vllm';
+  backend: 'ollama' | 'vllm';
   blocked?: boolean;
   ip?: string | string[];
 }) {

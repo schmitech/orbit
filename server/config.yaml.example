@@ -48,10 +48,6 @@ vllm:
   guardrail_temperature: 0.0
   guardrail_top_p: 1.0
 
-huggingface:
-  api_key: null  # API key now loaded from .env
-  model: "deepset/roberta-base-squad2"
-
 chroma:
   host: "localhost"
   port: 8000

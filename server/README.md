@@ -2,7 +2,7 @@
 
 A Node.js server for Q/A chatbots with text-to-speech capabilities. This server provides a robust API for building question-answering systems with the following features:
 
-- **Multiple LLM Backends**: Support for Ollama, HuggingFace, and VLLM inference engines
+- **Multiple LLM Backends**: Support for Ollama and vLLM inference engines
 - **Vector Search**: Integration with ChromaDB for semantic search and context retrieval
 - **Text-to-Speech**: ElevenLabs integration for natural voice responses
 - **Streaming Responses**: Real-time streaming of both text and audio responses
@@ -22,7 +22,7 @@ The server is designed to be:
 - Node.js (v18 or higher)
 - Python 3.12 (for local ChromaDB server and utilities)
 - An ElevenLabs API key (optional - text-to-speech)
-- Ollama server or vLLM or HuggingFace API Key
+- Ollama server or vLLM
 
 ## Setup as Server
 
@@ -43,7 +43,6 @@ npm install
    
    Edit the `config.yaml` file to set your:
    - Ollama parameters (model, temperature, etc.)
-   - HuggingFace API key
    - ChromaDB connection details
    - ElevenLabs voice ID
    - System template path
@@ -53,7 +52,6 @@ npm install
    ELASTICSEARCH_USERNAME=your-username
    ELASTICSEARCH_PASSWORD=your-password
    ELEVEN_LABS_API_KEY=your-api-key
-   HUGGINGFACE_API_KEY=your-api-key
    ```
 
    Note: Make sure to add `.env` to your `.gitignore` file to prevent committing sensitive data.
@@ -70,7 +68,7 @@ npm install
 chroma run --host localhost --port 8000 --path ./chroma_db
 ```
 
-5. Ingest data (in another simple-qa-chatbot terminal)
+1. Ingest data (in another simple-qa-chatbot terminal)
 ```bash
 python ../chroma/create-chroma-collection.py qa-pairs.json
 ```
@@ -128,10 +126,6 @@ vllm:
   guardrail_max_tokens: 20            # Maximum tokens for guardrail
   guardrail_temperature: 0.0          # Temperature for guardrail
   guardrail_top_p: 1.0                # Top-p for guardrail
-
-huggingface:
-  api_key: null                       # API key loaded from .env
-  model: "deepset/roberta-base-squad2" # HF model for question answering
 
 eleven_labs:
   api_key: null                       # API key loaded from .env
@@ -355,9 +349,6 @@ ELASTICSEARCH_PASSWORD=your-password
 
 # ElevenLabs API key
 ELEVEN_LABS_API_KEY=your-api-key
-
-# HuggingFace API key
-HUGGINGFACE_API_KEY=your-api-key
 ```
 
 ## Testing Text-to-Speech
@@ -372,7 +363,7 @@ curl -X POST "https://api.elevenlabs.io/v1/text-to-speech/XrExE9yKIg1WjnnlVkGX" 
 
 6. Start the server:
 ```bash
-npm run server -- ollama #or hf for hugging face
+npm run server -- ollama #or vLLM
 ```
 
 ## API Client

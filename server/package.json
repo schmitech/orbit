@@ -19,7 +19,6 @@
     },
     "dependencies": {
         "@elastic/elasticsearch": "^8.17.1",
-        "@huggingface/inference": "^2.6.4",
         "@langchain/community": "^0.0.26",
         "@langchain/core": "^0.1.26",
         "chromadb": "^1.7.3",

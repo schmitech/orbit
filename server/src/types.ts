@@ -51,10 +51,6 @@ export interface AppConfig {
     guardrail_temperature?: number | string;
     guardrail_top_p?: number | string;
   };
-  huggingface: {
-    api_key: string;
-    model: string;
-  };
   chroma: {
     host: string;
     port: number | string;
