@@ -327,7 +327,8 @@ If you want to deploy a specific solution or folder from your project:
 1. Navigate to the specific folder:
 ```bash
 cd path/to/your/solution
-netlify deploy --prod --dir .
+npm run build
+netlify deploy --prod --dir dist
 ```
 
 2. Or deploy from any location by specifying the path:

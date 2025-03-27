@@ -14,7 +14,7 @@
         "start": "node dist/server.js",
         "dev": "tsx watch src/server.ts",
         "clean": "rimraf dist",
-        "build": "npm run clean && tsc",
+        "build": "npm run clean && tsc && cp config.yaml dist/",
         "server": "tsx src/server.ts"
     },
     "dependencies": {

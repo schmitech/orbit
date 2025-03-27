@@ -70,42 +70,62 @@ python ../chroma/query-chroma-collection.py "Where can I view the assessment rol
 The `config.yaml` file contains the following sections:
 
 ```yaml
+general:
+  port: 3000                           # Server port
+  verbose: "false"                     # Enable verbose logging
+
+chroma:
+  host: "localhost"                    # ChromaDB host
+  port: 8000                           # ChromaDB port
+  collection: "qa-chatbot"             # Collection name
+
+elasticsearch:
+  enabled: true                        # Enable/disable Elasticsearch logging
+  node: "https://localhost:9200"       # Elasticsearch server endpoint
+  index: "qa-chatbot"                  # Index name for chat logs
+  auth: {}                            # Auth credentials loaded from .env
+
 ollama:
-  base_url: "http://localhost:11434"  # URL of your Ollama server
-  temperature: 0.01                   # Controls randomness (0.01 = very deterministic)
-  top_p: 0.9                          # Nucleus sampling parameter
-  top_k: 40                           # Limits token selection to top K options
-  repeat_penalty: 1.0                 # Penalizes repetition
+  base_url: "http://localhost:11434"   # URL of your Ollama server
+  temperature: 0.01                    # Controls randomness
+  top_p: 0.8                          # Nucleus sampling parameter
+  top_k: 20                           # Limits token selection to top K options
+  repeat_penalty: 1.2                 # Penalizes repetition
   num_predict: 1024                   # Maximum tokens to generate
   num_ctx: 8192                       # Context window size
   num_threads: 8                      # CPU threads to use
-  model: "phi4-mini"                  # Ollama model to use
+  model: "gemma3:1b"                  # Ollama model to use
   embed_model: "nomic-embed-text"     # Embedding model for vector search
+  stream: true                        # Enable streaming responses
+
+vllm:
+  base_url: "http://localhost:5000"    # VLLM server URL
+  temperature: 0.01                    # Controls randomness
+  max_tokens: 32                       # Maximum tokens to generate
+  model: "VLLMQwen2.5-14B"            # VLLM model to use
+  top_p: 0.8                          # Nucleus sampling parameter
+  frequency_penalty: 0.0              # Penalizes frequency of tokens
+  presence_penalty: 0.0               # Penalizes presence of tokens
+  best_of: 1                          # Number of best completions to return
+  n: 1                                # Number of completions to generate
+  logprobs: null                      # Log probabilities configuration
+  echo: false                         # Echo the prompt in the response
+  stream: false                       # Enable streaming responses
+  guardrail_max_tokens: 20            # Maximum tokens for guardrail
+  guardrail_temperature: 0.0          # Temperature for guardrail
+  guardrail_top_p: 1.0                # Top-p for guardrail
 
 huggingface:
   api_key: null                       # API key loaded from .env
   model: "deepset/roberta-base-squad2" # HF model for question answering
-
-chroma:
-  host: "localhost"                   # ChromaDB host
-  port: 8000                          # ChromaDB port
-  collection: "non-profit"            # Collection name
 
 eleven_labs:
   api_key: null                       # API key loaded from .env
   voice_id: "kPzsL2i3teMYv0FxEYQ6"    # Voice ID to use
 
 system:
-  prompt: "You are a helpful assistant for a non-profit organization. ALWAYS use the information provided in the CONTEXT section to answer questions. If the exact answer is in the context, use it directly. Never say you don't have information if it's clearly provided in the context. If you're unsure, quote directly from the context."  # System prompt for the LLM
-
-general:
-  verbose: "false"                    # Enable verbose logging
-
-elasticsearch:
-  enabled: true                       # Enable/disable Elasticsearch logging
-  node: "your-elasticsearch-endpoint" # Elasticsearch server endpoint
-  index: "your-index-name"           # Index name for chat logs
-  auth: {}                           # Auth credentials loaded from .env
+  prompt: "You are a helpful assistant..."  # System prompt for the LLM
+  guardrail_prompt: "You are a multilingual query guardrail agent..."  # Guardrail prompt for query safety
 ```
 
 ## Logging
@@ -304,3 +324,6 @@ npm run server -- ollama > output.log 2> error.log &
 ```
 
 Note: Using just `&` is less robust than systemd as the process might terminate when closing the terminal session. For production environments, the systemd service approach is recommended.
+
+## License
+Apache 2.0 License. See LICENSE file on project directory.

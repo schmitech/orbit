@@ -2,8 +2,13 @@ general:
   port: 3000
   verbose: "false"
   
+chroma:
+  host: "localhost"
+  port: 8000
+  collection: "non-profit"
+
 elasticsearch:
-  enabled: true
+  enabled: false
   node: 'https://localhost:9200'
   index: 'qa-chatbot'
   auth: {}  # Credentials now loaded from .env

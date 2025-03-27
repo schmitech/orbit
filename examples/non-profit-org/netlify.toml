@@ -15,4 +15,24 @@
 
 [build.environment]
   NODE_VERSION = "18"
-  VITE_API_ENDPOINT = "http://localhost:3000"
+  VITE_API_ENDPOINT = "https://localhost:3000"
+
+[[headers]]
+  for = "/*.js"
+  [headers.values]
+    Content-Type = "text/javascript"
+
+[[headers]]
+  for = "/*.mjs"
+  [headers.values]
+    Content-Type = "text/javascript"
+
+[[headers]]
+  for = "/*.ts"
+  [headers.values]
+    Content-Type = "application/typescript"
+
+[[headers]]
+  for = "/*.tsx"
+  [headers.values]
+    Content-Type = "application/typescript"
