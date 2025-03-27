@@ -144,118 +144,84 @@ system:
 
 ## HTTPS Configuration
 
-The server supports both HTTP and HTTPS connections using TLS (Transport Layer Security). Here's how to configure it for different scenarios:
+The server supports HTTPS connections using TLS (Transport Layer Security). Here's how to configure it:
 
-### Development Environment
-
-1. Generate TLS certificates using OpenSSL:
-```bash
-# Generate private key
-openssl genrsa -out key.pem 2048
-
-# Generate self-signed certificate
-openssl req -x509 -new -nodes -key key.pem -sha256 -days 365 -out cert.pem
-```
-
-2. Update your `config.yaml`:
-```yaml
-general:
-  port: 3000
-  verbose: "false"
-  https:
-    enabled: true
-    port: 3443
-    cert_file: "./cert.pem"
-    key_file: "./key.pem"
-```
-
-3. Start the server:
-```bash
-npm run server -- ollama
-```
-
-Note: When using self-signed certificates, browsers will show a security warning. This is normal for development and can be safely bypassed.
-
-### Production Environment
-
-For production, we recommend using Let's Encrypt for TLS certificates:
+### Using Let's Encrypt with Azure Domain
 
 1. Install Certbot:
 ```bash
 # Ubuntu/Debian
 sudo apt-get update
 sudo apt-get install certbot
-
-# macOS (using Homebrew)
-brew install certbot
 ```
 
-2. Obtain TLS certificate:
+2. If your server runs on port 3000, you'll need to route requests from port 80 to port 3000 for the certificate verification:
 ```bash
-# Replace example.com with your domain
-sudo certbot certonly --standalone -d example.com
+sudo iptables -t nat -A PREROUTING -p tcp --dport 80 -j REDIRECT --to-port 3000
 ```
 
-### Using Public IP Address
-
-If you don't have a domain name and only have a public IP address, you have two options:
-
-1. **Using Self-Signed Certificates (Quick but Not Recommended for Production)**
+3. Obtain TLS certificate using DNS challenge (since we can't use HTTP challenge with Azure domain):
 ```bash
-# Generate private key
-openssl genrsa -out key.pem 2048
-
-# Generate self-signed certificate (replace YOUR_IP with your public IP)
-openssl req -x509 -new -nodes -key key.pem -sha256 -days 365 -out cert.pem -subj "/CN=YOUR_IP"
+sudo certbot certonly --manual --preferred-challenges dns -d your-azure-domain.cloudapp.azure.com
 ```
 
-2. **Using Let's Encrypt with IP Address (Recommended)**
-```bash
-# Install Certbot with DNS plugin (if using DNS validation)
-sudo apt-get install certbot python3-certbot-dns-cloudflare  # For Cloudflare
-# or
-sudo apt-get install certbot python3-certbot-dns-route53    # For AWS Route 53
+4. When prompted by certbot, you'll need to:
+   - Create a `.well-known/acme-challenge` directory in your server project
+   - Add the verification file with the content provided by certbot
+   - Add this route to your server.ts:
+   ```typescript
+   app.use('/.well-known/acme-challenge', express.static(path.join(__dirname, '../.well-known/acme-challenge')));
+   ```
+   - Keep this route for future certificate renewals
 
-# Obtain certificate using DNS validation
-sudo certbot certonly --manual --preferred-challenges dns -d YOUR_IP.nip.io
-```
-
-Note: `nip.io` is a free DNS service that maps IP addresses to domain names. For example, if your IP is `203.0.113.1`, you would use `203.0.113.1.nip.io`.
-
-3. Update your `config.yaml`:
+5. Update your `config.yaml`:
 ```yaml
 general:
-  port: 3000
-  verbose: "false"
   https:
     enabled: true
-    port: 443
-    cert_file: "/etc/letsencrypt/live/YOUR_IP.nip.io/fullchain.pem"
-    key_file: "/etc/letsencrypt/live/YOUR_IP.nip.io/privkey.pem"
+    port: 3443
+    cert_file: "/etc/letsencrypt/live/your-azure-domain.cloudapp.azure.com/fullchain.pem"
+    key_file: "/etc/letsencrypt/live/your-azure-domain.cloudapp.azure.com/privkey.pem"
 ```
 
-4. Configure your firewall:
+6. Set proper permissions for the certificate files:
 ```bash
-# Allow HTTPS traffic (TLS)
-sudo ufw allow 443/tcp
-
-# Only needed if using Let's Encrypt or HTTP-to-HTTPS redirects
-# sudo ufw allow 80/tcp
+sudo chown -R $USER:$USER /etc/letsencrypt/live/your-azure-domain.cloudapp.azure.com
+sudo chown -R $USER:$USER /etc/letsencrypt/archive/your-azure-domain.cloudapp.azure.com
+sudo chmod -R 755 /etc/letsencrypt/live
+sudo chmod -R 755 /etc/letsencrypt/archive
+sudo chmod 644 /etc/letsencrypt/archive/your-azure-domain.cloudapp.azure.com/*.pem
 ```
 
-4.1 **For Cloud Providers**:
-
-**AWS EC2 Security Group**:
+7. Configure Azure Network Security Group:
 ```bash
-# Add inbound rules for HTTPS and HTTP
-- Type: HTTPS (443)
-  Source: 0.0.0.0/0 (or your specific IP range)
+# Add inbound security rules
+- Priority: 100
+  Port: 3443
+  Protocol: TCP
+  Source: * (or your specific IP range)
+  Destination: *
+  Action: Allow
   Description: Allow HTTPS traffic (TLS)
 
-# Only needed if using Let's Encrypt or HTTP-to-HTTPS redirects
-# - Type: HTTP (80)
-#   Source: 0.0.0.0/0 (or your specific IP range)
-#   Description: Allow HTTP traffic for redirects
+- Priority: 110
+  Port: 80
+  Protocol: TCP
+  Source: * (or your specific IP range)
+  Destination: *
+  Action: Allow
+  Description: Allow HTTP traffic for certificate verification
+```
+
+8. Test your HTTPS setup:
+```bash
+# Test with curl (replace with your domain)
+curl -I https://your-azure-domain.cloudapp.azure.com:3443/health
+```
+
+Note: The certificates from Let's Encrypt expire after 90 days. You'll need to renew them using:
+```bash
+sudo certbot renew
 ```
 
 **Azure Network Security Group**:

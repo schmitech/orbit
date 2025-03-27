@@ -15,7 +15,7 @@
 
 [build.environment]
   NODE_VERSION = "18"
-  VITE_API_ENDPOINT = "https://localhost:3000"
+  VITE_API_ENDPOINT = "https://schmitech.eastus.cloudapp.azure.com:3443"
 
 [[headers]]
   for = "/*.js"
