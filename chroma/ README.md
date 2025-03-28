@@ -9,7 +9,7 @@ sudo apt install python3-venv
 
 # Create a new virtual environment
 ```bash
-python3 -m venv myenv
+python3 -m venv venv
 ```
 
 # Activate the virtual environment
@@ -19,7 +19,7 @@ source myenv/bin/activate
 
 # Now you can safely install packages
 ```bash
-pip install chromadb
+pip install -r requirements.txt
 ```
 
 ## 1. Create the Service File
