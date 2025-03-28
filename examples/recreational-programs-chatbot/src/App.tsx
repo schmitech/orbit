@@ -1,12 +1,57 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import FilterPanel from './components/FilterPanel';
 import ActivityList from './components/ActivityList';
-import ChatWidget from './components/ChatWidget/ChatWidget';
 import { activities as activityData } from './data/activityData';
 import { Activity, FilterState } from './types';
 import { Info, Sparkles, MapPin, Calendar, Users } from 'lucide-react';
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
-import MobileDemo from './pages/mobile-demo';
+declare global {
+  interface Window {
+    initChatbotWidget?: (config: {
+      apiUrl: string,
+      containerSelector?: string,
+      widgetConfig?: {
+        header?: {
+          title: string
+        },
+        welcome?: {
+          title: string,
+          description: string
+        },
+        suggestedQuestions?: Array<{
+          text: string,
+          query: string
+        }>,
+        theme?: {
+          primary: string,
+          secondary: string,
+          background: string,
+          text: {
+            primary: string,
+            secondary: string,
+            inverse: string
+          },
+          input: {
+            background: string,
+            border: string
+          },
+          message: {
+            user: string,
+            assistant: string,
+            userText: string
+          },
+          suggestedQuestions: {
+            background: string,
+            hoverBackground: string,
+            text: string
+          },
+          iconColor: string
+        },
+        icon?: string
+      }
+    }) => void;
+  }
+}
 
 function App() {
   const [activities, setActivities] = useState<Activity[]>([]);
@@ -21,6 +66,66 @@ function App() {
     availability: [],
     language: []
   });
+
+  // Initialize the widget when component mounts
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.initChatbotWidget) {
+      setTimeout(() => {
+        window.initChatbotWidget!({
+          apiUrl: import.meta.env.VITE_API_ENDPOINT,
+          widgetConfig: {
+            header: {
+              title: "Recreational Programs Help Center"
+            },
+            welcome: {
+              title: "Welcome to Recreation Programs!",
+              description: "I can help you with information about recreational programs, facilities, and more."
+            },
+            suggestedQuestions: [
+              {
+                text: "What recreational programs are available?",
+                query: "Tell me about the recreational programs"
+              },
+              {
+                text: "Facility rental information",
+                query: "How can I rent a facility?"
+              },
+              {
+                text: "Event scheduling",
+                query: "Show me the event schedule"
+              }
+            ],
+            theme: {
+              primary: '#2C3E50',
+              secondary: '#f97316',
+              background: '#ffffff',
+              text: {
+                primary: '#1a1a1a',
+                secondary: '#666666',
+                inverse: '#ffffff'
+              },
+              input: {
+                background: '#f9fafb',
+                border: '#e5e7eb'
+              },
+              message: {
+                user: '#2C3E50',
+                assistant: '#ffffff',
+                userText: '#ffffff'
+              },
+              suggestedQuestions: {
+                background: '#fff7ed',
+                hoverBackground: '#ffedd5',
+                text: '#2C3E50'
+              },
+              iconColor: '#f97316'
+            },
+            icon: "message-square"
+          }
+        });
+      }, 500); // Small delay to ensure DOM and scripts are fully loaded
+    }
+  }, []);
 
   // Simulate loading data
   useEffect(() => {
@@ -124,9 +229,6 @@ function App() {
                     <Users size={18} className="mr-1 text-accent-300" />
                     <span className="text-sm">All Ages Welcome</span>
                   </div>
-                  <Link to="/mobile" className="ml-auto text-white bg-primary-800 hover:bg-primary-900 px-4 py-2 rounded-lg text-sm flex items-center">
-                    <span>Mobile Version</span>
-                  </Link>
                 </div>
               </div>
             </header>
@@ -240,12 +342,8 @@ function App() {
                 </div>
               </div>
             </footer>
-            
-            {/* Chat Widget */}
-            <ChatWidget />
           </div>
         } />
-        <Route path="/mobile" element={<MobileDemo />} />
       </Routes>
     </Router>
   );

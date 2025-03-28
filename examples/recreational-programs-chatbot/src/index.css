@@ -72,20 +72,4 @@
     word-break: break-word;
     hyphens: auto;
   }
-  
-  /* Ensure links in mobile chat don't overflow */
-  .mobile-chat-message a {
-    word-break: break-all;
-    overflow-wrap: break-word;
-    display: inline-block;
-    max-width: 100%;
-    text-decoration: underline;
-    color: #0284c7; /* primary-600 */
-  }
-  
-  /* Fix for markdown link syntax showing up */
-  .mobile-chat-message p {
-    overflow-wrap: break-word;
-    word-break: break-word;
-  }
 }

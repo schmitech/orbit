@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Layout from './components/Layout';
 import Home from './pages/Home';
@@ -16,7 +16,117 @@ import PropertyTaxes from './pages/PropertyTaxes';
 import Contact from './pages/Contact';
 import Employment from './pages/Employment';
 
+declare global {
+  interface Window {
+    initChatbotWidget?: (config: {
+      apiUrl: string,
+      containerSelector?: string,
+      widgetConfig?: {
+        header?: {
+          title: string,
+          color?: string
+        },
+        welcome?: {
+          title: string,
+          description: string
+        },
+        suggestedQuestions?: Array<{
+          text: string,
+          query: string
+        }>,
+        theme?: {
+          primary: string,
+          secondary: string,
+          background: string,
+          text: {
+            primary: string,
+            secondary: string,
+            inverse: string
+          },
+          input: {
+            background: string,
+            border: string
+          },
+          message: {
+            user: string,
+            assistant: string,
+            userText: string
+          },
+          suggestedQuestions: {
+            background: string,
+            hoverBackground: string,
+            text: string
+          },
+          iconColor: string
+        },
+        icon?: string
+      }
+    }) => void;
+  }
+}
+
 function App() {
+  // Initialize the widget when component mounts
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.initChatbotWidget) {
+      setTimeout(() => {
+        window.initChatbotWidget!({
+          apiUrl: import.meta.env.VITE_API_ENDPOINT,
+          widgetConfig: {
+            header: {
+              title: "City of Maple Services",
+              color: '#ffffff'
+            },
+            welcome: {
+              title: "Welcome to the City of Maple!",
+              description: "Explore our services, get information on parking, taxes, and more."
+            },
+            suggestedQuestions: [
+              {
+                text: "How can I pay my property taxes?",
+                query: "Tell me about property tax payment"
+              },
+              {
+                text: "Parking information",
+                query: "Where can I find parking information?"
+              },
+              {
+                text: "Public transportation options",
+                query: "Show me public transportation options"
+              }
+            ],
+            theme: {
+              primary: '#0057B7',
+              secondary: '#FFD700',
+              background: '#ffffff',
+              text: {
+                primary: '#ffffff',
+                secondary: '#666666',
+                inverse: '#333333'
+              },
+              input: {
+                background: '#f9fafb',
+                border: '#e5e7eb'
+              },
+              message: {
+                user: '#0057B7',
+                assistant: '#ffffff',
+                userText: '#ffffff'
+              },
+              suggestedQuestions: {
+                background: '#fff7ed',
+                hoverBackground: '#ffedd5',
+                text: '#0057B7'
+              },
+              iconColor: '#FFD700'
+            },
+            icon: "message-square"
+          }
+        });
+      }, 500); // Small delay to ensure DOM and scripts are fully loaded
+    }
+  }, []);
+  
   return (
     <Router>
       <Routes>

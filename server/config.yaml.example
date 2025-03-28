@@ -4,8 +4,8 @@ general:
   https:
     enabled: false
     port: 3443
-    cert_file: "path/to/cert.pem"
-    key_file: "path/to/key.pem"
+    cert_file: "path/to/fullchain.pem"
+    key_file: "path/to/privkey.pem"
   
 chroma:
   host: "localhost"
