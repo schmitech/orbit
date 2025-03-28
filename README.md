@@ -1,20 +1,26 @@
-# AI-Driven Q&A Assistant Framework
+# Open Inference Platform
 
-[![Node.js](https://img.shields.io/badge/Node.js-18%2B-brightgreen.svg)](https://nodejs.org/)
-[![Python](https://img.shields.io/badge/Python-3.12%2B-blue.svg)](https://www.python.org/)
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+Open Inference Gateway is a modular, self-hosted service that provides a unified API for interacting with various AI inference engines. It allows you to run AI models on your own infrastructure, maintaining full control over your data and eliminating dependency on commercial AI services.
 
-A customizable AI chatbot engine designed for organizations that need control over their data and inference models. This framework provides a complete solution for building, deploying, and managing AI-powered question-answering systems with a focus on privacy, customization, and ease of integration.
+## Why Open Inference Platform?
 
-### Key Features
+As commercial AI services continue to evolve, they often introduce limitations, pricing changes, or policy restrictions that can impact your applications. This platform gives you independence by:
 
-- **Privacy-First Architecture**: All data processing and model inference happens within your infrastructure
-- **Multiple Backend Support**: Compatible with Ollama, vLLM and Hugging Face
-- **Vector Database Integration**: Built-in support for ChromaDB for efficient semantic search
-- **Text-to-Speech Capabilities**: Integrated ElevenLabs support for voice responses
-- **Ready-to-Use Widget**: Easy-to-integrate UI component for any website
-- **Customizable UI**: Fully customizable chat widget
-- **Example Applications**: Complete working examples for quick start
+- Running entirely on your own infrastructure
+- Supporting both high-performance and smaller, more efficient models
+- Keeping your data private and secure
+- Allowing complete customization of the inference pipeline
+- Avoiding vendor lock-in with a modular, open design
+
+## Key Features
+
+- **Multiple Backend Support**: Seamlessly switch between Ollama and vLLM backends
+- **Vector Database Integration**: Built-in ChromaDB support for retrieval-augmented generation
+- **Voice Capabilities**: Text-to-speech conversion via ElevenLabs integration
+- **Comprehensive Logging**: Structured logging with Elasticsearch support for analytics
+- **Modular Architecture**: Easily extensible to support additional inference engines and features
+- **Health Monitoring**: Robust health checks for all system components
+- **Security**: Content moderation through configurable guardrails
 
 ### Use Cases
 
@@ -36,8 +42,9 @@ A customizable AI chatbot engine designed for organizations that need control ov
 
 ## 📋 Table of Contents
 
-- [AI-Driven Q\&A Assistant Framework](#ai-driven-qa-assistant-framework)
-    - [Key Features](#key-features)
+- [Open Inference Platform](#open-inference-platform)
+  - [Why Open Inference Platform?](#why-open-inference-platform)
+  - [Key Features](#key-features)
     - [Use Cases](#use-cases)
     - [Technical Highlights](#technical-highlights)
   - [📋 Table of Contents](#-table-of-contents)

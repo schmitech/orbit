@@ -1,19 +1,13 @@
-import { Document } from '@langchain/core/documents';
 import { RunnableSequence } from '@langchain/core/runnables';
 import { StringOutputParser } from '@langchain/core/output_parsers';
 import { PromptTemplate } from "@langchain/core/prompts";
 import { ChromaRetriever } from './chromaRetriever';
 import { AppConfig } from './types';
+import { BaseLanguageModelClient } from './baseClient';
 
-export class VLLMClient {
-  private config: AppConfig;
-  private retriever: ChromaRetriever;
-  private verbose: boolean;
-
+export class VLLMClient extends BaseLanguageModelClient {
   constructor(config: AppConfig, retriever: ChromaRetriever) {
-    this.config = config;
-    this.retriever = retriever;
-    this.verbose = config.general?.verbose === 'true';
+    super(config, retriever);
   }
 
   async checkGuardrail(query: string): Promise<{ safe: boolean }> {
@@ -51,7 +45,7 @@ export class VLLMClient {
     }
   }
 
-  async createChain() {
+  async createChain(): Promise<RunnableSequence> {
     const self = this;
     return RunnableSequence.from([
       async (input: { query: string }) => {
@@ -177,11 +171,18 @@ export class VLLMClient {
       new StringOutputParser(),
     ]);
   }
-
-  private formatDocuments(docs: Document[]): string {
-    if (!docs.length) return 'NO_RELEVANT_CONTEXT';
-    if (docs[0]?.metadata?.isGeneral) return 'NO_RELEVANT_CONTEXT';
-    if (!docs[0].pageContent?.trim()) return 'NO_RELEVANT_CONTEXT';
-    return docs[0]?.metadata?.answer || docs[0].pageContent;
+  
+  async verifyConnection(): Promise<boolean> {
+    try {
+      const response = await fetch(`${this.config.vllm.base_url}/v1/models`);
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      if (this.verbose) {
+        console.log('VLLM connection successful');
+      }
+      return true;
+    } catch (error) {
+      console.error('VLLM connection failed:', error);
+      return false;
+    }
   }
-} 
+}
