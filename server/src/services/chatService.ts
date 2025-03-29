@@ -44,13 +44,6 @@ export class ChatService {
   }
 
   /**
-   * Check if a message passes guardrails
-   */
-  async checkGuardrail(message: string): Promise<{ safe: boolean }> {
-    return this.client.checkGuardrail(message);
-  }
-
-  /**
    * Process a chat message and stream the response
    */
   async processChat(message: string, voiceEnabled: boolean, ip: string | string[], res: Response): Promise<void> {
@@ -61,25 +54,6 @@ export class ChatService {
     res.setHeader('Connection', 'keep-alive');
 
     try {
-      // Add guardrail check before processing the message
-      const guardrailResult = await this.checkGuardrail(message);
-      if (!guardrailResult.safe) {
-        // Log the blocked query
-        await this.loggerService.logChatInteraction({
-          timestamp: new Date(),
-          query: message,
-          response: 'BLOCKED: Failed guardrail check',
-          backend: backend === 'unknown' ? 'vllm' : backend, // Default to vllm if unknown
-          blocked: true,
-          ip: typeof ip === 'string' ? ip : ip[0]  // Handle potential array from x-forwarded-for
-        });
-
-        // Send the blocked response
-        res.write(JSON.stringify({ type: 'text', content: 'Sorry but I cannot help you with that.' }) + '\n');
-        res.end();
-        return;
-      }
-
       let textBuffer = '';
       let isFirstChunk = true;
       let fullResponse = '';

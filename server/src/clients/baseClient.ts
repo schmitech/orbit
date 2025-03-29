@@ -23,11 +23,6 @@ export abstract class BaseLanguageModelClient {
   abstract createChain(): Promise<RunnableSequence>;
 
   /**
-   * Check if a query passes safety guardrails
-   */
-  abstract checkGuardrail(query: string): Promise<{ safe: boolean }>;
-
-  /**
    * Format documents for prompt context
    */
   protected formatDocuments(docs: Document[]): string {

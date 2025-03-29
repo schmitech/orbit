@@ -47,9 +47,6 @@ export interface AppConfig {
     logprobs?: number | string | null;
     echo?: boolean | string;
     stream?: boolean | string;
-    guardrail_max_tokens?: number | string;
-    guardrail_temperature?: number | string;
-    guardrail_top_p?: number | string;
   };
   chroma: {
     host: string;
@@ -62,7 +59,6 @@ export interface AppConfig {
   };
   system: {
     prompt: string;
-    guardrail_prompt: string;
   };
   general: {
     verbose: string;

@@ -31,10 +31,6 @@ class MockLanguageModelClient extends BaseLanguageModelClient {
       })
     };
   }
-
-  async checkGuardrail(query: string): Promise<{ safe: boolean }> {
-    return { safe: !query.includes('unsafe') };
-  }
 }
 
 // For type checking in ChatService
@@ -93,16 +89,6 @@ describe('ChatService', () => {
     });
   });
 
-  describe('checkGuardrail', () => {
-    it('should call client.checkGuardrail', async () => {
-      const checkGuardrailSpy = jest.spyOn(mockClient, 'checkGuardrail');
-      
-      await chatService.checkGuardrail('test query');
-      
-      expect(checkGuardrailSpy).toHaveBeenCalledWith('test query');
-    });
-  });
-
   describe('processChat', () => {
     beforeEach(async () => {
       await chatService.initialize();
@@ -132,23 +118,8 @@ describe('ChatService', () => {
       );
     });
 
-    it('should block unsafe messages', async () => {
-      await chatService.processChat('unsafe message', false, '127.0.0.1', mockResponse as Response);
-      
-      expect(mockResponse.write).toHaveBeenCalledWith(
-        expect.stringContaining('Sorry but I cannot help you with that')
-      );
-      expect(mockLoggerService.logChatInteraction).toHaveBeenCalledWith(
-        expect.objectContaining({
-          response: 'BLOCKED: Failed guardrail check',
-          blocked: true
-        })
-      );
-      expect(mockResponse.end).toHaveBeenCalled();
-    });
-
-    it('should process safe messages and stream text', async () => {
-      await chatService.processChat('safe message', false, '127.0.0.1', mockResponse as Response);
+    it('should process messages and stream text', async () => {
+      await chatService.processChat('test message', false, '127.0.0.1', mockResponse as Response);
       
       // Should set correct headers
       expect(mockResponse.setHeader).toHaveBeenCalledWith('Content-Type', 'text/event-stream');
@@ -162,7 +133,7 @@ describe('ChatService', () => {
       // Should log the complete message
       expect(mockLoggerService.logChatInteraction).toHaveBeenCalledWith(
         expect.objectContaining({
-          query: 'safe message',
+          query: 'test message',
           response: 'chunk 1chunk 2chunk 3'
         })
       );

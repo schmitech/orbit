@@ -53,14 +53,14 @@ def load_config():
     with open('../server/config.yaml', 'r') as file:
         return yaml.safe_load(file)
 
-def run_single_test(query, ollama_config, guardrail_prompt):
+def run_single_test(query, ollama_config, system_prompt):
     """
     Run a single query through the guardrail system using Ollama.
     
     Args:
         query (str): The query to test
         ollama_config (dict): Ollama configuration settings
-        guardrail_prompt (str): The guardrail prompt to use for evaluation
+        system_prompt (str): The system prompt to use for evaluation
     
     Returns:
         str: The guardrail response ("SAFE: true" or "SAFE: false")
@@ -70,7 +70,7 @@ def run_single_test(query, ollama_config, guardrail_prompt):
     """
     payload = {
         "model": ollama_config["model"],
-        "prompt": f"{guardrail_prompt}\n\nQuery: {query}\n\nRespond with ONLY 'SAFE: true' or 'SAFE: false':",
+        "prompt": f"{system_prompt}\n\nQuery: {query}\n\nRespond with ONLY 'SAFE: true' or 'SAFE: false':",
         "temperature": 0.0,  # Set to 0 for deterministic response
         "top_p": 1.0,
         "top_k": 1,
@@ -101,7 +101,7 @@ def run_test_cases(test_file):
     """
     config = load_config()
     ollama_config = config['ollama']
-    guardrail_prompt = config['system']['guardrail_prompt']
+    system_prompt = config['system']['prompt']
 
     with open(test_file, 'r') as f:
         test_data = json.load(f)
@@ -118,7 +118,7 @@ def run_test_cases(test_file):
         print(f"Query: {test_case['query']}")
         print(f"Expected: {test_case['expected']}")
         
-        result = run_single_test(test_case['query'], ollama_config, guardrail_prompt)
+        result = run_single_test(test_case['query'], ollama_config, system_prompt)
         print(f"Actual: {result}")
         
         if result == test_case['expected']:
@@ -154,7 +154,7 @@ def main():
     
     if args.single_query:
         config = load_config()
-        result = run_single_test(args.single_query, config['ollama'], config['system']['guardrail_prompt'])
+        result = run_single_test(args.single_query, config['ollama'], config['system']['prompt'])
         print(f"\nQuery: {args.single_query}")
         print(f"Result: {result}")
     else:

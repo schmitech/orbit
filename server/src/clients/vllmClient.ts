@@ -1,48 +1,13 @@
 import { RunnableSequence } from '@langchain/core/runnables';
 import { StringOutputParser } from '@langchain/core/output_parsers';
 import { PromptTemplate } from "@langchain/core/prompts";
-import { ChromaRetriever } from './chromaRetriever';
-import { AppConfig } from './types';
+import { ChromaRetriever } from '../chromaRetriever';
+import { AppConfig } from '../types';
 import { BaseLanguageModelClient } from './baseClient';
 
 export class VLLMClient extends BaseLanguageModelClient {
   constructor(config: AppConfig, retriever: ChromaRetriever) {
     super(config, retriever);
-  }
-
-  async checkGuardrail(query: string): Promise<{ safe: boolean }> {
-    if (this.verbose) console.log('\n=== VLLM Guardrail Check ===\nQuery:', query);
-
-    try {
-      const payload = {
-        model: this.config.vllm.model,
-        prompt: `${this.config.system.guardrail_prompt}\n\nQuery: ${query}\n\nRespond with ONLY 'SAFE: true' or 'SAFE: false':`,
-        max_tokens: this.config.vllm.guardrail_max_tokens || 20,
-        temperature: this.config.vllm.guardrail_temperature || 0.0,
-        top_p: this.config.vllm.guardrail_top_p || 1.0,
-        best_of: this.config.vllm.best_of || 1
-      };
-
-      if (this.verbose) console.log('\n=== Guardrail Prompt ===\n', payload.prompt);
-
-      const response = await fetch(`${this.config.vllm.base_url}/v1/completions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
-      const result = (await response.json()).choices?.[0]?.text?.trim();
-      if (this.verbose) console.log('\n=== Guardrail Response ===\nResponse:', result);
-
-      if (result === 'SAFE: true') return { safe: true };
-      if (result === 'SAFE: false') return { safe: false };
-      
-      console.warn('Guardrail response invalid format:', result);
-      return { safe: true }; // Default to safe
-    } catch (error) {
-      console.error('Error in guardrail check:', error);
-      return { safe: true }; // Default to safe on error
-    }
   }
 
   async createChain(): Promise<RunnableSequence> {

@@ -62,7 +62,6 @@ The server is designed to be:
 
 ### Customization and Extensibility
 - Modify the inference pipeline as needed
-- Add custom guardrails and filters
 - Implement specialized logging and monitoring
 - Integrate with existing systems
 - Add new features without vendor limitations
@@ -173,9 +172,6 @@ vllm:
   logprobs: null                      # Log probabilities configuration
   echo: false                         # Echo the prompt in the response
   stream: false                       # Enable streaming responses
-  guardrail_max_tokens: 20            # Maximum tokens for guardrail
-  guardrail_temperature: 0.0          # Temperature for guardrail
-  guardrail_top_p: 1.0                # Top-p for guardrail
 
 eleven_labs:
   api_key: null                       # API key loaded from .env
@@ -183,7 +179,6 @@ eleven_labs:
 
 system:
   prompt: "You are a helpful assistant..."  # System prompt for the LLM
-  guardrail_prompt: "You are a multilingual query guardrail agent..."  # Guardrail prompt for query safety
 ```
 
 ## HTTPS Configuration

@@ -2,9 +2,10 @@ import { Ollama } from '@langchain/community/llms/ollama';
 import { RunnableSequence } from '@langchain/core/runnables';
 import { StringOutputParser } from '@langchain/core/output_parsers';
 import { PromptTemplate } from "@langchain/core/prompts";
-import { ChromaRetriever } from './chromaRetriever';
-import { AppConfig } from './types';
+import { ChromaRetriever } from '../chromaRetriever';
+import { AppConfig } from '../types';
 import { BaseLanguageModelClient } from './baseClient';
+import { Document } from 'langchain/document';
 
 export class OllamaClient extends BaseLanguageModelClient {
   private llm: Ollama;
@@ -16,7 +17,6 @@ export class OllamaClient extends BaseLanguageModelClient {
       baseUrl: config.ollama.base_url,
       model: config.ollama.model,
       temperature: parseFloat(String(config.ollama.temperature)),
-      system: config.system.prompt,
       numPredict: parseInt(String(config.ollama.num_predict)),
       repeatPenalty: parseFloat(String(config.ollama.repeat_penalty)),
       numCtx: parseInt(String(config.ollama.num_ctx)),
@@ -92,6 +92,8 @@ CONTEXT: {context}
 
 USER QUESTION: {question}
 
+Based on the above context, please provide a relevant answer. If the context doesn't contain relevant information, acknowledge that and provide a general response.
+
 ANSWER:`),
       async (input: string | any) => {
         if (this.verbose) {
@@ -111,64 +113,6 @@ ANSWER:`),
     ]);
   }
 
-  async checkGuardrail(query: string): Promise<{ safe: boolean }> {
-    if (this.verbose) {
-      console.log('\n=== Guardrail Check ===');
-      console.log('Query:', query);
-    }
-    
-    try {
-      // Create request payload with the guardrail prompt
-      const payload = {
-        model: this.config.ollama.model,
-        prompt: `${this.config.system.guardrail_prompt}\n\nQuery: ${query}\n\nRespond with ONLY 'SAFE: true' or 'SAFE: false':`,
-        temperature: 0.0,
-        top_p: 1.0,
-        top_k: 1,
-        repeat_penalty: parseFloat(String(this.config.ollama.repeat_penalty)),
-        num_predict: 20,
-        stream: false
-      };
-      
-      if (this.verbose) {
-        console.log('\n=== Guardrail Prompt ===');
-        console.log(payload.prompt);
-      }
-      
-      // Make request to Ollama
-      const response = await fetch(`${this.config.ollama.base_url}/api/generate`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      });
-      
-      const responseData = await response.json();
-      const result = responseData.response?.trim();
-      
-      if (this.verbose) {
-        console.log('\n=== Guardrail Response ===');
-        console.log('Response:', result);
-      }
-      
-      // Check if the response matches the expected format
-      if (result === 'SAFE: true') {
-        return { safe: true };
-      } else if (result === 'SAFE: false') {
-        return { safe: false };
-      } else {
-        console.warn('Guardrail response does not match expected format:', result);
-        // Default to safe for non-matching responses, but log the warning
-        return { safe: true };
-      }
-    } catch (error: any) {
-      console.error('Error in guardrail check:', error.message);
-      // Default to safe on error to prevent complete service failure
-      return { safe: true };
-    }
-  }
-  
   async verifyConnection(): Promise<boolean> {
     try {
       const response = await fetch(`${this.config.ollama.base_url}/api/tags`);

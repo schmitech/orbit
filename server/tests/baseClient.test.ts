@@ -8,10 +8,6 @@ class MockLanguageModelClient extends BaseLanguageModelClient {
     return {} as RunnableSequence;
   }
 
-  async checkGuardrail(query: string): Promise<{ safe: boolean }> {
-    return { safe: query.toLowerCase().indexOf('unsafe') === -1 };
-  }
-
   // Expose protected method for testing
   public testFormatDocuments(docs: Document[]): string {
     return this.formatDocuments(docs);

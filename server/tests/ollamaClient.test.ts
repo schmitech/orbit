@@ -41,7 +41,6 @@ describe('OllamaClient', () => {
       },
       system: {
         prompt: 'You are a helpful assistant',
-        guardrail_prompt: 'Determine if this query is safe'
       },
       general: {
         verbose: 'false',
@@ -52,7 +51,7 @@ describe('OllamaClient', () => {
     client = new OllamaClient(mockConfig as AppConfig, mockRetriever as any);
     (fetch as jest.Mock).mockResolvedValue({
       ok: true,
-      json: jest.fn().mockResolvedValue({ response: 'SAFE: true' })
+      json: jest.fn().mockResolvedValue({ response: 'mocked response' })
     });
   });
 
@@ -64,62 +63,6 @@ describe('OllamaClient', () => {
         temperature: 0.7,
         system: 'You are a helpful assistant'
       }));
-    });
-  });
-
-  describe('checkGuardrail', () => {
-    it('should return safe=true for safe queries', async () => {
-      (fetch as jest.Mock).mockResolvedValueOnce({
-        ok: true,
-        json: jest.fn().mockResolvedValueOnce({ response: 'SAFE: true' })
-      });
-      
-      const result = await client.checkGuardrail('safe query');
-      
-      expect(result).toEqual({ safe: true });
-      expect(fetch).toHaveBeenCalledWith(
-        'http://localhost:11434/api/generate',
-        expect.objectContaining({
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: expect.any(String)
-        })
-      );
-      
-      // Verify payload
-      const payload = JSON.parse((fetch as jest.Mock).mock.calls[0][1].body);
-      expect(payload.prompt).toContain('Query: safe query');
-      expect(payload.temperature).toBe(0.0);
-    });
-
-    it('should return safe=false for unsafe queries', async () => {
-      (fetch as jest.Mock).mockResolvedValueOnce({
-        ok: true,
-        json: jest.fn().mockResolvedValueOnce({ response: 'SAFE: false' })
-      });
-      
-      const result = await client.checkGuardrail('unsafe query');
-      
-      expect(result).toEqual({ safe: false });
-    });
-
-    it('should return safe=true on unexpected responses', async () => {
-      (fetch as jest.Mock).mockResolvedValueOnce({
-        ok: true,
-        json: jest.fn().mockResolvedValueOnce({ response: 'INVALID RESPONSE' })
-      });
-      
-      const result = await client.checkGuardrail('query');
-      
-      expect(result).toEqual({ safe: true });
-    });
-
-    it('should return safe=true on errors', async () => {
-      (fetch as jest.Mock).mockRejectedValueOnce(new Error('Network error'));
-      
-      const result = await client.checkGuardrail('query');
-      
-      expect(result).toEqual({ safe: true });
     });
   });
 

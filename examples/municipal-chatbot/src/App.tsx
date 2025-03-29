@@ -96,29 +96,29 @@ function App() {
               }
             ],
             theme: {
-              primary: '#0057B7',
-              secondary: '#FFD700',
-              background: '#ffffff',
-              text: {
-                primary: '#ffffff',
-                secondary: '#666666',
-                inverse: '#333333'
-              },
-              input: {
-                background: '#f9fafb',
-                border: '#e5e7eb'
-              },
-              message: {
-                user: '#0057B7',
-                assistant: '#ffffff',
-                userText: '#ffffff'
-              },
-              suggestedQuestions: {
-                background: '#fff7ed',
-                hoverBackground: '#ffedd5',
-                text: '#0057B7'
-              },
-              iconColor: '#FFD700'
+              primary: '#312e81',
+        secondary: '#8b5cf6',
+        background: '#ffffff',
+        text: {
+            primary: '#1e293b',
+            secondary: '#666666',
+            inverse: '#ffffff'
+        },
+        input: {
+            background: '#f9fafb',
+            border: '#e5e7eb'
+        },
+        message: {
+            user: '#312e81',
+            assistant: '#eef2ff',
+            userText: '#ffffff'
+        },
+        suggestedQuestions: {
+            background: '#eef2ff',
+            hoverBackground: '#f1f3f8',
+            text: '#312e81'
+        },
+        iconColor: '#8b5cf6'
             },
             icon: "message-square"
           }
