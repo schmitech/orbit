@@ -1,6 +1,6 @@
 # Open Inference Platform
 
-Open Inference Gateway is a modular, self-hosted service that provides a unified API for interacting with various AI inference engines. It allows you to run AI models on your own infrastructure, maintaining full control over your data and eliminating dependency on commercial AI services.
+Open Inference Platform is a modular, self-hosted service that provides a unified API for interacting with various open-source AI inference models without relying on paid API subscriptions. It allows you to run AI models on your own infrastructure, maintaining full control over your data and eliminating dependency on commercial AI services.
 
 ## Why Open Inference Platform?
 
@@ -12,15 +12,23 @@ As commercial AI services continue to evolve, they often introduce limitations, 
 - Allowing complete customization of the inference pipeline
 - Avoiding vendor lock-in with a modular, open design
 
+Most commercial generative AI tools present several challenges for organizations:
+
+| Challenge | Impact | Solution |
+|-----------|--------|--------------|
+| **Privacy Risks** | Organizations with strict data regulations cannot send sensitive data to external APIs | All data stays within your infrastructure |
+| **Vendor Lock-in** | Dependency on proprietary APIs limits control over models and data | Complete control over inference models |
+| **Limited Deployment** | Lack of flexibility for diverse infrastructure requirements | Deploy anywhere - cloud, on-premise, or hybrid |
+| **Reduced Customization** | Inability to fine-tune inference for domain-specific needs | Fully customizable for your specific use case |
+
 ## Key Features
 
-- **Multiple Backend Support**: Seamlessly switch between Ollama and vLLM backends
+- **Multiple Backend Support**: Switch between Ollama and vLLM backends (support for llamacpp coming soon)
 - **Vector Database Integration**: Built-in ChromaDB support for retrieval-augmented generation
-- **Voice Capabilities**: Text-to-speech conversion via ElevenLabs integration
+- **Voice Capabilities**: Text-to-speech conversion via ElevenLabs integration (support for open-source TTS engines coming soon)
 - **Comprehensive Logging**: Structured logging with Elasticsearch support for analytics
 - **Modular Architecture**: Easily extensible to support additional inference engines and features
-- **Health Monitoring**: Robust health checks for all system components
-- **Security**: Content moderation through configurable guardrails
+- **Security**: Content moderation through configurable system prompts
 
 ### Use Cases
 
@@ -33,62 +41,12 @@ As commercial AI services continue to evolve, they often introduce limitations, 
 
 ### Technical Highlights
 
-- **Modern Stack**: Built with Node.js, Python, TypeScript, and React
-- **Vector Search**: Efficient semantic search using ChromaDB
+- **Stack**: Node.js, Python, TypeScript, and React
+- **Vector Search**: Semantic search using ChromaDB (support for Milvus coming soon)
 - **Real-time Processing**: Stream responses for better user experience
 - **Modular Design**: Easy to extend and customize for specific needs
 - **Production Ready**: Includes error handling, logging, and monitoring
 - **Cross-Platform**: Works on any infrastructure (cloud, on-premise, hybrid)
-
-## 📋 Table of Contents
-
-- [Open Inference Platform](#open-inference-platform)
-  - [Why Open Inference Platform?](#why-open-inference-platform)
-  - [Key Features](#key-features)
-    - [Use Cases](#use-cases)
-    - [Technical Highlights](#technical-highlights)
-  - [📋 Table of Contents](#-table-of-contents)
-  - [🎯 Why This Project Exists](#-why-this-project-exists)
-  - [🧩 Project Components](#-project-components)
-  - [🏗️ Architecture](#️-architecture)
-    - [System Overview](#system-overview)
-  - [🚀 Getting Started](#-getting-started)
-    - [Prerequisites](#prerequisites)
-    - [Server Setup](#server-setup)
-    - [ChromaDB Setup](#chromadb-setup)
-      - [Running ChromaDB](#running-chromadb)
-      - [Verify ChromaDB Version](#verify-chromadb-version)
-      - [Ingesting Data](#ingesting-data)
-    - [Text-to-Speech Testing](#text-to-speech-testing)
-    - [Running the Server](#running-the-server)
-    - [API Setup](#api-setup)
-    - [Widget Setup](#widget-setup)
-    - [Example Applications](#example-applications)
-  - [💻 Development Workflow](#-development-workflow)
-- [Netlify Deployment Guide](#netlify-deployment-guide)
-  - [Initial Setup](#initial-setup)
-  - [Configuration](#configuration)
-    - [Environment Variables](#environment-variables)
-  - [Deployment](#deployment)
-    - [Standard Deployment](#standard-deployment)
-    - [Deploying a Specific Folder](#deploying-a-specific-folder)
-  - [Managing Deployments](#managing-deployments)
-    - [List Sites](#list-sites)
-    - [Delete a Site](#delete-a-site)
-    - [Unlink Local Project](#unlink-local-project)
-  - [Best Practices](#best-practices)
-  - [📄 License](#-license)
-
-## 🎯 Why This Project Exists
-
-Most commercial AI chatbots present several challenges for organizations:
-
-| Challenge | Impact | Our Solution |
-|-----------|--------|--------------|
-| **Privacy Risks** | Organizations with strict data regulations cannot send sensitive data to external APIs | All data stays within your infrastructure |
-| **Vendor Lock-in** | Dependency on proprietary APIs limits control over models and data | Complete control over inference models |
-| **Limited Deployment** | Lack of flexibility for diverse infrastructure requirements | Deploy anywhere - cloud, on-premise, or hybrid |
-| **Reduced Customization** | Inability to fine-tune inference for domain-specific needs | Fully customizable for your specific use case |
 
 ## 🧩 Project Components
 
