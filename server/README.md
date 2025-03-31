@@ -39,13 +39,6 @@ The server is designed to be:
 - Option to replace text-to-speech providers
 - Control over data storage and processing locations
 
-### Containerization Benefits
-- Consistent environment across development and production
-- Easy scaling and deployment
-- Isolated dependencies and configurations
-- Simplified CI/CD integration
-- Reproducible builds and deployments
-
 ### Data Privacy and Control
 - Complete control over data storage and processing
 - No data sharing with third-party services
@@ -53,16 +46,14 @@ The server is designed to be:
 - Compliance with data protection regulations
 - Audit trail for all operations
 
-### Cost Optimization
-- Pay only for the infrastructure you use
+### Cost-Effective
 - No per-request or per-token charges
-- Ability to use cost-effective hardware
+- Ability to use cyour own hardware
 - Scale resources based on actual needs
 - Optimize for specific use cases
 
 ### Customization and Extensibility
 - Modify the inference pipeline as needed
-- Implement specialized logging and monitoring
 - Integrate with existing systems
 - Add new features without vendor limitations
 
@@ -294,10 +285,10 @@ For development with self-signed certificates or direct HTTPS access, port 80 is
 5. Test your TLS setup:
 ```bash
 # Test with curl (replace YOUR_IP with your actual IP)
-curl -k https://YOUR_IP.nip.io/health
+curl -k https://your-azure-domain.cloudapp.azure.com:3443/health
 
 # Check TLS certificate info
-openssl s_client -connect YOUR_IP.nip.io:443 -showcerts
+openssl s_client -connect your-azure-domain.cloudapp.azure.com:443 -showcerts
 ```
 
 Note: While this setup works, having a proper domain name is recommended for production use as it:
@@ -406,11 +397,6 @@ curl -X POST "https://api.elevenlabs.io/v1/text-to-speech/XrExE9yKIg1WjnnlVkGX" 
   --output test.mp3
 ```
 
-6. Start the server:
-```bash
-npm run server -- ollama #or vLLM
-```
-
 ## API Client
 
 The project includes a reusable API client library in the `api` directory. This library can be used by any client application to interact with the chatbot server.
@@ -441,6 +427,11 @@ npm install chatbot-api
 ```
 
 ## Running as a Service
+
+Start the server:
+```bash
+npm run server -- ollama #or vLLM
+```
 
 There are several ways to run the server in the background:
 
