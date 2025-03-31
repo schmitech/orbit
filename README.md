@@ -63,7 +63,7 @@ This repository contains four interconnected projects:
 ## 🏗️ Architecture
 
 ### System Overview
-![Architecture Overview](architecture.png)
+![Architecture Overview](OIP.png)
 
 
 ## 🚀 Getting Started
