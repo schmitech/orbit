@@ -8,7 +8,7 @@ import { getChatConfig, defaultTheme, ChatConfig } from './config/index';
 // Custom link component for ReactMarkdown
 const MarkdownLink = (props: React.AnchorHTMLAttributes<HTMLAnchorElement>) => {
   return (
-    <a 
+    <a
       {...props}
       target="_blank"
       rel="noopener noreferrer"
@@ -20,13 +20,13 @@ const MarkdownLink = (props: React.AnchorHTMLAttributes<HTMLAnchorElement>) => {
 };
 
 // Component to render the appropriate icon
-const ChatIcon = ({ iconName, size, className, style }: { 
-  iconName?: string, 
-  size?: number, 
-  className?: string, 
-  style?: React.CSSProperties 
+const ChatIcon = ({ iconName, size, className, style }: {
+  iconName?: string,
+  size?: number,
+  className?: string,
+  style?: React.CSSProperties
 }) => {
-  switch(iconName) {
+  switch (iconName) {
     case 'heart':
       return <Heart size={size} className={className} style={style} />;
     case 'message-circle':
@@ -59,7 +59,11 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
   const MAX_MESSAGE_LENGTH = 500;
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
-  
+
+  // Auto-resize the input field
+  const [inputHeight, setInputHeight] = useState(56); // Starting height
+  const [isFocused, setIsFocused] = useState(false);
+
   // Load configuration
   const baseConfig = getChatConfig();
   const [currentConfig, setCurrentConfig] = useState({
@@ -89,12 +93,12 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
       }));
     }
   }, [props]);
-  
-  const { 
-    messages, 
-    isLoading, 
-    sendMessage, 
-    clearMessages 
+
+  const {
+    messages,
+    isLoading,
+    sendMessage,
+    clearMessages
   } = useChatStore();
 
   const toggleChat = () => {
@@ -108,6 +112,8 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
     if (message.trim() && !isLoading) {
       sendMessage(message);
       setMessage('');
+      // Reset textarea height
+      setInputHeight(56);
     }
   };
 
@@ -126,17 +132,17 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
   const linkifyText = (text: string): string => {
     // URL regex pattern - don't include trailing punctuation in the URL
     const urlRegex = /(https?:\/\/[^\s]+?)([.,;:!?)]*)(?=\s|$)/g;
-    
+
     // Replace URLs with markdown links, preserving trailing punctuation outside the link
-    const linkedText = text.replace(urlRegex, (match, url, punctuation) => 
+    const linkedText = text.replace(urlRegex, (match, url, punctuation) =>
       `[${url}](${url})${punctuation}`
     );
-    
+
     // Process the text to handle line breaks properly
     const processedText = linkedText
       .replace(/\n{2,}/g, '\n\n') // Keep multiple newlines as is
       .replace(/\n/g, '\n'); // Keep single newlines as is
-    
+
     return processedText;
   };
 
@@ -163,12 +169,24 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
     }
   };
 
+  // Auto-resize textarea based on content
+  const adjustHeight = () => {
+    if (inputRef.current) {
+      // Reset height to auto to correctly calculate the new height
+      inputRef.current.style.height = 'auto';
+
+      // Set new height (with min of 56px)
+      const newHeight = Math.max(56, Math.min(inputRef.current.scrollHeight, 120));
+      setInputHeight(newHeight);
+    }
+  };
+
   // Scroll to bottom when messages change
   useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-    
+
     // If chat is not open and we receive a new message, show notification
     if (!isOpen && messages.length > 0 && messages[messages.length - 1].role === 'assistant') {
       setHasNewMessage(true);
@@ -182,56 +200,189 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
     }
   }, [isOpen]);
 
-  // Modify the onChange handler to limit input
+  // Handle message input changes
   const handleMessageChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const input = e.target.value;
     if (input.length <= MAX_MESSAGE_LENGTH) {
       setMessage(input);
+      // Adjust height after content change
+      adjustHeight();
     }
+  };
+
+  // Typing effect component for the latest message only
+  const TypingEffect = ({ content, onComplete }: { content: string, onComplete: () => void }) => {
+    const [displayedContent, setDisplayedContent] = useState('');
+    const [isThinking, setIsThinking] = useState(true);
+    const [typingDots, setTypingDots] = useState('.');
+    const contentRef = useRef(content);
+    const charIndexRef = useRef(0);
+    const [userIsTyping, setUserIsTyping] = useState(false);
+
+    // Reset animation when content changes
+    useEffect(() => {
+      if (content !== contentRef.current) {
+        contentRef.current = content;
+        charIndexRef.current = 0;
+        setDisplayedContent('');
+        setIsThinking(true);
+      }
+    }, [content]);
+
+    // Handle typing animation
+    useEffect(() => {
+      if (charIndexRef.current < contentRef.current.length && !userIsTyping) {
+        const typingTimer = setTimeout(() => {
+          charIndexRef.current += 1;
+          const newContent = contentRef.current.substring(0, charIndexRef.current);
+          setDisplayedContent(newContent);
+          
+          // Hide thinking indicator as soon as we have content
+          if (newContent.length > 0 && isThinking) {
+            setIsThinking(false);
+          }
+
+          // If we've reached the end, mark as complete
+          if (charIndexRef.current >= contentRef.current.length) {
+            onComplete();
+          }
+        }, 20); // 20ms delay per character
+        
+        return () => clearTimeout(typingTimer);
+      } else if (userIsTyping) {
+        // If user is typing, show full content immediately
+        setDisplayedContent(contentRef.current);
+        setIsThinking(false);
+        onComplete();
+      }
+    }, [displayedContent, isThinking, userIsTyping]);
+
+    // Listen for user typing
+    useEffect(() => {
+      const handleMessageChange = () => {
+        setUserIsTyping(true);
+      };
+
+      // Add event listener to the textarea
+      const textarea = document.querySelector('textarea');
+      if (textarea) {
+        textarea.addEventListener('input', handleMessageChange);
+      }
+
+      return () => {
+        if (textarea) {
+          textarea.removeEventListener('input', handleMessageChange);
+        }
+      };
+    }, []);
+
+    // Animate the typing indicator dots
+    useEffect(() => {
+      if (!isThinking) return;
+      
+      const dotsTimer = setInterval(() => {
+        setTypingDots(prev => {
+          if (prev === '.') return '..';
+          if (prev === '..') return '...';
+          return '.';
+        });
+      }, 400);
+      
+      return () => clearInterval(dotsTimer);
+    }, [isThinking]);
+
+    return (
+      <>
+        {displayedContent && (
+          <div className="prose prose-base max-w-full whitespace-pre-wrap" style={{ 
+            overflowWrap: 'anywhere',
+            wordBreak: 'break-word', 
+            width: '100%',
+            maxWidth: '100%',
+          }}>
+            <ReactMarkdown
+              components={{
+                a: (props) => <MarkdownLink {...props} />,
+                p: (props) => <p className="mb-4" style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }} {...props} />,
+                code: (props) => <code style={{ display: 'block', whiteSpace: 'pre-wrap', overflowX: 'auto', overflowWrap: 'anywhere' }} {...props} />
+              }}
+            >
+              {linkifyText(displayedContent)}
+            </ReactMarkdown>
+          </div>
+        )}
+        {isThinking && (
+          <div className="text-gray-500">
+            <span className="font-medium">thinking</span>
+            <span className="font-mono">{typingDots}</span>
+          </div>
+        )}
+      </>
+    );
+  };
+
+  // Track which messages have completed their animation
+  const [animatedMessages, setAnimatedMessages] = useState<{[key: number]: boolean}>({});
+  
+  // Mark a message as having completed its animation
+  const markMessageAnimated = (index: number) => {
+    setAnimatedMessages(prev => ({
+      ...prev,
+      [index]: true
+    }));
   };
 
   return (
     <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end">
       {/* Chat Window */}
       {isOpen && (
-        <div className="mb-4 w-96 sm:w-[500px] md:w-[600px] rounded-xl shadow-xl flex flex-col overflow-hidden border border-gray-200 transition-all duration-300 ease-in-out h-[500px]"
-             style={{ 
-               background: theme.background,
-               maxHeight: 'var(--chat-container-height, 500px)' 
-             }}>
+        <div
+          className="mb-4 w-full sm:w-[500px] md:w-[650px] lg:w-[700px] rounded-xl shadow-xl flex flex-col overflow-hidden border border-gray-200 transition-all duration-300 ease-in-out"
+          style={{
+            background: theme.background,
+            height: '650px',
+            maxHeight: 'calc(100vh - 100px)',
+            width: window.innerWidth < 640 ? '100%' :
+              window.innerWidth < 768 ? '500px' :
+                window.innerWidth < 1024 ? '650px' : '700px',
+            minWidth: window.innerWidth < 640 ? '100%' : '500px',
+          }}
+        >
           {/* Header */}
-          <div className="p-3 flex justify-between items-center shrink-0"
-               style={{ background: theme.primary, color: theme.text.inverse }}>
+          <div
+            className="p-4 flex justify-between items-center shrink-0"
+            style={{ background: theme.primary, color: theme.text.inverse }}
+          >
             <div className="flex items-center">
-              <ChatIcon iconName={currentConfig.icon} size={28} className="mr-2" style={{ color: theme.secondary }} />
-              <h3 className="font-medium">{currentConfig.header.title}</h3>
+              <ChatIcon iconName={currentConfig.icon} size={32} className="mr-3" style={{ color: theme.secondary }} />
+              <h3 className="text-xl font-medium">{currentConfig.header.title}</h3>
             </div>
-            <div className="flex items-center space-x-2">
-              <button 
+            <div className="flex items-center space-x-3">
+              <button
                 onClick={() => clearMessages()}
-                className="transition-colors p-1 rounded-full hover:bg-opacity-20 hover:bg-black"
+                className="transition-colors p-2 rounded-full hover:bg-opacity-20 hover:bg-black"
                 style={{ color: theme.text.inverse }}
                 aria-label="Clear conversation"
                 title="Clear conversation"
               >
-                <Trash2 size={18} />
+                <Trash2 size={20} />
               </button>
-              <button 
+              <button
                 onClick={toggleChat}
-                className="transition-colors p-1 rounded-full hover:bg-opacity-20 hover:bg-black"
+                className="transition-colors p-2 rounded-full hover:bg-opacity-20 hover:bg-black"
                 style={{ color: theme.text.inverse }}
                 aria-label="Minimize chat"
               >
-                <Minimize2 size={18} />
+                <Minimize2 size={20} />
               </button>
             </div>
           </div>
-          
+
           {/* Messages */}
-          <div 
+          <div
             ref={messagesContainerRef}
-            className="flex-1 p-3 overflow-y-auto h-full scroll-smooth"
-            style={{ 
+            className="flex-1 p-4 overflow-y-auto scroll-smooth"
+            style={{
               background: theme.input.background,
               overflowY: 'auto',
               scrollbarWidth: 'thin',
@@ -242,36 +393,36 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
             {showScrollTop && (
               <button
                 onClick={scrollToTop}
-                className="sticky top-2 left-[calc(100%-40px)] z-10 flex items-center justify-center p-2 rounded-full shadow-md"
-                style={{ 
-                  backgroundColor: theme.primary, 
-                  color: theme.text.inverse 
+                className="sticky top-3 left-[calc(100%-48px)] z-10 flex items-center justify-center p-2 rounded-full shadow-md"
+                style={{
+                  backgroundColor: theme.primary,
+                  color: theme.text.inverse
                 }}
                 aria-label="Scroll to top"
                 title="Scroll to top"
               >
-                <ChevronUp size={18} />
+                <ChevronUp size={20} />
               </button>
             )}
-            
+
             {messages.length === 0 ? (
-              <div className="text-center py-8">
-                <ChatIcon 
-                  iconName={currentConfig.icon} 
-                  size={40} 
-                  className="mx-auto mb-3" 
+              <div className="text-center py-16">
+                <ChatIcon
+                  iconName={currentConfig.icon}
+                  size={56}
+                  className="mx-auto mb-4"
                   style={{ color: theme.iconColor }}
                 />
-                <h4 className="font-medium text-[#2C3E50] mb-1">{currentConfig.welcome.title}</h4>
-                <p className="text-sm text-gray-600 mb-4">
+                <h4 className="font-medium text-xl text-[#2C3E50] mb-2">{currentConfig.welcome.title}</h4>
+                <p className="text-lg text-gray-600 mb-6">
                   {currentConfig.welcome.description}
                 </p>
-                <div className="space-y-2">
+                <div className="space-y-3 max-w-md mx-auto">
                   {currentConfig.suggestedQuestions.map((question, index) => (
-                    <button 
+                    <button
                       key={index}
                       onClick={() => sendMessage(question.query)}
-                      className="w-full text-left text-sm p-2 rounded-lg transition-colors"
+                      className="w-full text-left text-base p-3 rounded-lg transition-colors"
                       style={{
                         backgroundColor: theme.suggestedQuestions.background,
                         color: theme.suggestedQuestions.text
@@ -289,11 +440,16 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
                 </div>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-5">
                 {messages.map((msg: Message, index: number) => {
                   // Create a timestamp for each message
                   const timestamp = new Date();
                   timestamp.setMinutes(timestamp.getMinutes() - (messages.length - index));
+                  
+                  // Check if this is the last assistant message and we're still loading
+                  const isLatestAssistantMessage = msg.role === 'assistant' && index === messages.length - 1;
+                  const showTypingAnimation = isLatestAssistantMessage && isLoading;
+                  const hasBeenAnimated = animatedMessages[index];
                   
                   return (
                     <div 
@@ -305,44 +461,75 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
                     >
                       <div 
                         className={clsx(
-                          "max-w-[85%] rounded-xl p-3 shadow-sm",
+                          "max-w-[85%] rounded-xl p-4 shadow-sm",
                           msg.role === 'user' ? "rounded-tr-none" : "rounded-tl-none"
                         )}
                         style={{
                           background: msg.role === 'user' ? theme.message.user : theme.message.assistant,
                           color: msg.role === 'user' ? theme.message.userText : theme.text.primary,
-                          border: msg.role === 'assistant' ? `1px solid ${theme.input.border}` : 'none'
+                          border: msg.role === 'assistant' ? `1px solid ${theme.input.border}` : 'none',
+                          width: '100%',
+                          maxWidth: '85%',
+                          wordWrap: 'break-word',
+                          overflowWrap: 'anywhere'
                         }}
                       >
-                        {msg.role === 'assistant' && (
-                          <div className="prose prose-sm max-w-none whitespace-pre-line">
-                            <ReactMarkdown
-                              components={{
-                                a: (props) => <MarkdownLink {...props} />,
-                                p: ({node, ...props}) => <p className="mb-4" {...props} />
-                              }}
-                            >
-                              {linkifyText(msg.content)}
-                            </ReactMarkdown>
-                          </div>
-                        )}
-                        {msg.role === 'user' && (
-                          <p>{msg.content}</p>
+                        {msg.role === 'assistant' ? (
+                          showTypingAnimation ? (
+                            // If the message is still loading, show the thinking indicator
+                            <div className="text-gray-500">
+                              <span className="font-medium">thinking</span>
+                              <span className="font-mono">...</span>
+                            </div>
+                          ) : !hasBeenAnimated && isLatestAssistantMessage ? (
+                            // Only animate the latest assistant message and only once
+                            <TypingEffect 
+                              content={msg.content} 
+                              onComplete={() => markMessageAnimated(index)}
+                            />
+                          ) : (
+                            // For messages that have already been animated, display as static
+                            <div className="prose prose-base max-w-full whitespace-pre-wrap" style={{ 
+                              overflowWrap: 'anywhere',
+                              wordBreak: 'break-word', 
+                              width: '100%',
+                              maxWidth: '100%',
+                            }}>
+                              <ReactMarkdown
+                                components={{
+                                  a: (props) => <MarkdownLink {...props} />,
+                                  p: (props) => <p className="mb-4" style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }} {...props} />,
+                                  code: (props) => <code style={{ display: 'block', whiteSpace: 'pre-wrap', overflowX: 'auto', overflowWrap: 'anywhere' }} {...props} />
+                                }}
+                              >
+                                {linkifyText(msg.content)}
+                              </ReactMarkdown>
+                            </div>
+                          )
+                        ) : (
+                          <p className="text-base" style={{ 
+                            overflowWrap: 'anywhere', 
+                            wordBreak: 'break-word',
+                            whiteSpace: 'pre-wrap',
+                            width: '100%'
+                          }}>
+                            {msg.content}
+                          </p>
                         )}
                         
                         <div className={clsx(
-                          "flex text-xs mt-1",
+                          "flex text-xs mt-2",
                           msg.role === 'user' ? "justify-start text-white/70" : "justify-between text-gray-400"
                         )}>
                           <span>{formatTime(timestamp)}</span>
                           
-                          {msg.role === 'assistant' && (
+                          {msg.role === 'assistant' && !showTypingAnimation && (
                             <button 
                               onClick={() => copyToClipboard(msg.content)}
                               className="text-gray-400 hover:text-gray-600 transition-colors ml-2"
                               aria-label="Copy to clipboard"
                             >
-                              <Copy size={14} />
+                              <Copy size={16} />
                             </button>
                           )}
                         </div>
@@ -350,13 +537,12 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
                     </div>
                   );
                 })}
-                {isLoading && (
+                {isLoading && messages.length === 0 && (
                   <div className="flex justify-start">
-                    <div className="bg-white border border-gray-200 rounded-xl rounded-tl-none max-w-[85%] p-3 shadow-sm">
-                      <div className="flex space-x-2">
-                        <div className="h-2 w-2 bg-orange-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                        <div className="h-2 w-2 bg-orange-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                        <div className="h-2 w-2 bg-orange-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                    <div className="bg-white border border-gray-200 rounded-xl rounded-tl-none max-w-[85%] p-4 shadow-sm">
+                      <div className="text-gray-500">
+                        <span className="font-medium">thinking</span>
+                        <span className="font-mono">...</span>
                       </div>
                     </div>
                   </div>
@@ -365,37 +551,57 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
               </div>
             )}
           </div>
-          
-          {/* Input */}
-          <div className="p-3 border-t bg-white shrink-0"
-               style={{ borderColor: theme.input.border, background: theme.background }}>
-            <div className="flex items-center gap-2">
-              <div className="flex-1 relative">
+
+          {/* Input Area */}
+          <div
+            className="p-4 border-t shrink-0"
+            style={{
+              borderColor: theme.input.border,
+              background: theme.background,
+              boxShadow: '0 -2px 10px rgba(0,0,0,0.05)'
+            }}
+          >
+            <div className="flex items-end gap-3">
+              <div
+                className={clsx(
+                  "flex-1 relative rounded-xl transition-all duration-200 overflow-hidden",
+                  isFocused ? "ring-2" : "ring-0"
+                )}
+                style={{
+                  borderColor: theme.input.border,
+                  border: '1px solid',
+                  boxShadow: isFocused ? '0 0 0 2px rgba(236, 153, 75, 0.2)' : 'none',
+                  ['--tw-ring-color' as any]: theme.secondary,
+                  background: theme.input.background
+                }}
+              >
                 <textarea
                   ref={inputRef}
                   value={message}
                   onChange={handleMessageChange}
                   onKeyDown={handleKeyDown}
+                  onFocus={() => setIsFocused(true)}
+                  onBlur={() => setIsFocused(false)}
                   placeholder="Type your message..."
                   maxLength={MAX_MESSAGE_LENGTH}
-                  className="w-full resize-none border rounded-lg focus:outline-none focus:ring-2"
+                  className="w-full resize-none outline-none p-4 pr-12 text-base"
                   style={{
-                    background: theme.input.background,
-                    borderColor: theme.input.border,
+                    background: 'transparent',
                     color: theme.text.primary,
-                    '--tw-ring-color': theme.secondary,
-                    lineHeight: '20px',
-                    padding: '8px 12px',
-                    height: '40px',
-                    minHeight: '40px',
+                    height: `${inputHeight}px`,
+                    minHeight: '56px',
+                    maxHeight: '120px',
+                    overflow: inputHeight >= 120 ? 'auto' : 'hidden',
+                    lineHeight: '1.5',
                     boxSizing: 'border-box'
-                  } as React.CSSProperties}
+                  }}
                 />
                 {message.length > 0 && (
-                  <div 
-                    className="absolute bottom-1 right-2 text-xs"
-                    style={{ 
+                  <div
+                    className="absolute bottom-2 right-3 text-xs px-2 py-1 rounded-full"
+                    style={{
                       color: message.length >= MAX_MESSAGE_LENGTH * 0.9 ? '#ef4444' : '#6b7280',
+                      backgroundColor: message.length >= MAX_MESSAGE_LENGTH * 0.9 ? 'rgba(239, 68, 68, 0.1)' : 'rgba(107, 114, 128, 0.1)',
                       fontSize: '0.7rem'
                     }}
                   >
@@ -407,18 +613,16 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
                 onClick={handleSendMessage}
                 disabled={!message.trim() || isLoading}
                 className={clsx(
-                  "rounded-lg transition-all duration-200 flex items-center justify-center shrink-0",
+                  "rounded-full p-4 transition-all duration-200 flex items-center justify-center shrink-0",
                   message.trim() && !isLoading
-                    ? "text-white hover:shadow-md transform hover:-translate-y-0.5"
+                    ? "hover:shadow-md transform hover:-translate-y-0.5"
                     : "bg-gray-200 text-gray-400 cursor-not-allowed"
                 )}
                 style={{
                   backgroundColor: message.trim() && !isLoading ? theme.secondary : undefined,
-                  height: '40px',
-                  width: '44px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
+                  color: message.trim() && !isLoading ? 'white' : undefined,
+                  width: '56px',
+                  height: '56px'
                 }}
                 aria-label="Send message"
               >
@@ -428,28 +632,30 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
           </div>
         </div>
       )}
-      
+
       {/* Chat Button */}
       <div className="relative">
         {hasNewMessage && !isOpen && (
-          <span className="absolute -top-1 -right-1 h-3 w-3 bg-orange-500 rounded-full animate-pulse z-10"></span>
+          <span className="absolute -top-1 -right-1 h-4 w-4 bg-orange-500 rounded-full animate-pulse z-10"></span>
         )}
         <button
           onClick={toggleChat}
           onMouseEnter={() => setIsButtonHovered(true)}
           onMouseLeave={() => setIsButtonHovered(false)}
           className={clsx(
-            "rounded-full p-3 shadow-lg flex items-center justify-center transition-all duration-300",
+            "rounded-full shadow-lg flex items-center justify-center transition-all duration-300",
             isButtonHovered && !isOpen && "animate-pulse"
           )}
           style={{
-            backgroundColor: isOpen ? theme.primary : theme.primary,
-            color: theme.text.inverse
+            backgroundColor: theme.primary,
+            color: theme.text.inverse,
+            width: '64px',
+            height: '64px'
           }}
           aria-label={isOpen ? "Minimize chat" : "Open chat"}
         >
           {isOpen ? (
-            <Minimize2 size={32} className="text-white" style={{ opacity: 0.9 }} />
+            <X size={32} className="text-white" style={{ opacity: 0.9 }} />
           ) : (
             <ChatIcon iconName="message-square" size={32} className="text-white" />
           )}
