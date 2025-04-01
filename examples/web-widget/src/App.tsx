@@ -65,60 +65,68 @@ function App() {
   useEffect(() => {
     // Initialize the widget when component mounts
     if (typeof window !== 'undefined' && window.initChatbotWidget) {
+      console.log('Initializing chatbot widget...');
       setTimeout(() => {
-        window.initChatbotWidget!({
-          apiUrl: import.meta.env.VITE_API_ENDPOINT,
-          widgetConfig: {
-            header: {
-              title: "Community Services Help Center"
-            },
-            welcome: {
-              title: "Welcome to Our Community Services!",
-              description: "I can help you with information about youth programs, senior services, adult education, family services, and more."
-            },
-            suggestedQuestions: [
-              {
-                text: "What youth programs are available?",
-                query: "Tell me about the youth programs"
+        try {
+          window.initChatbotWidget!({
+            apiUrl: import.meta.env.VITE_API_ENDPOINT,
+            widgetConfig: {
+              header: {
+                title: "Community Services Help Center"
               },
-              {
-                text: "Senior services information",
-                query: "What services are available for seniors?"
+              welcome: {
+                title: "Welcome to Our Community Services!",
+                description: "I can help you with information about youth programs, senior services, adult education, family services, and more."
               },
-              {
-                text: "Adult education courses",
-                query: "What adult education courses do you offer?"
-              }
-            ],
-            theme: {
-              primary: '#2C3E50',
-              secondary: '#f97316',
-              background: '#ffffff',
-              text: {
-                primary: '#1a1a1a',
-                secondary: '#666666',
-                inverse: '#ffffff'
+              suggestedQuestions: [
+                {
+                  text: "What youth programs are available?",
+                  query: "Tell me about the youth programs"
+                },
+                {
+                  text: "Senior services information",
+                  query: "What services are available for seniors?"
+                },
+                {
+                  text: "Adult education courses",
+                  query: "What adult education courses do you offer?"
+                }
+              ],
+              theme: {
+                primary: '#2C3E50',
+                secondary: '#f97316',
+                background: '#ffffff',
+                text: {
+                  primary: '#1a1a1a',
+                  secondary: '#666666',
+                  inverse: '#ffffff'
+                },
+                input: {
+                  background: '#f9fafb',
+                  border: '#e5e7eb'
+                },
+                message: {
+                  user: '#2C3E50',
+                  assistant: '#ffffff',
+                  userText: '#ffffff'
+                },
+                suggestedQuestions: {
+                  background: '#fff7ed',
+                  hoverBackground: '#ffedd5',
+                  text: '#2C3E50'
+                },
+                iconColor: '#f97316'
               },
-              input: {
-                background: '#f9fafb',
-                border: '#e5e7eb'
-              },
-              message: {
-                user: '#2C3E50',
-                assistant: '#ffffff',
-                userText: '#ffffff'
-              },
-              suggestedQuestions: {
-                background: '#fff7ed',
-                hoverBackground: '#ffedd5',
-                text: '#2C3E50'
-              },
-              iconColor: '#f97316'
-            },
-            icon: "message-square"
-          }
-        });
-      }, 500); // Small delay to ensure DOM and scripts are fully loaded
+              icon: "message-square"
+            }
+          });
+          console.log('Chatbot widget initialized successfully');
+        } catch (error) {
+          console.error('Failed to initialize chatbot widget:', error);
+        }
+      }, 1000); // Increased delay to 1 second
+    } else {
+      console.error('Chatbot widget initialization function not found');
     }
   }, []);
 
