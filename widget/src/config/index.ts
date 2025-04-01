@@ -1,52 +1,80 @@
-// Define configuration types
-import { ThemeConfig, defaultTheme, IconType } from '../config';
-
-export { defaultTheme };
-
 export interface ChatConfig {
+  header: {
+    title: string;
+  };
+  theme: {
+    primary: string;
+    secondary: string;
+    background: string;
+    text: {
+      primary: string;
+      inverse: string;
+    };
+    input: {
+      background: string;
+      border: string;
+    };
+    message: {
+      user: string;
+      userText: string;
+      assistant: string;
+    };
+    suggestedQuestions: {
+      background: string;
+      text: string;
+      hoverBackground: string;
+    };
+    iconColor?: string;
+  };
   welcome: {
     title: string;
     description: string;
   };
-  suggestedQuestions: {
+  suggestedQuestions: Array<{
     text: string;
     query: string;
-  }[];
-  header: {
-    title: string;
-  };
-  theme: ThemeConfig;
-  icon?: IconType; // Icon to display in the header and chat button
+  }>;
+  icon?: string;
 }
 
-// Default configuration
-export const defaultConfig: ChatConfig = {
-  welcome: {
-    title: "Welcome to Our Help Center!",
-    description: "I'm here to help you with any questions you might have."
+export const defaultTheme = {
+  primary: '#EC994B',
+  secondary: '#1E3A8A',
+  background: '#FFFFFF',
+  text: {
+    primary: '#1F2937',
+    inverse: '#FFFFFF'
   },
-  suggestedQuestions: [
-    {
-      text: "How can I help you today?",
-      query: "What services do you offer?"
-    },
-    {
-      text: "Contact information",
-      query: "What are your contact details?"
-    }
-  ],
-  header: {
-    title: "Help Center"
+  input: {
+    background: '#F9FAFB',
+    border: '#E5E7EB'
   },
-  theme: defaultTheme,
-  icon: "message-square" // Default icon
+  message: {
+    user: '#1E3A8A',
+    userText: '#FFFFFF',
+    assistant: '#FFFFFF'
+  },
+  suggestedQuestions: {
+    background: '#F3F4F6',
+    text: '#1F2937',
+    hoverBackground: '#E5E7EB'
+  },
+  iconColor: '#EC994B'
 };
 
-// Get the configuration
-export const getChatConfig = (): ChatConfig => {
-  // If we're in a browser environment and have a current config, use it
-  if (typeof window !== 'undefined' && window.ChatbotWidget?._latestConfig) {
-    return window.ChatbotWidget._latestConfig;
-  }
-  return defaultConfig;
-}; 
+export const getChatConfig = (): ChatConfig => ({
+  header: {
+    title: "AI Assistant"
+  },
+  theme: defaultTheme,
+  welcome: {
+    title: "Hello! How can I help you today?",
+    description: "I'm your AI assistant, ready to help with any questions you might have."
+  },
+  suggestedQuestions: [
+    { text: "What can you help me with?", query: "What can you help me with?" },
+    { text: "Tell me about your features", query: "Tell me about your features" },
+    { text: "How do I get started?", query: "How do I get started?" }
+  ],
+  icon: "sparkles"
+});

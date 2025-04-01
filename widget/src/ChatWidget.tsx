@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { MessageSquare, X, Minimize2, Send, Copy, Trash2, Heart, HelpCircle, Info, MessageCircle, Bot, Sparkles, ChevronUp } from 'lucide-react';
+import { MessageSquare, X, Minimize2, Send, Copy, Trash2, Heart, HelpCircle, Info, MessageCircle, Bot, Sparkles, ChevronUp, ChevronDown, Check } from 'lucide-react';
 import { useChatStore, Message } from './store/chatStore';
 import ReactMarkdown from 'react-markdown';
 import clsx from 'clsx';
@@ -46,7 +46,7 @@ const ChatIcon = ({ iconName, size, className, style }: {
 };
 
 export interface ChatWidgetProps extends Partial<ChatConfig> {
-  config?: never; // Make sure no one tries to use the config prop
+  config?: never;
 }
 
 export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
@@ -59,16 +59,22 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
   const MAX_MESSAGE_LENGTH = 500;
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
-
-  // Auto-resize the input field
-  const [inputHeight, setInputHeight] = useState(56); // Starting height
+  const [showScrollBottom, setShowScrollBottom] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
+  const [isScrolling, setIsScrolling] = useState(false);
+  const animatedMessagesRef = useRef<Set<number>>(new Set());
+  const shouldScrollRef = useRef(true);
+  const scrollTimeoutRef = useRef<number>();
+  const lastMessageRef = useRef<HTMLDivElement>(null);
+  const isTypingRef = useRef(false);
+  const [isAnimating, setIsAnimating] = useState(false);
+  const [copiedMessageId, setCopiedMessageId] = useState<number | null>(null);
 
   // Load configuration
   const baseConfig = getChatConfig();
   const [currentConfig, setCurrentConfig] = useState({
     ...baseConfig,
-    ...props // Use all props as config values
+    ...props
   });
   const theme = currentConfig.theme || defaultTheme;
 
@@ -105,15 +111,16 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
     setIsOpen(!isOpen);
     if (!isOpen) {
       setHasNewMessage(false);
+      setTimeout(() => scrollToBottom(true), 100);
     }
   };
 
   const handleSendMessage = () => {
     if (message.trim() && !isLoading) {
+      shouldScrollRef.current = true;
       sendMessage(message);
       setMessage('');
-      // Reset textarea height
-      setInputHeight(56);
+      setTimeout(() => scrollToBottom(true), 100);
     }
   };
 
@@ -124,26 +131,27 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
     }
   };
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
+  const copyToClipboard = async (text: string, messageIndex: number) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedMessageId(messageIndex);
+      setTimeout(() => {
+        setCopiedMessageId(null);
+      }, 2000);
+    } catch (err) {
+      console.error('Failed to copy text: ', err);
+    }
   };
 
   // Helper function to convert URLs to markdown links in plain text and preserve line breaks
   const linkifyText = (text: string): string => {
-    // URL regex pattern - don't include trailing punctuation in the URL
     const urlRegex = /(https?:\/\/[^\s]+?)([.,;:!?)]*)(?=\s|$)/g;
-
-    // Replace URLs with markdown links, preserving trailing punctuation outside the link
     const linkedText = text.replace(urlRegex, (match, url, punctuation) =>
       `[${url}](${url})${punctuation}`
     );
-
-    // Process the text to handle line breaks properly
-    const processedText = linkedText
-      .replace(/\n{2,}/g, '\n\n') // Keep multiple newlines as is
-      .replace(/\n/g, '\n'); // Keep single newlines as is
-
-    return processedText;
+    return linkedText
+      .replace(/\n{2,}/g, '\n\n')
+      .replace(/\n/g, '\n');
   };
 
   // Format timestamp
@@ -151,47 +159,77 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
-  // Check scroll position to determine if scroll-to-top button should be shown
-  const handleScroll = () => {
+  // Scroll to bottom function with immediate option
+  const scrollToBottom = (immediate = false) => {
     if (messagesContainerRef.current) {
-      const { scrollTop } = messagesContainerRef.current;
-      setShowScrollTop(scrollTop > 200);
+      const { scrollHeight } = messagesContainerRef.current;
+      messagesContainerRef.current.scrollTo({
+        top: scrollHeight,
+        behavior: immediate ? 'auto' : 'smooth'
+      });
+      
+      // Update scroll buttons visibility after scrolling
+      setTimeout(() => {
+        handleScroll();
+      }, immediate ? 0 : 300);
+    }
+  };
+
+  // Check scroll position to determine if scroll buttons should be shown
+  const handleScroll = () => {
+    if (messagesContainerRef.current && !isAnimating) {
+      const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
+      const isAtBottom = Math.abs(scrollHeight - scrollTop - clientHeight) < 10;
+      const isAtTop = scrollTop < 10;
+      
+      setShowScrollTop(!isAtTop && scrollTop > 200);
+      setShowScrollBottom(!isAtBottom);
     }
   };
 
   // Scroll to top function
   const scrollToTop = () => {
     if (messagesContainerRef.current) {
+      setIsScrolling(true);
       messagesContainerRef.current.scrollTo({
         top: 0,
         behavior: 'smooth'
       });
+      setTimeout(() => {
+        setIsScrolling(false);
+        handleScroll();
+      }, 300);
     }
   };
 
-  // Auto-resize textarea based on content
-  const adjustHeight = () => {
-    if (inputRef.current) {
-      // Reset height to auto to correctly calculate the new height
-      inputRef.current.style.height = 'auto';
-
-      // Set new height (with min of 56px)
-      const newHeight = Math.max(56, Math.min(inputRef.current.scrollHeight, 120));
-      setInputHeight(newHeight);
+  // Handle message input changes
+  const handleMessageChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const input = e.target.value;
+    if (input.length <= MAX_MESSAGE_LENGTH) {
+      setMessage(input);
     }
   };
 
-  // Scroll to bottom when messages change
+  // Mark a message as having completed its animation
+  const markMessageAnimated = (index: number) => {
+    animatedMessagesRef.current.add(index);
+    if (index === messages.length - 1) {
+      setIsAnimating(false);
+      setTimeout(() => scrollToBottom(), 50);
+    }
+  };
+
+  // Check if a message has been animated
+  const hasBeenAnimated = (index: number): boolean => {
+    return animatedMessagesRef.current.has(index);
+  };
+
+  // Scroll to bottom when messages change or loading state changes
   useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    if (isLoading || messages.length === 0) {
+      scrollToBottom(true);
     }
-
-    // If chat is not open and we receive a new message, show notification
-    if (!isOpen && messages.length > 0 && messages[messages.length - 1].role === 'assistant') {
-      setHasNewMessage(true);
-    }
-  }, [messages, isOpen]);
+  }, [messages, isLoading]);
 
   // Focus input when chat opens
   useEffect(() => {
@@ -200,70 +238,101 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
     }
   }, [isOpen]);
 
-  // Handle message input changes
-  const handleMessageChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const input = e.target.value;
-    if (input.length <= MAX_MESSAGE_LENGTH) {
-      setMessage(input);
-      // Adjust height after content change
-      adjustHeight();
-    }
-  };
+  // Cleanup scroll timeout
+  useEffect(() => {
+    return () => {
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+    };
+  }, []);
 
-  // Typing effect component for the latest message only
-  const TypingEffect = ({ content, onComplete }: { content: string, onComplete: () => void }) => {
+  // Typing effect component
+  const TypingEffect = ({ content, onComplete, messageIndex }: { 
+    content: string, 
+    onComplete: () => void, 
+    messageIndex: number 
+  }) => {
     const [displayedContent, setDisplayedContent] = useState('');
     const [isThinking, setIsThinking] = useState(true);
     const [typingDots, setTypingDots] = useState('.');
     const contentRef = useRef(content);
     const charIndexRef = useRef(0);
     const [userIsTyping, setUserIsTyping] = useState(false);
+    const isAnimatingRef = useRef(false);
+    const animationFrameRef = useRef<number>();
 
-    // Reset animation when content changes
     useEffect(() => {
-      if (content !== contentRef.current) {
-        contentRef.current = content;
-        charIndexRef.current = 0;
-        setDisplayedContent('');
-        setIsThinking(true);
-      }
-    }, [content]);
-
-    // Handle typing animation
-    useEffect(() => {
-      if (charIndexRef.current < contentRef.current.length && !userIsTyping) {
-        const typingTimer = setTimeout(() => {
-          charIndexRef.current += 1;
-          const newContent = contentRef.current.substring(0, charIndexRef.current);
-          setDisplayedContent(newContent);
-          
-          // Hide thinking indicator as soon as we have content
-          if (newContent.length > 0 && isThinking) {
-            setIsThinking(false);
-          }
-
-          // If we've reached the end, mark as complete
-          if (charIndexRef.current >= contentRef.current.length) {
-            onComplete();
-          }
-        }, 20); // 20ms delay per character
-        
-        return () => clearTimeout(typingTimer);
-      } else if (userIsTyping) {
-        // If user is typing, show full content immediately
-        setDisplayedContent(contentRef.current);
+      if (hasBeenAnimated(messageIndex)) {
+        setDisplayedContent(content);
         setIsThinking(false);
         onComplete();
+        return;
       }
-    }, [displayedContent, isThinking, userIsTyping]);
+
+      if (!isAnimatingRef.current) {
+        isAnimatingRef.current = true;
+        isTypingRef.current = true;
+        setIsAnimating(true);
+        let currentIndex = 0;
+        let lastScrollTime = 0;
+        
+        const animateText = (timestamp: number) => {
+          if (currentIndex < content.length) {
+            const newContent = content.slice(0, currentIndex + 1);
+            setDisplayedContent(newContent);
+            
+            if (currentIndex === 0) {
+              setIsThinking(false);
+            }
+            
+            // Scroll every 100ms during animation
+            if (timestamp - lastScrollTime > 100) {
+              scrollToBottom();
+              lastScrollTime = timestamp;
+            }
+            
+            currentIndex++;
+            animationFrameRef.current = requestAnimationFrame(animateText);
+          } else {
+            isTypingRef.current = false;
+            onComplete();
+            isAnimatingRef.current = false;
+            setIsAnimating(false);
+            scrollToBottom();
+          }
+        };
+
+        animationFrameRef.current = requestAnimationFrame(animateText);
+      }
+
+      return () => {
+        if (animationFrameRef.current) {
+          cancelAnimationFrame(animationFrameRef.current);
+        }
+        isAnimatingRef.current = false;
+        isTypingRef.current = false;
+        setIsAnimating(false);
+      };
+    }, [content, messageIndex, onComplete]);
 
     // Listen for user typing
     useEffect(() => {
       const handleMessageChange = () => {
-        setUserIsTyping(true);
+        if (isAnimatingRef.current) {
+          if (animationFrameRef.current) {
+            cancelAnimationFrame(animationFrameRef.current);
+          }
+          setDisplayedContent(content);
+          setIsThinking(false);
+          onComplete();
+          isAnimatingRef.current = false;
+          isTypingRef.current = false;
+          setIsAnimating(false);
+          scrollToBottom();
+        }
       };
 
-      // Add event listener to the textarea
       const textarea = document.querySelector('textarea');
       if (textarea) {
         textarea.addEventListener('input', handleMessageChange);
@@ -274,7 +343,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
           textarea.removeEventListener('input', handleMessageChange);
         }
       };
-    }, []);
+    }, [content, onComplete]);
 
     // Animate the typing indicator dots
     useEffect(() => {
@@ -319,17 +388,6 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
         )}
       </>
     );
-  };
-
-  // Track which messages have completed their animation
-  const [animatedMessages, setAnimatedMessages] = useState<{[key: number]: boolean}>({});
-  
-  // Mark a message as having completed its animation
-  const markMessageAnimated = (index: number) => {
-    setAnimatedMessages(prev => ({
-      ...prev,
-      [index]: true
-    }));
   };
 
   return (
@@ -381,12 +439,10 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
           {/* Messages */}
           <div
             ref={messagesContainerRef}
-            className="flex-1 p-4 overflow-y-auto scroll-smooth"
+            className="flex-1 p-4 overflow-y-auto scroll-smooth relative messages-container"
             style={{
               background: theme.input.background,
-              overflowY: 'auto',
-              scrollbarWidth: 'thin',
-              scrollbarColor: `${theme.secondary} transparent`
+              overflowY: 'auto'
             }}
             onScroll={handleScroll}
           >
@@ -402,6 +458,21 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
                 title="Scroll to top"
               >
                 <ChevronUp size={20} />
+              </button>
+            )}
+
+            {showScrollBottom && !isAnimating && (
+              <button
+                onClick={() => scrollToBottom()}
+                className="sticky bottom-3 left-[calc(100%-48px)] z-10 flex items-center justify-center p-2 rounded-full shadow-md"
+                style={{
+                  backgroundColor: theme.primary,
+                  color: theme.text.inverse
+                }}
+                aria-label="Scroll to bottom"
+                title="Scroll to bottom"
+              >
+                <ChevronDown size={20} />
               </button>
             )}
 
@@ -442,14 +513,11 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
             ) : (
               <div className="space-y-5">
                 {messages.map((msg: Message, index: number) => {
-                  // Create a timestamp for each message
                   const timestamp = new Date();
                   timestamp.setMinutes(timestamp.getMinutes() - (messages.length - index));
                   
-                  // Check if this is the last assistant message and we're still loading
                   const isLatestAssistantMessage = msg.role === 'assistant' && index === messages.length - 1;
                   const showTypingAnimation = isLatestAssistantMessage && isLoading;
-                  const hasBeenAnimated = animatedMessages[index];
                   
                   return (
                     <div 
@@ -458,6 +526,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
                         "flex",
                         msg.role === 'user' ? "justify-end" : "justify-start"
                       )}
+                      ref={index === messages.length - 1 ? lastMessageRef : null}
                     >
                       <div 
                         className={clsx(
@@ -476,19 +545,17 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
                       >
                         {msg.role === 'assistant' ? (
                           showTypingAnimation ? (
-                            // If the message is still loading, show the thinking indicator
                             <div className="text-gray-500">
                               <span className="font-medium">thinking</span>
                               <span className="font-mono">...</span>
                             </div>
-                          ) : !hasBeenAnimated && isLatestAssistantMessage ? (
-                            // Only animate the latest assistant message and only once
+                          ) : !hasBeenAnimated(index) && isLatestAssistantMessage ? (
                             <TypingEffect 
                               content={msg.content} 
                               onComplete={() => markMessageAnimated(index)}
+                              messageIndex={index}
                             />
                           ) : (
-                            // For messages that have already been animated, display as static
                             <div className="prose prose-base max-w-full whitespace-pre-wrap" style={{ 
                               overflowWrap: 'anywhere',
                               wordBreak: 'break-word', 
@@ -524,13 +591,26 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
                           <span>{formatTime(timestamp)}</span>
                           
                           {msg.role === 'assistant' && !showTypingAnimation && (
-                            <button 
-                              onClick={() => copyToClipboard(msg.content)}
-                              className="text-gray-400 hover:text-gray-600 transition-colors ml-2"
-                              aria-label="Copy to clipboard"
-                            >
-                              <Copy size={16} />
-                            </button>
+                            <div className="relative">
+                              <button 
+                                onClick={() => copyToClipboard(msg.content, index)}
+                                className="text-gray-400 hover:text-gray-600 transition-colors ml-2 p-1 rounded-full hover:bg-gray-100"
+                                aria-label="Copy to clipboard"
+                              >
+                                {copiedMessageId === index ? <Check size={16} /> : <Copy size={16} />}
+                              </button>
+                              {copiedMessageId === index && (
+                                <div
+                                  className="absolute bottom-full right-0 mb-1 px-2 py-1 text-xs rounded-md shadow-sm animate-fade-in-out whitespace-nowrap"
+                                  style={{
+                                    backgroundColor: theme.secondary,
+                                    color: theme.text.inverse
+                                  }}
+                                >
+                                  Copied!
+                                </div>
+                              )}
+                            </div>
                           )}
                         </div>
                       </div>
@@ -584,14 +664,14 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
                   onBlur={() => setIsFocused(false)}
                   placeholder="Type your message..."
                   maxLength={MAX_MESSAGE_LENGTH}
-                  className="w-full resize-none outline-none p-4 pr-12 text-base"
+                  className="w-full resize-none outline-none p-3 pr-12 text-base custom-scrollbar"
                   style={{
                     background: 'transparent',
                     color: theme.text.primary,
-                    height: `${inputHeight}px`,
-                    minHeight: '56px',
-                    maxHeight: '120px',
-                    overflow: inputHeight >= 120 ? 'auto' : 'hidden',
+                    height: '48px',
+                    minHeight: '48px',
+                    maxHeight: '96px',
+                    overflow: 'auto',
                     lineHeight: '1.5',
                     boxSizing: 'border-box'
                   }}
@@ -613,7 +693,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
                 onClick={handleSendMessage}
                 disabled={!message.trim() || isLoading}
                 className={clsx(
-                  "rounded-full p-4 transition-all duration-200 flex items-center justify-center shrink-0",
+                  "rounded-full p-3 transition-all duration-200 flex items-center justify-center shrink-0",
                   message.trim() && !isLoading
                     ? "hover:shadow-md transform hover:-translate-y-0.5"
                     : "bg-gray-200 text-gray-400 cursor-not-allowed"
@@ -621,12 +701,12 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
                 style={{
                   backgroundColor: message.trim() && !isLoading ? theme.secondary : undefined,
                   color: message.trim() && !isLoading ? 'white' : undefined,
-                  width: '56px',
-                  height: '56px'
+                  width: '48px',
+                  height: '48px'
                 }}
                 aria-label="Send message"
               >
-                <Send size={24} />
+                <Send size={20} />
               </button>
             </div>
           </div>
@@ -661,6 +741,18 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
           )}
         </button>
       </div>
+
+      <style>{`
+        @keyframes fadeInOut {
+          0% { opacity: 0; transform: translateY(4px); }
+          20% { opacity: 1; transform: translateY(0); }
+          80% { opacity: 1; transform: translateY(0); }
+          100% { opacity: 0; transform: translateY(-4px); }
+        }
+        .animate-fade-in-out {
+          animation: fadeInOut 2s ease-in-out forwards;
+        }
+      `}</style>
     </div>
   );
 };

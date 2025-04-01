@@ -3,8 +3,8 @@ import ReactDOM from 'react-dom/client';
 import { ChatWidget, ChatWidgetProps } from './ChatWidget';
 import { useChatStore } from './store/chatStore';
 import './index.css';
-import { streamChat, configureApi } from '@schmitech/chatbot-api';
-import { getChatConfig, ChatConfig, defaultConfig } from './config/index';
+import { configureApi } from '@schmitech/chatbot-api';
+import { getChatConfig, ChatConfig } from './config/index';
 
 export { ChatWidget, useChatStore, getChatConfig };
 export type { ChatWidgetProps, ChatConfig };
@@ -41,23 +41,23 @@ export function updateWidgetConfig(config: Partial<ChatConfig>): void {
   if (typeof window === 'undefined') return;
   
   currentConfig = {
-    ...defaultConfig,  // Start with default config
+    ...getChatConfig(),  // Start with default config
     ...currentConfig,  // Keep existing config
     ...config,         // Apply new config
     // Ensure required properties are present
     header: {
-      ...defaultConfig.header,  // Keep default header
+      ...getChatConfig().header,  // Keep default header
       ...currentConfig?.header, // Keep existing header
       ...config.header         // Apply new header
     },
     welcome: {
-      ...defaultConfig.welcome,  // Keep default welcome
+      ...getChatConfig().welcome,  // Keep default welcome
       ...currentConfig?.welcome, // Keep existing welcome
       ...config.welcome         // Apply new welcome
     },
-    suggestedQuestions: config.suggestedQuestions || currentConfig?.suggestedQuestions || defaultConfig.suggestedQuestions,
+    suggestedQuestions: config.suggestedQuestions || currentConfig?.suggestedQuestions || getChatConfig().suggestedQuestions,
     theme: {
-      ...defaultConfig.theme,  // Keep default theme
+      ...getChatConfig().theme,  // Keep default theme
       ...currentConfig?.theme, // Keep existing theme
       ...config.theme         // Apply new theme
     }
@@ -84,7 +84,7 @@ export function injectChatWidget(config: {
   // Store initial config if provided
   if (config.widgetConfig) {
     currentConfig = {
-      ...defaultConfig,  // Start with default config
+      ...getChatConfig(),  // Start with default config
       ...config.widgetConfig  // Override with provided config
     };
   }
@@ -131,6 +131,7 @@ export function injectChatWidget(config: {
 
 // Make sure to set it on window for UMD builds
 if (typeof window !== 'undefined') {
+  // Explicitly make these available globally
   window.initChatbotWidget = injectChatWidget;
   
   // Also expose the widget component directly

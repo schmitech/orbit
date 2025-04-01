@@ -543,11 +543,41 @@
     </div>
 
     <!-- Required dependencies -->
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-    <script src="./dist/chatbot-widget.bundle.js"></script>
+    <script src="./public/libs/react.production.min.js"></script>
+    <script src="./public/libs/react-dom.production.min.js"></script>
+    <script src="./dist/chatbot-widget.umd.js"></script>
+    <link rel="stylesheet" href="./dist/chatbot-widget.css">
 
     <script>
+        // Check if ChatbotWidget is available
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(checkWidgetLoaded, 100);
+        });
+
+        function checkWidgetLoaded() {
+            if (typeof window.ChatbotWidget !== 'undefined' && window.initChatbotWidget) {
+                // Also ensure React is available
+                if (typeof window.React === 'undefined' || typeof window.ReactDOM === 'undefined') {
+                    console.error('React or ReactDOM not loaded!');
+                    console.log('Waiting for React to load...');
+                    setTimeout(checkWidgetLoaded, 100);
+                    return;
+                }
+                
+                console.log('ChatbotWidget loaded successfully! Starting initialization...');
+                initializeDemo();
+            } else {
+                console.log('Waiting for ChatbotWidget to load...');
+                setTimeout(checkWidgetLoaded, 100);
+            }
+        }
+
+        function initializeDemo() {
+            // All initialization code goes here
+            console.log('Initializing demo...');
+            initWidget();
+        }
+
         let widgetInitialized = false;
         let customWidgetInitialized = false;
         
@@ -1066,33 +1096,6 @@
                 });
         }
 
-        // Initialize on page load
-        document.addEventListener('DOMContentLoaded', function() {
-            initWidget();
-            
-            // Add getCurrentConfig method to ChatbotWidget
-            const initChatbotConfig = function() {
-                if (window.ChatbotWidget && !window.ChatbotWidget.getCurrentConfig) {
-                    window.ChatbotWidget._latestConfig = {...defaultConfig};
-                    
-                    window.ChatbotWidget.getCurrentConfig = function() {
-                        return this._latestConfig || defaultConfig;
-                    };
-
-                    const originalUpdateMethod = window.ChatbotWidget.updateWidgetConfig;
-                    window.ChatbotWidget.updateWidgetConfig = function(config) {
-                        this._latestConfig = {...this._latestConfig, ...config};
-                        originalUpdateMethod.call(this, config);
-                        setTimeout(updateCodeExample, 100);
-                    };
-                }
-            };
-
-            // Try to initialize immediately and also after a delay
-            initChatbotConfig();
-            setTimeout(initChatbotConfig, 1000);
-        });
-
         // Function to update color preview elements
         function updateColorPreviews() {
             // Get all color input elements
@@ -1115,9 +1118,31 @@
             });
         }
         
-        // Call on page load
+        // Initialize on page load
         document.addEventListener('DOMContentLoaded', function() {
-            setTimeout(updateColorPreviews, 500);
+            // Add getCurrentConfig method to ChatbotWidget
+            const initChatbotConfig = function() {
+                if (window.ChatbotWidget && !window.ChatbotWidget.getCurrentConfig) {
+                    window.ChatbotWidget._latestConfig = {...defaultConfig};
+                    
+                    window.ChatbotWidget.getCurrentConfig = function() {
+                        return this._latestConfig || defaultConfig;
+                    };
+
+                    const originalUpdateMethod = window.ChatbotWidget.updateWidgetConfig;
+                    window.ChatbotWidget.updateWidgetConfig = function(config) {
+                        this._latestConfig = {...this._latestConfig, ...config};
+                        originalUpdateMethod.call(this, config);
+                        setTimeout(updateCodeExample, 100);
+                    };
+                }
+            };
+
+            // Try to initialize after the widget is loaded
+            setTimeout(function() {
+                setTimeout(updateColorPreviews, 500);
+                initChatbotConfig();
+            }, 1000);
         });
     </script>
 </body>

@@ -2,9 +2,46 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Custom widget styling */
-.chatbot-widget-container {
-  font-family: sans-serif;
-  font-size: 16px;
-  line-height: 1.5;
-} 
+/* Custom scrollbar styles */
+.custom-scrollbar {
+  scrollbar-width: thin;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(30, 58, 138, 0.5);
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgb(30, 58, 138);
+}
+
+/* Message container scrollbar */
+.messages-container {
+  scrollbar-width: thin;
+}
+
+.messages-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.messages-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.messages-container::-webkit-scrollbar-thumb {
+  background-color: rgba(30, 58, 138, 0.5);
+  border-radius: 4px;
+}
+
+.messages-container::-webkit-scrollbar-thumb:hover {
+  background-color: rgb(30, 58, 138);
+}

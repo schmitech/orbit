@@ -29,19 +29,16 @@ logs
 .vscode/*
 !.vscode/extensions.json
 .idea
-.DS_Store
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
-
-# TypeScript
-*.tsbuildinfo
-next-env.d.ts
-
-# Misc
-.cache
+.DS_Store
+._*
 .temp
 .tmp
 package-lock.json
+
+# React dependencies for demo
+public
