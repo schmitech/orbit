@@ -46,71 +46,6 @@ A reusable chatbot widget that can be easily integrated into any website.
    - `chatbot-widget.umd.js` - UMD module (if you need the JS separately)
    - `chatbot-widget.css` - Styles (if you need the CSS separately)
 
-## Usage
-
-### Using direct script tags
-
-Add the following code to your website's HTML:
-
-```html
-<!-- Add widget CSS -->
-<link rel="stylesheet" href="https://unpkg.com/@schmitech/chatbot-widget@0.2.0/dist/chatbot-widget.css">
-
-<!-- Widget dependencies -->
-<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
-<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-<script src="https://unpkg.com/@schmitech/chatbot-widget@0.2.0/dist/chatbot-widget.umd.js" crossorigin></script>
-
-<script>
-  // Initialize the widget when the page loads
-  window.addEventListener('load', function() {
-    window.initChatbotWidget({
-      apiUrl: 'https://your-api-server.com'
-    });
-  });
-</script>
-```
-
-### Using npm
-
-1. Install the package:
-   ```bash
-   npm install @schmitech/chatbot-widget
-   ```
-
-2. Import in your application:
-   ```javascript
-   import { ChatWidget } from 'chatbot-widget';
-   
-   // Use in your React component
-   function App() {
-     return (
-       <div className="App">
-         <ChatWidget />
-       </div>
-     );
-   }
-   
-   // Set API URL via the exposed function
-   window.ChatbotWidget.setApiUrl('https://your-api-server.com');
-   ```
-
-### Advanced Usage
-
-You can customize the widget by specifying a container:
-
-```html
-<div id="my-chat-container"></div>
-
-<script>
-  window.addEventListener('load', function() {
-    window.initChatbotWidget({
-      apiUrl: 'https://your-api-server.com',
-      containerSelector: '#my-chat-container'
-    });
-  });
-</script>
-```
 
 ## Customizing the Widget
 Check file demo.html containing an working example on how to customize the widget.
@@ -167,8 +102,28 @@ To publish a new version of the widget:
 
 2. Test the package locally (optional):
    ```bash
-   npm pack
+   npm pack --dry-run
    ```
+
+   You should see an output like this:
+   npm notice 
+      ```bash
+      npm notice 📦 @schmitech/chatbot-widget@0.2.0
+      npm notice === Tarball Contents === 
+      npm notice 1.1kB  package.json
+      npm notice 31.0kB dist/chatbot-widget.css
+      npm notice 160.0kB dist/chatbot-widget.umd.js
+      npm notice 2.1kB dist/index.d.ts
+      ...
+      npm notice === Tarball Details === 
+      npm notice name:          @schmitech/chatbot-widget
+      npm notice version:       0.2.0
+      npm notice package size:  193.2 kB
+      npm notice unpacked size: 1.2 MB
+      npm notice shasum:        abc123...
+      npm notice integrity:     sha512-...
+      npm notice total files:   15
+      ```
 
 3. Update the version:
    ```bash
