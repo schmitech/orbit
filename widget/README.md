@@ -156,21 +156,22 @@ You can use it in any project:
 3. Test the bundle in a simple HTML file:
    ```html
    <!DOCTYPE html>
-   <html>
+   <html lang="en">
    <head>
-     <title>Chatbot Widget Test</title>
+      <meta charset="UTF-8" />
+      <link rel="icon" type="image/svg+xml" href="/favicon.ico" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <title>Your Web App</title>
+      <!-- Add widget CSS -->
+      <link rel="stylesheet" href="https://unpkg.com/@schmitech/chatbot-widget@0.2.0/dist/chatbot-widget.css">
    </head>
    <body>
-     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-     <script src="https://unpkg.com/@schmitech/chatbot-widget@0.2.0/dist/chatbot-widget.bundle.js"></script>
-     <script>
-       window.addEventListener('load', function() {
-         window.initChatbotWidget({
-           apiUrl: 'https://your-api-server.com'
-         });
-       });
-     </script>
+      <div id="root"></div>
+      
+      <!-- Widget dependencies -->
+      <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+      <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+      <script src="https://unpkg.com/@schmitech/chatbot-widget@0.2.0/dist/chatbot-widget.umd.js" crossorigin></script>
    </body>
    </html>
    ```
@@ -193,6 +194,78 @@ You can import the widget in different ways:
 import { ChatWidget } from '@schmitech/chatbot-widget';
 // For the bundled version (if you're using a bundler like webpack)
 import '@schmitech/chatbot-widget/bundle';
+```
+
+Using in TSX components:
+
+```javascript
+useEffect(() => {
+    // Initialize the widget when component mounts
+    if (typeof window !== 'undefined' && window.initChatbotWidget) {
+      console.log('Initializing chatbot widget...');
+      setTimeout(() => {
+        try {
+          window.initChatbotWidget!({
+            apiUrl: import.meta.env.VITE_API_ENDPOINT,
+            widgetConfig: {
+              header: {
+                title: "Community Services Help Center"
+              },
+              welcome: {
+                title: "Welcome to Our Community Services!",
+                description: "I can help you with information about youth programs, senior services, adult education, family services, and more."
+              },
+              suggestedQuestions: [
+                {
+                  text: "What youth programs are available?",
+                  query: "Tell me about the youth programs"
+                },
+                {
+                  text: "Senior services information",
+                  query: "What services are available for seniors?"
+                },
+                {
+                  text: "Adult education courses",
+                  query: "What adult education courses do you offer?"
+                }
+              ],
+              theme: {
+                primary: '#2C3E50',
+                secondary: '#f97316',
+                background: '#ffffff',
+                text: {
+                  primary: '#1a1a1a',
+                  secondary: '#666666',
+                  inverse: '#ffffff'
+                },
+                input: {
+                  background: '#f9fafb',
+                  border: '#e5e7eb'
+                },
+                message: {
+                  user: '#2C3E50',
+                  assistant: '#ffffff',
+                  userText: '#ffffff'
+                },
+                suggestedQuestions: {
+                  background: '#fff7ed',
+                  hoverBackground: '#ffedd5',
+                  text: '#2C3E50'
+                },
+                iconColor: '#f97316'
+              },
+              icon: "message-square"
+            }
+          });
+          console.log('Chatbot widget initialized successfully');
+        } catch (error) {
+          console.error('Failed to initialize chatbot widget:', error);
+        }
+      }, 1000);
+    } else {
+      console.error('Chatbot widget initialization function not found');
+    }
+  }, []);
 ```
 
 ### Known Limitations and Troubleshooting

@@ -124,7 +124,7 @@ function App() {
         } catch (error) {
           console.error('Failed to initialize chatbot widget:', error);
         }
-      }, 1000); // Increased delay to 1 second
+      }, 1000);
     } else {
       console.error('Chatbot widget initialization function not found');
     }
