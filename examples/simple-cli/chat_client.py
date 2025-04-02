@@ -60,15 +60,13 @@ def clean_response(text):
     
     return text.strip()
 
-def stream_chat(url, message, max_tokens=256, temperature=0.7, debug=False):
+def stream_chat(url, message, debug=False):
     """
     Stream a chat response from the server, displaying it gradually like a chatbot.
     
     Args:
         url (str): The chat server URL
         message (str): The message to send to the chat server
-        max_tokens (int): Maximum number of tokens to generate
-        temperature (float): Sampling temperature for generation
         debug (bool): Whether to show debug information
     """
     headers = {
@@ -78,9 +76,7 @@ def stream_chat(url, message, max_tokens=256, temperature=0.7, debug=False):
     data = {
         "message": message,
         "voiceEnabled": False,
-        "stream": True,
-        "max_new_tokens": max_tokens,
-        "temperature": temperature
+        "stream": True
     }
     
     if debug:
@@ -172,8 +168,6 @@ def stream_chat(url, message, max_tokens=256, temperature=0.7, debug=False):
 def main():
     parser = argparse.ArgumentParser(description="Chat Client for Testing Chat Server")
     parser.add_argument("--url", default="http://localhost:3000/chat", help="Chat server URL")
-    parser.add_argument("--max-tokens", type=int, default=256, help="Maximum tokens to generate")
-    parser.add_argument("--temperature", type=float, default=0.7, help="Temperature for generation")
     parser.add_argument("--debug", action="store_true", help="Enable debug mode")
     args = parser.parse_args()
     
@@ -198,7 +192,8 @@ def main():
             # Print assistant indicator before response
             print(f"\n{Fore.GREEN}Assistant:{Style.RESET_ALL} ", end="", flush=True)
             
-            response = stream_chat(args.url, user_input, args.max_tokens, args.temperature, args.debug)
+            # Stream the response
+            response = stream_chat(args.url, user_input, debug=args.debug)
             
         except KeyboardInterrupt:
             print(f"\n{Fore.CYAN}Conversation ended by user.{Style.RESET_ALL}")
