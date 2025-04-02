@@ -56,7 +56,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
   const [isButtonHovered, setIsButtonHovered] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const MAX_MESSAGE_LENGTH = 500;
+  const MAX_MESSAGE_LENGTH = 250;
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
@@ -488,12 +488,12 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
                 <p className="text-lg text-gray-600 mb-6">
                   {currentConfig.welcome.description}
                 </p>
-                <div className="space-y-3 max-w-md mx-auto">
+                <div className="w-full px-4">
                   {currentConfig.suggestedQuestions.map((question, index) => (
                     <button
                       key={index}
                       onClick={() => sendMessage(question.query)}
-                      className="w-full text-left text-base p-3 rounded-lg transition-colors"
+                      className="w-full text-left text-base p-3 rounded-lg transition-colors mb-3 flex items-center"
                       style={{
                         backgroundColor: theme.suggestedQuestions.background,
                         color: theme.suggestedQuestions.text
@@ -505,7 +505,8 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
                         e.currentTarget.style.backgroundColor = theme.suggestedQuestions.background;
                       }}
                     >
-                      {question.text}
+                      <MessageCircle size={20} className="mr-2 flex-shrink-0" />
+                      <span>{question.text}</span>
                     </button>
                   ))}
                 </div>
@@ -546,7 +547,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
                         {msg.role === 'assistant' ? (
                           showTypingAnimation ? (
                             <div className="text-gray-500">
-                              <span className="font-medium">thinking</span>
+                              <span className="font-medium">Thinking</span>
                               <span className="font-mono">...</span>
                             </div>
                           ) : !hasBeenAnimated(index) && isLatestAssistantMessage ? (
@@ -693,7 +694,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
                 onClick={handleSendMessage}
                 disabled={!message.trim() || isLoading}
                 className={clsx(
-                  "rounded-full p-3 transition-all duration-200 flex items-center justify-center shrink-0",
+                  "rounded-full transition-all duration-200 flex items-center justify-center shrink-0",
                   message.trim() && !isLoading
                     ? "hover:shadow-md transform hover:-translate-y-0.5"
                     : "bg-gray-200 text-gray-400 cursor-not-allowed"
@@ -702,11 +703,12 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
                   backgroundColor: message.trim() && !isLoading ? theme.secondary : undefined,
                   color: message.trim() && !isLoading ? 'white' : undefined,
                   width: '48px',
-                  height: '48px'
+                  height: '48px',
+                  padding: '12px'
                 }}
                 aria-label="Send message"
               >
-                <Send size={20} />
+                <Send size={24} />
               </button>
             </div>
           </div>
@@ -724,20 +726,21 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
           onMouseLeave={() => setIsButtonHovered(false)}
           className={clsx(
             "rounded-full shadow-lg flex items-center justify-center transition-all duration-300",
-            isButtonHovered && !isOpen && "animate-pulse"
+            isButtonHovered && !isOpen && "animate-pulse",
+            !isOpen && "animate-bounce-gentle"
           )}
           style={{
             backgroundColor: theme.primary,
             color: theme.text.inverse,
-            width: '64px',
-            height: '64px'
+            width: '80px',
+            height: '80px',
           }}
-          aria-label={isOpen ? "Minimize chat" : "Open chat"}
+          aria-label={isOpen ? "Close chat" : "Open chat"}
         >
           {isOpen ? (
-            <X size={32} className="text-white" style={{ opacity: 0.9 }} />
+            <Minimize2 size={40} className="text-white" style={{ opacity: 0.9 }} />
           ) : (
-            <ChatIcon iconName="message-square" size={32} className="text-white" />
+            <ChatIcon iconName="message-square" size={40} className="text-white" />
           )}
         </button>
       </div>
@@ -751,6 +754,14 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
         }
         .animate-fade-in-out {
           animation: fadeInOut 2s ease-in-out forwards;
+        }
+        @keyframes bounce-gentle {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-10px); }
+        }
+        .animate-bounce-gentle {
+          animation: bounce-gentle 2s ease-in-out infinite;
+          animation-delay: 1s;
         }
       `}</style>
     </div>
