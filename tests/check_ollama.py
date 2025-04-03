@@ -9,25 +9,21 @@ a test query and verifying the response. It's useful for:
 - Debugging connection issues
 
 Usage:
-    python3 check_ollama.py
+    python3 check_ollama.py [query]
 
-The script will:
-1. Load the Ollama configuration from config.yaml
-2. Send a test query to the Ollama service
-3. Display the configuration and response
+    If no query is provided, it will use a default test query.
 
-Example Output:
-    Loaded configuration: {
-        "base_url": "http://localhost:11434",
-        "model": "gemma3:1b",
-        ...
-    }
-    Response: [Ollama's response to the test query]
+Example:
+    python3 check_ollama.py "What is the cost of the Beginner English fee for service course?"
 """
 
 import requests
 import yaml
 import json
+import sys
+
+# Get query from command line or use default
+query = sys.argv[1] if len(sys.argv) > 1 else "What is the cost of the Beginner English fee for service course?"
 
 # Load config
 with open('../server/config.yaml', 'r') as file:
@@ -40,7 +36,7 @@ print("Loaded configuration:", json.dumps(ollama_config, indent=2))
 # Create request payload with the parameters
 payload = {
     "model": ollama_config["model"],
-    "prompt": "What is the cost of the Beginner English fee for service course?",
+    "prompt": query,
     "temperature": ollama_config["temperature"],
     "top_p": ollama_config["top_p"],
     "top_k": ollama_config["top_k"],

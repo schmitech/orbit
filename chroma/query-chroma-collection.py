@@ -100,7 +100,7 @@ def test_chroma_ingestion(ollama_base_url: str, test_query: str, collection_name
     
     results = collection.query(
         query_embeddings=[query_embedding],
-        n_results=3,
+        n_results=5,  # Increased to get more results to find the best match
         include=['metadatas', 'documents', 'distances']
     )
     
@@ -109,11 +109,31 @@ def test_chroma_ingestion(ollama_base_url: str, test_query: str, collection_name
     print(f"Query: '{test_query}'\n")
     
     if results['metadatas'] and results['metadatas'][0]:
-        # Only show the closest match
-        closest_match = results['metadatas'][0][0]
-        print("Answer:")
-        print(closest_match['answer'])
-        print(f"\nConfidence: {1 - results['distances'][0][0]:.2%}")
+        # Find the result with the highest confidence (lowest distance)
+        best_idx = 0
+        best_confidence = 0
+        
+        for idx, distance in enumerate(results['distances'][0]):
+            confidence = 1 - distance  # Convert distance to confidence score
+            if confidence > best_confidence:
+                best_confidence = confidence
+                best_idx = idx
+        
+        # Get the best match
+        best_match = results['metadatas'][0][best_idx]
+        print("Best Match Answer:")
+        print(best_match['answer'])
+        print(f"\nConfidence: {best_confidence:.2%}")
+        
+        # Print other matches for reference
+        if len(results['metadatas'][0]) > 1:
+            print("\nOther Matches:")
+            for idx, (metadata, distance) in enumerate(zip(results['metadatas'][0], results['distances'][0])):
+                if idx != best_idx:
+                    confidence = 1 - distance
+                    print(f"\nMatch {idx + 1}:")
+                    print(metadata['answer'])
+                    print(f"Confidence: {confidence:.2%}")
     else:
         print("No results found")
 

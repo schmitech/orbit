@@ -1,40 +1,18 @@
 """
-Chroma Collection Creator
-=========================
+Enhanced Chroma Collection Creator for RAG
+=========================================
 
-This script creates a vector database collection in Chroma from a JSON file containing Q&A pairs.
-It processes the Q&A pairs, generates embeddings using Ollama, and stores them in a Chroma collection.
+This script creates an optimized vector database collection in Chroma from a JSON file containing Q&A pairs.
+It processes both questions and answers, generates embeddings, and stores them with improved metadata.
 
 Usage:
-    python create-chroma-collection.py <collection_name> <json_file_path>
+    python improved-chroma-collection.py <collection_name> <json_file_path>
 
-Arguments:
-    collection_name: Name of the Chroma collection to create
-    json_file_path: Path to the JSON file containing Q&A pairs
-
-Example:
-    python create-chroma-collection.py my_qa_collection data/qa_pairs.json
-
-Requirements:
-    - config.yaml file with Ollama and Chroma configuration
-    - Running Ollama server with the specified embedding model
-    - Running Chroma server
-    - JSON file with Q&A pairs in the format: [{"question": "...", "answer": "..."}, ...]
-
-Configuration (config.yaml):
-    ollama:
-      base_url: URL of the Ollama server (e.g., http://localhost:11434)
-      embed_model: Name of the embedding model to use (e.g., mxbai-embed-large)
-    chroma:
-      host: Hostname of the Chroma server
-      port: Port of the Chroma server
-
-Process:
-    1. Loads Q&A pairs from the JSON file
-    2. Splits longer Q&A pairs into smaller chunks
-    3. Generates embeddings for each chunk using Ollama
-    4. Stores the embeddings and metadata in a Chroma collection
-    5. Processes in batches to handle large datasets efficiently
+Key improvements:
+    1. Embeds both questions and answers for comprehensive semantic search
+    2. Properly chunks longer text for better retrieval
+    3. Optimizes metadata structure for retrieval
+    4. Includes content and metadata indexing for hybrid search
 """
 
 import os
@@ -45,6 +23,7 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from tqdm import tqdm
 import chromadb
 import argparse
+import uuid
 
 def load_config():
     with open('config.yaml', 'r') as file:
@@ -76,7 +55,10 @@ def ingest_to_chroma(
         print(f"Deleted existing collection: {collection_name}")
     
     # Create new collection
-    collection = client.create_collection(name=collection_name)
+    collection = client.create_collection(
+        name=collection_name,
+        metadata={"hnsw:space": "cosine"}  # Use cosine similarity for better matching
+    )
     print(f"Created new collection: {collection_name}")
     
     # Print the embedding model being used
@@ -94,14 +76,20 @@ def ingest_to_chroma(
     
     # Verify Ollama connection
     try:
-        # Test embedding with a simple string
         test_embedding = embeddings.embed_query("test connection")
         print("Successfully connected to Ollama server")
-        print(f"Embedding dimensions: {len(test_embedding)}")  # Should print 1024 for mxbai-embed-large
+        print(f"Embedding dimensions: {len(test_embedding)}")
     except Exception as e:
         print(f"Failed to connect to Ollama server at {ollama_base_url}")
         print(f"Error: {str(e)}")
         return
+    
+    # Initialize text splitter for chunking
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=1000,
+        chunk_overlap=200,
+        length_function=len,
+    )
     
     # Load Q&A pairs
     with open(json_file_path, 'r', encoding='utf-8') as f:
@@ -109,42 +97,68 @@ def ingest_to_chroma(
     
     print(f"Loaded {len(qa_pairs)} Q&A pairs")
     
-    # Text splitter for longer texts
-    text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=500,
-        chunk_overlap=50
-    )
+    all_chunks = []
     
-    # Process in batches
-    for i in tqdm(range(0, len(qa_pairs), batch_size), desc="Processing Q&A pairs"):
-        batch = qa_pairs[i:i + batch_size]
+    # Process each Q&A pair and create chunks
+    for idx, qa in enumerate(qa_pairs):
+        question = qa["question"]
+        answer = qa["answer"]
+        
+        # For short Q&A pairs, keep them together
+        if len(question) + len(answer) < 1000:
+            all_chunks.append({
+                "id": f"qa_{idx}",
+                "content": f"Question: {question}\nAnswer: {answer}",
+                "metadata": {
+                    "question": question,
+                    "answer": answer,
+                    "source": collection_name,
+                    "type": "complete_qa",
+                    "original_id": idx
+                }
+            })
+        else:
+            # For longer content, split into chunks
+            qa_text = f"Question: {question}\nAnswer: {answer}"
+            chunks = text_splitter.create_documents([qa_text])
+            
+            for i, chunk in enumerate(chunks):
+                all_chunks.append({
+                    "id": f"qa_{idx}_chunk_{i}",
+                    "content": chunk.page_content,
+                    "metadata": {
+                        "question": question,
+                        "answer": answer,
+                        "source": collection_name,
+                        "type": "chunked_qa",
+                        "chunk_id": i,
+                        "total_chunks": len(chunks),
+                        "original_id": idx
+                    }
+                })
+    
+    # Generate embeddings and add to collection in batches
+    for i in tqdm(range(0, len(all_chunks), batch_size), desc="Processing chunks"):
+        batch = all_chunks[i:i + batch_size]
         
         batch_ids = []
         batch_embeddings = []
         batch_metadatas = []
+        batch_documents = []
         
-        for idx, qa in enumerate(batch):
-            combined_text = f"Question: {qa['question']}\nAnswer: {qa['answer']}"
-            chunks = text_splitter.split_text(combined_text)
-            
-            for chunk_idx, chunk in enumerate(chunks):
-                try:
-                    embedding = embeddings.embed_query(chunk)
-                    doc_id = f"qa_{i + idx}_{chunk_idx}"
-                    
-                    batch_ids.append(doc_id)
-                    batch_embeddings.append(embedding)
-                    batch_metadatas.append({
-                        "text": chunk,
-                        "question": qa["question"],
-                        "answer": qa["answer"],
-                        "chunk_index": str(chunk_idx),
-                        "source": collection_name
-                    })
-                    
-                except Exception as e:
-                    print(f"Error processing Q&A pair {i + idx}: {str(e)}")
-                    continue
+        for chunk in batch:
+            try:
+                # Generate embedding from the full content
+                embedding = embeddings.embed_query(chunk["content"])
+                
+                batch_ids.append(chunk["id"])
+                batch_embeddings.append(embedding)
+                batch_metadatas.append(chunk["metadata"])
+                batch_documents.append(chunk["content"])
+                
+            except Exception as e:
+                print(f"Error processing chunk {chunk['id']}: {str(e)}")
+                continue
 
         # Add batch to collection
         if batch_ids:
@@ -152,7 +166,8 @@ def ingest_to_chroma(
                 collection.upsert(
                     ids=batch_ids,
                     embeddings=batch_embeddings,
-                    metadatas=batch_metadatas
+                    metadatas=batch_metadatas,
+                    documents=batch_documents
                 )
                 print(f"Uploaded batch of {len(batch_ids)} vectors")
             except Exception as e:
@@ -161,6 +176,27 @@ def ingest_to_chroma(
     # Print stats
     print("\nIngestion complete!")
     print(f"Total vectors in collection: {collection.count()}")
+    
+    # Add a demonstration query to test retrieval
+    print("\nTesting retrieval with a sample query...")
+    test_query = "How do I pay my property taxes?"
+    test_embedding = embeddings.embed_query(test_query)
+    
+    results = collection.query(
+        query_embeddings=[test_embedding],
+        n_results=3,
+        include=["documents", "metadatas", "distances"]
+    )
+    
+    print(f"Query: {test_query}")
+    for i, (doc, metadata, distance) in enumerate(zip(
+        results['documents'][0], 
+        results['metadatas'][0],
+        results['distances'][0]
+    )):
+        print(f"\nResult {i+1} (similarity: {1-distance:.4f}):")
+        print(f"Question: {metadata['question']}")
+        print(f"Answer: {metadata['answer']}")
 
 if __name__ == "__main__":
     config = load_config()  # Load the config
@@ -178,7 +214,7 @@ if __name__ == "__main__":
         "batch_size": 50,
         "chroma_host": config['chroma']['host'],
         "chroma_port": config['chroma']['port'],
-        "collection_name": args.collection_name,  # Use the command-line argument
+        "collection_name": args.collection_name,
         "model": config['ollama']['embed_model']
     }
     

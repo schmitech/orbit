@@ -52,13 +52,11 @@ export interface AppConfig {
     host: string;
     port: number | string;
     collection: string;
+    confidence_threshold: number | string;
   };
   eleven_labs: {
     api_key: string;
     voice_id: string;
-  };
-  system: {
-    prompt: string;
   };
   general: {
     verbose: string;

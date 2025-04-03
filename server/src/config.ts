@@ -34,30 +34,9 @@ export async function loadConfig(): Promise<AppConfig> {
       config.eleven_labs.api_key = process.env.ELEVEN_LABS_API_KEY;
     }
 
-    // Validate required configuration
-    validateConfig(config);
-    
     return config;
   } catch (error) {
     console.error('Error reading config file:', error);
     process.exit(1);
-  }
-}
-
-/**
- * Validates that required configuration values exist
- */
-export function validateConfig(config: AppConfig): void {
-  // Check if system prompt exists in config
-  if (!config.system?.prompt) {
-    console.error('No system prompt found in config.yaml. Exiting...');
-    process.exit(1);
-  }
-
-  // Log system prompt info if verbose
-  if (config.general?.verbose === 'true') {
-    console.log('Using system prompt from config.yaml:');
-    console.log(config.system.prompt.substring(0, 100) + '...');
-    console.log('Full system prompt length:', config.system.prompt.length);
   }
 }

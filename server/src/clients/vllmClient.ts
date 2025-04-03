@@ -23,15 +23,11 @@ export class VLLMClient extends BaseLanguageModelClient {
         if (self.verbose) console.log('\n=== Final Context ===\n', context);
         
         return context === 'NO_RELEVANT_CONTEXT' 
-          ? { context: "NO_RELEVANT_CONTEXT", question: input.query, system: self.config.system.prompt }
-          : { context, question: input.query, system: self.config.system.prompt };
+          ? { context: "NO_RELEVANT_CONTEXT", question: input.query }
+          : { context, question: input.query };
       },
       PromptTemplate.fromTemplate(
-`<system>
-{system}
-</system>
-
-<context>
+`<context>
 {context}
 </context>
 
