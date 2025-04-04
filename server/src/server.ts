@@ -13,6 +13,12 @@ import { ChatService, Backend } from './services/chatService';
 import { HealthService } from './services/healthService';
 import https from 'https';
 import fs from 'fs/promises';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+// Get __dirname equivalent in ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 /**
  * Main application class
@@ -151,6 +157,12 @@ class Application {
    * Set up application routes
    */
   private setupRoutes(): void {
+    // ACME challenge route for Let's Encrypt
+    if (process.env.ENABLE_ACME_CHALLENGE === 'true') {
+      this.app.use('/.well-known/acme-challenge', express.static(path.join(__dirname, '../.well-known/acme-challenge')));
+      console.log('ACME challenge route enabled');
+    }
+
     // Chat endpoint
     this.app.post('/chat', async (req, res) => {
       const { message, voiceEnabled } = req.body;

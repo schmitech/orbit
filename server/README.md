@@ -204,7 +204,16 @@ sudo certbot certonly --manual --preferred-challenges http -d your-azure-domain.
    ```
    - Keep this route for future certificate renewals
 
-5. Update your `config.yaml`:
+5. Enable the ACME challenge route by setting the environment variable:
+```bash
+# When you need to generate or renew certificates
+ENABLE_ACME_CHALLENGE=true npm run server -- ollama
+
+# For normal operation (no need to set anything, it's disabled by default)
+npm run server -- ollama
+```
+
+6. Update your `config.yaml`:
 ```yaml
 general:
   https:
@@ -214,7 +223,7 @@ general:
     key_file: "/etc/letsencrypt/live/your-azure-domain.cloudapp.azure.com/privkey.pem"
 ```
 
-6. Set proper permissions for the certificate files:
+7. Set proper permissions for the certificate files:
 ```bash
 sudo chown -R $USER:$USER /etc/letsencrypt/live/your-azure-domain.cloudapp.azure.com
 sudo chown -R $USER:$USER /etc/letsencrypt/archive/your-azure-domain.cloudapp.azure.com
@@ -223,7 +232,7 @@ sudo chmod -R 755 /etc/letsencrypt/archive
 sudo chmod 644 /etc/letsencrypt/archive/your-azure-domain.cloudapp.azure.com/*.pem
 ```
 
-7. Configure Azure Network Security Group:
+8. Configure Azure Network Security Group:
 ```bash
 # Add inbound security rules
 - Priority: 100
@@ -243,7 +252,7 @@ sudo chmod 644 /etc/letsencrypt/archive/your-azure-domain.cloudapp.azure.com/*.p
   Description: Allow HTTP traffic for certificate verification
 ```
 
-8. Test your HTTPS setup:
+9. Test your HTTPS setup:
 ```bash
 # Test with curl (replace with your domain)
 curl https://your-azure-domain.cloudapp.azure.com:3443/health
@@ -286,9 +295,6 @@ For development with self-signed certificates or direct HTTPS access, port 80 is
 ```bash
 # Test with curl (replace YOUR_IP with your actual IP)
 curl -k https://your-azure-domain.cloudapp.azure.com:3443/health
-
-# Check TLS certificate info
-openssl s_client -connect your-azure-domain.cloudapp.azure.com:443 -showcerts
 ```
 
 Note: While this setup works, having a proper domain name is recommended for production use as it:

@@ -20,3 +20,4 @@ dist
 *.zip
 *.pem
 coverage/
+.well-known
