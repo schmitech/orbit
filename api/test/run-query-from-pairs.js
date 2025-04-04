@@ -2,7 +2,7 @@
 
 /**
  * This script picks multiple random questions from a JSON file and runs them against the chatbot API.
- * Usage: npm run test-query path/to/questions.json "http://your-api-url.com" [number_of_questions]
+ * Usage: npm run test-query-from-pairs path/to/questions.json "http://your-api-url.com" [number_of_questions]
  */
 
 import { configureApi, streamChat } from '../api.ts';
@@ -10,12 +10,12 @@ import fs from 'fs';
 
 // Get the JSON file path, API URL, and number of questions from command line arguments
 const jsonFilePath = process.argv[2];
-const numQuestions = parseInt(process.argv[3], 10) || 1; // Default to 1 if not specified
-const apiUrl = process.argv[4] || 'http://localhost:3000';
+const apiUrl = process.argv[3] || 'http://localhost:3000';
+const numQuestions = parseInt(process.argv[4], 10) || 1; // Default to 1 if not specified
 
 if (!jsonFilePath) {
   console.error('Error: No JSON file provided');
-  console.error('Usage: npm run test-query path/to/questions.json "http://your-api-url.com" [number_of_questions]');
+  console.error('Usage: npm run test-query-from-pairs path/to/questions.json "http://your-api-url.com" [number_of_questions]');
   process.exit(1);
 }
 

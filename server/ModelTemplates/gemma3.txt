@@ -1,6 +1,7 @@
 FROM gemma3:12b
 
 PARAMETER stop ["<end_of_turn>"]
+PARAMETER num_ctx 4096
 
 TEMPLATE """
 {{- range $i, $_ := .Messages }}
@@ -135,7 +136,7 @@ When in doubt about the user's need (and the query is SAFE), ask clarifying ques
 5. MISSING INFORMATION:
 
 If information requested is SAFE but not explicitly included in your knowledge context, state: 'Unfortunately, I don't have information about that.
-For the most current details, please check [Appropriate Official Source/Website if known, otherwise omit].'
+For the most current details, please check our website.'
 
 6. MULTILINGUAL SUPPORT (Reference):
 

@@ -255,7 +255,6 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
   }) => {
     const [displayedContent, setDisplayedContent] = useState('');
     const [isThinking, setIsThinking] = useState(true);
-    const [typingDots, setTypingDots] = useState('.');
     const contentRef = useRef(content);
     const charIndexRef = useRef(0);
     const [userIsTyping, setUserIsTyping] = useState(false);
@@ -345,21 +344,6 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
       };
     }, [content, onComplete]);
 
-    // Animate the typing indicator dots
-    useEffect(() => {
-      if (!isThinking) return;
-      
-      const dotsTimer = setInterval(() => {
-        setTypingDots(prev => {
-          if (prev === '.') return '..';
-          if (prev === '..') return '...';
-          return '.';
-        });
-      }, 400);
-      
-      return () => clearInterval(dotsTimer);
-    }, [isThinking]);
-
     return (
       <>
         {displayedContent && (
@@ -382,8 +366,12 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
         )}
         {isThinking && (
           <div className="text-gray-500">
-            <span className="font-medium">thinking</span>
-            <span className="font-mono">{typingDots}</span>
+            <span className="font-medium">Thinking</span>
+            <span className="animate-dots ml-1">
+              <span className="dot">.</span>
+              <span className="dot">.</span>
+              <span className="dot">.</span>
+            </span>
           </div>
         )}
       </>
@@ -548,7 +536,11 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
                           showTypingAnimation ? (
                             <div className="text-gray-500">
                               <span className="font-medium">Thinking</span>
-                              <span className="font-mono">...</span>
+                              <span className="animate-dots ml-1">
+                                <span className="dot">.</span>
+                                <span className="dot">.</span>
+                                <span className="dot">.</span>
+                              </span>
                             </div>
                           ) : !hasBeenAnimated(index) && isLatestAssistantMessage ? (
                             <TypingEffect 
@@ -622,8 +614,12 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
                   <div className="flex justify-start">
                     <div className="bg-white border border-gray-200 rounded-xl rounded-tl-none max-w-[85%] p-4 shadow-sm">
                       <div className="text-gray-500">
-                        <span className="font-medium">thinking</span>
-                        <span className="font-mono">...</span>
+                        <span className="font-medium">Thinking</span>
+                        <span className="animate-dots ml-1">
+                          <span className="dot">.</span>
+                          <span className="dot">.</span>
+                          <span className="dot">.</span>
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -762,6 +758,29 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
         .animate-bounce-gentle {
           animation: bounce-gentle 2s ease-in-out infinite;
           animation-delay: 1s;
+        }
+        @keyframes dotBlink {
+          0%, 50%, 100% { opacity: 0; }
+          25%, 75% { opacity: 1; }
+        }
+        .animate-dots {
+          display: inline-flex;
+          margin-left: 4px;
+        }
+        .animate-dots .dot {
+          font-size: 1.5em;
+          line-height: 0.5;
+          opacity: 0;
+          animation: dotBlink 1.4s infinite;
+        }
+        .animate-dots .dot:nth-child(1) {
+          animation-delay: 0s;
+        }
+        .animate-dots .dot:nth-child(2) {
+          animation-delay: 0.2s;
+        }
+        .animate-dots .dot:nth-child(3) {
+          animation-delay: 0.4s;
         }
       `}</style>
     </div>

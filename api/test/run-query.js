@@ -6,6 +6,7 @@
  */
 
 import { configureApi, streamChat } from '../api.ts';
+import readline from 'readline';
 
 // Get the query and API URL from command line arguments
 const query = process.argv[2];
@@ -46,6 +47,20 @@ async function runQuery() {
         buffer = ''; // Clear the buffer after the query is complete
       }
     }
+
+    // Create readline interface
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout
+    });
+
+    // Wait for user to press Enter before exiting
+    await new Promise(resolve => {
+      rl.question('\nPress Enter to exit...', () => {
+        rl.close();
+        resolve();
+      });
+    });
   } catch (error) {
     console.error('\n❌ Error during test:', error);
     process.exit(1);
