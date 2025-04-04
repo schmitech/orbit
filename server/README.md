@@ -192,7 +192,7 @@ sudo iptables -t nat -A PREROUTING -p tcp --dport 80 -j REDIRECT --to-port 3000
 
 3. Obtain TLS certificate using DNS challenge (since we can't use HTTP challenge with Azure domain):
 ```bash
-sudo certbot certonly --manual --preferred-challenges dns -d your-azure-domain.cloudapp.azure.com
+sudo certbot certonly --manual --preferred-challenges http -d your-azure-domain.cloudapp.azure.com
 ```
 
 4. When prompted by certbot, you'll need to:
@@ -246,7 +246,7 @@ sudo chmod 644 /etc/letsencrypt/archive/your-azure-domain.cloudapp.azure.com/*.p
 8. Test your HTTPS setup:
 ```bash
 # Test with curl (replace with your domain)
-curl -I https://your-azure-domain.cloudapp.azure.com:3443/health
+curl https://your-azure-domain.cloudapp.azure.com:3443/health
 ```
 
 Note: The certificates from Let's Encrypt expire after 90 days. You'll need to renew them using:
