@@ -1,0 +1,13 @@
+ollama==0.4.7
+chromadb>=0.6.3
+langchain-ollama>=0.2.3
+langchain-community>=0.0.10
+PyYAML>=6.0.1
+tqdm>=4.66.2
+fastapi==0.111.0
+uvicorn==0.28.0
+python-dotenv==1.0.1
+requests==2.31.0
+pydantic>=2.10.0
+colorama==0.4.6
+prompt-toolkit==3.0.43

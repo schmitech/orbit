@@ -14,7 +14,7 @@ print_usage() {
     echo "  -t, --test-file      Specify a custom test file (default: test_cases.json)"
     echo "  -q, --query          Run a single query test"
     echo "  -v, --verbose        Show detailed output"
-    echo "  -r, --run-all        Run all test cases"
+    echo "  -r, --run-all        Run all test cases (default behavior if no options provided)"
 }
 
 # Default values
@@ -64,7 +64,7 @@ fi
 if [ ! -z "$SINGLE_QUERY" ]; then
     echo -e "${YELLOW}Running single query test...${NC}"
     python3 test_prompt_guardrails.py --single-query "$SINGLE_QUERY"
-elif [ "$RUN_ALL" = true ]; then
+elif [ "$RUN_ALL" = true ] || [ $# -eq 0 ]; then
     echo -e "${YELLOW}Running all test cases from $TEST_FILE...${NC}"
     python3 test_prompt_guardrails.py --test-file "$TEST_FILE"
 else
