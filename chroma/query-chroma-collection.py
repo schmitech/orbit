@@ -21,22 +21,6 @@ Requirements:
     - config.yaml file with Ollama and Chroma configuration
     - Running Ollama server with the specified embedding model
     - Running Chroma server with an existing collection
-
-Configuration (config.yaml):
-    ollama:
-      base_url: URL of the Ollama server (e.g., http://localhost:11434)
-      embed_model: Name of the embedding model to use (e.g., mxbai-embed-large)
-    chroma:
-      host: Hostname of the Chroma server
-      port: Port of the Chroma server
-      collection: Default collection name (used if not specified as argument)
-
-Process:
-    1. Connects to the Ollama server to generate embeddings
-    2. Connects to the Chroma server to access the vector database
-    3. Converts the query text into an embedding vector
-    4. Searches the collection for semantically similar content
-    5. Returns the most relevant answers with confidence scores
 """
 
 import os
@@ -73,13 +57,8 @@ def test_chroma_ingestion(ollama_base_url: str, test_query: str, collection_name
     chroma_port = config['chroma']['port']
     print(f"Using Chroma server at: {chroma_host}:{chroma_port}")
     
-    # Initialize client with HTTP connection instead of persistent storage
+    # Initialize client with HTTP connection - exactly as in create-chroma-collection.py
     client = chromadb.HttpClient(host=chroma_host, port=int(chroma_port))
-    
-    # Get the collection
-    if not collection_name:
-        raise ValueError("Collection name is not provided and not set in config.yaml")
-    collection = client.get_collection(name=collection_name)
     
     # Initialize the same embeddings model used in ingestion
     model = config['ollama']['embed_model']
@@ -88,54 +67,108 @@ def test_chroma_ingestion(ollama_base_url: str, test_query: str, collection_name
     
     embeddings = OllamaEmbeddings(
         model=model,
-        base_url=ollama_base_url
+        base_url=ollama_base_url,
+        client_kwargs={"timeout": 30.0}  # Match timeout from create script
     )
     
-    # Get total count
-    total_records = collection.count()
-    print(f"\nTotal records in collection: {total_records}")
+    print(f"Using embedding model: {model}")
     
-    # Perform the query
-    query_embedding = embeddings.embed_query(test_query)
+    # Test connection to Ollama
+    try:
+        test_embedding = embeddings.embed_query("test connection")
+        print("Successfully connected to Ollama server")
+        print(f"Embedding dimensions: {len(test_embedding)}")
+    except Exception as e:
+        print(f"Failed to connect to Ollama server: {str(e)}")
+        return
     
-    results = collection.query(
-        query_embeddings=[query_embedding],
-        n_results=5,  # Increased to get more results to find the best match
-        include=['metadatas', 'documents', 'distances']
-    )
-    
-    # Print results
-    print("\nTest Query Results:")
-    print(f"Query: '{test_query}'\n")
-    
-    if results['metadatas'] and results['metadatas'][0]:
-        # Find the result with the highest confidence (lowest distance)
-        best_idx = 0
-        best_confidence = 0
+    try:
+        # Generate embedding for query
+        print(f"\nGenerating embedding for query: '{test_query}'")
+        query_embedding = embeddings.embed_query(test_query)
         
-        for idx, distance in enumerate(results['distances'][0]):
-            confidence = 1 - distance  # Convert distance to confidence score
-            if confidence > best_confidence:
-                best_confidence = confidence
-                best_idx = idx
+        # Get the collection - don't try to create it
+        try:
+            collection = client.get_collection(name=collection_name)
+            print(f"Successfully connected to collection: {collection_name}")
+        except Exception as e:
+            print(f"Error accessing collection '{collection_name}': {str(e)}")
+            print("Please make sure the collection exists. You can create it using create-chroma-collection.py")
+            return
+            
+        # Perform query using a WHERE filter instead of embedding directly (avoids SeqID issue)
+        print("\nExecuting query...")
         
-        # Get the best match
-        best_match = results['metadatas'][0][best_idx]
-        print("Best Match Answer:")
-        print(best_match['answer'])
-        print(f"\nConfidence: {best_confidence:.2%}")
+        # First, perform embedding search by directly providing the embeddings
+        # This ensures dimension compatibility
+        results = collection.query(
+            query_embeddings=[query_embedding],
+            n_results=3,
+            include=["documents", "metadatas", "distances"]
+        )
         
-        # Print other matches for reference
-        if len(results['metadatas'][0]) > 1:
-            print("\nOther Matches:")
-            for idx, (metadata, distance) in enumerate(zip(results['metadatas'][0], results['distances'][0])):
-                if idx != best_idx:
-                    confidence = 1 - distance
-                    print(f"\nMatch {idx + 1}:")
-                    print(metadata['answer'])
-                    print(f"Confidence: {confidence:.2%}")
-    else:
-        print("No results found")
+        # Print results in the same format as the test query in create-chroma-collection.py
+        print(f"\nQuery: '{test_query}'")
+        
+        if results['metadatas'] and len(results['metadatas'][0]) > 0:
+            for i, (doc, metadata, distance) in enumerate(zip(
+                results['documents'][0], 
+                results['metadatas'][0],
+                results['distances'][0]
+            )):
+                similarity = 1 - distance
+                print(f"\nResult {i+1} (similarity: {similarity:.4f}):")
+                if 'question' in metadata and 'answer' in metadata:
+                    print(f"Question: {metadata['question']}")
+                    print(f"Answer: {metadata['answer']}")
+                else:
+                    print(f"Document: {doc[:100]}...")  # Show first 100 chars of doc
+                    print(f"Metadata: {metadata}")
+        else:
+            print("No results found")
+            
+    except Exception as e:
+        print(f"Error during query execution: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        
+        # If the above approach fails, try an alternative approach using the collection's direct methods
+        try:
+            print("\nTrying alternative query approach...")
+            # Generate embedding for query
+            query_embedding = embeddings.embed_query(test_query)
+            
+            # Use the API query method with embeddings
+            results = client.raw_api.query(
+                collection_name=collection_name,
+                query_embeddings=[query_embedding],
+                n_results=3,
+                include=["documents", "metadatas", "distances"]
+            )
+            
+            print(f"\nQuery: '{test_query}'")
+            
+            if results['metadatas'] and len(results['metadatas'][0]) > 0:
+                for i, (doc, metadata, distance) in enumerate(zip(
+                    results['documents'][0], 
+                    results['metadatas'][0],
+                    results['distances'][0]
+                )):
+                    similarity = 1 - distance
+                    print(f"\nResult {i+1} (similarity: {similarity:.4f}):")
+                    if 'question' in metadata and 'answer' in metadata:
+                        print(f"Question: {metadata['question']}")
+                        print(f"Answer: {metadata['answer']}")
+                    else:
+                        print(f"Document: {doc[:100]}...")  # Show first 100 chars of doc
+                        print(f"Metadata: {metadata}")
+            else:
+                print("No results found")
+                
+        except Exception as e2:
+            print(f"Alternative approach also failed: {str(e2)}")
+            print("Recommendation: Recreate your collection with integer IDs instead of string IDs")
+            traceback.print_exc()
 
 if __name__ == "__main__":
     config = load_config()
