@@ -4,6 +4,9 @@
 export PYTORCH_ENABLE_MPS_FALLBACK=1
 export PYTORCH_MPS_HIGH_WATERMARK_RATIO=0.0  # Allow PyTorch to allocate as much memory as needed
 
+# Set Python path to include the current directory
+export PYTHONPATH=$PYTHONPATH:$(pwd)
+
 # Default values
 HOST="0.0.0.0"
 PORT="3000"
@@ -51,6 +54,7 @@ echo "Host: $HOST"
 echo "Port: $PORT"
 echo "Workers: $WORKERS"
 echo "Reload: $RELOAD"
+echo "PYTHONPATH: $PYTHONPATH"
 
 # Start uvicorn with the parsed arguments
 if [ "$RELOAD" = "true" ]; then
