@@ -29,16 +29,12 @@ async function runQuery() {
     let buffer = '';
     process.stdout.write('🤖 Assistant: ');
 
-    // Use our SDK's streamChat function instead of raw fetch
-    for await (const response of streamChat(query, false)) {
+    // Use streamChat with streaming enabled
+    for await (const response of streamChat(query, false, true)) {
       if (response.text) {
-        // Append new text to the buffer
-        buffer += response.text;
-
-        // Write the buffer from the last known position
+        // Write the text directly
         process.stdout.write(response.text);
-      } else if (response.content) {
-        console.log('\n' + response.content);
+        buffer += response.text;
       }
       
       if (response.done) {

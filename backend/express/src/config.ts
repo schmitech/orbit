@@ -16,7 +16,7 @@ export async function loadConfig(): Promise<AppConfig> {
   dotenv.config();
 
   try {
-    const configPath = path.resolve(__dirname, '../config.yaml');
+    const configPath = path.resolve(__dirname, '../../config/config.yaml');
     console.log('Loading config from:', configPath);
     
     const configFile = await fs.readFile(configPath, 'utf-8');

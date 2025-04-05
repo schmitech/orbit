@@ -3,3 +3,4 @@ chroma_db
 *.log
 config.yaml
 __pycache__
+.env

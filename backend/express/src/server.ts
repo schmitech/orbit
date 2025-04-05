@@ -20,6 +20,28 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Request/Response interfaces to match Python models
+interface ChatMessage {
+  message: string;
+  voiceEnabled: boolean;
+  stream: boolean;
+}
+
+interface HealthStatus {
+  status: string;
+  components: {
+    [key: string]: {
+      status: string;
+      error?: string;
+    };
+  };
+}
+
+interface ChatResponse {
+  response: string;
+  audio: string | null;
+}
+
 /**
  * Main application class
  */
@@ -165,14 +187,59 @@ class Application {
 
     // Chat endpoint
     this.app.post('/chat', async (req, res) => {
-      const { message, voiceEnabled } = req.body;
-      
-      // Get client IP address
-      const ip = req.headers['x-forwarded-for'] || 
-                req.socket.remoteAddress || 
-                'unknown';
-                
-      await this.chatService.processChat(message, voiceEnabled, ip, res);
+      try {
+        const { message, voiceEnabled, stream = true } = req.body as ChatMessage;
+        
+        // Get client IP address
+        const ip = (req.headers['x-forwarded-for'] as string) || 
+                  req.socket.remoteAddress || 
+                  'unknown';
+
+        // Check if client wants streaming response
+        const wantsStream = (req.headers.accept === 'text/event-stream') || stream;
+
+        if (wantsStream) {
+          // Set headers for SSE
+          res.setHeader('Content-Type', 'text/event-stream');
+          res.setHeader('Cache-Control', 'no-cache');
+          res.setHeader('Connection', 'keep-alive');
+
+          // Process chat with streaming
+          const processStream = await this.chatService.processChat(message, voiceEnabled, ip, true);
+          
+          // Stream the response
+          if (Symbol.asyncIterator in processStream) {
+            for await (const chunk of processStream as AsyncGenerator<string>) {
+              const data = JSON.stringify({
+                text: chunk,
+                done: false
+              });
+              res.write(`data: ${data}\n\n`);
+            }
+          } else {
+            // Handle non-streaming response
+            const data = JSON.stringify({
+              text: (processStream as ChatResponse).response,
+              done: true
+            });
+            res.write(`data: ${data}\n\n`);
+          }
+
+          // Send final done message
+          res.write(`data: ${JSON.stringify({ text: '', done: true })}\n\n`);
+          res.end();
+        } else {
+          // Process chat normally
+          const response = await this.chatService.processChat(message, voiceEnabled, ip, false);
+          res.json(response);
+        }
+      } catch (error: any) {
+        console.error('Chat endpoint error:', error);
+        res.status(500).json({
+          status: 'error',
+          error: error.message
+        });
+      }
     });
 
     // Health check endpoint

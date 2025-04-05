@@ -6,7 +6,7 @@ export PYTORCH_MPS_HIGH_WATERMARK_RATIO=0.0  # Allow PyTorch to allocate as much
 
 # Default values
 HOST="0.0.0.0"
-PORT="5001"
+PORT="3000"
 WORKERS="1"
 RELOAD="false"
 

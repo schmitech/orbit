@@ -9,5 +9,3 @@ uvicorn==0.28.0
 python-dotenv==1.0.1
 requests==2.31.0
 pydantic>=2.10.0
-colorama==0.4.6
-prompt-toolkit==3.0.43

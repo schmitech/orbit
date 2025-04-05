@@ -57,28 +57,28 @@ try {
       let fullResponse = '';
       console.log('🤖 Assistant:');
       
-      // Use our SDK's streamChat function instead of raw fetch
-      for await (const response of streamChat(query, false)) {
+      // Use streamChat with streaming enabled
+      for await (const response of streamChat(query, false, true)) {
         if (response.text) {
           // Append new text to the full response
           fullResponse += response.text;
           
           // Write just the new text portion
           process.stdout.write(response.text);
-        } else if (response.content) {
-          console.log('\n' + response.content);
+        }
+        
+        if (response.done) {
+          // Display completion message after the entire response
+          console.log('\n\n✅ Query completed successfully');
+          
+          // If the JSON includes an expected answer, show it
+          if (qa.answer) {
+            console.log('\n📝 Expected answer from JSON:');
+            console.log(qa.answer);
+          }
+          console.log(`-------------------------------------\n`);
         }
       }
-      
-      // Display completion message after the entire response
-      console.log('\n\n✅ Query completed successfully');
-      
-      // If the JSON includes an expected answer, show it
-      if (qa.answer) {
-        console.log('\n📝 Expected answer from JSON:');
-        console.log(qa.answer);
-      }
-      console.log(`-------------------------------------\n`);
       
       return true;
     } catch (error) {

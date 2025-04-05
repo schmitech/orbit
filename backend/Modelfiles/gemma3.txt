@@ -1,4 +1,4 @@
-FROM gemma3:12b
+FROM gemma3:1b
 
 PARAMETER stop ["<end_of_turn>"]
 PARAMETER num_ctx 4096
