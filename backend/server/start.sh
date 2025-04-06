@@ -49,16 +49,61 @@ while [ $# -gt 0 ]; do
     shift
 done
 
+# Load configuration from config.yaml
+CONFIG_FILE="../config/config.yaml"
+if [ -f "$CONFIG_FILE" ]; then
+    # Use Python to parse the YAML file
+    HTTPS_ENABLED=$(python -c "
+import yaml
+with open('$CONFIG_FILE') as f:
+    config = yaml.safe_load(f)
+    print(config.get('general', {}).get('https', {}).get('enabled', False))
+")
+    
+    if [ "$HTTPS_ENABLED" = "True" ]; then
+        # Get HTTPS configuration
+        HTTPS_PORT=$(python -c "
+import yaml
+with open('$CONFIG_FILE') as f:
+    config = yaml.safe_load(f)
+    print(config.get('general', {}).get('https', {}).get('port', 3443))
+")
+        SSL_CERTFILE=$(python -c "
+import yaml
+with open('$CONFIG_FILE') as f:
+    config = yaml.safe_load(f)
+    print(config.get('general', {}).get('https', {}).get('cert_file', ''))
+")
+        SSL_KEYFILE=$(python -c "
+import yaml
+with open('$CONFIG_FILE') as f:
+    config = yaml.safe_load(f)
+    print(config.get('general', {}).get('https', {}).get('key_file', ''))
+")
+        
+        # Use HTTPS configuration
+        PORT=$HTTPS_PORT
+        SSL_ARGS="--ssl-keyfile $SSL_KEYFILE --ssl-certfile $SSL_CERTFILE"
+    else
+        SSL_ARGS=""
+    fi
+else
+    SSL_ARGS=""
+fi
+
 echo "Starting server..."
 echo "Host: $HOST"
 echo "Port: $PORT"
 echo "Workers: $WORKERS"
 echo "Reload: $RELOAD"
 echo "PYTHONPATH: $PYTHONPATH"
+if [ -n "$SSL_ARGS" ]; then
+    echo "HTTPS enabled with certificates"
+fi
 
 # Start uvicorn with the parsed arguments
 if [ "$RELOAD" = "true" ]; then
-    uvicorn server:app --host "$HOST" --port "$PORT" --workers "$WORKERS" --reload
+    uvicorn server:app --host "$HOST" --port "$PORT" --workers "$WORKERS" --reload $SSL_ARGS
 else
-    uvicorn server:app --host "$HOST" --port "$PORT" --workers "$WORKERS"
+    uvicorn server:app --host "$HOST" --port "$PORT" --workers "$WORKERS" $SSL_ARGS
 fi
