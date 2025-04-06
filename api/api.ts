@@ -175,7 +175,9 @@ export async function* streamChat(
       for (const line of lines) {
         if (line.trim() && line.startsWith('data: ')) {
           try {
-            const data = JSON.parse(line.slice(6)); // Remove 'data: ' prefix
+            // Properly extract the JSON part by trimming whitespace after 'data:'
+            const jsonText = line.slice(6).trim();
+            const data = JSON.parse(jsonText);
             
             if (data.text) {
               // Check if this is a duplicate or overlapping chunk
@@ -203,7 +205,7 @@ export async function* streamChat(
               };
             }
           } catch (error) {
-            console.warn('Error parsing JSON chunk:', line);
+            console.warn('Error parsing JSON chunk:', line, 'Error:', error);
           }
         }
       }
@@ -211,7 +213,9 @@ export async function* streamChat(
 
     if (buffer && buffer.startsWith('data: ')) {
       try {
-        const data = JSON.parse(buffer.slice(6));
+        // Properly extract the JSON part by trimming whitespace after 'data:'
+        const jsonText = buffer.slice(6).trim();
+        const data = JSON.parse(jsonText);
         
         if (data.text) {
           // Check for duplicates in final chunk
@@ -229,7 +233,7 @@ export async function* streamChat(
           };
         }
       } catch (error) {
-        console.warn('Error parsing final JSON buffer:', buffer);
+        console.warn('Error parsing final JSON buffer:', buffer, 'Error:', error);
       }
     }
   } catch (error: any) {

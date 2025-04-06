@@ -70,6 +70,16 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
   const [isAnimating, setIsAnimating] = useState(false);
   const [copiedMessageId, setCopiedMessageId] = useState<number | null>(null);
 
+  // Responsive window width state
+  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+
+  // Update window width on resize for responsiveness
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   // Load configuration
   const baseConfig = getChatConfig();
   const [currentConfig, setCurrentConfig] = useState({
@@ -106,6 +116,13 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
     sendMessage,
     clearMessages
   } = useChatStore();
+  
+  // Clear animated messages tracker when conversation resets
+  useEffect(() => {
+    if (messages.length === 0) {
+      animatedMessagesRef.current.clear();
+    }
+  }, [messages.length]);
 
   const toggleChat = () => {
     setIsOpen(!isOpen);
@@ -154,7 +171,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
       .replace(/\n/g, '\n');
   };
 
-  // Format timestamp
+  // Format timestamp (note: uses a relative offset since messages lack explicit timestamps)
   const formatTime = (date: Date): string => {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
@@ -247,20 +264,19 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
     };
   }, []);
 
-  // Typing effect component
-  const TypingEffect = ({ content, onComplete, messageIndex }: { 
+  // Typing effect component with inputRef support
+  const TypingEffect = ({ content, onComplete, messageIndex, inputRef }: { 
     content: string, 
     onComplete: () => void, 
-    messageIndex: number 
+    messageIndex: number,
+    inputRef: React.RefObject<HTMLTextAreaElement>
   }) => {
     const [displayedContent, setDisplayedContent] = useState('');
     const [isThinking, setIsThinking] = useState(true);
-    const contentRef = useRef(content);
     const charIndexRef = useRef(0);
-    const [userIsTyping, setUserIsTyping] = useState(false);
     const isAnimatingRef = useRef(false);
     const animationFrameRef = useRef<number>();
-
+  
     useEffect(() => {
       if (hasBeenAnimated(messageIndex)) {
         setDisplayedContent(content);
@@ -268,29 +284,29 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
         onComplete();
         return;
       }
-
+  
       if (!isAnimatingRef.current) {
         isAnimatingRef.current = true;
         isTypingRef.current = true;
         setIsAnimating(true);
         let currentIndex = 0;
         let lastScrollTime = 0;
-        
+  
         const animateText = (timestamp: number) => {
           if (currentIndex < content.length) {
             const newContent = content.slice(0, currentIndex + 1);
             setDisplayedContent(newContent);
-            
+  
             if (currentIndex === 0) {
               setIsThinking(false);
             }
-            
+  
             // Scroll every 100ms during animation
             if (timestamp - lastScrollTime > 100) {
               scrollToBottom();
               lastScrollTime = timestamp;
             }
-            
+  
             currentIndex++;
             animationFrameRef.current = requestAnimationFrame(animateText);
           } else {
@@ -301,10 +317,10 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
             scrollToBottom();
           }
         };
-
+  
         animationFrameRef.current = requestAnimationFrame(animateText);
       }
-
+  
       return () => {
         if (animationFrameRef.current) {
           cancelAnimationFrame(animationFrameRef.current);
@@ -314,10 +330,10 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
         setIsAnimating(false);
       };
     }, [content, messageIndex, onComplete]);
-
-    // Listen for user typing
+  
+    // Listen for user typing in the widget's own textarea
     useEffect(() => {
-      const handleMessageChange = () => {
+      const handleUserInput = () => {
         if (isAnimatingRef.current) {
           if (animationFrameRef.current) {
             cancelAnimationFrame(animationFrameRef.current);
@@ -331,19 +347,19 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
           scrollToBottom();
         }
       };
-
-      const textarea = document.querySelector('textarea');
+  
+      const textarea = inputRef.current || document.querySelector('textarea');
       if (textarea) {
-        textarea.addEventListener('input', handleMessageChange);
+        textarea.addEventListener('input', handleUserInput);
       }
-
+  
       return () => {
         if (textarea) {
-          textarea.removeEventListener('input', handleMessageChange);
+          textarea.removeEventListener('input', handleUserInput);
         }
       };
-    }, [content, onComplete]);
-
+    }, [content, onComplete, inputRef]);
+  
     return (
       <>
         {displayedContent && (
@@ -352,6 +368,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
             wordBreak: 'break-word', 
             width: '100%',
             maxWidth: '100%',
+            fontSize: '16px',
           }}>
             <ReactMarkdown
               components={{
@@ -379,7 +396,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
   };
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end">
+    <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end font-sans" style={{ fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif' }}>
       {/* Chat Window */}
       {isOpen && (
         <div
@@ -388,10 +405,10 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
             background: theme.background,
             height: '650px',
             maxHeight: 'calc(100vh - 100px)',
-            width: window.innerWidth < 640 ? '100%' :
-              window.innerWidth < 768 ? '500px' :
-                window.innerWidth < 1024 ? '650px' : '700px',
-            minWidth: window.innerWidth < 640 ? '100%' : '500px',
+            width: windowWidth < 640 ? '100%' :
+              windowWidth < 768 ? '500px' :
+                windowWidth < 1024 ? '650px' : '700px',
+            minWidth: windowWidth < 640 ? '100%' : '500px',
           }}
         >
           {/* Header */}
@@ -405,7 +422,11 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
             </div>
             <div className="flex items-center space-x-3">
               <button
-                onClick={() => clearMessages()}
+                onClick={() => {
+                  clearMessages();
+                  // Clearing animated messages tracker on clear
+                  animatedMessagesRef.current.clear();
+                }}
                 className="transition-colors p-2 rounded-full hover:bg-opacity-20 hover:bg-black"
                 style={{ color: theme.text.inverse }}
                 aria-label="Clear conversation"
@@ -480,7 +501,15 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
                   {currentConfig.suggestedQuestions.map((question, index) => (
                     <button
                       key={index}
-                      onClick={() => sendMessage(question.query)}
+                      onClick={() => {
+                        sendMessage(question.query);
+                        // Focus the input field after sending a predefined question
+                        setTimeout(() => {
+                          if (inputRef.current) {
+                            inputRef.current.focus();
+                          }
+                        }, 100);
+                      }}
                       className="w-full text-left text-base p-3 rounded-lg transition-colors mb-3 flex items-center"
                       style={{
                         backgroundColor: theme.suggestedQuestions.background,
@@ -547,6 +576,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
                               content={msg.content} 
                               onComplete={() => markMessageAnimated(index)}
                               messageIndex={index}
+                              inputRef={inputRef}
                             />
                           ) : (
                             <div className="prose prose-base max-w-full whitespace-pre-wrap" style={{ 
@@ -554,6 +584,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
                               wordBreak: 'break-word', 
                               width: '100%',
                               maxWidth: '100%',
+                              fontSize: '16px',
                             }}>
                               <ReactMarkdown
                                 components={{
@@ -742,6 +773,12 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
       </div>
 
       <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        body, button, input, textarea {
+          font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+        
         @keyframes fadeInOut {
           0% { opacity: 0; transform: translateY(4px); }
           20% { opacity: 1; transform: translateY(0); }
@@ -781,6 +818,29 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
         }
         .animate-dots .dot:nth-child(3) {
           animation-delay: 0.4s;
+        }
+        
+        .prose {
+          font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+          font-size: 16px;
+          line-height: 1.6;
+        }
+        
+        .prose p {
+          margin-bottom: 1rem;
+          font-size: 16px;
+        }
+        
+        .prose code {
+          font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+          font-size: 14px;
+          padding: 0.2em 0.4em;
+          background: rgba(0, 0, 0, 0.05);
+          border-radius: 3px;
+        }
+        
+        textarea, button {
+          font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
         }
       `}</style>
     </div>
