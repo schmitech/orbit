@@ -40,8 +40,8 @@ After=network.target
 [Service]
 Type=simple
 User=ubuntu
-WorkingDirectory=/home/ubuntu
-ExecStart=/bin/bash -c 'source myenv/bin/activate && chroma run --host 0.0.0.0 --port 8000 --path ./chroma_db'
+WorkingDirectory=/home/ubuntu/open-inference-platform/backend/chroma
+ExecStart=/bin/bash -c 'source venv/bin/activate && chroma run --host 0.0.0.0 --port 8000 --path ./chroma_db'
 Restart=always
 RestartSec=3
 
@@ -52,7 +52,7 @@ WantedBy=multi-user.target
 Make sure to replace:
 - `User=ubuntu` with your system username if different
 - `WorkingDirectory=/home/ubuntu` with the path where your virtual environment is located
-- Adjust the path in `myenv/bin/activate` if your virtual environment has a different name
+- Adjust the path in `venv/bin/activate` if your virtual environment has a different name
 
 ## 2. Enable and Start the Service
 
@@ -101,11 +101,11 @@ sudo systemctl disable chroma
 # Remove the service file
 sudo rm /etc/systemd/system/chroma.service
 
-# Reload systemd to recognize the changes
-sudo systemctl daemon-reload
-
 # Reset any failed status
 sudo systemctl reset-failed
+
+# Verify:
+systemctl status chroma | cat
 ```
 
 After these commands, the service will be completely removed from systemd and won't start on system boot anymore.
