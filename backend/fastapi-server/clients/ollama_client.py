@@ -18,13 +18,13 @@ logger = logging.getLogger(__name__)
 class OllamaClient:
     """Handles communication with Ollama API"""
 
-    def __init__(self, config: Dict[str, Any], retriever):
+    def __init__(self, config: Dict[str, Any], retriever, guardrail_service=None):
         self.config = config
         self.base_url = config['ollama']['base_url']
         self.model = config['ollama']['model']
         self.retriever = retriever
+        self.guardrail_service = guardrail_service
         self.system_prompt = self._load_system_prompt()
-        self.safety_prompt = self._load_safety_prompt()
         self.verbose = _is_true_value(config.get('general', {}).get('verbose', False))
         # Initialize session as None (lazy initialization)
         self.session = None
@@ -39,19 +39,10 @@ class OllamaClient:
             logger.warning(f"Could not load system prompt: {str(e)}")
             return "You are a helpful assistant that answers questions based on the provided context."
 
-    def _load_safety_prompt(self):
-        """Load safety prompt from file if available"""
-        try:
-            prompt_file = self.config.get('general', {}).get('safety_prompt_file', '../prompts/safety_prompt.txt')
-            with open(prompt_file, 'r') as file:
-                return file.read().strip()
-        except Exception as e:
-            logger.error(f"Could not load safety prompt from file {prompt_file}: {str(e)}")
-            raise RuntimeError(f"Safety prompt file '{prompt_file}' is required but could not be loaded: {str(e)}")
-
     async def initialize(self):
         """Initialize the aiohttp session with a timeout and TCP connector to reduce latency"""
         if self.session is None:
+            # Use a higher timeout for API calls
             timeout = aiohttp.ClientTimeout(total=self.config['ollama'].get('timeout', 10))
             connector = aiohttp.TCPConnector(limit=self.config['ollama'].get('connector_limit', 20))
             self.session = aiohttp.ClientSession(timeout=timeout, connector=connector)
@@ -74,48 +65,15 @@ class OllamaClient:
 
     async def check_safety(self, query: str) -> Tuple[bool, Optional[str]]:
         """
-        Perform a safety pre-clearance check on the user query.
+        Perform a safety pre-clearance check on the user query using the GuardrailService.
         Returns a tuple of (is_safe, refusal_message)
         """
-        try:
-            await self.initialize()  # Ensure session is initialized
-
-            # Use the loaded safety prompt + the query
-            prompt = self.safety_prompt + " Query: " + query
-
-            # Create payload for Ollama API
-            payload = {
-                "model": self.model,
-                "prompt": prompt,
-                "temperature": 0.0,  # Use 0 for deterministic response
-                "top_p": 1.0,
-                "top_k": 1,
-                "repeat_penalty": self.config['ollama'].get('repeat_penalty', 1.1),
-                "num_predict": 20,  # Limit response length
-                "stream": False
-            }
-
-            start_time = asyncio.get_event_loop().time()
-            async with self.session.post(f"{self.base_url}/api/generate", json=payload) as response:
-                if response.status != 200:
-                    logger.error(f"Safety check failed with status {response.status}")
-                    return False, "I cannot assist with that type of request."
-
-                data = await response.json()
-                model_response = data.get("response", "").strip()
-
-                if self.verbose:
-                    end_time = asyncio.get_event_loop().time()
-                    logger.info(f"Safety check completed in {end_time - start_time:.3f}s")
-                    logger.info(f"Safety check response: {model_response}")
-
-                is_safe = model_response == "SAFE: true"
-                refusal_message = None if is_safe else "I cannot assist with that type of request."
-                return is_safe, refusal_message
-
-        except Exception as e:
-            logger.error(f"Error in safety check: {str(e)}")
-            return False, "I cannot assist with that type of request."
+        # Use the guardrail service if available, otherwise return safe
+        if self.guardrail_service:
+            return await self.guardrail_service.check_safety(query)
+        else:
+            logger.warning("No GuardrailService provided - skipping safety check")
+            return True, None
 
     async def _format_prompt(self, message: str, context):
         """Format the prompt with context using efficient string concatenation"""

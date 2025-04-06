@@ -60,6 +60,10 @@ def _log_config_summary(config: Dict[str, Any], source_path: str):
     # Server settings
     logger.info(f"  Server: port={config['general'].get('port')}, verbose={config['general'].get('verbose')}")
     
+    # Safety settings
+    safety_mode = config.get('safety', {}).get('mode', 'strict')
+    logger.info(f"  Safety: mode={safety_mode}, max_retries={config.get('safety', {}).get('max_retries', 3)}")
+    
     # Chroma settings
     logger.info(f"  Chroma: host={config['chroma'].get('host')}, port={config['chroma'].get('port')}, collection={config['chroma'].get('collection')}")
     
@@ -208,6 +212,20 @@ def get_default_config() -> Dict[str, Any]:
                 "cert_file": "./cert.pem",
                 "key_file": "./key.pem"
             }
+        },
+        "safety": {
+            "mode": "fuzzy",
+            "model": "gemma3:12b",
+            "max_retries": 3,
+            "retry_delay": 1.0,
+            "request_timeout": 15,
+            "allow_on_timeout": False,
+            "temperature": 0.0,
+            "top_p": 1.0,
+            "top_k": 1,
+            "num_predict": 20,
+            "stream": False,
+            "repeat_penalty": 1.1
         },
         "chroma": {
             "host": "localhost",

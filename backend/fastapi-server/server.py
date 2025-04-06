@@ -13,10 +13,12 @@ Features:
     - Health check endpoint
     - ChromaDB integration for document retrieval
     - Ollama integration for embeddings and LLM responses
-    - Safety check for user queries
+    - Safety check for user queries using GuardrailService
+    - HTTPS support using provided certificates
 """
 
 import os
+import ssl
 import logging
 from typing import Dict, Any
 from fastapi import FastAPI, Request, Depends, HTTPException
@@ -28,6 +30,7 @@ import chromadb
 from langchain_ollama import OllamaEmbeddings
 from dotenv import load_dotenv
 import asyncio
+import uvicorn
 
 # Load environment variables
 load_dotenv()
@@ -36,7 +39,7 @@ load_dotenv()
 from config.config_manager import load_config, _is_true_value
 from models import ChatMessage, HealthStatus
 from clients import ChromaRetriever, OllamaClient
-from services import ChatService, HealthService, LoggerService
+from services import ChatService, HealthService, LoggerService, GuardrailService
 
 # Configure logging
 logging.basicConfig(
@@ -44,6 +47,9 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
 )
 logger = logging.getLogger(__name__)
+
+# Set specific logger levels for more detailed debugging
+logging.getLogger('clients.ollama_client').setLevel(logging.DEBUG)
 
 # Thread pool for blocking I/O operations
 thread_pool = ThreadPoolExecutor(max_workers=10)
@@ -98,17 +104,29 @@ async def lifespan(app: FastAPI):
 
     # Initialize retriever
     app.state.retriever = ChromaRetriever(collection, app.state.embeddings, app.state.config)
-
-    # Initialize LLM client and Logger service concurrently
+    
+    # Initialize GuardrailService
+    app.state.guardrail_service = GuardrailService(app.state.config)
+    
+    # Initialize services concurrently
     try:
-        app.state.llm_client = OllamaClient(app.state.config, app.state.retriever)
+        # Create LLM client with guardrail service
+        app.state.llm_client = OllamaClient(
+            app.state.config, 
+            app.state.retriever,
+            guardrail_service=app.state.guardrail_service  # Pass guardrail service to the client
+        )
+        
         app.state.logger_service = LoggerService(app.state.config)
+        
+        # Initialize all services concurrently
         await asyncio.gather(
             app.state.llm_client.initialize(),
-            app.state.logger_service.initialize_elasticsearch()
+            app.state.logger_service.initialize_elasticsearch(),
+            app.state.guardrail_service.initialize()
         )
     except RuntimeError as e:
-        logger.error(f"Failed to initialize OllamaClient or LoggerService: {str(e)}")
+        logger.error(f"Failed to initialize services: {str(e)}")
         raise
 
     # Verify LLM connection
@@ -116,7 +134,7 @@ async def lifespan(app: FastAPI):
         logger.error("Failed to connect to Ollama. Exiting...")
         raise Exception("Failed to connect to Ollama")
 
-    # Initialize services
+    # Initialize remaining services
     app.state.health_service = HealthService(app.state.config, app.state.chroma_client, app.state.llm_client)
     app.state.chat_service = ChatService(app.state.config, app.state.llm_client, app.state.logger_service)
 
@@ -128,6 +146,25 @@ async def lifespan(app: FastAPI):
     logger.info(f"Confidence threshold: {app.state.config['chroma'].get('confidence_threshold', 0.85)}")
     logger.info(f"Relevance threshold: {app.state.retriever.relevance_threshold}")
     logger.info(f"Verbose mode: {_is_true_value(app.state.config['general'].get('verbose', False))}")
+    
+    # Safety check configuration
+    safety_mode = app.state.config.get('safety', {}).get('mode', 'strict')
+    logger.info(f"Safety check mode: {safety_mode}")
+    if safety_mode == 'fuzzy':
+        logger.info("Using fuzzy matching for safety checks")
+    elif safety_mode == 'disabled':
+        logger.warning("⚠️ Safety checks are disabled - all queries will be processed")
+    
+    # Log safety configuration
+    safety_config = app.state.config.get('safety', {})
+    max_retries = safety_config.get('max_retries', 3)
+    retry_delay = safety_config.get('retry_delay', 1.0)
+    request_timeout = safety_config.get('request_timeout', 15)
+    allow_on_timeout = safety_config.get('allow_on_timeout', False)
+    
+    logger.info(f"Safety check config: retries={max_retries}, delay={retry_delay}s, timeout={request_timeout}s")
+    if allow_on_timeout:
+        logger.warning("⚠️ Queries will be allowed through if safety check times out")
 
     # Log authenticated services without exposing sensitive info
     auth_services = []
@@ -145,6 +182,7 @@ async def lifespan(app: FastAPI):
     logger.info("Shutting down FastAPI application")
     await app.state.llm_client.close()
     await app.state.logger_service.close()
+    await app.state.guardrail_service.close()  # Close the guardrail service
     thread_pool.shutdown(wait=False)
     logger.info("Shutdown complete")
 
@@ -176,6 +214,10 @@ async def get_chat_service():
 
 async def get_health_service():
     return app.state.health_service
+
+
+async def get_guardrail_service():
+    return app.state.guardrail_service
 
 
 # ----- API Routes -----
@@ -216,11 +258,25 @@ async def health_check(health_service=Depends(get_health_service)):
     health = await health_service.get_health_status()
     return health
 
+def create_ssl_context(config):
+    """Create an SSL context from the certificate and key files specified in the config."""
+    if not _is_true_value(config.get('general', {}).get('https', {}).get('enabled', False)):
+        return None
+    
+    try:
+        ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+        ssl_context.load_cert_chain(
+            certfile=config['general']['https']['cert_file'],
+            keyfile=config['general']['https']['key_file']
+        )
+        return ssl_context
+    except Exception as e:
+        logger.error(f"Failed to create SSL context: {str(e)}")
+        raise
+
 
 # Run the application if script is executed directly
 if __name__ == "__main__":
-    import uvicorn
-
     # Load configuration
     config = load_config()
 
@@ -230,19 +286,27 @@ if __name__ == "__main__":
 
     # Use HTTPS if enabled in config
     https_enabled = _is_true_value(config.get('general', {}).get('https', {}).get('enabled', False))
+    
     if https_enabled:
-        ssl_keyfile = config['general']['https']['key_file']
-        ssl_certfile = config['general']['https']['cert_file']
-        https_port = int(config['general']['https'].get('port', 3443))
-
-        logger.info(f"Starting HTTPS server on {host}:{https_port}")
-        uvicorn.run(
-            "server:app",
-            host=host,
-            port=https_port,
-            ssl_keyfile=ssl_keyfile,
-            ssl_certfile=ssl_certfile
-        )
+        try:
+            ssl_keyfile = config['general']['https']['key_file']
+            ssl_certfile = config['general']['https']['cert_file']
+            https_port = int(config['general']['https'].get('port', 3443))
+            
+            logger.info(f"Starting HTTPS server on {host}:{https_port}")
+            ssl_context = create_ssl_context(config)
+            
+            uvicorn.run(
+                app,
+                host=host,
+                port=https_port,
+                ssl_keyfile=ssl_keyfile,
+                ssl_certfile=ssl_certfile
+            )
+        except Exception as e:
+            logger.error(f"Failed to start HTTPS server: {str(e)}")
+            import sys
+            sys.exit(1)
     else:
         logger.info(f"Starting HTTP server on {host}:{port}")
-        uvicorn.run("server:app", host=host, port=port, reload=True)
+        uvicorn.run(app, host=host, port=port, reload=True)

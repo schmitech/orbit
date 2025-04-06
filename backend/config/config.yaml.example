@@ -7,15 +7,30 @@ general:
     cert_file: "./cert.pem"
     key_file: "./key.pem"
 
+safety:
+  mode: "fuzzy"  # Options: strict, fuzzy, disabled
+  model: "gemma3:12b"
+  max_retries: 3
+  retry_delay: 1.0
+  request_timeout: 15
+  allow_on_timeout: false  # Set to true to allow queries if safety check times out
+  temperature: 0.0  # Use 0 for deterministic response
+  top_p: 1.0
+  top_k: 1
+  num_predict: 20  # Limit response length for safety checks
+  stream: false
+  repeat_penalty: 1.1
+
 chroma:
   host: "localhost"
   port: 8000
-  collection: "chatbot"
-  confidence_threshold: 0.65
+  collection: "occsc"
+  confidence_threshold: 0.7
+  relevance_threshold: 0.5
 
 elasticsearch:
   enabled: false
-  node: 'https://localhost:9200'
+  node: 'localhost:9200'
   index: 'chatbot'
   auth:
     username: ${ELASTICSEARCH_USERNAME}
@@ -31,7 +46,7 @@ ollama:
   num_ctx: 8192
   num_threads: 8
   model: "chatbot"
-  embed_model: "bge-m3"
+  embed_model: "nomic-embed-text"
   max_response_length: 200
   stream: true
 
@@ -48,7 +63,3 @@ vllm:
   logprobs: null
   echo: false
   stream: false
-
-eleven_labs:
-  api_key: null  # API key now loaded from .env
-  voice_id: "kPzsL2i3teMYv0FxEYQ6"
