@@ -55,7 +55,9 @@ class GuardrailService:
         
         # Initialize session as None (lazy initialization)
         self.session = None
-        self.verbose = _is_true_value(config.get('general', {}).get('verbose', False))
+        # Handle both string and boolean values for verbose setting
+        verbose_value = config.get('general', {}).get('verbose', False)
+        self.verbose = _is_true_value(verbose_value)
 
     def _load_safety_prompt(self) -> str:
         """
@@ -109,7 +111,8 @@ class GuardrailService:
         """
         # If safety checks are disabled, always return safe
         if self.safety_mode == 'disabled':
-            logger.info("Safety checks disabled by configuration, skipping check")
+            if self.verbose:
+                logger.info("Safety checks disabled by configuration, skipping check")
             return True, None
             
         for attempt in range(self.max_retries):
@@ -120,9 +123,10 @@ class GuardrailService:
                 prompt = self.safety_prompt + " Query: " + query
                 
                 # Log the query being checked
-                logger.info(f"Performing safety check for query: '{query}' (attempt {attempt+1}/{self.max_retries})")
                 if self.verbose:
+                    logger.info(f"Performing safety check for query: '{query}' (attempt {attempt+1}/{self.max_retries})")
                     logger.debug(f"Using full safety prompt: '{prompt}'")
+                    logger.info(f"Sending safety check request to Ollama model: {self.safety_model}")
 
                 # Create payload for Ollama API
                 payload = {
@@ -137,7 +141,6 @@ class GuardrailService:
                 }
 
                 start_time = asyncio.get_event_loop().time()
-                logger.info(f"Sending safety check request to Ollama model: {self.safety_model}")
                 
                 async with self.session.post(
                     f"{self.base_url}/api/generate", 
@@ -155,9 +158,10 @@ class GuardrailService:
                     
                     end_time = asyncio.get_event_loop().time()
                     
-                    # Always log the safety check response regardless of verbose mode
-                    logger.info(f"Safety check completed in {end_time - start_time:.3f}s")
-                    logger.info(f"Safety check raw response: '{model_response}'")
+                    # Log timing and response only in verbose mode
+                    if self.verbose:
+                        logger.info(f"Safety check completed in {end_time - start_time:.3f}s")
+                        logger.info(f"Safety check raw response: '{model_response}'")
                     
                     # Process the response to determine safety
                     is_safe, refusal_message = self._process_safety_response(model_response)
@@ -166,7 +170,8 @@ class GuardrailService:
             except asyncio.TimeoutError:
                 logger.warning(f"Safety check timed out (attempt {attempt+1}/{self.max_retries})")
                 if attempt < self.max_retries - 1:
-                    logger.info(f"Retrying in {self.retry_delay} seconds...")
+                    if self.verbose:
+                        logger.info(f"Retrying in {self.retry_delay} seconds...")
                     await asyncio.sleep(self.retry_delay)
                 else:
                     logger.error("Safety check failed after all retry attempts")
@@ -178,7 +183,8 @@ class GuardrailService:
             except Exception as e:
                 logger.error(f"Error in safety check: {str(e)}", exc_info=True)
                 if attempt < self.max_retries - 1:
-                    logger.info(f"Retrying in {self.retry_delay} seconds...")
+                    if self.verbose:
+                        logger.info(f"Retrying in {self.retry_delay} seconds...")
                     await asyncio.sleep(self.retry_delay)
                 else:
                     # If all retries fail, fallback to default response
@@ -208,7 +214,8 @@ class GuardrailService:
         ]
         
         if any(phrase in model_response.lower() for phrase in direct_refusal_phrases):
-            logger.warning(f"Model directly responded with refusal message: '{model_response}'")
+            if self.verbose:
+                logger.warning(f"Model directly responded with refusal message: '{model_response}'")
             # Since the model directly refused, treat this as unsafe
             return False, model_response
         
@@ -223,13 +230,14 @@ class GuardrailService:
         # If no exact match and fuzzy mode is enabled, check for fuzzy matches
         if not is_safe_exact and self.safety_mode == 'fuzzy':
             is_safe_fuzzy = self._is_likely_safe_response(model_response)
-            if is_safe_fuzzy:
+            if is_safe_fuzzy and self.verbose:
                 logger.warning(f"Safety check used fuzzy matching. Expected '{expected_exact}' but got '{model_response}'")
         
         # Use either exact or fuzzy match result based on safety mode
         is_safe = is_safe_exact or (self.safety_mode == 'fuzzy' and is_safe_fuzzy)
         
-        logger.info(f"Safety check result: mode={self.safety_mode}, exact={is_safe_exact}, fuzzy={is_safe_fuzzy}, final={is_safe}")
+        if self.verbose:
+            logger.info(f"Safety check result: mode={self.safety_mode}, exact={is_safe_exact}, fuzzy={is_safe_fuzzy}, final={is_safe}")
         
         # Log any variations that might be causing issues
         if not is_safe and "safe" in model_response.lower():
@@ -243,10 +251,12 @@ class GuardrailService:
             
             if any(pattern in model_response.lower() for pattern in unsafe_patterns):
                 # This is a proper unsafe response, no warning needed
-                logger.info("Query correctly identified as unsafe")
+                if self.verbose:
+                    logger.info("Query correctly identified as unsafe")
             else:
                 # This is an unrecognized format
-                logger.warning(f"Safety format mismatch. Response contains 'safe' but not recognized: '{model_response}'")
+                if self.verbose:
+                    logger.warning(f"Safety format mismatch. Response contains 'safe' but not recognized: '{model_response}'")
         
         refusal_message = None if is_safe else "I cannot assist with that type of request."
         return is_safe, refusal_message

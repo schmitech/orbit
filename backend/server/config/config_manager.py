@@ -60,6 +60,12 @@ def _log_config_summary(config: Dict[str, Any], source_path: str):
     # Server settings
     logger.info(f"  Server: port={config['general'].get('port')}, verbose={config['general'].get('verbose')}")
     
+    # Logging settings
+    log_config = config.get('logging', {})
+    logger.info(f"  Logging: level={log_config.get('level', 'INFO')}, file_enabled={_is_true_value(log_config.get('file', {}).get('enabled', True))}")
+    if _is_true_value(log_config.get('file', {}).get('enabled', True)):
+        logger.info(f"    File: rotation={log_config.get('file', {}).get('rotation', 'midnight')}, max_size_mb={log_config.get('file', {}).get('max_size_mb', 10)}")
+    
     # Safety settings
     safety_mode = config.get('safety', {}).get('mode', 'strict')
     logger.info(f"  Safety: mode={safety_mode}, max_retries={config.get('safety', {}).get('max_retries', 3)}")
@@ -212,6 +218,24 @@ def get_default_config() -> Dict[str, Any]:
                 "cert_file": "./cert.pem",
                 "key_file": "./key.pem"
             }
+        },
+        "logging": {
+            "level": "INFO",
+            "file": {
+                "enabled": True,
+                "directory": "logs",
+                "filename": "server.log",
+                "max_size_mb": 10,
+                "backup_count": 30,
+                "rotation": "midnight",
+                "format": "json"
+            },
+            "console": {
+                "enabled": True,
+                "format": "text"
+            },
+            "capture_warnings": True,
+            "propagate": False
         },
         "safety": {
             "mode": "fuzzy",

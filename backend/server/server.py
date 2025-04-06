@@ -20,6 +20,8 @@ Features:
 import os
 import ssl
 import logging
+import logging.handlers
+import json
 from typing import Dict, Any
 from fastapi import FastAPI, Request, Depends, HTTPException
 from fastapi.responses import StreamingResponse
@@ -31,6 +33,7 @@ from langchain_ollama import OllamaEmbeddings
 from dotenv import load_dotenv
 import asyncio
 import uvicorn
+from pythonjsonlogger import jsonlogger
 
 # Load environment variables
 load_dotenv()
@@ -41,7 +44,77 @@ from models import ChatMessage, HealthStatus
 from clients import ChromaRetriever, OllamaClient
 from services import ChatService, HealthService, LoggerService, GuardrailService
 
-# Configure logging
+def setup_logging(config: Dict[str, Any]) -> None:
+    """Set up logging configuration based on the config file"""
+    log_config = config.get('logging', {})
+    log_level = getattr(logging, log_config.get('level', 'INFO').upper())
+    
+    # Create logs directory if it doesn't exist
+    log_dir = log_config.get('file', {}).get('directory', 'logs')
+    os.makedirs(log_dir, exist_ok=True)
+    
+    # Create formatters
+    json_formatter = jsonlogger.JsonFormatter('%(asctime)s %(levelname)s %(name)s %(message)s')
+    text_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    
+    # Configure root logger
+    root_logger = logging.getLogger()
+    root_logger.setLevel(log_level)
+    
+    # Clear existing handlers
+    root_logger.handlers.clear()
+    
+    # Configure console logging
+    if _is_true_value(log_config.get('console', {}).get('enabled', True)):
+        console_handler = logging.StreamHandler()
+        console_handler.setFormatter(
+            json_formatter if log_config.get('console', {}).get('format') == 'json' else text_formatter
+        )
+        console_handler.setLevel(log_level)
+        root_logger.addHandler(console_handler)
+    
+    # Configure file logging
+    if _is_true_value(log_config.get('file', {}).get('enabled', True)):
+        file_config = log_config['file']
+        log_file = os.path.join(log_dir, file_config.get('filename', 'server.log'))
+        
+        # Set up rotating file handler
+        if file_config.get('rotation') == 'midnight':
+            file_handler = logging.handlers.TimedRotatingFileHandler(
+                filename=log_file,
+                when='midnight',
+                interval=1,
+                backupCount=file_config.get('backup_count', 30),
+                encoding='utf-8'
+            )
+        else:
+            file_handler = logging.handlers.RotatingFileHandler(
+                filename=log_file,
+                maxBytes=file_config.get('max_size_mb', 10) * 1024 * 1024,
+                backupCount=file_config.get('backup_count', 30),
+                encoding='utf-8'
+            )
+        
+        file_handler.setFormatter(
+            json_formatter if file_config.get('format') == 'json' else text_formatter
+        )
+        file_handler.setLevel(log_level)
+        root_logger.addHandler(file_handler)
+    
+    # Capture warnings if configured
+    if _is_true_value(log_config.get('capture_warnings', True)):
+        logging.captureWarnings(True)
+    
+    # Set propagation
+    root_logger.propagate = log_config.get('propagate', False)
+    
+    logger.info("Logging configuration completed")
+    # Handle verbose setting consistently
+    verbose_value = config.get('general', {}).get('verbose', False)
+    if _is_true_value(verbose_value):
+        logger.debug("Verbose logging enabled")
+
+# Configure initial basic logging until config is loaded
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -75,6 +148,10 @@ async def lifespan(app: FastAPI):
 
     # Load configuration
     app.state.config = load_config()
+    
+    # Set up logging with loaded configuration
+    setup_logging(app.state.config)
+    logger.info("Logging configuration initialized")
 
     # Initialize ChromaDB client
     chroma_conf = app.state.config['chroma']

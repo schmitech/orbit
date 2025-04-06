@@ -1,11 +1,35 @@
 general:
   port: 3000
-  verbose: "false"
+  verbose: false
   https:
     enabled: false
     port: 3443
     cert_file: "./cert.pem"
     key_file: "./key.pem"
+
+logging:
+  level: "INFO"  # Options: DEBUG, INFO, WARNING, ERROR, CRITICAL
+  file:
+    enabled: true
+    directory: "logs"
+    filename: "server.log"
+    max_size_mb: 10
+    backup_count: 30
+    rotation: "midnight"  # Options: midnight, h (hourly), d (daily)
+    format: "json"  # Options: json, text
+  console:
+    enabled: true
+    format: "text"  # Options: json, text
+  capture_warnings: true
+  propagate: false
+
+elasticsearch:
+  enabled: true
+  node: 'https://localhost:9200'
+  index: 'chatbot'
+  auth:
+    username: ${ELASTICSEARCH_USERNAME}
+    password: ${ELASTICSEARCH_PASSWORD}
 
 safety:
   mode: "fuzzy"  # Options: strict, fuzzy, disabled
@@ -24,17 +48,9 @@ safety:
 chroma:
   host: "localhost"
   port: 8000
-  collection: "occsc"
+  collection: "chatbot"
   confidence_threshold: 0.7
   relevance_threshold: 0.5
-
-elasticsearch:
-  enabled: false
-  node: 'localhost:9200'
-  index: 'chatbot'
-  auth:
-    username: ${ELASTICSEARCH_USERNAME}
-    password: ${ELASTICSEARCH_PASSWORD}
 
 ollama:
   base_url: "http://localhost:11434"

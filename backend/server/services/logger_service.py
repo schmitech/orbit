@@ -5,11 +5,12 @@ Logger Service for handling logs to file and Elasticsearch
 import os
 import json
 import logging
+import logging.handlers
 import ipaddress
 from typing import Dict, Any, Union, List, Optional, TypedDict
 from datetime import datetime
 import asyncio
-from logging.handlers import TimedRotatingFileHandler
+from logging.handlers import TimedRotatingFileHandler, RotatingFileHandler
 from pythonjsonlogger import jsonlogger
 from elasticsearch import AsyncElasticsearch
 import traceback
@@ -20,6 +21,22 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
+
+
+def _is_true_value(value: Union[str, bool]) -> bool:
+    """Convert string or boolean value to boolean.
+    
+    Args:
+        value: String or boolean value to convert
+        
+    Returns:
+        bool: True if value is 'true', 'yes', '1', or True (case insensitive)
+    """
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.lower() in ('true', 'yes', '1')
+    return False
 
 
 class IPMetadata(TypedDict):
@@ -37,36 +54,60 @@ class LoggerService:
     def __init__(self, config: Dict[str, Any]):
         self.config = config
         self.es_client: Optional[AsyncElasticsearch] = None
-        self.verbose = config.get('general', {}).get('verbose', 'false').lower() in ('true', 'yes', 'y', '1')
+        # Handle both string and boolean values for verbose setting
+        verbose_value = config.get('general', {}).get('verbose', False)
+        self.verbose = _is_true_value(verbose_value)
+        
+        # Get logging configuration
+        self.log_config = config.get('logging', {})
+        self.log_dir = self.log_config.get('file', {}).get('directory', 'logs')
         
         # Ensure logs directory exists
-        os.makedirs('logs', exist_ok=True)
+        os.makedirs(self.log_dir, exist_ok=True)
         
-        # Initialize JSON file logger
-        self.file_logger = self._setup_file_logger()
+        # Initialize JSON file logger for chat interactions
+        self.file_logger = self._setup_chat_logger()
         
-    def _setup_file_logger(self) -> logging.Logger:
-        """Set up the file logger with JSON formatting and daily rotation"""
-        log_handler = TimedRotatingFileHandler(
-            filename='logs/chat.log',
-            when='midnight',
-            interval=1,
-            backupCount=14,  # Keep logs for 14 days
-            encoding='utf-8'
-        )
+    def _setup_chat_logger(self) -> logging.Logger:
+        """Set up the chat logger with JSON formatting and rotation"""
+        chat_logger = logging.getLogger("chat_file_logger")
+        chat_logger.setLevel(logging.INFO)
+        chat_logger.handlers.clear()  # Clear any existing handlers
         
-        # Append timestamp to rotated filenames
-        log_handler.namer = lambda name: name.replace('chat.log', f'chat-{datetime.now().strftime("%Y-%m-%d")}.log')
+        # Determine log file path
+        log_file = os.path.join(self.log_dir, 'chat.log')
         
+        # Configure rotation settings
+        rotation = self.log_config.get('file', {}).get('rotation', 'midnight')
+        backup_count = self.log_config.get('file', {}).get('backup_count', 30)
+        max_size_mb = self.log_config.get('file', {}).get('max_size_mb', 10)
+        
+        if rotation == 'midnight':
+            handler = TimedRotatingFileHandler(
+                filename=log_file,
+                when='midnight',
+                interval=1,
+                backupCount=backup_count,
+                encoding='utf-8'
+            )
+            # Append timestamp to rotated filenames
+            handler.namer = lambda name: name.replace('chat.log', f'chat-{datetime.now().strftime("%Y-%m-%d")}.log')
+        else:
+            handler = RotatingFileHandler(
+                filename=log_file,
+                maxBytes=max_size_mb * 1024 * 1024,
+                backupCount=backup_count,
+                encoding='utf-8'
+            )
+        
+        # Use JSON formatter for structured logging
         formatter = jsonlogger.JsonFormatter("%(asctime)s %(levelname)s %(message)s")
-        log_handler.setFormatter(formatter)
+        handler.setFormatter(formatter)
         
-        file_logger = logging.getLogger("chat_file_logger")
-        file_logger.setLevel(logging.INFO)
-        file_logger.addHandler(log_handler)
-        file_logger.propagate = False  # Prevent duplicate logs
+        chat_logger.addHandler(handler)
+        chat_logger.propagate = False  # Prevent duplicate logs
         
-        return file_logger
+        return chat_logger
     
     async def initialize_elasticsearch(self) -> None:
         """Initialize Elasticsearch client"""
