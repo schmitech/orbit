@@ -1,7 +1,0 @@
-ollama:
-  base_url: "http://localhost:11434"
-  embed_model: "nomic-embed-text"
-
-chroma:
-  host: "localhost"
-  port: 8000

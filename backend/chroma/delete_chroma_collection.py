@@ -42,7 +42,7 @@ def load_config():
     Returns:
         dict: Configuration parameters
     """
-    with open('config.yaml', 'r') as file:
+    with open('../config/config.yaml', 'r') as file:
         return yaml.safe_load(file)
 
 def delete_chroma_collection(collection_name: str):
@@ -64,7 +64,8 @@ def delete_chroma_collection(collection_name: str):
 
     # Check if the collection exists
     existing_collections = client.list_collections()
-    if collection_name not in existing_collections:
+    collection_names = [col.name for col in existing_collections]
+    if collection_name not in collection_names:
         print(f"Collection '{collection_name}' does not exist.")
         return
 

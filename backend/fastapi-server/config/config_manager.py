@@ -218,7 +218,7 @@ def get_default_config() -> Dict[str, Any]:
         "elasticsearch": {
             "enabled": False,
             "node": "http://localhost:9200",
-            "index": "chatbot",
+            "index": "chat-logs",
             "auth": {
                 "username": "",
                 "password": ""

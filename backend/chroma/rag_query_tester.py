@@ -17,7 +17,7 @@ import chromadb
 from langchain_ollama import OllamaEmbeddings
 
 def load_config():
-    with open('config.yaml', 'r') as file:
+    with open('../config/config.yaml', 'r') as file:
         return yaml.safe_load(file)
 
 def test_queries(collection_name, chroma_host, chroma_port, ollama_base_url, model):

@@ -26,7 +26,7 @@ import sys
 query = sys.argv[1] if len(sys.argv) > 1 else "What is the cost of the Beginner English fee for service course?"
 
 # Load config
-with open('../server/config.yaml', 'r') as file:
+with open('../config/config.yaml', 'r') as file:
     config = yaml.safe_load(file)
 
 # Extract Ollama config
