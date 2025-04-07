@@ -137,6 +137,14 @@ class OllamaClient:
 
             if self.verbose:
                 logger.info(f"Sending prompt to Ollama (length: {len(full_prompt)})")
+                logger.info("Payload parameters:")
+                logger.info(f"  model: {payload['model']}")
+                logger.info(f"  temperature: {payload['temperature']}")
+                logger.info(f"  top_p: {payload['top_p']}")
+                logger.info(f"  top_k: {payload['top_k']}")
+                logger.info(f"  repeat_penalty: {payload['repeat_penalty']}")
+                logger.info(f"  num_predict: {payload['num_predict']}")
+                logger.info(f"  stream: {payload['stream']}")
 
             async with self.session.post(f"{self.base_url}/api/generate", json=payload) as response:
                 if stream:

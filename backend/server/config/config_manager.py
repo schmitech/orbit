@@ -274,6 +274,10 @@ def get_default_config() -> Dict[str, Any]:
             "repeat_penalty": 1.1,
             "num_predict": 1024,
             "model": "llama2",
-            "embed_model": "nomic-embed-text"
+            "embed_model": "nomic-embed-text",
+            # Summarization settings
+            "summarization_model": "llama2",
+            "max_summary_length": 100,
+            "enable_summarization": False
         }
     }

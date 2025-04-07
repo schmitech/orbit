@@ -41,7 +41,8 @@ load_dotenv()
 # Import local modules
 from config.config_manager import load_config, _is_true_value
 from models import ChatMessage, HealthStatus
-from clients import ChromaRetriever, OllamaClient
+from clients.ollama_client import OllamaClient
+from clients.chroma_client import ChromaRetriever
 from services import ChatService, HealthService, LoggerService, GuardrailService
 
 def setup_logging(config: Dict[str, Any]) -> None:
@@ -200,7 +201,8 @@ async def lifespan(app: FastAPI):
         await asyncio.gather(
             app.state.llm_client.initialize(),
             app.state.logger_service.initialize_elasticsearch(),
-            app.state.guardrail_service.initialize()
+            app.state.guardrail_service.initialize(),
+            app.state.retriever.initialize()  # Initialize the retriever (which includes summarization service)
         )
     except RuntimeError as e:
         logger.error(f"Failed to initialize services: {str(e)}")
@@ -223,6 +225,13 @@ async def lifespan(app: FastAPI):
     logger.info(f"Confidence threshold: {app.state.config['chroma'].get('confidence_threshold', 0.85)}")
     logger.info(f"Relevance threshold: {app.state.retriever.relevance_threshold}")
     logger.info(f"Verbose mode: {_is_true_value(app.state.config['general'].get('verbose', False))}")
+    
+    # Summarization settings
+    summarization_enabled = app.state.config['ollama'].get('enable_summarization', False)
+    logger.info(f"Summarization: {'enabled' if summarization_enabled else 'disabled'}")
+    if summarization_enabled:
+        logger.info(f"  Model: {app.state.config['ollama'].get('summarization_model', 'llama2')}")
+        logger.info(f"  Max length: {app.state.config['ollama'].get('max_summary_length', 100)} tokens")
     
     # Safety check configuration
     safety_mode = app.state.config.get('safety', {}).get('mode', 'strict')
