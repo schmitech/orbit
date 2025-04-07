@@ -86,16 +86,20 @@ function App() {
             },
             suggestedQuestions: [
               {
-                text: "What youth programs are available?",
-                query: "Tell me about the youth programs"
+                text: "How can I volunteer for your disaster relief efforts?",
+                query: "How can I volunteer for your disaster relief efforts?"
               },
               {
-                text: "Senior services information",
-                query: "What services are available for seniors?"
+                text: "What youth leadership opportunities do you offer?",
+                query: "What youth leadership opportunities do you offer?"
               },
               {
-                text: "Adult education courses",
-                query: "What adult education courses do you offer?"
+                text: "How can I access your mobile food pantry?",
+                query: "How can I access your mobile food pantry?"
+              },
+              {
+                text: "What adult education programs are available?",
+                query: "What adult education programs are available?"
               }
             ],
             theme: {
