@@ -3,14 +3,14 @@ Enhanced Chroma Collection Creator for RAG
 =========================================
 
 This script creates an optimized vector database collection in Chroma from a JSON file containing Q&A pairs.
-It processes both questions and answers, generates embeddings, and stores them with improved metadata.
+It processes questions, generates embeddings, and stores them with associated answers as metadata.
 
 Usage:
     python improved-chroma-collection.py <collection_name> <json_file_path>
 
 Key improvements:
-    1. Embeds both questions and answers for comprehensive semantic search
-    2. Properly chunks longer text for better retrieval
+    1. Embeds only questions for focused semantic search
+    2. Stores complete answers as metadata for retrieval
     3. Optimizes metadata structure for retrieval
     4. Includes content and metadata indexing for hybrid search
 """
@@ -50,7 +50,7 @@ def ingest_to_chroma(
     
     # Delete existing collection if it exists
     existing_collections = client.list_collections()
-    if collection_name in existing_collections:
+    if collection_name in [c.name for c in existing_collections]:
         client.delete_collection(collection_name)
         print(f"Deleted existing collection: {collection_name}")
     
@@ -84,80 +84,52 @@ def ingest_to_chroma(
         print(f"Error: {str(e)}")
         return
     
-    # Initialize text splitter for chunking
-    text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=1000,
-        chunk_overlap=200,
-        length_function=len,
-    )
-    
     # Load Q&A pairs
     with open(json_file_path, 'r', encoding='utf-8') as f:
         qa_pairs = json.load(f)
     
     print(f"Loaded {len(qa_pairs)} Q&A pairs")
     
-    all_chunks = []
+    all_items = []
     
-    # Process each Q&A pair and create chunks
+    # Process each Q&A pair 
     for idx, qa in enumerate(qa_pairs):
         question = qa["question"]
         answer = qa["answer"]
         
-        # For short Q&A pairs, keep them together
-        if len(question) + len(answer) < 1000:
-            all_chunks.append({
-                "id": f"qa_{idx}",
-                "content": f"Question: {question}\nAnswer: {answer}",
-                "metadata": {
-                    "question": question,
-                    "answer": answer,
-                    "source": collection_name,
-                    "type": "complete_qa",
-                    "original_id": idx
-                }
-            })
-        else:
-            # For longer content, split into chunks
-            qa_text = f"Question: {question}\nAnswer: {answer}"
-            chunks = text_splitter.create_documents([qa_text])
-            
-            for i, chunk in enumerate(chunks):
-                all_chunks.append({
-                    "id": f"qa_{idx}_chunk_{i}",
-                    "content": chunk.page_content,
-                    "metadata": {
-                        "question": question,
-                        "answer": answer,
-                        "source": collection_name,
-                        "type": "chunked_qa",
-                        "chunk_id": i,
-                        "total_chunks": len(chunks),
-                        "original_id": idx
-                    }
-                })
+        # Store each question with its answer as metadata
+        all_items.append({
+            "id": f"qa_{idx}",
+            "content": question,  # Only embed the question
+            "metadata": {
+                "question": question,
+                "answer": answer,
+                "source": collection_name,
+                "original_id": idx
+            }
+        })
     
     # Generate embeddings and add to collection in batches
-    for i in tqdm(range(0, len(all_chunks), batch_size), desc="Processing chunks"):
-        batch = all_chunks[i:i + batch_size]
+    for i in tqdm(range(0, len(all_items), batch_size), desc="Processing items"):
+        batch = all_items[i:i + batch_size]
         
         batch_ids = []
         batch_embeddings = []
         batch_metadatas = []
         batch_documents = []
         
-        for chunk in batch:
+        for item in batch:
             try:
-                # Generate embedding from the full content
-                embedding = embeddings.embed_query(chunk["content"])
+                # Generate embedding from the question only
+                embedding = embeddings.embed_query(item["content"])
                 
-                batch_ids.append(chunk["id"])
+                batch_ids.append(item["id"])
                 batch_embeddings.append(embedding)
-                batch_metadatas.append(chunk["metadata"])
-                batch_documents.append(chunk["content"])
+                batch_metadatas.append(item["metadata"])
+                batch_documents.append(item["content"])
                 
             except Exception as e:
-                print(f"Error processing chunk {chunk['id']}: {str(e)}")
+                print(f"Error processing item {item['id']}: {str(e)}")
                 continue
 
         # Add batch to collection

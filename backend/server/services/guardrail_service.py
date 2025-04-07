@@ -109,6 +109,12 @@ class GuardrailService:
                 - is_safe: True if query is safe, False otherwise
                 - refusal_message: None if safe, otherwise a refusal message to return
         """
+        # If safety service is disabled, always return safe
+        if not self.config.get('safety', {}).get('enabled', True):
+            if self.verbose:
+                logger.info(f"Skipping guardrail check - safety service is disabled for query: '{query}'")
+            return True, None
+            
         # If safety checks are disabled, always return safe
         if self.safety_mode == 'disabled':
             if self.verbose:

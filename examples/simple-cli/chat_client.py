@@ -75,6 +75,10 @@ def stream_chat(url, message, debug=False):
     Returns:
         tuple: (response_text, latency_info)
     """
+    # Ensure URL ends with /chat
+    if not url.endswith('/chat'):
+        url = url.rstrip('/') + '/chat'
+        
     headers = {
         "Content-Type": "application/json",
         "Accept": "text/event-stream"  # Request streaming response
@@ -183,10 +187,14 @@ def stream_chat(url, message, debug=False):
 
 def main():
     parser = argparse.ArgumentParser(description="Chat Client for Testing Chat Server")
-    parser.add_argument("--url", default="http://localhost:3000/chat", help="Chat server URL")
+    parser.add_argument("--url", default="http://localhost:3001", help="Chat server URL (with or without /chat)")
     parser.add_argument("--debug", action="store_true", help="Enable debug mode")
     parser.add_argument("--show-timing", action="store_true", help="Show latency timing information")
     args = parser.parse_args()
+    
+    # Ensure URL ends with /chat
+    if not args.url.endswith('/chat'):
+        args.url = args.url.rstrip('/') + '/chat'
     
     # Use colorama for system messages
     print(f"{Fore.CYAN}Welcome to the Chat Client!{Style.RESET_ALL}")

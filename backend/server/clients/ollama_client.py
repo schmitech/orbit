@@ -18,12 +18,13 @@ logger = logging.getLogger(__name__)
 class OllamaClient:
     """Handles communication with Ollama API"""
 
-    def __init__(self, config: Dict[str, Any], retriever, guardrail_service=None):
+    def __init__(self, config: Dict[str, Any], retriever, guardrail_service=None, reranker_service=None):
         self.config = config
         self.base_url = config['ollama']['base_url']
         self.model = config['ollama']['model']
         self.retriever = retriever
         self.guardrail_service = guardrail_service
+        self.reranker_service = reranker_service
         self.system_prompt = self._load_system_prompt()
         self.verbose = _is_true_value(config.get('general', {}).get('verbose', False))
         # Initialize session as None (lazy initialization)
@@ -112,6 +113,14 @@ class OllamaClient:
                 return
 
             context = await context_task
+            
+            # Apply reranking if the reranker service is available
+            if self.reranker_service and context:
+                if self.verbose:
+                    logger.info(f"Applying reranking to {len(context)} documents")
+                context = await self.reranker_service.rerank(message, context)
+                if self.verbose:
+                    logger.info(f"Reranking complete, got {len(context)} documents")
 
             # Check for direct answer with high confidence
             direct_answer = self.retriever.get_direct_answer(context)

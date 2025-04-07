@@ -68,7 +68,8 @@ def _log_config_summary(config: Dict[str, Any], source_path: str):
     
     # Safety settings
     safety_mode = config.get('safety', {}).get('mode', 'strict')
-    logger.info(f"  Safety: mode={safety_mode}, max_retries={config.get('safety', {}).get('max_retries', 3)}")
+    safety_enabled = config.get('safety', {}).get('enabled', True)
+    logger.info(f"  Safety: enabled={safety_enabled}, mode={safety_mode}, max_retries={config.get('safety', {}).get('max_retries', 3)}")
     
     # Chroma settings
     logger.info(f"  Chroma: host={config['chroma'].get('host')}, port={config['chroma'].get('port')}, collection={config['chroma'].get('collection')}")
@@ -76,6 +77,12 @@ def _log_config_summary(config: Dict[str, Any], source_path: str):
     # Ollama settings - don't log any potential API keys
     logger.info(f"  Ollama: base_url={_mask_url(config['ollama'].get('base_url'))}, model={config['ollama'].get('model')}, embed_model={config['ollama'].get('embed_model')}")
     logger.info(f"  Stream: {_is_true_value(config['ollama'].get('stream', True))}")
+    
+    # Summarization settings
+    summarization = config['ollama'].get('summarization', {})
+    logger.info(f"  Summarization: enabled={_is_true_value(summarization.get('enabled', False))}, model={summarization.get('model', config['ollama'].get('model'))}")
+    if _is_true_value(summarization.get('enabled', False)):
+        logger.info(f"    Max length: {summarization.get('max_length', 100)}, Min text length: {summarization.get('min_text_length', 200)}")
     
     # Elasticsearch settings - mask credentials
     if _is_true_value(config.get('elasticsearch', {}).get('enabled', False)):
@@ -238,6 +245,7 @@ def get_default_config() -> Dict[str, Any]:
             "propagate": False
         },
         "safety": {
+            "enabled": True,
             "mode": "fuzzy",
             "model": "gemma3:12b",
             "max_retries": 3,
@@ -266,6 +274,13 @@ def get_default_config() -> Dict[str, Any]:
                 "password": ""
             }
         },
+        "reranker": {
+            "enabled": False,
+            "model": "llama2",
+            "batch_size": 5,
+            "temperature": 0.0,
+            "top_n": 3
+        },
         "ollama": {
             "base_url": "http://localhost:11434",
             "temperature": 0.7,
@@ -275,9 +290,11 @@ def get_default_config() -> Dict[str, Any]:
             "num_predict": 1024,
             "model": "llama2",
             "embed_model": "nomic-embed-text",
-            # Summarization settings
-            "summarization_model": "llama2",
-            "max_summary_length": 100,
-            "enable_summarization": False
+            "summarization": {
+                "enabled": False,
+                "model": "llama2",
+                "max_length": 100,
+                "min_text_length": 200
+            }
         }
     }

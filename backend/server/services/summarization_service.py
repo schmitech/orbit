@@ -25,10 +25,22 @@ class SummarizationService:
         """
         self.config = config
         self.base_url = config['ollama']['base_url']
-        self.model = config['ollama'].get('summarization_model', config['ollama']['model'])
-        self.max_length = config['ollama'].get('max_summary_length', 100)  # Default to 100 tokens
+        
+        # Get summarization configuration
+        summarization = config['ollama'].get('summarization', {})
+        
+        # Load settings from the nested summarization configuration
+        self.enabled = summarization.get('enabled', False)
+        self.model = summarization.get('model', config['ollama']['model'])
+        self.max_length = summarization.get('max_length', 100)
+        self.min_text_length = summarization.get('min_text_length', 200)
+        
         self.verbose = config.get('general', {}).get('verbose', False)
         self.session = None
+        
+        if self.verbose:
+            logger.info(f"Summarization service initialized: enabled={self.enabled}, model={self.model}")
+            logger.info(f"Max length: {self.max_length}, Min text length: {self.min_text_length}")
 
     async def initialize(self):
         """Initialize the aiohttp session"""
@@ -53,6 +65,14 @@ class SummarizationService:
             str: The summarized text
         """
         try:
+            # Only summarize if enabled and text is longer than min_text_length
+            if not self.enabled or len(text) < self.min_text_length:
+                if self.verbose and not self.enabled:
+                    logger.info("Summarization is disabled")
+                elif self.verbose:
+                    logger.info(f"Text length ({len(text)}) is less than minimum required ({self.min_text_length})")
+                return text
+
             await self.initialize()
             
             # Create a prompt that focuses on the content without boilerplate

@@ -302,6 +302,65 @@ ssl._create_default_https_context = ssl._create_unverified_context
    - Check server logs for SSL errors
    - Test with `curl -v` for detailed SSL information
 
+# Reranker Service
+
+The Reranker Service enhances retrieval accuracy in the Open Inference Platform by providing a cross-encoder style reranking step. This improves the precision of context provided to the LLM for higher quality responses.
+
+## Overview
+
+In traditional RAG systems, retrieval occurs in a single step using vector similarity search. While efficient, this can sometimes miss relevant documents or include irrelevant ones. Reranking adds a second pass that more thoroughly evaluates relevance, leading to better retrieval results.
+
+## How It Works
+
+1. **Initial Retrieval**: Documents are first retrieved using ChromaDB vector similarity search
+2. **Reranking**: Each retrieved document is evaluated against the query using a cross-encoder approach
+3. **Score Refinement**: Documents are rescored and reordered based on their relevance to the query
+4. **Result Filtering**: Only the top N most relevant documents are kept
+
+## Configuration
+
+Enable and configure reranking in your `config.yaml` file:
+
+```yaml
+reranker:
+  enabled: true                   # Set to true to enable reranking
+  model: "gemma3:4b"              # Model to use for reranking (smaller models work well)
+  batch_size: 5                   # Number of documents to process in parallel
+  temperature: 0.0                # Use 0 for deterministic scoring
+  top_n: 3                        # Number of documents to keep after reranking
+```
+
+## Benefits
+
+- **Higher Precision**: Reranking can significantly improve the relevance of retrieved documents
+- **Better Context**: LLMs receive more relevant context for generating responses
+- **Reduced Hallucination**: With better context, the LLM is less likely to hallucinate information
+- **Improved Answer Accuracy**: More accurate and on-point responses to user queries
+
+## Performance Considerations
+
+Reranking adds computation time to the retrieval process. Consider these factors:
+
+- Use a smaller/faster model for reranking than your main LLM
+- Balance retrieval time against improved answer quality
+- For very latency-sensitive applications, consider keeping `enabled: false`
+
+## Example Prompt Format
+
+The reranker uses this prompt format to score document relevance:
+
+```
+Rate the relevance of the following document to the query on a scale from 0 to 10, 
+where 0 means completely irrelevant and 10 means perfectly relevant.
+Return only a number (0-10) without any explanations.
+
+QUERY: {user_query}
+
+DOCUMENT: {document_content}
+
+RELEVANCE SCORE (0-10):
+``` 
+
 ## Logging
 
 The application implements a comprehensive logging system:

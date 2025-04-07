@@ -23,22 +23,16 @@ class ChromaRetriever:
         self.relevance_threshold = config['chroma'].get('relevance_threshold', 0.5)
         self.verbose = config.get('general', {}).get('verbose', False)
         
-        # Initialize summarization service if enabled
-        self.summarization_enabled = config['ollama'].get('enable_summarization', False)
-        if self.summarization_enabled:
-            self.summarization_service = SummarizationService(config)
-        else:
-            self.summarization_service = None
+        # Initialize summarization service
+        self.summarization_service = SummarizationService(config)
 
     async def initialize(self):
-        """Initialize the summarization service if enabled"""
-        if self.summarization_service:
-            await self.summarization_service.initialize()
+        """Initialize the summarization service"""
+        await self.summarization_service.initialize()
 
     async def close(self):
-        """Close the summarization service if enabled"""
-        if self.summarization_service:
-            await self.summarization_service.close()
+        """Close the summarization service"""
+        await self.summarization_service.close()
 
     def get_direct_answer(self, context: List[Dict[str, Any]]) -> Optional[str]:
         """
@@ -104,20 +98,14 @@ class ChromaRetriever:
                         **metadata
                     }
                     
-                    # If this is a direct answer and summarization is enabled, summarize it
-                    if (self.summarization_enabled and 
-                        "question" in metadata and 
-                        "answer" in metadata and 
-                        len(metadata["answer"]) > 200):  # Only summarize long answers
-                        
-                        if self.verbose:
-                            logger.info(f"Summarizing long answer (length: {len(metadata['answer'])})")
-                        
+                    # If this is a direct answer, check if it needs summarizing
+                    if "question" in metadata and "answer" in metadata:
+                        # Let the summarization service handle length checks
                         summary = await self.summarization_service.summarize(metadata["answer"])
-                        if summary:
-                            item["answer"] = summary
+                        if summary != metadata["answer"]:  # Only update if summarization occurred
                             if self.verbose:
-                                logger.info(f"Summarized answer (new length: {len(summary)})")
+                                logger.info(f"Summarized answer: {len(metadata['answer'])} → {len(summary)} chars")
+                            item["answer"] = summary
                     
                     context_items.append(item)
             

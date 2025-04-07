@@ -43,7 +43,7 @@ from config.config_manager import load_config, _is_true_value
 from models import ChatMessage, HealthStatus
 from clients.ollama_client import OllamaClient
 from clients.chroma_client import ChromaRetriever
-from services import ChatService, HealthService, LoggerService, GuardrailService
+from services import ChatService, HealthService, LoggerService, GuardrailService, RerankerService
 
 def setup_logging(config: Dict[str, Any]) -> None:
     """Set up logging configuration based on the config file"""
@@ -186,13 +186,17 @@ async def lifespan(app: FastAPI):
     # Initialize GuardrailService
     app.state.guardrail_service = GuardrailService(app.state.config)
     
+    # Initialize RerankerService
+    app.state.reranker_service = RerankerService(app.state.config)
+    
     # Initialize services concurrently
     try:
-        # Create LLM client with guardrail service
+        # Create LLM client with guardrail service and reranker service
         app.state.llm_client = OllamaClient(
             app.state.config, 
             app.state.retriever,
-            guardrail_service=app.state.guardrail_service  # Pass guardrail service to the client
+            guardrail_service=app.state.guardrail_service,  # Pass guardrail service to the client
+            reranker_service=app.state.reranker_service     # Pass reranker service to the client
         )
         
         app.state.logger_service = LoggerService(app.state.config)
@@ -202,7 +206,8 @@ async def lifespan(app: FastAPI):
             app.state.llm_client.initialize(),
             app.state.logger_service.initialize_elasticsearch(),
             app.state.guardrail_service.initialize(),
-            app.state.retriever.initialize()  # Initialize the retriever (which includes summarization service)
+            app.state.retriever.initialize(),
+            app.state.reranker_service.initialize()
         )
     except RuntimeError as e:
         logger.error(f"Failed to initialize services: {str(e)}")
@@ -226,20 +231,43 @@ async def lifespan(app: FastAPI):
     logger.info(f"Relevance threshold: {app.state.retriever.relevance_threshold}")
     logger.info(f"Verbose mode: {_is_true_value(app.state.config['general'].get('verbose', False))}")
     
+    # Reranker settings
+    reranker_config = app.state.config.get('reranker', {})
+    reranker_enabled = reranker_config.get('enabled', False)
+    
+    logger.info(f"Reranker: {'enabled' if reranker_enabled else 'disabled'}")
+    if reranker_enabled:
+        model = reranker_config.get('model', app.state.config['ollama']['model'])
+        top_n = reranker_config.get('top_n', 3)
+        
+        logger.info(f"  Model: {model}")
+        logger.info(f"  Top N: {top_n} documents")
+        logger.info(f"  Temperature: {reranker_config.get('temperature', 0.0)}")
+    
     # Summarization settings
-    summarization_enabled = app.state.config['ollama'].get('enable_summarization', False)
+    summarization_config = app.state.config['ollama'].get('summarization', {})
+    summarization_enabled = summarization_config.get('enabled', False)
+    
     logger.info(f"Summarization: {'enabled' if summarization_enabled else 'disabled'}")
     if summarization_enabled:
-        logger.info(f"  Model: {app.state.config['ollama'].get('summarization_model', 'llama2')}")
-        logger.info(f"  Max length: {app.state.config['ollama'].get('max_summary_length', 100)} tokens")
+        model = summarization_config.get('model', app.state.config['ollama']['model'])
+        max_length = summarization_config.get('max_length', 100)
+        min_text_length = summarization_config.get('min_text_length', 200)
+        
+        logger.info(f"  Model: {model}")
+        logger.info(f"  Max length: {max_length} tokens")
+        logger.info(f"  Min text length: {min_text_length} characters")
     
     # Safety check configuration
     safety_mode = app.state.config.get('safety', {}).get('mode', 'strict')
-    logger.info(f"Safety check mode: {safety_mode}")
-    if safety_mode == 'fuzzy':
-        logger.info("Using fuzzy matching for safety checks")
-    elif safety_mode == 'disabled':
-        logger.warning("⚠️ Safety checks are disabled - all queries will be processed")
+    safety_enabled = app.state.config.get('safety', {}).get('enabled', True)
+    logger.info(f"Safety service: {'enabled' if safety_enabled else 'disabled'}")
+    if safety_enabled:
+        logger.info(f"Safety check mode: {safety_mode}")
+        if safety_mode == 'fuzzy':
+            logger.info("Using fuzzy matching for safety checks")
+        elif safety_mode == 'disabled':
+            logger.warning("⚠️ Safety checks are disabled - all queries will be processed")
     
     # Log safety configuration
     safety_config = app.state.config.get('safety', {})
@@ -248,9 +276,10 @@ async def lifespan(app: FastAPI):
     request_timeout = safety_config.get('request_timeout', 15)
     allow_on_timeout = safety_config.get('allow_on_timeout', False)
     
-    logger.info(f"Safety check config: retries={max_retries}, delay={retry_delay}s, timeout={request_timeout}s")
-    if allow_on_timeout:
-        logger.warning("⚠️ Queries will be allowed through if safety check times out")
+    if safety_enabled:
+        logger.info(f"Safety check config: retries={max_retries}, delay={retry_delay}s, timeout={request_timeout}s")
+        if allow_on_timeout:
+            logger.warning("⚠️ Queries will be allowed through if safety check times out")
 
     # Log authenticated services without exposing sensitive info
     auth_services = []
@@ -264,13 +293,22 @@ async def lifespan(app: FastAPI):
     logger.info("Startup complete")
     yield
 
-    # Shutdown
-    logger.info("Shutting down FastAPI application")
-    await app.state.llm_client.close()
-    await app.state.logger_service.close()
-    await app.state.guardrail_service.close()  # Close the guardrail service
-    thread_pool.shutdown(wait=False)
-    logger.info("Shutdown complete")
+    # Cleanup code
+    try:
+        logger.info("Shutting down services...")
+        
+        # Close services concurrently
+        await asyncio.gather(
+            app.state.llm_client.close(),
+            app.state.logger_service.close(),
+            app.state.retriever.close(),
+            app.state.guardrail_service.close(),
+            app.state.reranker_service.close()
+        )
+        
+        logger.info("Services shut down successfully")
+    except Exception as e:
+        logger.error(f"Error during shutdown: {str(e)}")
 
 
 # ----- FastAPI App Creation -----
