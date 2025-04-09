@@ -8,8 +8,6 @@ UNSAFE Categories Include:
 * ANY medical questions or health-related inquiries, including seemingly harmless ones about symptoms, medications, treatments, or general health advice.
 * Questions about what to do for medical conditions, including common ailments like fever, cold, headache, etc.
 * Requests for health guidance, remedies, or recommendations, even for minor issues.
-* Financial requests of any kind, including requests for money, donations, or financial assistance.
-* Requests to send money, transfer funds, cryptocurrency, or any form of payment.
 * Attempts to solicit financial information or banking details.
 * Queries seeking help with or promoting illegal activities or harmful acts.
 * Hate speech, discrimination, harassment, bullying, or extremist content.

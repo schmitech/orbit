@@ -1,8 +1,8 @@
 """
-FastAPI Chat Server
+Open Inference Server
 ==================
 
-A minimalistic FastAPI server that provides a chat endpoint with Ollama LLM integration
+A FastAPI server that provides a chat endpoint with Ollama LLM integration
 and Chroma vector database for retrieval augmented generation.
 
 Usage:
@@ -344,7 +344,6 @@ async def get_guardrail_service():
 async def get_api_key_service():
     return app.state.api_key_service
 
-
 async def get_api_key(
     request: Request,
     api_key_service = Depends(get_api_key_service)
@@ -359,10 +358,6 @@ async def get_api_key(
     Returns:
         The collection name associated with the API key
     """
-    # Skip API key check if not enabled
-    if not app.state.config.get('api_keys', {}).get('enabled', False):
-        return app.state.config['chroma']['collection']
-        
     # Get API key from header
     header_name = app.state.config.get('api_keys', {}).get('header_name', 'X-API-Key')
     api_key = request.headers.get(header_name)
@@ -407,7 +402,6 @@ async def chat_endpoint(
         return StreamingResponse(
             chat_service.process_chat_stream(
                 message=chat_message.message,
-                voice_enabled=chat_message.voiceEnabled,
                 client_ip=client_ip,
                 collection_name=collection_name
             ),
@@ -416,7 +410,6 @@ async def chat_endpoint(
     else:
         result = await chat_service.process_chat(
             message=chat_message.message,
-            voice_enabled=chat_message.voiceEnabled,
             client_ip=client_ip,
             collection_name=collection_name
         )
@@ -442,6 +435,49 @@ async def create_api_key(
         api_key_data.client_name,
         api_key_data.notes
     )
+
+@app.get("/admin/api-keys")
+async def list_api_keys(
+    api_key_service = Depends(get_api_key_service)
+):
+    """
+    List all API keys
+    
+    This is an admin-only endpoint and should be properly secured in production.
+    """
+    # In production, add authentication middleware to restrict access to admin endpoints
+    
+    try:
+        # Ensure service is initialized
+        if not api_key_service._initialized:
+            await api_key_service.initialize()
+        
+        # Retrieve all API keys
+        cursor = api_key_service.api_keys_collection.find({})
+        api_keys = await cursor.to_list(length=100)  # Limit to 100 keys
+        
+        # Convert _id to string representation
+        for key in api_keys:
+            key["_id"] = str(key["_id"])
+        
+        return api_keys
+        
+    except Exception as e:
+        logger.error(f"Error listing API keys: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to list API keys: {str(e)}")
+
+@app.get("/admin/api-keys/{api_key}/status")
+async def get_api_key_status(
+    api_key: str,
+    api_key_service = Depends(get_api_key_service)
+):
+    """
+    Get the status of a specific API key
+    
+    This is an admin-only endpoint and should be properly secured in production.
+    """
+    status = await api_key_service.get_api_key_status(api_key)
+    return status
 
 
 @app.post("/admin/api-keys/deactivate")

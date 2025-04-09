@@ -38,7 +38,7 @@ class ChatService:
         except Exception as e:
             logger.error(f"Error logging conversation: {str(e)}", exc_info=True)
     
-    async def process_chat(self, message: str, voice_enabled: bool, client_ip: str, collection_name: str = None) -> Dict[str, Any]:
+    async def process_chat(self, message: str, client_ip: str, collection_name: str = None) -> Dict[str, Any]:
         """Process a chat message and return a response"""
         try:
             loop = asyncio.get_running_loop()
@@ -68,14 +68,13 @@ class ChatService:
             
             # Return response
             return {
-                "response": response_text,
-                "audio": None  # Placeholder for future audio handling
+                "response": response_text
             }
         except Exception as e:
             logger.error(f"Error processing chat: {str(e)}", exc_info=True)
             raise HTTPException(status_code=500, detail="Error processing chat message")
     
-    async def process_chat_stream(self, message: str, voice_enabled: bool, client_ip: str, collection_name: str = None) -> AsyncGenerator[str, None]:
+    async def process_chat_stream(self, message: str, client_ip: str, collection_name: str = None) -> AsyncGenerator[str, None]:
         """Process a chat message and stream the response"""
         try:
             loop = asyncio.get_running_loop()

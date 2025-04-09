@@ -7,8 +7,8 @@ from pydantic import BaseModel, Field
 
 
 class ChatMessage(BaseModel):
+    """Chat message model"""
     message: str
-    voiceEnabled: bool = False
     stream: bool = Field(default=True, description="Whether to stream the response")
 
 

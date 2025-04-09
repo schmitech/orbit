@@ -21,15 +21,6 @@ Most commercial generative AI tools present several challenges for organizations
 | **Limited Deployment** | Lack of flexibility for diverse infrastructure requirements | Deploy anywhere - cloud, on-premise, or hybrid |
 | **Reduced Customization** | Inability to fine-tune inference for domain-specific needs | Fully customizable for your specific use case |
 
-## Key Features
-
-- **Multiple Backend Support**: Switch between Ollama and vLLM backends (support for llamacpp coming soon)
-- **Vector Database Integration**: Built-in ChromaDB support for retrieval-augmented generation
-- **Voice Capabilities**: Text-to-speech conversion via ElevenLabs integration (support for open-source TTS engines coming soon)
-- **Comprehensive Logging**: Structured logging with Elasticsearch support for analytics
-- **Modular Architecture**: Easily extensible to support additional inference engines and features
-- **Security**: Content moderation through configurable system prompts
-
 ### Use Cases
 
 - **Customer Support**: Deploy AI-powered support systems with your company's knowledge base

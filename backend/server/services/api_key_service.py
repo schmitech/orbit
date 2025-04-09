@@ -27,19 +27,13 @@ class ApiKeyService:
         self.database = None
         self.api_keys_collection = None
         self._initialized = False
-        self.default_collection = config.get('chroma', {}).get('collection')
-    
+
     async def initialize(self) -> None:
         """Initialize connection to MongoDB"""
         if self._initialized:
             return
             
         mongodb_config = self.config.get('mongodb', {})
-        if not mongodb_config.get('enabled', False):
-            logger.warning("MongoDB is not enabled. API key service will use default collection only.")
-            self._initialized = True
-            return
-            
         try:
             # Construct connection string
             connection_string = "mongodb://"
@@ -51,7 +45,7 @@ class ApiKeyService:
             # Connect to MongoDB
             self.client = motor.motor_asyncio.AsyncIOMotorClient(connection_string)
             self.database = self.client[mongodb_config['database']]
-            self.api_keys_collection = self.database["api_keys"]
+            self.api_keys_collection = self.database[mongodb_config['apikey_collection']]
             
             # Create index on api_key field for faster lookups
             await self.api_keys_collection.create_index("api_key", unique=True)
@@ -60,7 +54,7 @@ class ApiKeyService:
             self._initialized = True
         except Exception as e:
             logger.error(f"Failed to initialize API Key Service: {str(e)}")
-            raise
+            raise HTTPException(status_code=500, detail=f"Failed to initialize API Key Service: {str(e)}")
     
     def _generate_api_key(self, length: int = 32) -> str:
         """
@@ -81,6 +75,42 @@ class ApiKeyService:
         prefix = self.config.get('api_keys', {}).get('prefix', 'api_')
         return f"{prefix}{api_key}"
     
+    async def get_api_key_status(self, api_key: str) -> Dict[str, Any]:
+        """
+        Get the full status of an API key
+        
+        Args:
+            api_key: The API key to check
+            
+        Returns:
+            Dictionary with API key status information
+        """
+        if not self._initialized:
+            await self.initialize()
+            
+        try:
+            key_doc = await self.api_keys_collection.find_one({"api_key": api_key})
+            
+            if not key_doc:
+                return {
+                    "exists": False,
+                    "active": False,
+                    "collection": None,
+                    "message": "API key does not exist"
+                }
+                
+            return {
+                "exists": True,
+                "active": bool(key_doc.get("active")),  # Convert to boolean
+                "collection": key_doc.get("collection") or key_doc.get("collection_name"),
+                "client_name": key_doc.get("client_name"),
+                "created_at": key_doc.get("created_at")
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting API key status: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Error checking API key status: {str(e)}")
+    
     async def validate_api_key(self, api_key: str) -> Tuple[bool, Optional[str]]:
         """
         Validate the API key and return the associated collection name
@@ -94,35 +124,40 @@ class ApiKeyService:
         if not self._initialized:
             await self.initialize()
             
-        # If MongoDB is not enabled, use default collection
-        if self.api_keys_collection is None:
-            logger.info("Using default collection due to MongoDB being disabled")
-            return True, self.default_collection
-            
-        # If no API key provided, use default collection if allowed
-        if not api_key and self.config.get('api_keys', {}).get('allow_default', True):
-            logger.info("No API key provided, using default collection")
-            return True, self.default_collection
-            
-        # If no API key provided and default not allowed
+        # Get default behavior from config
+        allow_default = self.config.get('api_keys', {}).get('allow_default', False)
+        default_collection = self.config.get('chroma', {}).get('collection')
+        
+        # API key is required unless allow_default is True
         if not api_key:
-            logger.warning("API key required but not provided")
-            return False, None
+            if allow_default and default_collection:
+                logger.info(f"No API key provided, using default collection: {default_collection}")
+                return True, default_collection
+            else:
+                logger.warning("API key required but not provided")
+                return False, None
             
         try:
             # Find the API key in the database
             key_doc = await self.api_keys_collection.find_one({"api_key": api_key})
             
+            # Check if the key exists
             if not key_doc:
                 logger.warning(f"Invalid API key: {api_key[:5]}...")
                 return False, None
                 
-            # Check if the key is active
-            if not key_doc.get("active", True):
+            # Check if the key is active - explicitly look for False
+            active = key_doc.get("active")
+            if active is False:  # Only check for explicit False, not falsy values like None
                 logger.warning(f"API key is disabled: {api_key[:5]}...")
                 return False, None
+            
+            # Get the collection name
+            collection_name = key_doc.get("collection") or key_doc.get("collection_name")
+            if not collection_name:
+                logger.warning(f"API key {api_key[:5]}... has no associated collection")
+                return False, None
                 
-            collection_name = key_doc.get("collection")
             logger.info(f"Valid API key. Using collection: {collection_name}")
             return True, collection_name
             
@@ -141,16 +176,12 @@ class ApiKeyService:
             The collection name associated with the API key
             
         Raises:
-            HTTPException: If the API key is invalid
+            HTTPException: If the API key is invalid or has no associated collection
         """
         is_valid, collection_name = await self.validate_api_key(api_key)
         
-        if not is_valid:
+        if not is_valid or not collection_name:
             raise HTTPException(status_code=401, detail="Invalid or missing API key")
-            
-        if not collection_name:
-            # Fallback to default collection if needed
-            collection_name = self.default_collection
             
         return collection_name
     
@@ -208,8 +239,15 @@ class ApiKeyService:
         if not self._initialized:
             await self.initialize()
             
-        if self.api_keys_collection is None:
-            raise HTTPException(status_code=500, detail="MongoDB not enabled for API key management")
+        try:
+            result = await self.api_keys_collection.update_one(
+                {"api_key": api_key},
+                {"$set": {"active": False}}
+            )
+            return result.modified_count > 0
+        except Exception as e:
+            logger.error(f"Error deactivating API key: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Error deactivating API key: {str(e)}")
     
     async def close(self) -> None:
         """Close the MongoDB connection"""
