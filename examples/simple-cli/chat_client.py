@@ -63,13 +63,14 @@ def clean_response(text):
     
     return text.strip()
 
-def stream_chat(url, message, debug=False):
+def stream_chat(url, message, api_key=None, debug=False):
     """
     Stream a chat response from the server, displaying it gradually like a chatbot.
     
     Args:
         url (str): The chat server URL
         message (str): The message to send to the chat server
+        api_key (str): Optional API key for authentication
         debug (bool): Whether to show debug information
         
     Returns:
@@ -81,11 +82,15 @@ def stream_chat(url, message, debug=False):
         
     headers = {
         "Content-Type": "application/json",
-        "Accept": "text/event-stream"  # Request streaming response
+        "Accept": "text/event-stream"
     }
+    
+    if api_key:
+        headers["X-API-Key"] = api_key
+        
     data = {
         "message": message,
-        "voiceEnabled": False
+        "stream": True
     }
     
     if debug:
@@ -188,6 +193,7 @@ def stream_chat(url, message, debug=False):
 def main():
     parser = argparse.ArgumentParser(description="Chat Client for Testing Chat Server")
     parser.add_argument("--url", default="http://localhost:3001", help="Chat server URL (with or without /chat)")
+    parser.add_argument("--api-key", help="API key for authentication")
     parser.add_argument("--debug", action="store_true", help="Enable debug mode")
     parser.add_argument("--show-timing", action="store_true", help="Show latency timing information")
     args = parser.parse_args()
@@ -218,7 +224,12 @@ def main():
             print(f"\n{Fore.GREEN}Assistant:{Style.RESET_ALL} ", end="", flush=True)
             
             # Stream the response and capture timing info
-            response, timing_info = stream_chat(args.url, user_input, debug=args.debug)
+            response, timing_info = stream_chat(
+                args.url, 
+                user_input, 
+                api_key=args.api_key,
+                debug=args.debug
+            )
             
             # Display timing information if requested
             if args.show_timing and timing_info:

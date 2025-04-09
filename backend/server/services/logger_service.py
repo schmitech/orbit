@@ -241,7 +241,7 @@ class LoggerService:
             return False
     
     async def log_conversation(self, query: str, response: str, ip: Optional[str] = None, 
-                               backend: str = "ollama", blocked: bool = False) -> None:
+                               backend: str = "ollama", blocked: bool = False, api_key: Optional[str] = None) -> None:
         """Log chat interaction to file and Elasticsearch"""
         timestamp = datetime.now()
         ip_metadata = self._format_ip_address(ip)
@@ -259,6 +259,13 @@ class LoggerService:
             },
             "elasticsearch_status": "enabled" if (self.config.get("elasticsearch", {}).get("enabled", False) and self.es_client) else "disabled"
         }
+        
+        # Add API key information if provided
+        if api_key:
+            log_data["api_key"] = {
+                "key": api_key[:5] + "..." if api_key else None,  # Only log first 5 chars for security
+                "timestamp": timestamp.isoformat()
+            }
         
         self.file_logger.info("Chat Interaction", extra=log_data)
         await self._log_to_elasticsearch(log_data, timestamp, query, response, backend, blocked, ip_metadata)

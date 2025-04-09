@@ -93,10 +93,14 @@ class OllamaClient:
         full_prompt += f"User: {message}\n\nAssistant:"
         return full_prompt
 
-    async def generate_response(self, message: str, stream: bool = True):
+    async def generate_response(self, message: str, stream: bool = True, collection_name: Optional[str] = None):
         """Generate a response using Ollama and retrieved context with safety check - optimized for streaming"""
         try:
             await self.initialize()
+
+            # Set collection if provided
+            if collection_name:
+                await self.set_collection(collection_name)
 
             # Start safety check and context retrieval concurrently
             safety_task = asyncio.create_task(self.check_safety(message))
@@ -190,3 +194,22 @@ class OllamaClient:
         elif text and text[0].isupper() and len(text) > 1:
             return " " + text if text[0].isupper() else text
         return text
+    
+    async def set_collection(self, collection_name: str) -> None:
+        """
+        Set the collection name for retrieval
+        
+        Args:
+            collection_name: The name of the collection to use
+        """
+        try:
+            # Update retriever to use this collection
+            if self.retriever and hasattr(self.retriever, 'set_collection'):
+                await self.retriever.set_collection(collection_name)
+                
+            if self.verbose:
+                logger.info(f"Set collection to: {collection_name}")
+                
+        except Exception as e:
+            logger.error(f"Error setting collection: {str(e)}")
+            raise

@@ -8,5 +8,5 @@ from .logger_service import LoggerService
 from .guardrail_service import GuardrailService
 from .summarization_service import SummarizationService
 from .reranker_service import RerankerService
-
+from .api_key_service import ApiKeyService
 __all__ = ['ChatService', 'HealthService', 'LoggerService', 'GuardrailService', 'SummarizationService', 'RerankerService']

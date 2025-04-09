@@ -7,10 +7,11 @@ from typing import Dict, Any, List, Optional
 from chromadb import HttpClient
 from langchain_ollama import OllamaEmbeddings
 from services.summarization_service import SummarizationService
+from services.api_key_service import ApiKeyService
+from fastapi import HTTPException
 
 # Configure logging
 logger = logging.getLogger(__name__)
-
 
 class ChromaRetriever:
     """Handles document retrieval from ChromaDB"""
@@ -23,16 +24,38 @@ class ChromaRetriever:
         self.relevance_threshold = config['chroma'].get('relevance_threshold', 0.5)
         self.verbose = config.get('general', {}).get('verbose', False)
         
-        # Initialize summarization service
+        # Initialize services
         self.summarization_service = SummarizationService(config)
+        self.api_key_service = ApiKeyService(config)
+        
+        # Initialize Chroma client
+        self.chroma_client = HttpClient(
+            host=config['chroma']['host'],
+            port=int(config['chroma']['port'])
+        )
 
     async def initialize(self):
-        """Initialize the summarization service"""
+        """Initialize the services"""
         await self.summarization_service.initialize()
+        await self.api_key_service.initialize()
 
     async def close(self):
-        """Close the summarization service"""
+        """Close the services"""
         await self.summarization_service.close()
+        await self.api_key_service.close()
+
+    async def set_collection(self, collection_name: str) -> None:
+        """Set the current collection for retrieval"""
+        if not collection_name:
+            raise ValueError("Collection name cannot be empty")
+            
+        try:
+            self.collection = self.chroma_client.get_collection(name=collection_name)
+            if self.verbose:
+                logger.info(f"Switched to collection: {collection_name}")
+        except Exception as e:
+            logger.error(f"Failed to switch collection: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Failed to access collection: {str(e)}")
 
     def get_direct_answer(self, context: List[Dict[str, Any]]) -> Optional[str]:
         """
@@ -59,17 +82,39 @@ class ChromaRetriever:
         
         return None
 
-    async def get_relevant_context(self, query: str) -> List[Dict[str, Any]]:
+    async def get_relevant_context(self, query: str, api_key: Optional[str] = None, collection_name: Optional[str] = None) -> List[Dict[str, Any]]:
         """
         Retrieve relevant context from ChromaDB
         
         Args:
             query: The user's query
+            api_key: Optional API key to determine collection
+            collection_name: Optional collection name to use directly
             
         Returns:
             List[Dict[str, Any]]: List of relevant context items
         """
         try:
+            # If API key is provided, validate and get collection
+            if api_key:
+                is_valid, collection_name = await self.api_key_service.validate_api_key(api_key)
+                if not is_valid:
+                    raise ValueError("Invalid API key")
+                if collection_name:
+                    await self.set_collection(collection_name)
+            # If collection_name is provided directly, use it
+            elif collection_name:
+                await self.set_collection(collection_name)
+            
+            # If no collection is set yet, use the default from config
+            if self.collection is None:
+                default_collection = self.config.get('chroma', {}).get('collection')
+                if default_collection:
+                    await self.set_collection(default_collection)
+                else:
+                    logger.error("No collection available. Ensure a default collection is configured or an API key is provided.")
+                    return []
+            
             # Generate embedding for the query
             query_embedding = self.embeddings.embed_query(query)
             
@@ -116,4 +161,4 @@ class ChromaRetriever:
             
         except Exception as e:
             logger.error(f"Error retrieving context: {str(e)}")
-            return [] 
+            return []
