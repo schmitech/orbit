@@ -102,29 +102,73 @@ class OllamaClient:
             if collection_name:
                 await self.set_collection(collection_name)
 
-            # Start safety check and context retrieval concurrently
-            safety_task = asyncio.create_task(self.check_safety(message))
-            context_task = asyncio.create_task(self.retriever.get_relevant_context(message))
-
-            is_safe, refusal_message = await safety_task
+            # First perform safety check
+            is_safe, refusal_message = await self.check_safety(message)
 
             if self.verbose:
                 logger.info(f"Safety check result: {is_safe}")
 
             if not is_safe:
-                context_task.cancel()  # Cancel context retrieval if unsafe
                 yield refusal_message
                 return
 
-            context = await context_task
+            # Only retrieve context if query is safe
+            context = await self.retriever.get_relevant_context(message)
+            
+            # If no context is found, return a specific message
+            if not context:
+                yield "I'm sorry, but I don't have any specific information about that topic in my knowledge base. Could you please rephrase your question or ask about something else?"
+                return
             
             # Apply reranking if the reranker service is available
             if self.reranker_service and context:
-                if self.verbose:
-                    logger.info(f"Applying reranking to {len(context)} documents")
-                context = await self.reranker_service.rerank(message, context)
-                if self.verbose:
-                    logger.info(f"Reranking complete, got {len(context)} documents")
+                try:
+                    if self.verbose:
+                        logger.info(f"Applying reranking to {len(context)} documents")
+                        # Log original confidence scores
+                        original_scores = [item.get("confidence", 0) for item in context]
+                        logger.info(f"Original confidence scores: {original_scores}")
+                    
+                    reranked_context = await self.reranker_service.rerank(message, context)
+                    
+                    # Validate reranked results
+                    if not isinstance(reranked_context, list):
+                        logger.warning("Reranker returned invalid format, using original context")
+                        reranked_context = context
+                    elif len(reranked_context) == 0:
+                        logger.warning("Reranker returned empty results, using original context")
+                        reranked_context = context
+                    else:
+                        # Ensure all items have required fields
+                        valid_items = []
+                        for item in reranked_context:
+                            if isinstance(item, dict) and "content" in item:
+                                valid_items.append(item)
+                            else:
+                                logger.warning(f"Invalid item in reranked context: {item}")
+                        
+                        if valid_items:
+                            reranked_context = valid_items
+                        else:
+                            logger.warning("No valid items in reranked context, using original context")
+                            reranked_context = context
+                    
+                    if self.verbose:
+                        logger.info(f"Reranking complete, got {len(reranked_context)} documents")
+                        # Log new confidence scores
+                        new_scores = [item.get("confidence", 0) for item in reranked_context]
+                        logger.info(f"New confidence scores: {new_scores}")
+                        # Log improvement metrics
+                        if len(original_scores) == len(new_scores):
+                            improvements = [new - orig for new, orig in zip(new_scores, original_scores)]
+                            logger.info(f"Confidence score improvements: {improvements}")
+                    
+                    context = reranked_context
+                    
+                except Exception as e:
+                    logger.error(f"Error in reranking: {str(e)}")
+                    logger.info("Using original context due to reranking error")
+                    # Continue with original context
 
             # Check for direct answer with high confidence
             direct_answer = self.retriever.get_direct_answer(context)
@@ -134,7 +178,7 @@ class OllamaClient:
                 yield direct_answer
                 return
 
-            # Format prompt
+            # Format prompt with context
             full_prompt = await self._format_prompt(message, context)
 
             payload = {

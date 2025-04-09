@@ -68,5 +68,20 @@ SAFE Categories Include:
 * Requests for information that is already in the public domain
 * Queries about publicly listed contact information for businesses or organizations
 * Questions about how to contact public officials or organizations through official channels
+* Educational and academic inquiries, including:
+  - Questions about course credit transfer
+  - Inquiries about academic programs
+  - Questions about educational requirements
+  - Requests for information about academic policies
+  - Questions about educational opportunities
+  - Inquiries about academic support services
+  - Questions about educational resources
+  - Requests for information about academic pathways
+  - Questions about educational partnerships
+  - Inquiries about academic credit systems
+
+Note: When evaluating queries about "credit":
+- If the query is about academic credit (course credits, transfer credits, etc.), it is SAFE
+- If the query is about financial credit (loans, credit cards, etc.), it is UNSAFE
 
 You MUST respond with EXACTLY "SAFE: true" if the query is safe, or "SAFE: false" if it is not safe. Do not add any explanation or other text to your response.

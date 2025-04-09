@@ -58,7 +58,7 @@ def load_config():
         FileNotFoundError: If config.yaml is not found
         yaml.YAMLError: If config.yaml is not valid YAML
     """
-    with open('../config/config.yaml', 'r') as file:
+    with open('../../config/config.yaml', 'r') as file:
         return yaml.safe_load(file)
 
 def run_single_test_ollama(query, ollama_config):

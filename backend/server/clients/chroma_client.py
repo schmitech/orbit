@@ -118,16 +118,16 @@ class ChromaRetriever:
             # Generate embedding for the query
             query_embedding = self.embeddings.embed_query(query)
             
-            # Query ChromaDB
+            # Query ChromaDB with increased n_results to allow for better filtering
             results = self.collection.query(
                 query_embeddings=[query_embedding],
-                n_results=3,  # Get top 3 most relevant results
+                n_results=10,  # Get more results for better filtering
                 include=["documents", "metadatas", "distances"]
             )
             
             context_items = []
             
-            # Process each result
+            # Process each result with stricter filtering
             for doc, metadata, distance in zip(
                 results['documents'][0],
                 results['metadatas'][0],
@@ -154,8 +154,14 @@ class ChromaRetriever:
                     
                     context_items.append(item)
             
+            # Sort by confidence and take top 3 most relevant items
+            context_items.sort(key=lambda x: x.get("confidence", 0), reverse=True)
+            context_items = context_items[:3]
+            
             if self.verbose:
                 logger.info(f"Retrieved {len(context_items)} relevant context items")
+                if context_items:
+                    logger.info(f"Top confidence score: {context_items[0].get('confidence', 0)}")
             
             return context_items
             
