@@ -2,10 +2,6 @@
 let httpAgent: any = null;
 let httpsAgent: any = null;
 
-// Track connections for debugging
-let connectionCounter = 0;
-let connectionReuseCounter = 0;
-
 // Define the StreamResponse interface
 export interface StreamResponse {
   text: string;
@@ -14,77 +10,22 @@ export interface StreamResponse {
 
 export interface ChatResponse {
   response: string;
-  audio: string | null;
 }
 
-// Initialize the HTTP agents for connection pooling
-const initConnectionPool = async () => {
-  // Only run in Node.js environment
-  if (typeof window === 'undefined') {
-    try {
-      // Use dynamic imports for Node.js modules in ESM context
-      let http, https;
-      
-      try {
-        http = await import('node:http');
-        https = await import('node:https');
-      } catch (e) {
-        console.warn('[Connection Pool] Failed to import Node.js modules:', e);
-        return;
-      }
-      
-      // Create agents with keepAlive enabled and add tracking
-      httpAgent = new http.Agent({ 
-        keepAlive: true,
-        keepAliveMsecs: 30000, // 30 seconds
-        maxSockets: 5          // Limit parallel connections
-      });
-      
-      // Add tracking for connection reuse
-      const originalCreateConnection = httpAgent.createConnection;
-      httpAgent.createConnection = function(options: any, callback: any) {
-        connectionCounter++;
-        
-        
-        const socket = originalCreateConnection.call(this, options, callback);
-        
-        socket.on('reuse', () => {
-          connectionReuseCounter++;
-        });
-        
-        return socket;
-      };
-      
-      httpsAgent = new https.Agent({ 
-        keepAlive: true,
-        keepAliveMsecs: 30000,
-        maxSockets: 5
-      });
-      
-    } catch (error) {
-      console.warn('[Connection Pool] Failed to initialize HTTP agents:', error);
-    }
-  }
-};
-
-// Try to initialize connection pool (as an async function)
-(async () => {
-  try {
-    await initConnectionPool();
-  } catch (error) {
-    console.warn('Failed to initialize connection pool:', error);
-  }
-})();
-
-// Store the configured API URL
+// Store the configured API URL and key
 let configuredApiUrl: string | null = null;
+let configuredApiKey: string | null = null;
 
-// Configure the API with a custom URL
-export const configureApi = (apiUrl: string): void => {
+// Configure the API with a custom URL and API key
+export const configureApi = (apiUrl: string, apiKey: string): void => {
   if (!apiUrl || typeof apiUrl !== 'string') {
     throw new Error('API URL must be a valid string');
   }
+  if (!apiKey || typeof apiKey !== 'string') {
+    throw new Error('API key must be a valid string');
+  }
   configuredApiUrl = apiUrl;
+  configuredApiKey = apiKey;
 }
 
 // Get the configured API URL or throw an error if not configured
@@ -93,6 +34,14 @@ const getApiUrl = (): string => {
     throw new Error('API URL not configured. Please call configureApi() with your server URL before using any API functions.');
   }
   return configuredApiUrl;
+};
+
+// Get the configured API key or throw an error if not configured
+const getApiKey = (): string => {
+  if (!configuredApiKey) {
+    throw new Error('API key not configured. Please call configureApi() with your API key before using any API functions.');
+  }
+  return configuredApiKey;
 };
 
 // Helper to get fetch options with connection pooling if available
@@ -118,14 +67,14 @@ const getFetchOptions = (apiUrl: string, options: RequestInit = {}): RequestInit
     headers: {
       ...options.headers,
       'Connection': 'keep-alive',
-      'X-Request-ID': requestId // Add unique ID to track requests
+      'X-Request-ID': requestId, // Add unique ID to track requests
+      'X-API-Key': getApiKey()   // Add API key to headers
     }
   };
 };
 
 export async function* streamChat(
   message: string,
-  voiceEnabled: boolean,
   stream: boolean = true
 ): AsyncGenerator<StreamResponse> {
   try {
@@ -137,7 +86,7 @@ export async function* streamChat(
         'Content-Type': 'application/json',
         'Accept': stream ? 'text/event-stream' : 'application/json'
       },
-      body: JSON.stringify({ message, voiceEnabled, stream }),
+      body: JSON.stringify({ message, stream }),
     }));
 
     if (!response.ok) {

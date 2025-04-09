@@ -2,27 +2,34 @@
 
 /**
  * This script runs a query against the chatbot API and displays the results.
- * Usage: npm run test-query "your query here" "http://your-api-url.com"
+ * Usage: npm run test-query "your query here" "http://your-api-url.com" "your-api-key"
  */
 
 import { configureApi, streamChat } from '../api.ts';
 import readline from 'readline';
 
-// Get the query and API URL from command line arguments
+// Get the query, API URL, and API key from command line arguments
 const query = process.argv[2];
 const apiUrl = process.argv[3] || 'http://localhost:3000';
+const apiKey = process.argv[4];
 
 if (!query) {
   console.error('Error: No query provided');
-  console.error('Usage: npm run test-query "your query here" "http://your-api-url.com"');
+  console.error('Usage: npm run test-query "your query here" "http://your-api-url.com" "your-api-key"');
+  process.exit(1);
+}
+
+if (!apiKey) {
+  console.error('Error: No API key provided');
+  console.error('Usage: npm run test-query "your query here" "http://your-api-url.com" "your-api-key"');
   process.exit(1);
 }
 
 console.log(`Using API URL: ${apiUrl}`);
 console.log(`\n🔍 Testing query: "${query}"\n`);
 
-// Configure the API with the provided URL
-configureApi(apiUrl);
+// Configure the API with the provided URL and API key
+configureApi(apiUrl, apiKey);
 
 async function runQuery() {
   try {

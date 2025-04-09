@@ -78,12 +78,6 @@ def _log_config_summary(config: Dict[str, Any], source_path: str):
     logger.info(f"  Ollama: base_url={_mask_url(config['ollama'].get('base_url'))}, model={config['ollama'].get('model')}, embed_model={config['ollama'].get('embed_model')}")
     logger.info(f"  Stream: {_is_true_value(config['ollama'].get('stream', True))}")
     
-    # Summarization settings
-    summarization = config['ollama'].get('summarization', {})
-    logger.info(f"  Summarization: enabled={_is_true_value(summarization.get('enabled', False))}, model={summarization.get('model', config['ollama'].get('model'))}")
-    if _is_true_value(summarization.get('enabled', False)):
-        logger.info(f"    Max length: {summarization.get('max_length', 100)}, Min text length: {summarization.get('min_text_length', 200)}")
-    
     # Elasticsearch settings - mask credentials
     if _is_true_value(config.get('elasticsearch', {}).get('enabled', False)):
         es_node = _mask_url(config['elasticsearch'].get('node', ''))
@@ -289,12 +283,6 @@ def get_default_config() -> Dict[str, Any]:
             "repeat_penalty": 1.1,
             "num_predict": 1024,
             "model": "llama2",
-            "embed_model": "nomic-embed-text",
-            "summarization": {
-                "enabled": False,
-                "model": "llama2",
-                "max_length": 100,
-                "min_text_length": 200
-            }
+            "embed_model": "nomic-embed-text"
         }
     }

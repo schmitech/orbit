@@ -183,11 +183,23 @@ async def lifespan(app: FastAPI):
     
     # Initialize services concurrently
     try:
+        # Load no results message
+        no_results_message = None
+        try:
+            message_file = app.state.config.get('general', {}).get('no_results_message_file', '../prompts/no_results_message.txt')
+            with open(message_file, 'r') as file:
+                no_results_message = file.read().strip()
+                logger.info("Loaded no results message from file")
+        except Exception as e:
+            logger.warning(f"Could not load no results message: {str(e)}")
+            no_results_message = "Could not load no results message."
+        
         # Create LLM client with guardrail service
         app.state.llm_client = OllamaClient(
             app.state.config, 
             app.state.retriever,
-            guardrail_service=app.state.guardrail_service
+            guardrail_service=app.state.guardrail_service,
+            no_results_message=no_results_message
         )
         
         app.state.logger_service = LoggerService(app.state.config)
@@ -240,20 +252,6 @@ async def lifespan(app: FastAPI):
         logger.info(f"  Model: {model}")
         logger.info(f"  Top N: {top_n} documents")
         logger.info(f"  Temperature: {reranker_config.get('temperature', 0.0)}")
-    
-    # Summarization settings
-    summarization_config = app.state.config['ollama'].get('summarization', {})
-    summarization_enabled = summarization_config.get('enabled', False)
-    
-    logger.info(f"Summarization: {'enabled' if summarization_enabled else 'disabled'}")
-    if summarization_enabled:
-        model = summarization_config.get('model', app.state.config['ollama']['model'])
-        max_length = summarization_config.get('max_length', 100)
-        min_text_length = summarization_config.get('min_text_length', 200)
-        
-        logger.info(f"  Model: {model}")
-        logger.info(f"  Max length: {max_length} tokens")
-        logger.info(f"  Min text length: {min_text_length} characters")
     
     # Safety check configuration
     safety_mode = app.state.config.get('safety', {}).get('mode', 'strict')

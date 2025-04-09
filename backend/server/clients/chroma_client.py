@@ -6,7 +6,6 @@ import logging
 from typing import Dict, Any, List, Optional
 from chromadb import HttpClient
 from langchain_ollama import OllamaEmbeddings
-from services.summarization_service import SummarizationService
 from services.api_key_service import ApiKeyService
 from fastapi import HTTPException
 
@@ -25,7 +24,6 @@ class ChromaRetriever:
         self.verbose = config.get('general', {}).get('verbose', False)
         
         # Initialize services
-        self.summarization_service = SummarizationService(config)
         self.api_key_service = ApiKeyService(config)
         
         # Initialize Chroma client
@@ -36,12 +34,10 @@ class ChromaRetriever:
 
     async def initialize(self):
         """Initialize the services"""
-        await self.summarization_service.initialize()
         await self.api_key_service.initialize()
 
     async def close(self):
         """Close the services"""
-        await self.summarization_service.close()
         await self.api_key_service.close()
 
     async def set_collection(self, collection_name: str) -> None:
@@ -143,14 +139,9 @@ class ChromaRetriever:
                         **metadata
                     }
                     
-                    # If this is a direct answer, check if it needs summarizing
+                    # If this is a direct answer, include it
                     if "question" in metadata and "answer" in metadata:
-                        # Let the summarization service handle length checks
-                        summary = await self.summarization_service.summarize(metadata["answer"])
-                        if summary != metadata["answer"]:  # Only update if summarization occurred
-                            if self.verbose:
-                                logger.info(f"Summarized answer: {len(metadata['answer'])} → {len(summary)} chars")
-                            item["answer"] = summary
+                        item["answer"] = metadata["answer"]
                     
                     context_items.append(item)
             

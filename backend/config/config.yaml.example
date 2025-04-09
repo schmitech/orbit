@@ -1,5 +1,5 @@
 general:
-  port: 3001
+  port: 5000
   verbose: false
   https:
     enabled: false
@@ -24,8 +24,8 @@ logging:
   propagate: false
 
 elasticsearch:
-  enabled: false
-  node: 'http://localhost:9200'
+  enabled: true
+  node: 'https://localhost:9200'
   index: 'chatbot'
   auth:
     username: ${ELASTICSEARCH_USERNAME}
@@ -34,24 +34,23 @@ elasticsearch:
 safety:
   enabled: true
   mode: "fuzzy"  # Options: strict, fuzzy, disabled
-  model: "gemma3:12b"
+  model: "gemma3:4b"
   max_retries: 3
   retry_delay: 1.0
   request_timeout: 15
   allow_on_timeout: false
-  temperature: 0.0  # Use 0 for deterministic response
+  temperature: 0.0
   top_p: 1.0
   top_k: 1
-  num_predict: 20  # Limit response length for safety checks
+  num_predict: 20
   stream: false
   repeat_penalty: 1.1
 
 chroma:
   host: "localhost"
   port: 8000
-  collection: "occsc"
-  confidence_threshold: 0.75
-  relevance_threshold: 0.5
+  confidence_threshold: 0.85
+  relevance_threshold: 0.7
 
 reranker:
   enabled: true
@@ -70,10 +69,23 @@ ollama:
   num_ctx: 8192
   num_threads: 8
   model: "chatbot"
-  embed_model: "bge-m3"
+  embed_model: "nomic-embed-text"
   stream: true
   summarization:
     enabled: true
     model: "gemma3:4b"
     max_length: 100
     min_text_length: 200
+
+api_keys:
+  header_name: "X-API-Key"
+  require_for_health: true
+
+
+mongodb:
+  host: "localhost"
+  port: 27017
+  database: "chatbot"
+  apikey_collection: "api_keys"
+  username: ""  # TODO: Move to .env
+  password: ""  # TODO: Move to .env

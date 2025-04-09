@@ -4,7 +4,6 @@ export interface StreamResponse {
 }
 export interface ChatResponse {
     response: string;
-    audio: string | null;
 }
-export declare const configureApi: (apiUrl: string) => void;
-export declare function streamChat(message: string, voiceEnabled: boolean, stream?: boolean): AsyncGenerator<StreamResponse>;
+export declare const configureApi: (apiUrl: string, apiKey: string) => void;
+export declare function streamChat(message: string, stream?: boolean): AsyncGenerator<StreamResponse>;
