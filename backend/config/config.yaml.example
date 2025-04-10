@@ -1,6 +1,6 @@
 general:
-  port: 5000
-  verbose: false
+  port: 3001
+  verbose: true
   https:
     enabled: false
     port: 3443
@@ -24,17 +24,41 @@ logging:
   propagate: false
 
 elasticsearch:
-  enabled: true
+  enabled: false
   node: 'https://localhost:9200'
   index: 'chatbot'
   auth:
     username: ${ELASTICSEARCH_USERNAME}
     password: ${ELASTICSEARCH_PASSWORD}
 
-safety:
-  enabled: true
-  mode: "fuzzy"  # Options: strict, fuzzy, disabled
+chroma:
+  host: "localhost"
+  port: 8000
+  confidence_threshold: 0.85
+  relevance_threshold: 0.7
+
+ollama:
+  base_url: "http://localhost:11434"
+  temperature: 0.1
+  top_p: 0.8
+  top_k: 20
+  repeat_penalty: 1.1
+  num_predict: 1024
+  num_ctx: 8192
+  num_threads: 8
   model: "gemma3:4b"
+  embed_model: "bge-m3"
+  stream: true
+  summarization:
+    enabled: true
+    model: "gemma3:4b"
+    max_length: 100
+    min_text_length: 500
+
+safety:
+  enabled: false
+  mode: "fuzzy"  # Options: strict, fuzzy, disabled
+  model: "gemma3:12b"
   max_retries: 3
   retry_delay: 1.0
   request_timeout: 15
@@ -46,12 +70,6 @@ safety:
   stream: false
   repeat_penalty: 1.1
 
-chroma:
-  host: "localhost"
-  port: 8000
-  confidence_threshold: 0.85
-  relevance_threshold: 0.7
-
 reranker:
   enabled: true
   model: "gemma3:4b"
@@ -59,33 +77,14 @@ reranker:
   temperature: 0.0
   top_n: 3
 
-ollama:
-  base_url: "http://localhost:11434"
-  temperature: 0.1
-  top_p: 0.8
-  top_k: 20
-  repeat_penalty: 1.1
-  num_predict: 1024
-  num_ctx: 8192
-  num_threads: 8
-  model: "chatbot"
-  embed_model: "nomic-embed-text"
-  stream: true
-  summarization:
-    enabled: true
-    model: "gemma3:4b"
-    max_length: 100
-    min_text_length: 200
-
 api_keys:
   header_name: "X-API-Key"
   require_for_health: true
-
 
 mongodb:
   host: "localhost"
   port: 27017
   database: "chatbot"
   apikey_collection: "api_keys"
-  username: ""  # TODO: Move to .env
-  password: ""  # TODO: Move to .env
+  username: ""  # TODO: Load from .env
+  password: ""  # TODO: Load from .env

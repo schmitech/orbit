@@ -32,17 +32,17 @@ prompt_style = PromptStyle.from_dict({
 })
 
 def clean_response(text):
-    """Clean any artifacts or strange characters from the response"""
-    # Remove non-ASCII characters except common punctuation
-    text = re.sub(r'[^\x20-\x7E\n.,!?:;\'"-]', '', text)
+    """Clean any artifacts or strange characters from the response without removing non-English text"""
+    # Don't remove non-ASCII characters - this was causing Chinese and Arabic to be stripped
+    # text = re.sub(r'[^\x20-\x7E\n.,!?:;\'"-]', '', text)  # REMOVE THIS LINE
     
-    # Fix missing spaces after punctuation
+    # Fix missing spaces after punctuation (for Latin-based languages)
     text = re.sub(r'([.,!?:;])([A-Za-z0-9])', r'\1 \2', text)
     
-    # Fix missing spaces between sentences
+    # Fix missing spaces between sentences (for Latin-based languages)
     text = re.sub(r'([.!?])([A-Z])', r'\1 \2', text)
     
-    # Fix missing spaces between words
+    # Fix missing spaces between words (for Latin-based languages)
     text = re.sub(r'([a-z])([A-Z])', r'\1 \2', text)
     
     # Remove any markdown formatting
@@ -56,10 +56,18 @@ def clean_response(text):
         if text.lower().startswith(prefix.lower()):
             text = text[len(prefix):].lstrip()
     
-    # Normalize whitespace while preserving intentional line breaks
+    # Normalize whitespace while preserving intentional line breaks and Unicode characters
     lines = text.split('\n')
-    lines = [re.sub(r'\s+', ' ', line).strip() for line in lines]
-    text = '\n'.join(line for line in lines if line)
+    lines = [line.strip() for line in lines]
+    normalized_lines = []
+    
+    for line in lines:
+        if line:
+            # Only normalize multiple spaces within a line
+            normalized_line = re.sub(r' +', ' ', line)
+            normalized_lines.append(normalized_line)
+    
+    text = '\n'.join(normalized_lines)
     
     return text.strip()
 

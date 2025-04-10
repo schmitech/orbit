@@ -23,7 +23,8 @@ export default defineConfig({
         globals: {
           react: 'React',
           'react-dom': 'ReactDOM'
-        }
+        },
+        preserveModules: true
       }
     },
     sourcemap: true,
@@ -31,5 +32,15 @@ export default defineConfig({
     commonjsOptions: {
       esmExternals: true,
     }
-  }
+  },
+  plugins: [{
+    name: 'types',
+    generateBundle() {
+      this.emitFile({
+        type: 'asset',
+        fileName: 'api.mjs.d.ts',
+        source: 'export * from "../api.d.ts";'
+      });
+    }
+  }]
 }); 

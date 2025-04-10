@@ -5,21 +5,25 @@ import { Sidebar } from './components/Sidebar';
 import { useChatStore } from './store';
 import { streamChat, configureApi } from './api';
 
-// Configure the API with the endpoint from environment variables
+// Configure the API with the endpoint and API key from environment variables
 const apiEndpoint = import.meta.env.VITE_API_ENDPOINT;
+const apiKey = import.meta.env.VITE_API_KEY;
+
 if (!apiEndpoint) {
   throw new Error('VITE_API_ENDPOINT is not configured in .env file');
 }
 
-// Initialize the API client with the configured endpoint
-configureApi(apiEndpoint);
+if (!apiKey) {
+  throw new Error('VITE_API_KEY is not configured in .env file');
+}
+
+// Initialize the API client with the configured endpoint and API key
+configureApi(apiEndpoint, apiKey);
 console.log('API configured with endpoint:', apiEndpoint);
 
 function App() {
-  const { messages, isLoading, voiceEnabled, addMessage, setIsLoading, appendToLastMessage } = useChatStore();
+  const { messages, isLoading, addMessage, setIsLoading, appendToLastMessage } = useChatStore();
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const audioQueue = useRef<string[]>([]);
-  const currentAudio = useRef<HTMLAudioElement | null>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -29,51 +33,18 @@ function App() {
     scrollToBottom();
   }, [messages]);
 
-  const playNextAudio = () => {
-    if (audioQueue.current.length > 0 && !currentAudio.current) {
-      const audio = new Audio(audioQueue.current[0]);
-      currentAudio.current = audio;
-      
-      audio.onended = () => {
-        audioQueue.current.shift();
-        currentAudio.current = null;
-        playNextAudio();
-      };
-      
-      audio.play().catch(console.error);
-    }
-  };
-
-  const playAudioChunk = (base64: string) => {
-    const audioUrl = `data:audio/mpeg;base64,${base64}`;
-    audioQueue.current.push(audioUrl);
-    
-    if (!currentAudio.current) {
-      playNextAudio();
-    }
-  };
-
   const handleSendMessage = async (content: string) => {
     addMessage({ role: 'user', content });
     setIsLoading(true);
     addMessage({ role: 'assistant', content: '' });
   
     try {
-      for await (const chunk of streamChat(content, voiceEnabled)) {
-        // The new API normalizes responses to use 'text' property
-        // and may not always have a 'type' property for text responses
+      for await (const chunk of streamChat(content, false)) {
         if (chunk.text) {
           appendToLastMessage(chunk.text);
         }
         
-        // For audio content, check both type and content properties
-        if (chunk.type === 'audio' && chunk.content && voiceEnabled) {
-          playAudioChunk(chunk.content);
-        }
-        
-        // You can also check for completion if needed
         if (chunk.done) {
-          // Handle completion (optional)
           console.log('Response complete');
         }
       }

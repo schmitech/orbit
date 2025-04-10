@@ -15,144 +15,172 @@ logger = logging.getLogger(__name__)
 class ChromaRetriever:
     """Handles document retrieval from ChromaDB"""
 
-    def __init__(self, collection, embeddings: OllamaEmbeddings, config: Dict[str, Any]):
+    def __init__(self, collection: Any, embeddings: OllamaEmbeddings, config: Dict[str, Any]):
         self.collection = collection
         self.embeddings = embeddings
         self.config = config
-        self.confidence_threshold = config['chroma'].get('confidence_threshold', 0.7)
-        self.relevance_threshold = config['chroma'].get('relevance_threshold', 0.5)
+        
+        # Extract chroma-specific configuration for clarity
+        chroma_config = config.get('chroma', {})
+        self.confidence_threshold = chroma_config.get('confidence_threshold', 0.7)
+        self.relevance_threshold = chroma_config.get('relevance_threshold', 0.5)
         self.verbose = config.get('general', {}).get('verbose', False)
         
-        # Initialize services
+        # Initialize dependent services
         self.api_key_service = ApiKeyService(config)
-        
-        # Initialize Chroma client
         self.chroma_client = HttpClient(
-            host=config['chroma']['host'],
-            port=int(config['chroma']['port'])
+            host=chroma_config.get('host'),
+            port=int(chroma_config.get('port'))
         )
 
     async def initialize(self):
-        """Initialize the services"""
+        """Initialize required services."""
         await self.api_key_service.initialize()
 
     async def close(self):
-        """Close the services"""
+        """Close any open services."""
         await self.api_key_service.close()
 
+    async def _resolve_collection(self, api_key: Optional[str] = None, collection_name: Optional[str] = None) -> None:
+        """
+        Determine and set the appropriate collection.
+        
+        Priority:
+          1. If an API key is provided, validate it and use its collection.
+          2. If a collection name is provided directly, use it.
+          3. If none is provided and the current collection is None, try the default from config.
+        
+        Raises:
+            HTTPException: If no valid collection can be determined.
+        """
+        if api_key:
+            is_valid, resolved_collection_name = await self.api_key_service.validate_api_key(api_key)
+            if not is_valid:
+                raise ValueError("Invalid API key")
+            if resolved_collection_name:
+                await self.set_collection(resolved_collection_name)
+                return
+        elif collection_name:
+            await self.set_collection(collection_name)
+            return
+
+        # Fallback to the default collection if none is set
+        if not self.collection:
+            default_collection = self.config.get('chroma', {}).get('collection')
+            if default_collection:
+                await self.set_collection(default_collection)
+            else:
+                error_msg = ("No collection available. Ensure a default collection is configured "
+                             "or a valid API key is provided.")
+                logger.error(error_msg)
+                raise HTTPException(status_code=500, detail=error_msg)
+
     async def set_collection(self, collection_name: str) -> None:
-        """Set the current collection for retrieval"""
+        """Set the current collection for retrieval."""
         if not collection_name:
             raise ValueError("Collection name cannot be empty")
-            
         try:
             self.collection = self.chroma_client.get_collection(name=collection_name)
             if self.verbose:
                 logger.info(f"Switched to collection: {collection_name}")
         except Exception as e:
-            logger.error(f"Failed to switch collection: {str(e)}")
-            raise HTTPException(status_code=500, detail=f"Failed to access collection: {str(e)}")
+            error_msg = f"Failed to switch collection: {str(e)}"
+            logger.error(error_msg)
+            raise HTTPException(status_code=500, detail=error_msg)
 
     def get_direct_answer(self, context: List[Dict[str, Any]]) -> Optional[str]:
         """
-        Check if there's a direct answer with high confidence
+        Return a direct answer from the most relevant result if it meets the confidence threshold.
         
         Args:
-            context: List of context items from Chroma
+            context: List of context items from Chroma.
             
         Returns:
-            Optional[str]: Direct answer if found, None otherwise
+            The direct answer if found, otherwise None.
         """
         if not context:
             return None
             
-        # Get the first (most relevant) result
         first_result = context[0]
         
-        # Check if it's a Q&A pair with high confidence
-        if "question" in first_result and "answer" in first_result:
-            if first_result.get("confidence", 0) >= self.confidence_threshold:
-                if self.verbose:
-                    logger.info(f"Found direct answer with confidence {first_result.get('confidence')}")
-                return first_result["answer"]
+        # Detailed debugging if verbose mode is enabled
+        if self.verbose:
+            logger.info(f"Direct answer check - confidence: {first_result.get('confidence', 0)}")
+            logger.info(f"Direct answer check - has question: {'question' in first_result}")
+            logger.info(f"Direct answer check - has answer: {'answer' in first_result}")
+            
+        if ("question" in first_result and "answer" in first_result and 
+            first_result.get("confidence", 0) >= self.confidence_threshold):
+            if self.verbose:
+                logger.info(f"Found direct answer with confidence {first_result.get('confidence')}")
+            
+            # Return a formatted answer that includes both question and answer for clarity
+            return f"Question: {first_result['question']}\nAnswer: {first_result['answer']}"
         
         return None
 
     async def get_relevant_context(self, query: str, api_key: Optional[str] = None, collection_name: Optional[str] = None) -> List[Dict[str, Any]]:
         """
-        Retrieve relevant context from ChromaDB
+        Retrieve and filter relevant context from ChromaDB.
         
         Args:
-            query: The user's query
-            api_key: Optional API key to determine collection
-            collection_name: Optional collection name to use directly
+            query: The user's query.
+            api_key: Optional API key for accessing the collection.
+            collection_name: Optional explicit collection name.
             
         Returns:
-            List[Dict[str, Any]]: List of relevant context items
+            A list of context items filtered by relevance.
         """
         try:
-            # If API key is provided, validate and get collection
-            if api_key:
-                is_valid, collection_name = await self.api_key_service.validate_api_key(api_key)
-                if not is_valid:
-                    raise ValueError("Invalid API key")
-                if collection_name:
-                    await self.set_collection(collection_name)
-            # If collection_name is provided directly, use it
-            elif collection_name:
-                await self.set_collection(collection_name)
+            await self._resolve_collection(api_key, collection_name)
             
-            # If no collection is set yet, use the default from config
-            if self.collection is None:
-                default_collection = self.config.get('chroma', {}).get('collection')
-                if default_collection:
-                    await self.set_collection(default_collection)
-                else:
-                    logger.error("No collection available. Ensure a default collection is configured or an API key is provided.")
-                    return []
-            
-            # Generate embedding for the query
+            # Generate an embedding for the query
             query_embedding = self.embeddings.embed_query(query)
             
-            # Query ChromaDB with increased n_results to allow for better filtering
+            # Query ChromaDB for multiple results to enable filtering
             results = self.collection.query(
                 query_embeddings=[query_embedding],
-                n_results=10,  # Get more results for better filtering
+                n_results=10,  # Fetch extra results to enable better filtering.
                 include=["documents", "metadatas", "distances"]
             )
             
             context_items = []
             
-            # Process each result with stricter filtering
+            # Process and filter each result based on the relevance threshold.
             for doc, metadata, distance in zip(
                 results['documents'][0],
                 results['metadatas'][0],
                 results['distances'][0]
             ):
                 similarity = 1 - distance
-                
-                # Only include results above relevance threshold
                 if similarity >= self.relevance_threshold:
+                    # Create the base item with confidence and metadata
                     item = {
-                        "content": doc,
                         "confidence": similarity,
                         **metadata
                     }
                     
-                    # If this is a direct answer, include it
+                    # Set the content field correctly - prioritize answer if available
                     if "question" in metadata and "answer" in metadata:
+                        # If it's a QA pair, set content to the question and answer together
+                        item["content"] = f"Question: {metadata['question']}\nAnswer: {metadata['answer']}"
+                        item["question"] = metadata["question"]
                         item["answer"] = metadata["answer"]
+                    else:
+                        # Otherwise, use the document content
+                        item["content"] = doc
                     
                     context_items.append(item)
             
-            # Sort by confidence and take top 3 most relevant items
-            context_items.sort(key=lambda x: x.get("confidence", 0), reverse=True)
-            context_items = context_items[:3]
+            # Sort the context items by confidence and select the top 3 results
+            context_items = sorted(context_items, key=lambda x: x.get("confidence", 0), reverse=True)[:3]
             
             if self.verbose:
                 logger.info(f"Retrieved {len(context_items)} relevant context items")
                 if context_items:
                     logger.info(f"Top confidence score: {context_items[0].get('confidence', 0)}")
+                    if "answer" in context_items[0]:
+                        logger.info(f"Top result has answer field: {True}")
             
             return context_items
             

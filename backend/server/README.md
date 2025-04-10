@@ -438,3 +438,67 @@ sudo systemctl status chatbot
 ## License
 
 [Apache 2.0](LICENSE)
+
+## Safety Service
+
+The Safety Service provides configurable guardrails for user queries using LLM-based verification. It helps prevent inappropriate or harmful content from being processed by the system.
+
+### Safety Modes
+
+The service supports three different safety modes:
+
+1. **Strict Mode** (default)
+   - Most restrictive mode
+   - Only accepts exact matches of "SAFE: true" (with or without quotes)
+   - Used when safety_mode is not specified or set to 'strict'
+
+2. **Fuzzy Mode**
+   - More lenient but still maintains safety checks
+   - Accepts variations of safe responses
+   - Common patterns include:
+     - "safe: true"
+     - "safe:true"
+     - "safe - true"
+     - "safe = true"
+     - "\"safe\": true"
+     - "safe\"=true"
+     - "\"safe: true\""
+
+3. **Disabled Mode**
+   - Completely bypasses safety checks
+   - Always returns `True` for safety checks
+   - Use with caution in production environments
+
+### Configuration
+
+Configure safety settings in your `config.yaml`:
+
+```yaml
+safety:
+  mode: "fuzzy"  # Options: strict, fuzzy, disabled
+  model: "gemma3:12b"
+  max_retries: 3
+  retry_delay: 1.0
+  request_timeout: 15
+  allow_on_timeout: false  # Set to true to allow queries if safety check times out
+  temperature: 0.0  # Use 0 for deterministic response
+  top_p: 1.0
+  top_k: 1
+  num_predict: 20  # Limit response length for safety checks
+  stream: false
+  repeat_penalty: 1.1
+```
+
+### Benefits
+
+- **Configurable Safety**: Choose the appropriate safety level for your use case
+- **Flexible Implementation**: Supports different safety check strategies
+- **Reliable Fallbacks**: Includes retry mechanisms and timeout handling
+- **Detailed Logging**: Verbose mode provides insight into safety check decisions
+
+### Performance Considerations
+
+- Safety checks add latency to each query
+- Use appropriate timeout settings based on your requirements
+- Consider using a smaller model for safety checks to reduce latency
+- Balance safety with performance based on your use case

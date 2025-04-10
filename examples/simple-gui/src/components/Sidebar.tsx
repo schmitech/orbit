@@ -1,11 +1,9 @@
 import React from 'react';
-import { Settings, Mic, Trash2, Languages } from 'lucide-react';
+import { Settings, Trash2, Languages } from 'lucide-react';
 import { useChatStore } from '../store';
 
 export const Sidebar: React.FC = () => {
   const { 
-    voiceEnabled, 
-    setVoiceEnabled, 
     clearMessages, 
     messages,
     language,
@@ -23,7 +21,7 @@ export const Sidebar: React.FC = () => {
         <div className="space-y-2">
           <div className="flex items-center gap-3 text-gray-600">
             <Languages size={20} className="shrink-0" />
-            <span className="text-base font-medium text-gray-900">Mic Language</span>
+            <span className="text-base font-medium text-gray-900">Language</span>
           </div>
           <select
             value={language}
@@ -36,36 +34,6 @@ export const Sidebar: React.FC = () => {
               </option>
             ))}
           </select>
-        </div>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Mic size={20} className="text-gray-600 shrink-0" />
-            <span className="text-base font-medium text-gray-900">Voice Responses</span>
-          </div>
-          <label className="relative inline-flex items-center cursor-pointer">
-            <input
-              type="checkbox"
-              checked={voiceEnabled}
-              onChange={(e) => setVoiceEnabled(e.target.checked)}
-              className="sr-only peer"
-            />
-            <div className="w-11 h-6 bg-gray-200 rounded-full peer 
-              peer-focus:ring-4 peer-focus:ring-blue-100
-              peer-checked:after:translate-x-full 
-              peer-checked:after:border-white 
-              peer-checked:bg-blue-500
-              after:content-[''] 
-              after:absolute 
-              after:top-0.5 
-              after:left-0.5 
-              after:bg-white 
-              after:rounded-full 
-              after:h-5 
-              after:w-5 
-              after:shadow-sm
-              after:transition-all"
-            />
-          </label>
         </div>
         
         <button

@@ -61,17 +61,17 @@ This repository contains four interconnected projects:
 
 ### Prerequisites
 
-- Node.js v16 or higher
-- Python 3.12+ (for ChromaDB)
-- Ollama installed locally
-- ElevenLabs API key (for text-to-speech capabilities)
-- ChromaDB installed locally or in a server/container
+- Python 3.12+
+- Node.js v18 or higher
+- Ollama Server (local or remote)
+- MongoDB for API Key Management
+- ChromaDB (local or remote)
 
 ### Server Setup
 
 ```bash
 # Navigate to server directory
-cd server
+cd /backend/server
 
 # Install dependencies
 npm install
