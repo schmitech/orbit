@@ -8,8 +8,7 @@ declare module '../../api/dist/api.mjs' {
   }
 
   export function streamChat(
-    message: string,
-    voiceEnabled: boolean
+    message: string
   ): AsyncGenerator<StreamResponse>;
   
   export function configureApi(apiUrl: string): void;
@@ -26,7 +25,6 @@ declare module 'api-local' {
 
   export function streamChat(
     message: string,
-    voiceEnabled: boolean
   ): AsyncGenerator<StreamResponse>;
   
   export function configureApi(apiUrl: string): void;

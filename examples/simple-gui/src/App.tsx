@@ -39,7 +39,7 @@ function App() {
     addMessage({ role: 'assistant', content: '' });
   
     try {
-      for await (const chunk of streamChat(content, false)) {
+      for await (const chunk of streamChat(content)) {
         if (chunk.text) {
           appendToLastMessage(chunk.text);
         }

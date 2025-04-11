@@ -30,27 +30,27 @@ async function getLocalApi() {
 }
 
 // Export the appropriate API
-export async function* streamChat(message: string, voiceEnabled: boolean): AsyncGenerator<StreamResponse> {
+export async function* streamChat(message: string): AsyncGenerator<StreamResponse> {
   if (USE_LOCAL_API) {
     try {
       console.log('🚀 Attempting to use LOCAL API version for streamChat...');
       const localApiModule = await getLocalApi();
       console.log('✅ Successfully loaded LOCAL API module!');
-      const generator = localApiModule.streamChat(message, voiceEnabled);
+      const generator = localApiModule.streamChat(message);
       for await (const chunk of generator) {
         yield chunk;
       }
     } catch (error) {
       console.error('❌ Failed to load local API:', error);
       console.log('⚠️ Falling back to NPM package version...');
-      const generator = npmApi.streamChat(message, voiceEnabled);
+      const generator = npmApi.streamChat(message);
       for await (const chunk of generator) {
         yield chunk;
       }
     }
   } else {
     console.log('🚀 Using NPM package version for streamChat');
-    const generator = npmApi.streamChat(message, voiceEnabled);
+    const generator = npmApi.streamChat(message);
     for await (const chunk of generator) {
       yield chunk;
     }
