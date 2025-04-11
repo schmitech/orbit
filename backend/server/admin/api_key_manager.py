@@ -6,10 +6,10 @@ A command-line utility for managing API keys for the chat server.
 This tool provides convenient methods for creating, listing, and deactivating API keys.
 
 Usage:
-    python api_key_manager.py create --collection client_collection --name "Client Name" --notes "Optional notes"
-    python api_key_manager.py list
-    python api_key_manager.py test --key YOUR_API_KEY
-    python api_key_manager.py deactivate --key YOUR_API_KEY
+    python api_key_manager.py --url http://host:port create --collection client_collection --name "Client Name" --notes "Optional notes"
+    python api_key_manager.py --url http://host:port list
+    python api_key_manager.py --url http://host:port test --key YOUR_API_KEY
+    python api_key_manager.py --url http://host:port deactivate --key YOUR_API_KEY
 """
 
 import argparse
@@ -220,7 +220,11 @@ class ApiKeyManager:
 def main():
     """Command-line interface for the API Key Manager"""
     parser = argparse.ArgumentParser(description="API Key Manager for the chat server")
-    parser.add_argument("--server", help="Server URL, e.g., http://localhost:3001")
+    
+    # Add both --server and --url options for server URL
+    server_group = parser.add_mutually_exclusive_group()
+    server_group.add_argument("--server", help="Server URL, e.g., http://localhost:3001")
+    server_group.add_argument("--url", help="Server URL, e.g., http://localhost:3001")
     
     subparsers = parser.add_subparsers(dest="command", help="Command to execute")
     
@@ -248,7 +252,10 @@ def main():
     args = parser.parse_args()
     
     try:
-        manager = ApiKeyManager(server_url=args.server)
+        # Use either --url or --server parameter for the server URL
+        server_url = args.url or args.server
+        
+        manager = ApiKeyManager(server_url=server_url)
         
         if args.command == "create":
             result = manager.create_api_key(args.collection, args.name, args.notes)

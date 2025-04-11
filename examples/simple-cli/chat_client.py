@@ -200,7 +200,7 @@ def stream_chat(url, message, api_key=None, debug=False):
 
 def main():
     parser = argparse.ArgumentParser(description="Chat Client for Testing Chat Server")
-    parser.add_argument("--url", default="http://localhost:3001", help="Chat server URL (with or without /chat)")
+    parser.add_argument("--url", default="http://localhost:3000", help="Chat server URL (with or without /chat)")
     parser.add_argument("--api-key", help="API key for authentication")
     parser.add_argument("--debug", action="store_true", help="Enable debug mode")
     parser.add_argument("--show-timing", action="store_true", help="Show latency timing information")

@@ -35,25 +35,39 @@ class ApiKeyService:
             
         mongodb_config = self.config.get('mongodb', {})
         try:
+            # Log MongoDB configuration (without sensitive data)
+            logger.info(f"Initializing MongoDB connection with config: host={mongodb_config.get('host')}, port={mongodb_config.get('port')}, database={mongodb_config.get('database')}")
+            
             # Construct connection string
             connection_string = "mongodb://"
             if mongodb_config.get('username') and mongodb_config.get('password'):
-                connection_string += f"{mongodb_config['username']}:{mongodb_config['password']}@"
+                connection_string += f"{mongodb_config['username']}:****@"
+                logger.info("Using authentication for MongoDB connection")
             
             connection_string += f"{mongodb_config['host']}:{mongodb_config['port']}"
+            logger.info(f"Attempting to connect to MongoDB at {mongodb_config['host']}:{mongodb_config['port']}")
             
             # Connect to MongoDB
             self.client = motor.motor_asyncio.AsyncIOMotorClient(connection_string)
+            logger.info("MongoDB client created successfully")
+            
+            # Test the connection
+            await self.client.admin.command('ping')
+            logger.info("MongoDB connection test successful")
+            
             self.database = self.client[mongodb_config['database']]
             self.api_keys_collection = self.database[mongodb_config['apikey_collection']]
+            logger.info(f"Using database '{mongodb_config['database']}' and collection '{mongodb_config['apikey_collection']}'")
             
             # Create index on api_key field for faster lookups
             await self.api_keys_collection.create_index("api_key", unique=True)
+            logger.info("Created unique index on api_key field")
             
             logger.info("API Key Service initialized successfully")
             self._initialized = True
         except Exception as e:
             logger.error(f"Failed to initialize API Key Service: {str(e)}")
+            logger.error(f"MongoDB connection details: host={mongodb_config.get('host')}, port={mongodb_config.get('port')}")
             raise HTTPException(status_code=500, detail=f"Failed to initialize API Key Service: {str(e)}")
     
     def _generate_api_key(self, length: int = 32) -> str:

@@ -165,8 +165,14 @@ async def lifespan(app: FastAPI):
 
     # Initialize API Key Service
     app.state.api_key_service = ApiKeyService(app.state.config)
-    await app.state.api_key_service.initialize()
-    logger.info("API Key Service initialized")
+    logger.info("Initializing API Key Service...")
+    try:
+        await app.state.api_key_service.initialize()
+        logger.info("API Key Service initialized successfully")
+    except Exception as e:
+        logger.error(f"Failed to initialize API Key Service: {str(e)}")
+        logger.error(f"MongoDB connection details: {app.state.config.get('mongodb', {})}")
+        raise
 
     # Initialize Ollama embeddings
     ollama_conf = app.state.config['ollama']
