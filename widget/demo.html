@@ -227,7 +227,8 @@
 
         <div class="api-url-form">
             <input type="text" id="api-url" placeholder="API URL (e.g., http://localhost:3000)" value="http://localhost:3000">
-            <button onclick="updateApiUrl()">Update API URL</button>
+            <input type="text" id="api-key" placeholder="API Key" value="demo-api-key" required>
+            <button onclick="updateApiUrl()">Update API Settings</button>
         </div>
 
         <h2>Built-in Themes</h2>
@@ -848,9 +849,16 @@
         function initWidget() {
             if (!widgetInitialized) {
                 const apiUrl = document.getElementById('api-url').value || 'http://localhost:3000';
+                const apiKey = document.getElementById('api-key').value || 'demo-api-key';
+                
+                if (!apiKey) {
+                    alert('API key is required. Using default demo key.');
+                    document.getElementById('api-key').value = 'demo-api-key';
+                }
                 
                 window.initChatbotWidget({
                     apiUrl: apiUrl,
+                    apiKey: apiKey,
                     widgetConfig: defaultConfig
                 });
                 
@@ -858,6 +866,7 @@
                 
                 // Setup event listeners for code updates
                 document.getElementById('api-url').addEventListener('change', updateCodeExample);
+                document.getElementById('api-key').addEventListener('change', updateCodeExample);
                 
                 // Initial code update
                 setTimeout(updateCodeExample, 1000);
@@ -871,9 +880,16 @@
                 customContainer.innerHTML = ''; // Clear placeholder text
                 
                 const apiUrl = document.getElementById('api-url').value || 'http://localhost:3000';
+                const apiKey = document.getElementById('api-key').value || 'demo-api-key';
+                
+                if (!apiKey) {
+                    alert('API key is required. Using default demo key.');
+                    document.getElementById('api-key').value = 'demo-api-key';
+                }
                 
                 window.initChatbotWidget({
                     apiUrl: apiUrl,
+                    apiKey: apiKey,
                     containerSelector: '#custom-container',
                     widgetConfig: {
                         ...defaultConfig,
@@ -890,11 +906,13 @@
         // Update API URL
         function updateApiUrl() {
             const apiUrl = document.getElementById('api-url').value;
-            if (apiUrl && window.ChatbotWidget) {
+            const apiKey = document.getElementById('api-key').value;
+            if (apiUrl && apiKey && window.ChatbotWidget) {
                 window.ChatbotWidget.setApiUrl(apiUrl);
-                alert(`API URL updated to: ${apiUrl}`);
+                window.ChatbotWidget.setApiKey(apiKey);
+                alert(`API settings updated:\nURL: ${apiUrl}\nKey: ${apiKey}`);
             } else {
-                alert('Please enter a valid API URL');
+                alert('Please enter a valid API URL and Key (key cannot be empty)');
             }
         }
 
@@ -1020,10 +1038,14 @@
             if (window.ChatbotWidget) {
                 window.ChatbotWidget.updateWidgetConfig(defaultConfig);
                 
-                // Also update any API URL
+                // Also update any API URL and key
                 const apiUrl = document.getElementById('api-url').value;
+                const apiKey = document.getElementById('api-key').value;
                 if (apiUrl) {
                     window.ChatbotWidget.setApiUrl(apiUrl);
+                }
+                if (apiKey) {
+                    window.ChatbotWidget.setApiKey(apiKey);
                 }
             }
         }
@@ -1034,6 +1056,7 @@
             
             try {
                 const apiUrl = document.getElementById('api-url').value || 'http://localhost:3000';
+                const apiKey = document.getElementById('api-key').value || '';
                 
                 // Fallback to default config if getCurrentConfig is not available
                 const config = window.ChatbotWidget.getCurrentConfig?.() || defaultConfig;
@@ -1062,6 +1085,7 @@
                     '  window.addEventListener("load", function() {',
                     '    window.initChatbotWidget({',
                     '      apiUrl: "' + apiUrl + '",',
+                    '      apiKey: "' + apiKey + '",',
                     '      widgetConfig: ' + configStr,
                     '    });',
                     '  });',

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { streamChat, configureApi } from '@schmitech/chatbot-api';
-import { getApiUrl } from '../index';
+import { getApiUrl, getApiKey } from '../index';
 
 export type MessageRole = 'user' | 'assistant' | 'system';
 
@@ -23,8 +23,8 @@ interface ChatState {
 // Ensure the API is configured whenever the store is imported
 function ensureApiConfigured() {
   try {
-    if (typeof window !== 'undefined' && window.CHATBOT_API_URL) {
-      configureApi(window.CHATBOT_API_URL);
+    if (typeof window !== 'undefined' && window.CHATBOT_API_URL && window.CHATBOT_API_KEY) {
+      configureApi(window.CHATBOT_API_URL, window.CHATBOT_API_KEY);
       return true;
     }
   } catch (err) {

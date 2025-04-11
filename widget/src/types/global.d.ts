@@ -3,20 +3,25 @@ interface Window {
   ReactDOM: any;
   initChatbotWidget: (config: { 
     apiUrl: string; 
+    apiKey: string;
     containerSelector?: string;
     widgetConfig?: Partial<ChatConfig>;
   }) => void;
   CHATBOT_API_URL: string;
+  CHATBOT_API_KEY: string;
   ChatbotWidget: {
     ChatWidget: React.FC<any>;
     useChatStore: any;
     injectChatWidget: (config: { 
       apiUrl: string; 
+      apiKey: string;
       containerSelector?: string;
       widgetConfig?: Partial<ChatConfig>;
     }) => void;
     setApiUrl: (url: string) => void;
     getApiUrl: () => string;
+    setApiKey: (key: string) => void;
+    getApiKey: () => string;
     updateWidgetConfig: (config: Partial<ChatConfig>) => void;
     _latestConfig?: ChatConfig;
   };

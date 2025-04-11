@@ -17,6 +17,7 @@ declare global {
   interface Window {
     initChatbotWidget?: (config: {
       apiUrl: string,
+      apiKey: string,
       containerSelector?: string,
       widgetConfig?: {
         header?: {
@@ -76,6 +77,7 @@ function App() {
       try {
         window.initChatbotWidget({
           apiUrl: import.meta.env.VITE_API_ENDPOINT || 'http://localhost:3000',
+          apiKey: import.meta.env.VITE_API_KEY || 'demo-api-key',
           widgetConfig: {
             header: {
               title: "Community Services Help Center"

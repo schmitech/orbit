@@ -1,4 +1,4 @@
-declare module 'chatbot-api' {
+declare module '@schmitech/chatbot-api' {
   export interface StreamResponse {
     text?: string;
     audioChunk?: string;
@@ -12,5 +12,5 @@ declare module 'chatbot-api' {
     voiceEnabled: boolean
   ): AsyncGenerator<StreamResponse>;
   
-  export function configureApi(apiUrl: string): void;
+  export function configureApi(apiUrl: string, apiKey: string): void;
 } 
