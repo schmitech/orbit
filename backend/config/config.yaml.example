@@ -86,5 +86,5 @@ mongodb:
   port: 27017
   database: "chatbot"
   apikey_collection: "api_keys"
-  username: ""  # TODO: Load from .env
-  password: ""  # TODO: Load from .env
+  username: ${MONGODB_USERNAME}
+  password: ${MONGODB_PASSWORD}
