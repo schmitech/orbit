@@ -25,8 +25,8 @@ A simple, reusable chatbot widget seamlessly integrated into any website with mi
 1. **Clone Repository**
 
 ```bash
-git clone <repository-url>
-cd qa-chatbot-server
+git https://github.com/schmitech/orbit.git
+cd orbit/widget
 ```
 
 2. **Install & Build API**

@@ -1,209 +1,144 @@
-# FastAPI Chat Server
+# 🚀 FastAPI Chat Server
 
-A modular FastAPI server that provides a chat endpoint with Ollama LLM integration and Chroma vector database for retrieval augmented generation.
+A FastAPI server providing conversational AI with Ollama integration, ChromaDB for retrieval-augmented generation, safety checks, API key authentication, and elasticsearch logging.
 
-## Features
+---
 
-- Chat endpoint with context-aware responses
-- Health check endpoint
-- ChromaDB integration for document retrieval
-- Ollama integration for embeddings and LLM responses
-- Safety check for user queries
-- Streaming responses with proper formatting
-- Text summarization for long responses
-- Comprehensive logging system
-- HTTPS support with proper certificate management
-- Production-ready with health checks and graceful shutdown
+## 🌟 Key Features
 
-## Project Structure
+- **Context-Aware Chat**: Intelligent responses enhanced with retrieval-augmented generation (RAG).
+- **ChromaDB & Ollama Integration**: Efficient vector database and embedding management.
+- **API Key Authentication**: Secure access control for chat requests.
+- **Safety Guardrails**: Configurable safety service for content moderation.
+- **Real-time Streaming**: Support for streaming responses via Server-Sent Events (SSE).
+- **Logging**: Detailed logging with Elasticsearch support.
+- **HTTPS Support**: Secure communication using TLS.
 
-The project has been modularized for better maintainability:
 
-```
-chatbot/
-├── __init__.py
-├── config/           # Configuration management
-│   ├── __init__.py
-│   └── config_manager.py
-├── clients/          # External service clients
-│   ├── __init__.py
-│   ├── chroma_client.py
-│   └── ollama_client.py
-├── services/         # Business logic services
-│   ├── __init__.py
-│   ├── chat_service.py
-│   ├── health_service.py
-│   ├── guardrail_service.py
-│   └── summarization_service.py
-├── utils/            # Utility functions
-│   ├── __init__.py
-│   └── text_utils.py
-├── models/           # Data models and schemas
-│   ├── __init__.py
-│   └── schema.py
-└── server.py         # Main FastAPI application
-```
+## 🛠️ Installation
 
-## Installation
-
-1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/chatbot-server.git
-cd chatbot-server
+git clone https://github.com/schmitech/orbit.git
+cd /backend/server
 ```
 
-2. Install dependencies:
+Create and activate your Python environment:
+
+```bash
+python3 -m venv venv
+source venv/bin/activate
+```
+
+Install the required packages:
+
 ```bash
 pip install -r requirements.txt
 ```
 
-3. Create a `config.yaml` file in one of the following locations:
-   - `../config/config.yaml`
-   - `../../backend/config/config.yaml`
-   - `./config.yaml`
+### Configuration
+Create a `config.yaml` file using the provided `config.yaml.example`:
 
-Example config:
 ```yaml
 general:
   port: 3000
+  host: "0.0.0.0"
   verbose: false
   https:
     enabled: false
-    port: 3443
-    cert_file: ./cert.pem
-    key_file: ./key.pem
 
 logging:
-  level: "INFO"  # Options: DEBUG, INFO, WARNING, ERROR, CRITICAL
+  level: "INFO"
   file:
     enabled: true
-    directory: "logs"
-    filename: "server.log"
-    max_size_mb: 10
-    backup_count: 30
-    rotation: "midnight"  # Options: midnight, h (hourly), d (daily)
-    format: "json"  # Options: json, text
   console:
     enabled: true
-    format: "text"  # Options: json, text
-  capture_warnings: true
-  propagate: false
-
-elasticsearch:
-  enabled: true
-  node: 'https://localhost:9200'
-  index: 'chatbot'
-  auth:
-    username: ${ELASTICSEARCH_USERNAME}
-    password: ${ELASTICSEARCH_PASSWORD}
-
-safety:
-  mode: "fuzzy"  # Options: strict, fuzzy, disabled
-  model: "gemma3:12b"
-  max_retries: 3
-  retry_delay: 1.0
-  request_timeout: 15
-  allow_on_timeout: false  # Set to true to allow queries if safety check times out
-  temperature: 0.0  # Use 0 for deterministic response
-  top_p: 1.0
-  top_k: 1
-  num_predict: 20  # Limit response length for safety checks
-  stream: false
-  repeat_penalty: 1.1
 
 chroma:
   host: localhost
   port: 8000
   collection: qa-chatbot
-  confidence_threshold: 0.85
-  relevance_threshold: 0.5
 
 ollama:
   base_url: http://localhost:11434
-  temperature: 0.7
-  top_p: 0.9
-  top_k: 40
-  repeat_penalty: 1.1
-  num_predict: 1024
   model: llama2
   embed_model: nomic-embed-text
-  # Summarization settings
-  summarization_model: gemma3:4b
-  max_summary_length: 100
-  enable_summarization: true
 ```
 
-## Running the Server
+---
 
-Start the server using Uvicorn:
+## ▶️ Running the Server
+
+Use the provided script to start the server:
 
 ```bash
-uvicorn server:app --reload
+./start.sh [--host=HOST] [--port=PORT] [--workers=N] [--reload]
 ```
 
-Or run the server script directly:
+Examples:
+- Development mode with auto-reload:
 ```bash
-python server.py
+./start.sh --reload
+```
+- Production mode:
+```bash
+./start.sh --workers=4
 ```
 
-The server will be available at http://localhost:3000 by default.
+Server available at `http://localhost:3000`
 
-## API Endpoints
+---
 
-### Chat Endpoint
+## 🔗 API Endpoints
 
-```
-POST /chat
-```
-
-Request body:
+### Chat
+- **Endpoint**: `POST /chat`
+- **Headers**:
+  ```json
+  {
+    "X-API-Key": "your-api-key"
+  }
+  ```
+- **Request Body**:
 ```json
 {
-  "message": "Your question or message here",
-  "voiceEnabled": false,
+  "message": "Your message here",
   "stream": true
 }
 ```
-
-Response:
+- **Response**:
 ```json
 {
-  "response": "The answer to your question...",
-  "audio": null
+  "response": "Generated response..."
 }
 ```
 
-For streaming responses, set `stream: true` and use server-sent events (SSE) handling in your client.
-
 ### Health Check
-
-```
-GET /health
-```
-
-Response:
+- **Endpoint**: `GET /health`
+- **Response**:
 ```json
 {
   "status": "ok",
   "components": {
-    "server": {
-      "status": "ok"
-    },
-    "chroma": {
-      "status": "ok"
-    },
-    "llm": {
-      "status": "ok"
-    }
+    "server": {"status": "ok"},
+    "chroma": {"status": "ok"},
+    "llm": {"status": "ok"}
   }
 }
 ```
 
-## HTTPS Configuration
+### API Key Management (Admin)
+- **Create API Key**: `POST /admin/api-keys`
+- **List API Keys**: `GET /admin/api-keys`
+- **API Key Status**: `GET /admin/api-keys/{api_key}/status`
+- **Deactivate API Key**: `POST /admin/api-keys/deactivate`
+
+---
+
+## 🔒 HTTPS Configuration
 
 The server supports HTTPS connections using TLS (Transport Layer Security). Here's how to configure it:
 
-### Using Let's Encrypt with Certbot
+### Using Let's Encrypt with Azure Domain
 
 1. Install Certbot:
 ```bash
@@ -217,288 +152,225 @@ sudo apt-get install certbot
 sudo iptables -t nat -A PREROUTING -p tcp --dport 80 -j REDIRECT --to-port 3000
 ```
 
-3. Obtain TLS certificate using DNS challenge (recommended for production):
+3. Obtain TLS certificate using DNS challenge (since we can't use HTTP challenge with Azure domain):
 ```bash
-sudo certbot certonly --manual --preferred-challenges http -d your-domain.com
+sudo certbot certonly --manual --preferred-challenges http -d your-azure-domain.cloudapp.azure.com
 ```
 
-4. Update your `config.yaml`:
+4. When prompted by certbot, you'll need to:
+   - Create a `.well-known/acme-challenge` directory in your server project
+   - Add the verification file with the content provided by certbot
+   - Add this route to your server.ts:
+   ```typescript
+   app.use('/.well-known/acme-challenge', express.static(path.join(__dirname, '../.well-known/acme-challenge')));
+   ```
+   - Keep this route for future certificate renewals
+
+5. Update your `config.yaml`:
 ```yaml
 general:
   https:
     enabled: true
     port: 3443
-    cert_file: "/etc/letsencrypt/live/your-domain.com/fullchain.pem"
-    key_file: "/etc/letsencrypt/live/your-domain.com/privkey.pem"
+    cert_file: "/etc/letsencrypt/live/schmitech-chatbot.canadacentral.cloudapp.azure.com/fullchain.pem"
+    key_file: "/etc/letsencrypt/live/schmitech-chatbot.canadacentral.cloudapp.azure.com/privkey.pem"
 ```
 
-5. Set proper permissions for the certificate files:
+6. Set proper permissions for the certificate files:
 ```bash
-sudo chown -R $USER:$USER /etc/letsencrypt/live/your-domain.com
-sudo chown -R $USER:$USER /etc/letsencrypt/archive/your-domain.com
+sudo chown -R $USER:$USER /etc/letsencrypt/live/your-azure-domain.cloudapp.azure.com
+sudo chown -R $USER:$USER /etc/letsencrypt/archive/your-azure-domain.cloudapp.azure.com
 sudo chmod -R 755 /etc/letsencrypt/live
 sudo chmod -R 755 /etc/letsencrypt/archive
-sudo chmod 644 /etc/letsencrypt/archive/your-domain.com/*.pem
+sudo chmod 644 /etc/letsencrypt/archive/your-azure-domain.cloudapp.azure.com/*.pem
 ```
 
-6. Configure your firewall/security group to allow:
-   - Port 443 (HTTPS)
-   - Port 80 (for certificate verification)
-
-7. Test your HTTPS setup:
+7. Configure Azure Network Security Group:
 ```bash
-curl -I https://your-domain.com:3443/health
+# Add inbound security rules
+- Priority: 100
+  Port: 3443
+  Protocol: TCP
+  Source: * (or your specific IP range)
+  Destination: *
+  Action: Allow
+  Description: Allow HTTPS traffic (TLS)
+
+- Priority: 110
+  Port: 80
+  Protocol: TCP
+  Source: * (or your specific IP range)
+  Destination: *
+  Action: Allow
+  Description: Allow HTTP traffic for certificate verification
 ```
 
-Note: Let's Encrypt certificates expire after 90 days. Set up automatic renewal:
+8. Test your HTTPS setup:
 ```bash
-# Add to crontab
-0 0 * * * certbot renew --quiet
+# Test with curl (replace with your domain)
+curl -I https://your-azure-domain.cloudapp.azure.com:3443/health
 ```
 
-### Development with Self-Signed Certificates
-
-For development and testing, you can use self-signed certificates:
-
-1. Generate self-signed certificate:
+Note: The certificates from Let's Encrypt expire after 90 days. You'll need to renew them using:
 ```bash
-openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes
+sudo certbot renew
 ```
 
-2. Update your `config.yaml`:
-```yaml
-general:
-  https:
-    enabled: true
-    port: 3443
-    cert_file: "./cert.pem"
-    key_file: "./key.pem"
-```
+---
 
-3. For development clients, you may need to disable certificate verification:
-```python
-# Python example
-import ssl
-ssl._create_default_https_context = ssl._create_unverified_context
-```
+## 📈 Reranker Service
+Improves retrieval precision by re-ranking documents.
 
-### Important Notes
-
-1. **Production Use**:
-   - Always use a proper domain name
-   - Use Let's Encrypt certificates
-   - Never disable certificate verification
-   - Keep certificates up to date
-
-2. **Security Considerations**:
-   - Keep private keys secure
-   - Use strong key sizes (4096 bits recommended)
-   - Regularly rotate certificates
-   - Monitor certificate expiration
-
-3. **Troubleshooting**:
-   - Check certificate permissions
-   - Verify firewall rules
-   - Check server logs for SSL errors
-   - Test with `curl -v` for detailed SSL information
-
-# Reranker Service
-
-The Reranker Service enhances retrieval accuracy in the Open Inference Platform by providing a cross-encoder style reranking step. This improves the precision of context provided to the LLM for higher quality responses.
-
-## Overview
-
-In traditional RAG systems, retrieval occurs in a single step using vector similarity search. While efficient, this can sometimes miss relevant documents or include irrelevant ones. Reranking adds a second pass that more thoroughly evaluates relevance, leading to better retrieval results.
-
-## How It Works
-
-1. **Initial Retrieval**: Documents are first retrieved using ChromaDB vector similarity search
-2. **Reranking**: Each retrieved document is evaluated against the query using a cross-encoder approach
-3. **Score Refinement**: Documents are rescored and reordered based on their relevance to the query
-4. **Result Filtering**: Only the top N most relevant documents are kept
-
-## Configuration
-
-Enable and configure reranking in your `config.yaml` file:
-
+Configure in `config.yaml`:
 ```yaml
 reranker:
-  enabled: true                   # Set to true to enable reranking
-  model: "gemma3:4b"              # Model to use for reranking (smaller models work well)
-  batch_size: 5                   # Number of documents to process in parallel
-  temperature: 0.0                # Use 0 for deterministic scoring
-  top_n: 3                        # Number of documents to keep after reranking
+  enabled: true
+  model: "gemma3:4b"
+  top_n: 3
 ```
 
-## Benefits
+---
 
-- **Higher Precision**: Reranking can significantly improve the relevance of retrieved documents
-- **Better Context**: LLMs receive more relevant context for generating responses
-- **Reduced Hallucination**: With better context, the LLM is less likely to hallucinate information
-- **Improved Answer Accuracy**: More accurate and on-point responses to user queries
+## 🛡️ Safety Service
 
-## Performance Considerations
+Modes available:
+- **Strict**: Exact safety compliance.
+- **Fuzzy**: Flexible safety matching.
+- **Disabled**: No safety checks.
 
-Reranking adds computation time to the retrieval process. Consider these factors:
-
-- Use a smaller/faster model for reranking than your main LLM
-- Balance retrieval time against improved answer quality
-- For very latency-sensitive applications, consider keeping `enabled: false`
-
-## Example Prompt Format
-
-The reranker uses this prompt format to score document relevance:
-
+Example configuration:
+```yaml
+safety:
+  mode: "fuzzy"
+  model: "gemma3:12b"
 ```
-Rate the relevance of the following document to the query on a scale from 0 to 10, 
-where 0 means completely irrelevant and 10 means perfectly relevant.
-Return only a number (0-10) without any explanations.
 
-QUERY: {user_query}
+---
 
-DOCUMENT: {document_content}
+## 📜 Logging
 
-RELEVANCE SCORE (0-10):
-``` 
+The application implements a dual logging system:
 
-## Logging
-
-The application implements a comprehensive logging system:
-
-1. **Filesystem Logging**
+1. **Filesystem Logging (Always Active)**
    - Logs are stored in the `logs` directory
-   - Uses daily rotation
-   - Each log file is limited to 10MB
-   - Logs are retained for 30 days
+   - Uses daily rotation with format `chat-YYYY-MM-DD.log`
+   - Each log file is limited to 20MB
+   - Logs are retained for 14 days
    - Includes all chat interactions, errors, and system status
-   - Supports both JSON and text formats
+   - Logs are in JSON format for easy parsing
 
 2. **Elasticsearch Logging (Optional)**
    - Enabled/disabled via `elasticsearch.enabled` in config
-   - Requires valid credentials in environment variables
+   - Requires valid credentials in `.env`
    - Falls back to filesystem-only logging if Elasticsearch is unavailable
 
-## Running as a Service
+Example log entry:
+```json
+{
+  "timestamp": "2024-03-21T10:30:00.000Z",
+  "query": "user question",
+  "response": "bot response",
+  "backend": "ollama",
+  "blocked": false,
+  "elasticsearch_status": "enabled"
+}
+```
 
-### Using Systemd (Recommended)
+Note: The `logs` directory is automatically created when needed and should be added to `.gitignore`.
 
-Create a systemd service file:
+---
+
+## 🔧 Running as a Systemd Service
 
 ```bash
-sudo vim /etc/systemd/system/chatbot.service
+sudo vim /etc/systemd/system/qa-chatbot.service
 ```
 
 Add this content:
 
 ```bash
 [Unit]
-Description=Chatbot FastAPI Server
+Description=QA Chatbot Node.js Server
 After=network.target
 
 [Service]
 Type=simple
 User=YOUR_USERNAME
 WorkingDirectory=/path/to/your/project
-ExecStart=/usr/bin/python3 server.py
+ExecStart=/usr/bin/npm run server -- ollama
 Restart=always
 RestartSec=3
-StandardOutput=append:/var/log/chatbot.log
-StandardError=append:/var/log/chatbot.error.log
+StandardOutput=append:/var/log/qa-chatbot.log
+StandardError=append:/var/log/qa-chatbot.error.log
 
 [Install]
 WantedBy=multi-user.target
 ```
 
+Replace:
+- `YOUR_USERNAME` with your actual username (run `whoami` to get it)
+- `/path/to/your/project` with the full path to your project directory
+- Update the ExecStart path if npm is installed elsewhere (use `which npm` to check)
+
 Manage the service:
 ```bash
-# Reload systemd
+# Reload systemd to recognize the new service
 sudo systemctl daemon-reload
 
-# Enable the service
-sudo systemctl enable chatbot
+# Enable the service to start on boot
+sudo systemctl enable qa-chatbot
 
 # Start the service
-sudo systemctl start chatbot
+sudo systemctl start qa-chatbot
 
-# Check status
-sudo systemctl status chatbot
+# Check the status
+sudo systemctl status qa-chatbot
+
+# View logs in real-time
+sudo journalctl -u qa-chatbot -f
 ```
 
-## Dependencies
-
-- FastAPI: Web framework
-- Uvicorn: ASGI server
-- Chromadb: Vector database
-- Langchain-Ollama: Embeddings and LLM wrapper
-- Pydantic: Data validation
-- PyYAML: Configuration parsing
-- aiohttp: Async HTTP client
-- python-json-logger: JSON logging support
-
-## License
-
-[Apache 2.0](LICENSE)
-
-## Safety Service
-
-The Safety Service provides configurable guardrails for user queries using LLM-based verification. It helps prevent inappropriate or harmful content from being processed by the system.
-
-### Safety Modes
-
-The service supports three different safety modes:
-
-1. **Strict Mode** (default)
-   - Most restrictive mode
-   - Only accepts exact matches of "SAFE: true" (with or without quotes)
-   - Used when safety_mode is not specified or set to 'strict'
-
-2. **Fuzzy Mode**
-   - More lenient but still maintains safety checks
-   - Accepts variations of safe responses
-   - Common patterns include:
-     - "safe: true"
-     - "safe:true"
-     - "safe - true"
-     - "safe = true"
-     - "\"safe\": true"
-     - "safe\"=true"
-     - "\"safe: true\""
-
-3. **Disabled Mode**
-   - Completely bypasses safety checks
-   - Always returns `True` for safety checks
-   - Use with caution in production environments
-
-### Configuration
-
-Configure safety settings in your `config.yaml`:
-
-```yaml
-safety:
-  mode: "fuzzy"  # Options: strict, fuzzy, disabled
-  model: "gemma3:12b"
-  max_retries: 3
-  retry_delay: 1.0
-  request_timeout: 15
-  allow_on_timeout: false  # Set to true to allow queries if safety check times out
-  temperature: 0.0  # Use 0 for deterministic response
-  top_p: 1.0
-  top_k: 1
-  num_predict: 20  # Limit response length for safety checks
-  stream: false
-  repeat_penalty: 1.1
+To remove the service:
+```bash
+sudo systemctl stop qa-chatbot
+sudo systemctl disable qa-chatbot
+sudo rm /etc/systemd/system/qa-chatbot.service
+sudo systemctl daemon-reload
+sudo systemctl reset-failed
 ```
 
-### Benefits
+### 2. Using Background Process
 
-- **Configurable Safety**: Choose the appropriate safety level for your use case
-- **Flexible Implementation**: Supports different safety check strategies
-- **Reliable Fallbacks**: Includes retry mechanisms and timeout handling
-- **Detailed Logging**: Verbose mode provides insight into safety check decisions
+Simple background process with output handling:
 
-### Performance Considerations
+```bash
+# Save output to a file
+npm run server -- ollama > output.log 2>&1 &
 
-- Safety checks add latency to each query
-- Use appropriate timeout settings based on your requirements
-- Consider using a smaller model for safety checks to reduce latency
-- Balance safety with performance based on your use case
+# Discard all output
+npm run server -- ollama > /dev/null 2>&1 &
+
+# Save stdout and stderr to separate files
+npm run server -- ollama > output.log 2> error.log &
+```
+
+Note: Using just `&` is less robust than systemd as the process might terminate when closing the terminal session. For production environments, the systemd service approach is recommended.
+
+---
+
+## 📌 Dependencies
+- FastAPI
+- Uvicorn
+- ChromaDB
+- Langchain-Ollama
+- Pydantic
+- PyYAML
+- aiohttp
+- python-json-logger
+
+---
+
+## 📃 License
+
+Apache 2.0 License - See [LICENSE](LICENSE).
+

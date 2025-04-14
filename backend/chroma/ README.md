@@ -1,46 +1,54 @@
-# Setting up Chroma as a Systemd Service
+# 🚀 Chroma Vector Database
 
-This guide explains how to set up Chroma Vector Database as a systemd service that automatically starts when your server boots.
+This guide helps you easily configure Chroma Vector Database as a systemd service, ensuring it automatically starts with your server.
 
-# Install python3-venv if not already installed
+---
+
+## ✅ Step 1: Install Dependencies
+
+Install the Python virtual environment package:
+
 ```bash
 sudo apt install python3-venv
 ```
 
-# Create a new virtual environment
+---
+
+## 🛠️ Step 2: Set Up Virtual Environment
+
+Create and activate your Python environment:
+
 ```bash
 python3 -m venv venv
+source venv/bin/activate
 ```
 
-# Activate the virtual environment
-```bash
-source myenv/bin/activate
-```
+Install the required packages:
 
-# Now you can safely install packages
 ```bash
 pip install -r requirements.txt
 ```
+---
 
-## 1. Create the Service File
+## 📝 Step 3: Create Systemd Service
 
-Create a new systemd service file using:
+Create a new service file:
 
 ```bash
 sudo vim /etc/systemd/system/chroma.service
 ```
 
-Add the following content:
+Paste and edit the following configuration:
 
-```bash
+```ini
 [Unit]
 Description=Chroma Vector Database Server
 After=network.target
 
 [Service]
 Type=simple
-User=ubuntu
-WorkingDirectory=/home/ubuntu/open-inference-platform/backend/chroma
+User=your_username
+WorkingDirectory=/path/to/open-inference-platform/backend/chroma
 ExecStart=/bin/bash -c 'source venv/bin/activate && chroma run --host 0.0.0.0 --port 8000 --path ./chroma_db'
 Restart=always
 RestartSec=3
@@ -49,71 +57,74 @@ RestartSec=3
 WantedBy=multi-user.target
 ```
 
-Make sure to replace:
-- `User=ubuntu` with your system username if different
-- `WorkingDirectory=/home/ubuntu` with the path where your virtual environment is located
-- Adjust the path in `venv/bin/activate` if your virtual environment has a different name
+Replace:
+- `your_username` with your actual system username
+- `/path/to/open-inference-platform/backend/chroma` with your actual Chroma directory path
 
-## 2. Enable and Start the Service
+---
 
-After creating the service file, run these commands:
+## ⚙️ Step 4: Enable & Start Service
+
+Run these commands to activate your service:
 
 ```bash
-# Reload systemd to recognize the new service
 sudo systemctl daemon-reload
-
-# Enable the service to start on boot
 sudo systemctl enable chroma
-
-# Start the service
 sudo systemctl start chroma
-
-# Check the status
 sudo systemctl status chroma
 ```
 
-## 3. Managing the Service
+---
 
-You can manage the service using these commands:
+## 🔧 Managing the Service
+
+Use these commands to manage Chroma:
+
+- **Start Service:**
+  ```bash
+  sudo systemctl start chroma
+  ```
+
+- **Stop Service:**
+  ```bash
+  sudo systemctl stop chroma
+  ```
+
+- **Restart Service:**
+  ```bash
+  sudo systemctl restart chroma
+  ```
+
+- **View Logs:**
+  ```bash
+  sudo journalctl -u chroma -f
+  ```
+
+---
+
+## 🗑️ Removing the Service
+
+Fully remove the Chroma service:
 
 ```bash
-# Stop the service
 sudo systemctl stop chroma
-
-# Restart the service
-sudo systemctl restart chroma
-
-# View logs
-sudo journalctl -u chroma -f
-```
-
-## 4. Removing the Service
-
-If you want to completely remove the Chroma service from systemd:
-
-```bash
-# Stop the service
-sudo systemctl stop chroma
-
-# Disable the service from starting on boot
 sudo systemctl disable chroma
-
-# Remove the service file
 sudo rm /etc/systemd/system/chroma.service
-
-# Reset any failed status
 sudo systemctl reset-failed
-
-# Verify:
 systemctl status chroma | cat
 ```
 
-After these commands, the service will be completely removed from systemd and won't start on system boot anymore.
+---
 
-## Troubleshooting
+## 🚨 Troubleshooting
 
-If the service fails to start:
-1. Check the logs using `sudo journalctl -u chroma -f`
-2. Verify that the paths in the service file are correct
-3. Ensure the virtual environment is properly set up and Chroma is installed within it
-4. Check that the user specified in the service file has the necessary permissions
+If the service doesn't start:
+
+1. Check logs:
+   ```bash
+   sudo journalctl -u chroma -f
+   ```
+
+2. Verify paths and virtual environment.
+3. Ensure user permissions are correct.
+
