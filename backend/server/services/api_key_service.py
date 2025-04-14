@@ -145,7 +145,8 @@ class ApiKeyService:
         # API key is required unless allow_default is True
         if not api_key:
             if allow_default and default_collection:
-                logger.info(f"No API key provided, using default collection: {default_collection}")
+                if self.config.get('general', {}).get('verbose', False):
+                    logger.info(f"No API key provided, using default collection: {default_collection}")
                 return True, default_collection
             else:
                 logger.warning("API key required but not provided")
@@ -172,7 +173,8 @@ class ApiKeyService:
                 logger.warning(f"API key {api_key[:5]}... has no associated collection")
                 return False, None
                 
-            logger.info(f"Valid API key. Using collection: {collection_name}")
+            if self.config.get('general', {}).get('verbose', False):
+                logger.info(f"Valid API key. Using collection: {collection_name}")
             return True, collection_name
             
         except Exception as e:

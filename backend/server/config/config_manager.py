@@ -5,7 +5,7 @@ Configuration management for the chat application
 import os
 import yaml
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from functools import lru_cache
 import re
 
@@ -18,14 +18,18 @@ logger = logging.getLogger(__name__)
 
 
 @lru_cache(maxsize=1)
-def load_config():
+def load_config(config_path: Optional[str] = None):
     """Load configuration from shared config.yaml file"""
     # First try the shared config
     config_paths = [
+        config_path,  # User-specified config path
         '../config/config.yaml',  # Shared config
         '../../backend/config/config.yaml',  # Alternative path
         'config.yaml',  # Fallback to local config
     ]
+    
+    # Filter out None values
+    config_paths = [p for p in config_paths if p is not None]
     
     for config_path in config_paths:
         try:

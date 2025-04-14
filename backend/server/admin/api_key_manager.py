@@ -260,9 +260,6 @@ def main():
         if args.command == "create":
             result = manager.create_api_key(args.collection, args.name, args.notes)
             print(json.dumps(result, indent=2))
-            # Save to .env file for convenience
-            save_api_key_to_env(result["api_key"])
-            print(f"\nAPI key created and saved to .api_keys file.")
             
         elif args.command == "list":
             result = manager.list_api_keys()
@@ -294,16 +291,6 @@ def main():
     except Exception as e:
         print(f"Error: {str(e)}", file=sys.stderr)
         sys.exit(1)
-
-
-def save_api_key_to_env(api_key: str) -> None:
-    """Save API key to .api_keys file for convenience"""
-    try:
-        with open(".api_keys", "a") as f:
-            f.write(f"{api_key}\n")
-    except Exception as e:
-        print(f"Warning: Could not save API key to file: {str(e)}", file=sys.stderr)
-
 
 if __name__ == "__main__":
     main()
