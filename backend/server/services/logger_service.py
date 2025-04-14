@@ -56,6 +56,7 @@ class LoggerService:
         self.es_client: Optional[AsyncElasticsearch] = None
         verbose_value = config.get('general', {}).get('verbose', False)
         self.verbose = _is_true_value(verbose_value)
+        self._has_logged_es_disabled = False  # Add flag to track if we've logged ES disabled message
         
         # Extract logging configuration and set up log directory
         self.log_config = config.get('logging', {})
@@ -289,8 +290,9 @@ class LoggerService:
     ) -> None:
         """Index the log data into Elasticsearch if enabled."""
         if not (self.config.get("elasticsearch", {}).get("enabled", False) and self.es_client):
-            if self.verbose:
+            if self.verbose and not self._has_logged_es_disabled:
                 logger.info("Elasticsearch logging skipped; client not available or disabled.")
+                self._has_logged_es_disabled = True
             return
 
         try:

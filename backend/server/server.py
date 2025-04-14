@@ -189,7 +189,6 @@ async def lifespan(app: FastAPI):
     
     # Initialize services concurrently
     try:
-        # Load no results message
         no_results_message = None
         try:
             message_file = app.state.config.get('general', {}).get('no_results_message_file', '../prompts/no_results_message.txt')
@@ -284,8 +283,6 @@ async def lifespan(app: FastAPI):
 
     # Log authenticated services without exposing sensitive info
     auth_services = []
-    if 'eleven_labs' in app.state.config and app.state.config['eleven_labs'].get('api_key'):
-        auth_services.append("ElevenLabs")
     if _is_true_value(app.state.config.get('elasticsearch', {}).get('enabled', False)) and app.state.config['elasticsearch'].get('auth', {}).get('username'):
         auth_services.append("Elasticsearch")
     if auth_services:

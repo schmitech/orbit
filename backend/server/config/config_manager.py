@@ -84,11 +84,6 @@ def _log_config_summary(config: Dict[str, Any], source_path: str):
         has_auth = bool(config['elasticsearch'].get('auth', {}).get('username'))
         logger.info(f"  Elasticsearch: enabled=True, node={es_node}, index={config['elasticsearch'].get('index')}, auth={'[CONFIGURED]' if has_auth else '[NONE]'}")
     
-    # Eleven Labs settings - mask API key
-    if 'eleven_labs' in config:
-        has_api_key = bool(config['eleven_labs'].get('api_key'))
-        logger.info(f"  ElevenLabs: api_key={'[CONFIGURED]' if has_api_key else '[NONE]'}, voice_id={config['eleven_labs'].get('voice_id')}")
-    
     # Log if HTTPS is enabled
     https_enabled = _is_true_value(config.get('general', {}).get('https', {}).get('enabled', False))
     if https_enabled:

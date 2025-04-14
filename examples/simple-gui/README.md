@@ -38,7 +38,6 @@ The application should now be running at `http://localhost:5173`
 ## Features
 
 - Real-time chat interface
-- Text-to-speech capability using ElevenLabs
 - Context-aware responses using ChromaDB
 - Local LLM support via Ollama
 

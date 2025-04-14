@@ -1,4 +1,9 @@
-# 🚀 ORBIT: Open Retrieval-Based Inference Toolkit
+<div align="center">
+  <h1>
+    <img src="orbit.png" width="100" height="100" alt="ORBIT" style="vertical-align: middle; margin-right: 10px;">
+    <span style="vertical-align: middle;">ORBIT: Open Retrieval-Based Inference Toolkit</span>
+  </h1>
+</div>
 
 ORBIT is a modular, self-hosted toolkit that provides a unified API for open-source AI inference models, enabling you to operate without paid APIs. Host AI models on your infrastructure, maintain control over your data, and eliminate commercial dependency.
 
@@ -160,18 +165,3 @@ Run locally for development:
     ```bash
     cd server && start.sh
     ```
-
-5. **Configure and Run Example Application:**
-    ```bash
-    cd examples/web-widget
-    # Set environment variables
-    export VITE_API_ENDPOINT=http://localhost:3000
-    export VITE_API_KEY=your-generated-api-key
-    npm run dev
-    ```
-
----
-
-## 📃 License
-
-Licensed under terms specified in the [LICENSE](LICENSE) file.
