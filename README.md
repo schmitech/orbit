@@ -1,9 +1,5 @@
 # 🚀 ORBIT: Open Retrieval-Based Inference Toolkit
 
-<div align="center">
-  <img src="orbit.png" width="400" height="400" alt="ORBIT Logo">
-</div>
-
 ORBIT is a modular, self-hosted toolkit that provides a unified API for open-source AI inference models, enabling you to operate without paid APIs. Host AI models on your infrastructure, maintain control over your data, and eliminate commercial dependency.
 
 ---
