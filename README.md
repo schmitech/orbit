@@ -1,8 +1,7 @@
 <div align="center">
-  <h1>
-    <img src="orbit.png" width="100" height="100" alt="ORBIT" style="vertical-align: middle; margin-right: 10px;">
-    <span style="vertical-align: middle;">ORBIT: Open Retrieval-Based Inference Toolkit</span>
-  </h1>
+  <img src="orbit.png" width="200" height="200" alt="ORBIT">
+  
+  # ORBIT: Open Retrieval-Based Inference Toolkit
 </div>
 
 ORBIT is a modular, self-hosted toolkit that provides a unified API for open-source AI inference models, enabling you to operate without paid APIs. Host AI models on your infrastructure, maintain control over your data, and eliminate commercial dependency.
