@@ -142,18 +142,36 @@ Run locally for development:
     cd chroma && chroma run --host localhost --port 8000 --path ./chroma_db
     ```
 
-2. **Launch Server:**
+2. **Start MongoDB:**
     ```bash
-    cd server && uvicorn server:app --reload --host 0.0.0.0 --port 3000
+    # If using MongoDB Atlas, ensure your IP is whitelisted
+    # If using local MongoDB:
+    mongod --dbpath /path/to/data/directory
     ```
 
-3. **Run Example Application:**
+3. **Create API Key:**
     ```bash
-    cd examples/web-widget && npm run dev
+    cd backend/server/admin
+    python3 api_key_manager.py --url http://localhost:3000 create --collection default --name "Development" --notes "Development API Key"
     ```
+    Save the generated API key for the next steps.
+
+4. **Launch Server:**
+    ```bash
+    cd server && start.sh
+    ```
+
+5. **Configure and Run Example Application:**
+    ```bash
+    cd examples/web-widget
+    # Set environment variables
+    export VITE_API_ENDPOINT=http://localhost:3000
+    export VITE_API_KEY=your-generated-api-key
+    npm run dev
+    ```
+
 ---
 
 ## 📃 License
 
 Licensed under terms specified in the [LICENSE](LICENSE) file.
-
