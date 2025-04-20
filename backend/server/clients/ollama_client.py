@@ -196,8 +196,10 @@ class OllamaClient:
 
             # Perform safety check
             is_safe, refusal_message = await self.check_safety(message)
-            if self.verbose:
+            if self.verbose and self.guardrail_service:
                 logger.info(f"Safety check result: {is_safe}")
+            elif self.verbose:
+                logger.info("Safety check skipped - guardrail service not enabled")
             if not is_safe:
                 yield refusal_message
                 return
@@ -235,12 +237,18 @@ class OllamaClient:
                 language_instruction = f"IMPORTANT: The user's query is in {query_language}. You MUST respond in {query_language}. "
 
             # Start building prompt with improved base instruction
-            base_prompt = f"You are a helpful assistant. {language_instruction}"
+            base_prompt = language_instruction
 
             # Keep the existing summarization logic but improve the prompt structure
             if self.summarization_enabled and len(chroma_response) >= self.min_text_length:
                 if self.verbose:
-                    logger.info("Summarization triggered")
+                    logger.info("=== Summarization Details ===")
+                    logger.info(f"Summarization enabled: {self.summarization_enabled}")
+                    logger.info(f"Response length: {len(chroma_response)}")
+                    logger.info(f"Minimum length threshold: {self.min_text_length}")
+                    logger.info(f"Summarization model: {self.summarization_model}")
+                    logger.info("Summarization triggered - response exceeds minimum length threshold")
+                    logger.info("========================")
                 full_prompt = (
                     f"{base_prompt}{self.current_prompt_text}\n\n"
                     f"Please provide a concise, direct answer to the user's question using only the information provided. "
@@ -251,8 +259,16 @@ class OllamaClient:
                     f"Assistant:"
                 )
             else:
-                if self.verbose and self.summarization_enabled:
-                    logger.info("Summarization not triggered")
+                if self.verbose:
+                    logger.info("=== Summarization Details ===")
+                    logger.info(f"Summarization enabled: {self.summarization_enabled}")
+                    if self.summarization_enabled:
+                        logger.info(f"Response length: {len(chroma_response)}")
+                        logger.info(f"Minimum length threshold: {self.min_text_length}")
+                        logger.info("Summarization not triggered - response below minimum length threshold")
+                    else:
+                        logger.info("Summarization not triggered - summarization is disabled")
+                    logger.info("========================")
                 full_prompt = (
                     f"{base_prompt}{self.current_prompt_text}\n\n"
                     f"Please provide a concise, direct answer to the user's question using only the information provided. "

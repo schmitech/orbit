@@ -351,7 +351,6 @@ class InferenceServer:
         self.logger.info("=" * 50)
         self.logger.info("Server initialization complete. Configuration summary:")
         self.logger.info(f"Server running with {self.config['ollama']['model']} model")
-        self.logger.info(f"Using ChromaDB collection: {self.config['chroma']['collection']}")
         self.logger.info(f"Confidence threshold: {self.config['chroma'].get('confidence_threshold', 0.85)}")
         
         # Retriever settings
@@ -460,7 +459,7 @@ class InferenceServer:
                 # Allow health check without API key if configured
                 if (request.url.path == "/health" and 
                     not self.config.get('api_keys', {}).get('require_for_health', False)):
-                    return self.config['chroma']['collection'], None
+                    return "default", None
                 raise e
 
         # Chat endpoint

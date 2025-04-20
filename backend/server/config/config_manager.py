@@ -76,7 +76,7 @@ def _log_config_summary(config: Dict[str, Any], source_path: str):
     logger.info(f"  Safety: enabled={safety_enabled}, mode={safety_mode}, max_retries={config.get('safety', {}).get('max_retries', 3)}")
     
     # Chroma settings
-    logger.info(f"  Chroma: host={config['chroma'].get('host')}, port={config['chroma'].get('port')}, collection={config['chroma'].get('collection')}")
+    logger.info(f"  Chroma: host={config['chroma'].get('host')}, port={config['chroma'].get('port')}")
     
     # Ollama settings - don't log any potential API keys
     logger.info(f"  Ollama: base_url={_mask_url(config['ollama'].get('base_url'))}, model={config['ollama'].get('model')}, embed_model={config['ollama'].get('embed_model')}")
@@ -255,7 +255,6 @@ def get_default_config() -> Dict[str, Any]:
         "chroma": {
             "host": "localhost",
             "port": 8000,
-            "collection": "qa-chatbot",
             "confidence_threshold": 0.85
         },
         "elasticsearch": {
