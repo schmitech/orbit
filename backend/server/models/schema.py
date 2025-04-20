@@ -22,6 +22,7 @@ class ApiKeyCreate(BaseModel):
     collection_name: str
     client_name: str
     notes: Optional[str] = None
+    system_prompt_id: Optional[str] = None
 
 
 class ApiKeyResponse(BaseModel):
@@ -32,8 +33,37 @@ class ApiKeyResponse(BaseModel):
     notes: Optional[str] = None
     created_at: float  # This expects a Unix timestamp
     active: bool = True
+    system_prompt_id: Optional[str] = None
 
 
 class ApiKeyDeactivate(BaseModel):
     """API key deactivation request model"""
     api_key: str
+
+
+class SystemPromptCreate(BaseModel):
+    """System prompt creation request model"""
+    name: str
+    prompt: str
+    version: str = "1.0"
+
+
+class SystemPromptUpdate(BaseModel):
+    """System prompt update request model"""
+    prompt: str
+    version: Optional[str] = None
+
+
+class SystemPromptResponse(BaseModel):
+    """System prompt response model"""
+    id: str
+    name: str
+    prompt: str
+    version: str
+    created_at: float  # Unix timestamp
+    updated_at: float  # Unix timestamp
+
+
+class ApiKeyPromptAssociate(BaseModel):
+    """API key and system prompt association request model"""
+    prompt_id: str

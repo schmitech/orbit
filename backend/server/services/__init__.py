@@ -8,4 +8,5 @@ from .logger_service import LoggerService
 from .guardrail_service import GuardrailService
 from .reranker_service import RerankerService
 from .api_key_service import ApiKeyService
-__all__ = ['ChatService', 'HealthService', 'LoggerService', 'GuardrailService', 'RerankerService']
+from .prompt_service import PromptService
+__all__ = ['ChatService', 'HealthService', 'LoggerService', 'GuardrailService', 'RerankerService', 'ApiKeyService', 'PromptService']

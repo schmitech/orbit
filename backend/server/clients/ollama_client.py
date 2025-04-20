@@ -9,6 +9,7 @@ import logging
 import aiohttp
 from typing import Dict, Any, Tuple, Optional, List
 from utils.text_utils import detect_language
+from bson import ObjectId
 
 from config.config_manager import _is_true_value
 
@@ -24,6 +25,7 @@ class OllamaClient:
         retriever,
         guardrail_service=None,
         reranker_service=None,
+        prompt_service=None,
         no_results_message: Optional[str] = None,
     ):
         self.config = config
@@ -32,6 +34,7 @@ class OllamaClient:
         self.retriever = retriever
         self.guardrail_service = guardrail_service
         self.reranker_service = reranker_service
+        self.prompt_service = prompt_service
         self.verbose = _is_true_value(config.get("general", {}).get("verbose", False))
 
         # Summarization settings
@@ -42,8 +45,18 @@ class OllamaClient:
         self.max_length = summarization_config.get("max_length", 100)
         self.min_text_length = summarization_config.get("min_text_length", 200)
 
+        # Default system prompt
+        self.default_prompt = config.get('ollama', {}).get(
+            'default_system_prompt', 
+            "I am going to ask you a question, which I would like you to answer based only on the provided context, and not any other information."
+        )
+        
         self.no_results_message = no_results_message or "Could not load no results message."
         self.session: Optional[aiohttp.ClientSession] = None
+        
+        # Current system prompt ID and text - updated for each request
+        self.current_prompt_id = None
+        self.current_prompt_text = self.default_prompt
 
     async def initialize(self):
         """Initialize the aiohttp session with a timeout and TCP connector to reduce latency."""
@@ -89,7 +102,7 @@ class OllamaClient:
                 elif "content" in item:
                     lines.append(item["content"])
             context_text = "\n\n".join(lines)
-        prompt = "I am going to ask you a question, which I would like you to answer based only on the provided context, and not any other information.\n\n"
+        prompt = f"{self.current_prompt_text}\n\n"
         if context_text:
             prompt += f"{context_text}\n\n"
         prompt += f"User: {message}\n\nAssistant:"
@@ -122,10 +135,54 @@ class OllamaClient:
                 return context
         return context
 
-    async def generate_response(self, message: str, stream: bool = True, collection_name: Optional[str] = None):
+    async def set_system_prompt(self, prompt_id: Optional[ObjectId] = None) -> None:
+        """
+        Set the system prompt to use for the current request.
+        
+        Args:
+            prompt_id: The ObjectId of the system prompt to use, if None use default prompt
+        """
+        # Reset to default
+        self.current_prompt_text = self.default_prompt
+        self.current_prompt_id = None
+        
+        # If no prompt ID or no prompt service, use default
+        if not prompt_id or not self.prompt_service:
+            if self.verbose:
+                logger.info("Using default system prompt")
+            return
+        
+        try:
+            # Try to get the specified prompt
+            prompt_doc = await self.prompt_service.get_prompt_by_id(prompt_id)
+            
+            if prompt_doc and "prompt" in prompt_doc:
+                self.current_prompt_text = prompt_doc["prompt"]
+                self.current_prompt_id = prompt_id
+                if self.verbose:
+                    logger.info(f"Using system prompt: {prompt_doc.get('name', str(prompt_id))}")
+            else:
+                logger.warning(f"System prompt with ID {prompt_id} not found, using default")
+        except Exception as e:
+            logger.error(f"Error setting system prompt: {str(e)}")
+            logger.info("Using default system prompt due to error")
+
+    async def generate_response(
+        self, 
+        message: str, 
+        stream: bool = True, 
+        collection_name: Optional[str] = None,
+        system_prompt_id: Optional[ObjectId] = None
+    ):
         """
         Generate a response using Chroma content and Ollama.
         Optimized for streaming if needed.
+        
+        Args:
+            message: The user's message
+            stream: Whether to stream the response
+            collection_name: The name of the collection to use for retrieval
+            system_prompt_id: The ObjectId of the system prompt to use
         """
         try:
             await self.initialize()
@@ -133,6 +190,9 @@ class OllamaClient:
             # Set collection if provided
             if collection_name:
                 await self.set_collection(collection_name)
+                
+            # Set system prompt if provided
+            await self.set_system_prompt(system_prompt_id)
 
             # Perform safety check
             is_safe, refusal_message = await self.check_safety(message)
@@ -182,7 +242,8 @@ class OllamaClient:
                 if self.verbose:
                     logger.info("Summarization triggered")
                 full_prompt = (
-                    f"{base_prompt}Please provide a concise, direct answer to the user's question using only the information provided. "
+                    f"{base_prompt}{self.current_prompt_text}\n\n"
+                    f"Please provide a concise, direct answer to the user's question using only the information provided. "
                     f"Do not use headings like 'Summary' or 'Answer' in your response. "
                     f"Read and understand the context carefully, but respond with a brief and to-the-point answer.\n\n"
                     f"Context:\n{chroma_response}\n\n"
@@ -193,7 +254,8 @@ class OllamaClient:
                 if self.verbose and self.summarization_enabled:
                     logger.info("Summarization not triggered")
                 full_prompt = (
-                    f"{base_prompt}Please provide a concise, direct answer to the user's question using only the information provided. "
+                    f"{base_prompt}{self.current_prompt_text}\n\n"
+                    f"Please provide a concise, direct answer to the user's question using only the information provided. "
                     f"Keep your response brief and to the point.\n\n"
                     f"Context:\n{chroma_response}\n\n"
                     f"User Question: {message}\n\n"

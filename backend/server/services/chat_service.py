@@ -5,15 +5,14 @@ Chat service for processing chat messages
 import json
 import asyncio
 import logging
-from typing import Dict, Any, Optional, AsyncGenerator
-from fastapi import HTTPException
+from typing import Dict, Any, Optional
+from bson import ObjectId  # Add this import for ObjectId
 
 from utils.text_utils import fix_text_formatting
 from config.config_manager import _is_true_value
 
 # Configure logging
 logger = logging.getLogger(__name__)
-
 
 class ChatService:
     """Handles chat-related functionality"""
@@ -38,91 +37,85 @@ class ChatService:
         except Exception as e:
             logger.error(f"Error logging conversation: {str(e)}", exc_info=True)
     
-    async def process_chat(self, message: str, client_ip: str, collection_name: str = None) -> Dict[str, Any]:
-        """Process a chat message and return a response"""
-        try:
-            loop = asyncio.get_running_loop()
-            start_time = loop.time()
-            
-            # Pass collection_name to the retriever via LLM client
-            if collection_name and hasattr(self.llm_client, 'set_collection'):
-                await self.llm_client.set_collection(collection_name)
-                if self.verbose:
-                    logger.info(f"Using collection '{collection_name}' for chat request")
-            
-            # Generate response using a list for more efficient concatenation
-            chunks = []
-            async for chunk in self.llm_client.generate_response(message, stream=False):
-                chunks.append(chunk)
-            response_text = "".join(chunks)
-            
-            # Apply text fixes
-            response_text = fix_text_formatting(response_text)
-            
-            # Log conversation concurrently without delaying response
-            asyncio.create_task(self._log_conversation(message, response_text, client_ip))
-            
-            if self.verbose:
-                end_time = loop.time()
-                logger.info(f"Chat processed in {end_time - start_time:.3f}s")
-            
-            # Return response
-            return {
-                "response": response_text
-            }
-        except Exception as e:
-            logger.error(f"Error processing chat: {str(e)}", exc_info=True)
-            raise HTTPException(status_code=500, detail="Error processing chat message")
+    async def _log_request(self, message: str, client_ip: str, collection_name: str):
+        """Log an incoming request"""
+        if self.verbose:
+            logger.info(f"Processing chat message from {client_ip}, collection: {collection_name}")
+            logger.info(f"Message: {message}")
     
-    async def process_chat_stream(self, message: str, client_ip: str, collection_name: str = None) -> AsyncGenerator[str, None]:
-        """Process a chat message and stream the response"""
+    async def _log_response(self, response: str, client_ip: str):
+        """Log a response"""
+        if self.verbose:
+            logger.info(f"Generated response for {client_ip}")
+            logger.info(f"Response: {response[:100]}...")  # Log just the beginning to avoid huge logs
+    
+    async def process_chat(self, message: str, client_ip: str, collection_name: str, system_prompt_id: Optional[ObjectId] = None) -> Dict[str, Any]:
+        """
+        Process a chat message and return a response
+        
+        Args:
+            message: The chat message
+            client_ip: Client IP address
+            collection_name: Collection name to use for retrieval
+            system_prompt_id: Optional system prompt ID to use
+        """
         try:
-            loop = asyncio.get_running_loop()
-            start_time = loop.time()
+            # Log the incoming message
+            await self._log_request(message, client_ip, collection_name)
             
-            # Pass collection_name to the retriever via LLM client
-            if collection_name and hasattr(self.llm_client, 'set_collection'):
-                await self.llm_client.set_collection(collection_name)
-                if self.verbose:
-                    logger.info(f"Using collection '{collection_name}' for stream chat request")
-            
-            # List to accumulate full response for logging
-            chunks = []
-            first_token_received = False
-            
-            stream_enabled = _is_true_value(self.config['ollama'].get('stream', True))
-            
-            async for chunk in self.llm_client.generate_response(message, stream=stream_enabled):
-                if not first_token_received:
-                    first_token_received = True
-                    first_token_time = loop.time()
-                    if self.verbose:
-                        logger.info(f"Time to first token: {first_token_time - start_time:.3f}s")
+            # Generate response
+            response = ""
+            async for chunk in self.llm_client.generate_response(
+                message, 
+                stream=False, 
+                collection_name=collection_name,
+                system_prompt_id=system_prompt_id
+            ):
+                response += chunk
                 
-                chunks.append(chunk)
-                current_text = "".join(chunks)
-                fixed_text = fix_text_formatting(current_text)
-                yield f"data: {json.dumps({'text': fixed_text, 'done': False})}\n\n"
+            # Clean and format the response
+            response = fix_text_formatting(response)
             
-            # Send final done message
-            yield f"data: {json.dumps({'text': '', 'done': True})}\n\n"
+            # Log the response
+            await self._log_response(response, client_ip)
             
-            if self.verbose:
-                end_time = loop.time()
-                logger.info(f"Stream completed in {end_time - start_time:.3f}s")
-            
-            # Log conversation concurrently
-            full_text = "".join(chunks)
-            asyncio.create_task(self._log_conversation(message, full_text, client_ip))
-                
-            # Log the interaction after streaming is complete
-            await self.logger_service.log_conversation(
-                query=message,
-                response="[Streamed response]",
-                ip=client_ip,
-                backend=self.config.get('ollama', {}).get('model', 'ollama'),
-                blocked=False
-            )
+            return {"response": response}
         except Exception as e:
-            logger.error(f"Error processing chat stream: {str(e)}", exc_info=True)
-            raise HTTPException(status_code=500, detail="Error processing chat message")
+            logger.error(f"Error processing chat: {str(e)}")
+            return {"error": str(e)}
+    
+    async def process_chat_stream(self, message: str, client_ip: str, collection_name: str, system_prompt_id: Optional[ObjectId] = None):
+        try:
+            # Log the incoming message
+            await self._log_request(message, client_ip, collection_name)
+            
+            # Generate and stream response
+            response_chunks = []
+            accumulated_text = ""
+            
+            async for chunk in self.llm_client.generate_response(
+                message, 
+                stream=True, 
+                collection_name=collection_name,
+                system_prompt_id=system_prompt_id
+            ):
+                # Clean and format each chunk
+                cleaned_chunk = fix_text_formatting(chunk)
+                response_chunks.append(cleaned_chunk)
+                
+                # Accumulate text
+                accumulated_text += cleaned_chunk
+                
+                # Send the accumulated text so far, not just the new chunk
+                yield f"data: {json.dumps({'text': accumulated_text})}\n\n"
+                
+            # Log the complete response
+            complete_response = accumulated_text
+            await self._log_response(complete_response, client_ip)
+            
+            # Send end of stream marker
+            yield f"data: {json.dumps({'done': True})}\n\n"
+        except Exception as e:
+            logger.error(f"Error processing chat stream: {str(e)}")
+            error_json = json.dumps({"error": str(e)})
+            yield f"data: {error_json}\n\n"

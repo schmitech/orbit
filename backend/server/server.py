@@ -39,17 +39,18 @@ import chromadb
 from langchain_ollama import OllamaEmbeddings
 from dotenv import load_dotenv
 from pythonjsonlogger import jsonlogger
+from bson import ObjectId
 
 # Load environment variables
 load_dotenv()
 
 # Import local modules (ensure these exist in your project structure)
 from config.config_manager import load_config, _is_true_value
-from models.schema import ChatMessage, ApiKeyCreate, ApiKeyResponse, ApiKeyDeactivate
+from models.schema import ChatMessage, ApiKeyCreate, ApiKeyResponse, ApiKeyDeactivate, SystemPromptCreate, SystemPromptUpdate, SystemPromptResponse, ApiKeyPromptAssociate
 from models import ChatMessage, HealthStatus
 from clients.ollama_client import OllamaClient
 from clients.chroma_client import ChromaRetriever
-from services import ChatService, HealthService, LoggerService, GuardrailService, RerankerService, ApiKeyService
+from services import ChatService, HealthService, LoggerService, GuardrailService, RerankerService, ApiKeyService, PromptService
 
 
 class InferenceServer:
@@ -240,6 +241,17 @@ class InferenceServer:
             self.logger.error(f"MongoDB connection details: {self.config.get('mongodb', {})}")
             raise
         
+        # Initialize Prompt Service
+        app.state.prompt_service = PromptService(self.config)
+        self.logger.info("Initializing Prompt Service...")
+        try:
+            await app.state.prompt_service.initialize()
+            self.logger.info("Prompt Service initialized successfully")
+        except Exception as e:
+            self.logger.error(f"Failed to initialize Prompt Service: {str(e)}")
+            self.logger.error(f"MongoDB connection details: {self.config.get('mongodb', {})}")
+            raise
+        
         # Initialize Ollama embeddings
         ollama_conf = self.config['ollama']
         app.state.embeddings = OllamaEmbeddings(
@@ -261,6 +273,8 @@ class InferenceServer:
             self.config, 
             app.state.retriever,
             guardrail_service=app.state.guardrail_service,
+            reranker_service=app.state.reranker_service if hasattr(app.state, 'reranker_service') else None,
+            prompt_service=app.state.prompt_service,
             no_results_message=no_results_message
         )
         
@@ -322,7 +336,8 @@ class InferenceServer:
             app.state.llm_client.close(),
             app.state.logger_service.close(),
             app.state.retriever.close(),
-            app.state.guardrail_service.close()
+            app.state.guardrail_service.close(),
+            app.state.prompt_service.close()
         ]
         
         # Only include reranker if it was initialized
@@ -416,10 +431,13 @@ class InferenceServer:
         async def get_api_key_service(request: Request):
             return request.app.state.api_key_service
 
+        async def get_prompt_service(request: Request):
+            return request.app.state.prompt_service
+
         async def get_api_key(
             request: Request,
             api_key_service = Depends(get_api_key_service)
-        ) -> Optional[str]:
+        ) -> tuple[Optional[str], Optional[ObjectId]]:
             """
             Extract API key from request headers and validate it
             
@@ -428,21 +446,21 @@ class InferenceServer:
                 api_key_service: The API key service
                 
             Returns:
-                The collection name associated with the API key
+                Tuple of (collection_name, system_prompt_id) associated with the API key
             """
             # Get API key from header
             header_name = self.config.get('api_keys', {}).get('header_name', 'X-API-Key')
             api_key = request.headers.get(header_name)
             
-            # Validate API key and get collection name
+            # Validate API key and get collection name and system prompt ID
             try:
-                collection_name = await api_key_service.get_collection_for_api_key(api_key)
-                return collection_name
+                collection_name, system_prompt_id = await api_key_service.get_collection_for_api_key(api_key)
+                return collection_name, system_prompt_id
             except HTTPException as e:
                 # Allow health check without API key if configured
                 if (request.url.path == "/health" and 
                     not self.config.get('api_keys', {}).get('require_for_health', False)):
-                    return self.config['chroma']['collection']
+                    return self.config['chroma']['collection'], None
                 raise e
 
         # Chat endpoint
@@ -451,7 +469,7 @@ class InferenceServer:
             request: Request,
             chat_message: ChatMessage,
             chat_service = Depends(get_chat_service),
-            collection_name: str = Depends(get_api_key)
+            api_key_result: tuple[str, Optional[ObjectId]] = Depends(get_api_key)
         ):
             """
             Process a chat message and return a response
@@ -459,22 +477,27 @@ class InferenceServer:
             This endpoint validates the API key and uses the associated collection
             for retrieval augmented generation.
             """
+            collection_name, system_prompt_id = api_key_result
+            
             # Resolve client IP (using X-Forwarded-For if available)
             client_ip = request.headers.get("X-Forwarded-For", request.client.host if request.client else "unknown")
             
             # Determine if streaming is requested via header or request payload
             stream = (request.headers.get("Accept") == "text/event-stream") or chat_message.stream
             
-            # Log the collection being used
+            # Log the collection and prompt being used
             if self.config.get('general', {}).get('verbose', False):
                 self.logger.info(f"Using collection '{collection_name}' for chat request from {client_ip}")
+                if system_prompt_id:
+                    self.logger.info(f"Using system prompt ID: {system_prompt_id}")
 
             if stream:
                 return StreamingResponse(
                     chat_service.process_chat_stream(
                         message=chat_message.message,
                         client_ip=client_ip,
-                        collection_name=collection_name
+                        collection_name=collection_name,
+                        system_prompt_id=system_prompt_id
                     ),
                     media_type="text/event-stream"
                 )
@@ -482,8 +505,11 @@ class InferenceServer:
                 result = await chat_service.process_chat(
                     message=chat_message.message,
                     client_ip=client_ip,
-                    collection_name=collection_name
+                    collection_name=collection_name,
+                    system_prompt_id=system_prompt_id
                 )
+                if "error" in result:
+                    raise HTTPException(status_code=500, detail=result["error"])
                 return result
 
         # API Key management routes
@@ -567,6 +593,25 @@ class InferenceServer:
                 
             return {"status": "success", "message": "API key deactivated"}
 
+        @self.app.delete("/admin/api-keys/{api_key}")
+        async def delete_api_key(
+            api_key: str,
+            api_key_service = Depends(get_api_key_service)
+        ):
+            """
+            Delete an API key
+            
+            This is an admin-only endpoint and should be properly secured in production.
+            """
+            # In production, add authentication middleware to restrict access to admin endpoints
+            
+            success = await api_key_service.delete_api_key(api_key)
+            
+            if not success:
+                raise HTTPException(status_code=404, detail="API key not found")
+                
+            return {"status": "success", "message": "API key deleted"}
+
         # Health check endpoint
         @self.app.get("/health")
         async def health_check(
@@ -577,6 +622,119 @@ class InferenceServer:
             health = await health_service.get_health_status(collection_name)
             return health
 
+        # System Prompts management routes
+        @self.app.post("/admin/prompts", response_model=SystemPromptResponse)
+        async def create_prompt(
+            prompt_data: SystemPromptCreate,
+            prompt_service = Depends(get_prompt_service)
+        ):
+            """Create a new system prompt"""
+            prompt_id = await prompt_service.create_prompt(
+                prompt_data.name,
+                prompt_data.prompt,
+                prompt_data.version
+            )
+            
+            prompt = await prompt_service.get_prompt_by_id(prompt_id)
+            
+            if not prompt:
+                raise HTTPException(status_code=500, detail="Failed to retrieve created prompt")
+                
+            # Format the response according to the model
+            return {
+                "id": str(prompt_id),
+                "name": prompt.get("name"),
+                "prompt": prompt.get("prompt"),
+                "version": prompt.get("version"),
+                "created_at": prompt.get("created_at").timestamp() if prompt.get("created_at") else 0,
+                "updated_at": prompt.get("updated_at").timestamp() if prompt.get("updated_at") else 0
+            }
+
+        @self.app.get("/admin/prompts")
+        async def list_prompts(
+            prompt_service = Depends(get_prompt_service)
+        ):
+            """List all system prompts"""
+            return await prompt_service.list_prompts()
+
+        @self.app.get("/admin/prompts/{prompt_id}")
+        async def get_prompt(
+            prompt_id: str,
+            prompt_service = Depends(get_prompt_service)
+        ):
+            """Get a system prompt by ID"""
+            prompt = await prompt_service.get_prompt_by_id(prompt_id)
+            
+            if not prompt:
+                raise HTTPException(status_code=404, detail="Prompt not found")
+                
+            # Convert ObjectId to string and datetime to timestamp
+            prompt["_id"] = str(prompt["_id"])
+            if "created_at" in prompt:
+                prompt["created_at"] = prompt["created_at"].timestamp()
+            if "updated_at" in prompt:
+                prompt["updated_at"] = prompt["updated_at"].timestamp()
+                
+            return prompt
+
+        @self.app.put("/admin/prompts/{prompt_id}", response_model=SystemPromptResponse)
+        async def update_prompt(
+            prompt_id: str,
+            prompt_data: SystemPromptUpdate,
+            prompt_service = Depends(get_prompt_service)
+        ):
+            """Update a system prompt"""
+            success = await prompt_service.update_prompt(
+                prompt_id,
+                prompt_data.prompt,
+                prompt_data.version
+            )
+            
+            if not success:
+                raise HTTPException(status_code=404, detail="Prompt not found or not updated")
+                
+            prompt = await prompt_service.get_prompt_by_id(prompt_id)
+            
+            if not prompt:
+                raise HTTPException(status_code=404, detail="Failed to retrieve updated prompt")
+                
+            # Format the response according to the model
+            return {
+                "id": str(prompt_id),
+                "name": prompt.get("name"),
+                "prompt": prompt.get("prompt"),
+                "version": prompt.get("version"),
+                "created_at": prompt.get("created_at").timestamp() if prompt.get("created_at") else 0,
+                "updated_at": prompt.get("updated_at").timestamp() if prompt.get("updated_at") else 0
+            }
+
+        @self.app.delete("/admin/prompts/{prompt_id}")
+        async def delete_prompt(
+            prompt_id: str,
+            prompt_service = Depends(get_prompt_service)
+        ):
+            """Delete a system prompt"""
+            success = await prompt_service.delete_prompt(prompt_id)
+            
+            if not success:
+                raise HTTPException(status_code=404, detail="Prompt not found")
+                
+            return {"status": "success", "message": "Prompt deleted"}
+
+        @self.app.post("/admin/api-keys/{api_key}/prompt")
+        async def associate_prompt_with_api_key(
+            api_key: str,
+            data: ApiKeyPromptAssociate,
+            api_key_service = Depends(get_api_key_service)
+        ):
+            """Associate a system prompt with an API key"""
+            success = await api_key_service.update_api_key_system_prompt(api_key, data.prompt_id)
+            
+            if not success:
+                raise HTTPException(status_code=404, detail="API key not found or prompt not associated")
+        
+            return {"status": "success", "message": "System prompt associated with API key"}
+    
     def create_ssl_context(self) -> Optional[ssl.SSLContext]:
         """
         Create an SSL context from certificate and key files.
