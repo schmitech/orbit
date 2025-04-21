@@ -3,7 +3,6 @@ Utility functions for text processing
 """
 
 import re
-from langdetect import detect
 # Precompile regex patterns for text formatting
 RE_PUNCTUATION_SPACE = re.compile(r'([.,!?:;])([A-Za-z0-9])')
 RE_SENTENCE_SPACE = re.compile(r'([.!?])([A-Z])')
@@ -22,13 +21,6 @@ def fix_text_formatting(text: str) -> str:
     text = RE_WORD_SPACE.sub(r'\1 \2', text)
     
     return text
-
-def detect_language(text):
-    """Detect the language of the input text."""
-    try:
-        return detect(text)
-    except:
-            return "en"
 
 def sanitize_error_message(message: str) -> str:
     """Sanitize error messages to remove sensitive information"""

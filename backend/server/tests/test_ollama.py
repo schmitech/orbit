@@ -21,12 +21,22 @@ import requests
 import yaml
 import json
 import sys
+import os
 
 # Get query from command line or use default
 query = sys.argv[1] if len(sys.argv) > 1 else "What is the cost of the Beginner English fee for service course?"
 
-# Load config
-with open('../../config/config.yaml', 'r') as file:
+# Get the absolute path to the server directory (parent of tests)
+server_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# Get the absolute path to the backend directory (parent of server)
+backend_dir = os.path.dirname(server_dir)
+
+# Add server directory to Python path
+sys.path.append(server_dir)
+
+# Load config using os.path.join for cross-platform compatibility
+config_path = os.path.join(backend_dir, 'config', 'config.yaml')
+with open(config_path, 'r') as file:
     config = yaml.safe_load(file)
 
 # Extract Ollama config

@@ -12,7 +12,7 @@ across different client components.
 import asyncio
 import aiohttp
 import logging
-from utils.text_utils import detect_language
+from utils.language_detector import LanguageDetector
 from typing import Dict, Any, Tuple, Optional
 
 from config.config_manager import _is_true_value
@@ -59,6 +59,8 @@ class GuardrailService:
         # Handle both string and boolean values for verbose setting
         verbose_value = config.get('general', {}).get('verbose', False)
         self.verbose = _is_true_value(verbose_value)
+
+        self.detector = LanguageDetector(self.verbose)
 
     def _load_safety_prompt(self) -> str:
         """
@@ -124,9 +126,12 @@ class GuardrailService:
             return True, None
             
         # Check if the query is in a non-English language
-        query_language = detect_language(query)
+        query_language = self.detector.detect(query)
         is_non_english = query_language != "en"
-        
+
+        if self.verbose:
+            logger.info(f"GuardrailService - Language detection result: '{query}' detected as '{query_language}'")
+
         for attempt in range(self.max_retries):
             try:
                 await self.initialize()  # Ensure session is initialized

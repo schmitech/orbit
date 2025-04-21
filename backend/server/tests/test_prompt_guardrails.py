@@ -46,7 +46,7 @@ import json
 import sys
 import argparse
 from datetime import datetime
-
+import os
 def load_config():
     """
     Load configuration from the server's config.yaml file.
@@ -58,8 +58,21 @@ def load_config():
         FileNotFoundError: If config.yaml is not found
         yaml.YAMLError: If config.yaml is not valid YAML
     """
-    with open('../../config/config.yaml', 'r') as file:
-        return yaml.safe_load(file)
+    
+    # Get the absolute path to the server directory (parent of tests)
+    server_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    # Get the absolute path to the backend directory (parent of server)
+    backend_dir = os.path.dirname(server_dir)
+
+    # Add server directory to Python path
+    sys.path.append(server_dir)
+
+    # Load config using os.path.join for cross-platform compatibility
+    config_path = os.path.join(backend_dir, 'config', 'config.yaml')
+    with open(config_path, 'r') as file:
+        config = yaml.safe_load(file)
+    
+    return config
 
 def run_single_test_ollama(query, ollama_config):
     """

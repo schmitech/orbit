@@ -8,13 +8,12 @@ import asyncio
 import logging
 import aiohttp
 from typing import Dict, Any, Tuple, Optional, List
-from utils.text_utils import detect_language
+from utils.language_detector import LanguageDetector
 from bson import ObjectId
 
 from config.config_manager import _is_true_value
 
 logger = logging.getLogger(__name__)
-
 
 class OllamaClient:
     """Handles communication with Ollama API"""
@@ -57,7 +56,8 @@ class OllamaClient:
         # Current system prompt ID and text - updated for each request
         self.current_prompt_id = None
         self.current_prompt_text = self.default_prompt
-
+        self.detector = LanguageDetector(self.verbose)
+    
     async def initialize(self):
         """Initialize the aiohttp session with a timeout and TCP connector to reduce latency."""
         if self.session is None:
@@ -228,8 +228,11 @@ class OllamaClient:
                 logger.info("=====================")
 
             # Detect if the user message is not in English
-            query_language = detect_language(message)
+            query_language = self.detector.detect(message)
             is_non_english = query_language != "en"
+
+            if self.verbose:
+                logger.info(f"Language detection result: '{message}' detected as '{query_language}'")
 
             # Create language instruction if needed
             language_instruction = ""
