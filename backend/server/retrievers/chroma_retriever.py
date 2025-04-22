@@ -1,43 +1,72 @@
 """
-Chroma client for document retrieval
+ChromaDB implementation of the BaseRetriever interface
 """
 
 import logging
 from typing import Dict, Any, List, Optional
 from chromadb import HttpClient
 from langchain_ollama import OllamaEmbeddings
-from services.api_key_service import ApiKeyService
 from fastapi import HTTPException
+
+from retrievers.base_retriever import BaseRetriever
+from services.api_key_service import ApiKeyService
 
 # Configure logging
 logger = logging.getLogger(__name__)
 
-class ChromaRetriever:
-    """Handles document retrieval from ChromaDB"""
+class ChromaRetriever(BaseRetriever):
+    """Chroma implementation of the BaseRetriever interface"""
 
-    def __init__(self, collection: Any, embeddings: OllamaEmbeddings, config: Dict[str, Any]):
-        self.collection = collection
-        self.embeddings = embeddings
-        self.config = config
+    def __init__(self, 
+                config: Dict[str, Any],  # Make config the first required parameter
+                embeddings: Optional[OllamaEmbeddings] = None,
+                collection: Any = None):
+        """
+        Initialize ChromaRetriever.
         
-        # Extract chroma-specific configuration for clarity
+        Args:
+            config: Configuration dictionary containing Chroma and general settings
+            embeddings: Optional OllamaEmbeddings instance
+            collection: Optional ChromaDB collection
+        """
+        if not config:
+            raise ValueError("Config is required for ChromaRetriever initialization")
+            
+        self.config = config
+        self.embeddings = embeddings
+        self.collection = collection
+        
+        # Extract chroma-specific configuration
         chroma_config = config.get('chroma', {})
         self.confidence_threshold = chroma_config.get('confidence_threshold', 0.7)
         self.relevance_threshold = chroma_config.get('relevance_threshold', 0.5)
         self.verbose = config.get('general', {}).get('verbose', False)
+        self.max_results = chroma_config.get('max_results', 10)
+        self.return_results = chroma_config.get('return_results', 3)
         
         # Initialize dependent services
         self.api_key_service = ApiKeyService(config)
+        
+        # Initialize ChromaDB client
         self.chroma_client = HttpClient(
-            host=chroma_config.get('host'),
-            port=int(chroma_config.get('port'))
+            host=chroma_config.get('host', 'localhost'),  # Add default values
+            port=int(chroma_config.get('port', 8000))
         )
 
-    async def initialize(self):
+    async def initialize(self) -> None:
         """Initialize required services."""
         await self.api_key_service.initialize()
+        
+        # Initialize embeddings if not provided in constructor
+        if self.embeddings is None:
+            from langchain_ollama import OllamaEmbeddings
+            ollama_conf = self.config.get('ollama', {})
+            self.embeddings = OllamaEmbeddings(
+                model=ollama_conf.get('embed_model', 'bge-m3'),
+                base_url=ollama_conf.get('base_url', 'http://localhost:11434')
+            )
 
-    async def close(self):
+    async def close(self) -> None:
         """Close any open services."""
         await self.api_key_service.close()
 
@@ -119,7 +148,40 @@ class ChromaRetriever:
         
         return None
 
-    async def get_relevant_context(self, query: str, api_key: Optional[str] = None, collection_name: Optional[str] = None) -> List[Dict[str, Any]]:
+    def _format_metadata(self, doc: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Format and create a context item from a document and its metadata.
+        
+        Args:
+            doc: The document text
+            metadata: The document metadata
+            
+        Returns:
+            A formatted context item
+        """
+        # Create the base item with confidence
+        item = {
+            "raw_document": doc,
+            "metadata": metadata.copy(),  # Include full metadata
+        }
+        
+        # Set the content field based on document type
+        if "question" in metadata and "answer" in metadata:
+            # If it's a QA pair, set content to the question and answer together
+            item["content"] = f"Question: {metadata['question']}\nAnswer: {metadata['answer']}"
+            item["question"] = metadata["question"]
+            item["answer"] = metadata["answer"]
+        else:
+            # Otherwise, use the document content
+            item["content"] = doc
+            
+        return item
+
+    async def get_relevant_context(self, 
+                               query: str, 
+                               api_key: Optional[str] = None, 
+                               collection_name: Optional[str] = None,
+                               **kwargs) -> List[Dict[str, Any]]:
         """
         Retrieve and filter relevant context from ChromaDB.
         
@@ -127,6 +189,7 @@ class ChromaRetriever:
             query: The user's query.
             api_key: Optional API key for accessing the collection.
             collection_name: Optional explicit collection name.
+            **kwargs: Additional parameters
             
         Returns:
             A list of context items filtered by relevance.
@@ -140,7 +203,7 @@ class ChromaRetriever:
             # Query ChromaDB for multiple results to enable filtering
             results = self.collection.query(
                 query_embeddings=[query_embedding],
-                n_results=10,  # Fetch extra results to enable better filtering.
+                n_results=self.max_results,
                 include=["documents", "metadatas", "distances"]
             )
             
@@ -154,33 +217,19 @@ class ChromaRetriever:
             ):
                 similarity = 1 - distance
                 if similarity >= self.relevance_threshold:
-                    # Create the base item with confidence and metadata
-                    item = {
-                        "confidence": similarity,
-                        **metadata
-                    }
-                    
-                    # Set the content field correctly - prioritize answer if available
-                    if "question" in metadata and "answer" in metadata:
-                        # If it's a QA pair, set content to the question and answer together
-                        item["content"] = f"Question: {metadata['question']}\nAnswer: {metadata['answer']}"
-                        item["question"] = metadata["question"]
-                        item["answer"] = metadata["answer"]
-                    else:
-                        # Otherwise, use the document content
-                        item["content"] = doc
+                    # Create formatted context item
+                    item = self._format_metadata(doc, metadata)
+                    item["confidence"] = similarity  # Add confidence score
                     
                     context_items.append(item)
             
-            # Sort the context items by confidence and select the top 3 results
-            context_items = sorted(context_items, key=lambda x: x.get("confidence", 0), reverse=True)[:3]
+            # Sort the context items by confidence and select the top N results
+            context_items = sorted(context_items, key=lambda x: x.get("confidence", 0), reverse=True)[:self.return_results]
             
             if self.verbose:
                 logger.info(f"Retrieved {len(context_items)} relevant context items")
                 if context_items:
                     logger.info(f"Top confidence score: {context_items[0].get('confidence', 0)}")
-                    if "answer" in context_items[0]:
-                        logger.info(f"Top result has answer field: {True}")
             
             return context_items
             

@@ -49,7 +49,7 @@ from config.config_manager import load_config, _is_true_value
 from models.schema import ChatMessage, ApiKeyCreate, ApiKeyResponse, ApiKeyDeactivate, SystemPromptCreate, SystemPromptUpdate, SystemPromptResponse, ApiKeyPromptAssociate
 from models import ChatMessage, HealthStatus
 from clients.ollama_client import OllamaClient
-from clients.chroma_client import ChromaRetriever
+from retrievers.chroma_retriever import ChromaRetriever
 from services import ChatService, HealthService, LoggerService, GuardrailService, RerankerService, ApiKeyService, PromptService
 
 
@@ -260,7 +260,10 @@ class InferenceServer:
         )
         
         # Initialize retriever without a collection - it will be set when an API key is provided
-        app.state.retriever = ChromaRetriever(None, app.state.embeddings, self.config)
+        app.state.retriever = ChromaRetriever(
+            config=self.config,
+            embeddings=app.state.embeddings
+        )
         
         # Initialize GuardrailService
         app.state.guardrail_service = GuardrailService(self.config)
