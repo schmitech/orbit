@@ -47,11 +47,10 @@ load_dotenv()
 # Import local modules (ensure these exist in your project structure)
 from config.config_manager import load_config, _is_true_value
 from models.schema import ChatMessage, ApiKeyCreate, ApiKeyResponse, ApiKeyDeactivate, SystemPromptCreate, SystemPromptUpdate, SystemPromptResponse, ApiKeyPromptAssociate
-from models import ChatMessage, HealthStatus
-from clients.ollama_client import OllamaClient
+from models import ChatMessage
 from retrievers.chroma_retriever import ChromaRetriever
 from services import ChatService, HealthService, LoggerService, GuardrailService, RerankerService, ApiKeyService, PromptService
-
+from clients import QAOllamaClient
 
 class InferenceServer:
     """
@@ -272,7 +271,7 @@ class InferenceServer:
         no_results_message = self._load_no_results_message()
         
         # Create LLM client with guardrail service
-        app.state.llm_client = OllamaClient(
+        app.state.llm_client = QAOllamaClient(
             self.config, 
             app.state.retriever,
             guardrail_service=app.state.guardrail_service,

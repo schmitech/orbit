@@ -11,7 +11,7 @@ import os
 
 # Import the service to test
 from ..services.guardrail_service import GuardrailService
-from ..clients.ollama_client import OllamaClient
+from ..clients.qa_ollama_client import OllamaClient
 from ..config.config_manager import ConfigManager
 from ..utils.logger import Logger
 
