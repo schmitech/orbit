@@ -14,7 +14,7 @@ from services.api_key_service import ApiKeyService
 # Configure logging
 logger = logging.getLogger(__name__)
 
-class ChromaRetriever(BaseRetriever):
+class QAChromaRetriever(BaseRetriever):
     """Chroma implementation of the BaseRetriever interface"""
 
     def __init__(self, 

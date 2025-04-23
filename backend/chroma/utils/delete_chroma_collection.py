@@ -62,16 +62,37 @@ def delete_chroma_collection(collection_name: str):
     # Initialize client with HTTP connection
     client = chromadb.HttpClient(host=chroma_host, port=int(chroma_port))
 
-    # Check if the collection exists
-    existing_collections = client.list_collections()
-    collection_names = [col.name for col in existing_collections]
-    if collection_name not in collection_names:
-        print(f"Collection '{collection_name}' does not exist.")
-        return
-
-    # Delete the collection
-    client.delete_collection(collection_name)
-    print(f"Deleted collection: {collection_name}")
+    # Check if the collection exists using the new API approach
+    try:
+        collections = client.list_collections()
+        collection_exists = False
+        
+        # In newer versions, list_collections() returns collection objects with 'name' attributes
+        for collection in collections:
+            if hasattr(collection, 'name') and collection.name == collection_name:
+                collection_exists = True
+                break
+        
+        if not collection_exists:
+            print(f"Collection '{collection_name}' does not exist.")
+            return
+            
+        print(f"Found collection '{collection_name}', deleting...")
+        client.delete_collection(name=collection_name)
+        print(f"Successfully deleted collection: {collection_name}")
+        
+    except Exception as e:
+        print(f"Error when working with collections: {str(e)}")
+        
+        try:    
+            print("Attempting direct deletion...")
+            client.delete_collection(name=collection_name)
+            print(f"Successfully deleted collection: {collection_name}")
+        except Exception as inner_e:
+            if "does not exist" in str(inner_e):
+                print(f"Collection '{collection_name}' does not exist.")
+            else:
+                print(f"Failed to delete collection: {str(inner_e)}")
 
 if __name__ == "__main__":
     # Set up argument parser
@@ -79,4 +100,4 @@ if __name__ == "__main__":
     parser.add_argument('collection_name', help='Name of the Chroma collection to delete')
     args = parser.parse_args()
 
-    delete_chroma_collection(args.collection_name) 
+    delete_chroma_collection(args.collection_name)

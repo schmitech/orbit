@@ -56,17 +56,11 @@ class QAOllamaClient(BaseOllamaClient):
         self.reranker_service = reranker_service
         self.prompt_service = prompt_service
         
-        # Default system prompt
-        self.default_prompt = config.get('ollama', {}).get(
-            'default_system_prompt', 
-            "I am going to ask you a question, which I would like you to answer based only on the provided context, and not any other information."
-        )
-        
         self.no_results_message = no_results_message or "I couldn't find any relevant information to answer your question."
         
         # Current system prompt ID and text - updated for each request
         self.current_prompt_id = None
-        self.current_prompt_text = self.default_prompt
+        
         
         # Language detection
         self.detector = LanguageDetector(self.verbose)
@@ -149,15 +143,8 @@ class QAOllamaClient(BaseOllamaClient):
         Args:
             prompt_id: The ObjectId of the system prompt to use, if None use default prompt
         """
-        # Reset to default
-        self.current_prompt_text = self.default_prompt
-        self.current_prompt_id = None
         
-        # If no prompt ID or no prompt service, use default
-        if not prompt_id or not self.prompt_service:
-            if self.verbose:
-                logger.info("Using default system prompt")
-            return
+        self.current_prompt_id = None
         
         try:
             # Try to get the specified prompt

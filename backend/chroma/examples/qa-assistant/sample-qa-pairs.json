@@ -1,0 +1,1362 @@
+[
+    {
+        "question": "Where can I find the property tax rates for this year?",
+        "answer": "The current property tax rates are listed on the Revenue Services section of the city's website."
+    },
+    {
+        "question": "How do I report a pothole on my street?",
+        "answer": "You can report potholes using the online service request form on the Public Works Department's webpage."
+    },
+    {
+        "question": "What is the fee for a residential parking permit?",
+        "answer": "The residential parking permit fee is $25 per year."
+    },
+    {
+        "question": "Where can I dispose of hazardous household waste?",
+        "answer": "Hazardous waste can be disposed of at the city's Environmental Services Center located at 456 Green Ave."
+    },
+    {
+        "question": "How do I renew my dog license?",
+        "answer": "Dog licenses can be renewed online through the Animal Services portal or in person at City Hall."
+    },
+    {
+        "question": "What are the hours for the public swimming pool?",
+        "answer": "The public swimming pool is open from 7 AM to 9 PM daily during the summer season."
+    },
+    {
+        "question": "How can I get a copy of my birth certificate?",
+        "answer": "Birth certificates can be requested from the Vital Records Office at City Hall for a fee of $20."
+    },
+    {
+        "question": "What is the process for obtaining a marriage license?",
+        "answer": "Both parties must appear in person at the Clerk's Office with valid ID to apply for a marriage license."
+    },
+    {
+        "question": "Where can I find the city's zoning maps?",
+        "answer": "Zoning maps are available for viewing at the Planning Department and on the city's website."
+    },
+    {
+        "question": "How do I report a street light outage?",
+        "answer": "Street light outages can be reported to the Public Works Department by phone or through their online portal."
+    },
+    {
+        "question": "What are the requirements for a home-based business license?",
+        "answer": "Home-based businesses must submit an application, pay a $75 fee, and comply with zoning regulations."
+    },
+    {
+        "question": "How can I pay my water bill online?",
+        "answer": "Online water bill payments can be made through the Utilities section of the city's website."
+    },
+    {
+        "question": "What is the curfew for minors in the city?",
+        "answer": "The curfew for minors under 16 is 10 PM on weekdays and 11 PM on weekends."
+    },
+    {
+        "question": "Where can I find information about property tax deferral programs?",
+        "answer": "Information about tax deferral programs is available on the Revenue Services website under 'Senior Programs'."
+    },
+    {
+        "question": "How do I request a bulk item pickup?",
+        "answer": "Bulk item pickups can be scheduled by calling Waste Management at 555-1234 at least 48 hours in advance."
+    },
+    {
+        "question": "What are the regulations for backyard fire pits?",
+        "answer": "Backyard fire pits must be at least 15 feet from structures and only clean wood may be burned."
+    },
+    {
+        "question": "How can I apply for a sidewalk cafe permit?",
+        "answer": "Sidewalk cafe permits are available through the Business Licensing Department and require a $150 fee."
+    },
+    {
+        "question": "What is the penalty for late water bill payments?",
+        "answer": "Late water bill payments incur a 5% penalty if not paid within 15 days of the due date."
+    },
+    {
+        "question": "Where can I find the city's annual budget?",
+        "answer": "The annual budget is published on the city's website under the Finance Department section."
+    },
+    {
+        "question": "How do I report illegal dumping?",
+        "answer": "Illegal dumping can be reported to Code Enforcement by phone or through the city's mobile app."
+    },
+    {
+        "question": "What are the requirements for a food truck license?",
+        "answer": "Food trucks require a mobile vending license ($200/year) and must pass health inspections."
+    },
+    {
+        "question": "How can I reserve a picnic area in a city park?",
+        "answer": "Park picnic areas can be reserved online or by calling the Parks and Recreation Department."
+    },
+    {
+        "question": "What is the fee for a garage sale permit?",
+        "answer": "Garage sale permits cost $5 and are valid for up to 3 consecutive days."
+    },
+    {
+        "question": "Where can I find the city council meeting schedule?",
+        "answer": "The city council meeting schedule is posted on the city's website and at City Hall."
+    },
+    {
+        "question": "How do I apply for a low-income utility assistance program?",
+        "answer": "Applications for utility assistance are available at Social Services or online."
+    },
+    {
+        "question": "What are the leaf collection dates for my neighborhood?",
+        "answer": "Leaf collection schedules are published each fall on the Public Works Department's webpage."
+    },
+    {
+        "question": "How can I volunteer for city beautification projects?",
+        "answer": "Volunteer opportunities are listed on the Parks and Recreation Department's volunteer page."
+    },
+    {
+        "question": "What is the process for subdividing a property?",
+        "answer": "Property subdivision requires approval from the Planning Commission and a $500 application fee."
+    },
+    {
+        "question": "Where can I get a permit for a block party?",
+        "answer": "Block party permits are issued by the Police Department and require 30 days advance notice."
+    },
+    {
+        "question": "How do I report a broken traffic signal?",
+        "answer": "Broken traffic signals should be reported immediately to the Traffic Division at 555-6789."
+    },
+    {
+        "question": "What are the regulations for short-term rentals?",
+        "answer": "Short-term rentals require a $250 annual permit and must comply with safety regulations."
+    },
+    {
+        "question": "How can I access city records or documents?",
+        "answer": "Public records requests can be submitted to the City Clerk's Office for processing."
+    },
+    {
+        "question": "What is the fee for a tree removal permit?",
+        "answer": "Tree removal permits cost $50 per tree for protected species."
+    },
+    {
+        "question": "Where can I find information about flood zones in the city?",
+        "answer": "Flood zone maps are available at the Planning Department and on the FEMA website."
+    },
+    {
+        "question": "How do I apply for a disabled parking permit?",
+        "answer": "Disabled parking permits are issued by the DMV with a doctor's certification."
+    },
+    {
+        "question": "What are the snow removal procedures for city streets?",
+        "answer": "Primary roads are plowed first, followed by secondary roads and residential streets."
+    },
+    {
+        "question": "How can I contest a parking ticket?",
+        "answer": "Parking tickets can be contested by filing an appeal with the Traffic Violations Bureau."
+    },
+    {
+        "question": "What is the process for adopting a pet from the city shelter?",
+        "answer": "Potential adopters must complete an application and pay a $75 adoption fee."
+    },
+    {
+        "question": "Where can I find the city's emergency preparedness information?",
+        "answer": "Emergency preparedness guides are available on the city's Office of Emergency Management website."
+    },
+    {
+        "question": "How do I report a water main break?",
+        "answer": "Water main breaks should be reported immediately to the Utilities Department at 555-2468."
+    },
+    {
+        "question": "What are the hours for the city's recycling center?",
+        "answer": "The recycling center is open Tuesday through Saturday from 8 AM to 4 PM."
+    },
+    {
+        "question": "How can I apply for a vendor permit for the farmers market?",
+        "answer": "Farmers market vendor applications are available on the Parks and Recreation website."
+    },
+    {
+        "question": "What is the fee for a business tax receipt?",
+        "answer": "Business tax receipt fees vary by business type but start at $100 annually."
+    },
+    {
+        "question": "Where can I find information about historic preservation grants?",
+        "answer": "Historic preservation grant information is available from the Historic Preservation Board."
+    },
+    {
+        "question": "How do I request a street sweeping schedule for my area?",
+        "answer": "Street sweeping schedules are posted on the Public Works Department's website by neighborhood."
+    },
+    {
+        "question": "What are the regulations for political signs?",
+        "answer": "Political signs may be displayed 45 days before an election and must be removed within 5 days after."
+    },
+    {
+        "question": "How can I get a copy of a police report?",
+        "answer": "Police reports can be requested from the Records Division for a $10 processing fee."
+    },
+    {
+        "question": "What is the process for annexing property into the city?",
+        "answer": "Annexation requires a petition, public hearing, and approval by the City Council."
+    },
+    {
+        "question": "Where can I find information about community gardens?",
+        "answer": "Community garden locations and plot rentals are managed by the Parks Department."
+    },
+    {
+        "question": "How do I report a noise violation after hours?",
+        "answer": "Noise violations after 11 PM can be reported to the Police Department's non-emergency line."
+    },
+    {
+        "question": "What are the requirements for a daycare facility license?",
+        "answer": "Daycare facilities must meet state regulations and obtain a city business license."
+    },
+    {
+        "question": "How can I pay a traffic ticket online?",
+        "answer": "Traffic tickets can be paid online through the Municipal Court's payment portal."
+    },
+    {
+        "question": "What is the fee for a residential building permit?",
+        "answer": "Residential building permit fees are based on project value, starting at $75."
+    },
+    {
+        "question": "Where can I find the city's comprehensive plan?",
+        "answer": "The comprehensive plan is available for review at the Planning Department and online."
+    },
+    {
+        "question": "How do I apply for a scholarship for city recreation programs?",
+        "answer": "Recreation program scholarship applications are available at community centers."
+    },
+    {
+        "question": "What are the regulations for keeping chickens in residential areas?",
+        "answer": "Residents may keep up to 4 hens (no roosters) with a $25 annual permit."
+    },
+    {
+        "question": "How can I report a suspected code violation?",
+        "answer": "Suspected code violations can be reported anonymously through the Code Enforcement hotline."
+    },
+    {
+        "question": "What is the process for getting a street name changed?",
+        "answer": "Street name changes require a petition with 75% of property owners' approval and council vote."
+    },
+    {
+        "question": "Where can I find information about property tax assessment appeals?",
+        "answer": "Tax assessment appeal forms and instructions are available from the Assessor's Office."
+    },
+    {
+        "question": "How do I register to speak at a city council meeting?",
+        "answer": "Speaker registration forms are available at City Hall before meetings or online in advance."
+    },
+    {
+        "question": "What are the requirements for a temporary event permit?",
+        "answer": "Temporary event permits require application 30 days prior and proof of insurance."
+    },
+    {
+        "question": "How can I find out if my property is in a historic district?",
+        "answer": "Historic district maps are available at the Planning Department's Historic Preservation Office."
+    },
+    {
+        "question": "What is the fee for a food handler's permit?",
+        "answer": "Food handler's permits cost $25 and are valid for 2 years."
+    },
+    {
+        "question": "Where can I find the city's stormwater management plan?",
+        "answer": "The stormwater management plan is available on the Public Works Department's website."
+    },
+    {
+        "question": "How do I request a new trash bin?",
+        "answer": "New trash bins can be requested through the Waste Management Division for a $25 replacement fee."
+    },
+    {
+        "question": "What are the regulations for solar panel installations?",
+        "answer": "Solar panel installations require a building permit but are exempt from some zoning restrictions."
+    },
+    {
+        "question": "How can I find property line information?",
+        "answer": "Property line information is available through the County Assessor's office or a licensed surveyor."
+    },
+    {
+        "question": "What is the process for appealing a zoning decision?",
+        "answer": "Zoning appeals must be filed with the Board of Zoning Appeals within 30 days of the decision."
+    },
+    {
+        "question": "Where can I find information about city-sponsored job training programs?",
+        "answer": "Job training program information is available through the Economic Development Office."
+    },
+    {
+        "question": "How do I report a malfunctioning parking meter?",
+        "answer": "Malfunctioning parking meters can be reported to the Parking Authority at 555-7890."
+    },
+    {
+        "question": "What are the requirements for a home occupation permit?",
+        "answer": "Home occupation permits require application and proof of compliance with zoning regulations."
+    },
+    {
+        "question": "How can I get a copy of city ordinances?",
+        "answer": "City ordinances are available online through the City Clerk's legislative database."
+    },
+    {
+        "question": "What is the fee for a fence permit?",
+        "answer": "Fence permits cost $50 for residential properties under 6 feet in height."
+    },
+    {
+        "question": "Where can I find information about city-sponsored senior programs?",
+        "answer": "Senior program information is available at community centers and the Senior Services website."
+    },
+    {
+        "question": "How do I request a speed bump for my street?",
+        "answer": "Speed bump requests require a petition with neighborhood support and traffic study approval."
+    },
+    {
+        "question": "What are the regulations for holiday decorations on public property?",
+        "answer": "Holiday decorations in public spaces must be approved by the Parks Department in advance."
+    },
+    {
+        "question": "How can I find out about road construction projects?",
+        "answer": "Current road construction projects are listed on the Public Works Department's website."
+    },
+    {
+        "question": "What is the process for getting a sidewalk repaired?",
+        "answer": "Sidewalk repairs can be requested through the Public Works Department's online service portal."
+    },
+    {
+        "question": "Where can I find information about city election candidates?",
+        "answer": "Candidate information is available from the City Clerk's Office prior to elections."
+    },
+    {
+        "question": "How do I report graffiti on public property?",
+        "answer": "Graffiti can be reported through the city's mobile app or by calling Public Works."
+    },
+    {
+        "question": "What are the requirements for a catering business license?",
+        "answer": "Catering businesses require a food service license and commercial kitchen inspection."
+    },
+    {
+        "question": "How can I pay my business taxes online?",
+        "answer": "Business taxes can be paid through the Revenue Services section of the city's website."
+    },
+    {
+        "question": "What is the fee for a driveway expansion permit?",
+        "answer": "Driveway expansion permits cost $100 and require a site plan review."
+    },
+    {
+        "question": "Where can I find information about city-sponsored youth sports?",
+        "answer": "Youth sports program information is available through the Parks and Recreation Department."
+    },
+    {
+        "question": "How do I request a traffic study for my neighborhood?",
+        "answer": "Traffic study requests can be submitted to the Traffic Engineering Division."
+    },
+    {
+        "question": "What are the regulations for temporary signage?",
+        "answer": "Temporary signs may be displayed for up to 30 days and cannot exceed 6 square feet."
+    },
+    {
+        "question": "How can I find out about property tax exemptions for veterans?",
+        "answer": "Veteran tax exemption information is available from the Assessor's Office."
+    },
+    {
+        "question": "What is the process for naming a city park or facility?",
+        "answer": "Park naming proposals must be submitted to the Parks Board for consideration and approval."
+    },
+    {
+        "question": "Where can I find information about city contract bidding opportunities?",
+        "answer": "City contract bids are posted on the Purchasing Department's website."
+    },
+    {
+        "question": "How do I report an abandoned vehicle on my street?",
+        "answer": "Abandoned vehicles can be reported to Code Enforcement after being parked for over 72 hours."
+    },
+    {
+        "question": "What are the requirements for a bed and breakfast license?",
+        "answer": "Bed and breakfasts require a special use permit and annual safety inspections."
+    },
+    {
+        "question": "How can I get a copy of the city's annual report?",
+        "answer": "Annual reports are available for download on the City Manager's Office webpage."
+    },
+    {
+        "question": "What is the fee for a special event alcohol permit?",
+        "answer": "Special event alcohol permits cost $150 and require approval from the Police Department."
+    },
+    {
+        "question": "Where can I find information about city-sponsored art programs?",
+        "answer": "City art programs are managed by the Cultural Affairs Office and listed on their website."
+    },
+    {
+        "question": "How do I request a neighborhood watch sign?",
+        "answer": "Neighborhood watch signs can be requested through the Police Department's Community Relations Unit."
+    },
+    {
+        "question": "What are the regulations for RV parking on residential property?",
+        "answer": "RVs may be parked on residential property for up to 48 hours without a permit."
+    },
+    {
+        "question": "How can I find out about volunteer opportunities with the city?",
+        "answer": "City volunteer opportunities are listed on the Volunteer Services webpage."
+    },
+    {
+        "question": "What is the process for getting a street tree planted?",
+        "answer": "Street tree planting requests can be submitted to the Urban Forestry Division."
+    },
+    {
+        "question": "Where can I find information about city-sponsored health clinics?",
+        "answer": "Free health clinic schedules are posted on the Public Health Department's website."
+    },
+    {
+        "question": "How do I report a street sign that needs repair?",
+        "answer": "Damaged street signs can be reported to the Traffic Operations Division."
+    },
+    {
+        "question": "What are the requirements for a massage therapy business license?",
+        "answer": "Massage therapy businesses require state certification and a city business license."
+    },
+    {
+        "question": "How can I pay my parking ticket by mail?",
+        "answer": "Parking ticket payments can be mailed to the address listed on the ticket with a check or money order."
+    },
+    {
+        "question": "What is the fee for a residential plumbing permit?",
+        "answer": "Residential plumbing permits start at $75 depending on the scope of work."
+    },
+    {
+        "question": "Where can I find information about city-sponsored language classes?",
+        "answer": "Language class schedules are available at community centers and the Library website."
+    },
+    {
+        "question": "How do I request a crosswalk in my neighborhood?",
+        "answer": "Crosswalk requests can be submitted to the Traffic Engineering Division for evaluation."
+    },
+    {
+        "question": "What are the regulations for temporary food stands?",
+        "answer": "Temporary food stands require a $50 daily permit and health department inspection."
+    },
+    {
+        "question": "How can I find out about property tax payment plans?",
+        "answer": "Tax payment plan information is available from the Revenue Services Office."
+    },
+    {
+        "question": "What is the process for getting a streetlight installed?",
+        "answer": "New streetlight requests require neighborhood petition and approval by Public Works."
+    },
+    {
+        "question": "Where can I find information about city-sponsored financial literacy workshops?",
+        "answer": "Financial workshop schedules are posted on the Community Development Department's website."
+    },
+    {
+        "question": "How do I report a water quality concern?",
+        "answer": "Water quality concerns can be reported to the Utilities Department's Water Quality Division."
+    },
+    {
+        "question": "What are the requirements for a pawn shop license?",
+        "answer": "Pawn shops require a special business license and police background check."
+    },
+    {
+        "question": "How can I get a copy of the city's zoning code?",
+        "answer": "The zoning code is available online through the Planning Department's website."
+    },
+    {
+        "question": "What is the fee for a commercial sign permit?",
+        "answer": "Commercial sign permit fees vary by size but start at $100."
+    },
+    {
+        "question": "Where can I find information about city-sponsored technology classes?",
+        "answer": "Technology class schedules are available at public libraries and community centers."
+    },
+    {
+        "question": "Where can I find the city\u2019s annual budget report?",
+        "answer": "The annual budget report is available on the Finance Department page of the city\u2019s website."
+    },
+    {
+        "question": "How do I sign up for emergency alerts?",
+        "answer": "You can sign up for emergency alerts through the city\u2019s public safety portal online."
+    },
+    {
+        "question": "What is the cost of a marriage license?",
+        "answer": "The cost of a marriage license is $75 at the City Clerk\u2019s office."
+    },
+    {
+        "question": "Where can I drop off hazardous waste?",
+        "answer": "Hazardous waste can be dropped off at the Waste Management Facility on Elm Street."
+    },
+    {
+        "question": "What are the hours for the public library?",
+        "answer": "The public library is open from 10 AM to 6 PM, Monday through Saturday."
+    },
+    {
+        "question": "How can I renew my pet license?",
+        "answer": "Pet licenses can be renewed online or at the Animal Control office."
+    },
+    {
+        "question": "Where can I find the city\u2019s zoning map?",
+        "answer": "The zoning map is available on the Planning and Development page of the city website."
+    },
+    {
+        "question": "How do I request a streetlight repair?",
+        "answer": "Streetlight repairs can be requested by submitting a form on the Public Works website."
+    },
+    {
+        "question": "What is the trash pickup schedule for my neighborhood?",
+        "answer": "The trash pickup schedule is posted on the Waste Management section of the city website."
+    },
+    {
+        "question": "How can I apply for a vendor permit for the farmer\u2019s market?",
+        "answer": "Vendor permits can be applied for through the Parks and Recreation Department."
+    },
+    {
+        "question": "What are the fees for renting a community center room?",
+        "answer": "Community center room rental fees start at $50 per hour."
+    },
+    {
+        "question": "Where can I get a copy of my birth certificate?",
+        "answer": "Birth certificates can be obtained from the Vital Records office at City Hall."
+    },
+    {
+        "question": "How do I report illegal dumping in my area?",
+        "answer": "Illegal dumping can be reported through the city\u2019s online reporting tool or by calling 311."
+    },
+    {
+        "question": "How can I request a tree trimming service?",
+        "answer": "Tree trimming requests can be submitted online via the Public Works portal."
+    },
+    {
+        "question": "What are the rules for backyard chickens?",
+        "answer": "Backyard chicken regulations are outlined in the city\u2019s animal control ordinances."
+    },
+    {
+        "question": "Where can I pay my water bill?",
+        "answer": "Water bills can be paid online or at the Utility Billing office."
+    },
+    {
+        "question": "How do I apply for a sidewalk repair grant?",
+        "answer": "Sidewalk repair grants can be applied for through the Public Works Department."
+    },
+    {
+        "question": "What is the fine for not shoveling snow from my sidewalk?",
+        "answer": "The fine for not shoveling snow starts at $30 per violation."
+    },
+    {
+        "question": "How can I volunteer for a city event?",
+        "answer": "Volunteer opportunities are listed on the city\u2019s Parks and Recreation webpage."
+    },
+    {
+        "question": "What are the hours for the city pool?",
+        "answer": "The city pool is open from 12 PM to 8 PM during the summer season."
+    },
+    {
+        "question": "How do I apply for a home renovation permit?",
+        "answer": "Home renovation permits can be applied for through the Planning and Development portal."
+    },
+    {
+        "question": "Where can I find the city\u2019s snow removal schedule?",
+        "answer": "The snow removal schedule is posted on the Public Works section of the website."
+    },
+    {
+        "question": "What is the cost of a dog license?",
+        "answer": "The cost of a dog license is $15 per year."
+    },
+    {
+        "question": "How do I report a water leak?",
+        "answer": "Water leaks can be reported by calling the Utilities Department or using the online form."
+    },
+    {
+        "question": "Where can I find information about city job openings?",
+        "answer": "City job openings are listed on the Human Resources page of the website."
+    },
+    {
+        "question": "What are the rules for hosting a block party?",
+        "answer": "Block party regulations and permits are detailed on the Community Events page."
+    },
+    {
+        "question": "How can I request a bulk trash pickup?",
+        "answer": "Bulk trash pickup can be scheduled online through the Waste Management portal."
+    },
+    {
+        "question": "What is the penalty for overdue library books?",
+        "answer": "The penalty for overdue library books is $0.25 per day per item."
+    },
+    {
+        "question": "Where can I find the city\u2019s recycling calendar?",
+        "answer": "The recycling calendar is available on the Waste Management section of the website."
+    },
+    {
+        "question": "How do I apply for a senior tax discount?",
+        "answer": "Senior tax discounts can be applied for by submitting a form to Revenue Services."
+    },
+    {
+        "question": "What are the requirements for a garage sale permit?",
+        "answer": "Garage sale permits require a $10 fee and registration with the City Clerk."
+    },
+    {
+        "question": "How can I report a stray animal?",
+        "answer": "Stray animals can be reported to Animal Control by phone or online."
+    },
+    {
+        "question": "Where can I find the city council meeting agenda?",
+        "answer": "The city council meeting agenda is posted on the City Clerk\u2019s webpage."
+    },
+    {
+        "question": "What is the fee for a temporary parking permit?",
+        "answer": "The fee for a temporary parking permit is $5 per day."
+    },
+    {
+        "question": "How do I sign up for a youth sports league?",
+        "answer": "Youth sports league registration is available through the Parks and Recreation Department."
+    },
+    {
+        "question": "What are the noise ordinance hours?",
+        "answer": "Noise ordinance hours are from 10 PM to 7 AM daily."
+    },
+    {
+        "question": "How can I request a copy of a police report?",
+        "answer": "Police reports can be requested from the Police Department Records Office."
+    },
+    {
+        "question": "Where can I find information about city taxes?",
+        "answer": "City tax information is available on the Revenue Services webpage."
+    },
+    {
+        "question": "What is the process for reporting a power outage?",
+        "answer": "Power outages can be reported to the Utilities Department by phone or online."
+    },
+    {
+        "question": "How do I apply for a street closure permit?",
+        "answer": "Street closure permits can be applied for through the Public Works Department."
+    },
+    {
+        "question": "What are the fees for a picnic shelter reservation?",
+        "answer": "Picnic shelter reservation fees start at $20 per day."
+    },
+    {
+        "question": "Where can I find the city\u2019s bike lane map?",
+        "answer": "The bike lane map is available on the Transportation Department page."
+    },
+    {
+        "question": "What is the fine for littering in the city?",
+        "answer": "The fine for littering starts at $100 per violation."
+    },
+    {
+        "question": "How can I request a new recycling bin?",
+        "answer": "New recycling bins can be requested through the Waste Management Department."
+    },
+    {
+        "question": "Where can I find the city\u2019s historic preservation guidelines?",
+        "answer": "Historic preservation guidelines are on the Planning and Development webpage."
+    },
+    {
+        "question": "What are the rules for open burning?",
+        "answer": "Open burning rules are outlined in the Fire Department\u2019s regulations."
+    },
+    {
+        "question": "How do I apply for a handicapped parking space?",
+        "answer": "Handicapped parking space applications are submitted to the Transportation Department."
+    },
+    {
+        "question": "What is the cost of a pool pass for residents?",
+        "answer": "A pool pass for residents costs $40 for the season."
+    },
+    {
+        "question": "How can I report a broken park bench?",
+        "answer": "Broken park benches can be reported to the Parks and Recreation Department."
+    },
+    {
+        "question": "Where can I find the city\u2019s stormwater management plan?",
+        "answer": "The stormwater management plan is on the Public Works website."
+    },
+    {
+        "question": "What are the fees for a pet adoption?",
+        "answer": "Pet adoption fees start at $50 at the Animal Shelter."
+    },
+    {
+        "question": "How do I register my bicycle with the city?",
+        "answer": "Bicycle registration can be completed at the Police Department."
+    },
+    {
+        "question": "What is the process for appealing a parking ticket?",
+        "answer": "Parking ticket appeals can be filed online or at the Traffic Division office."
+    },
+    {
+        "question": "Where can I find the city\u2019s public art map?",
+        "answer": "The public art map is available on the Arts and Culture webpage."
+    },
+    {
+        "question": "How do I report a sewer backup?",
+        "answer": "Sewer backups can be reported to the Utilities Department by phone or online."
+    },
+    {
+        "question": "What are the rules for food trucks in the city?",
+        "answer": "Food truck regulations are listed on the Business Licensing page."
+    },
+    {
+        "question": "How can I request a speed bump on my street?",
+        "answer": "Speed bump requests can be submitted to the Transportation Department."
+    },
+    {
+        "question": "What is the fee for a birth certificate copy?",
+        "answer": "The fee for a birth certificate copy is $20."
+    },
+    {
+        "question": "Where can I find the city\u2019s sustainability plan?",
+        "answer": "The sustainability plan is on the Environmental Services webpage."
+    },
+    {
+        "question": "How do I report a broken traffic light?",
+        "answer": "Broken traffic lights can be reported to the Transportation Department."
+    },
+    {
+        "question": "What are the fees for a marriage ceremony at City Hall?",
+        "answer": "Marriage ceremony fees at City Hall start at $100."
+    },
+    {
+        "question": "How can I apply for a low-income utility discount?",
+        "answer": "Low-income utility discounts can be applied for through the Utilities Department."
+    },
+    {
+        "question": "Where can I find the city\u2019s dog park rules?",
+        "answer": "Dog park rules are posted on the Parks and Recreation webpage."
+    },
+    {
+        "question": "What is the fine for illegal parking in a bike lane?",
+        "answer": "The fine for parking in a bike lane is $75."
+    },
+    {
+        "question": "How do I report a fallen tree on city property?",
+        "answer": "Fallen trees can be reported to the Public Works Department."
+    },
+    {
+        "question": "What are the hours for the city recycling center?",
+        "answer": "The recycling center is open from 8 AM to 4 PM, Tuesday through Saturday."
+    },
+    {
+        "question": "How can I request a new street sign?",
+        "answer": "New street sign requests can be submitted to the Transportation Department."
+    },
+    {
+        "question": "Where can I find the city\u2019s affordable housing programs?",
+        "answer": "Affordable housing programs are listed on the Housing Department webpage."
+    },
+    {
+        "question": "What is the penalty for not registering a rental property?",
+        "answer": "The penalty for not registering a rental property is $200."
+    },
+    {
+        "question": "How do I apply for a film permit in the city?",
+        "answer": "Film permits can be applied for through the City Clerk\u2019s office."
+    },
+    {
+        "question": "What are the rules for sidewalk vendors?",
+        "answer": "Sidewalk vendor rules are outlined in the Business Licensing ordinances."
+    },
+    {
+        "question": "How can I report a missed trash pickup?",
+        "answer": "Missed trash pickups can be reported online or by calling Waste Management."
+    },
+    {
+        "question": "Where can I find the city\u2019s flood zone map?",
+        "answer": "The flood zone map is available on the Public Works webpage."
+    },
+    {
+        "question": "What is the cost of a library card for non-residents?",
+        "answer": "A library card for non-residents costs $50 per year."
+    },
+    {
+        "question": "How do I request a crosswalk installation?",
+        "answer": "Crosswalk installation requests can be submitted to the Transportation Department."
+    },
+    {
+        "question": "What are the fees for a tennis court reservation?",
+        "answer": "Tennis court reservation fees are $10 per hour."
+    },
+    {
+        "question": "How can I report a street flooding issue?",
+        "answer": "Street flooding can be reported to the Public Works Department."
+    },
+    {
+        "question": "Where can I find the city\u2019s tree planting program?",
+        "answer": "The tree planting program is detailed on the Environmental Services page."
+    },
+    {
+        "question": "What is the fine for not licensing a pet?",
+        "answer": "The fine for not licensing a pet is $50."
+    },
+    {
+        "question": "How do I apply for a noise variance permit?",
+        "answer": "Noise variance permits can be applied for through the City Clerk\u2019s office."
+    },
+    {
+        "question": "What are the rules for RV parking on city streets?",
+        "answer": "RV parking rules are outlined in the Transportation Department ordinances."
+    },
+    {
+        "question": "How can I report a dead animal on the road?",
+        "answer": "Dead animals can be reported to Animal Control or Public Works."
+    },
+    {
+        "question": "Where can I find the city\u2019s public Wi-Fi locations?",
+        "answer": "Public Wi-Fi locations are listed on the Information Technology webpage."
+    },
+    {
+        "question": "What is the cost of a death certificate copy?",
+        "answer": "The cost of a death certificate copy is $20."
+    },
+    {
+        "question": "How do I apply for a community garden plot?",
+        "answer": "Community garden plots can be applied for through Parks and Recreation."
+    },
+    {
+        "question": "What are the fees for a softball field rental?",
+        "answer": "Softball field rental fees start at $25 per game."
+    },
+    {
+        "question": "How can I report an abandoned vehicle?",
+        "answer": "Abandoned vehicles can be reported to the Police Department."
+    },
+    {
+        "question": "Where can I find the city\u2019s air quality report?",
+        "answer": "The air quality report is on the Environmental Services webpage."
+    },
+    {
+        "question": "What is the fine for jaywalking?",
+        "answer": "The fine for jaywalking is $35."
+    },
+    {
+        "question": "How do I request a public records document?",
+        "answer": "Public records requests can be submitted to the City Clerk\u2019s office."
+    },
+    {
+        "question": "What are the rules for drone use in city parks?",
+        "answer": "Drone use rules are outlined in the Parks and Recreation ordinances."
+    },
+    {
+        "question": "How can I report a broken water fountain in a park?",
+        "answer": "Broken water fountains can be reported to the Parks and Recreation Department."
+    },
+    {
+        "question": "Where can I find the city\u2019s voter registration information?",
+        "answer": "Voter registration information is on the City Clerk\u2019s webpage."
+    },
+    {
+        "question": "What is the fee for a temporary vendor permit?",
+        "answer": "The fee for a temporary vendor permit is $30 per day."
+    },
+    {
+        "question": "Where can I renew my driver's license?",
+        "answer": "You can renew your driver's license at the Department of Motor Vehicles located at 456 Elm St."
+    },
+    {
+        "question": "What documents do I need to register a vehicle?",
+        "answer": "To register a vehicle, you need proof of ownership, identification, and proof of insurance."
+    },
+    {
+        "question": "How do I report a pothole in my neighborhood?",
+        "answer": "You can report potholes using the online service request form on our city website."
+    },
+    {
+        "question": "What are the city's library hours?",
+        "answer": "The city library is open Monday to Saturday, 9 AM to 6 PM."
+    },
+    {
+        "question": "How can I obtain a marriage license?",
+        "answer": "Marriage licenses are available at City Hall. You must apply in person with valid identification."
+    },
+    {
+        "question": "What services does the city offer for seniors?",
+        "answer": "The city offers recreational activities, health programs, and transportation services for seniors."
+    },
+    {
+        "question": "Where do I dispose of hazardous waste?",
+        "answer": "Hazardous waste can be disposed of at the Hazardous Waste Collection Center at 789 Maple Ave."
+    },
+    {
+        "question": "What parks have playground equipment?",
+        "answer": "Playground equipment is available at Central Park, Riverside Park, and Oakwood Park."
+    },
+    {
+        "question": "Where can I find information on zoning regulations?",
+        "answer": "Zoning regulations are available online through the Planning and Development Department."
+    },
+    {
+        "question": "Can I reserve a park shelter for events?",
+        "answer": "Yes, park shelters can be reserved online or at the Parks and Recreation office."
+    },
+    {
+        "question": "How do I find my city council representative?",
+        "answer": "You can find your city council representative by entering your address on the city's website."
+    },
+    {
+        "question": "What is the process for reporting graffiti?",
+        "answer": "Report graffiti using the city's online service request or by calling the graffiti hotline."
+    },
+    {
+        "question": "What emergency preparedness resources does the city provide?",
+        "answer": "Emergency preparedness resources are available on the city's Emergency Management webpage."
+    },
+    {
+        "question": "How can I volunteer for city events?",
+        "answer": "Volunteer opportunities are listed on the city's Volunteer Opportunities page."
+    },
+    {
+        "question": "Where can I adopt a pet from the city shelter?",
+        "answer": "Pets can be adopted from the Animal Services Center located at 321 Pine Rd."
+    },
+    {
+        "question": "What days are garbage and recycling collected?",
+        "answer": "Garbage and recycling are collected weekly; your specific day can be found on the city website."
+    },
+    {
+        "question": "How do I submit feedback about city services?",
+        "answer": "Feedback can be submitted online or through suggestion boxes at city facilities."
+    },
+    {
+        "question": "Where can I find employment opportunities with the city?",
+        "answer": "Employment opportunities are posted on the city's career webpage."
+    },
+    {
+        "question": "How do I report streetlight outages?",
+        "answer": "Streetlight outages can be reported through the city's online service request portal."
+    },
+    {
+        "question": "Where can I access public meeting agendas?",
+        "answer": "Public meeting agendas are available on the city's meetings and agendas webpage."
+    },
+    {
+        "question": "How do I request a tree trimming service?",
+        "answer": "You can request tree trimming services online or by contacting the Public Works Department."
+    },
+    {
+        "question": "Where can I find historical records about the city?",
+        "answer": "Historical records are maintained by the City Archives, located at the main library."
+    },
+    {
+        "question": "What is the city doing to improve road safety?",
+        "answer": "The city is implementing traffic calming measures and road improvements city-wide."
+    },
+    {
+        "question": "How do I apply for affordable housing?",
+        "answer": "Affordable housing applications are available online or through the Housing Department."
+    },
+    {
+        "question": "What community events are upcoming?",
+        "answer": "Upcoming community events are listed on the city's events calendar."
+    },
+    {
+        "question": "Can I get assistance with utility payments?",
+        "answer": "Assistance programs for utility payments are available through Social Services."
+    },
+    {
+        "question": "What recreation facilities does the city offer?",
+        "answer": "The city offers swimming pools, sports fields, gyms, and community centers."
+    },
+    {
+        "question": "Where can I find election information?",
+        "answer": "Election information is available on the city clerk's election webpage."
+    },
+    {
+        "question": "How can I report illegal dumping?",
+        "answer": "Report illegal dumping using the city's online reporting tool or by calling the hotline."
+    },
+    {
+        "question": "Where can I buy public transit tickets?",
+        "answer": "Transit tickets can be purchased online, at ticket vending machines, or at transit offices."
+    },
+    {
+        "question": "How do I request public records?",
+        "answer": "Public records requests can be submitted online through the city's records request form."
+    },
+    {
+        "question": "Where can I pay my utility bills?",
+        "answer": "Utility bills can be paid online, by mail, or in person at the Utility Services office."
+    },
+    {
+        "question": "What assistance does the city offer for small businesses?",
+        "answer": "The city provides grants, loans, and consulting services for small businesses."
+    },
+    {
+        "question": "How can I access free Wi-Fi in the city?",
+        "answer": "Free Wi-Fi is available at public libraries, community centers, and city parks."
+    },
+    {
+        "question": "How do I submit a request for pothole repair?",
+        "answer": "You can submit a pothole repair request through the city's online service portal or by calling the Public Works department at 555-123-4567."
+    },
+    {
+        "question": "What documents are required for a marriage license application?",
+        "answer": "For a marriage license application, both applicants must provide government-issued photo ID, proof of age, and pay the $75 application fee."
+    },
+    {
+        "question": "How can I pay my water bill?",
+        "answer": "You can pay your water bill online through the city website, by mail, or in person at the Utility Billing office."
+    },
+    {
+        "question": "When is the next city council meeting?",
+        "answer": "City council meetings are held on the first and third Tuesday of each month at 7 PM in City Hall."
+    },
+    {
+        "question": "Where can I find information about zoning regulations?",
+        "answer": "Zoning regulations can be found on the Planning and Development section of the city website or by visiting the Planning Department at City Hall."
+    },
+    {
+        "question": "How do I report a streetlight outage?",
+        "answer": "You can report a streetlight outage through the city's mobile app, online service portal, or by calling the Public Works department."
+    },
+    {
+        "question": "What are the garbage collection days in my neighborhood?",
+        "answer": "Garbage collection days vary by neighborhood. You can find your collection schedule by entering your address in the Waste Management section of the city website."
+    },
+    {
+        "question": "How do I get a copy of my property deed?",
+        "answer": "Property deeds can be obtained from the County Recorder's Office, located on the second floor of the County Administration Building."
+    },
+    {
+        "question": "What permits are required for home renovations?",
+        "answer": "Home renovations typically require building permits. The specific permits needed depend on the scope of work and can be determined by contacting the Building Permit Division."
+    },
+    {
+        "question": "How can I apply for a parking permit for my neighborhood?",
+        "answer": "Neighborhood parking permits can be applied for online or in person at the Transportation Services office with proof of residency and vehicle registration."
+    },
+    {
+        "question": "What is the process for contesting a parking ticket?",
+        "answer": "To contest a parking ticket, you must file an appeal within 21 days of issuance either online through the city portal or in person at the Parking Enforcement Office."
+    },
+    {
+        "question": "How do I register to vote in local elections?",
+        "answer": "You can register to vote at the City Clerk's office, at the DMV when renewing your license, or online through the Secretary of State's website."
+    },
+    {
+        "question": "Where can I find the city's annual budget report?",
+        "answer": "The city's annual budget report is available on the Finance Department page of the city website or in print at the City Clerk's office."
+    },
+    {
+        "question": "How do I apply for a block party permit?",
+        "answer": "Block party permits can be applied for through the Special Events section of the city website at least 30 days before the event date."
+    },
+    {
+        "question": "What are the requirements for installing a fence on my property?",
+        "answer": "Fence installation requirements include height restrictions and setback requirements as outlined in the city's zoning code. Contact the Planning Department for specific guidelines."
+    },
+    {
+        "question": "How can I find information about local emergency shelters?",
+        "answer": "Information about local emergency shelters is available on the Emergency Management section of the city website or by calling the Emergency Services hotline."
+    },
+    {
+        "question": "What is the process for adopting a pet from the city animal shelter?",
+        "answer": "To adopt a pet from the city animal shelter, fill out an application form, pay the adoption fee, and complete a screening interview with shelter staff."
+    },
+    {
+        "question": "How do I report illegal dumping in my neighborhood?",
+        "answer": "Illegal dumping can be reported through the city's mobile app, online complaint form, or by calling the Code Enforcement division at 555-234-5678."
+    },
+    {
+        "question": "Where can I find information about senior citizen programs?",
+        "answer": "Information about senior citizen programs is available at the Community Services Department or on the Senior Services section of the city website."
+    },
+    {
+        "question": "How do I apply for a city job?",
+        "answer": "City job applications can be submitted online through the Human Resources section of the city website or in person at the HR department."
+    },
+    {
+        "question": "What are the rules for yard waste disposal?",
+        "answer": "Yard waste must be placed in paper bags or designated containers and set out for collection on your regular garbage day during yard waste collection season."
+    },
+    {
+        "question": "What is the process for obtaining a sidewalk repair reimbursement?",
+        "answer": "Sidewalk repair reimbursements require pre-approval through the Public Works department, followed by submission of receipts and a completed reimbursement form after repairs are completed."
+    },
+    {
+        "question": "How do I register my child for youth sports programs?",
+        "answer": "Youth sports program registration is available through the Parks and Recreation Department's online portal or in person at any community center."
+    },
+    {
+        "question": "How do I report a code violation on a neighboring property?",
+        "answer": "Code violations can be reported anonymously through the city's online complaint system or by calling the Code Enforcement division."
+    },
+    {
+        "question": "What are the requirements for food truck operations in the city?",
+        "answer": "Food truck operations require a mobile food vendor permit, health department certification, and business license. Applications are available through the Business Licensing Department."
+    },
+    {
+        "question": "How can I get a library card?",
+        "answer": "Library cards can be obtained at any city library branch by presenting a photo ID and proof of residence within the city limits."
+    },
+    {
+        "question": "Where do I pay a speeding ticket?",
+        "answer": "Speeding tickets can be paid online through the Municipal Court website, by mail, or in person at the Court Clerk's office."
+    },
+    {
+        "question": "How do I request a tree trimming for trees on city property?",
+        "answer": "Tree trimming requests for city-owned trees can be submitted through the Urban Forestry Division's online request form or by calling 555-345-6789."
+    },
+    {
+        "question": "What is the process for reserving a park pavilion?",
+        "answer": "Park pavilions can be reserved up to 12 months in advance through the Parks and Recreation Department's online reservation system or in person at any community center."
+    },
+    {
+        "question": "How can I apply for the city's first-time homebuyer program?",
+        "answer": "First-time homebuyer program applications are available through the Housing Department and require income verification, credit check, and attendance at a homebuyer education course."
+    },
+    {
+        "question": "Where can I find the schedule for public transportation?",
+        "answer": "Public transportation schedules are available on the Transit Authority website, through the city's transportation app, or at any transit center."
+    },
+    {
+        "question": "How do I register a complaint about a city employee?",
+        "answer": "Complaints about city employees should be directed to the department head or can be filed through the Human Resources department using the employee complaint form."
+    },
+    {
+        "question": "What are the hours for the city's community pools?",
+        "answer": "Community pool hours vary by season and location. Current schedules are posted on the Parks and Recreation Department website and at each pool facility."
+    },
+    {
+        "question": "What is the deadline for appealing a property assessment?",
+        "answer": "Property assessment appeals must be filed with the Board of Assessment Appeals within 30 days of receiving your assessment notice."
+    },
+    {
+        "question": "Where can I find information about city-sponsored events?",
+        "answer": "City-sponsored events are listed on the Events Calendar on the city website and on the city's official social media accounts."
+    },
+    {
+        "question": "How do I apply for a reduction in my sewer bill due to filling a swimming pool?",
+        "answer": "Swimming pool fill credits can be applied for by submitting the Pool Fill Credit Application to the Utility Billing Department within 30 days of filling your pool."
+    },
+    {
+        "question": "What are the requirements for starting a home-based business?",
+        "answer": "Home-based businesses require a home occupation permit and business license. Specific requirements are outlined in the Zoning Code under Home Occupations."
+    },
+    {
+        "question": "How can I volunteer for city boards and commissions?",
+        "answer": "Volunteer applications for city boards and commissions are available through the City Clerk's office or on the Boards and Commissions section of the city website."
+    },
+    {
+        "question": "When do I dispose of hazardous household waste?",
+        "answer": "Hazardous household waste can be disposed of at the Environmental Services Facility on the first Saturday of each month from 8 AM to 2 PM."
+    },
+    {
+        "question": "How do I request a street sign installation?",
+        "answer": "Street sign installation requests can be submitted to the Traffic Engineering Division through the online service request form or by calling 555-567-8901."
+    },
+    {
+        "question": "What is the process for obtaining a parade permit?",
+        "answer": "Parade permits require an application submitted to the Special Events Division at least 60 days prior to the event, along with a route map and security plan."
+    },
+    {
+        "question": "How can I find information about affordable housing programs?",
+        "answer": "Information about affordable housing programs is available through the Housing Authority or on the Affordable Housing section of the city website."
+    },
+    {
+        "question": "Where can I find the city's snow removal policy?",
+        "answer": "The city's snow removal policy is detailed on the Public Works section of the city website and includes priority routes and resident responsibilities."
+    },
+    {
+        "question": "How do I report a gas leak?",
+        "answer": "Gas leaks should be reported immediately to the Gas Utility Emergency line at 555-678-9012 and to the Fire Department by calling 911."
+    },
+    {
+        "question": "What is the process for disputing a water bill?",
+        "answer": "Water bill disputes can be filed with the Utility Billing Customer Service Department either in person or by submitting the online dispute form."
+    },
+    {
+        "question": "How can I get a handicap parking space installed near my home?",
+        "answer": "Residential handicap parking space requests require an application to the Traffic Services Department along with proof of disability and vehicle registration."
+    },
+    {
+        "question": "Where do I register my alarm system?",
+        "answer": "Alarm systems must be registered with the Police Department using the Alarm Registration Form, which can be submitted online or in person."
+    },
+    {
+        "question": "How do I apply for a liquor license for my business?",
+        "answer": "Liquor license applications are processed through the Business Licensing Department and require background checks, public hearings, and approval from the city council."
+    },
+    {
+        "question": "What are the guidelines for holiday trash collection?",
+        "answer": "Holiday trash collection schedules are posted on the Solid Waste Department website and typically involve a one-day delay following the observed holiday."
+    },
+    {
+        "question": "How can I find property ownership information?",
+        "answer": "Property ownership information can be accessed through the County Assessor's Office or using the online property information portal on the city website."
+    },
+    {
+        "question": "Where can I find information about after-school programs?",
+        "answer": "After-school programs information is available through the Youth Services Division or on the Community Programs section of the city website."
+    },
+    {
+        "question": "How do I report a traffic signal malfunction?",
+        "answer": "Traffic signal malfunctions should be reported to the Traffic Operations Center at 555-789-0123, which monitors signals 24 hours a day."
+    },
+    {
+        "question": "What is the process for obtaining a special event liquor permit?",
+        "answer": "Special event liquor permits require an application submitted to the Licensing Division at least 30 days before the event, along with a site plan and security arrangements."
+    },
+    {
+        "question": "How can I find information about city tax incentives for businesses?",
+        "answer": "Information about city tax incentives for businesses is available through the Economic Development Department or on the Business Development section of the city website."
+    },
+    {
+        "question": "Where do I get a fishing permit for city lakes?",
+        "answer": "Fishing permits for city lakes can be purchased online through the Parks and Recreation Department website or in person at any community center."
+    },
+    {
+        "question": "How do I report discrimination in housing or employment?",
+        "answer": "Discrimination complaints can be filed with the Human Rights Commission using the complaint form available online or at the Commission office."
+    },
+    {
+        "question": "What are the requirements for installing solar panels on my home?",
+        "answer": "Solar panel installation requires a building permit and electrical permit. Applications and guidelines are available through the Building Safety Division."
+    },
+    {
+        "question": "How can I request a speed bump installation on my street?",
+        "answer": "Speed bump requests require a petition signed by 70% of residents on the affected street and approval from the Traffic Calming Program coordinator."
+    },
+    {
+        "question": "Where can I find information about small business grants?",
+        "answer": "Small business grant information is available through the Economic Development Department or on the Small Business Resources section of the city website."
+    },
+    {
+        "question": "How do I apply for a pet license?",
+        "answer": "Pet licenses can be applied for online or in person at Animal Services with proof of rabies vaccination and payment of the annual fee."
+    },
+    {
+        "question": "What is the process for requesting public records?",
+        "answer": "Public records requests can be submitted to the City Clerk's office using the Public Records Request form, available online or in person."
+    },
+    {
+        "question": "How can I find information about lead testing for my home's water?",
+        "answer": "Lead testing information and free test kits are available through the Water Quality Division of the Public Utilities Department."
+    },
+    {
+        "question": "Where do I report a missed garbage collection?",
+        "answer": "Missed garbage collections should be reported to the Solid Waste Division within 24 hours either through the city's mobile app or by calling 555-890-1234."
+    },
+    {
+        "question": "How do I obtain a historic property designation?",
+        "answer": "Historic property designations require an application to the Historic Preservation Commission and must meet criteria outlined in the city's preservation ordinance."
+    },
+    {
+        "question": "What are the rules for keeping chickens within city limits?",
+        "answer": "Keeping chickens within city limits requires a permit, is limited to a maximum of six hens (no roosters), and must comply with coop setback requirements in the Animal Control ordinance."
+    },
+    {
+        "question": "How can I contest a water shutoff notice?",
+        "answer": "Water shutoff notices can be contested by contacting the Utility Billing Department immediately and setting up a payment plan or demonstrating billing errors."
+    },
+    {
+        "question": "Where can I find information about adult education classes?",
+        "answer": "Adult education class information is available through the Community Education Department or on the Continuing Education section of the city website."
+    },
+    {
+        "question": "How do I apply for a child care subsidy?",
+        "answer": "Child care subsidy applications are available through the Family Services Department and require income verification and proof of employment or enrollment in education programs."
+    },
+    {
+        "question": "What is the process for obtaining a demolition permit?",
+        "answer": "Demolition permits require an application to the Building Department, asbestos survey, utility disconnection verification, and notification to adjacent property owners."
+    },
+    {
+        "question": "How can I find information about city recycling programs?",
+        "answer": "Information about city recycling programs is available on the Environmental Services section of the city website or by contacting the Recycling Division."
+    },
+    {
+        "question": "Where do I report suspected food poisoning from a restaurant?",
+        "answer": "Suspected food poisoning should be reported to the Health Department's Food Safety Division at 555-901-2345 or through the online complaint form."
+    },
+    {
+        "question": "How do I appeal a city contractor's work on my property?",
+        "answer": "Appeals regarding city contractor work can be filed with the department that supervised the work or through the City Manager's office if not resolved at the department level."
+    },
+    {
+        "question": "What are the requirements for opening a daycare in my home?",
+        "answer": "Home daycare operations require a zoning clearance, business license, state childcare license, and compliance with fire and safety codes."
+    },
+    {
+        "question": "How can I find housing assistance for veterans?",
+        "answer": "Veteran housing assistance information is available through the Veterans Services office or on the Veterans Resources section of the city website."
+    },
+    {
+        "question": "Where do I apply for rental assistance programs?",
+        "answer": "Rental assistance program applications are available through the Housing Authority or the Community Development Department's Housing Division."
+    },
+    {
+        "question": "How do I request a street cleaning in my neighborhood?",
+        "answer": "Street cleaning requests can be submitted through the Street Maintenance Division's online request form or by calling the Public Works customer service line."
+    },
+    {
+        "question": "What is the process for obtaining a variance from zoning regulations?",
+        "answer": "Zoning variances require an application to the Board of Zoning Appeals, payment of fees, notification to neighboring property owners, and a public hearing."
+    },
+    {
+        "question": "How can I find information about the city's sustainability initiatives?",
+        "answer": "Information about sustainability initiatives is available on the Sustainability section of the city website or through the Office of Environmental Sustainability."
+    },
+    {
+        "question": "Where do I report suspected child abuse or neglect?",
+        "answer": "Suspected child abuse or neglect should be reported to the Department of Child Services at 555-012-3456 or to the Police Department in emergency situations."
+    },
+    {
+        "question": "How do I apply for a reduced fare transit pass?",
+        "answer": "Reduced fare transit pass applications are available at the Transit Center customer service office and require proof of age, disability, or income qualification."
+    },
+    {
+        "question": "What are the guidelines for door-to-door solicitation?",
+        "answer": "Door-to-door solicitation requires a solicitor's permit from the City Clerk's office and is prohibited between 9 PM and 9 AM or at residences with 'No Soliciting' signs."
+    },
+    {
+        "question": "How can I find information about the city's emergency notification system?",
+        "answer": "Emergency notification system information and signup instructions are available on the Emergency Management section of the city website."
+    },
+    {
+        "question": "Where do I pay my parking ticket?",
+        "answer": "Parking tickets can be paid online through the Municipal Court website, by mail, or in person at the Parking Violations Bureau."
+    },
+    {
+        "question": "How do I request a replacement recycling bin?",
+        "answer": "Replacement recycling bins can be requested through the Solid Waste Division's online service portal or by calling their customer service line at 555-123-4567."
+    },
+    {
+        "question": "What is the process for disputing a code violation citation?",
+        "answer": "Code violation citations can be disputed by requesting a hearing with the Code Enforcement Board within 15 days of receiving the citation."
+    },
+    {
+        "question": "How can I find information about city-owned vacant properties?",
+        "answer": "Information about city-owned vacant properties is available through the Land Bank Authority or on the Property Inventory section of the city website."
+    },
+    {
+        "question": "Where do I report a sidewalk tripping hazard?",
+        "answer": "Sidewalk tripping hazards can be reported through the city's mobile app, online service request system, or by calling the Public Works department."
+    },
+    {
+        "question": "How do I apply for a special waste pickup for large items?",
+        "answer": "Special waste pickups for large items can be scheduled through the Solid Waste Division's online portal or by calling their customer service line at least 48 hours in advance."
+    },
+    {
+        "question": "What are the requirements for opening a restaurant in the city?",
+        "answer": "Opening a restaurant requires health department approval, certificate of occupancy, food service permit, business license, and compliance with zoning regulations."
+    },
+    {
+        "question": "How can I find information about low-income heating assistance?",
+        "answer": "Low-income heating assistance information is available through the Community Action Agency or on the Energy Assistance section of the city website."
+    },
+    {
+        "question": "Where do I file a complaint about excessive noise from a business?",
+        "answer": "Complaints about business noise can be filed with the Code Enforcement Division or the Police Department's non-emergency line depending on the time and severity."
+    },
+    {
+        "question": "How do I request a street light installation in my neighborhood?",
+        "answer": "Street light installation requests can be submitted to the Public Works Department through the online infrastructure request form or by contacting your city council representative."
+    },
+    {
+        "question": "What is the process for obtaining a temporary sign permit?",
+        "answer": "Temporary sign permits require an application to the Planning Department with details about the sign's size, location, and duration, along with the applicable fee."
+    },
+    {
+        "question": "How can I find information about mosquito control services?",
+        "answer": "Mosquito control service information is available through the Vector Control Division of the Health Department or on the Public Health section of the city website."
+    },
+    {
+        "question": "Where do I renew my business license?",
+        "answer": "Business licenses can be renewed online through the Business Services portal or in person at the Revenue Department before the expiration date."
+    },
+    {
+        "question": "What are the rules for posting garage sale signs?",
+        "answer": "Garage sale signs must not exceed 4 square feet, can be posted on private property with permission, and must be removed within 24 hours after the sale ends."
+    },
+    {
+        "question": "How can I find information about free tax preparation services?",
+        "answer": "Information about free tax preparation services is available through the Community Services Department or on the Financial Assistance section of the city website."
+    },
+    {
+        "question": "Where do I report a dangerous building?",
+        "answer": "Dangerous buildings should be reported to the Building Safety Division through the online complaint form or by calling the Code Enforcement Hotline at 555-234-5678."
+    }
+]

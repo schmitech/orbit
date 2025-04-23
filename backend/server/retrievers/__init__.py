@@ -3,7 +3,7 @@ Client modules for external services
 """
 
 from .base_retriever import BaseRetriever
-from .chroma_retriever import ChromaRetriever
+from .qa_chroma_retriever import QAChromaRetriever
 
-__all__ = ['BaseRetriever', 'ChromaRetriever']
+__all__ = ['BaseRetriever', 'QAChromaRetriever']
 

@@ -48,7 +48,7 @@ load_dotenv()
 from config.config_manager import load_config, _is_true_value
 from models.schema import ChatMessage, ApiKeyCreate, ApiKeyResponse, ApiKeyDeactivate, SystemPromptCreate, SystemPromptUpdate, SystemPromptResponse, ApiKeyPromptAssociate
 from models import ChatMessage
-from retrievers.chroma_retriever import ChromaRetriever
+from retrievers.qa_chroma_retriever import QAChromaRetriever
 from services import ChatService, HealthService, LoggerService, GuardrailService, RerankerService, ApiKeyService, PromptService
 from clients import QAOllamaClient
 
@@ -259,7 +259,7 @@ class InferenceServer:
         )
         
         # Initialize retriever without a collection - it will be set when an API key is provided
-        app.state.retriever = ChromaRetriever(
+        app.state.retriever = QAChromaRetriever(
             config=self.config,
             embeddings=app.state.embeddings
         )
