@@ -62,7 +62,7 @@ if [ -z "$CONFIG_PATH" ]; then
     CONFIG_PATH="../config/config.yaml"
     # Try alternate locations if the first one doesn't exist
     if [ ! -f "$CONFIG_PATH" ]; then
-        CONFIG_PATH="../../backend/config/config.yaml"
+        CONFIG_PATH="../../config/config.yaml"
     fi
     if [ ! -f "$CONFIG_PATH" ]; then
         CONFIG_PATH="config.yaml"

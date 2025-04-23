@@ -19,7 +19,7 @@ A FastAPI server providing conversational AI with Ollama integration, ChromaDB f
 
 ```bash
 git clone https://github.com/schmitech/orbit.git
-cd /backend/server
+cd /server
 ```
 
 Create and activate your Python environment:

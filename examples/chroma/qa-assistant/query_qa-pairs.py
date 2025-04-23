@@ -23,17 +23,15 @@ Requirements:
     - Running Chroma server with an existing collection
 """
 
-import os
-import sys
 import yaml
 from langchain_ollama import OllamaEmbeddings
 import chromadb
 import argparse
-from dotenv import load_dotenv
+from pathlib import Path
 
 def load_config():
-    with open('../config/config.yaml', 'r') as file:
-        return yaml.safe_load(file)
+    CONFIG_PATH = Path(__file__).resolve().parents[3] / "config" / "config.yaml"
+    return yaml.safe_load(CONFIG_PATH.read_text())
 
 def test_chroma_ingestion(ollama_base_url: str, test_query: str, collection_name: str = None):
     config = load_config()

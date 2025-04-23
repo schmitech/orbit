@@ -24,7 +24,7 @@ def load_config(config_path: Optional[str] = None):
     config_paths = [
         config_path,  # User-specified config path
         '../config/config.yaml',  # Shared config
-        '../../backend/config/config.yaml',  # Alternative path
+        '../../config/config.yaml',  # Alternative path
         'config.yaml',  # Fallback to local config
     ]
     

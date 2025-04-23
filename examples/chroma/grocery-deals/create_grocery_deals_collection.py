@@ -39,8 +39,8 @@ Input JSON Format:
     ]
 
 Requirements:
-    - Running Ollama server (configured in /backend/config/config.yaml)
-    - Running Chroma server (configured in /backend/config/config.yaml)
+    - Running Ollama server (configured in /config/config.yaml)
+    - Running Chroma server (configured in /config/config.yaml)
     - Input JSON files with product data
 
 Key features:

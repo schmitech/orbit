@@ -59,7 +59,7 @@ Commercial AI services often introduce limitations, pricing fluctuations, and po
 ### ⚙️ Server Setup
 
 ```bash
-cd backend/server
+cd server
 python -m venv venv
 source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
@@ -88,7 +88,7 @@ python -c "import chromadb; print(chromadb.__version__)"
 **Ingest Data:**
 
 ```bash
-python create-chroma-collection.py qa-pairs.json
+python ./qa-assistant/create_qa_pairs_collection.py city ../datasets/city-qa-pairs.json
 python query-chroma-collection.py "Test query"
 ```
 
@@ -99,15 +99,29 @@ cd server
 uvicorn server:app --reload --host 0.0.0.0 --port 3000
 ```
 
-### 📡 API Setup
+API available at `http://localhost:3000`
 
+### 🔑 API Key Setup
+
+You need an API key to use the client APIs. A key will be associated with a prompt and a collection (i.e. Database, Vector DB, Elasticsearch index, etc.).
+
+```bash
+python ./admin/api_key_manager.py --url http://localhost:3000 create --collection city --name "City Assistant" --prompt-file ../examples/chroma/qa-assistant/qa-assistant-prompt.txt  --prompt-name "City Assistant Prompt"
+```
+
+### 📡 API Setup
 ```bash
 cd api
 npm install
 npm run build
-```
 
-API available at `http://localhost:3000`
+# Test API
+# Batch queries:
+npm run test-query-from-pairs ../examples/datasets/city-qa-pairs.json  "http://localhost:3000"  "api_123456789" 5
+
+# or a single Query:
+npm run test-query "What is the process for getting a sidewalk repaired?" "http://localhost:3000"  "api_123456789"
+```
 
 ### 🎨 Widget Setup
 
@@ -155,7 +169,7 @@ Run locally for development:
 
 3. **Create API Key:**
     ```bash
-    cd backend/server/admin
+    cd server/admin
     python3 api_key_manager.py --url http://localhost:3000 create --collection default --name "Development" --notes "Development API Key"
     ```
     Save the generated API key for the next steps.

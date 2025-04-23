@@ -48,7 +48,7 @@ After=network.target
 [Service]
 Type=simple
 User=your_username
-WorkingDirectory=/path/to/open-inference-platform/backend/chroma
+WorkingDirectory=/path/to/open-inference-platform/chroma
 ExecStart=/bin/bash -c 'source venv/bin/activate && chroma run --host 0.0.0.0 --port 8000 --path ./chroma_db'
 Restart=always
 RestartSec=3
@@ -59,7 +59,7 @@ WantedBy=multi-user.target
 
 Replace:
 - `your_username` with your actual system username
-- `/path/to/open-inference-platform/backend/chroma` with your actual Chroma directory path
+- `/path/to/open-inference-platform/chroma` with your actual Chroma directory path
 
 ---
 
