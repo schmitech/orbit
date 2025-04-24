@@ -131,12 +131,10 @@ class ApiKeyManager:
             if prompt_id:
                 # Update an existing prompt
                 prompt_result = self.update_prompt(prompt_id, prompt_text)
-                print(f"Debug - Prompt update response: {json.dumps(prompt_result, indent=2)}")  # Debug log
                 prompt_id = prompt_result.get("id") or prompt_id
             elif prompt_name:
                 # Create a new prompt
                 prompt_result = self.create_prompt(prompt_name, prompt_text)
-                print(f"Debug - Prompt creation response: {json.dumps(prompt_result, indent=2)}")  # Debug log
                 prompt_id = prompt_result.get("id")
                 if not prompt_id:
                     print(f"Debug - Full prompt result: {json.dumps(prompt_result, indent=2)}")  # Debug log

@@ -26,6 +26,7 @@ class PromptService:
         self.database = None
         self.prompts_collection = None
         self._initialized = False
+        self.verbose = config.get('general', {}).get('verbose', False)
         
     async def initialize(self) -> None:
         """Initialize connection to MongoDB"""
@@ -141,20 +142,23 @@ class PromptService:
             if isinstance(prompt_id, str):
                 try:
                     prompt_id = ObjectId(prompt_id)
-                    logger.info(f"Converted string prompt ID '{original_prompt_id}' to ObjectId: {prompt_id}")
+                    if self.verbose:
+                        logger.info(f"Converted string prompt ID '{original_prompt_id}' to ObjectId: {prompt_id}")
                 except Exception as e:
                     logger.error(f"Failed to convert prompt ID '{original_prompt_id}' to ObjectId: {str(e)}")
                     return None
             
-            logger.info(f"Looking up prompt with ID: {prompt_id}")
+            if self.verbose:
+                logger.info(f"Looking up prompt with ID: {prompt_id}")
             prompt = await self.prompts_collection.find_one({"_id": prompt_id})
             
             if prompt:
-                logger.info(f"Found prompt: {prompt.get('name')} (version {prompt.get('version')})")
-                # Log a preview of the prompt content
-                prompt_text = prompt.get('prompt', '')
-                preview = prompt_text[:100] + '...' if len(prompt_text) > 100 else prompt_text
-                logger.info(f"Prompt content preview: {preview}")
+                if self.verbose:
+                    logger.info(f"Found prompt: {prompt.get('name')} (version {prompt.get('version')})")
+                    # Log a preview of the prompt content
+                    prompt_text = prompt.get('prompt', '')
+                    preview = prompt_text[:100] + '...' if len(prompt_text) > 100 else prompt_text
+                    logger.info(f"Prompt content preview: {preview}")
             else:
                 logger.warning(f"No prompt found for ID: {prompt_id}")
                 

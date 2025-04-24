@@ -1,6 +1,6 @@
 general:
   port: 3000
-  verbose: true
+  verbose: false
   https:
     enabled: false
     port: 3443
@@ -8,6 +8,8 @@ general:
     key_file: "./key.pem"
   inference_provider: "ollama"
   datasource_provider: "chroma"
+  embedding_provider: "ollama" 
+  embedding_enabled: true
 
 api_keys:
   header_name: "X-API-Key"
@@ -45,12 +47,35 @@ internal_services:
     username: ${INTERNAL_SERVICES_MONGODB_USERNAME}
     password: ${INTERNAL_SERVICES_MONGODB_PASSWORD}
 
+embeddings:
+  ollama:
+    base_url: "http://localhost:11434"
+    model: "nomic-embed-text"
+  huggingface:
+    model: "sentence-transformers/all-mpnet-base-v2"
+    device: "cpu"  # Options: cpu, cuda
+    normalize: true
+  openai:
+    api_key: ${OPENAI_API_KEY}
+    model: "text-embedding-3-small"
+    dimensions: 1536
+    batch_size: 10
+  bedrock:
+    region: "ca-central-1"
+    model: "amazon.titan-embed-text-v1"
+    dimensions: 1536
+  cohere:
+    api_key: ${COHERE_API_KEY}
+    model: "embed-english-v3.0"
+    truncation: true
+
 datasources:
   chroma:
     host: "localhost"
     port: 8000
     confidence_threshold: 0.85
     relevance_threshold: 0.7
+    embedding_provider: null
   postgres:
     host: "localhost"
     port: 5432
@@ -67,15 +92,18 @@ datasources:
     port: 19530
     dim: 768
     metric_type: "IP"  # Options: L2, IP, COSINE
+    embedding_provider: null
   pinecone:
     api_key: ${DATASOURCE_PINECONE_API_KEY}
     environment: ${DATASOURCE_PINECONE_ENVIRONMENT}
     index_name: ${DATASOURCE_PINECONE_INDEX_NAME}
+    embedding_provider: null
   elasticsearch:
     node: 'https://localhost:9200'
     auth:
       username: ${DATASOURCE_ELASTICSEARCH_USERNAME}
       password: ${DATASOURCE_ELASTICSEARCH_PASSWORD}
+    embedding_provider: null
   mongodb:
     host: "localhost"
     port: 27017
@@ -163,4 +191,3 @@ reranker:
   batch_size: 5
   temperature: 0.0
   top_n: 3
-

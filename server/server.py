@@ -52,6 +52,7 @@ from retrievers.qa_chroma_retriever import QAChromaRetriever
 from services import ChatService, HealthService, LoggerService, GuardrailService, RerankerService, ApiKeyService, PromptService
 from inference import LLMClientFactory
 from utils.text_utils import mask_api_key
+from embeddings.base import EmbeddingServiceFactory
 
 class InferenceServer:
     """
@@ -212,6 +213,34 @@ class InferenceServer:
         
         return lifespan
 
+    def _resolve_datasource_embedding_provider(self, datasource_name: str) -> str:
+        """
+        Resolve embedding provider for a specific datasource.
+        This implements the inheritance with override capability.
+        
+        Args:
+            datasource_name: The name of the datasource ('chroma', 'milvus', etc.)
+            
+        Returns:
+            The embedding provider name to use for this datasource
+        """
+        # Get the main embedding provider from general settings
+        main_provider = self.config['general'].get('embedding_provider', 'ollama')
+        
+        # Check if there's a provider override for this datasource
+        datasource_config = self.config.get('datasources', {}).get(datasource_name, {})
+        provider_override = datasource_config.get('embedding_provider')
+        
+        # If there's a valid override, use it; otherwise inherit from main provider
+        if provider_override and provider_override in self.config.get('embeddings', {}):
+            provider = provider_override
+            self.logger.info(f"{datasource_name.capitalize()} uses custom embedding provider: {provider}")
+        else:
+            provider = main_provider
+            self.logger.info(f"{datasource_name.capitalize()} inherits embedding provider from general: {provider}")
+        
+        return provider
+    
     def _resolve_provider_configs(self) -> None:
         """
         Resolve provider configurations and ensure backward compatibility.
@@ -221,6 +250,24 @@ class InferenceServer:
         # Get selected providers
         inference_provider = self.config['general'].get('inference_provider', 'ollama')
         datasource_provider = self.config['general'].get('datasource_provider', 'chroma')
+        embedding_provider = self.config['general'].get('embedding_provider', 'ollama')
+        
+        # Resolve providers for safety and reranker components
+        safety_provider = self._resolve_component_provider('safety')
+        reranker_provider = self._resolve_component_provider('reranker')
+        
+        # Resolve models for safety and reranker
+        safety_model = self._resolve_component_model('safety', safety_provider)
+        reranker_model = self._resolve_component_model('reranker', reranker_provider)
+        
+        # Update safety and reranker configurations with resolved values
+        if 'safety' in self.config:
+            self.config['safety']['resolved_provider'] = safety_provider
+            self.config['safety']['resolved_model'] = safety_model
+        
+        if 'reranker' in self.config:
+            self.config['reranker']['resolved_provider'] = reranker_provider
+            self.config['reranker']['resolved_model'] = reranker_model
         
         # For backward compatibility, copy selected inference provider config to the old location
         if inference_provider in self.config.get('inference', {}):
@@ -240,6 +287,9 @@ class InferenceServer:
         
         self.logger.info(f"Using inference provider: {inference_provider}")
         self.logger.info(f"Using datasource provider: {datasource_provider}")
+        self.logger.info(f"Using embedding provider: {embedding_provider}")
+        self.logger.info(f"Using safety provider: {safety_provider}")
+        self.logger.info(f"Using reranker provider: {reranker_provider}")
     
     """
     Provider resolution methods to be added to the InferenceServer class in server.py
@@ -403,7 +453,7 @@ class InferenceServer:
         # Resolve provider configurations
         self._resolve_provider_configs()
         
-        # Initialize Chroma client (or the selected datasource provider)
+        # Initialize datasource client based on selected provider
         datasource_provider = self.config['general'].get('datasource_provider', 'chroma')
         if datasource_provider == 'chroma':
             chroma_conf = self.config['datasources']['chroma']
@@ -414,8 +464,6 @@ class InferenceServer:
             )
         else:
             self.logger.info(f"Connecting to {datasource_provider} datasource...")
-            # Future implementation for other datasource providers
-            # This would initialize the appropriate client based on the selected provider
             app.state.datasource_client = self._initialize_datasource_client(datasource_provider)
         
         # Initialize API Key Service
@@ -440,29 +488,34 @@ class InferenceServer:
             self.logger.error(f"MongoDB connection details: {self.config.get('mongodb', {})}")
             raise
         
-        inference_provider = self.config['general'].get('inference_provider', 'ollama')
-        ollama_conf = self.config['inference'].get(inference_provider, {})
+        # Check if embedding services are enabled
+        embedding_enabled = _is_true_value(self.config['general'].get('embedding_enabled', True))
         
-        # Initialize Ollama embeddings
-        app.state.embeddings = OllamaEmbeddings(
-            model=ollama_conf['embed_model'],
-            base_url=ollama_conf['base_url']
-        )
-        
-        # Initialize datasource client based on selected provider
-        datasource_provider = self.config['general'].get('datasource_provider', 'chroma')
-        if datasource_provider == 'chroma':
-            chroma_conf = self.config['datasources']['chroma']
-            self.logger.info(f"Connecting to ChromaDB at {chroma_conf['host']}:{chroma_conf['port']}...")
-            app.state.chroma_client = chromadb.HttpClient(
-                host=chroma_conf['host'],
-                port=int(chroma_conf['port'])
+        if embedding_enabled:
+            # Determine embedding provider for the datasource
+            embedding_provider = self._resolve_datasource_embedding_provider(datasource_provider)
+            self.logger.info(f"Using {embedding_provider} for embeddings with {datasource_provider}")
+            
+            # Initialize embedding service
+            app.state.embedding_service = EmbeddingServiceFactory.create_embedding_service(
+                self.config,
+                provider_name=embedding_provider
             )
+            
+            # Initialize the embedding service
+            self.logger.info(f"Initializing {embedding_provider} embedding service...")
+            if not await app.state.embedding_service.initialize():
+                self.logger.error(f"Failed to initialize {embedding_provider} embedding service")
+                raise Exception(f"Failed to initialize {embedding_provider} embedding service")
+        else:
+            # Skip embedding initialization
+            self.logger.info("Embedding services disabled in configuration")
+            app.state.embedding_service = None
         
-        # Initialize retriever without a collection - it will be set when an API key is provided
+        # Initialize retriever with embedding service if available
         app.state.retriever = QAChromaRetriever(
             config=self.config,
-            embeddings=app.state.embeddings
+            embeddings=app.state.embedding_service
         )
         
         # Initialize GuardrailService
@@ -478,6 +531,7 @@ class InferenceServer:
             app.state.reranker_service = None
         
         # Create LLM client with using the factory
+        inference_provider = self.config['general'].get('inference_provider', 'ollama')
         app.state.llm_client = LLMClientFactory.create_llm_client(
             self.config, 
             app.state.retriever,
@@ -493,9 +547,12 @@ class InferenceServer:
         init_tasks = [
             app.state.llm_client.initialize(),
             app.state.logger_service.initialize_elasticsearch(),
-            app.state.guardrail_service.initialize(),
-            app.state.retriever.initialize()
+            app.state.guardrail_service.initialize()
         ]
+        
+        # Only initialize retriever if embeddings are enabled
+        if embedding_enabled:
+            init_tasks.append(app.state.retriever.initialize())
         
         # Only initialize reranker if enabled
         if app.state.reranker_service:
@@ -539,20 +596,45 @@ class InferenceServer:
         Args:
             app: The FastAPI application containing services
         """
-        # Close services concurrently
-        shutdown_tasks = [
-            app.state.llm_client.close(),
-            app.state.logger_service.close(),
-            app.state.retriever.close(),
-            app.state.guardrail_service.close(),
-            app.state.prompt_service.close()
-        ]
+        self.logger.info("Shutting down services...")
         
-        # Only include reranker if it was initialized
-        if hasattr(app.state, 'reranker_service'):
+        # Create a list to collect shutdown tasks
+        shutdown_tasks = []
+        
+        # Only add services to shutdown_tasks if they exist and have a close method
+        if hasattr(app.state, 'llm_client') and app.state.llm_client is not None:
+            shutdown_tasks.append(app.state.llm_client.close())
+        
+        if hasattr(app.state, 'logger_service') and app.state.logger_service is not None:
+            shutdown_tasks.append(app.state.logger_service.close())
+        
+        if hasattr(app.state, 'retriever') and app.state.retriever is not None:
+            shutdown_tasks.append(app.state.retriever.close())
+        
+        if hasattr(app.state, 'guardrail_service') and app.state.guardrail_service is not None:
+            shutdown_tasks.append(app.state.guardrail_service.close())
+        
+        if hasattr(app.state, 'prompt_service') and app.state.prompt_service is not None:
+            shutdown_tasks.append(app.state.prompt_service.close())
+        
+        if hasattr(app.state, 'reranker_service') and app.state.reranker_service is not None:
             shutdown_tasks.append(app.state.reranker_service.close())
         
-        await asyncio.gather(*shutdown_tasks)
+        if hasattr(app.state, 'api_key_service') and app.state.api_key_service is not None:
+            shutdown_tasks.append(app.state.api_key_service.close())
+        
+        if hasattr(app.state, 'embedding_service') and app.state.embedding_service is not None:
+            shutdown_tasks.append(app.state.embedding_service.close())
+        
+        # Only run asyncio.gather if there are tasks to gather
+        if shutdown_tasks:
+            try:
+                await asyncio.gather(*shutdown_tasks)
+                self.logger.info("Services shut down successfully")
+            except Exception as e:
+                self.logger.error(f"Error during shutdown of services: {str(e)}")
+        else:
+            self.logger.info("No services to shut down")
 
     def _log_configuration_summary(self) -> None:
         """Log a summary of the current configuration."""
@@ -562,6 +644,8 @@ class InferenceServer:
         # Log selected providers
         inference_provider = self.config['general'].get('inference_provider', 'ollama')
         datasource_provider = self.config['general'].get('datasource_provider', 'chroma')
+        embedding_provider = self.config['general'].get('embedding_provider', 'ollama')
+        embedding_enabled = _is_true_value(self.config['general'].get('embedding_enabled', True))
         
         # Get resolved providers for safety and reranker
         safety_provider = self.config.get('safety', {}).get('resolved_provider', inference_provider)
@@ -570,6 +654,14 @@ class InferenceServer:
 
         self.logger.info(f"Inference provider: {inference_provider}")
         self.logger.info(f"Datasource provider: {datasource_provider}")
+        self.logger.info(f"Embedding: {'enabled' if embedding_enabled else 'disabled'}")
+        
+        if embedding_enabled:
+            self.logger.info(f"Embedding provider: {embedding_provider}")
+            # Log embedding model information
+            if embedding_provider in self.config.get('embeddings', {}):
+                embed_model = self.config['embeddings'][embedding_provider].get('model', 'unknown')
+                self.logger.info(f"Embedding model: {embed_model}")
         
         # Log model information based on the selected inference provider
         if inference_provider in self.config.get('inference', {}):
