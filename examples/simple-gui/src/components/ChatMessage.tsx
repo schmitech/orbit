@@ -14,13 +14,13 @@ const renderMarkdown = (text: string) => {
 export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
   const isAssistant = message.role === 'assistant';
   const [displayedContent, setDisplayedContent] = useState(isAssistant ? '' : message.content);
-  const [isThinking, setIsThinking] = useState(isAssistant);
-  const [isTyping, setIsTyping] = useState(isAssistant);
+  const [isThinking, setIsThinking] = useState(isAssistant && message.content === '');
+  const [isTyping, setIsTyping] = useState(false);
   const [typingDots, setTypingDots] = useState('.');
   const contentRef = useRef(message.content);
   const charIndexRef = useRef(0);
 
-  // Handle typing animation for assistant messages
+  // Handle content changes and state transitions
   useEffect(() => {
     if (!isAssistant) {
       setDisplayedContent(message.content);
@@ -30,31 +30,43 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
     // Update the content reference when message content changes
     if (contentRef.current !== message.content) {
       contentRef.current = message.content;
-      charIndexRef.current = 0;
-      setDisplayedContent('');
-      setIsTyping(true);
-      setIsThinking(true);
+      
+      // If we have content to type, prepare for typing animation
+      if (message.content.length > 0) {
+        // Only reset character index if we're starting fresh
+        // This prevents restarting the animation on re-renders
+        if (isThinking || displayedContent === '') {
+          charIndexRef.current = 0;
+          setDisplayedContent('');
+          setIsThinking(false);
+          setIsTyping(true);
+        }
+      } else {
+        // If no content yet, show thinking animation
+        setIsTyping(false);
+        setIsThinking(true);
+      }
     }
+  }, [isAssistant, isThinking, message.content, displayedContent]);
 
-    if (isTyping && charIndexRef.current < contentRef.current.length) {
+  // Handle typing animation separately
+  useEffect(() => {
+    if (!isTyping) return;
+    
+    if (charIndexRef.current < contentRef.current.length) {
       const typingTimer = setTimeout(() => {
         charIndexRef.current += 1;
         const newContent = contentRef.current.substring(0, charIndexRef.current);
         setDisplayedContent(newContent);
-        
-        // Hide thinking indicator as soon as we have content
-        if (newContent.length > 0 && isThinking) {
-          setIsThinking(false);
-        }
-        
+                
         if (charIndexRef.current >= contentRef.current.length) {
           setIsTyping(false);
         }
-      }, 20); // 20ms delay per character, same as in the CLI
+      }, 20); // 20ms delay per character
       
       return () => clearTimeout(typingTimer);
     }
-  }, [isAssistant, isTyping, message.content, displayedContent, isThinking]);
+  }, [isTyping, displayedContent]);
 
   // Animate the typing indicator dots
   useEffect(() => {
@@ -84,12 +96,14 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
         <div className={`font-medium mb-2 text-sm uppercase ${isAssistant ? 'text-green-600' : 'text-blue-500'}`}>
           {isAssistant ? 'AI Assistant' : 'You'}
         </div>
-        <div 
-          className="text-gray-800 whitespace-pre-wrap"
-          dangerouslySetInnerHTML={{ __html: renderMarkdown(displayedContent) }}
-        />
+        {!isThinking && (
+          <div 
+            className="text-gray-800 whitespace-pre-wrap"
+            dangerouslySetInnerHTML={{ __html: renderMarkdown(displayedContent) }}
+          />
+        )}
         {isThinking && (
-          <span className="inline-block text-gray-500 ml-1">
+          <span className="inline-block text-gray-500">
             <span className="font-medium">thinking</span>
             <span className="font-mono">{typingDots}</span>
           </span>
