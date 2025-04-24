@@ -109,39 +109,44 @@ class LoggerService:
 
     async def initialize_elasticsearch(self) -> None:
         """Initialize the Elasticsearch client if enabled."""
-        es_config = self.config.get('elasticsearch', {})
+        es_config = self.config.get('internal_services', {}).get('elasticsearch', {})
         if not es_config.get('enabled', False):
             logger.info("Elasticsearch logging is disabled in configuration")
             return
 
-        username = os.environ.get("ELASTICSEARCH_USERNAME")
-        password = os.environ.get("ELASTICSEARCH_PASSWORD")
+        username = os.environ.get("INTERNAL_SERVICES_ELASTICSEARCH_USERNAME")
+        password = os.environ.get("INTERNAL_SERVICES_ELASTICSEARCH_PASSWORD")
         if not username or not password:
             logger.warning("Elasticsearch credentials not found in environment variables")
-            self.config["elasticsearch"]["enabled"] = False
+            self.config["internal_services"]["elasticsearch"]["enabled"] = False
             return
 
         try:
+            # Create Elasticsearch client using the minimal configuration pattern
+            headers = {'Content-Type': 'application/json', 'Accept': 'application/json'}
             self.es_client = AsyncElasticsearch(
-                [es_config["node"]],
+                es_config["node"],
                 basic_auth=(username, password),
                 verify_certs=False,
-                request_timeout=5,
+                ssl_show_warn=False,
+                request_timeout=30,
                 retry_on_timeout=True,
-                max_retries=3
+                max_retries=3,
+                headers=headers  # Add headers here (DANGEROUS - ONLY FOR TESTING)
             )
+            
             # Ensure connection is reachable
             await asyncio.wait_for(self.es_client.ping(), timeout=5.0)
             logger.info("Successfully connected to Elasticsearch")
             await self._setup_elasticsearch_index()
         except asyncio.TimeoutError:
             logger.error("Elasticsearch connection timeout", exc_info=True)
-            self.config["elasticsearch"]["enabled"] = False
+            self.config["internal_services"]["elasticsearch"]["enabled"] = False
             self.es_client = None
         except Exception as e:
             logger.error(f"Failed to connect to Elasticsearch: {e}", exc_info=True)
             logger.info("Continuing without Elasticsearch logging...")
-            self.config["elasticsearch"]["enabled"] = False
+            self.config["internal_services"]["elasticsearch"]["enabled"] = False
             self.es_client = None
 
     async def _setup_elasticsearch_index(self) -> None:
@@ -149,15 +154,25 @@ class LoggerService:
         if not self.es_client:
             return
 
-        index_name = self.config["elasticsearch"]["index"]
+        index_name = self.config["internal_services"]["elasticsearch"]["index"]
         try:
-            index_exists = await self.es_client.indices.exists(index=index_name)
-            if not index_exists:
-                await self.es_client.indices.create(
-                    index=index_name,
-                    body={
-                        "settings": {"number_of_shards": 1, "number_of_replicas": 0},
-                        "mappings": {
+            # First check if we can connect to the cluster
+            cluster_info = await self.es_client.info()
+            logger.info(f"Connected to Elasticsearch cluster: {cluster_info['cluster_name']}")
+            
+            # Check if index exists
+            try:
+                index_exists = await self.es_client.indices.exists(index=index_name)
+                if not index_exists:
+                    logger.info(f"Creating new index: {index_name}")
+                    await self.es_client.indices.create(
+                        index=index_name,
+                        settings={
+                            "number_of_shards": 1,
+                            "number_of_replicas": 0,
+                            "refresh_interval": "1s"
+                        },
+                        mappings={
                             "properties": {
                                 "timestamp": {"type": "date"},
                                 "query": {"type": "text"},
@@ -176,14 +191,16 @@ class LoggerService:
                                 }
                             }
                         }
-                    }
-                )
-                logger.info(f"Created new Elasticsearch index: {index_name}")
-            else:
-                logger.info(f"Using existing Elasticsearch index: {index_name}")
+                    )
+                    logger.info(f"Successfully created index: {index_name}")
+                else:
+                    logger.info(f"Using existing index: {index_name}")
+            except Exception as index_error:
+                logger.error(f"Failed to setup index {index_name}: {str(index_error)}", exc_info=True)
+                raise
         except Exception as e:
-            logger.error(f"Failed to setup Elasticsearch index: {e}", exc_info=True)
-            self.config["elasticsearch"]["enabled"] = False
+            logger.error(f"Failed to setup Elasticsearch index: {str(e)}", exc_info=True)
+            self.config["internal_services"]["elasticsearch"]["enabled"] = False
             self.es_client = None
 
     def _format_ip_address(self, ip: Optional[Union[str, List[str]]]) -> IPMetadata:
@@ -320,7 +337,7 @@ class LoggerService:
             if self.verbose:
                 logger.info(f"Indexing document to Elasticsearch: {json.dumps(document, indent=2)}")
             index_result = await self.es_client.index(
-                index=self.config["elasticsearch"]["index"],
+                index=self.config["internal_services"]["elasticsearch"]["index"],
                 document=document,
                 refresh=True
             )
@@ -328,7 +345,7 @@ class LoggerService:
                 logger.info(f"Elasticsearch indexing result: {index_result}")
                 # Optional verification step
                 verify_doc = await self.es_client.get(
-                    index=self.config["elasticsearch"]["index"],
+                    index=self.config["internal_services"]["elasticsearch"]["index"],
                     id=index_result["_id"]
                 )
                 logger.info(f"Document verification: {verify_doc}")
@@ -338,13 +355,13 @@ class LoggerService:
             try:
                 if self.es_client:
                     index_exists = await self.es_client.indices.exists(
-                        index=self.config["elasticsearch"]["index"]
+                        index=self.config["internal_services"]["elasticsearch"]["index"]
                     )
-                    logger.info(f"Index exists check: {self.config['elasticsearch']['index']} - {index_exists}")
+                    logger.info(f"Index exists check: {self.config['internal_services']['elasticsearch']['index']} - {index_exists}")
                     if not index_exists:
                         logger.error("Index does not exist! This should not happen as it is created on startup.")
                     index_settings = await self.es_client.indices.get(
-                        index=self.config["elasticsearch"]["index"]
+                        index=self.config["internal_services"]["elasticsearch"]["index"]
                     )
                     logger.info(f"Index settings: {index_settings}")
             except Exception as diag_error:
