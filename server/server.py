@@ -291,10 +291,6 @@ class InferenceServer:
         self.logger.info(f"Using safety provider: {safety_provider}")
         self.logger.info(f"Using reranker provider: {reranker_provider}")
     
-    """
-    Provider resolution methods to be added to the InferenceServer class in server.py
-    """
-
     def _resolve_component_provider(self, component_name: str) -> str:
         """
         Resolve the provider for a specific component (safety, reranker).
@@ -360,54 +356,6 @@ class InferenceServer:
         
         self.logger.info(f"{component_name.capitalize()} using model: {model}")
         return model
-
-    def _resolve_provider_configs(self) -> None:
-        """
-        Resolve provider configurations and ensure backward compatibility.
-        This method maps the selected providers to the legacy config structure
-        to minimize changes to existing code.
-        """
-        # Get selected providers
-        inference_provider = self.config['general'].get('inference_provider', 'ollama')
-        datasource_provider = self.config['general'].get('datasource_provider', 'chroma')
-        
-        # Resolve providers for safety and reranker components
-        safety_provider = self._resolve_component_provider('safety')
-        reranker_provider = self._resolve_component_provider('reranker')
-        
-        # Resolve models for safety and reranker
-        safety_model = self._resolve_component_model('safety', safety_provider)
-        reranker_model = self._resolve_component_model('reranker', reranker_provider)
-        
-        # Update safety and reranker configurations with resolved values
-        if 'safety' in self.config:
-            self.config['safety']['resolved_provider'] = safety_provider
-            self.config['safety']['resolved_model'] = safety_model
-        
-        if 'reranker' in self.config:
-            self.config['reranker']['resolved_provider'] = reranker_provider
-            self.config['reranker']['resolved_model'] = reranker_model
-        
-        # For backward compatibility, copy selected inference provider config to the old location
-        if inference_provider in self.config.get('inference', {}):
-            self.config['ollama'] = self.config['inference'][inference_provider]
-        
-        # For backward compatibility, copy selected datasource provider config to the old location
-        if datasource_provider in self.config.get('datasources', {}):
-            self.config['chroma'] = self.config['datasources'][datasource_provider]
-        
-        # Handle mongodb settings for backward compatibility
-        if 'internal_services' in self.config and 'mongodb' in self.config['internal_services']:
-            self.config['mongodb'] = self.config['internal_services']['mongodb']
-        
-        # Handle elasticsearch settings for backward compatibility
-        if 'internal_services' in self.config and 'elasticsearch' in self.config['internal_services']:
-            self.config['elasticsearch'] = self.config['internal_services']['elasticsearch']
-        
-        self.logger.info(f"Using inference provider: {inference_provider}")
-        self.logger.info(f"Using datasource provider: {datasource_provider}")
-        self.logger.info(f"Using safety provider: {safety_provider}")
-        self.logger.info(f"Using reranker provider: {reranker_provider}")
 
     def _initialize_datasource_client(self, provider: str) -> Any:
         """
@@ -497,16 +445,32 @@ class InferenceServer:
             self.logger.info(f"Using {embedding_provider} for embeddings with {datasource_provider}")
             
             # Initialize embedding service
-            app.state.embedding_service = EmbeddingServiceFactory.create_embedding_service(
-                self.config,
-                provider_name=embedding_provider
-            )
-            
-            # Initialize the embedding service
-            self.logger.info(f"Initializing {embedding_provider} embedding service...")
-            if not await app.state.embedding_service.initialize():
-                self.logger.error(f"Failed to initialize {embedding_provider} embedding service")
-                raise Exception(f"Failed to initialize {embedding_provider} embedding service")
+            try:
+                app.state.embedding_service = EmbeddingServiceFactory.create_embedding_service(
+                    self.config,
+                    provider_name=embedding_provider
+                )
+                
+                # Initialize the embedding service
+                self.logger.info(f"Initializing {embedding_provider} embedding service...")
+                if not await app.state.embedding_service.initialize():
+                    self.logger.error(f"Failed to initialize {embedding_provider} embedding service")
+                    raise Exception(f"Failed to initialize {embedding_provider} embedding service")
+                
+                # Verify embedding service works by testing a simple query
+                self.logger.info("Testing embedding service with a sample query...")
+                test_embedding = await app.state.embedding_service.embed_query("test query")
+                if not test_embedding or len(test_embedding) == 0:
+                    self.logger.error(f"Embedding service returned empty embedding for test query")
+                    raise Exception(f"Embedding service test failed - empty embedding returned")
+                else:
+                    self.logger.info(f"Embedding service test succeeded: generated {len(test_embedding)} dimensional embedding")
+            except Exception as e:
+                self.logger.error(f"Error initializing embedding service: {str(e)}")
+                if self.config['general'].get('fail_on_embedding_error', False):
+                    raise
+                self.logger.warning("Continuing without embeddings service due to initialization error")
+                app.state.embedding_service = None
         else:
             # Skip embedding initialization
             self.logger.info("Embedding services disabled in configuration")
@@ -551,7 +515,7 @@ class InferenceServer:
         ]
         
         # Only initialize retriever if embeddings are enabled
-        if embedding_enabled:
+        if embedding_enabled and app.state.embedding_service is not None:
             init_tasks.append(app.state.retriever.initialize())
         
         # Only initialize reranker if enabled

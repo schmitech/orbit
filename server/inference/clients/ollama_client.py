@@ -69,8 +69,19 @@ class QAOllamaClient(BaseLLMClient):
     
     async def close(self) -> None:
         """Clean up resources."""
-        # Ollama client doesn't need explicit cleanup
-        pass
+        # Close any open aiohttp sessions
+        try:
+            # This is a simple implementation - you may need to adapt this
+            # based on how aiohttp sessions are managed in your codebase
+            if hasattr(self, '_session') and self._session is not None:
+                await self._session.close()
+                self._session = None
+                self.logger.info("Closed Ollama client session")
+        except Exception as e:
+            self.logger.error(f"Error closing Ollama client: {str(e)}")
+        
+        # Signal that cleanup is complete
+        self.logger.info("Ollama client resources released")
     
     async def verify_connection(self) -> bool:
         """
