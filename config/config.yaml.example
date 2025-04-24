@@ -1,6 +1,6 @@
 general:
   port: 3000
-  verbose: false
+  verbose: true
   https:
     enabled: false
     port: 3443
@@ -8,8 +8,11 @@ general:
     key_file: "./key.pem"
   inference_provider: "ollama"
   datasource_provider: "chroma"
-  embedding_provider: "ollama" 
-  embedding_enabled: true
+
+embedding:
+  provider: "ollama"
+  enabled: true
+  fail_on_error: false
 
 api_keys:
   header_name: "X-API-Key"
@@ -126,11 +129,6 @@ inference:
     model: "gemma3:1b"
     embed_model: "nomic-embed-text"
     stream: true
-    summarization:
-      enabled: true
-      model: "gemma3:1b"
-      max_length: 100
-      min_text_length: 500
   vllm:
     host: "http://localhost:5000"
     port: 8000

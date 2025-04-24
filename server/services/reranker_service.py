@@ -35,22 +35,21 @@ class RerankerService:
         # Load settings
         self.enabled = _is_true_value(reranker_config.get('enabled', False))
         
-        # Get provider information - use resolved_provider and resolved_model 
-        # that were set by _resolve_provider_configs
-        self.provider = reranker_config.get('resolved_provider', 'ollama')
-        self.model = reranker_config.get('resolved_model', 'gemma3:1b')
+        # Get provider information
+        # First check for provider_override, otherwise use the general inference provider
+        provider_name = reranker_config.get('provider_override')
+        if not provider_name:
+            provider_name = config.get('general', {}).get('inference_provider', 'ollama')
+            
+        self.provider = provider_name
+        self.model = reranker_config.get('model', 'gemma3:1b')
         
-        # Get provider-specific configuration
+        # Get provider-specific configuration from inference section
         provider_config = config.get('inference', {}).get(self.provider, {})
         self.base_url = provider_config.get('base_url', 'http://localhost:11434')
         
-        if provider_config:
-            logger.info(f"Reranker service using provider: {self.provider}")
-            logger.info(f"Reranker service using base URL: {self.base_url}")
-        else:
-            # Fallback to legacy config for backward compatibility
-            self.base_url = config.get('ollama', {}).get('base_url', 'http://localhost:11434')
-            logger.warning(f"Using legacy config for reranker service: {self.base_url}")
+        logger.info(f"Reranker service using provider: {self.provider}")
+        logger.info(f"Reranker service using base URL: {self.base_url}")
         
         # Other reranker parameters
         self.batch_size = reranker_config.get('batch_size', 5)

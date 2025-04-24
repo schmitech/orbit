@@ -34,12 +34,6 @@ class QAOllamaClient(BaseLLMClient):
         self.num_ctx = ollama_config.get('num_ctx', 8192)
         self.stream = ollama_config.get('stream', True)
         
-        # Summarization settings
-        self.summarization_enabled = ollama_config.get('summarization', {}).get('enabled', False)
-        self.summarization_model = ollama_config.get('summarization', {}).get('model', self.model)
-        self.summarization_max_length = ollama_config.get('summarization', {}).get('max_length', 100)
-        self.summarization_min_text_length = ollama_config.get('summarization', {}).get('min_text_length', 500)
-        
         self.ollama_client = None
         
     async def initialize(self) -> None:

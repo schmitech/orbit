@@ -75,18 +75,21 @@ def _log_config_summary(config: Dict[str, Any], source_path: str):
     safety_enabled = config.get('safety', {}).get('enabled', True)
     logger.info(f"  Safety: enabled={safety_enabled}, mode={safety_mode}, max_retries={config.get('safety', {}).get('max_retries', 3)}")
     
-    # Chroma settings
-    logger.info(f"  Chroma: host={config['chroma'].get('host')}, port={config['chroma'].get('port')}")
+    # Datasources settings (Chroma)
+    chroma_config = config.get('datasources', {}).get('chroma', {})
+    logger.info(f"  Chroma: host={chroma_config.get('host')}, port={chroma_config.get('port')}")
     
-    # Ollama settings - don't log any potential API keys
-    logger.info(f"  Ollama: base_url={_mask_url(config['ollama'].get('base_url'))}, model={config['ollama'].get('model')}, embed_model={config['ollama'].get('embed_model')}")
-    logger.info(f"  Stream: {_is_true_value(config['ollama'].get('stream', True))}")
+    # Inference settings (Ollama)
+    ollama_config = config.get('inference', {}).get('ollama', {})
+    logger.info(f"  Ollama: base_url={_mask_url(ollama_config.get('base_url'))}, model={ollama_config.get('model')}, embed_model={ollama_config.get('embed_model')}")
+    logger.info(f"  Stream: {_is_true_value(ollama_config.get('stream', True))}")
     
     # Elasticsearch settings - mask credentials
-    if _is_true_value(config.get('elasticsearch', {}).get('enabled', False)):
-        es_node = _mask_url(config['elasticsearch'].get('node', ''))
-        has_auth = bool(config['elasticsearch'].get('auth', {}).get('username'))
-        logger.info(f"  Elasticsearch: enabled=True, node={es_node}, index={config['elasticsearch'].get('index')}, auth={'[CONFIGURED]' if has_auth else '[NONE]'}")
+    es_config = config.get('internal_services', {}).get('elasticsearch', {})
+    if _is_true_value(es_config.get('enabled', False)):
+        es_node = _mask_url(es_config.get('node', ''))
+        has_auth = bool(es_config.get('auth', {}).get('username'))
+        logger.info(f"  Elasticsearch: enabled=True, node={es_node}, index={es_config.get('index')}, auth={'[CONFIGURED]' if has_auth else '[NONE]'}")
     
     # Log if HTTPS is enabled
     https_enabled = _is_true_value(config.get('general', {}).get('https', {}).get('enabled', False))
@@ -143,24 +146,41 @@ def ensure_config_defaults(config: Dict[str, Any]) -> Dict[str, Any]:
     # Process environment variables in config before checking defaults
     config = _process_env_vars(config)
     
-    # Ensure top-level sections exist
-    for section in default_config:
+    # Ensure top-level sections exist with recursive merging of defaults
+    for section, section_defaults in default_config.items():
         if section not in config:
             logger.warning(f"Missing config section '{section}'. Using defaults.")
-            config[section] = default_config[section]
-        elif isinstance(default_config[section], dict):
-            # For dict sections, merge with defaults preserving existing values
-            for key, value in default_config[section].items():
-                if key not in config[section]:
-                    logger.warning(f"Missing config key '{section}.{key}'. Using default value: {value}")
-                    config[section][key] = value
-    
-    # Make sure confidence_threshold exists
-    if 'chroma' in config:
-        if 'confidence_threshold' not in config['chroma']:
-            config['chroma']['confidence_threshold'] = 0.65
+            config[section] = section_defaults
+        elif isinstance(section_defaults, dict):
+            # For dict sections, recursively merge with defaults
+            config[section] = _merge_defaults(config[section], section_defaults, section)
     
     return config
+
+
+def _merge_defaults(config_section: Dict[str, Any], defaults_section: Dict[str, Any], path: str = "") -> Dict[str, Any]:
+    """
+    Recursively merge default values into a config section
+    
+    Args:
+        config_section: Current config section
+        defaults_section: Default values for this section
+        path: Current path in config (for logging)
+        
+    Returns:
+        Dict[str, Any]: Merged config section with defaults
+    """
+    for key, default_value in defaults_section.items():
+        current_path = f"{path}.{key}" if path else key
+        
+        if key not in config_section:
+            logger.warning(f"Missing config key '{current_path}'. Using default value: {default_value}")
+            config_section[key] = default_value
+        elif isinstance(default_value, dict) and isinstance(config_section[key], dict):
+            # Recursively merge nested dictionaries
+            config_section[key] = _merge_defaults(config_section[key], default_value, current_path)
+    
+    return config_section
 
 
 def _process_env_vars(config: Dict[str, Any]) -> Dict[str, Any]:
@@ -217,7 +237,9 @@ def get_default_config() -> Dict[str, Any]:
                 "port": 3443,
                 "cert_file": "./cert.pem",
                 "key_file": "./key.pem"
-            }
+            },
+            "inference_provider": "ollama",
+            "datasource_provider": "chroma"
         },
         "logging": {
             "level": "INFO",
@@ -240,6 +262,7 @@ def get_default_config() -> Dict[str, Any]:
         "safety": {
             "enabled": True,
             "mode": "fuzzy",
+            "provider_override": None,
             "model": "gemma3:12b",
             "max_retries": 3,
             "retry_delay": 1.0,
@@ -252,35 +275,50 @@ def get_default_config() -> Dict[str, Any]:
             "stream": False,
             "repeat_penalty": 1.1
         },
-        "chroma": {
-            "host": "localhost",
-            "port": 8000,
-            "confidence_threshold": 0.85
-        },
-        "elasticsearch": {
-            "enabled": False,
-            "node": "http://localhost:9200",
-            "index": "chat-logs",
-            "auth": {
-                "username": "",
-                "password": ""
-            }
-        },
         "reranker": {
             "enabled": False,
-            "model": "llama2",
+            "provider_override": None,
+            "model": "gemma3:1b",
             "batch_size": 5,
             "temperature": 0.0,
             "top_n": 3
         },
-        "ollama": {
-            "base_url": "http://localhost:11434",
-            "temperature": 0.7,
-            "top_p": 0.9,
-            "top_k": 40,
-            "repeat_penalty": 1.1,
-            "num_predict": 1024,
-            "model": "llama2",
-            "embed_model": "nomic-embed-text"
+        "embedding": {
+            "provider": "ollama",
+            "enabled": True,
+            "fail_on_error": False
+        },
+        "datasources": {
+            "chroma": {
+                "host": "localhost",
+                "port": 8000,
+                "confidence_threshold": 0.85,
+                "relevance_threshold": 0.7,
+                "embedding_provider": None
+            }
+        },
+        "inference": {
+            "ollama": {
+                "base_url": "http://localhost:11434",
+                "temperature": 0.7,
+                "top_p": 0.9,
+                "top_k": 40,
+                "repeat_penalty": 1.1,
+                "num_predict": 1024,
+                "model": "llama2",
+                "embed_model": "nomic-embed-text",
+                "stream": True
+            }
+        },
+        "internal_services": {
+            "elasticsearch": {
+                "enabled": False,
+                "node": "http://localhost:9200",
+                "index": "chat-logs",
+                "auth": {
+                    "username": "",
+                    "password": ""
+                }
+            }
         }
     }

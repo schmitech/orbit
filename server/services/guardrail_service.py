@@ -44,22 +44,21 @@ class GuardrailService:
             logger.warning(f"Unknown safety mode '{self.safety_mode}', defaulting to 'strict'")
             self.safety_mode = 'strict'
             
-        # Get provider information - use resolved_provider and resolved_model 
-        # that were set by _resolve_provider_configs
-        self.provider = safety_config.get('resolved_provider', 'ollama')
-        self.model = safety_config.get('resolved_model', 'gemma3:12b')
+        # Get provider information
+        # First check for provider_override, otherwise use the general inference provider
+        provider_name = safety_config.get('provider_override')
+        if not provider_name:
+            provider_name = config.get('general', {}).get('inference_provider', 'ollama')
+            
+        self.provider = provider_name
+        self.model = safety_config.get('model', 'gemma3:12b')
         
-        # Get provider-specific configuration
+        # Get provider-specific configuration from inference section
         provider_config = config.get('inference', {}).get(self.provider, {})
         self.base_url = provider_config.get('base_url', 'http://localhost:11434')
         
-        if provider_config:
-            logger.info(f"Safety service using provider: {self.provider}")
-            logger.info(f"Safety service using base URL: {self.base_url}")
-        else:
-            # Fallback to legacy config for backward compatibility
-            self.base_url = config.get('ollama', {}).get('base_url', 'http://localhost:11434')
-            logger.warning(f"Using legacy config for safety service: {self.base_url}")
+        logger.info(f"Safety service using provider: {self.provider}")
+        logger.info(f"Safety service using base URL: {self.base_url}")
             
         # Get retry configuration
         self.max_retries = safety_config.get('max_retries', 3)
@@ -84,7 +83,7 @@ class GuardrailService:
         self.detector = LanguageDetector(self.verbose)
         
         if self.verbose:
-            logger.info(f"GuardrailService initialized with provider {self.provider}, model {self.model}")
+            logger.info(f"GuardrailService initialized with provider {self.provider}, model {self.model}, enabled={self.enabled}, mode={self.safety_mode}")
 
     def _load_safety_prompt(self) -> str:
         """

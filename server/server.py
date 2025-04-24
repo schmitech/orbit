@@ -224,8 +224,8 @@ class InferenceServer:
         Returns:
             The embedding provider name to use for this datasource
         """
-        # Get the main embedding provider from general settings
-        main_provider = self.config['general'].get('embedding_provider', 'ollama')
+        # Get the main embedding provider from embedding settings
+        main_provider = self.config['embedding'].get('provider', 'ollama')
         
         # Check if there's a provider override for this datasource
         datasource_config = self.config.get('datasources', {}).get(datasource_name, {})
@@ -237,7 +237,7 @@ class InferenceServer:
             self.logger.info(f"{datasource_name.capitalize()} uses custom embedding provider: {provider}")
         else:
             provider = main_provider
-            self.logger.info(f"{datasource_name.capitalize()} inherits embedding provider from general: {provider}")
+            self.logger.info(f"{datasource_name.capitalize()} inherits embedding provider from embedding config: {provider}")
         
         return provider
     
@@ -250,7 +250,7 @@ class InferenceServer:
         # Get selected providers
         inference_provider = self.config['general'].get('inference_provider', 'ollama')
         datasource_provider = self.config['general'].get('datasource_provider', 'chroma')
-        embedding_provider = self.config['general'].get('embedding_provider', 'ollama')
+        embedding_provider = self.config['embedding'].get('provider', 'ollama')
         
         # Resolve providers for safety and reranker components
         safety_provider = self._resolve_component_provider('safety')
@@ -437,7 +437,7 @@ class InferenceServer:
             raise
         
         # Check if embedding services are enabled
-        embedding_enabled = _is_true_value(self.config['general'].get('embedding_enabled', True))
+        embedding_enabled = _is_true_value(self.config['embedding'].get('enabled', True))
         
         if embedding_enabled:
             # Determine embedding provider for the datasource
@@ -467,7 +467,7 @@ class InferenceServer:
                     self.logger.info(f"Embedding service test succeeded: generated {len(test_embedding)} dimensional embedding")
             except Exception as e:
                 self.logger.error(f"Error initializing embedding service: {str(e)}")
-                if self.config['general'].get('fail_on_embedding_error', False):
+                if self.config['embedding'].get('fail_on_error', False):
                     raise
                 self.logger.warning("Continuing without embeddings service due to initialization error")
                 app.state.embedding_service = None
@@ -608,8 +608,8 @@ class InferenceServer:
         # Log selected providers
         inference_provider = self.config['general'].get('inference_provider', 'ollama')
         datasource_provider = self.config['general'].get('datasource_provider', 'chroma')
-        embedding_provider = self.config['general'].get('embedding_provider', 'ollama')
-        embedding_enabled = _is_true_value(self.config['general'].get('embedding_enabled', True))
+        embedding_provider = self.config['embedding'].get('provider', 'ollama')
+        embedding_enabled = _is_true_value(self.config['embedding'].get('enabled', True))
         
         # Get resolved providers for safety and reranker
         safety_provider = self.config.get('safety', {}).get('resolved_provider', inference_provider)

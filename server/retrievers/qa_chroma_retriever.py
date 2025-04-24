@@ -66,7 +66,7 @@ class QAChromaRetriever(BaseRetriever):
         await self.api_key_service.initialize()
         
         # Check if embedding is enabled
-        embedding_enabled = self.config.get('general', {}).get('embedding_enabled', True)
+        embedding_enabled = self.config.get('embedding', {}).get('enabled', True)
         
         # Skip initialization if embeddings are disabled
         if not embedding_enabled:
@@ -77,7 +77,7 @@ class QAChromaRetriever(BaseRetriever):
         
         # Initialize embeddings if not provided in constructor
         if self.embeddings is None:
-            embedding_provider = self.config.get('general', {}).get('embedding_provider')
+            embedding_provider = self.config.get('embedding', {}).get('provider')
             
             # Use new embedding service architecture if specified
             if embedding_provider and 'embeddings' in self.config:
@@ -346,9 +346,6 @@ class QAChromaRetriever(BaseRetriever):
                         # For cosine: just use 1 - distance (closer to 1 is better)
                         similarity = 1 - distance
                     
-                    if debug_mode:
-                        logger.info(f"Document: {doc[:50]}..., Distance: {distance}, Calculated similarity: {similarity}")
-                    
                     # Always include at least the top result if we got results back
                     is_top_result = (doc == results['documents'][0][0] and 
                                     metadata == results['metadatas'][0][0])
@@ -359,8 +356,6 @@ class QAChromaRetriever(BaseRetriever):
                         item["confidence"] = similarity  # Add confidence score
                         
                         context_items.append(item)
-                    elif debug_mode:
-                        logger.info(f"Document filtered out due to low similarity: {similarity} < {self.relevance_threshold}")
                 
                 # Sort the context items by confidence and select the top N results
                 context_items = sorted(context_items, key=lambda x: x.get("confidence", 0), reverse=True)[:self.return_results]

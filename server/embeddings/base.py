@@ -109,7 +109,7 @@ class EmbeddingServiceFactory:
         """
         # Get the embedding provider - either specified or from config
         if not provider_name:
-            provider_name = config.get('general', {}).get('embedding_provider', 'ollama')
+            provider_name = config.get('embedding', {}).get('provider', 'ollama')
         
         # Import the appropriate embedding service
         if provider_name == 'ollama':
