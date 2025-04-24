@@ -49,6 +49,13 @@ class QAChromaRetriever(BaseRetriever):
         self.max_results = chroma_config.get('max_results', 10)
         self.return_results = chroma_config.get('return_results', 3)
         
+        # Configure ChromaDB and related HTTP client logging based on verbose setting
+        if not self.verbose:
+            # Only show warnings and errors when not in verbose mode
+            for logger_name in ["httpx", "chromadb"]:
+                client_logger = logging.getLogger(logger_name)
+                client_logger.setLevel(logging.WARNING)
+        
         # Initialize dependent services
         self.api_key_service = ApiKeyService(config)
         

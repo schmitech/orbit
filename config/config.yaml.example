@@ -36,12 +36,11 @@ logging:
 
 internal_services:
   elasticsearch:
-    enabled: false
+    enabled: true
     node: 'https://localhost:9200'
     index: 'orbit'
-    auth:
-      username: ${INTERNAL_SERVICES_ELASTICSEARCH_USERNAME}
-      password: ${INTERNAL_SERVICES_ELASTICSEARCH_PASSWORD}
+    api_key: ${INTERNAL_SERVICES_ELASTICSEARCH_API_KEY}
+    
   mongodb:
     host: "localhost"
     port: 27017
