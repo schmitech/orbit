@@ -50,7 +50,8 @@ from models.schema import ChatMessage, ApiKeyCreate, ApiKeyResponse, ApiKeyDeact
 from models import ChatMessage
 from retrievers.qa_chroma_retriever import QAChromaRetriever
 from services import ChatService, HealthService, LoggerService, GuardrailService, RerankerService, ApiKeyService, PromptService
-from clients import QAOllamaClient
+from inference import LLMClientFactory
+from utils.text_utils import mask_api_key
 
 class InferenceServer:
     """
@@ -211,6 +212,184 @@ class InferenceServer:
         
         return lifespan
 
+    def _resolve_provider_configs(self) -> None:
+        """
+        Resolve provider configurations and ensure backward compatibility.
+        This method maps the selected providers to the legacy config structure
+        to minimize changes to existing code.
+        """
+        # Get selected providers
+        inference_provider = self.config['general'].get('inference_provider', 'ollama')
+        datasource_provider = self.config['general'].get('datasource_provider', 'chroma')
+        
+        # For backward compatibility, copy selected inference provider config to the old location
+        if inference_provider in self.config.get('inference', {}):
+            self.config['ollama'] = self.config['inference'][inference_provider]
+        
+        # For backward compatibility, copy selected datasource provider config to the old location
+        if datasource_provider in self.config.get('datasources', {}):
+            self.config['chroma'] = self.config['datasources'][datasource_provider]
+        
+        # Handle mongodb settings for backward compatibility
+        if 'internal_services' in self.config and 'mongodb' in self.config['internal_services']:
+            self.config['mongodb'] = self.config['internal_services']['mongodb']
+        
+        # Handle elasticsearch settings for backward compatibility
+        if 'internal_services' in self.config and 'elasticsearch' in self.config['internal_services']:
+            self.config['elasticsearch'] = self.config['internal_services']['elasticsearch']
+        
+        self.logger.info(f"Using inference provider: {inference_provider}")
+        self.logger.info(f"Using datasource provider: {datasource_provider}")
+    
+    """
+    Provider resolution methods to be added to the InferenceServer class in server.py
+    """
+
+    def _resolve_component_provider(self, component_name: str) -> str:
+        """
+        Resolve the provider for a specific component (safety, reranker).
+        This implements the inheritance with override capability.
+        
+        Args:
+            component_name: The name of the component ('safety' or 'reranker')
+            
+        Returns:
+            The provider name to use for this component
+        """
+        # Get the main inference provider from general settings
+        main_provider = self.config['general'].get('inference_provider', 'ollama')
+        
+        # Check if there's a provider override for this component
+        component_config = self.config.get(component_name, {})
+        provider_override = component_config.get('provider_override')
+        
+        # If there's a valid override, use it; otherwise inherit from main provider
+        if provider_override and provider_override in self.config.get('inference', {}):
+            provider = provider_override
+            self.logger.info(f"{component_name.capitalize()} uses custom provider: {provider}")
+        else:
+            provider = main_provider
+            self.logger.info(f"{component_name.capitalize()} inherits provider from general: {provider}")
+        
+        return provider
+
+    def _resolve_component_model(self, component_name: str, provider: str) -> str:
+        """
+        Resolve the model for a specific component (safety, reranker).
+        Handles model specification and suffix addition.
+        
+        Args:
+            component_name: The name of the component ('safety' or 'reranker')
+            provider: The provider name for this component
+            
+        Returns:
+            The model name to use for this component
+        """
+        component_config = self.config.get(component_name, {})
+        
+        # Get the base model from the provider configuration
+        provider_model = self.config['inference'].get(provider, {}).get('model', '')
+        
+        # Check if the component has its own model specified
+        component_model = component_config.get('model')
+        
+        # Check if there's a model suffix to add
+        model_suffix = component_config.get('model_suffix')
+        
+        # Determine the final model name
+        if component_model:
+            # Component has its own model specification
+            model = component_model
+        else:
+            # Inherit from provider's model
+            model = provider_model
+        
+        # Add suffix if specified
+        if model_suffix and model:
+            model = f"{model}{model_suffix}"
+        
+        self.logger.info(f"{component_name.capitalize()} using model: {model}")
+        return model
+
+    def _resolve_provider_configs(self) -> None:
+        """
+        Resolve provider configurations and ensure backward compatibility.
+        This method maps the selected providers to the legacy config structure
+        to minimize changes to existing code.
+        """
+        # Get selected providers
+        inference_provider = self.config['general'].get('inference_provider', 'ollama')
+        datasource_provider = self.config['general'].get('datasource_provider', 'chroma')
+        
+        # Resolve providers for safety and reranker components
+        safety_provider = self._resolve_component_provider('safety')
+        reranker_provider = self._resolve_component_provider('reranker')
+        
+        # Resolve models for safety and reranker
+        safety_model = self._resolve_component_model('safety', safety_provider)
+        reranker_model = self._resolve_component_model('reranker', reranker_provider)
+        
+        # Update safety and reranker configurations with resolved values
+        if 'safety' in self.config:
+            self.config['safety']['resolved_provider'] = safety_provider
+            self.config['safety']['resolved_model'] = safety_model
+        
+        if 'reranker' in self.config:
+            self.config['reranker']['resolved_provider'] = reranker_provider
+            self.config['reranker']['resolved_model'] = reranker_model
+        
+        # For backward compatibility, copy selected inference provider config to the old location
+        if inference_provider in self.config.get('inference', {}):
+            self.config['ollama'] = self.config['inference'][inference_provider]
+        
+        # For backward compatibility, copy selected datasource provider config to the old location
+        if datasource_provider in self.config.get('datasources', {}):
+            self.config['chroma'] = self.config['datasources'][datasource_provider]
+        
+        # Handle mongodb settings for backward compatibility
+        if 'internal_services' in self.config and 'mongodb' in self.config['internal_services']:
+            self.config['mongodb'] = self.config['internal_services']['mongodb']
+        
+        # Handle elasticsearch settings for backward compatibility
+        if 'internal_services' in self.config and 'elasticsearch' in self.config['internal_services']:
+            self.config['elasticsearch'] = self.config['internal_services']['elasticsearch']
+        
+        self.logger.info(f"Using inference provider: {inference_provider}")
+        self.logger.info(f"Using datasource provider: {datasource_provider}")
+        self.logger.info(f"Using safety provider: {safety_provider}")
+        self.logger.info(f"Using reranker provider: {reranker_provider}")
+
+    def _initialize_datasource_client(self, provider: str) -> Any:
+        """
+        Initialize a datasource client based on the selected provider.
+        
+        Args:
+            provider: The datasource provider to initialize
+            
+        Returns:
+            An initialized datasource client
+        """
+        if provider == 'postgres':
+            # Example implementation for PostgreSQL
+            postgres_conf = self.config['datasources']['postgres']
+            # Return a PostgreSQL client implementation
+            self.logger.info(f"PostgreSQL datasource not yet implemented")
+            return None
+        elif provider == 'milvus':
+            # Example implementation for Milvus
+            milvus_conf = self.config['datasources']['milvus']
+            # Return a Milvus client implementation
+            self.logger.info(f"Milvus datasource not yet implemented")
+            return None
+        else:
+            self.logger.warning(f"Unknown datasource provider: {provider}, falling back to ChromaDB")
+            # Default to ChromaDB
+            chroma_conf = self.config['datasources']['chroma']
+            return chromadb.HttpClient(
+                host=chroma_conf['host'],
+                port=int(chroma_conf['port'])
+            )   
+    
     async def _initialize_services(self, app: FastAPI) -> None:
         """
         Initialize all services and clients required by the application.
@@ -221,13 +400,23 @@ class InferenceServer:
         # Store config in app state
         app.state.config = self.config
         
-        # Initialize Chroma client
-        chroma_conf = self.config['chroma']
-        self.logger.info(f"Connecting to ChromaDB at {chroma_conf['host']}:{chroma_conf['port']}...")
-        app.state.chroma_client = chromadb.HttpClient(
-            host=chroma_conf['host'],
-            port=int(chroma_conf['port'])
-        )
+        # Resolve provider configurations
+        self._resolve_provider_configs()
+        
+        # Initialize Chroma client (or the selected datasource provider)
+        datasource_provider = self.config['general'].get('datasource_provider', 'chroma')
+        if datasource_provider == 'chroma':
+            chroma_conf = self.config['datasources']['chroma']
+            self.logger.info(f"Connecting to ChromaDB at {chroma_conf['host']}:{chroma_conf['port']}...")
+            app.state.chroma_client = chromadb.HttpClient(
+                host=chroma_conf['host'],
+                port=int(chroma_conf['port'])
+            )
+        else:
+            self.logger.info(f"Connecting to {datasource_provider} datasource...")
+            # Future implementation for other datasource providers
+            # This would initialize the appropriate client based on the selected provider
+            app.state.datasource_client = self._initialize_datasource_client(datasource_provider)
         
         # Initialize API Key Service
         app.state.api_key_service = ApiKeyService(self.config)
@@ -237,7 +426,7 @@ class InferenceServer:
             self.logger.info("API Key Service initialized successfully")
         except Exception as e:
             self.logger.error(f"Failed to initialize API Key Service: {str(e)}")
-            self.logger.error(f"MongoDB connection details: {self.config.get('mongodb', {})}")
+            self.logger.error(f"MongoDB connection details: {self.config.get('internal_services', {}).get('mongodb', {})}")
             raise
         
         # Initialize Prompt Service
@@ -251,12 +440,24 @@ class InferenceServer:
             self.logger.error(f"MongoDB connection details: {self.config.get('mongodb', {})}")
             raise
         
+        inference_provider = self.config['general'].get('inference_provider', 'ollama')
+        ollama_conf = self.config['inference'].get(inference_provider, {})
+        
         # Initialize Ollama embeddings
-        ollama_conf = self.config['ollama']
         app.state.embeddings = OllamaEmbeddings(
             model=ollama_conf['embed_model'],
             base_url=ollama_conf['base_url']
         )
+        
+        # Initialize datasource client based on selected provider
+        datasource_provider = self.config['general'].get('datasource_provider', 'chroma')
+        if datasource_provider == 'chroma':
+            chroma_conf = self.config['datasources']['chroma']
+            self.logger.info(f"Connecting to ChromaDB at {chroma_conf['host']}:{chroma_conf['port']}...")
+            app.state.chroma_client = chromadb.HttpClient(
+                host=chroma_conf['host'],
+                port=int(chroma_conf['port'])
+            )
         
         # Initialize retriever without a collection - it will be set when an API key is provided
         app.state.retriever = QAChromaRetriever(
@@ -270,12 +471,18 @@ class InferenceServer:
         # Load no results message
         no_results_message = self._load_no_results_message()
         
-        # Create LLM client with guardrail service
-        app.state.llm_client = QAOllamaClient(
+        # Initialize reranker service if enabled
+        if _is_true_value(self.config.get('reranker', {}).get('enabled', False)):
+            app.state.reranker_service = RerankerService(self.config)
+        else:
+            app.state.reranker_service = None
+        
+        # Create LLM client with using the factory
+        app.state.llm_client = LLMClientFactory.create_llm_client(
             self.config, 
             app.state.retriever,
             guardrail_service=app.state.guardrail_service,
-            reranker_service=app.state.reranker_service if hasattr(app.state, 'reranker_service') else None,
+            reranker_service=app.state.reranker_service,
             prompt_service=app.state.prompt_service,
             no_results_message=no_results_message
         )
@@ -291,16 +498,15 @@ class InferenceServer:
         ]
         
         # Only initialize reranker if enabled
-        if _is_true_value(self.config.get('reranker', {}).get('enabled', False)):
-            app.state.reranker_service = RerankerService(self.config)
+        if app.state.reranker_service:
             init_tasks.append(app.state.reranker_service.initialize())
         
         await asyncio.gather(*init_tasks)
         
         # Verify LLM connection
         if not await app.state.llm_client.verify_connection():
-            self.logger.error("Failed to connect to Ollama. Exiting...")
-            raise Exception("Failed to connect to Ollama")
+            self.logger.error(f"Failed to connect to {inference_provider}. Exiting...")
+            raise Exception(f"Failed to connect to {inference_provider}")
         
         # Initialize remaining services
         app.state.health_service = HealthService(self.config, app.state.chroma_client, app.state.llm_client)
@@ -352,8 +558,26 @@ class InferenceServer:
         """Log a summary of the current configuration."""
         self.logger.info("=" * 50)
         self.logger.info("Server initialization complete. Configuration summary:")
-        self.logger.info(f"Server running with {self.config['ollama']['model']} model")
-        self.logger.info(f"Confidence threshold: {self.config['chroma'].get('confidence_threshold', 0.85)}")
+        
+        # Log selected providers
+        inference_provider = self.config['general'].get('inference_provider', 'ollama')
+        datasource_provider = self.config['general'].get('datasource_provider', 'chroma')
+        
+        # Get resolved providers for safety and reranker
+        safety_provider = self.config.get('safety', {}).get('resolved_provider', inference_provider)
+        reranker_provider = self.config.get('reranker', {}).get('resolved_provider', inference_provider)
+
+
+        self.logger.info(f"Inference provider: {inference_provider}")
+        self.logger.info(f"Datasource provider: {datasource_provider}")
+        
+        # Log model information based on the selected inference provider
+        if inference_provider in self.config.get('inference', {}):
+            self.logger.info(f"Server running with {self.config['inference'][inference_provider]['model']} model")
+        
+        # Log datasource configuration
+        if datasource_provider == 'chroma':
+            self.logger.info(f"Confidence threshold: {self.config['datasources']['chroma'].get('confidence_threshold', 0.85)}")
         
         # Retriever settings
         if hasattr(self.app.state, 'retriever'):
@@ -367,40 +591,45 @@ class InferenceServer:
         
         self.logger.info(f"Reranker: {'enabled' if reranker_enabled else 'disabled'}")
         if reranker_enabled:
-            model = reranker_config.get('model', self.config['ollama']['model'])
+            # Use resolved model from the provider resolution
+            model = reranker_config.get('resolved_model', '')
             top_n = reranker_config.get('top_n', 3)
             
+            self.logger.info(f"  Provider: {reranker_provider}")
             self.logger.info(f"  Model: {model}")
             self.logger.info(f"  Top N: {top_n} documents")
             self.logger.info(f"  Temperature: {reranker_config.get('temperature', 0.0)}")
         
         # Safety check configuration
-        safety_mode = self.config.get('safety', {}).get('mode', 'strict')
-        safety_enabled = self.config.get('safety', {}).get('enabled', True)
+        safety_config = self.config.get('safety', {})
+        safety_enabled = _is_true_value(safety_config.get('enabled', True))
+        safety_mode = safety_config.get('mode', 'strict')
+        
         self.logger.info(f"Safety service: {'enabled' if safety_enabled else 'disabled'}")
         if safety_enabled:
-            self.logger.info(f"Safety check mode: {safety_mode}")
+            self.logger.info(f"  Provider: {safety_provider}")
+            self.logger.info(f"  Model: {safety_config.get('resolved_model', '')}")
+            self.logger.info(f"  Safety check mode: {safety_mode}")
+            
             if safety_mode == 'fuzzy':
-                self.logger.info("Using fuzzy matching for safety checks")
+                self.logger.info("  Using fuzzy matching for safety checks")
             elif safety_mode == 'disabled':
-                self.logger.warning("⚠️ Safety checks are disabled - all queries will be processed")
+                self.logger.warning("  ⚠️ Safety checks are disabled - all queries will be processed")
         
-        # Log safety configuration
-        safety_config = self.config.get('safety', {})
-        max_retries = safety_config.get('max_retries', 3)
-        retry_delay = safety_config.get('retry_delay', 1.0)
-        request_timeout = safety_config.get('request_timeout', 15)
-        allow_on_timeout = safety_config.get('allow_on_timeout', False)
-        
-        if safety_enabled:
-            self.logger.info(f"Safety check config: retries={max_retries}, delay={retry_delay}s, timeout={request_timeout}s")
+            # Log safety configuration details
+            max_retries = safety_config.get('max_retries', 3)
+            retry_delay = safety_config.get('retry_delay', 1.0)
+            request_timeout = safety_config.get('request_timeout', 15)
+            allow_on_timeout = _is_true_value(safety_config.get('allow_on_timeout', False))
+            
+            self.logger.info(f"  Safety check config: retries={max_retries}, delay={retry_delay}s, timeout={request_timeout}s")
             if allow_on_timeout:
-                self.logger.warning("⚠️ Queries will be allowed through if safety check times out")
+                self.logger.warning("  ⚠️ Queries will be allowed through if safety check times out")
         
         # Log authenticated services without exposing sensitive info
         auth_services = []
-        if (_is_true_value(self.config.get('elasticsearch', {}).get('enabled', False)) and 
-                self.config['elasticsearch'].get('auth', {}).get('username')):
+        if (_is_true_value(self.config.get('internal_services', {}).get('elasticsearch', {}).get('enabled', False)) and 
+                self.config['internal_services']['elasticsearch'].get('auth', {}).get('username')):
             auth_services.append("Elasticsearch")
         if auth_services:
             self.logger.info(f"Authenticated services: {', '.join(auth_services)}")
@@ -480,6 +709,12 @@ class InferenceServer:
             """
             collection_name, system_prompt_id = api_key_result
             
+            # Extract the API key from the request header
+            api_key = request.headers.get("X-API-Key")
+            
+            # Mask API key for logging
+            masked_api_key = mask_api_key(api_key, show_last=True)
+            
             # Resolve client IP (using X-Forwarded-For if available)
             client_ip = request.headers.get("X-Forwarded-For", request.client.host if request.client else "unknown")
             
@@ -489,6 +724,7 @@ class InferenceServer:
             # Log the collection and prompt being used
             if self.config.get('general', {}).get('verbose', False):
                 self.logger.info(f"Using collection '{collection_name}' for chat request from {client_ip}")
+                self.logger.info(f"API key: {masked_api_key}")
                 if system_prompt_id:
                     self.logger.info(f"Using system prompt ID: {system_prompt_id}")
 
@@ -498,7 +734,8 @@ class InferenceServer:
                         message=chat_message.message,
                         client_ip=client_ip,
                         collection_name=collection_name,
-                        system_prompt_id=system_prompt_id
+                        system_prompt_id=system_prompt_id,
+                        api_key=api_key
                     ),
                     media_type="text/event-stream"
                 )
@@ -507,7 +744,8 @@ class InferenceServer:
                     message=chat_message.message,
                     client_ip=client_ip,
                     collection_name=collection_name,
-                    system_prompt_id=system_prompt_id
+                    system_prompt_id=system_prompt_id,
+                    api_key=api_key
                 )
                 if "error" in result:
                     raise HTTPException(status_code=500, detail=result["error"])

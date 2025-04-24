@@ -1,16 +1,16 @@
 import chromadb
 import yaml
-
+from pathlib import Path
 def load_config():
-    with open('../config/config.yaml', 'r') as file:
-        return yaml.safe_load(file)
+    CONFIG_PATH = Path(__file__).resolve().parents[3] / "config" / "config.yaml"
+    return yaml.safe_load(CONFIG_PATH.read_text())
 
 # Load configuration
 config = load_config()
 
 # Create client using config values
-chroma_host = config['chroma']['host']
-chroma_port = config['chroma']['port']
+chroma_host = config['datasources']['chroma']['host']
+chroma_port = config['datasources']['chroma']['port']
 client = chromadb.HttpClient(host=chroma_host, port=chroma_port)
 
 # Get list of all collections

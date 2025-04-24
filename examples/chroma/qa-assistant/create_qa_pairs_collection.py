@@ -258,13 +258,13 @@ if __name__ == "__main__":
     
     # Updated configuration with Chroma server details
     CONFIG = {
-        "ollama_base_url": config['ollama']['base_url'],
+        "ollama_base_url": config['inference']['ollama']['base_url'],
         "json_file_path": args.json_file_path,
         "batch_size": 50,
-        "chroma_host": config['chroma']['host'],
-        "chroma_port": config['chroma']['port'],
+        "chroma_host": config['datasources']['chroma']['host'],
+        "chroma_port": config['datasources']['chroma']['port'],
         "collection_name": args.collection_name,
-        "model": config['ollama']['embed_model']
+        "model": config['inference']['ollama']['embed_model']
     }
     
     # Run ingestion with Chroma

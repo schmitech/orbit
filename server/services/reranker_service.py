@@ -2,7 +2,7 @@
 Reranker Service
 ================
 
-A service that provides reranking functionality for retrieved documents using Ollama.
+A service that provides reranking functionality for retrieved documents using LLMs.
 It acts as a cross-encoder to score query-document pairs for higher precision retrieval.
 """
 
@@ -11,12 +11,14 @@ import aiohttp
 import asyncio
 from typing import Dict, Any, List, Tuple
 
+from config.config_manager import _is_true_value
+
 # Configure logging
 logger = logging.getLogger(__name__)
 
 
 class RerankerService:
-    """Handles document reranking using Ollama models"""
+    """Handles document reranking using LLM models"""
 
     def __init__(self, config: Dict[str, Any]):
         """
@@ -26,23 +28,40 @@ class RerankerService:
             config: Application configuration dictionary
         """
         self.config = config
-        self.base_url = config['ollama']['base_url']
         
         # Get reranker configuration
         reranker_config = config.get('reranker', {})
         
         # Load settings
-        self.enabled = reranker_config.get('enabled', False)
-        self.model = reranker_config.get('model', config['ollama']['model'])
+        self.enabled = _is_true_value(reranker_config.get('enabled', False))
+        
+        # Get provider information - use resolved_provider and resolved_model 
+        # that were set by _resolve_provider_configs
+        self.provider = reranker_config.get('resolved_provider', 'ollama')
+        self.model = reranker_config.get('resolved_model', 'gemma3:1b')
+        
+        # Get provider-specific configuration
+        provider_config = config.get('inference', {}).get(self.provider, {})
+        self.base_url = provider_config.get('base_url', 'http://localhost:11434')
+        
+        if provider_config:
+            logger.info(f"Reranker service using provider: {self.provider}")
+            logger.info(f"Reranker service using base URL: {self.base_url}")
+        else:
+            # Fallback to legacy config for backward compatibility
+            self.base_url = config.get('ollama', {}).get('base_url', 'http://localhost:11434')
+            logger.warning(f"Using legacy config for reranker service: {self.base_url}")
+        
+        # Other reranker parameters
         self.batch_size = reranker_config.get('batch_size', 5)
         self.temperature = reranker_config.get('temperature', 0.0)  # Use deterministic scoring
         self.top_n = reranker_config.get('top_n', 3)  # Number of documents to return after reranking
         
-        self.verbose = config.get('general', {}).get('verbose', False)
+        self.verbose = _is_true_value(config.get('general', {}).get('verbose', False))
         self.session = None
         
         if self.verbose:
-            logger.info(f"Reranker service initialized: enabled={self.enabled}, model={self.model}")
+            logger.info(f"Reranker service initialized: enabled={self.enabled}, provider={self.provider}, model={self.model}")
             logger.info(f"Batch size: {self.batch_size}, Top N: {self.top_n}")
 
     async def initialize(self):
@@ -145,7 +164,7 @@ RELEVANCE SCORE (0-10):"""
             await self.initialize()
             
             if self.verbose:
-                logger.info(f"Reranking {len(documents)} documents")
+                logger.info(f"Reranking {len(documents)} documents using {self.provider}:{self.model}")
             
             # Process documents in batches to avoid overloading the server
             scored_documents = []
@@ -176,4 +195,4 @@ RELEVANCE SCORE (0-10):"""
 
         except Exception as e:
             logger.error(f"Error in reranking: {str(e)}")
-            return documents  # Return original documents if reranking fails 
+            return documents  # Return original documents if reranking fails

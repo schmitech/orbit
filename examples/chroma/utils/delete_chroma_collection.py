@@ -55,8 +55,8 @@ def delete_chroma_collection(collection_name: str):
     config = load_config()
 
     # Get Chroma server details from configuration
-    chroma_host = config['chroma']['host']
-    chroma_port = config['chroma']['port']
+    chroma_host = config['datasources']['chroma']['host']
+    chroma_port = config['datasources']['chroma']['port']
     print(f"Connecting to Chroma server at: {chroma_host}:{chroma_port}")
 
     # Initialize client with HTTP connection

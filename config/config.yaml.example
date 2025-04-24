@@ -6,6 +6,12 @@ general:
     port: 3443
     cert_file: "./cert.pem"
     key_file: "./key.pem"
+  inference_provider: "ollama"
+  datasource_provider: "chroma"
+
+api_keys:
+  header_name: "X-API-Key"
+  require_for_health: true
 
 logging:
   level: "INFO"  # Options: DEBUG, INFO, WARNING, ERROR, CRITICAL
@@ -23,41 +29,121 @@ logging:
   capture_warnings: true
   propagate: false
 
-elasticsearch:
-  enabled: false
-  node: 'https://localhost:9200'
-  index: 'chatbot'
-  auth:
-    username: ${ELASTICSEARCH_USERNAME}
-    password: ${ELASTICSEARCH_PASSWORD}
+internal_services:
+  elasticsearch:
+    enabled: false
+    node: 'https://localhost:9200'
+    index: 'orbit'
+    auth:
+      username: ${INTERNAL_SERVICES_ELASTICSEARCH_USERNAME}
+      password: ${INTERNAL_SERVICES_ELASTICSEARCH_PASSWORD}
+  mongodb:
+    host: "localhost"
+    port: 27017
+    database: "orbit"
+    apikey_collection: "api_keys"
+    username: ${INTERNAL_SERVICES_MONGODB_USERNAME}
+    password: ${INTERNAL_SERVICES_MONGODB_PASSWORD}
 
-chroma:
-  host: "localhost"
-  port: 8000
-  confidence_threshold: 0.85
-  relevance_threshold: 0.7
+datasources:
+  chroma:
+    host: "localhost"
+    port: 8000
+    confidence_threshold: 0.85
+    relevance_threshold: 0.7
+  postgres:
+    host: "localhost"
+    port: 5432
+    database: "retrieval"
+    username: ${DATASOURCE_POSTGRES_USERNAME}
+    password: ${DATASOURCE_POSTGRES_PASSWORD}
+    schema: "public"
+    table: "documents"
+    embedding_column: "embedding"
+    content_column: "content"
+    metadata_columns: ["source", "date", "author"]
+  milvus:
+    host: "localhost"
+    port: 19530
+    dim: 768
+    metric_type: "IP"  # Options: L2, IP, COSINE
+  pinecone:
+    api_key: ${DATASOURCE_PINECONE_API_KEY}
+    environment: ${DATASOURCE_PINECONE_ENVIRONMENT}
+    index_name: ${DATASOURCE_PINECONE_INDEX_NAME}
+  elasticsearch:
+    node: 'https://localhost:9200'
+    auth:
+      username: ${DATASOURCE_ELASTICSEARCH_USERNAME}
+      password: ${DATASOURCE_ELASTICSEARCH_PASSWORD}
+  mongodb:
+    host: "localhost"
+    port: 27017
+    database: "orbit"
+    apikey_collection: "api_keys"
+    username: ${DATASOURCE_MONGODB_USERNAME}
+    password: ${DATASOURCE_MONGODB_PASSWORD}    
 
-ollama:
-  base_url: "http://localhost:11434"
-  temperature: 0.1
-  top_p: 0.8
-  top_k: 20
-  repeat_penalty: 1.1
-  num_predict: 1024
-  num_ctx: 8192
-  num_threads: 8
-  model: "gemma3:4b"
-  embed_model: "bge-m3"
-  stream: true
-  summarization:
-    enabled: true
-    model: "gemma3:4b"
-    max_length: 100
-    min_text_length: 500
+# Inference providers
+inference:
+  ollama:
+    base_url: "http://localhost:11434"
+    temperature: 0.1
+    top_p: 0.8
+    top_k: 20
+    repeat_penalty: 1.1
+    num_predict: 1024
+    num_ctx: 8192
+    num_threads: 8
+    model: "gemma3:1b"
+    embed_model: "nomic-embed-text"
+    stream: true
+    summarization:
+      enabled: true
+      model: "gemma3:1b"
+      max_length: 100
+      min_text_length: 500
+  vllm:
+    host: "http://localhost:5000"
+    port: 8000
+    temperature: 0.1
+    top_p: 0.8
+    top_k: 20
+    max_tokens: 1024
+    model: "llama3:1b"
+    embed_model: "nomic-embed-text"
+    stream: true
+  llama_cpp:
+    model_path: "/path/to/models/llama-8b.gguf"
+    temperature: 0.1
+    top_p: 0.8
+    top_k: 20
+    max_tokens: 1024
+    n_ctx: 8192
+    n_threads: 8
+    embed_model: "nomic-embed-text"
+    stream: true
+  bedrock:
+    region: "ca-central-1"
+    model_id: "anthropic.claude-3-sonnet-20240229-v1:0"
+    temperature: 0.1
+    top_p: 0.8
+    max_tokens: 1024
+    embed_model: "amazon.titan-embed-text-v1"
+    stream: true
+  openai:
+    api_key: ${OPENAI_API_KEY}
+    model: "gpt-4o"
+    temperature: 0.1
+    top_p: 0.8
+    max_tokens: 1024
+    embed_model: "text-embedding-3-large"
+    stream: true
 
 safety:
   enabled: false
   mode: "fuzzy"  # Options: strict, fuzzy, disabled
+  provider_override: null  # If null, uses general.inference_provider
   model: "gemma3:12b"
   max_retries: 3
   retry_delay: 1.0
@@ -71,20 +157,10 @@ safety:
   repeat_penalty: 1.1
 
 reranker:
-  enabled: true
-  model: "gemma3:4b"
+  enabled: false
+  provider_override: null  # If null, uses general.inference_provider
+  model: "gemma3:1b"
   batch_size: 5
   temperature: 0.0
   top_n: 3
 
-api_keys:
-  header_name: "X-API-Key"
-  require_for_health: true
-
-mongodb:
-  host: "localhost"
-  port: 27017
-  database: "chatbot"
-  apikey_collection: "api_keys"
-  username: ${MONGODB_USERNAME}
-  password: ${MONGODB_PASSWORD}

@@ -133,10 +133,31 @@ class PromptService:
             
         try:
             # Ensure prompt_id is an ObjectId
-            if isinstance(prompt_id, str):
-                prompt_id = ObjectId(prompt_id)
+            if prompt_id is None:
+                logger.info("No prompt_id provided to get_prompt_by_id")
+                return None
                 
+            original_prompt_id = prompt_id
+            if isinstance(prompt_id, str):
+                try:
+                    prompt_id = ObjectId(prompt_id)
+                    logger.info(f"Converted string prompt ID '{original_prompt_id}' to ObjectId: {prompt_id}")
+                except Exception as e:
+                    logger.error(f"Failed to convert prompt ID '{original_prompt_id}' to ObjectId: {str(e)}")
+                    return None
+            
+            logger.info(f"Looking up prompt with ID: {prompt_id}")
             prompt = await self.prompts_collection.find_one({"_id": prompt_id})
+            
+            if prompt:
+                logger.info(f"Found prompt: {prompt.get('name')} (version {prompt.get('version')})")
+                # Log a preview of the prompt content
+                prompt_text = prompt.get('prompt', '')
+                preview = prompt_text[:100] + '...' if len(prompt_text) > 100 else prompt_text
+                logger.info(f"Prompt content preview: {preview}")
+            else:
+                logger.warning(f"No prompt found for ID: {prompt_id}")
+                
             return prompt
         except Exception as e:
             logger.error(f"Error retrieving prompt: {str(e)}")

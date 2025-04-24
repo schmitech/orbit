@@ -39,27 +39,23 @@ def test_chroma_ingestion(ollama_base_url: str, test_query: str, collection_name
     # Print environment variables being used
     print("\nConfiguration Variables:")
     print(f"OLLAMA_BASE_URL: {ollama_base_url}")
-    print(f"OLLAMA_EMBED_MODEL: {config['ollama']['embed_model']}")
-    print(f"CHROMA_HOST: {config['chroma']['host']}")
-    print(f"CHROMA_PORT: {config['chroma']['port']}")
+    print(f"OLLAMA_EMBED_MODEL: {config['inference']['ollama']['embed_model']}")
+    print(f"CHROMA_HOST: {config['datasources']['chroma']['host']}")
+    print(f"CHROMA_PORT: {config['datasources']['chroma']['port']}")
     
-    # Use provided collection name or fall back to config
-    if not collection_name:
-        collection_name = config['chroma']['collection']
     print(f"CHROMA_COLLECTION: {collection_name}\n")
-
     print(f"Using Ollama server at: {ollama_base_url}")
     
     # Get Chroma server details from configuration
-    chroma_host = config['chroma']['host']
-    chroma_port = config['chroma']['port']
+    chroma_host = config['datasources']['chroma']['host']
+    chroma_port = config['datasources']['chroma']['port']
     print(f"Using Chroma server at: {chroma_host}:{chroma_port}")
     
     # Initialize client with HTTP connection - exactly as in create-chroma-collection.py
     client = chromadb.HttpClient(host=chroma_host, port=int(chroma_port))
     
     # Initialize the same embeddings model used in ingestion
-    model = config['ollama']['embed_model']
+    model = config['inference']['ollama']['embed_model']
     if not model:
         raise ValueError("OLLAMA_EMBED_MODEL environment variable is not set")
     
@@ -170,7 +166,7 @@ def test_chroma_ingestion(ollama_base_url: str, test_query: str, collection_name
 
 if __name__ == "__main__":
     config = load_config()
-    ollama_base_url = config['ollama']['base_url']
+    ollama_base_url = config['inference']['ollama']['base_url']
     if not ollama_base_url:
         raise ValueError("OLLAMA_BASE_URL environment variable is not set")
     

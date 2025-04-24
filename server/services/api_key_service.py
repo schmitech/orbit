@@ -16,6 +16,8 @@ import secrets
 import string
 from bson import ObjectId
 
+from utils.text_utils import mask_api_key
+
 logger = logging.getLogger(__name__)
 
 class ApiKeyService:
@@ -167,30 +169,33 @@ class ApiKeyService:
             # Find the API key in the database
             key_doc = await self.api_keys_collection.find_one({"api_key": api_key})
             
+            # Create a masked version of the API key for logging
+            masked_key = mask_api_key(api_key)
+            
             # Check if the key exists
             if not key_doc:
-                logger.warning(f"Invalid API key: {api_key[:5]}...")
+                logger.warning(f"Invalid API key: {masked_key}")
                 return False, None, None
                 
             # Check if the key is active - explicitly look for False
             active = key_doc.get("active")
             if active is False:  # Only check for explicit False, not falsy values like None
-                logger.warning(f"API key is disabled: {api_key[:5]}...")
+                logger.warning(f"API key is disabled: {masked_key}")
                 return False, None, None
             
             # Get the collection name
             collection_name = key_doc.get("collection") or key_doc.get("collection_name")
             if not collection_name:
-                logger.warning(f"API key {api_key[:5]}... has no associated collection")
+                logger.warning(f"API key {masked_key} has no associated collection")
                 return False, None, None
             
             # Get the system prompt ID if it exists
             system_prompt_id = key_doc.get("system_prompt_id")
                 
             if self.config.get('general', {}).get('verbose', False):
-                logger.info(f"Valid API key. Using collection: {collection_name}")
+                logger.info(f"Valid API key ({masked_key}). Using collection: {collection_name}")
                 if system_prompt_id:
-                    logger.info(f"API key has associated system prompt ID: {system_prompt_id}")
+                    logger.info(f"API key {masked_key} has associated system prompt ID: {system_prompt_id}")
                     
             return True, collection_name, system_prompt_id
             
@@ -309,9 +314,11 @@ class ApiKeyService:
             
             success = result.modified_count > 0
             if success:
-                logger.info(f"Updated API key {api_key[:5]}... with system prompt ID: {system_prompt_id}")
+                masked_key = mask_api_key(api_key)
+                logger.info(f"Updated API key {masked_key} with system prompt ID: {system_prompt_id}")
             else:
-                logger.warning(f"API key {api_key[:5]}... was not found or not modified")
+                masked_key = mask_api_key(api_key)
+                logger.warning(f"API key {masked_key} was not found or not modified")
                 
             return success
         except Exception as e:

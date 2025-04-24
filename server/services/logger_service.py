@@ -6,13 +6,18 @@ import os
 import json
 import logging
 import ipaddress
+import asyncio
+import traceback
 from typing import Dict, Any, Union, List, Optional, TypedDict
 from datetime import datetime
-import asyncio
 from logging.handlers import TimedRotatingFileHandler, RotatingFileHandler
+
 from pythonjsonlogger import jsonlogger
 from elasticsearch import AsyncElasticsearch
-import traceback
+from elasticsearch.exceptions import ConnectionError, TransportError, NotFoundError
+from fastapi import HTTPException
+
+from utils.text_utils import mask_api_key
 
 # Configure basic logging
 logging.basicConfig(
@@ -271,7 +276,7 @@ class LoggerService:
 
         if api_key:
             log_data["api_key"] = {
-                "key": api_key[:5] + "..." if api_key else None,
+                "key": mask_api_key(api_key),
                 "timestamp": timestamp.isoformat()
             }
 

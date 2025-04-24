@@ -53,6 +53,30 @@ def sanitize_error_message(message: str) -> str:
     return sanitized
 
 
+def mask_api_key(api_key: str, show_last: bool = False, num_chars: int = 4) -> str:
+    """
+    Mask an API key for secure logging.
+    
+    Args:
+        api_key: The API key to mask
+        show_last: If True, show the last num_chars of the key, otherwise show the first num_chars
+        num_chars: Number of characters to show
+        
+    Returns:
+        A masked version of the API key
+    """
+    if not api_key:
+        return "None"
+        
+    if len(api_key) <= num_chars:
+        return "****"
+        
+    if show_last:
+        return f"...{api_key[-num_chars:]}"
+    else:
+        return f"{api_key[:num_chars]}..."
+
+
 def simple_fix_text(text: str) -> str:
     """Apply minimal text fixes to a chunk (focused on beginning of chunk only)"""
     # Only fix beginning of chunk if needed - for connecting to previous chunk
