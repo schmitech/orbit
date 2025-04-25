@@ -6,7 +6,7 @@ general:
     port: 3443
     cert_file: "./cert.pem"
     key_file: "./key.pem"
-  inference_provider: "groq"
+  inference_provider: "ollama"
   datasource_provider: "chroma"
 
 embedding:

@@ -1,19 +1,35 @@
+"""
+This script is used to test the Google Gemini API.
+It will try to use the model from the command line argument,
+or use the model from the .env file if no argument is provided.
+
+Usage:
+
+python ./tests/gemini/test_google_gemini.py --model gemini-2.0-flash
+"""
 import os
 import sys
+import argparse
 
 print(f"Python executable: {sys.executable}")
 print(f"Python version: {sys.version}")
 print(f"Python path: {sys.path}")
 
+# Set up argument parser
+parser = argparse.ArgumentParser(description='Test Google Gemini API')
+parser.add_argument('--model', type=str, default='gemini-pro', 
+                    help='The Gemini model to use (default: gemini-pro)')
+args = parser.parse_args()
+
 try:
     from dotenv import load_dotenv
     
-    # Get the current working directory
-    cwd = os.getcwd()
-    print(f"Current working directory: {cwd}")
+    # Get the current file's directory
+    current_dir = os.path.dirname(os.path.abspath(__file__))
     
-    # Explicitly use the .env file in the current directory
-    dotenv_path = os.path.join(cwd, ".env")
+    # Go up two directories to reach the server directory from tests/gemini/
+    dotenv_path = os.path.join(current_dir, "..", "..", ".env")
+    print(f"Looking for .env at: {dotenv_path}")  # Debug print
     if os.path.exists(dotenv_path):
         print(f"Loading environment variables from: {dotenv_path}")
         # Use override=True to force reload
@@ -35,8 +51,11 @@ print(f"API key found: {api_key[:5]}...{api_key[-4:]}")
 print(f"API key length: {len(api_key)} characters")
 print(f"DEFAULT_AI_PROVIDER: {os.environ.get('DEFAULT_AI_PROVIDER', 'not set')}")
 
+# Use the model from command line argument
+google_model = args.model
+print(f"Using model: {google_model}")
+
 # Check for GOOGLE_GENAI_MODEL environment variable
-google_model = os.environ.get("GOOGLE_GENAI_MODEL")
 if google_model:
     print(f"GOOGLE_GENAI_MODEL: {google_model}")
 else:
@@ -94,14 +113,12 @@ try:
         for i, model in enumerate(gemini_models[:5]):  # Show first 5 models
             print(f"  {i+1}. {model.name}")
         
-        # Try a simple completion with Gemini using the current API
+        # Try a simple completion with Gemini using the model from command line
         print("\nTesting Gemini completion...")
-        # Use the GOOGLE_GENAI_MODEL environment variable or default to gemini-pro
-        model_name = os.environ.get("GOOGLE_GENAI_MODEL", "gemini-pro")
-        print(f"Using model: {model_name}")
+        print(f"Using model: {google_model}")
         
-        # Create a generative model instance
-        model = genai.GenerativeModel(model_name)
+        # Create a generative model instance with the specified model
+        model = genai.GenerativeModel(google_model)
         
         # Generate content
         response = model.generate_content("Say hello!")
