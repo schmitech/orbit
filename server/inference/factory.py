@@ -11,6 +11,14 @@ from .base_llm_client import BaseLLMClient
 from .clients.ollama_client import OllamaClient
 from .clients.vllm_client import QAVLLMClient
 from .clients.llama_cpp_client import QALlamaCppClient
+from .clients.openai_client import OpenAIClient
+from .clients.gemini_client import GeminiClient
+from .clients.huggingface_client import HuggingFaceClient
+from .clients.groq_client import GroqClient
+from .clients.deepseek_client import DeepSeekClient
+from .clients.vertex_ai_client import VertexAIClient
+from .clients.mistral_client import MistralClient
+from .clients.anthropic_client import AnthropicClient
 
 class LLMClientFactory:
     """Factory for creating LLM clients based on the selected inference provider."""
@@ -60,6 +68,78 @@ class LLMClientFactory:
             )
         elif provider == 'llama_cpp':
             return QALlamaCppClient(
+                config, 
+                retriever, 
+                guardrail_service, 
+                reranker_service, 
+                prompt_service, 
+                no_results_message
+            )
+        elif provider == 'openai':
+            return OpenAIClient(
+                config, 
+                retriever, 
+                guardrail_service, 
+                reranker_service, 
+                prompt_service, 
+                no_results_message
+            )
+        elif provider == 'gemini':
+            return GeminiClient(
+                config, 
+                retriever, 
+                guardrail_service, 
+                reranker_service, 
+                prompt_service, 
+                no_results_message
+            )
+        elif provider == 'huggingface':
+            return HuggingFaceClient(
+                config, 
+                retriever, 
+                guardrail_service, 
+                reranker_service, 
+                prompt_service, 
+                no_results_message
+            )
+        elif provider == 'groq':
+            return GroqClient(
+                config, 
+                retriever, 
+                guardrail_service, 
+                reranker_service, 
+                prompt_service, 
+                no_results_message
+            )
+        elif provider == 'deepseek':
+            return DeepSeekClient(
+                config, 
+                retriever, 
+                guardrail_service, 
+                reranker_service, 
+                prompt_service, 
+                no_results_message
+            )
+        elif provider == 'vertex':
+            return VertexAIClient(
+                config, 
+                retriever, 
+                guardrail_service, 
+                reranker_service, 
+                prompt_service, 
+                no_results_message
+            )
+        elif provider == 'mistral':
+            return MistralClient(
+                config, 
+                retriever, 
+                guardrail_service, 
+                reranker_service, 
+                prompt_service, 
+                no_results_message
+            )
+        elif provider == 'anthropic':
+            return AnthropicClient(
                 config, 
                 retriever, 
                 guardrail_service, 

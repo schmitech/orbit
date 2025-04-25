@@ -19,3 +19,11 @@ pymongo>=4.12.0
 aiodns>=3.2.0
 langdetect>=1.0.9
 pytest>=8.3.5
+google-generativeai==0.8.5
+hugging-py-face==0.5.3
+huggingface-hub==0.30.2
+openai==1.76
+deepseek==1.0.0
+groq==0.23.1
+mistralai==1.7.0
+anthropic==0.50.0

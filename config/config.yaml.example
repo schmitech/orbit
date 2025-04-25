@@ -1,12 +1,12 @@
 general:
   port: 3000
-  verbose: false
+  verbose: true
   https:
     enabled: false
     port: 3443
     cert_file: "./cert.pem"
     key_file: "./key.pem"
-  inference_provider: "ollama"
+  inference_provider: "groq"
   datasource_provider: "chroma"
 
 embedding:
@@ -126,7 +126,6 @@ inference:
     num_ctx: 8192
     num_threads: 8
     model: "gemma3:1b"
-    embed_model: "nomic-embed-text"
     stream: true
   vllm:
     host: "http://localhost:5000"
@@ -136,7 +135,6 @@ inference:
     top_k: 20
     max_tokens: 1024
     model: "llama3:1b"
-    embed_model: "nomic-embed-text"
     stream: true
   llama_cpp:
     model_path: "/path/to/models/llama-8b.gguf"
@@ -146,7 +144,50 @@ inference:
     max_tokens: 1024
     n_ctx: 8192
     n_threads: 8
-    embed_model: "nomic-embed-text"
+    stream: true
+  gemini:
+    api_key: ${GOOGLE_API_KEY}
+    model: "gemini-2.0-flash"
+    temperature: 0.1
+    top_p: 0.8
+    top_k: 20
+    max_tokens: 1024
+    stream: true
+  huggingface:
+    api_key: ${HUGGINGFACE_API_KEY}
+    model: "mistralai/Mistral-7B-Instruct-v0.2"
+    api_url: null  # Will be auto-generated based on model if not provided
+    temperature: 0.1
+    top_p: 0.8
+    top_k: 20
+    max_tokens: 1024
+    stream: true
+    use_inference_endpoints: false
+    endpoint_url: ""  # Only used if use_inference_endpoints is true
+  groq:
+    api_key: ${GROQ_API_KEY}
+    model: "llama3-8b-8192"
+    temperature: 0.1
+    top_p: 0.8
+    max_tokens: 1024
+    stream: true
+  deepseek:
+    api_key: ${DEEPSEEK_API_KEY}
+    api_base: "https://api.deepseek.com/v1"
+    model: "deepseek-chat"
+    temperature: 0.1
+    top_p: 0.8
+    max_tokens: 1024
+    stream: true
+  vertex:
+    project_id: ${GOOGLE_CLOUD_PROJECT}
+    location: "us-central1"
+    model: "gemini-1.5-pro"
+    temperature: 0.1
+    top_p: 0.8
+    top_k: 20
+    max_tokens: 1024
+    credentials_path: ""  # Path to service account key file, if not using default credentials
     stream: true
   bedrock:
     region: "ca-central-1"
@@ -154,7 +195,6 @@ inference:
     temperature: 0.1
     top_p: 0.8
     max_tokens: 1024
-    embed_model: "amazon.titan-embed-text-v1"
     stream: true
   openai:
     api_key: ${OPENAI_API_KEY}
@@ -162,11 +202,27 @@ inference:
     temperature: 0.1
     top_p: 0.8
     max_tokens: 1024
-    embed_model: "text-embedding-3-large"
+    stream: true
+  mistral:
+    api_key: ${MISTRAL_API_KEY}
+    api_base: "https://api.mistral.ai/v1"
+    model: "mistral-large"
+    temperature: 0.1
+    top_p: 0.8
+    max_tokens: 1024
+    embed_model: "mistral-embed"
+    stream: true
+  anthropic:
+    api_key: ${ANTHROPIC_API_KEY}
+    api_base: "https://api.anthropic.com/v1"
+    model: "claude-3-opus-20240229"
+    temperature: 0.1
+    top_p: 0.8
+    max_tokens: 1024
     stream: true
 
 safety:
-  enabled: true
+  enabled: false
   mode: "fuzzy"
   provider_override: "ollama" # If null, uses general.inference_provider
   model: "gemma3:1b"
