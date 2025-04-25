@@ -191,7 +191,6 @@ def _process_env_vars(config: Dict[str, Any]) -> Dict[str, Any]:
             env_var_name = value[2:-1]
             env_value = os.environ.get(env_var_name)
             if env_value is not None:
-                logger.info(f"Using environment variable {env_var_name} for configuration")
                 return env_value
             else:
                 logger.warning(f"Environment variable {env_var_name} not found")

@@ -1,6 +1,6 @@
 general:
   port: 3000
-  verbose: true
+  verbose: false
   https:
     enabled: false
     port: 3443
@@ -36,11 +36,11 @@ logging:
 
 internal_services:
   elasticsearch:
-    enabled: true
+    enabled: false
     node: 'https://localhost:9200'
     index: 'orbit'
     api_key: ${INTERNAL_SERVICES_ELASTICSEARCH_API_KEY}
-    
+
   mongodb:
     host: "localhost"
     port: 27017
@@ -166,13 +166,13 @@ inference:
     stream: true
 
 safety:
-  enabled: false
-  mode: "fuzzy"  # Options: strict, fuzzy, disabled
-  provider_override: null  # If null, uses general.inference_provider
-  model: "gemma3:12b"
+  enabled: true
+  mode: "fuzzy"
+  provider_override: "ollama" # If null, uses general.inference_provider
+  model: "gemma3:1b"
   max_retries: 3
   retry_delay: 1.0
-  request_timeout: 15
+  request_timeout: 10  # Shorter timeout for moderation
   allow_on_timeout: false
   temperature: 0.0
   top_p: 1.0

@@ -8,7 +8,7 @@ import logging
 from typing import Dict, Any, Optional
 
 from .base_llm_client import BaseLLMClient
-from .clients.ollama_client import QAOllamaClient
+from .clients.ollama_client import OllamaClient
 from .clients.vllm_client import QAVLLMClient
 from .clients.llama_cpp_client import QALlamaCppClient
 
@@ -41,7 +41,7 @@ class LLMClientFactory:
         provider = config['general'].get('inference_provider', 'ollama')
         
         if provider == 'ollama':
-            return QAOllamaClient(
+            return OllamaClient(
                 config, 
                 retriever, 
                 guardrail_service, 
@@ -69,7 +69,7 @@ class LLMClientFactory:
             )
         else:
             logging.warning(f"Unknown inference provider: {provider}, falling back to Ollama")
-            return QAOllamaClient(
+            return OllamaClient(
                 config, 
                 retriever, 
                 guardrail_service, 

@@ -210,15 +210,16 @@ class GuardrailService:
                 start_time = asyncio.get_event_loop().time()
                 
                 async with self.session.post(
-                    f"{self.base_url}/api/generate", 
+                    f"{self.base_url}/api/chat",
                     json=payload
                 ) as response:
                     if response.status != 200:
-                        logger.error(f"Safety check failed with status {response.status}")
+                        error_text = await response.text()
+                        logger.error(f"Safety check failed with status {response.status}: {error_text}")
                         return False, "I cannot assist with that type of request."
 
                     data = await response.json()
-                    model_response = data.get("response", "").strip()
+                    model_response = data.get("message", {}).get("content", "").strip()
                     
                     # Clean up the model response to handle potential whitespace and line break issues
                     model_response = ' '.join(model_response.split())

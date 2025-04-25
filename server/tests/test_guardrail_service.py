@@ -8,13 +8,19 @@ import aiohttp
 from unittest.mock import patch, MagicMock, mock_open
 import json
 import os
+import sys
+import logging
+
+# Add the server directory to the Python path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Import the service to test
-from ..services.guardrail_service import GuardrailService
-from ..clients.qa_ollama_client import OllamaClient
-from ..config.config_manager import ConfigManager
-from ..utils.logger import Logger
+from services.guardrail_service import GuardrailService
+from inference.clients.ollama_client import OllamaClient
+from config.config_manager import load_config
 
+# Configure logging
+logging.basicConfig(level=logging.INFO)
 
 # Mock config for testing
 @pytest.fixture
@@ -29,11 +35,20 @@ def mock_config():
             'safety_prompt_file': 'safety_prompt.txt'
         },
         'safety': {
+            'enabled': True,
             'mode': 'strict',
-            'max_retries': 2,
-            'retry_delay': 0.1,
-            'request_timeout': 5,
-            'allow_on_timeout': False
+            'provider_override': 'ollama',
+            'model': 'shieldgemma:2b',
+            'max_retries': 3,
+            'retry_delay': 1.0,
+            'request_timeout': 10,
+            'allow_on_timeout': False,
+            'temperature': 0.0,
+            'top_p': 1.0,
+            'top_k': 1,
+            'num_predict': 20,
+            'stream': False,
+            'repeat_penalty': 1.1
         }
     }
 
@@ -78,7 +93,7 @@ async def test_load_safety_prompt(mock_config, mock_safety_prompt):
 async def test_safety_check_disabled(mock_config, mock_safety_prompt):
     """Test that safety checks are skipped when disabled"""
     config = mock_config.copy()
-    config['safety']['mode'] = 'disabled'
+    config['safety']['enabled'] = False
     
     with patch('builtins.open', mock_open(read_data=mock_safety_prompt)):
         service = GuardrailService(config)
@@ -87,6 +102,38 @@ async def test_safety_check_disabled(mock_config, mock_safety_prompt):
         is_safe, message = await service.check_safety("Any query should be allowed")
         assert is_safe is True
         assert message is None
+
+
+@pytest.mark.asyncio
+async def test_safety_check_provider_override(mock_config, mock_safety_prompt):
+    """Test that the provider override is used when specified"""
+    with patch('builtins.open', mock_open(read_data=mock_safety_prompt)):
+        service = GuardrailService(mock_config)
+        
+        # Mock the session post method
+        mock_response = MagicMock()
+        mock_response.status = 200
+        mock_response.__aenter__.return_value = mock_response
+        mock_response.json.return_value = {"response": "SAFE: true"}
+        
+        with patch.object(service, 'session') as mock_session:
+            mock_session.post.return_value = mock_response
+            
+            # Initialize the service
+            await service.initialize()
+            
+            # Check a safe query
+            await service.check_safety("What is the capital of France?")
+            
+            # Verify the API was called with the right parameters
+            mock_session.post.assert_called_once()
+            call_args = mock_session.post.call_args[1]
+            assert call_args['json']['model'] == mock_config['safety']['model']
+            assert call_args['json']['temperature'] == mock_config['safety']['temperature']
+            assert call_args['json']['top_p'] == mock_config['safety']['top_p']
+            assert call_args['json']['top_k'] == mock_config['safety']['top_k']
+            assert call_args['json']['num_predict'] == mock_config['safety']['num_predict']
+            assert call_args['json']['repeat_penalty'] == mock_config['safety']['repeat_penalty']
 
 
 @pytest.mark.asyncio
@@ -117,7 +164,12 @@ async def test_safety_check_safe_query(mock_config, mock_safety_prompt):
             # Verify the API was called with the right parameters
             mock_session.post.assert_called_once()
             call_args = mock_session.post.call_args[1]
-            assert call_args['json']['model'] == mock_config['ollama']['model']
+            assert call_args['json']['model'] == mock_config['safety']['model']
+            assert call_args['json']['temperature'] == mock_config['safety']['temperature']
+            assert call_args['json']['top_p'] == mock_config['safety']['top_p']
+            assert call_args['json']['top_k'] == mock_config['safety']['top_k']
+            assert call_args['json']['num_predict'] == mock_config['safety']['num_predict']
+            assert call_args['json']['repeat_penalty'] == mock_config['safety']['repeat_penalty']
             assert "Query: What is the capital of France?" in call_args['json']['prompt']
 
 
@@ -191,6 +243,9 @@ async def test_safety_check_timeout(mock_config, mock_safety_prompt):
             
             # Check query with timeout
             is_safe, message = await service.check_safety("This will timeout")
+            
+            # Verify the number of retries matches config
+            assert mock_session.post.call_count == mock_config['safety']['max_retries'] + 1
             
             # With default config, should return unsafe after retries
             assert is_safe is False
@@ -299,3 +354,7 @@ async def test_custom_safety_model(mock_config, mock_safety_prompt):
             # Verify the custom model was used
             call_args = mock_session.post.call_args[1]
             assert call_args['json']['model'] == 'safety-model'
+
+if __name__ == '__main__':
+    # Run the tests
+    pytest.main([__file__, '-v'])

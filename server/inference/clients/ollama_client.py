@@ -12,7 +12,7 @@ import logging
 
 from ..base_llm_client import BaseLLMClient
 
-class QAOllamaClient(BaseLLMClient):
+class OllamaClient(BaseLLMClient):
     """LLM client implementation for Ollama."""
     
     def __init__(self, config: Dict[str, Any], retriever: Any, guardrail_service: Any = None, 
