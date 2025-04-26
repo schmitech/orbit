@@ -11,8 +11,9 @@ import aiohttp
 import logging
 
 from ..base_llm_client import BaseLLMClient
+from ..llm_client_mixin import LLMClientMixin
 
-class OllamaClient(BaseLLMClient):
+class OllamaClient(BaseLLMClient, LLMClientMixin):
     """LLM client implementation for Ollama."""
     
     def __init__(self, config: Dict[str, Any], retriever: Any, guardrail_service: Any = None, 
@@ -33,6 +34,7 @@ class OllamaClient(BaseLLMClient):
         self.num_predict = ollama_config.get('num_predict', 1024)
         self.num_ctx = ollama_config.get('num_ctx', 8192)
         self.stream = ollama_config.get('stream', True)
+        self.verbose = ollama_config.get('verbose', config.get('general', {}).get('verbose', False))
         
         self.ollama_client = None
         
@@ -117,36 +119,20 @@ class OllamaClient(BaseLLMClient):
         """
         try:
             # Check if the message is safe
-            if self.guardrail_service and not await self.guardrail_service.is_safe(message):
-                return {
-                    "response": "I'm sorry, but I cannot respond to that message as it may violate content safety guidelines.",
-                    "sources": [],
-                    "tokens": 0,
-                    "processing_time": 0
-                }
+            if not await self._check_message_safety(message):
+                return await self._handle_unsafe_message()
             
-            # Query for relevant documents
-            retrieved_docs = await self.retriever.get_relevant_context(
-                query=message,
-                collection_name=collection_name
-            )
-            
-            # Rerank if reranker is available
-            if self.reranker_service and retrieved_docs:
-                retrieved_docs = await self.reranker_service.rerank(message, retrieved_docs)
+            # Retrieve and rerank documents
+            retrieved_docs = await self._retrieve_and_rerank_docs(message, collection_name)
             
             # Get the system prompt
-            system_prompt = "You are a helpful assistant that provides accurate information."
-            if system_prompt_id and self.prompt_service:
-                prompt_doc = await self.prompt_service.get_prompt_by_id(system_prompt_id)
-                if prompt_doc and 'prompt' in prompt_doc:
-                    system_prompt = prompt_doc['prompt']
+            system_prompt = await self._get_system_prompt(system_prompt_id)
             
             # Format the context from retrieved documents
             context = self._format_context(retrieved_docs)
             
             # Prepare the prompt with context
-            prompt = f"{system_prompt}\n\nContext information:\n{context}\n\nUser: {message}\nAssistant:"
+            prompt = await self._prepare_prompt_with_context(message, system_prompt, context)
             
             # Call the Ollama API
             start_time = time.time()
@@ -172,8 +158,7 @@ class OllamaClient(BaseLLMClient):
                     
                     data = await response.json()
                     
-            end_time = time.time()
-            processing_time = end_time - start_time
+            processing_time = self._measure_execution_time(start_time)
             
             # Extract the response and metadata
             response_text = data.get("response", "")
@@ -210,36 +195,21 @@ class OllamaClient(BaseLLMClient):
         """
         try:
             # Check if the message is safe
-            if self.guardrail_service and not await self.guardrail_service.is_safe(message):
-                yield json.dumps({
-                    "response": "I'm sorry, but I cannot respond to that message as it may violate content safety guidelines.",
-                    "sources": [],
-                    "done": True
-                })
+            if not await self._check_message_safety(message):
+                yield await self._handle_unsafe_message_stream()
                 return
             
-            # Query for relevant documents
-            retrieved_docs = await self.retriever.get_relevant_context(
-                query=message,
-                collection_name=collection_name
-            )
-            
-            # Rerank if reranker is available
-            if self.reranker_service and retrieved_docs:
-                retrieved_docs = await self.reranker_service.rerank(message, retrieved_docs)
+            # Retrieve and rerank documents
+            retrieved_docs = await self._retrieve_and_rerank_docs(message, collection_name)
             
             # Get the system prompt
-            system_prompt = "You are a helpful assistant that provides accurate information."
-            if system_prompt_id and self.prompt_service:
-                prompt_doc = await self.prompt_service.get_prompt_by_id(system_prompt_id)
-                if prompt_doc and 'prompt' in prompt_doc:
-                    system_prompt = prompt_doc['prompt']
+            system_prompt = await self._get_system_prompt(system_prompt_id)
             
             # Format the context from retrieved documents
             context = self._format_context(retrieved_docs)
             
             # Prepare the prompt with context
-            prompt = f"{system_prompt}\n\nContext information:\n{context}\n\nUser: {message}\nAssistant:"
+            prompt = await self._prepare_prompt_with_context(message, system_prompt, context)
             
             # Call the Ollama API
             async with aiohttp.ClientSession() as session:

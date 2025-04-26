@@ -12,8 +12,9 @@ import logging
 import os
 
 from ..base_llm_client import BaseLLMClient
+from ..llm_client_mixin import LLMClientMixin
 
-class OpenAIClient(BaseLLMClient):
+class OpenAIClient(BaseLLMClient, LLMClientMixin):
     """LLM client implementation for OpenAI."""
     
     def __init__(self, config: Dict[str, Any], retriever: Any, guardrail_service: Any = None, 
@@ -29,6 +30,7 @@ class OpenAIClient(BaseLLMClient):
         self.top_p = openai_config.get('top_p', 0.8)
         self.max_tokens = openai_config.get('max_tokens', 1024)
         self.stream = openai_config.get('stream', True)
+        self.verbose = openai_config.get('verbose', config.get('general', {}).get('verbose', False))
         
         self.openai_client = None
         
@@ -71,6 +73,9 @@ class OpenAIClient(BaseLLMClient):
             if not self.openai_client:
                 await self.initialize()
             
+            if self.verbose:
+                self.logger.info("Testing OpenAI API connection")
+                
             # Simple test request to verify connection
             response = await self.openai_client.chat.completions.create(
                 model=self.model,
@@ -78,9 +83,12 @@ class OpenAIClient(BaseLLMClient):
                     {"role": "system", "content": "You are a helpful assistant."},
                     {"role": "user", "content": "Ping"}
                 ],
-                max_tokens=10
+                max_completion_tokens=10
             )
             
+            if self.verbose:
+                self.logger.info("Successfully connected to OpenAI API")
+                
             # If we get here, the connection is working
             return True
         except Exception as e:
@@ -105,31 +113,18 @@ class OpenAIClient(BaseLLMClient):
             Dictionary containing response and metadata
         """
         try:
+            if self.verbose:
+                self.logger.info(f"Generating response for message: {message[:100]}...")
+                
             # Check if the message is safe
-            if self.guardrail_service and not await self.guardrail_service.is_safe(message):
-                return {
-                    "response": "I'm sorry, but I cannot respond to that message as it may violate content safety guidelines.",
-                    "sources": [],
-                    "tokens": 0,
-                    "processing_time": 0
-                }
+            if not await self._check_message_safety(message):
+                return await self._handle_unsafe_message()
             
-            # Query for relevant documents
-            retrieved_docs = await self.retriever.get_relevant_context(
-                query=message,
-                collection_name=collection_name
-            )
-            
-            # Rerank if reranker is available
-            if self.reranker_service and retrieved_docs:
-                retrieved_docs = await self.reranker_service.rerank(message, retrieved_docs)
+            # Retrieve and rerank documents
+            retrieved_docs = await self._retrieve_and_rerank_docs(message, collection_name)
             
             # Get the system prompt
-            system_prompt = "You are a helpful assistant that provides accurate information."
-            if system_prompt_id and self.prompt_service:
-                prompt_doc = await self.prompt_service.get_prompt_by_id(system_prompt_id)
-                if prompt_doc and 'prompt' in prompt_doc:
-                    system_prompt = prompt_doc['prompt']
+            system_prompt = await self._get_system_prompt(system_prompt_id)
             
             # Format the context from retrieved documents
             context = self._format_context(retrieved_docs)
@@ -138,6 +133,9 @@ class OpenAIClient(BaseLLMClient):
             if not self.openai_client:
                 await self.initialize()
             
+            if self.verbose:
+                self.logger.info(f"Calling OpenAI API with model: {self.model}")
+                
             # Call the OpenAI API
             start_time = time.time()
             
@@ -147,20 +145,28 @@ class OpenAIClient(BaseLLMClient):
                 {"role": "user", "content": f"Context information:\n{context}\n\nUser Query: {message}"}
             ]
             
-            response = await self.openai_client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                temperature=self.temperature,
-                top_p=self.top_p,
-                max_tokens=self.max_tokens
-            )
+            # Prepare parameters based on model
+            params = {
+                "model": self.model,
+                "messages": messages,
+                "max_completion_tokens": self.max_tokens
+            }
             
-            end_time = time.time()
-            processing_time = end_time - start_time
+            # Add temperature and top_p for models that support them
+            if not "o4-mini" in self.model:
+                params["temperature"] = self.temperature
+                params["top_p"] = self.top_p
+            
+            response = await self.openai_client.chat.completions.create(**params)
+            
+            processing_time = self._measure_execution_time(start_time)
             
             # Extract the response text
             response_text = response.choices[0].message.content
             
+            if self.verbose:
+                self.logger.debug(f"Response length: {len(response_text)} characters")
+                
             # Format the sources for citation
             sources = self._format_sources(retrieved_docs)
             
@@ -170,6 +176,9 @@ class OpenAIClient(BaseLLMClient):
                 "completion": response.usage.completion_tokens,
                 "total": response.usage.total_tokens
             }
+            
+            if self.verbose:
+                self.logger.info(f"Token usage: {tokens}")
             
             return {
                 "response": response_text,
@@ -200,31 +209,19 @@ class OpenAIClient(BaseLLMClient):
             Chunks of the response as they are generated
         """
         try:
+            if self.verbose:
+                self.logger.info(f"Starting streaming response for message: {message[:100]}...")
+                
             # Check if the message is safe
-            if self.guardrail_service and not await self.guardrail_service.is_safe(message):
-                yield json.dumps({
-                    "response": "I'm sorry, but I cannot respond to that message as it may violate content safety guidelines.",
-                    "sources": [],
-                    "done": True
-                })
+            if not await self._check_message_safety(message):
+                yield await self._handle_unsafe_message_stream()
                 return
             
-            # Query for relevant documents
-            retrieved_docs = await self.retriever.get_relevant_context(
-                query=message,
-                collection_name=collection_name
-            )
-            
-            # Rerank if reranker is available
-            if self.reranker_service and retrieved_docs:
-                retrieved_docs = await self.reranker_service.rerank(message, retrieved_docs)
+            # Retrieve and rerank documents
+            retrieved_docs = await self._retrieve_and_rerank_docs(message, collection_name)
             
             # Get the system prompt
-            system_prompt = "You are a helpful assistant that provides accurate information."
-            if system_prompt_id and self.prompt_service:
-                prompt_doc = await self.prompt_service.get_prompt_by_id(system_prompt_id)
-                if prompt_doc and 'prompt' in prompt_doc:
-                    system_prompt = prompt_doc['prompt']
+            system_prompt = await self._get_system_prompt(system_prompt_id)
             
             # Format the context from retrieved documents
             context = self._format_context(retrieved_docs)
@@ -233,33 +230,50 @@ class OpenAIClient(BaseLLMClient):
             if not self.openai_client:
                 await self.initialize()
             
+            if self.verbose:
+                self.logger.info(f"Calling OpenAI API with streaming enabled")
+                
             # Prepare messages for the API call
             messages = [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": f"Context information:\n{context}\n\nUser Query: {message}"}
             ]
             
+            # Prepare parameters based on model
+            params = {
+                "model": self.model,
+                "messages": messages,
+                "max_completion_tokens": self.max_tokens,
+                "stream": True
+            }
+            
+            # Add temperature and top_p for models that support them
+            if not "o4-mini" in self.model:
+                params["temperature"] = self.temperature
+                params["top_p"] = self.top_p
+            
             # Generate streaming response
-            response_stream = await self.openai_client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                temperature=self.temperature,
-                top_p=self.top_p,
-                max_tokens=self.max_tokens,
-                stream=True
-            )
+            response_stream = await self.openai_client.chat.completions.create(**params)
             
             # Process the streaming response
             try:
+                chunk_count = 0
                 async for chunk in response_stream:
                     if chunk.choices and chunk.choices[0].delta.content:
                         chunk_text = chunk.choices[0].delta.content
+                        chunk_count += 1
+                        
+                        if self.verbose and chunk_count % 10 == 0:
+                            self.logger.debug(f"Received chunk {chunk_count}")
                         
                         yield json.dumps({
                             "response": chunk_text,
                             "sources": [],
                             "done": False
                         })
+                
+                if self.verbose:
+                    self.logger.info(f"Streaming complete. Received {chunk_count} chunks")
                 
                 # When stream is complete, send the sources
                 sources = self._format_sources(retrieved_docs)

@@ -13,8 +13,9 @@ import logging
 import os
 
 from ..base_llm_client import BaseLLMClient
+from ..llm_client_mixin import LLMClientMixin
 
-class DeepSeekClient(BaseLLMClient):
+class DeepSeekClient(BaseLLMClient, LLMClientMixin):
     """LLM client implementation for DeepSeek."""
     
     def __init__(self, config: Dict[str, Any], retriever: Any, guardrail_service: Any = None, 
@@ -31,6 +32,7 @@ class DeepSeekClient(BaseLLMClient):
         self.top_p = deepseek_config.get('top_p', 0.8)
         self.max_tokens = deepseek_config.get('max_tokens', 1024)
         self.stream = deepseek_config.get('stream', True)
+        self.verbose = deepseek_config.get('verbose', config.get('general', {}).get('verbose', False))
         
         self.deepseek_client = None
         
@@ -111,30 +113,14 @@ class DeepSeekClient(BaseLLMClient):
         """
         try:
             # Check if the message is safe
-            if self.guardrail_service and not await self.guardrail_service.is_safe(message):
-                return {
-                    "response": "I'm sorry, but I cannot respond to that message as it may violate content safety guidelines.",
-                    "sources": [],
-                    "tokens": 0,
-                    "processing_time": 0
-                }
+            if not await self._check_message_safety(message):
+                return await self._handle_unsafe_message()
             
-            # Query for relevant documents
-            retrieved_docs = await self.retriever.get_relevant_context(
-                query=message,
-                collection_name=collection_name
-            )
-            
-            # Rerank if reranker is available
-            if self.reranker_service and retrieved_docs:
-                retrieved_docs = await self.reranker_service.rerank(message, retrieved_docs)
+            # Retrieve and rerank documents
+            retrieved_docs = await self._retrieve_and_rerank_docs(message, collection_name)
             
             # Get the system prompt
-            system_prompt = "You are a helpful assistant that provides accurate information."
-            if system_prompt_id and self.prompt_service:
-                prompt_doc = await self.prompt_service.get_prompt_by_id(system_prompt_id)
-                if prompt_doc and 'prompt' in prompt_doc:
-                    system_prompt = prompt_doc['prompt']
+            system_prompt = await self._get_system_prompt(system_prompt_id)
             
             # Format the context from retrieved documents
             context = self._format_context(retrieved_docs)
@@ -160,8 +146,7 @@ class DeepSeekClient(BaseLLMClient):
                 max_tokens=self.max_tokens
             )
             
-            end_time = time.time()
-            processing_time = end_time - start_time
+            processing_time = self._measure_execution_time(start_time)
             
             # Extract the response text
             response_text = response.choices[0].message.content
@@ -175,6 +160,9 @@ class DeepSeekClient(BaseLLMClient):
                 "completion": response.usage.completion_tokens,
                 "total": response.usage.total_tokens
             }
+            
+            if self.verbose:
+                self.logger.info(f"Token usage: {tokens}")
             
             return {
                 "response": response_text,
@@ -206,30 +194,15 @@ class DeepSeekClient(BaseLLMClient):
         """
         try:
             # Check if the message is safe
-            if self.guardrail_service and not await self.guardrail_service.is_safe(message):
-                yield json.dumps({
-                    "response": "I'm sorry, but I cannot respond to that message as it may violate content safety guidelines.",
-                    "sources": [],
-                    "done": True
-                })
+            if not await self._check_message_safety(message):
+                yield await self._handle_unsafe_message_stream()
                 return
             
-            # Query for relevant documents
-            retrieved_docs = await self.retriever.get_relevant_context(
-                query=message,
-                collection_name=collection_name
-            )
-            
-            # Rerank if reranker is available
-            if self.reranker_service and retrieved_docs:
-                retrieved_docs = await self.reranker_service.rerank(message, retrieved_docs)
+            # Retrieve and rerank documents
+            retrieved_docs = await self._retrieve_and_rerank_docs(message, collection_name)
             
             # Get the system prompt
-            system_prompt = "You are a helpful assistant that provides accurate information."
-            if system_prompt_id and self.prompt_service:
-                prompt_doc = await self.prompt_service.get_prompt_by_id(system_prompt_id)
-                if prompt_doc and 'prompt' in prompt_doc:
-                    system_prompt = prompt_doc['prompt']
+            system_prompt = await self._get_system_prompt(system_prompt_id)
             
             # Format the context from retrieved documents
             context = self._format_context(retrieved_docs)
@@ -244,6 +217,9 @@ class DeepSeekClient(BaseLLMClient):
                 {"role": "user", "content": f"Context information:\n{context}\n\nUser Query: {message}"}
             ]
             
+            if self.verbose:
+                self.logger.info(f"Calling DeepSeek API with streaming enabled")
+            
             # Generate streaming response
             response_stream = await self.deepseek_client.chat.completions.create(
                 model=self.model,
@@ -256,15 +232,23 @@ class DeepSeekClient(BaseLLMClient):
             
             # Process the streaming response
             try:
+                chunk_count = 0
                 async for chunk in response_stream:
                     if chunk.choices and chunk.choices[0].delta.content:
                         chunk_text = chunk.choices[0].delta.content
+                        chunk_count += 1
+                        
+                        if self.verbose and chunk_count % 10 == 0:
+                            self.logger.debug(f"Received chunk {chunk_count}")
                         
                         yield json.dumps({
                             "response": chunk_text,
                             "sources": [],
                             "done": False
                         })
+                
+                if self.verbose:
+                    self.logger.info(f"Streaming complete. Received {chunk_count} chunks")
                 
                 # When stream is complete, send the sources
                 sources = self._format_sources(retrieved_docs)

@@ -12,8 +12,9 @@ import logging
 import os
 
 from ..base_llm_client import BaseLLMClient
+from ..llm_client_mixin import LLMClientMixin
 
-class MistralClient(BaseLLMClient):
+class MistralClient(BaseLLMClient, LLMClientMixin):
     """LLM client implementation for Mistral AI."""
     
     def __init__(self, config: Dict[str, Any], retriever: Any, guardrail_service: Any = None, 
@@ -30,6 +31,7 @@ class MistralClient(BaseLLMClient):
         self.top_p = mistral_config.get('top_p', 0.8)
         self.max_tokens = mistral_config.get('max_tokens', 1024)
         self.stream = mistral_config.get('stream', True)
+        self.verbose = mistral_config.get('verbose', config.get('general', {}).get('verbose', False))
         
         self.mistral_client = None
         
@@ -75,6 +77,9 @@ class MistralClient(BaseLLMClient):
             if not self.mistral_client:
                 await self.initialize()
             
+            if self.verbose:
+                self.logger.info("Testing Mistral AI API connection")
+                
             # Simple test request to verify connection
             response = await self.mistral_client.chat.completions.create(
                 model=self.model,
@@ -85,6 +90,9 @@ class MistralClient(BaseLLMClient):
                 max_tokens=10
             )
             
+            if self.verbose:
+                self.logger.info("Successfully connected to Mistral AI API")
+                
             # If we get here, the connection is working
             return True
         except Exception as e:
@@ -109,31 +117,18 @@ class MistralClient(BaseLLMClient):
             Dictionary containing response and metadata
         """
         try:
+            if self.verbose:
+                self.logger.info(f"Generating response for message: {message[:100]}...")
+                
             # Check if the message is safe
-            if self.guardrail_service and not await self.guardrail_service.is_safe(message):
-                return {
-                    "response": "I'm sorry, but I cannot respond to that message as it may violate content safety guidelines.",
-                    "sources": [],
-                    "tokens": 0,
-                    "processing_time": 0
-                }
+            if not await self._check_message_safety(message):
+                return await self._handle_unsafe_message()
             
-            # Query for relevant documents
-            retrieved_docs = await self.retriever.get_relevant_context(
-                query=message,
-                collection_name=collection_name
-            )
-            
-            # Rerank if reranker is available
-            if self.reranker_service and retrieved_docs:
-                retrieved_docs = await self.reranker_service.rerank(message, retrieved_docs)
+            # Retrieve and rerank documents
+            retrieved_docs = await self._retrieve_and_rerank_docs(message, collection_name)
             
             # Get the system prompt
-            system_prompt = "You are a helpful assistant that provides accurate information."
-            if system_prompt_id and self.prompt_service:
-                prompt_doc = await self.prompt_service.get_prompt_by_id(system_prompt_id)
-                if prompt_doc and 'prompt' in prompt_doc:
-                    system_prompt = prompt_doc['prompt']
+            system_prompt = await self._get_system_prompt(system_prompt_id)
             
             # Format the context from retrieved documents
             context = self._format_context(retrieved_docs)
@@ -142,6 +137,9 @@ class MistralClient(BaseLLMClient):
             if not self.mistral_client:
                 await self.initialize()
             
+            if self.verbose:
+                self.logger.info(f"Calling Mistral AI API with model: {self.model}")
+                
             # Call the Mistral AI API
             start_time = time.time()
             
@@ -159,12 +157,14 @@ class MistralClient(BaseLLMClient):
                 max_tokens=self.max_tokens
             )
             
-            end_time = time.time()
-            processing_time = end_time - start_time
+            processing_time = self._measure_execution_time(start_time)
             
             # Extract the response text
             response_text = response.choices[0].message.content
             
+            if self.verbose:
+                self.logger.debug(f"Response length: {len(response_text)} characters")
+                
             # Format the sources for citation
             sources = self._format_sources(retrieved_docs)
             
@@ -174,6 +174,9 @@ class MistralClient(BaseLLMClient):
                 "completion": response.usage.completion_tokens,
                 "total": response.usage.total_tokens
             }
+            
+            if self.verbose:
+                self.logger.info(f"Token usage: {tokens}")
             
             return {
                 "response": response_text,
@@ -204,31 +207,19 @@ class MistralClient(BaseLLMClient):
             Chunks of the response as they are generated
         """
         try:
+            if self.verbose:
+                self.logger.info(f"Starting streaming response for message: {message[:100]}...")
+                
             # Check if the message is safe
-            if self.guardrail_service and not await self.guardrail_service.is_safe(message):
-                yield json.dumps({
-                    "response": "I'm sorry, but I cannot respond to that message as it may violate content safety guidelines.",
-                    "sources": [],
-                    "done": True
-                })
+            if not await self._check_message_safety(message):
+                yield await self._handle_unsafe_message_stream()
                 return
             
-            # Query for relevant documents
-            retrieved_docs = await self.retriever.get_relevant_context(
-                query=message,
-                collection_name=collection_name
-            )
-            
-            # Rerank if reranker is available
-            if self.reranker_service and retrieved_docs:
-                retrieved_docs = await self.reranker_service.rerank(message, retrieved_docs)
+            # Retrieve and rerank documents
+            retrieved_docs = await self._retrieve_and_rerank_docs(message, collection_name)
             
             # Get the system prompt
-            system_prompt = "You are a helpful assistant that provides accurate information."
-            if system_prompt_id and self.prompt_service:
-                prompt_doc = await self.prompt_service.get_prompt_by_id(system_prompt_id)
-                if prompt_doc and 'prompt' in prompt_doc:
-                    system_prompt = prompt_doc['prompt']
+            system_prompt = await self._get_system_prompt(system_prompt_id)
             
             # Format the context from retrieved documents
             context = self._format_context(retrieved_docs)
@@ -237,6 +228,9 @@ class MistralClient(BaseLLMClient):
             if not self.mistral_client:
                 await self.initialize()
             
+            if self.verbose:
+                self.logger.info(f"Calling Mistral AI API with streaming enabled")
+                
             # Prepare messages for the API call
             messages = [
                 {"role": "system", "content": system_prompt},
@@ -254,13 +248,22 @@ class MistralClient(BaseLLMClient):
             )
             
             # Stream the response
+            chunk_count = 0
             async for chunk in response_stream:
                 if chunk.choices[0].delta.content is not None:
+                    chunk_count += 1
+                    
+                    if self.verbose and chunk_count % 10 == 0:
+                        self.logger.debug(f"Received chunk {chunk_count}")
+                        
                     yield json.dumps({
                         "response": chunk.choices[0].delta.content,
                         "done": False
                     })
             
+            if self.verbose:
+                self.logger.info(f"Streaming complete. Received {chunk_count} chunks")
+                
             # Send final message with sources
             yield json.dumps({
                 "sources": self._format_sources(retrieved_docs),

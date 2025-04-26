@@ -12,8 +12,9 @@ import logging
 import os
 
 from ..base_llm_client import BaseLLMClient
+from ..llm_client_mixin import LLMClientMixin
 
-class VertexAIClient(BaseLLMClient):
+class VertexAIClient(BaseLLMClient, LLMClientMixin):
     """LLM client implementation for Google Vertex AI (Google AI Platform/Studio)."""
     
     def __init__(self, config: Dict[str, Any], retriever: Any, guardrail_service: Any = None, 
@@ -31,6 +32,7 @@ class VertexAIClient(BaseLLMClient):
         self.top_k = vertex_config.get('top_k', 20)
         self.max_tokens = vertex_config.get('max_tokens', 1024)
         self.stream = vertex_config.get('stream', True)
+        self.verbose = vertex_config.get('verbose', config.get('general', {}).get('verbose', False))
         
         # Google Cloud Authentication
         self.credentials_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", 
@@ -48,6 +50,8 @@ class VertexAIClient(BaseLLMClient):
             
             # Set the credentials path if provided
             if self.credentials_path:
+                if self.verbose:
+                    self.logger.info(f"Using credentials from: {self.credentials_path}")
                 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = self.credentials_path
                 
             # Initialize Vertex AI
@@ -89,6 +93,9 @@ class VertexAIClient(BaseLLMClient):
             if not self.model_client:
                 await self.initialize()
             
+            if self.verbose:
+                self.logger.info("Testing Vertex AI connection")
+                
             # Simple test request to verify connection
             response = await asyncio.to_thread(
                 self.model_client.generate_content,
@@ -96,6 +103,9 @@ class VertexAIClient(BaseLLMClient):
                 generation_config=self.generation_config
             )
             
+            if self.verbose:
+                self.logger.info("Successfully connected to Vertex AI")
+                
             # If we get here, the connection is working
             return True
         except Exception as e:
@@ -120,39 +130,33 @@ class VertexAIClient(BaseLLMClient):
             Dictionary containing response and metadata
         """
         try:
+            if self.verbose:
+                self.logger.info(f"Generating response for message: {message[:100]}...")
+                
             # Check if the message is safe
-            if self.guardrail_service and not await self.guardrail_service.is_safe(message):
-                return {
-                    "response": "I'm sorry, but I cannot respond to that message as it may violate content safety guidelines.",
-                    "sources": [],
-                    "tokens": 0,
-                    "processing_time": 0
-                }
+            if not await self._check_message_safety(message):
+                return await self._handle_unsafe_message()
             
-            # Query for relevant documents
-            retrieved_docs = await self.retriever.get_relevant_context(
-                query=message,
-                collection_name=collection_name
-            )
-            
-            # Rerank if reranker is available
-            if self.reranker_service and retrieved_docs:
-                retrieved_docs = await self.reranker_service.rerank(message, retrieved_docs)
+            # Retrieve and rerank documents
+            retrieved_docs = await self._retrieve_and_rerank_docs(message, collection_name)
             
             # Get the system prompt
-            system_prompt = "You are a helpful assistant that provides accurate information."
-            if system_prompt_id and self.prompt_service:
-                prompt_doc = await self.prompt_service.get_prompt_by_id(system_prompt_id)
-                if prompt_doc and 'prompt' in prompt_doc:
-                    system_prompt = prompt_doc['prompt']
+            system_prompt = await self._get_system_prompt(system_prompt_id)
             
             # Format the context from retrieved documents
             context = self._format_context(retrieved_docs)
             
-            # Prepare the prompt with context
+            # Initialize Vertex AI client if not already initialized
+            if not self.model_client:
+                await self.initialize()
+                
+            # Prepare the chat session
             from vertexai.generative_models import ChatSession
             chat = ChatSession(model=self.model_client)
             
+            if self.verbose:
+                self.logger.info(f"Creating chat session with system prompt")
+                
             # Add system prompt as the first message
             await asyncio.to_thread(
                 chat.send_message,
@@ -160,16 +164,15 @@ class VertexAIClient(BaseLLMClient):
                 generation_config=self.generation_config
             )
             
-            # Initialize Vertex AI client if not already initialized
-            if not self.model_client:
-                await self.initialize()
-            
             # Call the Vertex AI API
             start_time = time.time()
             
             # Prepare the user message with context
             user_message = f"Context information:\n{context}\n\nUser Query: {message}"
             
+            if self.verbose:
+                self.logger.info(f"Sending message to Vertex AI")
+                
             # Send the message to the chat session
             response = await asyncio.to_thread(
                 chat.send_message,
@@ -177,18 +180,22 @@ class VertexAIClient(BaseLLMClient):
                 generation_config=self.generation_config
             )
             
-            end_time = time.time()
-            processing_time = end_time - start_time
+            processing_time = self._measure_execution_time(start_time)
             
             # Extract the response text
             response_text = response.text
             
+            if self.verbose:
+                self.logger.debug(f"Response length: {len(response_text)} characters")
+                
             # Format the sources for citation
             sources = self._format_sources(retrieved_docs)
             
-            # Estimate token count (Vertex AI doesn't provide this directly)
-            # Rough estimate: 4 chars per token
-            estimated_tokens = (len(system_prompt) + len(user_message) + len(response_text)) // 4
+            # Estimate token count using helper method
+            estimated_tokens = self._estimate_tokens(system_prompt + user_message, response_text)
+            
+            if self.verbose:
+                self.logger.info(f"Estimated token usage: {estimated_tokens}")
             
             return {
                 "response": response_text,
@@ -218,31 +225,19 @@ class VertexAIClient(BaseLLMClient):
             Chunks of the response as they are generated
         """
         try:
+            if self.verbose:
+                self.logger.info(f"Starting streaming response for message: {message[:100]}...")
+                
             # Check if the message is safe
-            if self.guardrail_service and not await self.guardrail_service.is_safe(message):
-                yield json.dumps({
-                    "response": "I'm sorry, but I cannot respond to that message as it may violate content safety guidelines.",
-                    "sources": [],
-                    "done": True
-                })
+            if not await self._check_message_safety(message):
+                yield await self._handle_unsafe_message_stream()
                 return
             
-            # Query for relevant documents
-            retrieved_docs = await self.retriever.get_relevant_context(
-                query=message,
-                collection_name=collection_name
-            )
-            
-            # Rerank if reranker is available
-            if self.reranker_service and retrieved_docs:
-                retrieved_docs = await self.reranker_service.rerank(message, retrieved_docs)
+            # Retrieve and rerank documents
+            retrieved_docs = await self._retrieve_and_rerank_docs(message, collection_name)
             
             # Get the system prompt
-            system_prompt = "You are a helpful assistant that provides accurate information."
-            if system_prompt_id and self.prompt_service:
-                prompt_doc = await self.prompt_service.get_prompt_by_id(system_prompt_id)
-                if prompt_doc and 'prompt' in prompt_doc:
-                    system_prompt = prompt_doc['prompt']
+            system_prompt = await self._get_system_prompt(system_prompt_id)
             
             # Format the context from retrieved documents
             context = self._format_context(retrieved_docs)
@@ -251,6 +246,9 @@ class VertexAIClient(BaseLLMClient):
             if not self.model_client:
                 await self.initialize()
             
+            if self.verbose:
+                self.logger.info(f"Creating chat session for streaming response")
+                
             # Create a chat session
             from vertexai.generative_models import ChatSession
             chat = ChatSession(model=self.model_client)
@@ -265,6 +263,9 @@ class VertexAIClient(BaseLLMClient):
             # Prepare the user message with context
             user_message = f"Context information:\n{context}\n\nUser Query: {message}"
             
+            if self.verbose:
+                self.logger.info(f"Simulating streaming with Vertex AI (chunked response)")
+                
             # Generate streaming response - note that Vertex AI doesn't have true streaming
             # in the same way as OpenAI, so we'll use the non-streaming API and simulate streaming
             response = await asyncio.to_thread(
@@ -282,8 +283,14 @@ class VertexAIClient(BaseLLMClient):
             chunks = re.split(r'(?<=[.!?])\s+', full_response)
             
             # Stream each chunk
+            chunk_count = 0
             for chunk in chunks:
                 if chunk.strip():
+                    chunk_count += 1
+                    
+                    if self.verbose and chunk_count % 5 == 0:
+                        self.logger.debug(f"Streaming chunk {chunk_count} of {len(chunks)}")
+                        
                     yield json.dumps({
                         "response": chunk + " ",
                         "sources": [],
@@ -292,6 +299,9 @@ class VertexAIClient(BaseLLMClient):
                     # Small delay to simulate streaming
                     await asyncio.sleep(0.05)
             
+            if self.verbose:
+                self.logger.info(f"Streaming complete. Sent {chunk_count} chunks")
+                
             # When stream is complete, send the sources
             sources = self._format_sources(retrieved_docs)
             yield json.dumps({

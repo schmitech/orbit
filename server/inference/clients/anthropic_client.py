@@ -12,8 +12,9 @@ import logging
 import os
 
 from ..base_llm_client import BaseLLMClient
+from ..llm_client_mixin import LLMClientMixin
 
-class AnthropicClient(BaseLLMClient):
+class AnthropicClient(BaseLLMClient, LLMClientMixin):
     """LLM client implementation for Anthropic."""
     
     def __init__(self, config: Dict[str, Any], retriever: Any, guardrail_service: Any = None, 
@@ -30,6 +31,7 @@ class AnthropicClient(BaseLLMClient):
         self.top_p = anthropic_config.get('top_p', 0.8)
         self.max_tokens = anthropic_config.get('max_tokens', 1024)
         self.stream = anthropic_config.get('stream', True)
+        self.verbose = anthropic_config.get('verbose', config.get('general', {}).get('verbose', False))
         
         self.anthropic_client = None
         
@@ -43,7 +45,7 @@ class AnthropicClient(BaseLLMClient):
             
             self.logger.info(f"Initialized Anthropic client with model {self.model}")
         except ImportError:
-            self.logger.error("anthropic package not installed. Please install with: pip install anthropic")
+            self.logger.error("anthropic package not installed or outdated. Please install with: pip install anthropic>=0.50.0")
             raise
         except Exception as e:
             self.logger.error(f"Error initializing Anthropic client: {str(e)}")
@@ -72,6 +74,9 @@ class AnthropicClient(BaseLLMClient):
             if not self.anthropic_client:
                 await self.initialize()
             
+            if self.verbose:
+                self.logger.info("Testing Anthropic API connection")
+                
             # Simple test request to verify connection
             response = await self.anthropic_client.messages.create(
                 model=self.model,
@@ -81,6 +86,9 @@ class AnthropicClient(BaseLLMClient):
                 ]
             )
             
+            if self.verbose:
+                self.logger.info("Successfully connected to Anthropic API")
+                
             # If we get here, the connection is working
             return True
         except Exception as e:
@@ -105,31 +113,18 @@ class AnthropicClient(BaseLLMClient):
             Dictionary containing response and metadata
         """
         try:
+            if self.verbose:
+                self.logger.info(f"Generating response for message: {message[:100]}...")
+                
             # Check if the message is safe
-            if self.guardrail_service and not await self.guardrail_service.is_safe(message):
-                return {
-                    "response": "I'm sorry, but I cannot respond to that message as it may violate content safety guidelines.",
-                    "sources": [],
-                    "tokens": 0,
-                    "processing_time": 0
-                }
+            if not await self._check_message_safety(message):
+                return await self._handle_unsafe_message()
             
-            # Query for relevant documents
-            retrieved_docs = await self.retriever.get_relevant_context(
-                query=message,
-                collection_name=collection_name
-            )
-            
-            # Rerank if reranker is available
-            if self.reranker_service and retrieved_docs:
-                retrieved_docs = await self.reranker_service.rerank(message, retrieved_docs)
+            # Retrieve and rerank documents
+            retrieved_docs = await self._retrieve_and_rerank_docs(message, collection_name)
             
             # Get the system prompt
-            system_prompt = "You are a helpful assistant that provides accurate information."
-            if system_prompt_id and self.prompt_service:
-                prompt_doc = await self.prompt_service.get_prompt_by_id(system_prompt_id)
-                if prompt_doc and 'prompt' in prompt_doc:
-                    system_prompt = prompt_doc['prompt']
+            system_prompt = await self._get_system_prompt(system_prompt_id)
             
             # Format the context from retrieved documents
             context = self._format_context(retrieved_docs)
@@ -138,29 +133,49 @@ class AnthropicClient(BaseLLMClient):
             if not self.anthropic_client:
                 await self.initialize()
             
+            if self.verbose:
+                self.logger.info(f"Calling Anthropic API with model: {self.model}")
+                
             # Call the Anthropic API
             start_time = time.time()
             
-            # Prepare messages for the API call
+            # For Claude, we use a structured user message with the context and query
+            user_message = f"Context information:\n{context}\n\nUser Query: {message}"
+            
+            # Prepare messages for the API call using the recommended format
             messages = [
-                {"role": "user", "content": f"Context information:\n{context}\n\nUser Query: {message}"}
+                {"role": "user", "content": user_message}
             ]
             
-            response = await self.anthropic_client.messages.create(
-                model=self.model,
-                messages=messages,
-                system=system_prompt,
-                temperature=self.temperature,
-                top_p=self.top_p,
-                max_tokens=self.max_tokens
-            )
+            try:
+                response = await self.anthropic_client.messages.create(
+                    model=self.model,
+                    messages=messages,
+                    system=system_prompt,
+                    temperature=self.temperature,
+                    top_p=self.top_p,
+                    max_tokens=self.max_tokens
+                )
+            except Exception as api_error:
+                self.logger.error(f"Anthropic API error: {str(api_error)}")
+                if self.verbose:
+                    self.logger.debug(f"Request: model={self.model}, system={system_prompt[:50]}..., messages={messages}")
+                raise
             
-            end_time = time.time()
-            processing_time = end_time - start_time
+            processing_time = self._measure_execution_time(start_time)
             
             # Extract the response text
+            if not hasattr(response, 'content') or not response.content:
+                self.logger.error("Unexpected response format from Anthropic API: missing content")
+                if self.verbose:
+                    self.logger.debug(f"Response: {response}")
+                return {"error": "Failed to get valid response from Anthropic API"}
+                
             response_text = response.content[0].text
             
+            if self.verbose:
+                self.logger.debug(f"Response length: {len(response_text)} characters")
+                
             # Format the sources for citation
             sources = self._format_sources(retrieved_docs)
             
@@ -170,6 +185,9 @@ class AnthropicClient(BaseLLMClient):
                 "completion": response.usage.output_tokens,
                 "total": response.usage.input_tokens + response.usage.output_tokens
             }
+            
+            if self.verbose:
+                self.logger.info(f"Token usage: {tokens}")
             
             return {
                 "response": response_text,
@@ -200,31 +218,19 @@ class AnthropicClient(BaseLLMClient):
             Chunks of the response as they are generated
         """
         try:
+            if self.verbose:
+                self.logger.info(f"Starting streaming response for message: {message[:100]}...")
+                
             # Check if the message is safe
-            if self.guardrail_service and not await self.guardrail_service.is_safe(message):
-                yield json.dumps({
-                    "response": "I'm sorry, but I cannot respond to that message as it may violate content safety guidelines.",
-                    "sources": [],
-                    "done": True
-                })
+            if not await self._check_message_safety(message):
+                yield await self._handle_unsafe_message_stream()
                 return
             
-            # Query for relevant documents
-            retrieved_docs = await self.retriever.get_relevant_context(
-                query=message,
-                collection_name=collection_name
-            )
-            
-            # Rerank if reranker is available
-            if self.reranker_service and retrieved_docs:
-                retrieved_docs = await self.reranker_service.rerank(message, retrieved_docs)
+            # Retrieve and rerank documents
+            retrieved_docs = await self._retrieve_and_rerank_docs(message, collection_name)
             
             # Get the system prompt
-            system_prompt = "You are a helpful assistant that provides accurate information."
-            if system_prompt_id and self.prompt_service:
-                prompt_doc = await self.prompt_service.get_prompt_by_id(system_prompt_id)
-                if prompt_doc and 'prompt' in prompt_doc:
-                    system_prompt = prompt_doc['prompt']
+            system_prompt = await self._get_system_prompt(system_prompt_id)
             
             # Format the context from retrieved documents
             context = self._format_context(retrieved_docs)
@@ -233,27 +239,52 @@ class AnthropicClient(BaseLLMClient):
             if not self.anthropic_client:
                 await self.initialize()
             
-            # Prepare messages for the API call
+            if self.verbose:
+                self.logger.info(f"Calling Anthropic API with streaming enabled")
+                
+            # For Claude, we use a structured user message with the context and query
+            user_message = f"Context information:\n{context}\n\nUser Query: {message}"
+            
+            # Prepare messages for the API call using the recommended format
             messages = [
-                {"role": "user", "content": f"Context information:\n{context}\n\nUser Query: {message}"}
+                {"role": "user", "content": user_message}
             ]
             
+            chunk_count = 0
             # Generate streaming response
-            with await self.anthropic_client.messages.stream(
-                model=self.model,
-                messages=messages,
-                system=system_prompt,
-                temperature=self.temperature,
-                top_p=self.top_p,
-                max_tokens=self.max_tokens
-            ) as stream:
-                async for chunk in stream:
-                    if chunk.type == "content_block_delta":
-                        yield json.dumps({
-                            "response": chunk.delta.text,
-                            "done": False
-                        })
+            try:
+                with await self.anthropic_client.messages.stream(
+                    model=self.model,
+                    messages=messages,
+                    system=system_prompt,
+                    temperature=self.temperature,
+                    top_p=self.top_p,
+                    max_tokens=self.max_tokens
+                ) as stream:
+                    async for chunk in stream:
+                        if chunk.type == "content_block_delta":
+                            chunk_count += 1
+                            
+                            if self.verbose and chunk_count % 10 == 0:
+                                self.logger.debug(f"Received chunk {chunk_count}")
+                                
+                            yield json.dumps({
+                                "response": chunk.delta.text,
+                                "done": False
+                            })
+            except Exception as stream_error:
+                self.logger.error(f"Anthropic streaming error: {str(stream_error)}")
+                if self.verbose:
+                    self.logger.debug(f"Stream request: model={self.model}, system={system_prompt[:50]}..., messages={messages}")
+                yield json.dumps({
+                    "error": f"Error in streaming response: {str(stream_error)}",
+                    "done": True
+                })
+                return
             
+            if self.verbose:
+                self.logger.info(f"Streaming complete. Received {chunk_count} chunks")
+                
             # Send final message with sources
             yield json.dumps({
                 "sources": self._format_sources(retrieved_docs),
@@ -261,8 +292,8 @@ class AnthropicClient(BaseLLMClient):
             })
             
         except Exception as e:
-            self.logger.error(f"Error in streaming response: {str(e)}")
+            self.logger.error(f"Error generating streaming response: {str(e)}")
             yield json.dumps({
-                "error": f"Failed to generate streaming response: {str(e)}",
+                "error": f"Failed to generate response: {str(e)}",
                 "done": True
             }) 

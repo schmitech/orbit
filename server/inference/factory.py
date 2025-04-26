@@ -13,7 +13,6 @@ from .clients.vllm_client import QAVLLMClient
 from .clients.llama_cpp_client import QALlamaCppClient
 from .clients.openai_client import OpenAIClient
 from .clients.gemini_client import GeminiClient
-from .clients.huggingface_client import HuggingFaceClient
 from .clients.groq_client import GroqClient
 from .clients.deepseek_client import DeepSeekClient
 from .clients.vertex_ai_client import VertexAIClient
@@ -86,15 +85,6 @@ class LLMClientFactory:
             )
         elif provider == 'gemini':
             return GeminiClient(
-                config, 
-                retriever, 
-                guardrail_service, 
-                reranker_service, 
-                prompt_service, 
-                no_results_message
-            )
-        elif provider == 'huggingface':
-            return HuggingFaceClient(
                 config, 
                 retriever, 
                 guardrail_service, 

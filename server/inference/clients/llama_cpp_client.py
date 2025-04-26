@@ -11,8 +11,9 @@ from typing import Dict, List, Any, Optional, AsyncGenerator
 import logging
 
 from ..base_llm_client import BaseLLMClient
+from ..llm_client_mixin import LLMClientMixin
 
-class QALlamaCppClient(BaseLLMClient):
+class QALlamaCppClient(BaseLLMClient, LLMClientMixin):
     """LLM client implementation for llama.cpp."""
     
     def __init__(self, config: Dict[str, Any], retriever: Any, guardrail_service: Any = None, 
@@ -29,6 +30,7 @@ class QALlamaCppClient(BaseLLMClient):
         self.max_tokens = llama_cpp_config.get('max_tokens', 1024)
         self.n_ctx = llama_cpp_config.get('n_ctx', 8192)
         self.n_threads = llama_cpp_config.get('n_threads', 8)
+        self.verbose = llama_cpp_config.get('verbose', config.get('general', {}).get('verbose', False))
         
         self.llama_model = None
         
@@ -54,7 +56,8 @@ class QALlamaCppClient(BaseLLMClient):
     async def close(self) -> None:
         """Clean up resources."""
         # llama.cpp model doesn't need explicit cleanup
-        pass
+        if self.verbose:
+            self.logger.info("llama.cpp client resources released")
     
     async def verify_connection(self) -> bool:
         """
@@ -63,7 +66,11 @@ class QALlamaCppClient(BaseLLMClient):
         Returns:
             True if model is loaded, False otherwise
         """
-        return self.llama_model is not None
+        if self.llama_model is not None:
+            if self.verbose:
+                self.logger.info("llama.cpp model is loaded and ready")
+            return True
+        return False
     
     async def generate_response(
         self, 
@@ -83,38 +90,28 @@ class QALlamaCppClient(BaseLLMClient):
             Dictionary containing response and metadata
         """
         try:
+            if self.verbose:
+                self.logger.info(f"Generating response for message: {message[:100]}...")
+                
             # Check if the message is safe
-            if self.guardrail_service and not await self.guardrail_service.is_safe(message):
-                return {
-                    "response": "I'm sorry, but I cannot respond to that message as it may violate content safety guidelines.",
-                    "sources": [],
-                    "tokens": 0,
-                    "processing_time": 0
-                }
+            if not await self._check_message_safety(message):
+                return await self._handle_unsafe_message()
             
-            # Query for relevant documents
-            retrieved_docs = await self.retriever.get_relevant_context(
-                query=message,
-                collection_name=collection_name
-            )
-            
-            # Rerank if reranker is available
-            if self.reranker_service and retrieved_docs:
-                retrieved_docs = await self.reranker_service.rerank(message, retrieved_docs)
+            # Retrieve and rerank documents
+            retrieved_docs = await self._retrieve_and_rerank_docs(message, collection_name)
             
             # Get the system prompt
-            system_prompt = "You are a helpful assistant that provides accurate information."
-            if system_prompt_id and self.prompt_service:
-                prompt_doc = await self.prompt_service.get_prompt_by_id(system_prompt_id)
-                if prompt_doc and 'prompt' in prompt_doc:
-                    system_prompt = prompt_doc['prompt']
+            system_prompt = await self._get_system_prompt(system_prompt_id)
             
             # Format the context from retrieved documents
             context = self._format_context(retrieved_docs)
             
             # Prepare the prompt with context
-            prompt = f"{system_prompt}\n\nContext information:\n{context}\n\nUser: {message}\nAssistant:"
+            prompt = await self._prepare_prompt_with_context(message, system_prompt, context)
             
+            if self.verbose:
+                self.logger.info(f"Calling llama.cpp model for inference")
+                
             # Call the llama.cpp model
             start_time = time.time()
             
@@ -133,19 +130,25 @@ class QALlamaCppClient(BaseLLMClient):
             
             response = await loop.run_in_executor(None, generate)
             
-            end_time = time.time()
-            processing_time = end_time - start_time
+            processing_time = self._measure_execution_time(start_time)
             
             # Extract the response and metadata
             response_text = response.get("choices", [{}])[0].get("text", "")
             
+            if self.verbose:
+                self.logger.debug(f"Response length: {len(response_text)} characters")
+                
             # Format the sources for citation
             sources = self._format_sources(retrieved_docs)
+            
+            token_usage = response.get("usage", {})
+            if self.verbose and token_usage:
+                self.logger.info(f"Token usage: {token_usage}")
             
             return {
                 "response": response_text,
                 "sources": sources,
-                "tokens": response.get("usage", {}).get("completion_tokens", 0),
+                "tokens": token_usage.get("completion_tokens", 0),
                 "processing_time": processing_time
             }
         except Exception as e:
@@ -170,38 +173,29 @@ class QALlamaCppClient(BaseLLMClient):
             Chunks of the response as they are generated
         """
         try:
+            if self.verbose:
+                self.logger.info(f"Starting streaming response for message: {message[:100]}...")
+                
             # Check if the message is safe
-            if self.guardrail_service and not await self.guardrail_service.is_safe(message):
-                yield json.dumps({
-                    "response": "I'm sorry, but I cannot respond to that message as it may violate content safety guidelines.",
-                    "sources": [],
-                    "done": True
-                })
+            if not await self._check_message_safety(message):
+                yield await self._handle_unsafe_message_stream()
                 return
             
-            # Query for relevant documents
-            retrieved_docs = await self.retriever.get_relevant_context(
-                query=message,
-                collection_name=collection_name
-            )
-            
-            # Rerank if reranker is available
-            if self.reranker_service and retrieved_docs:
-                retrieved_docs = await self.reranker_service.rerank(message, retrieved_docs)
+            # Retrieve and rerank documents
+            retrieved_docs = await self._retrieve_and_rerank_docs(message, collection_name)
             
             # Get the system prompt
-            system_prompt = "You are a helpful assistant that provides accurate information."
-            if system_prompt_id and self.prompt_service:
-                prompt_doc = await self.prompt_service.get_prompt_by_id(system_prompt_id)
-                if prompt_doc and 'prompt' in prompt_doc:
-                    system_prompt = prompt_doc['prompt']
+            system_prompt = await self._get_system_prompt(system_prompt_id)
             
             # Format the context from retrieved documents
             context = self._format_context(retrieved_docs)
             
             # Prepare the prompt with context
-            prompt = f"{system_prompt}\n\nContext information:\n{context}\n\nUser: {message}\nAssistant:"
+            prompt = await self._prepare_prompt_with_context(message, system_prompt, context)
             
+            if self.verbose:
+                self.logger.info(f"Calling llama.cpp model with streaming enabled")
+                
             # Use a thread to run the CPU-bound llama.cpp inference
             loop = asyncio.get_event_loop()
             
@@ -221,17 +215,26 @@ class QALlamaCppClient(BaseLLMClient):
             
             # Stream response chunks
             buffer = ""
+            chunk_count = 0
             for chunk in stream:
                 if chunk and "choices" in chunk and len(chunk["choices"]) > 0:
                     text = chunk["choices"][0].get("text", "")
                     if text:
+                        chunk_count += 1
                         buffer += text
+                        
+                        if self.verbose and chunk_count % 10 == 0:
+                            self.logger.debug(f"Received chunk {chunk_count}")
+                            
                         yield json.dumps({
                             "response": text,
                             "sources": [],
                             "done": False
                         })
             
+            if self.verbose:
+                self.logger.info(f"Streaming complete. Received {chunk_count} chunks")
+                
             # When stream is complete, send the sources
             sources = self._format_sources(retrieved_docs)
             yield json.dumps({

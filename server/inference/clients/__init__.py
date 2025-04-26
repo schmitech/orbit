@@ -9,7 +9,6 @@ from .vllm_client import QAVLLMClient
 from .llama_cpp_client import QALlamaCppClient
 from .openai_client import OpenAIClient
 from .gemini_client import GeminiClient
-from .huggingface_client import HuggingFaceClient
 from .groq_client import GroqClient
 from .deepseek_client import DeepSeekClient
 from .vertex_ai_client import VertexAIClient
@@ -21,8 +20,7 @@ __all__ = [
     "QAVLLMClient", 
     "QALlamaCppClient", 
     "OpenAIClient", 
-    "GeminiClient", 
-    "HuggingFaceClient",
+    "GeminiClient",
     "GroqClient",
     "DeepSeekClient",
     "VertexAIClient",

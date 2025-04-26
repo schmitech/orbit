@@ -12,8 +12,9 @@ import logging
 import os
 
 from ..base_llm_client import BaseLLMClient
+from ..llm_client_mixin import LLMClientMixin
 
-class GeminiClient(BaseLLMClient):
+class GeminiClient(BaseLLMClient, LLMClientMixin):
     """LLM client implementation for Google Gemini."""
     
     def __init__(self, config: Dict[str, Any], retriever: Any, guardrail_service: Any = None, 
@@ -110,52 +111,20 @@ class GeminiClient(BaseLLMClient):
                 self.logger.info(f"Generating response for message: {message[:100]}...")
             
             # Check if the message is safe
-            if self.guardrail_service and not await self.guardrail_service.is_safe(message):
-                if self.verbose:
-                    self.logger.warning("Message failed safety check")
-                return {
-                    "response": "I'm sorry, but I cannot respond to that message as it may violate content safety guidelines.",
-                    "sources": [],
-                    "tokens": 0,
-                    "processing_time": 0
-                }
+            if not await self._check_message_safety(message):
+                return await self._handle_unsafe_message()
             
-            # Query for relevant documents
-            if self.verbose:
-                self.logger.info(f"Retrieving context from collection: {collection_name}")
-            retrieved_docs = await self.retriever.get_relevant_context(
-                query=message,
-                collection_name=collection_name
-            )
-            
-            if self.verbose:
-                self.logger.info(f"Retrieved {len(retrieved_docs)} relevant documents")
-            
-            # Rerank if reranker is available
-            if self.reranker_service and retrieved_docs:
-                if self.verbose:
-                    self.logger.info("Reranking retrieved documents")
-                retrieved_docs = await self.reranker_service.rerank(message, retrieved_docs)
+            # Retrieve and rerank documents
+            retrieved_docs = await self._retrieve_and_rerank_docs(message, collection_name)
             
             # Get the system prompt
-            system_prompt = "You are a helpful assistant that provides accurate information."
-            if system_prompt_id and self.prompt_service:
-                if self.verbose:
-                    self.logger.info(f"Fetching system prompt with ID: {system_prompt_id}")
-                prompt_doc = await self.prompt_service.get_prompt_by_id(system_prompt_id)
-                if prompt_doc and 'prompt' in prompt_doc:
-                    system_prompt = prompt_doc['prompt']
-                    if self.verbose:
-                        self.logger.debug(f"Using custom system prompt: {system_prompt[:100]}...")
+            system_prompt = await self._get_system_prompt(system_prompt_id)
             
             # Format the context from retrieved documents
             context = self._format_context(retrieved_docs)
             
             # Prepare the prompt with context
-            prompt = f"{system_prompt}\n\nContext information:\n{context}\n\nUser: {message}\nAssistant:"
-            
-            if self.verbose:
-                self.logger.debug(f"Prepared prompt length: {len(prompt)} characters")
+            prompt = await self._prepare_prompt_with_context(message, system_prompt, context)
             
             # Initialize Gemini client if not already initialized
             if not self.gemini_client:
@@ -179,11 +148,7 @@ class GeminiClient(BaseLLMClient):
             
             response = model.generate_content(prompt)
             
-            end_time = time.time()
-            processing_time = end_time - start_time
-            
-            if self.verbose:
-                self.logger.info(f"Received response in {processing_time:.2f} seconds")
+            processing_time = self._measure_execution_time(start_time)
             
             # Extract the response text
             response_text = response.text if hasattr(response, 'text') else str(response)
@@ -194,12 +159,8 @@ class GeminiClient(BaseLLMClient):
             # Format the sources for citation
             sources = self._format_sources(retrieved_docs)
             
-            # Estimate token count (Gemini doesn't provide this directly)
-            # Rough estimate: 4 chars per token
-            estimated_tokens = len(prompt) // 4 + len(response_text) // 4
-            
-            if self.verbose:
-                self.logger.info(f"Estimated token usage: {estimated_tokens}")
+            # Estimate token count
+            estimated_tokens = self._estimate_tokens(prompt, response_text)
             
             return {
                 "response": response_text,
@@ -233,52 +194,21 @@ class GeminiClient(BaseLLMClient):
                 self.logger.info(f"Starting streaming response for message: {message[:100]}...")
             
             # Check if the message is safe
-            if self.guardrail_service and not await self.guardrail_service.is_safe(message):
-                if self.verbose:
-                    self.logger.warning("Message failed safety check")
-                yield json.dumps({
-                    "response": "I'm sorry, but I cannot respond to that message as it may violate content safety guidelines.",
-                    "sources": [],
-                    "done": True
-                })
+            if not await self._check_message_safety(message):
+                yield await self._handle_unsafe_message_stream()
                 return
             
-            # Query for relevant documents
-            if self.verbose:
-                self.logger.info(f"Retrieving context from collection: {collection_name}")
-            retrieved_docs = await self.retriever.get_relevant_context(
-                query=message,
-                collection_name=collection_name
-            )
-            
-            if self.verbose:
-                self.logger.info(f"Retrieved {len(retrieved_docs)} relevant documents")
-            
-            # Rerank if reranker is available
-            if self.reranker_service and retrieved_docs:
-                if self.verbose:
-                    self.logger.info("Reranking retrieved documents")
-                retrieved_docs = await self.reranker_service.rerank(message, retrieved_docs)
+            # Retrieve and rerank documents
+            retrieved_docs = await self._retrieve_and_rerank_docs(message, collection_name)
             
             # Get the system prompt
-            system_prompt = "You are a helpful assistant that provides accurate information."
-            if system_prompt_id and self.prompt_service:
-                if self.verbose:
-                    self.logger.info(f"Fetching system prompt with ID: {system_prompt_id}")
-                prompt_doc = await self.prompt_service.get_prompt_by_id(system_prompt_id)
-                if prompt_doc and 'prompt' in prompt_doc:
-                    system_prompt = prompt_doc['prompt']
-                    if self.verbose:
-                        self.logger.debug(f"Using custom system prompt: {system_prompt[:100]}...")
+            system_prompt = await self._get_system_prompt(system_prompt_id)
             
             # Format the context from retrieved documents
             context = self._format_context(retrieved_docs)
             
             # Prepare the prompt with context
-            prompt = f"{system_prompt}\n\nContext information:\n{context}\n\nUser: {message}\nAssistant:"
-            
-            if self.verbose:
-                self.logger.debug(f"Prepared prompt length: {len(prompt)} characters")
+            prompt = await self._prepare_prompt_with_context(message, system_prompt, context)
             
             # Initialize Gemini client if not already initialized
             if not self.gemini_client:

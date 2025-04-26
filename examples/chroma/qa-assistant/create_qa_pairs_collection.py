@@ -256,15 +256,19 @@ if __name__ == "__main__":
     parser.add_argument('json_file_path', help='Path to the JSON file containing Q&A pairs')
     args = parser.parse_args()
     
+    # Get the embedding provider from the config
+    embedding_provider = config['embedding']['provider']
+    print(f"Using embedding provider: {embedding_provider}")
+    
     # Updated configuration with Chroma server details
     CONFIG = {
-        "ollama_base_url": config['inference']['ollama']['base_url'],
+        "ollama_base_url": config['embeddings'][embedding_provider]['base_url'],
         "json_file_path": args.json_file_path,
         "batch_size": 50,
         "chroma_host": config['datasources']['chroma']['host'],
         "chroma_port": config['datasources']['chroma']['port'],
         "collection_name": args.collection_name,
-        "model": config['inference']['ollama']['embed_model']
+        "model": config['embeddings'][embedding_provider]['model']
     }
     
     # Run ingestion with Chroma
