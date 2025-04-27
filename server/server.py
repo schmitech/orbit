@@ -535,23 +535,13 @@ class InferenceServer:
 
     def _load_no_results_message(self) -> str:
         """
-        Load the no results message from a file.
+        Get the no results message from the configuration.
         
         Returns:
             The message to show when no results are found
         """
-        try:
-            message_file = self.config.get('general', {}).get(
-                'no_results_message_file', 
-                '../prompts/no_results_message.txt'
-            )
-            with open(message_file, 'r') as file:
-                no_results_message = file.read().strip()
-                self.logger.info("Loaded no results message from file")
-                return no_results_message
-        except Exception as e:
-            self.logger.warning(f"Could not load no results message: {str(e)}")
-            return "Could not load no results message."
+        return self.config.get('messages', {}).get('no_results_response', 
+            "I'm sorry, but I don't have any specific information about that topic in my knowledge base.")
 
     async def _shutdown_services(self, app: FastAPI) -> None:
         """
@@ -769,7 +759,7 @@ class InferenceServer:
             api_key = request.headers.get("X-API-Key")
             
             # Mask API key for logging
-            masked_api_key = mask_api_key(api_key, show_last=True)
+            masked_api_key = f"***{api_key[-4:]}" if api_key else "***"
             
             # Resolve client IP (using X-Forwarded-For if available)
             client_ip = request.headers.get("X-Forwarded-For", request.client.host if request.client else "unknown")
@@ -820,11 +810,17 @@ class InferenceServer:
             """
             # In production, add authentication middleware to restrict access to admin endpoints
             
-            return await api_key_service.create_api_key(
+            api_key_response = await api_key_service.create_api_key(
                 api_key_data.collection_name,
                 api_key_data.client_name,
                 api_key_data.notes
             )
+            
+            # Log with masked API key
+            masked_api_key = f"***{api_key_response['api_key'][-4:]}" if api_key_response.get('api_key') else "***"
+            self.logger.info(f"Created API key for collection '{api_key_data.collection_name}': {masked_api_key}")
+            
+            return api_key_response
 
         @self.app.get("/admin/api-keys")
         async def list_api_keys(
@@ -846,9 +842,11 @@ class InferenceServer:
                 cursor = api_key_service.api_keys_collection.find({})
                 api_keys = await cursor.to_list(length=100)  # Limit to 100 keys
                 
-                # Convert _id to string representation
+                # Convert _id to string representation and mask API keys
                 for key in api_keys:
                     key["_id"] = str(key["_id"])
+                    if "api_key" in key:
+                        key["api_key"] = f"***{key['api_key'][-4:]}" if key["api_key"] else "***"
                 
                 return api_keys
                 
@@ -867,6 +865,9 @@ class InferenceServer:
             This is an admin-only endpoint and should be properly secured in production.
             """
             status = await api_key_service.get_api_key_status(api_key)
+            # Log with masked API key
+            masked_api_key = f"***{api_key[-4:]}" if api_key else "***"
+            self.logger.info(f"Checked status for API key: {masked_api_key}")
             return status
 
         @self.app.post("/admin/api-keys/deactivate")
@@ -885,6 +886,10 @@ class InferenceServer:
             
             if not success:
                 raise HTTPException(status_code=404, detail="API key not found")
+            
+            # Log with masked API key
+            masked_api_key = f"***{data.api_key[-4:]}" if data.api_key else "***"
+            self.logger.info(f"Deactivated API key: {masked_api_key}")
                 
             return {"status": "success", "message": "API key deactivated"}
 
@@ -904,6 +909,10 @@ class InferenceServer:
             
             if not success:
                 raise HTTPException(status_code=404, detail="API key not found")
+            
+            # Log with masked API key
+            masked_api_key = f"***{api_key[-4:]}" if api_key else "***"
+            self.logger.info(f"Deleted API key: {masked_api_key}")
                 
             return {"status": "success", "message": "API key deleted"}
 
@@ -1027,7 +1036,7 @@ class InferenceServer:
             
             if not success:
                 raise HTTPException(status_code=404, detail="API key not found or prompt not associated")
-        
+            
             return {"status": "success", "message": "System prompt associated with API key"}
     
     def create_ssl_context(self) -> Optional[ssl.SSLContext]:

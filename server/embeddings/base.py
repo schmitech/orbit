@@ -132,5 +132,9 @@ class EmbeddingServiceFactory:
             from embeddings.cohere import CohereEmbeddingService
             provider_config = config.get('embeddings', {}).get('cohere', {})
             return CohereEmbeddingService(provider_config)
+        elif provider_name == 'mistral':
+            from embeddings.mistral import MistralEmbeddingService
+            provider_config = config.get('embeddings', {}).get('mistral', {})
+            return MistralEmbeddingService(provider_config)
         else:
             raise ValueError(f"Unsupported embedding provider: {provider_name}")

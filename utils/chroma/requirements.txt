@@ -1,0 +1,6 @@
+ollama==0.4.7
+chromadb>=1.0.7
+langchain-ollama>=0.2.3
+langchain-community>=0.0.10
+PyYAML>=6.0.0
+tqdm>=4.66.2

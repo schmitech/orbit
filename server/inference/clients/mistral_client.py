@@ -11,6 +11,9 @@ import aiohttp
 import logging
 import os
 
+# Import the official Mistral client
+from mistralai import Mistral
+
 from ..base_llm_client import BaseLLMClient
 from ..llm_client_mixin import LLMClientMixin
 
@@ -33,22 +36,17 @@ class MistralClient(BaseLLMClient, LLMClientMixin):
         self.stream = mistral_config.get('stream', True)
         self.verbose = mistral_config.get('verbose', config.get('general', {}).get('verbose', False))
         
-        self.mistral_client = None
+        self.client = None
         
     async def initialize(self) -> None:
         """Initialize the Mistral AI client."""
         try:
-            from openai import AsyncOpenAI
-            
-            # Initialize Mistral client using OpenAI client with custom base URL
-            self.mistral_client = AsyncOpenAI(
-                api_key=self.api_key,
-                base_url=self.api_base
-            )
+            # Initialize Mistral client
+            self.client = Mistral(api_key=self.api_key)
             
             self.logger.info(f"Initialized Mistral AI client with model {self.model}")
         except ImportError:
-            self.logger.error("openai package not installed or outdated. Please install with: pip install -U openai>=1.0.0")
+            self.logger.error("mistralai package not installed. Please install with: pip install -U mistralai")
             raise
         except Exception as e:
             self.logger.error(f"Error initializing Mistral AI client: {str(e)}")
@@ -57,9 +55,11 @@ class MistralClient(BaseLLMClient, LLMClientMixin):
     async def close(self) -> None:
         """Clean up resources."""
         try:
-            if self.mistral_client and hasattr(self.mistral_client, "close"):
-                await self.mistral_client.close()
-                self.logger.info("Closed Mistral AI client session")
+            # Close client session
+            if self.client:
+                # Use context manager in the Mistral client
+                self.client = None
+            self.logger.info("Closed Mistral AI client session")
         except Exception as e:
             self.logger.error(f"Error closing Mistral AI client: {str(e)}")
         
@@ -74,18 +74,24 @@ class MistralClient(BaseLLMClient, LLMClientMixin):
             True if connection is working, False otherwise
         """
         try:
-            if not self.mistral_client:
+            if not self.client:
                 await self.initialize()
             
             if self.verbose:
                 self.logger.info("Testing Mistral AI API connection")
                 
             # Simple test request to verify connection
-            response = await self.mistral_client.chat.completions.create(
+            response = await self.client.chat.complete_async(
                 model=self.model,
                 messages=[
-                    {"role": "system", "content": "You are a helpful assistant."},
-                    {"role": "user", "content": "Ping"}
+                    {
+                        "role": "system", 
+                        "content": "You are a helpful assistant."
+                    },
+                    {
+                        "role": "user", 
+                        "content": "Ping"
+                    }
                 ],
                 max_tokens=10
             )
@@ -134,7 +140,7 @@ class MistralClient(BaseLLMClient, LLMClientMixin):
             context = self._format_context(retrieved_docs)
             
             # Initialize Mistral client if not already initialized
-            if not self.mistral_client:
+            if not self.client:
                 await self.initialize()
             
             if self.verbose:
@@ -145,11 +151,17 @@ class MistralClient(BaseLLMClient, LLMClientMixin):
             
             # Prepare messages for the API call
             messages = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"Context information:\n{context}\n\nUser Query: {message}"}
+                {
+                    "role": "system", 
+                    "content": system_prompt
+                },
+                {
+                    "role": "user", 
+                    "content": f"Context information:\n{context}\n\nUser Query: {message}"
+                }
             ]
             
-            response = await self.mistral_client.chat.completions.create(
+            response = await self.client.chat.complete_async(
                 model=self.model,
                 messages=messages,
                 temperature=self.temperature,
@@ -225,7 +237,7 @@ class MistralClient(BaseLLMClient, LLMClientMixin):
             context = self._format_context(retrieved_docs)
             
             # Initialize Mistral client if not already initialized
-            if not self.mistral_client:
+            if not self.client:
                 await self.initialize()
             
             if self.verbose:
@@ -233,24 +245,26 @@ class MistralClient(BaseLLMClient, LLMClientMixin):
                 
             # Prepare messages for the API call
             messages = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"Context information:\n{context}\n\nUser Query: {message}"}
+                {
+                    "role": "system", 
+                    "content": system_prompt
+                },
+                {
+                    "role": "user", 
+                    "content": f"Context information:\n{context}\n\nUser Query: {message}"
+                }
             ]
             
             # Generate streaming response
-            response_stream = await self.mistral_client.chat.completions.create(
+            chunk_count = 0
+            async for chunk in await self.client.chat.complete_streaming_async(
                 model=self.model,
                 messages=messages,
                 temperature=self.temperature,
                 top_p=self.top_p,
-                max_tokens=self.max_tokens,
-                stream=True
-            )
-            
-            # Stream the response
-            chunk_count = 0
-            async for chunk in response_stream:
-                if chunk.choices[0].delta.content is not None:
+                max_tokens=self.max_tokens
+            ):
+                if chunk.choices[0].delta.content:
                     chunk_count += 1
                     
                     if self.verbose and chunk_count % 10 == 0:

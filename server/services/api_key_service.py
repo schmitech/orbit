@@ -184,7 +184,7 @@ class ApiKeyService:
                 return False, None, None
             
             # Get the collection name
-            collection_name = key_doc.get("collection") or key_doc.get("collection_name")
+            collection_name = key_doc.get("collection_name")
             if not collection_name:
                 logger.warning(f"API key {masked_key} has no associated collection")
                 return False, None, None
@@ -257,7 +257,7 @@ class ApiKeyService:
             key_doc = {
                 "api_key": api_key,
                 "collection_name": collection_name,
-                "collection": collection_name,  # Add collection field for consistency
+                # "collection": collection_name,  # Add collection field for consistency
                 "client_name": client_name,
                 "notes": notes,
                 "created_at": created_at,

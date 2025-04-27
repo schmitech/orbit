@@ -161,6 +161,10 @@ class ChatService:
                             # Log the complete response when done
                             await self._log_response(accumulated_text, client_ip)
                             
+                            # Log conversation to Elasticsearch if API key is provided
+                            if api_key:
+                                await self._log_conversation(message, accumulated_text, client_ip, api_key)
+                                
                 except json.JSONDecodeError:
                     logger.error(f"Error parsing chunk as JSON: {chunk}")
                     continue
