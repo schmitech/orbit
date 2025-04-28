@@ -8,17 +8,6 @@ import logging
 from typing import Dict, Any, Optional
 
 from .base_llm_client import BaseLLMClient
-from .clients.ollama_client import OllamaClient
-from .clients.vllm_client import QAVLLMClient
-from .clients.llama_cpp_client import QALlamaCppClient
-from .clients.openai_client import OpenAIClient
-from .clients.gemini_client import GeminiClient
-from .clients.groq_client import GroqClient
-from .clients.deepseek_client import DeepSeekClient
-from .clients.vertex_ai_client import VertexAIClient
-from .clients.mistral_client import MistralClient
-from .clients.anthropic_client import AnthropicClient
-from .clients.pytorch_client import PyTorchClient
 
 class LLMClientFactory:
     """Factory for creating LLM clients based on the selected inference provider."""
@@ -49,6 +38,7 @@ class LLMClientFactory:
         provider = config['general'].get('inference_provider', 'ollama')
         
         if provider == 'ollama':
+            from .clients.ollama_client import OllamaClient
             return OllamaClient(
                 config, 
                 retriever, 
@@ -58,6 +48,7 @@ class LLMClientFactory:
                 no_results_message
             )
         elif provider == 'vllm':
+            from .clients.vllm_client import QAVLLMClient
             return QAVLLMClient(
                 config, 
                 retriever, 
@@ -67,6 +58,7 @@ class LLMClientFactory:
                 no_results_message
             )
         elif provider == 'llama_cpp':
+            from .clients.llama_cpp_client import QALlamaCppClient
             return QALlamaCppClient(
                 config, 
                 retriever, 
@@ -76,6 +68,7 @@ class LLMClientFactory:
                 no_results_message
             )
         elif provider == 'openai':
+            from .clients.openai_client import OpenAIClient
             return OpenAIClient(
                 config, 
                 retriever, 
@@ -85,6 +78,7 @@ class LLMClientFactory:
                 no_results_message
             )
         elif provider == 'gemini':
+            from .clients.gemini_client import GeminiClient
             return GeminiClient(
                 config, 
                 retriever, 
@@ -94,6 +88,7 @@ class LLMClientFactory:
                 no_results_message
             )
         elif provider == 'groq':
+            from .clients.groq_client import GroqClient
             return GroqClient(
                 config, 
                 retriever, 
@@ -103,6 +98,7 @@ class LLMClientFactory:
                 no_results_message
             )
         elif provider == 'deepseek':
+            from .clients.deepseek_client import DeepSeekClient
             return DeepSeekClient(
                 config, 
                 retriever, 
@@ -112,6 +108,7 @@ class LLMClientFactory:
                 no_results_message
             )
         elif provider == 'vertex':
+            from .clients.vertex_ai_client import VertexAIClient
             return VertexAIClient(
                 config, 
                 retriever, 
@@ -121,6 +118,7 @@ class LLMClientFactory:
                 no_results_message
             )
         elif provider == 'mistral':
+            from .clients.mistral_client import MistralClient
             return MistralClient(
                 config, 
                 retriever, 
@@ -130,6 +128,7 @@ class LLMClientFactory:
                 no_results_message
             )
         elif provider == 'anthropic':
+            from .clients.anthropic_client import AnthropicClient
             return AnthropicClient(
                 config, 
                 retriever, 
@@ -139,6 +138,7 @@ class LLMClientFactory:
                 no_results_message
             )
         elif provider == 'pytorch':
+            from .clients.pytorch_client import PyTorchClient
             return PyTorchClient(
                 config, 
                 retriever, 
@@ -149,6 +149,7 @@ class LLMClientFactory:
             )
         else:
             logging.warning(f"Unknown inference provider: {provider}, falling back to Ollama")
+            from .clients.ollama_client import OllamaClient
             return OllamaClient(
                 config, 
                 retriever, 

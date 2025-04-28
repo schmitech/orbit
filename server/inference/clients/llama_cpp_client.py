@@ -7,6 +7,7 @@ This module provides a llama.cpp-specific implementation of the BaseLLMClient in
 import json
 import time
 import asyncio
+import os
 from typing import Dict, List, Any, Optional, AsyncGenerator
 import logging
 
@@ -24,30 +25,44 @@ class QALlamaCppClient(BaseLLMClient, LLMClientMixin):
         llama_cpp_config = config.get('inference', {}).get('llama_cpp', {})
         
         self.model_path = llama_cpp_config.get('model_path', '')
+        self.chat_format = llama_cpp_config.get('chat_format', None)
         self.temperature = llama_cpp_config.get('temperature', 0.1)
         self.top_p = llama_cpp_config.get('top_p', 0.8)
         self.top_k = llama_cpp_config.get('top_k', 20)
         self.max_tokens = llama_cpp_config.get('max_tokens', 1024)
-        self.n_ctx = llama_cpp_config.get('n_ctx', 8192)
-        self.n_threads = llama_cpp_config.get('n_threads', 8)
+        self.n_ctx = llama_cpp_config.get('n_ctx', 4096)
+        self.n_threads = llama_cpp_config.get('n_threads', 4)
+        self.stream = llama_cpp_config.get('stream', True)
         self.verbose = llama_cpp_config.get('verbose', config.get('general', {}).get('verbose', False))
+        self.default_system_prompt = llama_cpp_config.get('system_prompt', "You are a helpful, accurate, precise, and expert assistant.")
         
         self.llama_model = None
+        self.logger = logging.getLogger(__name__)
         
     async def initialize(self) -> None:
         """Initialize the LlamaCpp client."""
         try:
             from llama_cpp import Llama
             
+            # Check if model path exists
+            if not os.path.exists(self.model_path):
+                self.logger.error(f"Model file not found at: {self.model_path}")
+                self.logger.error("Please download a model using the download_hugging_face_gguf_model.py script")
+                raise FileNotFoundError(f"Model file not found at: {self.model_path}")
+            
+            # Load model from local path
+            self.logger.info(f"Loading model from: {self.model_path}")
             self.llama_model = Llama(
                 model_path=self.model_path,
                 n_ctx=self.n_ctx,
-                n_threads=self.n_threads
+                n_threads=self.n_threads,
+                chat_format=self.chat_format,
+                verbose=self.verbose
             )
             
-            self.logger.info(f"Initialized llama.cpp client with model at {self.model_path}")
+            self.logger.info(f"Initialized llama.cpp client successfully")
         except ImportError:
-            self.logger.error("llama_cpp package not installed. Please install with: pip install llama-cpp-python")
+            self.logger.error("llama_cpp package not installed. Please install with: pip install llama-cpp-python==0.3.8")
             raise
         except Exception as e:
             self.logger.error(f"Error initializing llama.cpp client: {str(e)}")
@@ -71,6 +86,22 @@ class QALlamaCppClient(BaseLLMClient, LLMClientMixin):
                 self.logger.info("llama.cpp model is loaded and ready")
             return True
         return False
+    
+    async def _get_system_prompt(self, system_prompt_id: Optional[str] = None) -> str:
+        """
+        Get the system prompt, falling back to the default from config if none provided.
+        
+        Args:
+            system_prompt_id: Optional ID of the system prompt to use
+            
+        Returns:
+            The system prompt to use
+        """
+        if system_prompt_id:
+            prompt = await super()._get_system_prompt(system_prompt_id)
+            if prompt:
+                return prompt
+        return self.default_system_prompt
     
     async def generate_response(
         self, 
@@ -106,11 +137,24 @@ class QALlamaCppClient(BaseLLMClient, LLMClientMixin):
             # Format the context from retrieved documents
             context = self._format_context(retrieved_docs)
             
-            # Prepare the prompt with context
-            prompt = await self._prepare_prompt_with_context(message, system_prompt, context)
+            # Create messages for chat completion
+            messages = []
+            
+            # Add system message if provided
+            if system_prompt:
+                system_content = system_prompt
+                if context:
+                    system_content += f"\n\nContext information:\n{context}"
+                messages.append({"role": "system", "content": system_content})
+            elif context:
+                # If no system prompt but we have context
+                messages.append({"role": "system", "content": f"Context information:\n{context}"})
+            
+            # Add user message
+            messages.append({"role": "user", "content": message})
             
             if self.verbose:
-                self.logger.info(f"Calling llama.cpp model for inference")
+                self.logger.info(f"Calling llama.cpp model for chat completion")
                 
             # Call the llama.cpp model
             start_time = time.time()
@@ -118,22 +162,21 @@ class QALlamaCppClient(BaseLLMClient, LLMClientMixin):
             # We need to convert the async call to sync using ThreadPoolExecutor
             loop = asyncio.get_event_loop()
             
-            def generate():
-                return self.llama_model(
-                    prompt=prompt,
-                    max_tokens=self.max_tokens,
+            def generate_chat():
+                return self.llama_model.create_chat_completion(
+                    messages=messages,
                     temperature=self.temperature,
                     top_p=self.top_p,
                     top_k=self.top_k,
-                    echo=False
+                    max_tokens=self.max_tokens
                 )
             
-            response = await loop.run_in_executor(None, generate)
+            response = await loop.run_in_executor(None, generate_chat)
             
             processing_time = self._measure_execution_time(start_time)
             
             # Extract the response and metadata
-            response_text = response.get("choices", [{}])[0].get("text", "")
+            response_text = response.get("choices", [{}])[0].get("message", {}).get("content", "")
             
             if self.verbose:
                 self.logger.debug(f"Response length: {len(response_text)} characters")
@@ -190,8 +233,21 @@ class QALlamaCppClient(BaseLLMClient, LLMClientMixin):
             # Format the context from retrieved documents
             context = self._format_context(retrieved_docs)
             
-            # Prepare the prompt with context
-            prompt = await self._prepare_prompt_with_context(message, system_prompt, context)
+            # Create messages for chat completion
+            messages = []
+            
+            # Add system message if provided
+            if system_prompt:
+                system_content = system_prompt
+                if context:
+                    system_content += f"\n\nContext information:\n{context}"
+                messages.append({"role": "system", "content": system_content})
+            elif context:
+                # If no system prompt but we have context
+                messages.append({"role": "system", "content": f"Context information:\n{context}"})
+                
+            # Add user message
+            messages.append({"role": "user", "content": message})
             
             if self.verbose:
                 self.logger.info(f"Calling llama.cpp model with streaming enabled")
@@ -200,13 +256,12 @@ class QALlamaCppClient(BaseLLMClient, LLMClientMixin):
             loop = asyncio.get_event_loop()
             
             def stream_generate():
-                return self.llama_model(
-                    prompt=prompt,
-                    max_tokens=self.max_tokens,
+                return self.llama_model.create_chat_completion(
+                    messages=messages,
                     temperature=self.temperature,
                     top_p=self.top_p,
                     top_k=self.top_k,
-                    echo=False,
+                    max_tokens=self.max_tokens,
                     stream=True
                 )
             
@@ -214,23 +269,23 @@ class QALlamaCppClient(BaseLLMClient, LLMClientMixin):
             stream = await loop.run_in_executor(None, stream_generate)
             
             # Stream response chunks
-            buffer = ""
             chunk_count = 0
             for chunk in stream:
                 if chunk and "choices" in chunk and len(chunk["choices"]) > 0:
-                    text = chunk["choices"][0].get("text", "")
-                    if text:
-                        chunk_count += 1
-                        buffer += text
-                        
-                        if self.verbose and chunk_count % 10 == 0:
-                            self.logger.debug(f"Received chunk {chunk_count}")
+                    choice = chunk["choices"][0]
+                    if "delta" in choice and "content" in choice["delta"]:
+                        text = choice["delta"]["content"]
+                        if text:
+                            chunk_count += 1
                             
-                        yield json.dumps({
-                            "response": text,
-                            "sources": [],
-                            "done": False
-                        })
+                            if self.verbose and chunk_count % 10 == 0:
+                                self.logger.debug(f"Received chunk {chunk_count}")
+                                
+                            yield json.dumps({
+                                "response": text,
+                                "sources": [],
+                                "done": False
+                            })
             
             if self.verbose:
                 self.logger.info(f"Streaming complete. Received {chunk_count} chunks")

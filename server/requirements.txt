@@ -1,7 +1,9 @@
 ollama==0.4.7
+llama-cpp-python==0.3.8
 chromadb>=1.0.7
 langchain-ollama>=0.2.3
 langchain-community>=0.0.10
+huggingface-hub==0.30.2 
 PyYAML>=6.0.1
 tqdm>=4.66.2
 fastapi>=0.111.0

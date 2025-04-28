@@ -8,3 +8,4 @@ logs/*
 config.yaml
 .api_keys
 =*
+*.gguf

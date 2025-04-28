@@ -530,6 +530,92 @@ Note: Using just `&` is less robust than systemd as the process might terminate 
 
 ---
 
+## 🦙 Llama.cpp Integration
+
+The server supports running inference locally using llama.cpp, which provides efficient CPU-based inference for LLM models without requiring a GPU or external API service.
+
+### Setup and Configuration
+
+1. Install the llama-cpp-python package with optimizations for your hardware:
+
+```bash
+# Basic installation
+pip install llama-cpp-python==0.3.8
+
+# For Apple Silicon (M1/M2/M3) with Metal acceleration
+CMAKE_ARGS="-DLLAMA_METAL=on" pip install llama-cpp-python==0.3.8
+
+# For NVIDIA GPUs with CUDA
+CMAKE_ARGS="-DLLAMA_CUBLAS=on" pip install llama-cpp-python==0.3.8
+
+# For AMD GPUs with ROCm
+CMAKE_ARGS="-DLLAMA_HIPBLAS=on" pip install llama-cpp-python==0.3.8
+
+# For OpenBLAS acceleration:
+CMAKE_ARGS="-DLLAMA_BLAS=ON -DLLAMA_BLAS_VENDOR=OpenBLAS" pip install llama-cpp-python==0.3.8
+
+# For faster performance on all CPUs:
+CMAKE_ARGS="-DLLAMA_AVX=on -DLLAMA_AVX2=on" pip install llama-cpp-python==0.3.8 
+```
+
+2. Configure your `config.yaml` to use llama.cpp as the inference provider:
+
+```yaml
+general:
+  inference_provider: "llama_cpp"
+  # ... other settings
+
+inference:
+  llama_cpp:
+    model_path: "models/tinyllama-1.1b-chat-v1.0.Q4_0.gguf"  # Path to downloaded model
+    chat_format: "chatml"                                    # Format for chat messages (chatml, llama-2, gemma, etc.)
+    temperature: 0.1
+    top_p: 0.8
+    top_k: 20
+    max_tokens: 1024
+    n_ctx: 4096                                             # Context window size
+    n_threads: 4                                            # CPU threads to use
+    stream: true
+```
+
+### Downloading Models
+
+The server includes a utility script to download models from Hugging Face and automatically update your config.yaml:
+
+```bash
+# List available models in a repository
+python3 download_hugging_face_gguf_model.py --repo-id TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF --list-files
+
+# Download a specific model file (automatically updates config.yaml)
+python3 download_hugging_face_gguf_model.py --repo-id TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF --filename "tinyllama-1.1b-chat-v1.0.Q4_0.gguf"
+```
+
+The download script will:
+1. List available files in the repository
+2. Download the selected model to the models directory
+3. Automatically update your config.yaml with the correct model path
+4. You don't need to manually configure huggingface_token or repo_id in the config.yaml
+
+### Recommended Models by Memory Usage
+
+| System RAM | Recommended Models |
+|------------|-------------------|
+| 4GB or less | TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF (Q4_0 quantization) |
+| 8GB | TheBloke/Phi-2-GGUF or TheBloke/Mistral-7B-Instruct-v0.2-GGUF (Q4_0 quantization) |
+| 16GB+ | TheBloke/Llama-2-13B-Chat-GGUF or TheBloke/Mixtral-8x7B-Instruct-v0.1-GGUF (Q4_0 quantization) |
+
+### Running with llama.cpp
+
+Start the server as usual and it will use the configured llama.cpp model:
+
+```bash
+./start.sh
+```
+
+The server will automatically verify and initialize the llama.cpp model at startup.
+
+---
+
 ## 📌 Dependencies
 - FastAPI
 - Uvicorn
@@ -539,6 +625,9 @@ Note: Using just `&` is less robust than systemd as the process might terminate 
 - PyYAML
 - aiohttp
 - python-json-logger
+- llama-cpp-python (for local LLM inference)
+- huggingface-hub (for model downloading)
+- tqdm (for progress bars)
 
 ---
 
