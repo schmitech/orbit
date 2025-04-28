@@ -367,7 +367,19 @@ class InferenceServer:
         Returns:
             An initialized datasource client
         """
-        if provider == 'postgres':
+        if provider == 'sqlite':
+            # SQLite implementation
+            import sqlite3
+            sqlite_config = self.config['datasources']['sqlite']
+            db_path = sqlite_config.get('db_path', '../utils/sqllite/rag_database.db')
+            self.logger.info(f"Initializing SQLite connection to {db_path}")
+            try:
+                # Return a SQLite connection
+                return sqlite3.connect(db_path)
+            except Exception as e:
+                self.logger.error(f"Failed to connect to SQLite database: {str(e)}")
+                return None
+        elif provider == 'postgres':
             # Example implementation for PostgreSQL
             postgres_conf = self.config['datasources']['postgres']
             # Return a PostgreSQL client implementation
@@ -386,7 +398,7 @@ class InferenceServer:
             return chromadb.HttpClient(
                 host=chroma_conf['host'],
                 port=int(chroma_conf['port'])
-            )   
+            )
     
     async def _initialize_services(self, app: FastAPI) -> None:
         """
@@ -476,11 +488,44 @@ class InferenceServer:
             self.logger.info("Embedding services disabled in configuration")
             app.state.embedding_service = None
         
-        # Initialize retriever with embedding service if available
-        app.state.retriever = QAChromaRetriever(
-            config=self.config,
-            embeddings=app.state.embedding_service
-        )
+        # Initialize retriever using the factory pattern for better extensibility
+        try:
+            # Get the datasource provider from configuration 
+            datasource_provider = self.config['general'].get('datasource_provider', 'chroma')
+            
+            # The naming convention for retriever types is "qa_<provider>"
+            retriever_type = f"qa_{datasource_provider}"
+            self.logger.info(f"Initializing retriever of type '{retriever_type}' using factory pattern")
+            
+            # Import the RetrieverFactory
+            from retrievers.base_retriever import RetrieverFactory
+            
+            # Prepare appropriate arguments based on the provider type
+            retriever_kwargs = {'config': self.config, 'embeddings': app.state.embedding_service}
+            
+            # Add the appropriate client/connection based on the provider type
+            if datasource_provider == 'chroma' and hasattr(app.state, 'chroma_client'):
+                retriever_kwargs['collection'] = app.state.chroma_client
+            elif hasattr(app.state, 'datasource_client'):
+                retriever_kwargs['connection'] = app.state.datasource_client
+            
+            # Create the retriever using the factory
+            app.state.retriever = RetrieverFactory.create_retriever(
+                retriever_type=retriever_type,
+                **retriever_kwargs
+            )
+            
+            self.logger.info(f"Successfully initialized {retriever_type} retriever")
+        except Exception as e:
+            self.logger.error(f"Error initializing retriever: {str(e)}")
+            self.logger.warning("Falling back to default QAChromaRetriever")
+            
+            # Fall back to QAChromaRetriever in case of error
+            from retrievers.qa_chroma_retriever import QAChromaRetriever
+            app.state.retriever = QAChromaRetriever(
+                config=self.config,
+                embeddings=app.state.embedding_service
+            )
         
         # Initialize GuardrailService
         app.state.guardrail_service = GuardrailService(self.config)
@@ -507,6 +552,14 @@ class InferenceServer:
         
         app.state.logger_service = LoggerService(self.config)
         
+        # Initialize the health service with the appropriate datasource client
+        datasource_provider = self.config['general'].get('datasource_provider', 'chroma')
+        if datasource_provider == 'chroma':
+            app.state.health_service = HealthService(self.config, app.state.chroma_client, app.state.llm_client)
+        else:
+            # For any other datasource provider, use the datasource_client
+            app.state.health_service = HealthService(self.config, app.state.datasource_client, app.state.llm_client)
+        
         # Initialize all services concurrently
         init_tasks = [
             app.state.llm_client.initialize(),
@@ -530,7 +583,6 @@ class InferenceServer:
             raise Exception(f"Failed to connect to {inference_provider}")
         
         # Initialize remaining services
-        app.state.health_service = HealthService(self.config, app.state.chroma_client, app.state.llm_client)
         app.state.chat_service = ChatService(self.config, app.state.llm_client, app.state.logger_service)
 
     def _load_no_results_message(self) -> str:

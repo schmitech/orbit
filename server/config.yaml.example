@@ -87,11 +87,11 @@ datasources:
     relevance_threshold: 0.7
     embedding_provider: null
   sqlite:
-    database_path: "orbit.db"
-    schema: "main"
-    table: "documents"
-    content_column: "content"
-    metadata_columns: ["source", "date", "author"]
+    db_path: "../utils/sqllite/rag_database.db"
+    confidence_threshold: 0.7
+    relevance_threshold: 0.5
+    max_results: 10
+    return_results: 3
   postgres:
     host: "localhost"
     port: 5432

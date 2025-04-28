@@ -7,10 +7,10 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      'api-local': path.resolve(__dirname, '../../dist/api.mjs'),
+      'api-local': path.resolve(__dirname, '../../api/dist/api.mjs'),
     },
   },
   optimizeDeps: {
-    exclude: ['../../dist/api.mjs']
+    exclude: ['../../api/dist/api.mjs']
   }
 });
