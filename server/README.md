@@ -546,7 +546,7 @@ pip install llama-cpp-python==0.3.8
 CMAKE_ARGS="-DLLAMA_METAL=on" pip install llama-cpp-python==0.3.8
 
 # For NVIDIA GPUs with CUDA
-CMAKE_ARGS="-DLLAMA_CUBLAS=on" pip install llama-cpp-python==0.3.8
+CMAKE_ARGS="-DGGML_CUDA=on" pip install --no-binary llama-cpp-python llama-cpp-python==0.3.8
 
 # For AMD GPUs with ROCm
 CMAKE_ARGS="-DLLAMA_HIPBLAS=on" pip install llama-cpp-python==0.3.8
@@ -589,6 +589,18 @@ python3 download_hugging_face_gguf_model.py --repo-id TheBloke/TinyLlama-1.1B-Ch
 # Download a specific model file (automatically updates config.yaml)
 python3 download_hugging_face_gguf_model.py --repo-id TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF --filename "tinyllama-1.1b-chat-v1.0.Q4_0.gguf"
 ```
+
+> **Important:** For restricted models that require license acceptance (like Google's Gemma models), you should use the Hugging Face CLI directly after logging in:
+> 
+> ```bash
+> # First login to Hugging Face
+> huggingface-cli login
+> 
+> # Then download the restricted model
+> huggingface-cli download google/gemma-3-4b-it-qat-q4_0-gguf --local-dir models/
+> ```
+> 
+> Make sure you've accepted the model's license terms on the Hugging Face website before downloading.
 
 The download script will:
 1. List available files in the repository
