@@ -18,6 +18,7 @@ from .clients.deepseek_client import DeepSeekClient
 from .clients.vertex_ai_client import VertexAIClient
 from .clients.mistral_client import MistralClient
 from .clients.anthropic_client import AnthropicClient
+from .clients.pytorch_client import PyTorchClient
 
 class LLMClientFactory:
     """Factory for creating LLM clients based on the selected inference provider."""
@@ -130,6 +131,15 @@ class LLMClientFactory:
             )
         elif provider == 'anthropic':
             return AnthropicClient(
+                config, 
+                retriever, 
+                guardrail_service, 
+                reranker_service, 
+                prompt_service, 
+                no_results_message
+            )
+        elif provider == 'pytorch':
+            return PyTorchClient(
                 config, 
                 retriever, 
                 guardrail_service, 

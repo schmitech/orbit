@@ -643,21 +643,20 @@ class InferenceServer:
             self.logger.info("No services to shut down")
 
     def _log_configuration_summary(self) -> None:
-        """Log a summary of the current configuration."""
+        """Log a summary of the server configuration."""
         self.logger.info("=" * 50)
-        self.logger.info("Server initialization complete. Configuration summary:")
+        self.logger.info("Server Configuration Summary")
+        self.logger.info("=" * 50)
         
-        # Log selected providers
+        # Get selected providers
         inference_provider = self.config['general'].get('inference_provider', 'ollama')
         datasource_provider = self.config['general'].get('datasource_provider', 'chroma')
-        embedding_provider = self.config['embedding'].get('provider', 'ollama')
-        embedding_enabled = _is_true_value(self.config['embedding'].get('enabled', True))
         
-        # Get resolved providers for safety and reranker
-        safety_provider = self.config.get('safety', {}).get('resolved_provider', inference_provider)
-        reranker_provider = self.config.get('reranker', {}).get('resolved_provider', inference_provider)
-
-
+        # Get embedding configuration
+        embedding_config = self.config.get('embedding', {})
+        embedding_enabled = _is_true_value(embedding_config.get('enabled', True))
+        embedding_provider = embedding_config.get('provider', 'ollama')
+        
         self.logger.info(f"Inference provider: {inference_provider}")
         self.logger.info(f"Datasource provider: {datasource_provider}")
         self.logger.info(f"Embedding: {'enabled' if embedding_enabled else 'disabled'}")
@@ -671,7 +670,12 @@ class InferenceServer:
         
         # Log model information based on the selected inference provider
         if inference_provider in self.config.get('inference', {}):
-            self.logger.info(f"Server running with {self.config['inference'][inference_provider]['model']} model")
+            # Handle PyTorch provider which uses model_path instead of model
+            if inference_provider == 'pytorch':
+                model_name = self.config['inference'][inference_provider].get('model_path', 'unknown')
+            else:
+                model_name = self.config['inference'][inference_provider].get('model', 'unknown')
+            self.logger.info(f"Server running with {model_name} model")
         
         # Log datasource configuration
         if datasource_provider == 'chroma':
@@ -682,56 +686,6 @@ class InferenceServer:
             self.logger.info(f"Relevance threshold: {self.app.state.retriever.relevance_threshold}")
         
         self.logger.info(f"Verbose mode: {_is_true_value(self.config['general'].get('verbose', False))}")
-        
-        # Reranker settings
-        reranker_config = self.config.get('reranker', {})
-        reranker_enabled = reranker_config.get('enabled', False)
-        
-        self.logger.info(f"Reranker: {'enabled' if reranker_enabled else 'disabled'}")
-        if reranker_enabled:
-            # Use resolved model from the provider resolution
-            model = reranker_config.get('resolved_model', '')
-            top_n = reranker_config.get('top_n', 3)
-            
-            self.logger.info(f"  Provider: {reranker_provider}")
-            self.logger.info(f"  Model: {model}")
-            self.logger.info(f"  Top N: {top_n} documents")
-            self.logger.info(f"  Temperature: {reranker_config.get('temperature', 0.0)}")
-        
-        # Safety check configuration
-        safety_config = self.config.get('safety', {})
-        safety_enabled = _is_true_value(safety_config.get('enabled', True))
-        safety_mode = safety_config.get('mode', 'strict')
-        
-        self.logger.info(f"Safety service: {'enabled' if safety_enabled else 'disabled'}")
-        if safety_enabled:
-            self.logger.info(f"  Provider: {safety_provider}")
-            self.logger.info(f"  Model: {safety_config.get('resolved_model', '')}")
-            self.logger.info(f"  Safety check mode: {safety_mode}")
-            
-            if safety_mode == 'fuzzy':
-                self.logger.info("  Using fuzzy matching for safety checks")
-            elif safety_mode == 'disabled':
-                self.logger.warning("  ⚠️ Safety checks are disabled - all queries will be processed")
-        
-            # Log safety configuration details
-            max_retries = safety_config.get('max_retries', 3)
-            retry_delay = safety_config.get('retry_delay', 1.0)
-            request_timeout = safety_config.get('request_timeout', 15)
-            allow_on_timeout = _is_true_value(safety_config.get('allow_on_timeout', False))
-            
-            self.logger.info(f"  Safety check config: retries={max_retries}, delay={retry_delay}s, timeout={request_timeout}s")
-            if allow_on_timeout:
-                self.logger.warning("  ⚠️ Queries will be allowed through if safety check times out")
-        
-        # Log authenticated services without exposing sensitive info
-        auth_services = []
-        if (_is_true_value(self.config.get('internal_services', {}).get('elasticsearch', {}).get('enabled', False)) and 
-                self.config['internal_services']['elasticsearch'].get('auth', {}).get('username')):
-            auth_services.append("Elasticsearch")
-        if auth_services:
-            self.logger.info(f"Authenticated services: {', '.join(auth_services)}")
-        self.logger.info("=" * 50)
 
     def _configure_middleware(self) -> None:
         """Configure middleware for the FastAPI application."""
