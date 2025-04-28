@@ -81,27 +81,39 @@ function App() {
       try {
         window.initChatbotWidget({
           apiUrl: import.meta.env.VITE_API_ENDPOINT || 'http://localhost:3000',
-          apiKey: import.meta.env.VITE_API_KEY || 'api_jHqzRZygpKojK4bOGAlmjUb6bkVzreWu',
+          apiKey: import.meta.env.VITE_API_KEY || 'api_dummy_key',
           widgetConfig: {
             header: {
-              title: "Community Services Help Center"
+              title: "City of Maple Assistant"
             },
             welcome: {
-              title: "Welcome to Our Community Services!",
-              description: "I can help you with information about youth programs, senior services, adult education, family services, and more."
+              title: "Welcome to the City Services Assistant",
+              description: "I am here to assist you with municipal services and information. I can help you with utility payments, permits, city services, and more. Please feel free to ask any questions about city operations and services."
             },
             suggestedQuestions: [
               {
-                text: "What youth programs are available?",
-                query: "Tell me about the youth programs"
+                text: "Utility Bill Payment 💧",
+                query: "How can I pay my water bill?"
               },
               {
-                text: "Senior services information",
-                query: "What services are available for seniors?"
+                text: "Recycling Center Information ♻️",
+                query: "Where can I find the city's recycling center?"
               },
               {
-                text: "Adult education courses",
-                query: "What adult education courses do you offer?"
+                text: "Pet Licensing 🐕",
+                query: "How do I obtain a pet license?"
+              },
+              {
+                text: "Report Infrastructure Issues 🚧",
+                query: "How do I report a pothole in my neighborhood?"
+              },
+              {
+                text: "Library Operating Hours 📚",
+                query: "What are the hours for the public library?"
+              },
+              {
+                text: "Waste Collection Schedule 🗑️",
+                query: "What are the garbage collection days in my neighborhood?"
               }
             ],
             theme: {
