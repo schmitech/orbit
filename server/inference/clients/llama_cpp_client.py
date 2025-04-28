@@ -29,12 +29,26 @@ class QALlamaCppClient(BaseLLMClient, LLMClientMixin):
         self.temperature = llama_cpp_config.get('temperature', 0.1)
         self.top_p = llama_cpp_config.get('top_p', 0.8)
         self.top_k = llama_cpp_config.get('top_k', 20)
-        self.max_tokens = llama_cpp_config.get('max_tokens', 1024)
+        self.max_tokens = llama_cpp_config.get('max_tokens', 512)  # Reduced from 1024
         self.n_ctx = llama_cpp_config.get('n_ctx', 4096)
         self.n_threads = llama_cpp_config.get('n_threads', 4)
         self.stream = llama_cpp_config.get('stream', True)
         self.verbose = llama_cpp_config.get('verbose', config.get('general', {}).get('verbose', False))
         self.default_system_prompt = llama_cpp_config.get('system_prompt', "You are a helpful, accurate, precise, and expert assistant.")
+        
+        # Add GPU-related parameters
+        self.n_gpu_layers = llama_cpp_config.get('n_gpu_layers', -1)  # -1 means use all layers on GPU
+        self.main_gpu = llama_cpp_config.get('main_gpu', 0)
+        self.tensor_split = llama_cpp_config.get('tensor_split', None)
+        
+        # Add stop tokens and repetition penalty
+        self.stop_tokens = [
+            "<|file_ref_name|>", "<|file_ref>", "<|file_name|>",
+            "<|im_end|>", "</im_end|>", "<im_end>", "</im_end>",
+            "</s>", "<|endoftext|>", "<|system_prompt|>",
+            "<|file_ref|>system_prompt"
+        ]
+        self.repeat_penalty = llama_cpp_config.get('repeat_penalty', 1.1)
         
         self.llama_model = None
         self.logger = logging.getLogger(__name__)
@@ -57,7 +71,12 @@ class QALlamaCppClient(BaseLLMClient, LLMClientMixin):
                 n_ctx=self.n_ctx,
                 n_threads=self.n_threads,
                 chat_format=self.chat_format,
-                verbose=self.verbose
+                verbose=self.verbose,
+                n_gpu_layers=self.n_gpu_layers,
+                main_gpu=self.main_gpu,
+                tensor_split=self.tensor_split,
+                stop=self.stop_tokens,
+                repeat_penalty=self.repeat_penalty
             )
             
             self.logger.info(f"Initialized llama.cpp client successfully")
@@ -168,7 +187,9 @@ class QALlamaCppClient(BaseLLMClient, LLMClientMixin):
                     temperature=self.temperature,
                     top_p=self.top_p,
                     top_k=self.top_k,
-                    max_tokens=self.max_tokens
+                    max_tokens=self.max_tokens,
+                    stop=self.stop_tokens,
+                    repeat_penalty=self.repeat_penalty
                 )
             
             response = await loop.run_in_executor(None, generate_chat)
@@ -177,6 +198,25 @@ class QALlamaCppClient(BaseLLMClient, LLMClientMixin):
             
             # Extract the response and metadata
             response_text = response.get("choices", [{}])[0].get("message", {}).get("content", "")
+            
+            # Clean up any remaining file reference tags and system tags
+            response_text = response_text.strip()
+            
+            # Define patterns to clean up
+            cleanup_patterns = [
+                "<|file_ref_name|>", "<|file_ref>", "<|file_name|>",
+                "<|im_end|>", "</im_end|>", "<im_end>", "</im_end>",
+                "<|system_prompt|>", "<|file_ref|>system_prompt"
+            ]
+            
+            # Clean up any pattern that appears at the end of the response
+            for pattern in cleanup_patterns:
+                if pattern in response_text:
+                    parts = response_text.split(pattern)
+                    response_text = parts[0].strip()
+            
+            # Remove any trailing special tokens or incomplete tags
+            response_text = response_text.split("<|")[0].strip()
             
             if self.verbose:
                 self.logger.debug(f"Response length: {len(response_text)} characters")

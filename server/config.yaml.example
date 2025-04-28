@@ -151,7 +151,7 @@ inference:
     model: "llama3:1b"
     stream: true
   llama_cpp:
-    model_path: "models/your-gguf-file.gguf" # Use script download_hugging_face_gguf_model.py to get GGUF files from huggingface
+    model_path: "models/gemma-3-4b-it-q4_0.gguf" # Use script download_hugging_face_gguf_model.py to get GGUF files from huggingface
     chat_format: "chatml"  # Chat format to use (chatml, llama-2, gemma, etc.)
     temperature: 0.1
     top_p: 0.8
@@ -160,6 +160,10 @@ inference:
     n_ctx: 4096
     n_threads: 4
     stream: true
+    # GPU acceleration parameters
+    n_gpu_layers: -1  # -1 means offload all layers to GPU
+    main_gpu: 0       # Use the first GPU (index 0)
+    tensor_split: null # Optional: distribute model across multiple GPUs e.g. [0.5, 0.5]
   gemini:
     api_key: ${GOOGLE_API_KEY}
     model: "gemini-2.0-flash"

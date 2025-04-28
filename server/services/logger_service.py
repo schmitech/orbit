@@ -63,6 +63,9 @@ class LoggerService:
         self.verbose = _is_true_value(verbose_value)
         self._has_logged_es_disabled = False  # Add flag to track if we've logged ES disabled message
         
+        # Get the inference provider from config
+        self.inference_provider = config.get('general', {}).get('inference_provider', 'ollama')
+        
         # Configure Elasticsearch-related and HTTP client loggers based on verbose setting
         if not self.verbose:
             # Only show warnings and errors for these loggers when not in verbose mode
@@ -272,7 +275,7 @@ class LoggerService:
         query: str,
         response: str,
         ip: Optional[str] = None,
-        backend: str = "ollama",
+        backend: Optional[str] = None,
         blocked: bool = False,
         api_key: Optional[str] = None
     ) -> None:
@@ -283,12 +286,16 @@ class LoggerService:
             query: The user's query.
             response: The generated response.
             ip: Optional IP address.
-            backend: The backend service used.
+            backend: The backend service used (defaults to inference_provider from config).
             blocked: Whether the request was blocked.
             api_key: Optional API key for logging.
         """
         timestamp = datetime.now()
         ip_metadata = self._format_ip_address(ip)
+        
+        # Use provided backend or fall back to inference_provider from config
+        backend = backend or self.inference_provider
+        
         log_data = {
             "timestamp": timestamp.isoformat(),
             "query": query,

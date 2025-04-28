@@ -30,7 +30,7 @@ class ChatService:
                 query=query,
                 response=response,
                 ip=client_ip,
-                backend=self.config.get('ollama', {}).get('model', 'ollama'),
+                backend=None,
                 blocked=False,
                 api_key=api_key
             )
