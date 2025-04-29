@@ -16,27 +16,33 @@ Key improvements:
 """
 import json
 import yaml
-from langchain_ollama import OllamaEmbeddings
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+import sys
+import asyncio
 from tqdm import tqdm
 import chromadb
 import argparse
 from pathlib import Path
 
+# Add server directory to path for importing embedding services
+server_path = Path(__file__).resolve().parents[3] / "server"
+sys.path.append(str(server_path))
+
+from embeddings.base import EmbeddingServiceFactory
+
 def load_config():
     CONFIG_PATH = Path(__file__).resolve().parents[3] / "server" / "config.yaml"
     return yaml.safe_load(CONFIG_PATH.read_text())
 
-def ingest_to_chroma(
+async def ingest_to_chroma(
     json_file_path: str,
-    ollama_base_url: str,
+    config: dict,
+    embedding_provider: str,
     chroma_host: str,
     chroma_port: str,
-    model: str,
     collection_name: str,
     batch_size: int = 50
 ):
-    print(f"Function received ollama_base_url: {ollama_base_url}")
+    print(f"Using embedding provider: {embedding_provider}")
     
     # Initialize Chroma client with HTTP connection
     client = chromadb.HttpClient(host=chroma_host, port=int(chroma_port))
@@ -103,28 +109,19 @@ def ingest_to_chroma(
     if not collection:
         raise Exception("Failed to obtain a valid collection object")
     
-    # Print the embedding model being used
-    print(f"Using embedding model: {model}")
+    # Initialize Embedding service based on config
+    embedding_service = EmbeddingServiceFactory.create_embedding_service(config, embedding_provider)
     
-    # Initialize Ollama embeddings
-    if not model:
-        raise ValueError("EMBED_MODEL is not set in the configuration file.")
+    # Initialize the embedding service
+    initialized = await embedding_service.initialize()
+    if not initialized:
+        raise ValueError(f"Failed to initialize {embedding_provider} embedding service")
     
-    embeddings = OllamaEmbeddings(
-        model=model,
-        base_url=ollama_base_url,
-        client_kwargs={"timeout": 30.0}
-    )
+    print(f"Successfully initialized {embedding_provider} embedding service")
     
-    # Verify Ollama connection
-    try:
-        test_embedding = embeddings.embed_query("test connection")
-        print("Successfully connected to Ollama server")
-        print(f"Embedding dimensions: {len(test_embedding)}")
-    except Exception as e:
-        print(f"Failed to connect to Ollama server at {ollama_base_url}")
-        print(f"Error: {str(e)}")
-        return
+    # Get dimensions to verify connection
+    dimensions = await embedding_service.get_dimensions()
+    print(f"Embedding dimensions: {dimensions}")
     
     # Load Q&A pairs
     with open(json_file_path, 'r', encoding='utf-8') as f:
@@ -160,19 +157,34 @@ def ingest_to_chroma(
         batch_metadatas = []
         batch_documents = []
         
-        for item in batch:
-            try:
-                # Generate embedding from the question only
-                embedding = embeddings.embed_query(item["content"])
-                
+        # Generate embeddings for the batch
+        batch_contents = [item["content"] for item in batch]
+        try:
+            # Use embed_documents for batch processing if possible
+            all_embeddings = await embedding_service.embed_documents(batch_contents)
+            
+            for j, item in enumerate(batch):
                 batch_ids.append(item["id"])
-                batch_embeddings.append(embedding)
+                batch_embeddings.append(all_embeddings[j])
                 batch_metadatas.append(item["metadata"])
                 batch_documents.append(item["content"])
                 
-            except Exception as e:
-                print(f"Error processing item {item['id']}: {str(e)}")
-                continue
+        except Exception as e:
+            print(f"Error with batch embedding, falling back to individual embedding: {str(e)}")
+            
+            # Fallback to individual embedding if batch fails
+            for item in batch:
+                try:
+                    embedding = await embedding_service.embed_query(item["content"])
+                    
+                    batch_ids.append(item["id"])
+                    batch_embeddings.append(embedding)
+                    batch_metadatas.append(item["metadata"])
+                    batch_documents.append(item["content"])
+                    
+                except Exception as e:
+                    print(f"Error processing item {item['id']}: {str(e)}")
+                    continue
 
         # Add batch to collection
         if batch_ids:
@@ -218,7 +230,7 @@ def ingest_to_chroma(
     # Add a demonstration query to test retrieval
     print("\nTesting retrieval with a sample query...")
     test_query = "How do I pay my property taxes?"
-    test_embedding = embeddings.embed_query(test_query)
+    test_embedding = await embedding_service.embed_query(test_query)
     
     try:
         # Make sure we can access the collection
@@ -246,8 +258,11 @@ def ingest_to_chroma(
     except Exception as e:
         print(f"Error during test query: {str(e)}")
         print("This may be due to the collection not being properly initialized or empty.")
+    
+    # Close the embedding service
+    await embedding_service.close()
 
-if __name__ == "__main__":
+async def main():
     config = load_config()  # Load the config
 
     # Set up argument parser
@@ -260,16 +275,16 @@ if __name__ == "__main__":
     embedding_provider = config['embedding']['provider']
     print(f"Using embedding provider: {embedding_provider}")
     
-    # Updated configuration with Chroma server details
-    CONFIG = {
-        "ollama_base_url": config['embeddings'][embedding_provider]['base_url'],
-        "json_file_path": args.json_file_path,
-        "batch_size": 50,
-        "chroma_host": config['datasources']['chroma']['host'],
-        "chroma_port": config['datasources']['chroma']['port'],
-        "collection_name": args.collection_name,
-        "model": config['embeddings'][embedding_provider]['model']
-    }
-    
     # Run ingestion with Chroma
-    ingest_to_chroma(**CONFIG)
+    await ingest_to_chroma(
+        json_file_path=args.json_file_path,
+        config=config,
+        embedding_provider=embedding_provider,
+        chroma_host=config['datasources']['chroma']['host'],
+        chroma_port=config['datasources']['chroma']['port'],
+        collection_name=args.collection_name,
+        batch_size=50
+    )
+
+if __name__ == "__main__":
+    asyncio.run(main())

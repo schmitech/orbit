@@ -16,7 +16,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Import the service to test
 from services.guardrail_service import GuardrailService
-from inference.clients.ollama_client import OllamaClient
+from server.inference.clients.ollama import OllamaClient
 from config.config_manager import load_config
 
 # Configure logging

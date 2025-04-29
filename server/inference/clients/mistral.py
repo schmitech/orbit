@@ -257,23 +257,81 @@ class MistralClient(BaseLLMClient, LLMClientMixin):
             
             # Generate streaming response
             chunk_count = 0
-            async for chunk in await self.client.chat.complete_streaming_async(
-                model=self.model,
-                messages=messages,
-                temperature=self.temperature,
-                top_p=self.top_p,
-                max_tokens=self.max_tokens
-            ):
-                if chunk.choices[0].delta.content:
-                    chunk_count += 1
+            response_text = ""
+            
+            # Create a direct HTTP session for streaming
+            async with aiohttp.ClientSession() as session:
+                headers = {
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json"
+                }
+                
+                payload = {
+                    "model": self.model,
+                    "messages": messages,
+                    "temperature": self.temperature,
+                    "top_p": self.top_p,
+                    "max_tokens": self.max_tokens,
+                    "stream": True
+                }
+                
+                async with session.post(f"{self.api_base}/chat/completions", 
+                                       headers=headers, 
+                                       json=payload) as resp:
+                    if resp.status != 200:
+                        error_text = await resp.text()
+                        self.logger.error(f"Error from Mistral API: {error_text}")
+                        yield json.dumps({
+                            "error": f"API error: {error_text}",
+                            "done": True
+                        })
+                        return
                     
-                    if self.verbose and chunk_count % 10 == 0:
-                        self.logger.debug(f"Received chunk {chunk_count}")
+                    # Process the stream
+                    async for line in resp.content:
+                        line = line.decode('utf-8').strip()
                         
-                    yield json.dumps({
-                        "response": chunk.choices[0].delta.content,
-                        "done": False
-                    })
+                        # Skip empty lines or non-data lines
+                        if not line or not line.startswith('data:'):
+                            continue
+                            
+                        # Parse the data
+                        try:
+                            data = line[5:].strip()  # Remove 'data:' prefix
+                            
+                            # Skip "[DONE]" marker
+                            if data == "[DONE]":
+                                break
+                                
+                            chunk = json.loads(data)
+                            
+                            # Process delta content
+                            if 'choices' in chunk and chunk['choices']:
+                                delta = chunk['choices'][0].get('delta', {})
+                                content = delta.get('content', '')
+                                
+                                if content:
+                                    chunk_count += 1
+                                    response_text += content
+                                    
+                                    if self.verbose and chunk_count % 10 == 0:
+                                        self.logger.debug(f"Received chunk {chunk_count}")
+                                    
+                                    yield json.dumps({
+                                        "response": content,
+                                        "done": False
+                                    })
+                                
+                                # Check for finish reason
+                                finish_reason = chunk['choices'][0].get('finish_reason')
+                                if finish_reason is not None:
+                                    break
+                        except json.JSONDecodeError as e:
+                            self.logger.warning(f"Failed to parse JSON from stream: {line}")
+                            continue
+                        except Exception as e:
+                            self.logger.error(f"Error processing stream chunk: {str(e)}")
+                            continue
             
             if self.verbose:
                 self.logger.info(f"Streaming complete. Received {chunk_count} chunks")

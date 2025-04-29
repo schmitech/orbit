@@ -1,13 +1,19 @@
 general:
   port: 3000
-  verbose: true
+  verbose: false
   https:
     enabled: false
     port: 3443
     cert_file: "./cert.pem"
     key_file: "./key.pem"
-  inference_provider: "llama_cpp"
+  inference_provider: "ollama"
   datasource_provider: "sqlite"
+  inference: # TODO: Not yet implemented, modify update inference providers to use these common parameters
+    temperature: 0.1
+    top_p: 0.8
+    top_k: 20
+    max_tokens: 1024
+    stream: true
 
 messages:
   no_results_response: "I'm sorry, but I don't have any specific information about that topic in my knowledge base."
@@ -142,13 +148,13 @@ inference:
     model: "gemma3:1b"
     stream: true
   vllm:
-    host: "http://localhost:5000"
-    port: 8000
+    host: "localhost"
+    port: 5000
     temperature: 0.1
     top_p: 0.8
     top_k: 20
     max_tokens: 1024
-    model: "llama3:1b"
+    model: "Qwen2.5-14B-Instruct"
     stream: true
   llama_cpp:
     model_path: "gguf/gemma-3-4b-it-q4_0.gguf" # Use script download_hugging_face_gguf_model.py to get GGUF files from huggingface
@@ -206,7 +212,7 @@ inference:
     stream: true
   openai:
     api_key: ${OPENAI_API_KEY}
-    model: "o4-mini"
+    model: "gpt-4.1"
     temperature: 0.1
     top_p: 0.8
     max_tokens: 1024

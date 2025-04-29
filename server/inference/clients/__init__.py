@@ -4,16 +4,16 @@ Client implementations for various LLM providers.
 This package contains client implementations for different LLM providers.
 """
 
-from .ollama_client import OllamaClient
-from .vllm_client import QAVLLMClient
-from .llama_cpp_client import QALlamaCppClient
-from .openai_client import OpenAIClient
-from .gemini_client import GeminiClient
-from .groq_client import GroqClient
-from .deepseek_client import DeepSeekClient
-from .vertex_ai_client import VertexAIClient
-from .mistral_client import MistralClient
-from .anthropic_client import AnthropicClient
+from .ollama import OllamaClient
+from .vllm import QAVLLMClient
+from .llama_cpp import QALlamaCppClient
+from .openai import OpenAIClient
+from .gemini import GeminiClient
+from .groq import GroqClient
+from .deepseek import DeepSeekClient
+from .vertex_ai import VertexAIClient
+from .mistral import MistralClient
+from .anthropic import AnthropicClient
 
 __all__ = [
     "OllamaClient", 
