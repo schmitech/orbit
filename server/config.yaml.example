@@ -6,8 +6,8 @@ general:
     port: 3443
     cert_file: "./cert.pem"
     key_file: "./key.pem"
-  inference_provider: "ollama"
-  datasource_provider: "chroma"
+  inference_provider: "llama_cpp"
+  datasource_provider: "sqlite"
 
 messages:
   no_results_response: "I'm sorry, but I don't have any specific information about that topic in my knowledge base."
@@ -39,7 +39,7 @@ logging:
 
 internal_services:
   elasticsearch:
-    enabled: true
+    enabled: false
     node: 'https://localhost:9200'
     index: 'orbit'
     api_key: ${INTERNAL_SERVICES_ELASTICSEARCH_API_KEY}
@@ -151,7 +151,7 @@ inference:
     model: "llama3:1b"
     stream: true
   llama_cpp:
-    model_path: "models/gemma-3-4b-it-q4_0.gguf" # Use script download_hugging_face_gguf_model.py to get GGUF files from huggingface
+    model_path: "gguf/gemma-3-4b-it-q4_0.gguf" # Use script download_hugging_face_gguf_model.py to get GGUF files from huggingface
     chat_format: "chatml"  # Chat format to use (chatml, llama-2, gemma, etc.)
     temperature: 0.1
     top_p: 0.8

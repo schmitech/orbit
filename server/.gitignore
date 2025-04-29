@@ -8,7 +8,4 @@ logs/*
 config.yaml
 .api_keys
 =*
-models/.gitattributes
-models/*.gguf
-models/.cache
-models/README.md
+gguf

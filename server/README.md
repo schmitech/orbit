@@ -388,37 +388,6 @@ python api_key_manager.py --url http://localhost:3001 create \
 
 3. Now when clients use this API key, the LLM will follow the support assistant guidelines.
 
-## Configuration
-
-Ensure your configuration file includes MongoDB details for the prompts collection:
-
-```yaml
-mongodb:
-  host: localhost
-  port: 27017
-  database: open_inference
-  apikey_collection: api_keys
-  prompts_collection: system_prompts  # Collection for system prompts
-```
-
-The OllamaClient can be configured with a default system prompt:
-
-```yaml
-ollama:
-  base_url: http://localhost:11434
-  model: llama3:8b
-  embed_model: nomic-embed-text
-  default_system_prompt: "I am going to ask you a question, which I would like you to answer based only on the provided context, and not any other information."
-```
-
-## Best Practices
-
-1. **Composable Prompts**: Create prompts that are reusable across similar use cases
-2. **Version Control**: Use the versioning system to track changes to prompts
-3. **Descriptive Names**: Give prompts clear, descriptive names
-4. **Test**: Test prompts thoroughly before using them in production
-5. **Keep History**: When updating prompts, consider creating new versions rather than replacing existing ones
-
 ## 📜 Logging
 
 The application implements a dual logging system:
@@ -579,34 +548,17 @@ inference:
 ```
 
 ### Downloading Models
-
-The server includes a utility script to download models from Hugging Face and automatically update your config.yaml:
-
+ 
 ```bash
-# List available models in a repository
-python3 download_hugging_face_gguf_model.py --repo-id TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF --list-files
-
-# Download a specific model file (automatically updates config.yaml)
-python3 download_hugging_face_gguf_model.py --repo-id TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF --filename "tinyllama-1.1b-chat-v1.0.Q4_0.gguf"
+# First login to Hugging Face
+huggingface-cli login
+ 
+# Then download the restricted model
+huggingface-cli download google/gemma-3-4b-it-qat-q4_0-gguf --local-dir gguf
 ```
+ 
+Make sure you've accepted the model's license terms on the Hugging Face website before downloading.
 
-> **Important:** For restricted models that require license acceptance (like Google's Gemma models), you should use the Hugging Face CLI directly after logging in:
-> 
-> ```bash
-> # First login to Hugging Face
-> huggingface-cli login
-> 
-> # Then download the restricted model
-> huggingface-cli download google/gemma-3-4b-it-qat-q4_0-gguf --local-dir models/
-> ```
-> 
-> Make sure you've accepted the model's license terms on the Hugging Face website before downloading.
-
-The download script will:
-1. List available files in the repository
-2. Download the selected model to the models directory
-3. Automatically update your config.yaml with the correct model path
-4. You don't need to manually configure huggingface_token or repo_id in the config.yaml
 
 ### Recommended Models by Memory Usage
 

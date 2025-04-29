@@ -8,18 +8,18 @@ ORBIT is a modular, self-hosted toolkit that provides a unified API for open-sou
 
 ---
 
-## 🌟 Why Choose ORBIT?
+## Why ORBIT?
 
-Commercial AI services often introduce limitations, pricing fluctuations, and policy changes impacting your operations. ORBIT gives you:
+Proprietary AI services often introduce limitations, pricing fluctuations, and policy changes impacting your operations. ORBIT gives you:
 
-- 🔐 **Privacy:** Data remains within your infrastructure.
-- 🔄 **Flexibility:** Deploy on cloud, on-premise, or hybrid environments.
-- 🔧 **Customization:** Fully adaptable to your specific domain needs.
-- 🚫 **No Vendor Lock-in:** Full control over your inference models and data.
+- **Privacy:** Data remains within your infrastructure.
+- **Flexibility:** Deploy on cloud, on-premise, or hybrid environments.
+- **Customization:** Fully adaptable to your specific domain needs.
+- **No Vendor Lock-in:** Full control over your inference models and data.
 
 ---
 
-## 🎯 Key Use Cases
+## Key Use Cases
 
 - **Customer Support:** Integrate AI with your organization's knowledge base.
 - **Internal Knowledge Management:** Intelligent document-based Q&A systems.
@@ -30,151 +30,73 @@ Commercial AI services often introduce limitations, pricing fluctuations, and po
 
 ---
 
-## 🛠️ Technical Highlights
+## Quick Start Guide
 
-- **Tech Stack:** Python, FastAPI, TypeScript, React
-- **Vector Search:** Semantic search with ChromaDB (Milvus support coming soon)
-- **Real-Time Responses:** Streamlined user experience
-- **Modular & Extensible:** Easily adapt or expand functionalities
-- **Production Ready:** Robust error handling, logging, and monitoring
-- **Cross-Platform Support:** Compatible with diverse infrastructures
-
----
-
-## 🏗️ Architecture Overview
-
-![Architecture Overview](architecture.png)
-
----
-
-## 📌 Quick Start Guide
-
-### ✅ Prerequisites
+### Prerequisites
 
 - Python 3.12+
-- Ollama Server
-- MongoDB (API Key management)
-- ChromaDB
+- MongoDB
+- Elasticsearch (optional for logging)
 
-### ⚙️ Server Setup
+### Server Setup
 
 ```bash
 cd server
 python -m venv venv
 source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
-cp .env.example .env  # Edit configurations
+cp .env.example .env
 ```
 
-### 📚 ChromaDB Setup
+### Create Demo DB
 
 ```bash
-cd chroma
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-
-# Run ChromaDB
-chroma run --host localhost --port 8000 --path ./chroma_db
+cd utils/sqlite
+python rag_cli.py setup --data-path ../sample-data/city-qa-pairs.json
 ```
 
-Access dashboard at: `http://localhost:8000`
+### Install MongoDB
 
-Verify ChromaDB:
-```bash
-python -c "import chromadb; print(chromadb.__version__)"
+https://www.mongodb.com/docs/manual/installation/
+
+After starting mongodb, configure endpoint in /server/config.yaml under 'internal_services' section:
+
+```yaml
+  mongodb:
+    host: "localhost"
+    port: 27017
+    database: "orbit"
+    apikey_collection: "api_keys"
+    username: ${INTERNAL_SERVICES_MONGODB_USERNAME}
+    password: ${INTERNAL_SERVICES_MONGODB_PASSWORD}
 ```
 
-**Ingest Data:**
-
-```bash
-python ./qa-assistant/create_qa_pairs_collection.py city ../datasets/city-qa-pairs.json
-python query-chroma-collection.py "Test query"
-```
-
-### 🌐 Launch Server
+### Launch Server
 
 ```bash
 cd server
-uvicorn server:app --reload --host 0.0.0.0 --port 3000
+./start.sh
 ```
 
 API available at `http://localhost:3000`
 
-### 🔑 API Key Setup
+### API Key Setup
 
-You need an API key to use the client APIs. A key will be associated with a prompt and a collection (i.e. Database, Vector DB, Elasticsearch index, etc.).
-
-```bash
-python ./admin/api_key_manager.py --url http://localhost:3000 create --collection city --name "City Assistant" --prompt-file ../examples/chroma/qa-assistant/qa-assistant-prompt.txt  --prompt-name "City Assistant Prompt"
-```
-
-### 📡 API Setup
-```bash
-cd api
-npm install
-npm run build
-
-# Test API
-# Batch queries:
-npm run test-query-from-pairs ../examples/datasets/city-qa-pairs.json  "http://localhost:3000"  "api_123456789" 5
-
-# or a single Query:
-npm run test-query "What is the process for getting a sidewalk repaired?" "http://localhost:3000"  "api_123456789"
-```
-
-### 🎨 Widget Setup
+You need an API key to use the client APIs. A key will be associated with a prompt and a DB collection or a table.
 
 ```bash
-cd widget
-npm install
-npx vite build
+python ./admin/api_key_manager.py --url http://localhost:3000 create --collection city --name "City Assistant" --prompt-file ../prompts/examples/city/city-assistant-prompt.txt  --prompt-name "Municipal Assistant Prompt"
 ```
 
----
-
-## 🔍 Example Applications
-
-### Web Chatbot
+### Run Client
 
 ```bash
-cd examples/simple-chatbot
-npm install
-npm run dev
+cd clients/python
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+python chat_client.py --url http://localhost:3000 --api-key your-api-key-from-previous-step
 ```
 
-Access at: `http://localhost:5173`
-
-### CLI Example
-
-Check out the Python CLI example at `/examples/simple-cli`.
-
----
-
-## 🧑‍💻 Development Workflow
-
-Run locally for development:
-
-1. **Start ChromaDB:**
-    ```bash
-    cd chroma && chroma run --host localhost --port 8000 --path ./chroma_db
-    ```
-
-2. **Start MongoDB:**
-    ```bash
-    # If using MongoDB Atlas, ensure your IP is whitelisted
-    # If using local MongoDB:
-    mongod --dbpath /path/to/data/directory
-    ```
-
-3. **Create API Key:**
-    ```bash
-    cd server/admin
-    python3 api_key_manager.py --url http://localhost:3000 create --collection default --name "Development" --notes "Development API Key"
-    ```
-    Save the generated API key for the next steps.
-
-4. **Launch Server:**
-    ```bash
-    cd server && start.sh
-    ```
+## LICENSE
+Apache 2.0. License.
