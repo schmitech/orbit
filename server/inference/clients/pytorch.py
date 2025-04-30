@@ -12,7 +12,7 @@ import time
 import asyncio
 import logging
 import gc
-from typing import Dict, Any, Optional, List, AsyncIterator, Union
+from typing import Dict, Any, Optional, List, AsyncIterator, Union, AsyncGenerator
 from pathlib import Path
 import json
 import re
@@ -27,6 +27,7 @@ from transformers import (
 )
 
 from ..base_llm_client import BaseLLMClient
+from ..llm_client_mixin import LLMClientMixin
 
 logger = logging.getLogger(__name__)
 
@@ -236,121 +237,98 @@ class BatchProcessor:
         max_new_tokens = max_new_tokens or self.max_tokens
         temperature = temperature or self.temperature
         
-        # Add padding if model requires special format
-        formatted_prompt = f"{message}"
-        
-        # Run tokenization in a thread pool to avoid blocking
-        tokenize_options = {
-            "return_tensors": "pt",
-            "padding": True,
-            "truncation": True,
-            "max_length": self.config.get('generation', {}).get('max_input_length', 2048)
-        }
-        
-        # Tokenize the input
-        inputs = await asyncio.to_thread(
-            self.tokenizer,
-            formatted_prompt,
-            **tokenize_options
-        )
-        
-        # Move inputs to device
-        inputs = {k: v.to(self.device) for k, v in inputs.items()}
-        input_ids = inputs["input_ids"]
-        
-        # Configure generation parameters
-        generation_config = {
-            "do_sample": self.do_sample,
-            "top_p": self.top_p,
-            "top_k": self.top_k,
-            "temperature": temperature,
-            "max_new_tokens": max_new_tokens,
-            "use_cache": self.use_cache,
-            "pad_token_id": self.tokenizer.eos_token_id,
-            "eos_token_id": self.tokenizer.eos_token_id,
-            "repetition_penalty": self.repetition_penalty,
-        }
-        
-        # For streaming, we'll generate tokens one by one
-        generated_ids = input_ids
-        past_key_values = None
-        accumulated_text = ""
-        
-        # Get input length for later slicing
-        input_length = input_ids.shape[1]
-        
         try:
-            with torch.no_grad():
-                for _ in range(max_new_tokens):
-                    # Prepare inputs for the next generation step
-                    model_inputs = {
-                        "input_ids": generated_ids[:, -1:] if past_key_values is not None else generated_ids,
-                        "attention_mask": torch.ones(generated_ids.shape[0], 1, device=self.device) if past_key_values is not None else torch.ones_like(generated_ids),
-                        "past_key_values": past_key_values
-                    }
-                    
-                    # Generate next token
+            # Add padding if model requires special format
+            formatted_prompt = f"{message}"
+            
+            # Run tokenization in a thread pool to avoid blocking
+            tokenize_options = {
+                "return_tensors": "pt",
+                "padding": True,
+                "truncation": True,
+                "max_length": self.config.get('generation', {}).get('max_input_length', 2048)
+            }
+            
+            logger.debug(f"Tokenizing prompt for streaming generation, length: {len(message)}")
+            
+            # Tokenize the input
+            inputs = await asyncio.to_thread(
+                self.tokenizer,
+                formatted_prompt,
+                **tokenize_options
+            )
+            
+            # Move inputs to device
+            inputs = {k: v.to(self.device) for k, v in inputs.items()}
+            input_ids = inputs["input_ids"]
+            attention_mask = inputs["attention_mask"]
+            
+            # Get input length for later slicing
+            input_length = input_ids.shape[1]
+            
+            logger.debug(f"Input sequence length: {input_length} tokens")
+            
+            # For streaming, we'll generate tokens one by one
+            generated_ids = input_ids.clone()
+            past_key_values = None
+            accumulated_text = ""
+            
+            # Use model.generate instead of manual generation, which handles attention masks properly
+            try:
+                logger.debug("Using non-streaming generation as fallback")
+                with torch.no_grad():
                     if self.device.type == "mps":
-                        outputs = self.model(**model_inputs, use_cache=True)
+                        outputs = self.model.generate(
+                            input_ids=input_ids,
+                            attention_mask=attention_mask,
+                            max_new_tokens=max_new_tokens,
+                            temperature=temperature,
+                            top_p=self.top_p,
+                            top_k=self.top_k,
+                            do_sample=self.do_sample,
+                            pad_token_id=self.tokenizer.eos_token_id,
+                            eos_token_id=self.tokenizer.eos_token_id,
+                            repetition_penalty=self.repetition_penalty,
+                            return_dict_in_generate=True,
+                            output_scores=False
+                        )
                     else:
                         with torch.cuda.amp.autocast() if torch.cuda.is_available() else nullcontext():
-                            outputs = self.model(**model_inputs, use_cache=True)
-                    
-                    next_token_logits = outputs.logits[:, -1, :]
-                    past_key_values = outputs.past_key_values
-                    
-                    # Apply temperature and sampling
-                    if temperature > 0:
-                        next_token_logits = next_token_logits / temperature
-                    
-                    if self.do_sample:
-                        # Apply top-k filtering
-                        if self.top_k > 0:
-                            indices_to_remove = next_token_logits < torch.topk(next_token_logits, self.top_k)[0][..., -1, None]
-                            next_token_logits[indices_to_remove] = -float('Inf')
-                        
-                        # Apply top-p filtering
-                        if self.top_p < 1.0:
-                            sorted_logits, sorted_indices = torch.sort(next_token_logits, descending=True)
-                            cumulative_probs = torch.cumsum(torch.softmax(sorted_logits, dim=-1), dim=-1)
-                            
-                            # Remove tokens with cumulative probability above the threshold
-                            sorted_indices_to_remove = cumulative_probs > self.top_p
-                            # Shift the indices to the right to keep also the first token above the threshold
-                            sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[..., :-1].clone()
-                            sorted_indices_to_remove[..., 0] = 0
-                            
-                            indices_to_remove = sorted_indices[sorted_indices_to_remove]
-                            next_token_logits[0, indices_to_remove] = -float('Inf')
-                        
-                        # Sample from the filtered distribution
-                        probs = torch.softmax(next_token_logits, dim=-1)
-                        next_token = torch.multinomial(probs, num_samples=1)
-                    else:
-                        # Greedy decoding
-                        next_token = torch.argmax(next_token_logits, dim=-1, keepdim=True)
-                    
-                    # Add the decoded token to the generated sequence
-                    generated_ids = torch.cat([generated_ids, next_token], dim=-1)
-                    
-                    # Decode the generated tokens so far
-                    current_output_ids = generated_ids[0, input_length:]
-                    output_text = await asyncio.to_thread(
-                        self.tokenizer.decode,
-                        current_output_ids,
-                        skip_special_tokens=True,
-                        clean_up_tokenization_spaces=False
-                    )
-                    
-                    # Check if output has changed enough to yield a new chunk
-                    if len(output_text) > len(accumulated_text) + 1:  # At least one new character
-                        new_text = output_text[len(accumulated_text):]
-                        accumulated_text = output_text
-                        yield new_text
-                    
-                    # Check for EOS token
-                    if next_token.item() == self.tokenizer.eos_token_id:
-                        break
+                            outputs = self.model.generate(
+                                input_ids=input_ids,
+                                attention_mask=attention_mask,
+                                max_new_tokens=max_new_tokens,
+                                temperature=temperature,
+                                top_p=self.top_p,
+                                top_k=self.top_k,
+                                do_sample=self.do_sample,
+                                pad_token_id=self.tokenizer.eos_token_id,
+                                eos_token_id=self.tokenizer.eos_token_id,
+                                repetition_penalty=self.repetition_penalty,
+                                return_dict_in_generate=True,
+                                output_scores=False
+                            )
+                
+                # Get the generated text
+                generated_sequence = outputs.sequences[0]
+                generated_text = await asyncio.to_thread(
+                    self.tokenizer.decode,
+                    generated_sequence[input_length:],
+                    skip_special_tokens=True,
+                    clean_up_tokenization_spaces=False
+                )
+                
+                # Split the text into chunks to simulate streaming
+                chunk_size = max(1, len(generated_text) // 10)  # Aim for about 10 chunks
+                for i in range(0, len(generated_text), chunk_size):
+                    yield generated_text[i:i+chunk_size]
+                    await asyncio.sleep(0.05)  # Small delay to simulate streaming
+                
+                logger.debug(f"Fallback generation completed, generated {len(generated_sequence) - input_length} tokens")
+                
+            except Exception as e:
+                logger.error(f"Fallback generation failed: {str(e)}", exc_info=True)
+                yield f"\nError during generation: {str(e)}"
         
         except Exception as e:
             logger.error(f"Streaming generation error: {str(e)}", exc_info=True)
@@ -490,7 +468,7 @@ class BatchProcessor:
                     
         return False
 
-class PyTorchClient(BaseLLMClient):
+class PyTorchClient(BaseLLMClient, LLMClientMixin):
     """
     PyTorch-based LLM Client implementation.
     
@@ -529,6 +507,14 @@ class PyTorchClient(BaseLLMClient):
         self.pytorch_config = self.config.get('inference', {}).get('pytorch', {})
         self.model_id = self.pytorch_config.get('model_path', 'facebook/opt-350m')
         
+        # Configure parameters
+        self.temperature = self.pytorch_config.get('temperature', 0.7)
+        self.top_p = self.pytorch_config.get('top_p', 0.9)
+        self.top_k = self.pytorch_config.get('top_k', 40)
+        self.max_tokens = self.pytorch_config.get('max_tokens', 1024)
+        self.stream = self.pytorch_config.get('stream', True)
+        self.verbose = self.pytorch_config.get('verbose', config.get('general', {}).get('verbose', False))
+        
         self.device = self._determine_device()
         logger.info(f"Using device: {self.device}")
         
@@ -553,15 +539,11 @@ class PyTorchClient(BaseLLMClient):
             return torch.device("mps")
         return torch.device("cpu")
 
-    async def initialize(self) -> bool:
-        """
-        Initialize the PyTorch model and tokenizer.
-        
-        Returns:
-            bool: True if successful
-        """
+    async def initialize(self) -> None:
+        """Initialize the PyTorch model and tokenizer."""
         try:
-            logger.info(f"Initializing PyTorch LLM client with model: {self.model_id}")
+            if self.verbose:
+                logger.info(f"Initializing PyTorch LLM client with model: {self.model_id}")
             
             # Free up memory before loading model
             if torch.cuda.is_available():
@@ -581,7 +563,9 @@ class PyTorchClient(BaseLLMClient):
             if hf_token:
                 tokenizer_options["token"] = hf_token
             
-            logger.info(f"Loading tokenizer for model: {self.model_id}")
+            if self.verbose:
+                logger.info(f"Loading tokenizer for model: {self.model_id}")
+            
             # Load tokenizer asynchronously
             self.tokenizer = await asyncio.to_thread(
                 AutoTokenizer.from_pretrained,
@@ -593,13 +577,16 @@ class PyTorchClient(BaseLLMClient):
             if self.tokenizer.pad_token is None:
                 if self.tokenizer.eos_token is not None:
                     self.tokenizer.pad_token = self.tokenizer.eos_token
-                    logger.info("Setting pad_token to eos_token")
+                    if self.verbose:
+                        logger.info("Setting pad_token to eos_token")
                 else:
                     # Last resort
-                    logger.warning("Setting default pad token as model has no eos token")
+                    if self.verbose:
+                        logger.warning("Setting default pad token as model has no eos token")
                     self.tokenizer.pad_token = self.tokenizer.unk_token or "<pad>"
                     
-            logger.info(f"Tokenizer loaded successfully. Vocab size: {len(self.tokenizer)}")
+            if self.verbose:
+                logger.info(f"Tokenizer loaded successfully. Vocab size: {len(self.tokenizer)}")
             
             # Configure model loading parameters
             model_kwargs = {}
@@ -619,14 +606,16 @@ class PyTorchClient(BaseLLMClient):
                 
                 # Setup quantization if enabled (only for CUDA)
                 if self.device.type == "cuda" and self.pytorch_config.get('load_in_8bit', False):
-                    logger.info("Loading model in 8-bit quantization")
+                    if self.verbose:
+                        logger.info("Loading model in 8-bit quantization")
                     model_kwargs["quantization_config"] = BitsAndBytesConfig(
                         load_in_8bit=True,
                         llm_int8_threshold=self.pytorch_config.get('int8_threshold', 6.0),
                         llm_int8_has_fp16_weight=self.pytorch_config.get('int8_has_fp16_weight', True)
                     )
                 elif self.device.type == "cuda" and self.pytorch_config.get('load_in_4bit', False):
-                    logger.info("Loading model in 4-bit quantization")
+                    if self.verbose:
+                        logger.info("Loading model in 4-bit quantization")
                     compute_dtype = torch.float16 if self.pytorch_config.get('compute_dtype', 'float16') == 'float16' else torch.float32
                     model_kwargs["quantization_config"] = BitsAndBytesConfig(
                         load_in_4bit=True,
@@ -636,7 +625,9 @@ class PyTorchClient(BaseLLMClient):
                     )
             
             # Load the model asynchronously
-            logger.info(f"Loading model: {self.model_id}")
+            if self.verbose:
+                logger.info(f"Loading model: {self.model_id}")
+            
             self.model = await asyncio.to_thread(
                 AutoModelForCausalLM.from_pretrained,
                 self.model_id,
@@ -649,24 +640,24 @@ class PyTorchClient(BaseLLMClient):
                 self.pytorch_config.get('load_in_8bit', False) or 
                 self.pytorch_config.get('load_in_4bit', False)
             ):
-                logger.info(f"Moving model to {self.device}")
+                if self.verbose:
+                    logger.info(f"Moving model to {self.device}")
                 self.model = await asyncio.to_thread(self.model.to, self.device)
             
             # Create batch processor
             self.batch_processor = BatchProcessor(self.model, self.tokenizer, self.config)
             
             # Log memory usage
-            if self.device.type == "cuda":
+            if self.device.type == "cuda" and self.verbose:
                 mem_allocated = torch.cuda.memory_allocated() / 1e9
                 mem_reserved = torch.cuda.memory_reserved() / 1e9
                 logger.info(f"Model loaded on CUDA. Memory allocated: {mem_allocated:.2f}GB, Reserved: {mem_reserved:.2f}GB")
             
-            logger.info("PyTorch LLM model loaded successfully")
-            return True
-            
+            if self.verbose:
+                logger.info("PyTorch LLM model loaded successfully")
         except Exception as e:
             logger.error(f"Failed to initialize PyTorch LLM client: {str(e)}", exc_info=True)
-            return False
+            raise
 
     async def verify_connection(self) -> bool:
         """
@@ -680,10 +671,17 @@ class PyTorchClient(BaseLLMClient):
             
         try:
             # Try a simple inference request
+            if self.verbose:
+                logger.info("Testing PyTorch model with a simple inference request")
+                
             test_result = await self.batch_processor.generate_response("Hello, can you hear me?", max_new_tokens=10)
             if "error" in test_result:
                 logger.error(f"Verification failed: {test_result['error']}")
                 return False
+                
+            if self.verbose:
+                logger.info("Successfully verified PyTorch model")
+                
             return True
         except Exception as e:
             logger.error(f"Connection verification failed: {str(e)}")
@@ -905,11 +903,13 @@ class PyTorchClient(BaseLLMClient):
 
     async def close(self) -> None:
         """Release resources and clean up."""
-        logger.info("Cleaning up PyTorch LLM client resources")
+        if self.verbose:
+            logger.info("Cleaning up PyTorch LLM client resources")
         
         if self.model is not None:
             # Clear CUDA cache
-            self.model.cpu()  # Move model to CPU first
+            if self.device.type == "cuda":
+                self.model.cpu()  # Move model to CPU first
             del self.model
             self.model = None
         
@@ -927,55 +927,11 @@ class PyTorchClient(BaseLLMClient):
         # Clear CUDA cache if available
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
+            
+        if self.verbose:
+            logger.info("PyTorch client resources released")
 
-    async def generate_response(self, prompt: str, **kwargs) -> Dict[str, Any]:
-        """
-        Generate a response for the given prompt.
-        
-        Args:
-            prompt: The input prompt
-            **kwargs: Additional generation parameters
-            
-        Returns:
-            Dictionary containing the response and metadata
-        """
-        if self.model is None or self.tokenizer is None:
-            return {"error": "Model not initialized"}
-            
-        try:
-            # Tokenize input
-            inputs = self.tokenizer(prompt, return_tensors="pt", padding=True)
-            inputs = {k: v.to(self.device) for k, v in inputs.items()}
-            
-            # Generate response
-            with torch.no_grad():
-                outputs = self.model.generate(
-                    **inputs,
-                    max_new_tokens=kwargs.get('max_tokens', 100),
-                    temperature=kwargs.get('temperature', 0.7),
-                    top_p=kwargs.get('top_p', 0.9),
-                    do_sample=True,
-                    pad_token_id=self.tokenizer.eos_token_id
-                )
-            
-            # Decode response
-            response = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
-            
-            return {
-                "text": response,
-                "tokens": {
-                    "prompt": inputs["input_ids"].shape[1],
-                    "completion": outputs.shape[1] - inputs["input_ids"].shape[1],
-                    "total": outputs.shape[1]
-                },
-                "model": self.model_id,
-                "finish_reason": "stop"
-            }
-            
-        except Exception as e:
-            logger.error(f"Error generating response: {str(e)}")
-            return {"error": f"Generation failed: {str(e)}"}
-
+    # The BaseLLMClient abstract methods that need implementation
     async def generate_response(
         self, 
         message: str, 
@@ -983,7 +939,7 @@ class PyTorchClient(BaseLLMClient):
         system_prompt_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """
-        Generate a response for a chat message.
+        Generate a response for a chat message using PyTorch model.
         
         Args:
             message: The user's message
@@ -993,79 +949,69 @@ class PyTorchClient(BaseLLMClient):
         Returns:
             Dictionary containing response and metadata
         """
-        if self.model is None or self.tokenizer is None:
-            return {"error": "Model not initialized"}
-            
         try:
-            # Get context from retriever
-            context = ""
-            sources = []
-            
-            if self.retriever:
-                # Get context from retriever
-                documents = await self.retriever.get_relevant_documents(message, collection_name)
+            if self.verbose:
+                logger.info(f"Generating response for message: {message[:100]}...")
                 
-                if documents:
-                    # Format context for prompt
-                    context = self._format_context(documents)
-                    sources = self._format_sources(documents)
+            # Check if the message is safe
+            if not await self._check_message_safety(message):
+                return await self._handle_unsafe_message()
             
-            # Get system prompt if provided
-            system_prompt = ""
-            if system_prompt_id and self.prompt_service:
-                prompt_doc = await self.prompt_service.get_prompt_by_id(system_prompt_id)
-                if prompt_doc:
-                    system_prompt = prompt_doc.get('prompt', '')
+            # Retrieve and rerank documents
+            retrieved_docs = await self._retrieve_and_rerank_docs(message, collection_name)
             
-            # Use default system prompt if no custom one is provided
-            if not system_prompt:
-                system_prompt = self.system_prompt
+            # Get the system prompt
+            system_prompt = await self._get_system_prompt(system_prompt_id)
             
-            # Create full prompt with context
-            full_prompt = f"{system_prompt}\n\nContext:\n{context}\n\nQuestion: {message}\n\nAnswer:"
+            # Format the context from retrieved documents
+            context = self._format_context(retrieved_docs)
             
-            # Tokenize input
-            inputs = self.tokenizer(full_prompt, return_tensors="pt", padding=True)
-            inputs = {k: v.to(self.device) for k, v in inputs.items()}
+            # Prepare the prompt with context
+            prompt = await self._prepare_prompt_with_context(message, system_prompt, context)
             
-            # Generate response
-            with torch.no_grad():
-                outputs = self.model.generate(
-                    **inputs,
-                    max_new_tokens=self.pytorch_config.get('max_tokens', 1024),
-                    temperature=self.pytorch_config.get('temperature', 0.7),
-                    top_p=self.pytorch_config.get('top_p', 0.9),
-                    do_sample=self.pytorch_config.get('do_sample', True),
-                    pad_token_id=self.tokenizer.eos_token_id
-                )
+            # Call the PyTorch model
+            start_time = time.time()
             
-            # Decode response
-            response = self.tokenizer.decode(outputs[0, inputs["input_ids"].shape[1]:], skip_special_tokens=True)
+            # Get response from batch processor
+            result = await self.batch_processor.generate_response(
+                prompt,
+                max_new_tokens=self.max_tokens,
+                temperature=self.temperature
+            )
+            
+            if "error" in result:
+                logger.error(f"Error generating response: {result['error']}")
+                return {"error": result["error"]}
+            
+            processing_time = self._measure_execution_time(start_time)
+            
+            # Extract the response and metadata
+            response_text = result["response"]
+            
+            if self.verbose:
+                logger.debug(f"Response length: {len(response_text)} characters")
+                
+            # Format the sources for citation
+            sources = self._format_sources(retrieved_docs)
             
             return {
-                "response": response,
+                "response": response_text,
                 "sources": sources,
-                "tokens": {
-                    "prompt": inputs["input_ids"].shape[1],
-                    "completion": outputs.shape[1] - inputs["input_ids"].shape[1],
-                    "total": outputs.shape[1]
-                },
-                "model": self.model_id,
-                "finish_reason": "stop"
+                "tokens": result.get("total_tokens", 0),
+                "processing_time": processing_time
             }
-            
         except Exception as e:
             logger.error(f"Error generating response: {str(e)}")
-            return {"error": f"Generation failed: {str(e)}"}
-
+            return {"error": f"Failed to generate response: {str(e)}"}
+    
     async def generate_response_stream(
         self, 
         message: str, 
         collection_name: str,
         system_prompt_id: Optional[str] = None
-    ) -> AsyncIterator[str]:
+    ) -> AsyncGenerator[str, None]:
         """
-        Generate a streaming response for a chat message.
+        Generate a streaming response for a chat message using PyTorch model.
         
         Args:
             message: The user's message
@@ -1075,108 +1021,77 @@ class PyTorchClient(BaseLLMClient):
         Yields:
             Chunks of the response as they are generated
         """
-        if self.model is None or self.tokenizer is None:
-            yield json.dumps({"error": "Model not initialized"})
-            return
-            
         try:
-            # Get context from retriever
-            context = ""
-            sources = []
-            
-            if self.retriever:
-                # Get context from retriever
-                documents = await self.retriever.get_relevant_context(message, collection_name)
+            if self.verbose:
+                logger.info(f"Starting streaming response for message: {message[:100]}...")
                 
-                if documents:
-                    # Format context for prompt
-                    context = self._format_context(documents)
-                    sources = self._format_sources(documents)
-            
-            # Get system prompt if provided
-            system_prompt = ""
-            if system_prompt_id and self.prompt_service:
-                prompt_doc = await self.prompt_service.get_prompt_by_id(system_prompt_id)
-                if prompt_doc:
-                    system_prompt = prompt_doc.get('prompt', '')
-            
-            # Use default system prompt if no custom one is provided
-            if not system_prompt:
-                system_prompt = self.system_prompt
-            
-            # Create full prompt with context
-            full_prompt = f"{system_prompt}\n\nContext:\n{context}\n\nQuestion: {message}\n\nAnswer:"
-            
-            # Tokenize input
-            inputs = self.tokenizer(full_prompt, return_tensors="pt", padding=True)
-            inputs = {k: v.to(self.device) for k, v in inputs.items()}
-            
-            # Generate response token by token
-            input_length = inputs["input_ids"].shape[1]
-            generated_text = ""
-            
-            # Send sources as first chunk if available
-            if sources:
-                yield json.dumps({"sources": sources})
-            
-            # Generate with streaming
-            with torch.no_grad():
-                output_ids = inputs["input_ids"].clone()
-                past_key_values = None
+            # Check if the model and processor are initialized
+            if self.model is None or self.tokenizer is None or self.batch_processor is None:
+                yield json.dumps({"error": "PyTorch model not initialized", "done": True})
+                return
                 
-                for _ in range(self.pytorch_config.get('max_tokens', 1024)):
-                    # Prepare inputs for the next generation step
-                    if past_key_values is None:
-                        # First step - use full sequence
-                        model_inputs = {
-                            "input_ids": output_ids,
-                            "attention_mask": torch.ones_like(output_ids),
-                            "past_key_values": None
-                        }
-                    else:
-                        # Subsequent steps - only use the last token
-                        model_inputs = {
-                            "input_ids": output_ids[:, -1:],
-                            "attention_mask": torch.ones(output_ids.shape[0], 1, device=self.device),
-                            "past_key_values": past_key_values
-                        }
-                    
-                    # Generate next token
-                    outputs = self.model(**model_inputs, use_cache=True)
-                    past_key_values = outputs.past_key_values
-                    
-                    next_token_logits = outputs.logits[:, -1, :]
-                    
-                    # Apply temperature
-                    temperature = self.pytorch_config.get('temperature', 0.7)
-                    if temperature > 0:
-                        next_token_logits = next_token_logits / temperature
-                    
-                    # Sample next token
-                    if self.pytorch_config.get('do_sample', True):
-                        probs = torch.softmax(next_token_logits, dim=-1)
-                        next_token = torch.multinomial(probs, num_samples=1)
-                    else:
-                        next_token = torch.argmax(next_token_logits, dim=-1, keepdim=True)
-                    
-                    # Add new token to sequence
-                    output_ids = torch.cat([output_ids, next_token], dim=-1)
-                    
-                    # Decode only new token
-                    new_token = self.tokenizer.decode(next_token[0], skip_special_tokens=True)
-                    generated_text += new_token
-                    
-                    # Yield current response
-                    if new_token.strip():  # Only yield if token isn't just whitespace
-                        yield json.dumps({"response": generated_text})
-                    
-                    # Check if we hit the end token
-                    if next_token.item() == self.tokenizer.eos_token_id:
-                        break
+            # Check if the message is safe
+            if not await self._check_message_safety(message):
+                yield await self._handle_unsafe_message_stream()
+                return
             
-            # Yield final message with done flag
-            yield json.dumps({"response": generated_text, "done": True})
+            # Retrieve and rerank documents
+            retrieved_docs = await self._retrieve_and_rerank_docs(message, collection_name)
+            
+            # Get the system prompt
+            system_prompt = await self._get_system_prompt(system_prompt_id)
+            
+            # Format the context from retrieved documents
+            context = self._format_context(retrieved_docs)
+            
+            # Prepare the prompt with context
+            prompt = await self._prepare_prompt_with_context(message, system_prompt, context)
+            
+            if self.verbose:
+                logger.info(f"Calling PyTorch model with streaming enabled")
+                
+            # Generate streaming response
+            chunk_count = 0
+            accumulated_text = ""
+            
+            try:
+                async for chunk in self.batch_processor.generate_stream(
+                    prompt,
+                    max_new_tokens=self.max_tokens,
+                    temperature=self.temperature
+                ):
+                    chunk_count += 1
+                    accumulated_text += chunk
+                    
+                    if self.verbose and chunk_count % 10 == 0:
+                        logger.debug(f"Received chunk {chunk_count}")
+                    
+                    yield json.dumps({
+                        "response": chunk,
+                        "sources": [],
+                        "done": False
+                    })
+            except Exception as stream_error:
+                # Handle streaming-specific errors
+                logger.error(f"Error during streaming generation: {str(stream_error)}", exc_info=True)
+                yield json.dumps({
+                    "error": f"Error during streaming: {str(stream_error)}",
+                    "response": accumulated_text if accumulated_text else "Failed to generate streaming response.",
+                    "done": True
+                })
+                return
+            
+            if self.verbose:
+                logger.info(f"Streaming complete. Received {chunk_count} chunks")
+                
+            # When stream is complete, send the sources
+            sources = self._format_sources(retrieved_docs)
+            yield json.dumps({
+                "response": "",
+                "sources": sources,
+                "done": True
+            })
             
         except Exception as e:
-            logger.error(f"Error in streaming generation: {str(e)}")
-            yield json.dumps({"error": f"Streaming generation failed: {str(e)}"})
+            logger.error(f"Error in generate_response_stream: {str(e)}", exc_info=True)
+            yield json.dumps({"error": f"Failed to generate response: {str(e)}", "done": True})
