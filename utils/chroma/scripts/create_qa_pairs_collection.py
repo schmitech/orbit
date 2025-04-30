@@ -1,23 +1,50 @@
 """
-Enhanced Chroma Collection Creator for RAG
+Chroma Collection Creator for RAG
 =========================================
 
 This script creates an optimized vector database collection in Chroma from a JSON file containing Q&A pairs.
 It processes questions, generates embeddings, and stores them with associated answers as metadata.
 
 Usage:
-    python improved-chroma-collection.py <collection_name> <json_file_path>
+    python create_qa_pairs_collection.py <collection_name> <json_file_path> [--local] [--db-path PATH]
 
-Key improvements:
+Arguments:
+    collection_name      Name of the Chroma collection to create
+    json_file_path       Path to the JSON file containing Q&A pairs
+    --local              Use local filesystem storage instead of remote Chroma server
+    --db-path PATH       Path for local Chroma database (used only with --local)
+                         Default: "./chroma_db"
+
+Examples:
+    # Create collection on remote Chroma server (defined in config.yaml)
+    python create_qa_pairs_collection.py city_faq data/city_faq.json
+    
+    # Create collection in local filesystem database
+    python create_qa_pairs_collection.py city_faq data/city_faq.json --local
+    
+    # Create collection in a specific local database path
+    python create_qa_pairs_collection.py city_faq data/city_faq.json --local --db-path /path/to/my/chroma_db
+
+Key features:
     1. Embeds only questions for focused semantic search
     2. Stores complete answers as metadata for retrieval
     3. Optimizes metadata structure for retrieval
     4. Includes content and metadata indexing for hybrid search
+    5. Supports both remote Chroma server and local filesystem persistence
+
+Notes:
+    - For remote mode, the script uses server connection details from config.yaml
+    - For local mode, it creates a PersistentClient at the specified path
+    - This script is part of a suite of Chroma utilities that all support both modes:
+      * create_qa_pairs_collection.py - Creates and populates collections
+      * query_qa-pairs.py - Queries collections with semantic search
+      * list_chroma_collections.py - Lists available collections
 """
 import json
 import yaml
 import sys
 import asyncio
+import os
 from tqdm import tqdm
 import chromadb
 import argparse
@@ -40,30 +67,46 @@ async def ingest_to_chroma(
     chroma_host: str,
     chroma_port: str,
     collection_name: str,
+    use_local: bool = False,
+    db_path: str = "./chroma_db",
     batch_size: int = 50
 ):
     print(f"Using embedding provider: {embedding_provider}")
     
-    # Initialize Chroma client with HTTP connection
-    client = chromadb.HttpClient(host=chroma_host, port=int(chroma_port))
-    print(f"Connected to Chroma server at {chroma_host}:{chroma_port}")
+    # Initialize Chroma client based on mode
+    if use_local:
+        # Create a local directory for persistence if it doesn't exist
+        local_db_path = Path(db_path).resolve()
+        os.makedirs(local_db_path, exist_ok=True)
+        client = chromadb.PersistentClient(path=str(local_db_path))
+        print(f"Using local filesystem persistence at: {local_db_path}")
+    else:
+        # Initialize Chroma client with HTTP connection
+        client = chromadb.HttpClient(host=chroma_host, port=int(chroma_port))
+        print(f"Connected to Chroma server at {chroma_host}:{chroma_port}")
     
     # Create or get collection
     if not collection_name:
         raise ValueError("Collection name cannot be empty.")
     
-    # Using a completely different approach for collection creation
-    print("Using simplified collection creation approach...")
+    # Collection creation approach
+    print("Creating or accessing collection...")
     
     try:
-        # Skip any attempt to get or verify existing collections first
-        # Just try to create the collection directly with only the name parameter
-        # This avoids any issues with the configuration structure in newer Chroma versions
-        
-        # Create collection with absolute minimal parameters
-        collection = None
-        collection = client.create_collection(name=collection_name)
-        print(f"Successfully created collection: {collection_name}")
+        # First try to get the collection (it might already exist)
+        try:
+            collection = client.get_collection(name=collection_name)
+            print(f"Accessing existing collection: {collection_name}")
+            # Delete and recreate if using local mode
+            if use_local:
+                client.delete_collection(name=collection_name)
+                print(f"Deleted existing collection: {collection_name}")
+                collection = client.create_collection(name=collection_name)
+                print(f"Successfully recreated collection: {collection_name}")
+        except Exception:
+            # Collection doesn't exist, create it
+            collection = client.create_collection(name=collection_name)
+            print(f"Successfully created new collection: {collection_name}")
         
     except Exception as e:
         # If creation fails but contains a specific error about collection already existing
@@ -81,8 +124,8 @@ async def ingest_to_chroma(
             except Exception as inner_e:
                 print(f"Error accessing existing collection: {str(inner_e)}")
                 raise Exception(f"Cannot create or access collection: {str(e)}")
-        else:
-            # For other errors, try a different approach - direct Python requests to the API
+        elif not use_local:
+            # For other errors with the remote server, try a different approach
             print(f"Error creating collection with standard method: {str(e)}")
             print("Trying alternative API access method...")
             
@@ -104,6 +147,8 @@ async def ingest_to_chroma(
             except Exception as api_e:
                 print(f"All collection creation methods failed: {str(api_e)}")
                 raise Exception(f"Cannot create collection with any method: {str(e)}, {str(api_e)}")
+        else:
+            raise Exception(f"Failed to create local collection: {str(e)}")
     
     # Confirm we have a valid collection object
     if not collection:
@@ -269,6 +314,8 @@ async def main():
     parser = argparse.ArgumentParser(description='Ingest Q&A pairs into Chroma database')
     parser.add_argument('collection_name', help='Name of the Chroma collection to create')
     parser.add_argument('json_file_path', help='Path to the JSON file containing Q&A pairs')
+    parser.add_argument('--local', action='store_true', help='Use local filesystem storage instead of remote Chroma server')
+    parser.add_argument('--db-path', type=str, default='./chroma_db', help='Path for local Chroma database (used only with --local)')
     args = parser.parse_args()
     
     # Get the embedding provider from the config
@@ -283,6 +330,8 @@ async def main():
         chroma_host=config['datasources']['chroma']['host'],
         chroma_port=config['datasources']['chroma']['port'],
         collection_name=args.collection_name,
+        use_local=args.local,
+        db_path=args.db_path,
         batch_size=50
     )
 

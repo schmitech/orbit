@@ -1,2 +1,52 @@
-# Local Netlify folder
-.netlify
+# Environment and config files
+.env
+.env.*
+config.yaml
+.api_keys
+
+# Python related
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv/
+.python-version
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Logs
+logs/
+*.log
+
+# Database files
+chroma_db/
+chroma_db*/
+
+# Model files
+*.gguf
+*.bin
+*.pt
+*.onnx
+*.safetensors
+
+# Deployment related
+.netlify/
+.vercel/
+node_modules/
+
+# Operating system files
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# IDE specific files
+.idea/
+.vscode/
+*.sublime-workspace
+*.sublime-project
