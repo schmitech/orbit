@@ -2,13 +2,27 @@
 Client modules for external services
 """
 
-from .base_retriever import BaseRetriever, RetrieverFactory
-from .qa_chroma_retriever import QAChromaRetriever
-from .qa_sqlite_retriever import QASqliteRetriever
+# Import enhanced base classes
+from .base_retriever import BaseRetriever, VectorDBRetriever, SQLRetriever
+from .base_retriever import RetrieverFactory
+
+# Import enhanced retrievers
+from .chroma_retriever import ChromaRetriever
+from .sqlite_retriever import SqliteRetriever
 
 # Register retrievers with the factory
-RetrieverFactory.register_retriever("qa_chroma", QAChromaRetriever)
-RetrieverFactory.register_retriever("qa_sqlite", QASqliteRetriever)
+RetrieverFactory.register_retriever("chroma", ChromaRetriever)
+RetrieverFactory.register_retriever("sqlite", SqliteRetriever)
 
-__all__ = ['BaseRetriever', 'QAChromaRetriever', 'QASqliteRetriever', 'RetrieverFactory']
-
+# Export public API
+__all__ = [
+    # Base classes
+    'BaseRetriever', 
+    'VectorDBRetriever', 
+    'SQLRetriever',
+    'RetrieverFactory',
+    
+    # Enhanced retrievers
+    'ChromaRetriever',
+    'SqliteRetriever',
+]

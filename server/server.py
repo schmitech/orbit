@@ -492,17 +492,46 @@ class InferenceServer:
         try:
             # Get the datasource provider from configuration 
             datasource_provider = self.config['general'].get('datasource_provider', 'chroma')
+
+            # Import the RetrieverFactory and DocumentAdapterFactory
+            from retrievers.base_retriever import RetrieverFactory
+            from retrievers.domain_adapters import DocumentAdapterFactory
+
+            # Check for domain adapter configuration
+            datasource_config = self.config.get('datasources', {}).get(datasource_provider, {})
+            domain_adapter_type = datasource_config.get('domain_adapter', 'qa')
+            adapter_params = datasource_config.get('adapter_params', {})
+        
+            # Log the domain adapter being used
+            self.logger.info(f"Using {domain_adapter_type} domain adapter for {datasource_provider} retriever")
             
             # The naming convention for retriever types is "qa_<provider>"
-            retriever_type = f"qa_{datasource_provider}"
-            self.logger.info(f"Initializing retriever of type '{retriever_type}' using factory pattern")
+            # retriever_type = f"qa_{datasource_provider}"
+            # self.logger.info(f"Initializing retriever of type '{retriever_type}' using factory pattern")
             
             # Import the RetrieverFactory
-            from retrievers.base_retriever import RetrieverFactory
+            # from retrievers.base_retriever import RetrieverFactory
             
+            # Create the domain adapter
+            try:
+                domain_adapter = DocumentAdapterFactory.create_adapter(
+                    domain_adapter_type, 
+                    **adapter_params
+                )
+                self.logger.info(f"Successfully created {domain_adapter_type} domain adapter")
+            except Exception as adapter_error:
+                self.logger.error(f"Error creating domain adapter: {str(adapter_error)}")
+                self.logger.warning(f"Falling back to default QA adapter")
+                domain_adapter = DocumentAdapterFactory.create_adapter('qa')
+               
             # Prepare appropriate arguments based on the provider type
-            retriever_kwargs = {'config': self.config, 'embeddings': app.state.embedding_service}
+            retriever_kwargs = {
+                'config': self.config, 
+                'embeddings': app.state.embedding_service,
+                'domain_adapter': domain_adapter
+            }
             
+            # Add the appropriate client/connection based on the provider type
             # Add the appropriate client/connection based on the provider type
             if datasource_provider == 'chroma' and hasattr(app.state, 'chroma_client'):
                 retriever_kwargs['collection'] = app.state.chroma_client
@@ -511,24 +540,41 @@ class InferenceServer:
             
             # Create the retriever using the factory
             app.state.retriever = RetrieverFactory.create_retriever(
-                retriever_type=retriever_type,
+                retriever_type=datasource_provider,
                 **retriever_kwargs
             )
             
-            self.logger.info(f"Successfully initialized {retriever_type} retriever")
+            self.logger.info(f"Successfully initialized {datasource_provider} retriever")
         except Exception as e:
             self.logger.error(f"Error initializing retriever: {str(e)}")
-            self.logger.warning("Falling back to default QAChromaRetriever")
+            self.logger.warning("Falling back to default ChromaRetriever")
             
-            # Fall back to QAChromaRetriever in case of error
-            from retrievers.qa_chroma_retriever import QAChromaRetriever
-            app.state.retriever = QAChromaRetriever(
+            # Fall back to ChromaRetriever in case of error
+            from retrievers import ChromaRetriever
+            from retrievers.domain_adapters import DocumentAdapterFactory
+            
+            # Create a default QA adapter
+            domain_adapter = DocumentAdapterFactory.create_adapter('qa')
+            
+            app.state.retriever = ChromaRetriever(
                 config=self.config,
-                embeddings=app.state.embedding_service
+                embeddings=app.state.embedding_service,
+                domain_adapter=domain_adapter
             )
         
-        # Initialize GuardrailService
-        app.state.guardrail_service = GuardrailService(self.config)
+        # Initialize GuardrailService only if safety is enabled
+        if _is_true_value(self.config.get('safety', {}).get('enabled', False)):
+            app.state.guardrail_service = GuardrailService(self.config)
+            self.logger.info("Initializing GuardrailService...")
+            try:
+                await app.state.guardrail_service.initialize()
+                self.logger.info("GuardrailService initialized successfully")
+            except Exception as e:
+                self.logger.error(f"Failed to initialize GuardrailService: {str(e)}")
+                raise
+        else:
+            app.state.guardrail_service = None
+            self.logger.info("Safety is disabled, skipping GuardrailService initialization")
         
         # Load no results message
         no_results_message = self._load_no_results_message()
@@ -553,19 +599,37 @@ class InferenceServer:
         app.state.logger_service = LoggerService(self.config)
         
         # Initialize the health service with the appropriate datasource client
+        # datasource_provider = self.config['general'].get('datasource_provider', 'chroma')
+        # if datasource_provider == 'chroma':
+        #     app.state.health_service = HealthService(self.config, app.state.chroma_client, app.state.llm_client)
+        # else:
+        #     # For any other datasource provider, use the datasource_client
+        #     app.state.health_service = HealthService(self.config, app.state.datasource_client, app.state.llm_client)
+
+        # Log datasource domain adapter settings
         datasource_provider = self.config['general'].get('datasource_provider', 'chroma')
-        if datasource_provider == 'chroma':
-            app.state.health_service = HealthService(self.config, app.state.chroma_client, app.state.llm_client)
-        else:
-            # For any other datasource provider, use the datasource_client
-            app.state.health_service = HealthService(self.config, app.state.datasource_client, app.state.llm_client)
+        datasource_config = self.config.get('datasources', {}).get(datasource_provider, {})
+        domain_adapter = datasource_config.get('domain_adapter', 'qa')
+        adapter_params = datasource_config.get('adapter_params', {})
+
+        self.logger.info(f"  {datasource_provider.capitalize()} Retriever: " +
+                    f"domain_adapter={domain_adapter}, " +
+                    f"confidence_threshold={datasource_config.get('confidence_threshold', 0.85)}, " +
+                    f"relevance_threshold={datasource_config.get('relevance_threshold', 0.7)}")
+
+        if adapter_params:
+            adapter_params_str = ", ".join([f"{k}={v}" for k, v in adapter_params.items()])
+            self.logger.info(f"  Adapter params: {adapter_params_str}")
         
         # Initialize all services concurrently
         init_tasks = [
             app.state.llm_client.initialize(),
-            app.state.logger_service.initialize_elasticsearch(),
-            app.state.guardrail_service.initialize()
+            app.state.logger_service.initialize_elasticsearch()
         ]
+        
+        # Only add guardrail service initialization if it exists
+        if app.state.guardrail_service is not None:
+            init_tasks.append(app.state.guardrail_service.initialize())
         
         # Only initialize retriever if embeddings are enabled
         if embedding_enabled and app.state.embedding_service is not None:

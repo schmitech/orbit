@@ -1,6 +1,6 @@
 general:
-  port: 3000
-  verbose: false
+  port: 3001
+  verbose: true
   https:
     enabled: false
     port: 3443
@@ -8,19 +8,13 @@ general:
     key_file: "./key.pem"
   inference_provider: "ollama"
   datasource_provider: "sqlite"
-  inference: # TODO: Not yet implemented, modify update inference providers to use these common parameters
-    temperature: 0.1
-    top_p: 0.8
-    top_k: 20
-    max_tokens: 1024
-    stream: true
 
 messages:
   no_results_response: "I'm sorry, but I don't have any specific information about that topic in my knowledge base."
 
 embedding:
   provider: "ollama"
-  enabled: true
+  enabled: false
   fail_on_error: false
 
 api_keys:
@@ -28,7 +22,7 @@ api_keys:
   require_for_health: true
 
 logging:
-  level: "INFO"  # Options: DEBUG, INFO, WARNING, ERROR, CRITICAL
+  level: "INFO"
   file:
     enabled: true
     directory: "logs"
@@ -89,15 +83,19 @@ datasources:
   chroma:
     host: "localhost"
     port: 8000
+    domain_adapter: "qa"
     confidence_threshold: 0.85
     relevance_threshold: 0.7
     embedding_provider: null
   sqlite:
     db_path: "../utils/sqllite/rag_database.db"
+    domain_adapter: "qa"
     confidence_threshold: 0.7
     relevance_threshold: 0.5
     max_results: 10
     return_results: 3
+    adapter_params:
+      boost_exact_matches: true
   postgres:
     host: "localhost"
     port: 5432
@@ -148,7 +146,7 @@ inference:
     model: "gemma3:1b"
     stream: true
   vllm:
-    host: "localhost"
+    host: "3.96.164.110"
     port: 5000
     temperature: 0.1
     top_p: 0.8
@@ -232,7 +230,7 @@ inference:
     temperature: 0.1
     top_p: 0.8
     max_tokens: 1024
-    stream: true
+    stream: true 
   pytorch:
       model_path: "facebook/opt-125m"  # Path to HF model or local model directory
       system_prompt: "You are a helpful, accurate, precise, and expert assistant."

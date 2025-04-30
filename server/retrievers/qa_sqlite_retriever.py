@@ -5,62 +5,44 @@ SQLite implementation of the BaseRetriever interface
 import logging
 import sqlite3
 import string
+import traceback
 from typing import Dict, Any, List, Optional, Union
 from difflib import SequenceMatcher
 from fastapi import HTTPException
 
-from retrievers.base_retriever import BaseRetriever
-from services.api_key_service import ApiKeyService
-from embeddings.base import EmbeddingService
+from retrievers.base_retriever import SQLRetriever, RetrieverFactory
 
 # Configure logging
 logger = logging.getLogger(__name__)
 
-class QASqliteRetriever(BaseRetriever):
-    """SQLite implementation of the BaseRetriever interface"""
+class QASqliteRetriever(SQLRetriever):
+    """SQLite implementation of the SQLRetriever interface"""
 
     def __init__(self, 
-                config: Dict[str, Any],  # Make config the first required parameter
-                embeddings: Optional[Any] = None,
-                connection: Any = None):
+                config: Dict[str, Any],
+                connection: Any = None,
+                **kwargs):
         """
         Initialize SQLiteRetriever.
         
         Args:
             config: Configuration dictionary containing SQLite and general settings
-            embeddings: Optional embeddings instance (not used for token-based search)
             connection: Optional SQLite connection
         """
-        if not config:
-            raise ValueError("Config is required for SQLiteRetriever initialization")
-            
-        self.config = config
-        self.embeddings = embeddings
-        self.connection = connection
+        # Call the parent constructor first
+        super().__init__(config=config, connection=connection, **kwargs)
         
-        # Extract sqlite-specific configuration
-        sqlite_config = config.get('sqlite', {})
-        if not sqlite_config and 'datasources' in config and 'sqlite' in config['datasources']:
-            # Handle new config structure
-            sqlite_config = config.get('datasources', {}).get('sqlite', {})
-            
-        self.db_path = sqlite_config.get('db_path', '../utils/sqllite/rag_database.db')
-        self.collection = sqlite_config.get('collection', 'city_qa')
-        self.confidence_threshold = sqlite_config.get('confidence_threshold', 0.7)
-        self.relevance_threshold = sqlite_config.get('relevance_threshold', 0.5)
-        self.verbose = config.get('general', {}).get('verbose', False)
-        self.max_results = sqlite_config.get('max_results', 10)
-        self.return_results = sqlite_config.get('return_results', 3)
-        
-        # Initialize dependent services
-        self.api_key_service = ApiKeyService(config)
-        
-        # Flag to determine if we're using embeddings
-        self.using_embeddings = embeddings is not None
+        # Initialize database path
+        self.db_path = self.datasource_config.get('db_path', '../utils/sqllite/rag_database.db')
+
+    def _get_datasource_name(self) -> str:
+        """Return the name of this datasource for config lookup"""
+        return 'sqlite'
 
     async def initialize(self) -> None:
         """Initialize required services."""
-        await self.api_key_service.initialize()
+        # Call parent initialize to set up API key service
+        await super().initialize()
         
         # Initialize database connection
         try:
@@ -107,7 +89,8 @@ class QASqliteRetriever(BaseRetriever):
 
     async def close(self) -> None:
         """Close any open services."""
-        await self.api_key_service.close()
+        # Close parent services
+        await super().close()
         
         # Close database connection
         if self.connection:
@@ -115,76 +98,29 @@ class QASqliteRetriever(BaseRetriever):
             if self.verbose:
                 logger.info("Closed SQLite database connection")
 
-    async def _resolve_collection(self, api_key: Optional[str] = None, collection_name: Optional[str] = None) -> None:
+    async def set_collection(self, collection_name: str) -> None:
         """
-        Determine and set the appropriate collection.
-        
-        Priority:
-          1. If an API key is provided, validate it and use its collection.
-          2. If a collection name is provided directly, use it.
-          3. If none is provided, try the default from config.
-        
-        Raises:
-            HTTPException: If no valid collection can be determined.
-        """
-        if api_key:
-            is_valid, resolved_collection_name = await self.api_key_service.validate_api_key(api_key)
-            if not is_valid:
-                raise ValueError("Invalid API key")
-            if resolved_collection_name:
-                self.collection = resolved_collection_name
-                return
-        elif collection_name:
-            self.collection = collection_name
-            return
-
-        # Fallback to the default collection
-        if not self.collection:
-            # Support both old and new config structures
-            default_collection = None
-            if 'sqlite' in self.config:
-                default_collection = self.config.get('sqlite', {}).get('collection')
-            elif 'datasources' in self.config and 'sqlite' in self.config['datasources']:
-                default_collection = self.config.get('datasources', {}).get('sqlite', {}).get('collection')
-                
-            if default_collection:
-                self.collection = default_collection
-            else:
-                error_msg = ("No collection available. Ensure a default collection is configured "
-                             "or a valid API key is provided.")
-                logger.error(error_msg)
-                raise HTTPException(status_code=500, detail=error_msg)
-
-    def get_direct_answer(self, context: List[Dict[str, Any]]) -> Optional[str]:
-        """
-        Return a direct answer from the most relevant result if it meets the confidence threshold.
+        Set the current collection (table name) for retrieval.
         
         Args:
-            context: List of context items from SQLite.
-            
-        Returns:
-            The direct answer if found, otherwise None.
+            collection_name: Name of the table to use
         """
-        if not context:
-            return None
+        if not collection_name:
+            raise ValueError("Collection name cannot be empty")
             
-        first_result = context[0]
-        
-        # Detailed debugging if verbose mode is enabled
+        # Verify that the table exists
+        if self.connection:
+            cursor = self.connection.cursor()
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?", (collection_name,))
+            if not cursor.fetchone():
+                error_msg = f"Table '{collection_name}' not found in the database"
+                logger.error(error_msg)
+                raise HTTPException(status_code=404, detail=error_msg)
+                
+        # Set the collection name
+        self.collection = collection_name
         if self.verbose:
-            logger.info(f"Direct answer check - confidence: {first_result.get('confidence', 0)}")
-            logger.info(f"Direct answer check - has question: {'question' in first_result}")
-            logger.info(f"Direct answer check - has answer: {'answer' in first_result}")
-            
-        if ("question" in first_result and "answer" in first_result and 
-            first_result.get("confidence", 0) >= self.confidence_threshold):
-            if self.verbose:
-                logger.info(f"Found direct answer with confidence {first_result.get('confidence')}")
-            
-            # Return a formatted answer that includes both question and answer for clarity
-            return f"Question: {first_result['question']}\nAnswer: {first_result['answer']}"
-        
-        return None
+            logger.info(f"Switched to collection (table): {collection_name}")
 
     def _tokenize_text(self, text: str) -> List[str]:
         """
@@ -306,19 +242,11 @@ class QASqliteRetriever(BaseRetriever):
             A list of context items filtered by relevance.
         """
         try:
-            # Set debug mode if verbose
+            # Call the parent implementation first which resolves collection
+            # and handles common logging/error handling
+            await super().get_relevant_context(query, api_key, collection_name, **kwargs)
+            
             debug_mode = self.verbose
-            
-            if debug_mode:
-                logger.info(f"=== Starting retrieval for query: '{query}' ===")
-                logger.info(f"API Key: {'Provided' if api_key else 'None'}")
-                logger.info(f"Collection name: {collection_name or 'Not specified'}")
-            
-            # Resolve collection
-            await self._resolve_collection(api_key, collection_name)
-            
-            if debug_mode:
-                logger.info(f"Resolved collection: {self.collection}")
             
             if not self.connection:
                 error_msg = "Database connection not initialized"
@@ -406,10 +334,8 @@ class QASqliteRetriever(BaseRetriever):
                 
         except Exception as e:
             logger.error(f"Error retrieving context: {str(e)}")
-            import traceback
             logger.error(traceback.format_exc())
             return []
 
 # Register the retriever with the factory
-from retrievers.base_retriever import RetrieverFactory
 RetrieverFactory.register_retriever('sqlite', QASqliteRetriever)
