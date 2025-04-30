@@ -34,16 +34,10 @@ import sys
 import yaml
 import chromadb
 import argparse
-
+from pathlib import Path
 def load_config():
-    """
-    Load configuration from config.yaml file.
-    
-    Returns:
-        dict: Configuration parameters
-    """
-    with open('../config/config.yaml', 'r') as file:
-        return yaml.safe_load(file)
+    CONFIG_PATH = Path(__file__).resolve().parents[3] / "server" / "config.yaml"
+    return yaml.safe_load(CONFIG_PATH.read_text())
 
 def delete_chroma_collection(collection_name: str):
     """
