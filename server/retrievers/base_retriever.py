@@ -359,7 +359,9 @@ class VectorDBRetriever(BaseRetriever):
             return await self.embeddings.embed_query(query)
         else:
             # Use the legacy Ollama embeddings
-            return self.embeddings.embed_query(query)
+            # For langchain OllamaEmbeddings, embed_query is also a coroutine 
+            # that needs to be awaited
+            return await self.embeddings.embed_query(query)
 
 
 class SQLRetriever(BaseRetriever):

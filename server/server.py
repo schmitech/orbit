@@ -48,8 +48,7 @@ load_dotenv()
 from config.config_manager import load_config, _is_true_value
 from models.schema import ChatMessage, ApiKeyCreate, ApiKeyResponse, ApiKeyDeactivate, SystemPromptCreate, SystemPromptUpdate, SystemPromptResponse, ApiKeyPromptAssociate
 from models import ChatMessage
-from retrievers.qa_chroma_retriever import QAChromaRetriever
-from services import ChatService, HealthService, LoggerService, GuardrailService, RerankerService, ApiKeyService, PromptService
+from services import ChatService, LoggerService, GuardrailService, RerankerService, ApiKeyService, PromptService
 from inference import LLMClientFactory
 from utils.text_utils import mask_api_key
 from embeddings.base import EmbeddingServiceFactory
@@ -269,13 +268,13 @@ class InferenceServer:
             self.config['reranker']['resolved_provider'] = reranker_provider
             self.config['reranker']['resolved_model'] = reranker_model
         
-        # For backward compatibility, copy selected inference provider config to the old location
-        if inference_provider in self.config.get('inference', {}):
-            self.config['ollama'] = self.config['inference'][inference_provider]
+        # # For backward compatibility, copy selected inference provider config to the old location
+        # if inference_provider in self.config.get('inference', {}):
+        #     self.config['ollama'] = self.config['inference'][inference_provider]
         
-        # For backward compatibility, copy selected datasource provider config to the old location
-        if datasource_provider in self.config.get('datasources', {}):
-            self.config['chroma'] = self.config['datasources'][datasource_provider]
+        # # For backward compatibility, copy selected datasource provider config to the old location
+        # if datasource_provider in self.config.get('datasources', {}):
+        #     self.config['chroma'] = self.config['datasources'][datasource_provider]
         
         # Handle mongodb settings for backward compatibility
         if 'internal_services' in self.config and 'mongodb' in self.config['internal_services']:
@@ -395,10 +394,28 @@ class InferenceServer:
             self.logger.warning(f"Unknown datasource provider: {provider}, falling back to ChromaDB")
             # Default to ChromaDB
             chroma_conf = self.config['datasources']['chroma']
-            return chromadb.HttpClient(
-                host=chroma_conf['host'],
-                port=int(chroma_conf['port'])
-            )
+            use_local = chroma_conf.get('use_local', False)
+            
+            if use_local:
+                # Use PersistentClient for local filesystem access
+                import os
+                from pathlib import Path
+                
+                db_path = chroma_conf.get('db_path', '../localdb_db')
+                db_path = Path(db_path).resolve()
+                
+                # Ensure the directory exists
+                os.makedirs(db_path, exist_ok=True)
+                
+                self.logger.info(f"Using local ChromaDB at path: {db_path}")
+                return chromadb.PersistentClient(path=str(db_path))
+            else:
+                # Use HttpClient for remote server access
+                self.logger.info(f"Connecting to ChromaDB at {chroma_conf['host']}:{chroma_conf['port']}...")
+                return chromadb.HttpClient(
+                    host=chroma_conf['host'],
+                    port=int(chroma_conf['port'])
+                )
     
     async def _initialize_services(self, app: FastAPI) -> None:
         """
@@ -417,11 +434,28 @@ class InferenceServer:
         datasource_provider = self.config['general'].get('datasource_provider', 'chroma')
         if datasource_provider == 'chroma':
             chroma_conf = self.config['datasources']['chroma']
-            self.logger.info(f"Connecting to ChromaDB at {chroma_conf['host']}:{chroma_conf['port']}...")
-            app.state.chroma_client = chromadb.HttpClient(
-                host=chroma_conf['host'],
-                port=int(chroma_conf['port'])
-            )
+            use_local = chroma_conf.get('use_local', False)
+            
+            if use_local:
+                # Use PersistentClient for local filesystem access
+                import os
+                from pathlib import Path
+                
+                db_path = chroma_conf.get('db_path', '../utils/chroma/chroma_db')
+                db_path = Path(db_path).resolve()
+                
+                # Ensure the directory exists
+                os.makedirs(db_path, exist_ok=True)
+                
+                self.logger.info(f"Using local ChromaDB at path: {db_path}")
+                app.state.chroma_client = chromadb.PersistentClient(path=str(db_path))
+            else:
+                # Use HttpClient for remote server access
+                self.logger.info(f"Connecting to ChromaDB at {chroma_conf['host']}:{chroma_conf['port']}...")
+                app.state.chroma_client = chromadb.HttpClient(
+                    host=chroma_conf['host'],
+                    port=int(chroma_conf['port'])
+                )
         else:
             self.logger.info(f"Connecting to {datasource_provider} datasource...")
             app.state.datasource_client = self._initialize_datasource_client(datasource_provider)
@@ -743,7 +777,14 @@ class InferenceServer:
         
         # Log datasource configuration
         if datasource_provider == 'chroma':
-            self.logger.info(f"Confidence threshold: {self.config['datasources']['chroma'].get('confidence_threshold', 0.85)}")
+            chroma_config = self.config['datasources']['chroma']
+            use_local = chroma_config.get('use_local', False)
+            if use_local:
+                db_path = chroma_config.get('db_path', '../utils/chroma/chroma_db')
+                self.logger.info(f"ChromaDB: Using local filesystem at {db_path}")
+            else:
+                self.logger.info(f"ChromaDB: Using remote server at {chroma_config.get('host')}:{chroma_config.get('port')}")
+            self.logger.info(f"Confidence threshold: {chroma_config.get('confidence_threshold', 0.85)}")
         
         # Retriever settings
         if hasattr(self.app.state, 'retriever'):

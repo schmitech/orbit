@@ -1,6 +1,6 @@
 general:
   port: 3001
-  verbose: true
+  verbose: false
   https:
     enabled: false
     port: 3443
@@ -14,7 +14,7 @@ messages:
 
 embedding:
   provider: "ollama"
-  enabled: false
+  enabled: true
   fail_on_error: false
 
 api_keys:
@@ -39,7 +39,7 @@ logging:
 
 internal_services:
   elasticsearch:
-    enabled: false
+    enabled: true
     node: 'https://localhost:9200'
     index: 'orbit'
     api_key: ${INTERNAL_SERVICES_ELASTICSEARCH_API_KEY}
@@ -81,6 +81,8 @@ embeddings:
 
 datasources:
   chroma:
+    use_local: true
+    db_path: "../utils/chroma/chroma_db"
     host: "localhost"
     port: 8000
     domain_adapter: "qa"
@@ -90,7 +92,7 @@ datasources:
   sqlite:
     db_path: "../utils/sqllite/rag_database.db"
     domain_adapter: "qa"
-    confidence_threshold: 0.7
+    confidence_threshold: 0.6
     relevance_threshold: 0.5
     max_results: 10
     return_results: 3
@@ -99,14 +101,15 @@ datasources:
   postgres:
     host: "localhost"
     port: 5432
-    database: "retrieval"
     username: ${DATASOURCE_POSTGRES_USERNAME}
     password: ${DATASOURCE_POSTGRES_PASSWORD}
-    schema: "public"
-    table: "documents"
-    embedding_column: "embedding"
-    content_column: "content"
-    metadata_columns: ["source", "date", "author"]
+    domain_adapter: "qa"
+    confidence_threshold: 0.6
+    relevance_threshold: 0.5
+    max_results: 10
+    return_results: 3
+    adapter_params:
+      boost_exact_matches: true
   milvus:
     host: "localhost"
     port: 19530
@@ -263,11 +266,7 @@ inference:
       max_tokens: 1024
       use_cache: true
       repetition_penalty: 1.1
-      
-      # Caching
       cache_size: 100
-      
-      # Streaming
       stream: true 
 
 safety:

@@ -4,9 +4,11 @@ Enhanced ChromaDB implementation with domain adaptation support
 
 import logging
 import traceback
+import os
 from typing import Dict, Any, List, Optional, Union
-from chromadb import HttpClient
+from chromadb import HttpClient, PersistentClient
 from fastapi import HTTPException
+from pathlib import Path
 
 from retrievers.base_retriever import VectorDBRetriever, RetrieverFactory
 
@@ -37,12 +39,27 @@ class ChromaRetriever(VectorDBRetriever):
         # Store collection
         self.collection = collection
         
-        # Initialize ChromaDB client
+        # Initialize ChromaDB client based on use_local setting
         chroma_config = self.datasource_config
-        self.chroma_client = HttpClient(
-            host=chroma_config.get('host', 'localhost'),
-            port=int(chroma_config.get('port', 8000))
-        )
+        use_local = chroma_config.get('use_local', False)
+        
+        if use_local:
+            # Use PersistentClient for local filesystem access
+            db_path = chroma_config.get('db_path', '../utils/chroma/chroma_db')
+            db_path = Path(db_path).resolve()
+            
+            # Ensure the directory exists
+            os.makedirs(db_path, exist_ok=True)
+            
+            self.chroma_client = PersistentClient(path=str(db_path))
+            logger.info(f"Using local ChromaDB at path: {db_path}")
+        else:
+            # Use HttpClient for remote server access
+            self.chroma_client = HttpClient(
+                host=chroma_config.get('host', 'localhost'),
+                port=int(chroma_config.get('port', 8000))
+            )
+            logger.info(f"Connected to ChromaDB server at {chroma_config.get('host')}:{chroma_config.get('port')}")
         
         # Configure ChromaDB and related HTTP client logging based on verbose setting
         if not self.verbose:
@@ -102,10 +119,11 @@ class ChromaRetriever(VectorDBRetriever):
                 if debug_mode:
                     logger.info("Generating embedding for query...")
                 
-                # Use the embed_query method from the parent class
+                # Use the embed_query method from the parent class and properly await it
                 query_embedding = await self.embed_query(query)
                 
-                if not query_embedding or len(query_embedding) == 0:
+                # Check if we got a valid embedding
+                if query_embedding is None or len(query_embedding) == 0:
                     logger.error("Received empty embedding, cannot perform vector search")
                     return []
                 
