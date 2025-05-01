@@ -37,7 +37,8 @@ def clean_response(text):
     # text = re.sub(r'[^\x20-\x7E\n.,!?:;\'"-]', '', text)  # REMOVE THIS LINE
     
     # Fix missing spaces after punctuation (for Latin-based languages)
-    text = re.sub(r'([.,!?:;])([A-Za-z0-9])', r'\1 \2', text)
+    # But exclude decimal points in numbers (e.g., $70.83)
+    text = re.sub(r'([.,!?:;])(?!\d)([A-Za-z0-9])', r'\1 \2', text)
     
     # Fix missing spaces between sentences (for Latin-based languages)
     text = re.sub(r'([.!?])([A-Z])', r'\1 \2', text)

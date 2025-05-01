@@ -15,7 +15,7 @@ messages:
 
 embedding:
   provider: "ollama"
-  enabled: false
+  enabled: true
   fail_on_error: false
 
 api_keys:
@@ -83,15 +83,17 @@ embeddings:
 datasources:
   chroma:
     use_local: true
-    db_path: "../utils/chroma/chroma_db"
+    db_path: "./chroma_db"
     host: "localhost"
     port: 8000
     domain_adapter: "qa"
     confidence_threshold: 0.85
     relevance_threshold: 0.7
     embedding_provider: null
+    adapter_params:
+      confidence_threshold: 0.85
   sqlite:
-    db_path: "./rag_database.db"
+    db_path: "./sqlite_db.db"
     domain_adapter: "qa"
     confidence_threshold: 0.5
     relevance_threshold: 0.5
@@ -99,11 +101,18 @@ datasources:
     return_results: 3
     adapter_params:
       boost_exact_matches: true
+      confidence_threshold: 0.5
   postgres:
     host: "localhost"
     port: 5432
     username: ${DATASOURCE_POSTGRES_USERNAME}
     password: ${DATASOURCE_POSTGRES_PASSWORD}
+    database: "retrieval"
+    schema: "public"
+    table: "documents"
+    embedding_column: "embedding"
+    content_column: "content"
+    metadata_columns: ["source", "date", "author"]
     domain_adapter: "qa"
     confidence_threshold: 0.6
     relevance_threshold: 0.5
@@ -111,17 +120,24 @@ datasources:
     return_results: 3
     adapter_params:
       boost_exact_matches: true
+      confidence_threshold: 0.7
   milvus:
     host: "localhost"
     port: 19530
     dim: 768
     metric_type: "IP"  # Options: L2, IP, COSINE
     embedding_provider: null
+    domain_adapter: "generic"
+    adapter_params:
+      confidence_threshold: 0.7
   pinecone:
     api_key: ${DATASOURCE_PINECONE_API_KEY}
     environment: ${DATASOURCE_PINECONE_ENVIRONMENT}
     index_name: ${DATASOURCE_PINECONE_INDEX_NAME}
     embedding_provider: null
+    domain_adapter: "generic"
+    adapter_params:
+      confidence_threshold: 0.7
   elasticsearch:
     node: 'https://localhost:9200'
     auth:
@@ -148,6 +164,7 @@ inference:
     num_ctx: 8192
     num_threads: 8
     model: "gemma3:1b"
+    embed_model: "nomic-embed-text"
     stream: true
   vllm:
     host: "3.96.164.110"

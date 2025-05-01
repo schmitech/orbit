@@ -49,26 +49,28 @@ ORBIT is a modular, self-hosted toolkit that provides a unified API for open-sou
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/orbit.git
+git clone https://github.com/schmitech/orbit.git
 cd orbit/server
 
-# Create and activate virtual environment
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-
 # Install dependencies
-pip install -r requirements.txt
+./setup.sh
+source venv/bin/activate
 
-# Configure environment
+# Create config file form template.
+cp config.yaml.example config.yaml
+
+# Configure env variables (optional)
 cp .env.example .env
 ```
 
-### 2. Database Setup
+### 2. Sample Database Setup
 
 ```bash
 # Create demo database
-cd server
-python ../utils/sqllite/rag_cli.py setup --data-path ../utils/sample-data/city-qa-pairs.json
+python ../utils/sqllite/rag_cli.py setup --db-path ./sqlite_db --data-path ../utils/sample-data/city-qa-pairs.json
+
+# Or chroma with vectro embeddings (embeddings must be enabled in config.yaml):
+python ../utils/chroma/scripts/create_qa_pairs_collection.py city ../utils/sample-data/city-qa-pairs.json --local --db-path ./chroma_db
 
 # Install and configure MongoDB
 # Follow MongoDB installation guide: https://www.mongodb.com/docs/manual/installation/
