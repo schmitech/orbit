@@ -204,13 +204,15 @@ inference:
     max_tokens: 1024
     credentials_path: ""  # Path to service account key file, if not using default credentials
     stream: true
-  bedrock:
+  aws:
+    access_key: ${AWS_BEDROCK_ACCESS_KEY}
+    secret_access_key: ${AWS_SECRET_ACCESS_KEY}
     region: "ca-central-1"
-    model_id: "anthropic.claude-3-sonnet-20240229-v1:0"
-    temperature: 0.1
-    top_p: 0.8
-    max_tokens: 1024
-    stream: true
+    model: "anthropic.claude-3-sonnet-20240229-v1:0"
+  azure:
+    base_url: http://azure-ai.endpoint.microsoft.com
+    deployment: "azure-ai-deployment"
+    api_key: ${AZURE_ACCESS_KEY}
   openai:
     api_key: ${OPENAI_API_KEY}
     model: "gpt-4.1"

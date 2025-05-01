@@ -10,7 +10,8 @@ from typing import Dict, Any, List, Optional, Union, Set
 from difflib import SequenceMatcher
 from fastapi import HTTPException
 
-from retrievers.base_retriever import BaseRetriever, RetrieverFactory
+from .base_retriever import BaseRetriever
+from .base_retriever import RetrieverFactory
 
 # Configure logging
 logger = logging.getLogger(__name__)

@@ -10,7 +10,8 @@ from chromadb import HttpClient, PersistentClient
 from fastapi import HTTPException
 from pathlib import Path
 
-from retrievers.base_retriever import VectorDBRetriever, RetrieverFactory
+from ..base.vector_retriever import VectorDBRetriever
+from ..base.base_retriever import RetrieverFactory
 
 # Configure logging
 logger = logging.getLogger(__name__)

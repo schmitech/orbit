@@ -1,28 +1,21 @@
 """
-Client modules for external services
+Retriever package for handling different types of document retrieval systems.
 """
 
-# Import enhanced base classes
-from .base_retriever import BaseRetriever, VectorDBRetriever, SQLRetriever
-from .base_retriever import RetrieverFactory
+from .base.base_retriever import BaseRetriever
+from .base.vector_retriever import VectorDBRetriever
+from .base.sql_retriever import SQLRetriever
+from .adapters.domain_adapters import DocumentAdapterFactory
 
-# Import enhanced retrievers
-from .chroma_retriever import ChromaRetriever
-from .sqlite_retriever import SqliteRetriever
-
-# Register retrievers with the factory
-RetrieverFactory.register_retriever("chroma", ChromaRetriever)
-RetrieverFactory.register_retriever("sqlite", SqliteRetriever)
-
-# Export public API
+# Expose main interfaces
 __all__ = [
-    # Base classes
-    'BaseRetriever', 
-    'VectorDBRetriever', 
+    'BaseRetriever',
+    'VectorDBRetriever',
     'SQLRetriever',
-    'RetrieverFactory',
-    
-    # Enhanced retrievers
-    'ChromaRetriever',
-    'SqliteRetriever',
+    'DocumentAdapterFactory'
 ]
+
+# Import implementations to register them
+from .implementations.chroma import ChromaRetriever
+from .implementations.sqlite import SQLiteRetriever
+from .adapters.qa import QARetriever

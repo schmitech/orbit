@@ -52,6 +52,10 @@ from services import ChatService, LoggerService, GuardrailService, RerankerServi
 from inference import LLMClientFactory
 from utils.text_utils import mask_api_key
 from embeddings.base import EmbeddingServiceFactory
+from retrievers.base.base_retriever import RetrieverFactory
+from retrievers.adapters.domain_adapters import DocumentAdapterFactory
+from retrievers.implementations.chroma import ChromaRetriever
+from retrievers.adapters.domain_adapters import DocumentAdapterFactory
 
 class InferenceServer:
     """
@@ -526,10 +530,6 @@ class InferenceServer:
         try:
             # Get the datasource provider from configuration 
             datasource_provider = self.config['general'].get('datasource_provider', 'chroma')
-
-            # Import the RetrieverFactory and DocumentAdapterFactory
-            from retrievers.base_retriever import RetrieverFactory
-            from retrievers.domain_adapters import DocumentAdapterFactory
 
             # Check for domain adapter configuration
             datasource_config = self.config.get('datasources', {}).get(datasource_provider, {})

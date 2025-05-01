@@ -15,7 +15,8 @@ import traceback
 from typing import Dict, Any, List, Optional, Union
 from fastapi import HTTPException
 
-from retrievers.base_retriever import VectorDBRetriever, RetrieverFactory
+from ..base.vector_retriever import VectorDBRetriever
+from ..base.base_retriever import RetrieverFactory
 
 # Configure logging
 logger = logging.getLogger(__name__)
