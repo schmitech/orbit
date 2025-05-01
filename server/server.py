@@ -55,7 +55,7 @@ from embeddings.base import EmbeddingServiceFactory
 from retrievers.base.base_retriever import RetrieverFactory
 from retrievers.adapters.domain_adapters import DocumentAdapterFactory
 from retrievers.implementations.chroma import ChromaRetriever
-from retrievers.adapters.domain_adapters import DocumentAdapterFactory
+from retrievers.implementations.sqlite import SQLiteRetriever
 
 class InferenceServer:
     """
@@ -535,16 +535,18 @@ class InferenceServer:
             datasource_config = self.config.get('datasources', {}).get(datasource_provider, {})
             domain_adapter_type = datasource_config.get('domain_adapter', 'qa')
             adapter_params = datasource_config.get('adapter_params', {})
-        
+
             # Log the domain adapter being used
             self.logger.info(f"Using {domain_adapter_type} domain adapter for {datasource_provider} retriever")
             
-            # The naming convention for retriever types is "qa_<provider>"
-            # retriever_type = f"qa_{datasource_provider}"
-            # self.logger.info(f"Initializing retriever of type '{retriever_type}' using factory pattern")
+            # Import the specific retriever for the selected datasource
+            if datasource_provider == 'sqlite':
+                from retrievers.implementations.sqlite import SQLiteRetriever
+            elif datasource_provider == 'chroma':
+                from retrievers.implementations.chroma import ChromaRetriever
             
-            # Import the RetrieverFactory
-            # from retrievers.base_retriever import RetrieverFactory
+            # Import the adapter factory
+            from retrievers.adapters.domain_adapters import DocumentAdapterFactory
             
             # Create the domain adapter
             try:
@@ -556,27 +558,31 @@ class InferenceServer:
             except Exception as adapter_error:
                 self.logger.error(f"Error creating domain adapter: {str(adapter_error)}")
                 self.logger.warning(f"Falling back to default QA adapter")
-                domain_adapter = DocumentAdapterFactory.create_adapter('qa')
-               
+                from retrievers.adapters.domain_adapters import QADocumentAdapter
+                domain_adapter = QADocumentAdapter(confidence_threshold=0.7)
+            
             # Prepare appropriate arguments based on the provider type
             retriever_kwargs = {
                 'config': self.config, 
-                'embeddings': app.state.embedding_service,
                 'domain_adapter': domain_adapter
             }
             
-            # Add the appropriate client/connection based on the provider type
-            # Add the appropriate client/connection based on the provider type
-            if datasource_provider == 'chroma' and hasattr(app.state, 'chroma_client'):
-                retriever_kwargs['collection'] = app.state.chroma_client
-            elif hasattr(app.state, 'datasource_client'):
-                retriever_kwargs['connection'] = app.state.datasource_client
-            
-            # Create the retriever using the factory
-            app.state.retriever = RetrieverFactory.create_retriever(
-                retriever_type=datasource_provider,
-                **retriever_kwargs
-            )
+            # Add appropriate client/connection and create the appropriate retriever
+            if datasource_provider == 'chroma':
+                retriever_kwargs['embeddings'] = app.state.embedding_service
+                if hasattr(app.state, 'chroma_client'):
+                    retriever_kwargs['collection'] = app.state.chroma_client
+                app.state.retriever = ChromaRetriever(**retriever_kwargs)
+            elif datasource_provider == 'sqlite':
+                if hasattr(app.state, 'datasource_client'):
+                    retriever_kwargs['connection'] = app.state.datasource_client
+                app.state.retriever = SQLiteRetriever(**retriever_kwargs)
+            else:
+                # Use the factory for other providers
+                app.state.retriever = RetrieverFactory.create_retriever(
+                    retriever_type=datasource_provider,
+                    **retriever_kwargs
+                )
             
             self.logger.info(f"Successfully initialized {datasource_provider} retriever")
         except Exception as e:
@@ -584,17 +590,21 @@ class InferenceServer:
             self.logger.warning("Falling back to default ChromaRetriever")
             
             # Fall back to ChromaRetriever in case of error
-            from retrievers import ChromaRetriever
-            from retrievers.domain_adapters import DocumentAdapterFactory
-            
-            # Create a default QA adapter
-            domain_adapter = DocumentAdapterFactory.create_adapter('qa')
-            
-            app.state.retriever = ChromaRetriever(
-                config=self.config,
-                embeddings=app.state.embedding_service,
-                domain_adapter=domain_adapter
-            )
+            try:
+                from retrievers import ChromaRetriever
+                from retrievers.adapters.domain_adapters import DocumentAdapterFactory
+                
+                # Create a default QA adapter
+                domain_adapter = DocumentAdapterFactory.create_adapter('qa')
+                
+                app.state.retriever = ChromaRetriever(
+                    config=self.config,
+                    embeddings=app.state.embedding_service,
+                    domain_adapter=domain_adapter
+                )
+            except Exception as fallback_error:
+                self.logger.error(f"Failed to initialize fallback retriever: {str(fallback_error)}")
+                raise
         
         # Initialize GuardrailService only if safety is enabled
         if _is_true_value(self.config.get('safety', {}).get('enabled', False)):

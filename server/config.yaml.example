@@ -1,6 +1,6 @@
 general:
   port: 3001
-  verbose: false
+  verbose: true
   https:
     enabled: false
     port: 3443
@@ -11,10 +11,11 @@ general:
 
 messages:
   no_results_response: "I'm sorry, but I don't have any specific information about that topic in my knowledge base."
+  collection_not_found: "I couldn't find the requested collection. Please make sure the collection exists before querying it."
 
 embedding:
   provider: "ollama"
-  enabled: true
+  enabled: false
   fail_on_error: false
 
 api_keys:
@@ -39,7 +40,7 @@ logging:
 
 internal_services:
   elasticsearch:
-    enabled: true
+    enabled: false
     node: 'https://localhost:9200'
     index: 'orbit'
     api_key: ${INTERNAL_SERVICES_ELASTICSEARCH_API_KEY}
@@ -90,9 +91,9 @@ datasources:
     relevance_threshold: 0.7
     embedding_provider: null
   sqlite:
-    db_path: "../utils/sqllite/rag_database.db"
+    db_path: "./rag_database.db"
     domain_adapter: "qa"
-    confidence_threshold: 0.6
+    confidence_threshold: 0.5
     relevance_threshold: 0.5
     max_results: 10
     return_results: 3

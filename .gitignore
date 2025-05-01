@@ -50,3 +50,4 @@ Thumbs.db
 .vscode/
 *.sublime-workspace
 *.sublime-project
+*.db

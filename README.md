@@ -67,8 +67,8 @@ cp .env.example .env
 
 ```bash
 # Create demo database
-cd utils/sqlite
-python rag_cli.py setup --data-path ../sample-data/city-qa-pairs.json
+cd server
+python ../utils/sqllite/rag_cli.py setup --data-path ../utils/sample-data/city-qa-pairs.json
 
 # Install and configure MongoDB
 # Follow MongoDB installation guide: https://www.mongodb.com/docs/manual/installation/

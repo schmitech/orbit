@@ -10,8 +10,8 @@ from chromadb import HttpClient, PersistentClient
 from fastapi import HTTPException
 from pathlib import Path
 
-from ..base.vector_retriever import VectorDBRetriever
-from ..base.base_retriever import RetrieverFactory
+from retrievers.base.vector_retriever import VectorDBRetriever
+from retrievers.base.base_retriever import RetrieverFactory
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -73,18 +73,50 @@ class ChromaRetriever(VectorDBRetriever):
         """Return the name of this datasource for config lookup"""
         return 'chroma'
 
+    async def initialize(self) -> None:
+        """Initialize required services and connections."""
+        # Call parent initialize to set up API key service
+        await super().initialize()
+        
+        # Additional initialization can be done here if needed
+        logger.info("ChromaRetriever initialized successfully")
+
+    async def close(self) -> None:
+        """Close any open services and connections."""
+        # Close parent services
+        await super().close()
+        logger.info("ChromaRetriever closed successfully")
+
     async def set_collection(self, collection_name: str) -> None:
         """Set the current collection for retrieval."""
         if not collection_name:
             raise ValueError("Collection name cannot be empty")
         try:
+            # Try to get the collection
             self.collection = self.chroma_client.get_collection(name=collection_name)
             if self.verbose:
                 logger.info(f"Switched to collection: {collection_name}")
         except Exception as e:
-            error_msg = f"Failed to switch collection: {str(e)}"
-            logger.error(error_msg)
-            raise HTTPException(status_code=500, detail=error_msg)
+            # Check if this is a "collection does not exist" error
+            if "does not exist" in str(e):
+                # Try to create the collection
+                try:
+                    logger.info(f"Collection '{collection_name}' does not exist. Attempting to create it...")
+                    self.collection = self.chroma_client.create_collection(name=collection_name)
+                    logger.info(f"Successfully created collection: {collection_name}")
+                except Exception as create_error:
+                    # If creation fails, return a helpful error message
+                    error_msg = f"Collection '{collection_name}' does not exist and could not be created: {str(create_error)}"
+                    logger.error(error_msg)
+                    # Access configuration directly
+                    custom_msg = self.config.get('messages', {}).get('collection_not_found', 
+                                "Collection not found. Please ensure the collection exists before querying.")
+                    raise HTTPException(status_code=404, detail=custom_msg)
+            else:
+                # For other errors, preserve the original behavior
+                error_msg = f"Failed to switch collection: {str(e)}"
+                logger.error(error_msg)
+                raise HTTPException(status_code=500, detail=error_msg)
 
     async def get_relevant_context(self, 
                            query: str, 
@@ -115,6 +147,11 @@ class ChromaRetriever(VectorDBRetriever):
                 logger.warning("Embeddings are disabled, no vector search can be performed")
                 return []
             
+            # Ensure collection is properly set
+            if not hasattr(self, 'collection') or self.collection is None:
+                logger.error("Collection is not properly initialized")
+                return []
+                
             # Generate an embedding for the query
             try:
                 if debug_mode:
@@ -134,11 +171,16 @@ class ChromaRetriever(VectorDBRetriever):
                     logger.info(f"Max results: {self.max_results}")
                     
                 try:
-                    results = self.collection.query(
-                        query_embeddings=[query_embedding],
-                        n_results=self.max_results,
-                        include=["documents", "metadatas", "distances"]
-                    )
+                    # Make sure we're not trying to query on the client instead of the collection
+                    if hasattr(self.collection, 'query'):
+                        results = self.collection.query(
+                            query_embeddings=[query_embedding],
+                            n_results=self.max_results,
+                            include=["documents", "metadatas", "distances"]
+                        )
+                    else:
+                        logger.error("Collection object does not have a query method - likely incorrect object type")
+                        return []
                     
                     if debug_mode:
                         doc_count = len(results['documents'][0]) if results['documents'] else 0
