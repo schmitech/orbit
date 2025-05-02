@@ -43,6 +43,7 @@ ORBIT is a modular, self-hosted toolkit that provides a unified API for open-sou
 
 - Python 3.12+
 - MongoDB
+- Ollama
 - Node.js 18+ (for TypeScript client)
 
 ### 1. Server Setup
@@ -61,6 +62,14 @@ cp config.yaml.example config.yaml
 
 # Configure env variables (optional)
 cp .env.example .env
+```
+### 3. Install Ollama
+https://ollama.com/download
+
+```bash
+# Download the models
+ollama pull gemma3:1b
+ollama pull nomic-embed-text
 ```
 
 ### 2. Sample Database Setup

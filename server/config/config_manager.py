@@ -289,15 +289,14 @@ def get_default_config() -> Dict[str, Any]:
         },
         "datasources": {
             "chroma": {
+                "use_local": True,
+                "db_path": "./chroma_db",
                 "host": "localhost",
                 "port": 8000,
+                "domain_adapter": "qa",
                 "confidence_threshold": 0.85,
                 "relevance_threshold": 0.7,
-                "embedding_provider": None,
-                "domain_adapter": "qa",
-                "adapter_params": {
-                    "confidence_threshold": 0.85
-                }
+                "embedding_provider": None
             },
             "sqlite": {
                 "db_path": "../utils/sqllite/rag_database.db",

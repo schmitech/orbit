@@ -3,7 +3,8 @@ Chroma Collection Query Tool
 ===========================
 
 This script queries a Chroma vector database collection using semantic search.
-It takes a query string, generates an embedding using Ollama, and retrieves the most relevant Q&A pairs.
+It takes a query string, generates an embedding using the same provider as during creation,
+and retrieves the most relevant Q&A pairs.
 
 Usage:
     python query_qa-pairs.py [collection_name] <query_text> [--local] [--db-path PATH]
@@ -31,7 +32,7 @@ Examples:
 
 Requirements:
     - config.yaml file with Ollama and Chroma configuration
-    - Running Ollama server with the specified embedding model
+    - Running embedding service matching what was used during creation
     - Running Chroma server with an existing collection (or local filesystem DB if using --local)
 
 Notes:
@@ -45,22 +46,33 @@ Notes:
 
 import yaml
 import os
+import sys
+import asyncio
 from langchain_ollama import OllamaEmbeddings
 import chromadb
 import argparse
 from pathlib import Path
 
+# Add server directory to path for importing embedding services
+server_path = Path(__file__).resolve().parents[3] / "server"
+sys.path.append(str(server_path))
+
+# Import the same embedding factory used during creation
+from embeddings.base import EmbeddingServiceFactory
+
 def load_config():
     CONFIG_PATH = Path(__file__).resolve().parents[3] / "server" / "config.yaml"
     return yaml.safe_load(CONFIG_PATH.read_text())
 
-def test_chroma_ingestion(ollama_base_url: str, test_query: str, collection_name: str = None, use_local: bool = False, db_path: str = "./chroma_db"):
+async def test_chroma_query(test_query: str, collection_name: str = None, use_local: bool = False, db_path: str = "./chroma_db"):
     config = load_config()
 
+    # Get the same embedding provider that was used during creation
+    embedding_provider = config['embedding']['provider']
+    
     # Print environment variables being used
     print("\nConfiguration Variables:")
-    print(f"OLLAMA_BASE_URL: {ollama_base_url}")
-    print(f"EMBED_MODEL: {config['embeddings']['ollama']['model']}")
+    print(f"Embedding Provider: {embedding_provider}")
     
     # Initialize client based on mode
     if use_local:
@@ -85,34 +97,26 @@ def test_chroma_ingestion(ollama_base_url: str, test_query: str, collection_name
         client = chromadb.HttpClient(host=chroma_host, port=int(chroma_port))
     
     print(f"CHROMA_COLLECTION: {collection_name}\n")
-    print(f"Using Ollama server at: {ollama_base_url}")
     
-    # Initialize the same embeddings model used in ingestion
-    model = config['embeddings']['ollama']['model']
-    if not model:
-        raise ValueError("EMBED_MODEL environment variable is not set")
+    # Use the same embedding service as during creation
+    embedding_service = EmbeddingServiceFactory.create_embedding_service(config, embedding_provider)
+    await embedding_service.initialize()
     
-    embeddings = OllamaEmbeddings(
-        model=model,
-        base_url=ollama_base_url,
-        client_kwargs={"timeout": 30.0}  # Match timeout from create script
-    )
+    print(f"Using embedding provider: {embedding_provider}")
     
-    print(f"Using embedding model: {model}")
-    
-    # Test connection to Ollama
+    # Test connection by getting dimensions
     try:
-        test_embedding = embeddings.embed_query("test connection")
-        print("Successfully connected to Ollama server")
-        print(f"Embedding dimensions: {len(test_embedding)}")
+        dimensions = await embedding_service.get_dimensions()
+        print(f"Successfully connected to embedding service")
+        print(f"Embedding dimensions: {dimensions}")
     except Exception as e:
-        print(f"Failed to connect to Ollama server: {str(e)}")
+        print(f"Failed to connect to embedding service: {str(e)}")
         return
     
     try:
         # Generate embedding for query
         print(f"\nGenerating embedding for query: '{test_query}'")
-        query_embedding = embeddings.embed_query(test_query)
+        query_embedding = await embedding_service.embed_query(test_query)
         
         # Get the collection - don't try to create it
         try:
@@ -123,18 +127,17 @@ def test_chroma_ingestion(ollama_base_url: str, test_query: str, collection_name
             print("Please make sure the collection exists. You can create it using create_qa_pairs_collection.py")
             return
             
-        # Perform query using a WHERE filter instead of embedding directly (avoids SeqID issue)
+        # Perform query using the same approach as in creation script
         print("\nExecuting query...")
         
-        # First, perform embedding search by directly providing the embeddings
-        # This ensures dimension compatibility
+        # Query using the same method as in the creation script
         results = collection.query(
             query_embeddings=[query_embedding],
             n_results=3,
             include=["documents", "metadatas", "distances"]
         )
         
-        # Print results in the same format as the test query in create-chroma-collection.py
+        # Print results
         print(f"\nQuery: '{test_query}'")
         
         if results['metadatas'] and len(results['metadatas'][0]) > 0:
@@ -159,52 +162,12 @@ def test_chroma_ingestion(ollama_base_url: str, test_query: str, collection_name
         import traceback
         traceback.print_exc()
         
-        # If the above approach fails, try an alternative approach using the collection's direct methods
-        try:
-            print("\nTrying alternative query approach...")
-            # Generate embedding for query
-            query_embedding = embeddings.embed_query(test_query)
-            
-            if not use_local:
-                # Use the API query method with embeddings (only for remote server)
-                results = client.raw_api.query(
-                    collection_name=collection_name,
-                    query_embeddings=[query_embedding],
-                    n_results=3,
-                    include=["documents", "metadatas", "distances"]
-                )
-                
-                print(f"\nQuery: '{test_query}'")
-                
-                if results['metadatas'] and len(results['metadatas'][0]) > 0:
-                    for i, (doc, metadata, distance) in enumerate(zip(
-                        results['documents'][0], 
-                        results['metadatas'][0],
-                        results['distances'][0]
-                    )):
-                        similarity = 1 - distance
-                        print(f"\nResult {i+1} (similarity: {similarity:.4f}):")
-                        if 'question' in metadata and 'answer' in metadata:
-                            print(f"Question: {metadata['question']}")
-                            print(f"Answer: {metadata['answer']}")
-                        else:
-                            print(f"Document: {doc[:100]}...")  # Show first 100 chars of doc
-                            print(f"Metadata: {metadata}")
-                else:
-                    print("No results found")
-            else:
-                print("Alternative approach not available for local database")
-                
-        except Exception as e2:
-            print(f"Alternative approach also failed: {str(e2)}")
-            print("Recommendation: Recreate your collection with integer IDs instead of string IDs")
-            traceback.print_exc()
+    finally:
+        # Clean up
+        await embedding_service.close()
 
-if __name__ == "__main__":
+async def main():
     config = load_config()
-    ollama_base_url = config['inference']['ollama']['base_url']
-    if not ollama_base_url:
-        raise ValueError("OLLAMA_BASE_URL environment variable is not set")
     
     # Set up argument parser
     parser = argparse.ArgumentParser(description='Query a Chroma collection using semantic search')
@@ -221,10 +184,12 @@ if __name__ == "__main__":
         collection_name = None
         test_query = args.query_args[0]
     
-    test_chroma_ingestion(
-        ollama_base_url, 
+    await test_chroma_query(
         test_query, 
         collection_name,
         use_local=args.local,
         db_path=args.db_path
     )
+
+if __name__ == "__main__":
+    asyncio.run(main())
