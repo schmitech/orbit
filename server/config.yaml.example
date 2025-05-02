@@ -7,7 +7,7 @@ general:
     cert_file: "./cert.pem"
     key_file: "./key.pem"
   inference_provider: "ollama"
-  datasource_provider: "sqlite"
+  datasource_provider: "chroma"
 
 messages:
   no_results_response: "I'm sorry, but I don't have any specific information about that topic in my knowledge base."
@@ -89,9 +89,7 @@ datasources:
     domain_adapter: "qa"
     confidence_threshold: 0.85
     relevance_threshold: 0.7
-    embedding_provider: null
-    adapter_params:
-      confidence_threshold: 0.85
+    embedding_provider: null 
   sqlite:
     db_path: "./sqlite_db.db"
     domain_adapter: "qa"
@@ -101,7 +99,6 @@ datasources:
     return_results: 3
     adapter_params:
       boost_exact_matches: true
-      confidence_threshold: 0.5
   postgres:
     host: "localhost"
     port: 5432

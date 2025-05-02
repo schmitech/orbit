@@ -306,7 +306,6 @@ def get_default_config() -> Dict[str, Any]:
                 "return_results": 3,
                 "domain_adapter": "sql_qa",
                 "adapter_params": {
-                    "confidence_threshold": 0.7,
                     "boost_exact_matches": True
                 }
             },
