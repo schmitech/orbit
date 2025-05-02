@@ -1,5 +1,5 @@
 """
-Enhanced ChromaDB implementation with domain adaptation support
+ChromaDB implementation of the BaseRetriever interface with QA enhancement
 """
 
 import logging
@@ -7,21 +7,24 @@ import traceback
 import os
 from typing import Dict, Any, List, Optional, Union
 from chromadb import HttpClient, PersistentClient
+from langchain_ollama import OllamaEmbeddings
 from fastapi import HTTPException
 from pathlib import Path
 
-from retrievers.base.vector_retriever import VectorDBRetriever
-from retrievers.base.base_retriever import RetrieverFactory
+from ...base.vector_retriever import VectorDBRetriever
+from ...base.base_retriever import RetrieverFactory
+from services.api_key_service import ApiKeyService
+from embeddings.base import EmbeddingService
 
 # Configure logging
 logger = logging.getLogger(__name__)
 
 class ChromaRetriever(VectorDBRetriever):
-    """Enhanced Chroma implementation with domain support"""
+    """Chroma implementation of the VectorDBRetriever interface with QA support"""
 
     def __init__(self, 
                 config: Dict[str, Any],
-                embeddings: Optional[Any] = None,
+                embeddings: Optional[Union[OllamaEmbeddings, EmbeddingService]] = None,
                 domain_adapter=None,
                 collection: Any = None,
                 **kwargs):
@@ -30,7 +33,7 @@ class ChromaRetriever(VectorDBRetriever):
         
         Args:
             config: Configuration dictionary containing Chroma and general settings
-            embeddings: Optional embedding service
+            embeddings: Optional OllamaEmbeddings instance or EmbeddingService
             domain_adapter: Optional domain adapter for specific document types
             collection: Optional ChromaDB collection
         """
@@ -39,6 +42,9 @@ class ChromaRetriever(VectorDBRetriever):
         
         # Store collection
         self.collection = collection
+        
+        # Flag to determine if we're using the old or new embedding service
+        self.using_new_embedding_service = isinstance(embeddings, EmbeddingService)
         
         # Initialize ChromaDB client based on use_local setting
         chroma_config = self.datasource_config
@@ -74,17 +80,55 @@ class ChromaRetriever(VectorDBRetriever):
         return 'chroma'
 
     async def initialize(self) -> None:
-        """Initialize required services and connections."""
+        """Initialize required services."""
         # Call parent initialize to set up API key service
         await super().initialize()
         
-        # Additional initialization can be done here if needed
+        # Check if embedding is enabled
+        embedding_enabled = self.config.get('embedding', {}).get('enabled', True)
+        
+        # Skip initialization if embeddings are disabled
+        if not embedding_enabled:
+            logger.info("Embedding services are disabled, retriever will operate in limited mode")
+            self.embeddings = None
+            self.using_new_embedding_service = False
+            return
+        
+        # Initialize embeddings if not provided in constructor
+        if self.embeddings is None:
+            embedding_provider = self.config.get('embedding', {}).get('provider')
+            
+            # Use new embedding service architecture if specified
+            if embedding_provider and 'embeddings' in self.config:
+                from embeddings.base import EmbeddingServiceFactory
+                self.embeddings = EmbeddingServiceFactory.create_embedding_service(self.config, embedding_provider)
+                await self.embeddings.initialize()
+                self.using_new_embedding_service = True
+            else:
+                # Fall back to legacy Ollama embeddings
+                from langchain_ollama import OllamaEmbeddings
+                ollama_conf = self.config.get('ollama', {})
+                if not ollama_conf and 'inference' in self.config and 'ollama' in self.config['inference']:
+                    # Handle new config structure
+                    ollama_conf = self.config.get('inference', {}).get('ollama', {})
+                    
+                self.embeddings = OllamaEmbeddings(
+                    model=ollama_conf.get('embed_model', 'nomic-embed-text'),
+                    base_url=ollama_conf.get('base_url', 'http://localhost:11434')
+                )
+                self.using_new_embedding_service = False
+        
         logger.info("ChromaRetriever initialized successfully")
 
     async def close(self) -> None:
-        """Close any open services and connections."""
+        """Close any open services."""
         # Close parent services
         await super().close()
+        
+        # Close embedding service if using new architecture
+        if self.using_new_embedding_service and self.embeddings:
+            await self.embeddings.close()
+        
         logger.info("ChromaRetriever closed successfully")
 
     async def set_collection(self, collection_name: str) -> None:
@@ -118,6 +162,71 @@ class ChromaRetriever(VectorDBRetriever):
                 logger.error(error_msg)
                 raise HTTPException(status_code=500, detail=error_msg)
 
+    def _format_metadata(self, doc: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Format and create a context item from a document and its metadata.
+        Specialized for QA pairs.
+        
+        Args:
+            doc: The document text
+            metadata: The document metadata
+            
+        Returns:
+            A formatted context item
+        """
+        # Create the base item with confidence
+        item = {
+            "raw_document": doc,
+            "metadata": metadata.copy(),  # Include full metadata
+        }
+        
+        # Set the content field based on document type
+        if "question" in metadata and "answer" in metadata:
+            # If it's a QA pair, set content to the question and answer together
+            item["content"] = f"Question: {metadata['question']}\nAnswer: {metadata['answer']}"
+            item["question"] = metadata["question"]
+            item["answer"] = metadata["answer"]
+        else:
+            # Otherwise, use the document content
+            item["content"] = doc
+            
+        return item
+        
+    def format_document(self, doc: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Format document using internal _format_metadata method or domain adapter if available.
+        This provides compatibility with domain adapter pattern.
+        
+        Args:
+            doc: The document text
+            metadata: The document metadata
+            
+        Returns:
+            A formatted context item
+        """
+        if self.domain_adapter and hasattr(self.domain_adapter, 'format_document'):
+            return self.domain_adapter.format_document(doc, metadata)
+        
+        # Fall back to the QA-specific formatting
+        return self._format_metadata(doc, metadata)
+    
+    def apply_domain_filtering(self, context_items, query):
+        """
+        Apply domain-specific filtering if domain adapter is available.
+        Otherwise return items as-is.
+        
+        Args:
+            context_items: List of context items to filter/rerank
+            query: The original query
+            
+        Returns:
+            Filtered/reranked list of context items
+        """
+        if self.domain_adapter and hasattr(self.domain_adapter, 'apply_domain_filtering'):
+            return self.domain_adapter.apply_domain_filtering(context_items, query)
+        
+        return context_items
+
     async def get_relevant_context(self, 
                            query: str, 
                            api_key: Optional[str] = None, 
@@ -147,21 +256,24 @@ class ChromaRetriever(VectorDBRetriever):
                 logger.warning("Embeddings are disabled, no vector search can be performed")
                 return []
             
+            if debug_mode:
+                logger.info(f"Using embedding service: {type(self.embeddings).__name__}")
+                logger.info(f"New embedding service: {self.using_new_embedding_service}")
+            
             # Ensure collection is properly set
             if not hasattr(self, 'collection') or self.collection is None:
                 logger.error("Collection is not properly initialized")
                 return []
-                
+            
             # Generate an embedding for the query
             try:
                 if debug_mode:
                     logger.info("Generating embedding for query...")
                 
-                # Use the embed_query method from the parent class and properly await it
+                # Use the embed_query method from the parent class
                 query_embedding = await self.embed_query(query)
                 
-                # Check if we got a valid embedding
-                if query_embedding is None or len(query_embedding) == 0:
+                if not query_embedding or len(query_embedding) == 0:
                     logger.error("Received empty embedding, cannot perform vector search")
                     return []
                 
@@ -185,10 +297,17 @@ class ChromaRetriever(VectorDBRetriever):
                     if debug_mode:
                         doc_count = len(results['documents'][0]) if results['documents'] else 0
                         logger.info(f"ChromaDB query returned {doc_count} documents")
+                        if doc_count > 0:
+                            logger.info(f"First document (truncated): {results['documents'][0][0][:100] if results['documents'][0] else 'None'}")
+                            logger.info(f"First distance: {results['distances'][0][0] if results['distances'][0] else 'None'}")
+                        else:
+                            logger.warning("NO DOCUMENTS RETURNED FROM CHROMADB")
                 except Exception as chroma_error:
                     logger.error(f"Error querying ChromaDB: {str(chroma_error)}")
                     logger.error(traceback.format_exc())
                     return []
+                
+                context_items = []
                 
                 # DISTANCE HANDLING: Check if distances are unusually large (suggesting L2 or Euclidean)
                 is_euclidean = False
@@ -201,8 +320,6 @@ class ChromaRetriever(VectorDBRetriever):
                 # Get max distance to normalize if using Euclidean
                 max_distance = max(results['distances'][0]) if is_euclidean else 1
                 
-                context_items = []
-                
                 # Process and filter each result based on the relevance threshold
                 for doc, metadata, distance in zip(
                     results['documents'][0],
@@ -212,6 +329,7 @@ class ChromaRetriever(VectorDBRetriever):
                     # Adjust similarity calculation based on distance metric
                     if is_euclidean:
                         # For Euclidean: normalize to [0,1] range and invert (smaller is better)
+                        # This handles the case where distances are very large
                         normalized_distance = distance / max_distance if max_distance > 0 else 0
                         similarity = 1 - normalized_distance
                     else:
@@ -223,18 +341,16 @@ class ChromaRetriever(VectorDBRetriever):
                                     metadata == results['metadatas'][0][0])
                     
                     if similarity >= self.relevance_threshold or is_top_result:
-                        # Use domain adapter to format the document
+                        # Create formatted context item using format_document which handles domain adapters
                         item = self.format_document(doc, metadata)
                         item["confidence"] = similarity  # Add confidence score
                         
                         context_items.append(item)
                 
                 # Sort the context items by confidence
-                context_items = sorted(context_items, 
-                                     key=lambda x: x.get("confidence", 0), 
-                                     reverse=True)
+                context_items = sorted(context_items, key=lambda x: x.get("confidence", 0), reverse=True)
                 
-                # Apply domain-specific filtering/reranking
+                # Apply domain-specific filtering/reranking if available
                 context_items = self.apply_domain_filtering(context_items, query)
                 
                 # Apply final limit
@@ -244,16 +360,20 @@ class ChromaRetriever(VectorDBRetriever):
                     logger.info(f"Retrieved {len(context_items)} relevant context items")
                     if context_items:
                         logger.info(f"Top confidence score: {context_items[0].get('confidence', 0)}")
+                    else:
+                        logger.warning("NO CONTEXT ITEMS AFTER FILTERING")
                 
                 return context_items
                 
             except Exception as embedding_error:
                 logger.error(f"Error during embeddings or query: {str(embedding_error)}")
+                # Print more detailed error information
                 logger.error(traceback.format_exc())
                 return []
                 
         except Exception as e:
             logger.error(f"Error retrieving context: {str(e)}")
+            # Print more detailed error information
             logger.error(traceback.format_exc())
             return []
 

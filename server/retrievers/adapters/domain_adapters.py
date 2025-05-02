@@ -4,6 +4,10 @@ Domain-specific adapters for vector DB retrievers
 
 from abc import ABC, abstractmethod
 from typing import Dict, Any, List, Optional, Union
+import logging
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 class DocumentAdapter(ABC):
     """
@@ -143,16 +147,23 @@ class DocumentAdapterFactory:
     def register_adapter(cls, name: str, adapter_class):
         """Register a document adapter"""
         cls._registered_adapters[name] = adapter_class
+        logger.info(f"Registered adapter '{name}' - total adapters: {len(cls._registered_adapters)}")
     
     @classmethod
     def create_adapter(cls, adapter_type: str, **kwargs):
         """Create an adapter instance"""
         if adapter_type not in cls._registered_adapters:
+            logger.error(f"Unknown adapter type: {adapter_type}")
+            logger.error(f"Available adapters: {list(cls._registered_adapters.keys())}")
             raise ValueError(f"Unknown adapter type: {adapter_type}")
             
+        logger.info(f"Creating adapter of type '{adapter_type}'")
         return cls._registered_adapters[adapter_type](**kwargs)
 
+    @classmethod
+    def get_registered_adapters(cls):
+        """Get list of registered adapter names"""
+        return list(cls._registered_adapters.keys())
 
-# Register built-in adapters
-DocumentAdapterFactory.register_adapter("qa", QADocumentAdapter)
-DocumentAdapterFactory.register_adapter("generic", GenericDocumentAdapter)
+# Log available adapters on module load
+logger.info(f"Domain adapters module loaded with adapters: {DocumentAdapterFactory.get_registered_adapters()}")

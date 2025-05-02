@@ -2,7 +2,7 @@
 QA-specific retrievers for different datasources.
 """
 
-from .qa_chroma_retriever import QAChromaRetriever
+from ...implementations.chroma.chroma_retriever import ChromaRetriever
 from .qa_sqlite_retriever import QASqliteRetriever
 
 # Export a factory function as QARetriever
@@ -18,10 +18,25 @@ def QARetriever(datasource_type, *args, **kwargs):
         An instance of the appropriate QA retriever
     """
     if datasource_type.lower() == 'chroma':
-        return QAChromaRetriever(*args, **kwargs)
+        return ChromaRetriever(*args, **kwargs)
     elif datasource_type.lower() == 'sqlite':
         return QASqliteRetriever(*args, **kwargs)
     else:
         raise ValueError(f"Unsupported datasource type for QA retrieval: {datasource_type}")
 
-__all__ = ['QARetriever', 'QAChromaRetriever', 'QASqliteRetriever']
+__all__ = ['QARetriever', 'ChromaRetriever', 'QASqliteRetriever']
+
+"""
+QA adapter package initialization.
+This ensures adapters are properly loaded and registered.
+"""
+
+import logging
+logger = logging.getLogger(__name__)
+
+# Explicitly import all adapter modules to ensure they register with the factory
+try:
+    from .chroma_qa_adapter import ChromaQAAdapter
+    logger.warning("Successfully imported and registered ChromaQAAdapter")
+except ImportError as e:
+    logger.error(f"Failed to import ChromaQAAdapter: {str(e)}")

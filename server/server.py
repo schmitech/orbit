@@ -550,11 +550,15 @@ class InferenceServer:
             
             # Create the domain adapter
             try:
+                self.logger.info(f"Attempting to create domain adapter of type '{domain_adapter_type}'")
+                self.logger.info(f"Available adapters: {DocumentAdapterFactory.get_registered_adapters()}")
                 domain_adapter = DocumentAdapterFactory.create_adapter(
                     domain_adapter_type, 
+                    config=self.config,  # Pass the config parameter
                     **adapter_params
                 )
                 self.logger.info(f"Successfully created {domain_adapter_type} domain adapter")
+                self.logger.info(f"Adapter class: {domain_adapter.__class__.__name__}")
             except Exception as adapter_error:
                 self.logger.error(f"Error creating domain adapter: {str(adapter_error)}")
                 self.logger.warning(f"Falling back to default QA adapter")
