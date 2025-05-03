@@ -1,13 +1,13 @@
 general:
-  port: 3001
-  verbose: false
+  port: 3000
+  verbose: true
   https:
     enabled: false
     port: 3443
     cert_file: "./cert.pem"
     key_file: "./key.pem"
   inference_provider: "ollama"
-  datasource_provider: "chroma"
+  datasource_provider: "sqlite"
 
 messages:
   no_results_response: "I'm sorry, but I don't have any specific information about that topic in my knowledge base."
@@ -20,6 +20,7 @@ embedding:
 
 api_keys:
   header_name: "X-API-Key"
+  prefix: "orbit_"
   require_for_health: true
 
 logging:
@@ -91,7 +92,7 @@ datasources:
     relevance_threshold: 0.7
     embedding_provider: null 
   sqlite:
-    db_path: "../utils/sqllite/rag_database.db"
+    db_path: "sqlite_db"
     domain_adapter: "sqlite_qa"
     confidence_threshold: 0.5
     relevance_threshold: 0.5
@@ -100,12 +101,16 @@ datasources:
   postgres:
     host: "localhost"
     port: 5432
+    database: "retrieval"
     username: ${DATASOURCE_POSTGRES_USERNAME}
     password: ${DATASOURCE_POSTGRES_PASSWORD}
     confidence_threshold: 0.5
     relevance_threshold: 0.5
     max_results: 10
     return_results: 3
+    domain_adapter: "qa"
+    adapter_params:
+      confidence_threshold: 0.7
   milvus:
     host: "localhost"
     port: 19530
@@ -119,6 +124,8 @@ datasources:
     index_name: ${DATASOURCE_PINECONE_INDEX_NAME}
     embedding_provider: null
     domain_adapter: "generic"
+    adapter_params:
+      confidence_threshold: 0.7
   elasticsearch:
     node: 'https://localhost:9200'
     auth:
@@ -235,40 +242,6 @@ inference:
     top_p: 0.8
     max_tokens: 1024
     stream: true 
-  pytorch:
-      model_path: "facebook/opt-125m"  # Path to HF model or local model directory
-      system_prompt: "You are a helpful, accurate, precise, and expert assistant."
-      trust_remote_code: true
-      
-      # Device settings
-      use_mps: true  # Enable MPS for Apple Silicon
-      
-      # Tokenizer settings
-      use_fast_tokenizer: true
-      padding_side: "left"
-      truncation_side: "left"
-      
-      # Performance optimizations
-      precompile_prefill: true
-      load_in_8bit: false
-      load_in_4bit: false
-      int8_threshold: 6.0
-      int8_has_fp16_weight: true
-      quant_type: "nf4"
-      use_double_quant: true
-      compute_dtype: "float16"
-      
-      # Generation settings
-      max_batch_size: 1
-      do_sample: true
-      temperature: 0.7
-      top_p: 0.9
-      top_k: 40
-      max_tokens: 1024
-      use_cache: true
-      repetition_penalty: 1.1
-      cache_size: 100
-      stream: true 
 
 safety:
   enabled: false

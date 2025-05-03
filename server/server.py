@@ -434,35 +434,66 @@ class InferenceServer:
         # Resolve provider configurations
         self._resolve_provider_configs()
         
-        # Initialize datasource client based on selected provider
+        # Set up lazy loading for datasource client
         datasource_provider = self.config['general'].get('datasource_provider', 'chroma')
+        self.logger.info(f"Setting up lazy loading for {datasource_provider} datasource client")
+        
+        # Import LazyLoader utility
+        from utils.lazy_loader import LazyLoader
+        
         if datasource_provider == 'chroma':
-            chroma_conf = self.config['datasources']['chroma']
-            use_local = chroma_conf.get('use_local', False)
+            # Create a factory function for ChromaDB client
+            def create_chroma_client():
+                chroma_conf = self.config['datasources']['chroma']
+                use_local = chroma_conf.get('use_local', False)
+                
+                if use_local:
+                    # Use PersistentClient for local filesystem access
+                    import os
+                    from pathlib import Path
+                    
+                    db_path = chroma_conf.get('db_path', '../utils/chroma/chroma_db')
+                    db_path = Path(db_path).resolve()
+                    
+                    # Ensure the directory exists
+                    os.makedirs(db_path, exist_ok=True)
+                    
+                    self.logger.info(f"Initializing local ChromaDB at path: {db_path}")
+                    return chromadb.PersistentClient(path=str(db_path))
+                else:
+                    # Use HttpClient for remote server access
+                    self.logger.info(f"Connecting to ChromaDB at {chroma_conf['host']}:{chroma_conf['port']}...")
+                    return chromadb.HttpClient(
+                        host=chroma_conf['host'],
+                        port=int(chroma_conf['port'])
+                    )
             
-            if use_local:
-                # Use PersistentClient for local filesystem access
-                import os
-                from pathlib import Path
-                
-                db_path = chroma_conf.get('db_path', '../utils/chroma/chroma_db')
-                db_path = Path(db_path).resolve()
-                
-                # Ensure the directory exists
-                os.makedirs(db_path, exist_ok=True)
-                
-                self.logger.info(f"Using local ChromaDB at path: {db_path}")
-                app.state.chroma_client = chromadb.PersistentClient(path=str(db_path))
-            else:
-                # Use HttpClient for remote server access
-                self.logger.info(f"Connecting to ChromaDB at {chroma_conf['host']}:{chroma_conf['port']}...")
-                app.state.chroma_client = chromadb.HttpClient(
-                    host=chroma_conf['host'],
-                    port=int(chroma_conf['port'])
-                )
+            # Create a lazy loader for ChromaDB
+            app.state.chroma_client_loader = LazyLoader(create_chroma_client, "ChromaDB client")
+            
+            # Create a proxy class that lazily loads the client
+            class LazyChromaClient:
+                def __getattr__(self, name):
+                    client = app.state.chroma_client_loader.get_instance()
+                    return getattr(client, name)
+            
+            app.state.chroma_client = LazyChromaClient()
         else:
-            self.logger.info(f"Connecting to {datasource_provider} datasource...")
-            app.state.datasource_client = self._initialize_datasource_client(datasource_provider)
+            # Create a factory function for the selected datasource client
+            def create_datasource_client():
+                self.logger.info(f"Initializing {datasource_provider} datasource client...")
+                return self._initialize_datasource_client(datasource_provider)
+            
+            # Create a lazy loader for the datasource client
+            app.state.datasource_client_loader = LazyLoader(create_datasource_client, f"{datasource_provider} client")
+            
+            # Create a proxy class that lazily loads the client
+            class LazyDatasourceClient:
+                def __getattr__(self, name):
+                    client = app.state.datasource_client_loader.get_instance()
+                    return getattr(client, name)
+            
+            app.state.datasource_client = LazyDatasourceClient()
         
         # Initialize API Key Service
         app.state.api_key_service = ApiKeyService(self.config)
@@ -526,89 +557,135 @@ class InferenceServer:
             self.logger.info("Embedding services disabled in configuration")
             app.state.embedding_service = None
         
-        # Initialize retriever using the factory pattern for better extensibility
+        # Set up lazy-loaded retriever for the configured datasource provider
         try:
             # Get the datasource provider from configuration 
             datasource_provider = self.config['general'].get('datasource_provider', 'chroma')
-
-            # Check for domain adapter configuration
-            datasource_config = self.config.get('datasources', {}).get(datasource_provider, {})
-            domain_adapter_type = datasource_config.get('domain_adapter', 'qa')
-            adapter_params = datasource_config.get('adapter_params', {})
-
-            # Log the domain adapter being used
-            self.logger.info(f"Using {domain_adapter_type} domain adapter for {datasource_provider} retriever")
+            self.logger.info(f"Setting up lazy loading for {datasource_provider} retriever")
             
-            # Import the specific retriever for the selected datasource
-            if datasource_provider == 'sqlite':
-                from retrievers.implementations.sqlite import SQLiteRetriever
-            elif datasource_provider == 'chroma':
-                from retrievers.implementations.chroma import ChromaRetriever
-            
-            # Import the adapter factory
+            # Import necessary components
+            from retrievers.base.base_retriever import RetrieverFactory
             from retrievers.adapters.domain_adapters import DocumentAdapterFactory
             
-            # Create the domain adapter
-            try:
-                self.logger.info(f"Attempting to create domain adapter of type '{domain_adapter_type}'")
-                self.logger.info(f"Available adapters: {DocumentAdapterFactory.get_registered_adapters()}")
-                domain_adapter = DocumentAdapterFactory.create_adapter(
-                    domain_adapter_type, 
-                    config=self.config,  # Pass the config parameter
-                    **adapter_params
-                )
-                self.logger.info(f"Successfully created {domain_adapter_type} domain adapter")
-                self.logger.info(f"Adapter class: {domain_adapter.__class__.__name__}")
-            except Exception as adapter_error:
-                self.logger.error(f"Error creating domain adapter: {str(adapter_error)}")
-                self.logger.warning(f"Falling back to default QA adapter")
-                from retrievers.adapters.domain_adapters import QADocumentAdapter
-                domain_adapter = QADocumentAdapter(confidence_threshold=0.7)
+            # Register a factory function for lazy loading the specified retriever
+            def create_configured_retriever():
+                """Factory function to create the properly configured retriever when needed"""
+                # Check for domain adapter configuration
+                datasource_config = self.config.get('datasources', {}).get(datasource_provider, {})
+                domain_adapter_type = datasource_config.get('domain_adapter', 'qa')
+                adapter_params = datasource_config.get('adapter_params', {})
+                
+                # Log the domain adapter being used
+                self.logger.info(f"Lazy loading {domain_adapter_type} domain adapter for {datasource_provider} retriever")
+                
+                # Import the specific retriever for the selected datasource
+                if datasource_provider == 'sqlite':
+                    from retrievers.implementations.sqlite import SQLiteRetriever
+                    retriever_class = SQLiteRetriever
+                elif datasource_provider == 'chroma':
+                    from retrievers.implementations.chroma import ChromaRetriever
+                    retriever_class = ChromaRetriever
+                else:
+                    # For other providers, we'll need to import dynamically
+                    try:
+                        module_name = f"retrievers.implementations.{datasource_provider}"
+                        module = __import__(module_name, fromlist=[f"{datasource_provider.capitalize()}Retriever"])
+                        retriever_class = getattr(module, f"{datasource_provider.capitalize()}Retriever")
+                    except (ImportError, AttributeError) as e:
+                        self.logger.error(f"Could not load retriever class for {datasource_provider}: {str(e)}")
+                        raise ValueError(f"Unsupported datasource provider: {datasource_provider}")
+                
+                # Create the domain adapter
+                try:
+                    self.logger.info(f"Creating domain adapter of type '{domain_adapter_type}'")
+                    domain_adapter = DocumentAdapterFactory.create_adapter(
+                        domain_adapter_type, 
+                        config=self.config,
+                        **adapter_params
+                    )
+                    self.logger.info(f"Successfully created {domain_adapter_type} domain adapter")
+                except Exception as adapter_error:
+                    self.logger.error(f"Error creating domain adapter: {str(adapter_error)}")
+                    self.logger.warning(f"Falling back to default QA adapter")
+                    from retrievers.adapters.domain_adapters import QADocumentAdapter
+                    domain_adapter = QADocumentAdapter(confidence_threshold=0.7)
+                
+                # Prepare appropriate arguments based on the provider type
+                retriever_kwargs = {
+                    'config': self.config, 
+                    'domain_adapter': domain_adapter
+                }
+                
+                # Add appropriate client/connection based on the provider type
+                if datasource_provider == 'chroma':
+                    retriever_kwargs['embeddings'] = app.state.embedding_service
+                    if hasattr(app.state, 'chroma_client'):
+                        retriever_kwargs['collection'] = app.state.chroma_client
+                elif datasource_provider == 'sqlite':
+                    if hasattr(app.state, 'datasource_client'):
+                        retriever_kwargs['connection'] = app.state.datasource_client
+                
+                # Create and return the retriever instance
+                self.logger.info(f"Creating {datasource_provider} retriever instance")
+                return retriever_class(**retriever_kwargs)
             
-            # Prepare appropriate arguments based on the provider type
-            retriever_kwargs = {
-                'config': self.config, 
-                'domain_adapter': domain_adapter
-            }
+            # Register the factory function with the RetrieverFactory
+            RetrieverFactory.register_lazy_retriever(datasource_provider, create_configured_retriever)
             
-            # Add appropriate client/connection and create the appropriate retriever
-            if datasource_provider == 'chroma':
-                retriever_kwargs['embeddings'] = app.state.embedding_service
-                if hasattr(app.state, 'chroma_client'):
-                    retriever_kwargs['collection'] = app.state.chroma_client
-                app.state.retriever = ChromaRetriever(**retriever_kwargs)
-            elif datasource_provider == 'sqlite':
-                if hasattr(app.state, 'datasource_client'):
-                    retriever_kwargs['connection'] = app.state.datasource_client
-                app.state.retriever = SQLiteRetriever(**retriever_kwargs)
-            else:
-                # Use the factory for other providers
-                app.state.retriever = RetrieverFactory.create_retriever(
-                    retriever_type=datasource_provider,
-                    **retriever_kwargs
-                )
+            # Create a lazy retriever accessor for the app state
+            class LazyRetrieverAccessor:
+                def __init__(self, retriever_type):
+                    self.retriever_type = retriever_type
+                    self._retriever = None
+                
+                def __getattr__(self, name):
+                    # Initialize the retriever on first access
+                    if self._retriever is None:
+                        self._retriever = RetrieverFactory.create_retriever(self.retriever_type)
+                    # Delegate attribute access to the actual retriever
+                    return getattr(self._retriever, name)
             
-            self.logger.info(f"Successfully initialized {datasource_provider} retriever")
+            # Set the lazy retriever accessor in app state
+            app.state.retriever = LazyRetrieverAccessor(datasource_provider)
+            self.logger.info(f"Successfully set up lazy loading for {datasource_provider} retriever")
+            
         except Exception as e:
-            self.logger.error(f"Error initializing retriever: {str(e)}")
-            self.logger.warning("Falling back to default ChromaRetriever")
+            self.logger.error(f"Error setting up lazy loading for retriever: {str(e)}")
+            self.logger.warning("Will attempt to initialize default retriever on first request")
             
-            # Fall back to ChromaRetriever in case of error
-            try:
-                from retrievers import ChromaRetriever
-                from retrievers.adapters.domain_adapters import DocumentAdapterFactory
+            # Create a simple lazy factory that will attempt to create a fallback retriever on first access
+            def create_fallback_retriever():
+                try:
+                    from retrievers.implementations.chroma import ChromaRetriever
+                    from retrievers.adapters.domain_adapters import DocumentAdapterFactory
+                    
+                    # Create a default QA adapter
+                    domain_adapter = DocumentAdapterFactory.create_adapter('qa')
+                    
+                    return ChromaRetriever(
+                        config=self.config,
+                        embeddings=app.state.embedding_service,
+                        domain_adapter=domain_adapter
+                    )
+                except Exception as fallback_error:
+                    self.logger.error(f"Failed to initialize fallback retriever: {str(fallback_error)}")
+                    raise
+            
+            # Register the fallback retriever factory
+            from retrievers.base.base_retriever import RetrieverFactory
+            RetrieverFactory.register_lazy_retriever('fallback', create_fallback_retriever)
+            
+            # Create a lazy accessor that uses the fallback retriever
+            class FallbackRetrieverAccessor:
+                def __init__(self):
+                    self._retriever = None
                 
-                # Create a default QA adapter
-                domain_adapter = DocumentAdapterFactory.create_adapter('qa')
-                
-                app.state.retriever = ChromaRetriever(
-                    config=self.config,
-                    embeddings=app.state.embedding_service,
-                    domain_adapter=domain_adapter
-                )
-            except Exception as fallback_error:
-                self.logger.error(f"Failed to initialize fallback retriever: {str(fallback_error)}")
-                raise
+                def __getattr__(self, name):
+                    if self._retriever is None:
+                        self._retriever = RetrieverFactory.create_retriever('fallback')
+                    return getattr(self._retriever, name)
+            
+            app.state.retriever = FallbackRetrieverAccessor()
         
         # Initialize GuardrailService only if safety is enabled
         if _is_true_value(self.config.get('safety', {}).get('enabled', False)):
@@ -633,11 +710,21 @@ class InferenceServer:
         else:
             app.state.reranker_service = None
         
-        # Create LLM client with using the factory
+        # Create LLM client using the factory
         inference_provider = self.config['general'].get('inference_provider', 'ollama')
+        
+        # Use a lazy-loading proxy for the retriever to ensure it's only initialized when needed
+        class LazyRetrieverProxy:
+            def __init__(self, retriever_accessor):
+                self.retriever_accessor = retriever_accessor
+            
+            def __getattr__(self, name):
+                # This will trigger the lazy loading in the accessor when needed
+                return getattr(self.retriever_accessor, name)
+        
         app.state.llm_client = LLMClientFactory.create_llm_client(
             self.config, 
-            app.state.retriever,
+            LazyRetrieverProxy(app.state.retriever),  # Wrap in proxy to ensure lazy loading
             guardrail_service=app.state.guardrail_service,
             reranker_service=app.state.reranker_service,
             prompt_service=app.state.prompt_service,
@@ -679,9 +766,8 @@ class InferenceServer:
         if app.state.guardrail_service is not None:
             init_tasks.append(app.state.guardrail_service.initialize())
         
-        # Only initialize retriever if embeddings are enabled
-        if embedding_enabled and app.state.embedding_service is not None:
-            init_tasks.append(app.state.retriever.initialize())
+        # The retriever will be initialized on first access with lazy loading
+        # No need to initialize it here
         
         # Only initialize reranker if enabled
         if app.state.reranker_service:
@@ -719,15 +805,20 @@ class InferenceServer:
         # Create a list to collect shutdown tasks
         shutdown_tasks = []
         
-        # Only add services to shutdown_tasks if they exist and have a close method
+        # Only add services to shutdown_tasks if they exist, were initialized, and have a close method
         if hasattr(app.state, 'llm_client') and app.state.llm_client is not None:
             shutdown_tasks.append(app.state.llm_client.close())
         
         if hasattr(app.state, 'logger_service') and app.state.logger_service is not None:
             shutdown_tasks.append(app.state.logger_service.close())
         
-        if hasattr(app.state, 'retriever') and app.state.retriever is not None:
-            shutdown_tasks.append(app.state.retriever.close())
+        # Handle lazy-loaded retriever closure
+        if hasattr(app.state, 'retriever'):
+            # Check if the retriever was actually initialized by checking for _retriever attribute
+            if hasattr(app.state.retriever, '_retriever') and app.state.retriever._retriever is not None:
+                shutdown_tasks.append(app.state.retriever._retriever.close())
+            else:
+                self.logger.info("Retriever was never initialized, no need to close")
         
         if hasattr(app.state, 'guardrail_service') and app.state.guardrail_service is not None:
             shutdown_tasks.append(app.state.guardrail_service.close())
@@ -782,11 +873,7 @@ class InferenceServer:
         
         # Log model information based on the selected inference provider
         if inference_provider in self.config.get('inference', {}):
-            # Handle PyTorch provider which uses model_path instead of model
-            if inference_provider == 'pytorch':
-                model_name = self.config['inference'][inference_provider].get('model_path', 'unknown')
-            else:
-                model_name = self.config['inference'][inference_provider].get('model', 'unknown')
+            model_name = self.config['inference'][inference_provider].get('model', 'unknown')
             self.logger.info(f"Server running with {model_name} model")
         
         # Log datasource configuration

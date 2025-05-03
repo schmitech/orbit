@@ -82,40 +82,28 @@ https://ollama.com/download
 ollama pull gemma3:1b
 ollama pull nomic-embed-text
 ```
-
-### 2. Sample Database Setup
-```bash
-python ../utils/chroma/scripts/create_qa_pairs_collection.py city ../utils/sample-data/city-qa-pairs.json --local --db-path ./chroma_db
- python ../utils/chroma/scripts/create_qa_pairs_collection.py activity ../utils/sample-data/activity_qa_pairs.json --local --db-path ./chroma_db
-```
-
 ### 3. Launch Server
 ```bash
 cd server
 ./start.sh
 ```
 
-Server will be available at `http://localhost:3000`
-
-### 4. API Key Setup
-
-Associate an API key with a collection. Based on the sample database created in previous step, use collections 'city' or 'activity':
-
+### 2. Sample Database Setup
 ```bash
-# Create an API key for 'city' Collection
-python ./admin/api_key_manager.py --url http://localhost:3000 create \
-  --collection city \
-  --name "City Assistant" \
-  --prompt-file ../prompts/examples/city/city-assistant-prompt.txt \
-  --prompt-name "Municipal Assistant Prompt"
+# For SQLite database
+./setup-demo-db.sh sqlite
 
-  # Create an API key for 'city' Collection
-python ./admin/api_key_manager.py --url http://localhost:3000 create \
-  --collection activity \
-  --name "Activity Assistant" \
-  --prompt-file ../prompts/examples/city/activity-assistant-prompt.txt \
-  --prompt-name "Activity Assistant Prompt"
+# For Chroma database (requires Ollama running with nomic-embed-text model)
+./setup-demo-db.sh chroma
 ```
+
+The script will:
+- Set up the database (SQLite or Chroma)
+- Create necessary collections
+- Generate API keys for the collections
+- Provide instructions for testing the setup
+
+Server will be available at `http://localhost:3000`
 
 ### 5. Client Setup
 
@@ -131,7 +119,7 @@ python chat_client.py --url http://localhost:3000 --api-key your-api-key
 
 ### Configuration
 
-The system is highly configurable through a YAML configuration file, allowing you to:
+The system is configurable through a YAML configuration file, allowing you to:
 
 - Select and configure inference providers
 - Choose embedding and vector database backends
@@ -147,55 +135,13 @@ The system is highly configurable through a YAML configuration file, allowing yo
 - [Admin Tools Guide](server/admin/README.md)
 - [TypeScript Client API](clients/typescript/api/README.md)
 
-## 🛠 Advanced Configuration
-
-### HTTPS Setup
-
-1. Install Certbot:
-```bash
-sudo apt-get update
-sudo apt-get install certbot
-```
-
-2. Obtain certificate:
-```bash
-sudo certbot certonly --manual --preferred-challenges http -d your-domain.com
-```
-
-3. Configure in `config.yaml`:
-```yaml
-general:
-  https:
-    enabled: true
-    port: 3443
-    cert_file: "/path/to/fullchain.pem"
-    key_file: "/path/to/privkey.pem"
-```
-
-### Local LLM Setup
-
-Configure llama.cpp in `config.yaml`:
-
-```yaml
-general:
-  inference_provider: "llama_cpp"
-
-inference:
-  llama_cpp:
-    model_path: "models/tinyllama-1.1b-chat-v1.0.Q4_0.gguf"
-    chat_format: "chatml"
-    temperature: 0.1
-    n_ctx: 4096
-```
-
 ## 📊 Monitoring
 
-ORBIT provides comprehensive logging through:
+ORBIT provides logging through:
 
 - File-based logging (JSON format)
 - Elasticsearch integration (optional)
 - Health check endpoints
-- Performance metrics
 
 ## 🤝 Contributing
 

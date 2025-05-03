@@ -8,6 +8,7 @@ import traceback
 from typing import Dict, Any, List, Optional, Type, Tuple, Union
 import importlib
 from fastapi import HTTPException
+from utils.lazy_loader import AdapterRegistry
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -412,34 +413,33 @@ class SQLRetriever(BaseRetriever):
         pass
     
 class RetrieverFactory:
-    """Factory for creating and managing retriever instances"""
+    """
+    Factory for creating retriever instances with lazy loading support.
+    """
     
+    _registry = AdapterRegistry()
     _registered_retrievers: Dict[str, Type[BaseRetriever]] = {}
     
     @classmethod
-    def register_retriever(cls, name: str, retriever_class: Type[BaseRetriever]) -> None:
+    def register_retriever(cls, retriever_type: str, retriever_class: Type[BaseRetriever]):
         """
-        Register a retriever implementation
+        Register a retriever class with the factory.
         
         Args:
-            name: Unique identifier for the retriever
+            retriever_type: The type identifier for this retriever
             retriever_class: The retriever class to register
         """
-        cls._registered_retrievers[name] = retriever_class
-        logger.info(f"Registered retriever implementation: {name}")
-        
+        cls._registered_retrievers[retriever_type] = retriever_class
+        logger.info(f"Registered retriever type: {retriever_type}")
+    
     @classmethod
-    def create_retriever(cls, 
-                        retriever_type: str, 
-                        config: Dict[str, Any],
-                        **kwargs) -> BaseRetriever:
+    def create_retriever(cls, retriever_type: str, **kwargs) -> BaseRetriever:
         """
-        Create a retriever instance of the specified type
+        Create a retriever instance by type.
         
         Args:
-            retriever_type: Type of retriever to create
-            config: Configuration dictionary
-            **kwargs: Additional arguments to pass to the retriever constructor
+            retriever_type: The type of retriever to create
+            **kwargs: Arguments to pass to the retriever constructor
             
         Returns:
             An instance of the requested retriever
@@ -447,24 +447,29 @@ class RetrieverFactory:
         Raises:
             ValueError: If the retriever type is not registered
         """
-        # Check if retriever is registered
-        if retriever_type not in cls._registered_retrievers:
-            # Try to dynamically import the module
-            try:
-                module_path = f"retrievers.{retriever_type}_retriever"
-                module = importlib.import_module(module_path)
-                retriever_class_name = f"{retriever_type.capitalize()}Retriever"
-                retriever_class = getattr(module, retriever_class_name)
-                cls.register_retriever(retriever_type, retriever_class)
-            except (ImportError, AttributeError) as e:
-                logger.error(f"Failed to dynamically load retriever '{retriever_type}': {str(e)}")
-                raise ValueError(f"Retriever type '{retriever_type}' is not registered")
+        # Try to get the retriever from registry first (for lazy loaded retrievers)
+        if cls._registry.is_registered(retriever_type):
+            return cls._registry.get(retriever_type)
         
-        # Create and return the retriever instance
-        try:
-            retriever_class = cls._registered_retrievers[retriever_type]
-            return retriever_class(config=config, **kwargs)
-        except Exception as e:
-            logger.error(f"Failed to create retriever of type '{retriever_type}': {str(e)}")
-            raise
+        # Fall back to direct instantiation if not in registry
+        if retriever_type not in cls._registered_retrievers:
+            valid_types = list(cls._registered_retrievers.keys())
+            logger.error(f"Unknown retriever type: {retriever_type}. Valid types: {valid_types}")
+            raise ValueError(f"Unknown retriever type: {retriever_type}. Valid types: {valid_types}")
+        
+        retriever_class = cls._registered_retrievers[retriever_type]
+        logger.info(f"Creating retriever of type: {retriever_type}")
+        return retriever_class(**kwargs)
+    
+    @classmethod
+    def register_lazy_retriever(cls, retriever_type: str, factory_func):
+        """
+        Register a factory function for lazy loading a retriever.
+        
+        Args:
+            retriever_type: The type identifier for this retriever
+            factory_func: Function that creates the retriever instance when needed
+        """
+        cls._registry.register(retriever_type, factory_func)
+        logger.info(f"Registered lazy-loaded retriever type: {retriever_type}")
     

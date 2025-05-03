@@ -137,24 +137,5 @@ class LLMClientFactory:
                 prompt_service, 
                 no_results_message
             )
-        elif provider == 'pytorch':
-            from .clients.pytorch import PyTorchClient
-            return PyTorchClient(
-                config, 
-                retriever, 
-                guardrail_service, 
-                reranker_service, 
-                prompt_service, 
-                no_results_message
-            )
         else:
-            logging.warning(f"Unknown inference provider: {provider}, falling back to Ollama")
-            from .clients.ollama import OllamaClient
-            return OllamaClient(
-                config, 
-                retriever, 
-                guardrail_service, 
-                reranker_service, 
-                prompt_service, 
-                no_results_message
-            ) 
+            raise ValueError(f"Unsupported inference provider: {provider}") 

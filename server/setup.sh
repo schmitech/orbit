@@ -15,9 +15,9 @@ print_message() {
     esac
 }
 
-# Check if Python 3.13 is installed
-if ! command -v python3.13 &> /dev/null; then
-    print_message "red" "Error: Python 3.13 is not installed. Please install Python 3.13 first."
+# Check if Python 3.12 is installed
+if ! command -v python3 &> /dev/null; then
+    print_message "red" "Error: Python 3.12 is not installed. Please install Python 3.12 first."
     exit 1
 fi
 
@@ -30,7 +30,7 @@ fi
 print_message "yellow" "Setting up Python virtual environment..."
 
 # Create virtual environment
-if ! python3.13 -m venv venv; then
+if ! python3 -m venv venv; then
     print_message "red" "Error: Failed to create virtual environment."
     exit 1
 fi

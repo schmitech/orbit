@@ -71,7 +71,6 @@ async def ingest_to_chroma(
     db_path: str = "./chroma_db",
     batch_size: int = 50
 ):
-    print(f"Using embedding provider: {embedding_provider}")
     
     # Initialize Chroma client based on mode
     if use_local:

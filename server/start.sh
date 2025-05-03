@@ -1,9 +1,5 @@
 #!/bin/bash
 
-# Set environment variables for better MPS performance
-export PYTORCH_ENABLE_MPS_FALLBACK=1
-export PYTORCH_MPS_HIGH_WATERMARK_RATIO=0.0  # Allow PyTorch to allocate as much memory as needed
-
 # Set Python path to include the current directory
 export PYTHONPATH=$PYTHONPATH:$(pwd)
 

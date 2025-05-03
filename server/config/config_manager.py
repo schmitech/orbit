@@ -240,6 +240,11 @@ def get_default_config() -> Dict[str, Any]:
             "inference_provider": "ollama",
             "datasource_provider": "chroma"
         },
+        "api_keys": {
+            "header_name": "X-API-Key",
+            "prefix": "orbit_",
+            "require_for_health": True
+        },
         "logging": {
             "level": "INFO",
             "file": {
@@ -316,7 +321,10 @@ def get_default_config() -> Dict[str, Any]:
                 "relevance_threshold": 0.5,
                 "max_results": 10,
                 "return_results": 3,
-                "domain_adapter": "qa"
+                "domain_adapter": "qa",
+                "adapter_params": {
+                    "confidence_threshold": 0.7
+                }
             },
             "milvus": {
                 "host": "localhost",
