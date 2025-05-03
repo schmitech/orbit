@@ -39,51 +39,17 @@ ORBIT is a modular, self-hosted toolkit that provides a unified API for open-sou
 
 ## 🚀 Quick Start
 
-### Prerequisites
+### System Requirements
 
 - Python 3.12+
-- MongoDB
-- Ollama
-- Node.js 18+ (for TypeScript client)
+- MongoDB for API key management
+- Ollama for inference (other services supported, see config.yaml.example)
+- ChromaDB or SqlLite (other engines supported)
+- Optional: GPU for accelerated inference
+- Optional: Elasticsearch for logging
 
-### 1. Server Setup
-
-```bash
-# Clone the repository
-git clone https://github.com/schmitech/orbit.git
-cd orbit/server
-
-# Install dependencies
-./setup.sh
-source venv/bin/activate
-
-# Create config file form template.
-cp config.yaml.example config.yaml
-
-# Configure env variables (optional)
-cp .env.example .env
-```
-### 3. Install Ollama
-https://ollama.com/download
-
-```bash
-# Download the models
-ollama pull gemma3:1b
-ollama pull nomic-embed-text
-```
-
-### 2. Sample Database Setup
-
-```bash
-# Create demo database
-python ../utils/sqllite/rag_cli.py setup --db-path ./sqlite_db --data-path ../utils/sample-data/city-qa-pairs.json
-
-# Or chroma with vectro embeddings (embeddings must be enabled in config.yaml):
-python ../utils/chroma/scripts/create_qa_pairs_collection.py city ../utils/sample-data/city-qa-pairs.json --local --db-path ./chroma_db
-
-# Install and configure MongoDB
-# Follow MongoDB installation guide: https://www.mongodb.com/docs/manual/installation/
-```
+### 1. Install and configure MongoDB
+Follow MongoDB installation guide: https://www.mongodb.com/docs/manual/installation/
 
 Update MongoDB configuration in `/server/config.yaml`:
 
@@ -97,8 +63,33 @@ mongodb:
   password: ${INTERNAL_SERVICES_MONGODB_PASSWORD}
 ```
 
-### 3. Launch Server
+### 2. Server Setup
 
+```bash
+# Clone the repository
+git clone https://github.com/schmitech/orbit.git
+cd orbit/server
+
+# Install dependencies
+./setup.sh
+source venv/bin/activate
+```
+### 3. Install Ollama
+https://ollama.com/download
+
+```bash
+# Download the models
+ollama pull gemma3:1b
+ollama pull nomic-embed-text
+```
+
+### 2. Sample Database Setup
+```bash
+python ../utils/chroma/scripts/create_qa_pairs_collection.py city ../utils/sample-data/city-qa-pairs.json --local --db-path ./chroma_db
+ python ../utils/chroma/scripts/create_qa_pairs_collection.py activity ../utils/sample-data/activity_qa_pairs.json --local --db-path ./chroma_db
+```
+
+### 3. Launch Server
 ```bash
 cd server
 ./start.sh
@@ -108,13 +99,22 @@ Server will be available at `http://localhost:3000`
 
 ### 4. API Key Setup
 
+Associate an API key with a collection. Based on the sample database created in previous step, use collections 'city' or 'activity':
+
 ```bash
-# Create an API key
+# Create an API key for 'city' Collection
 python ./admin/api_key_manager.py --url http://localhost:3000 create \
   --collection city \
   --name "City Assistant" \
   --prompt-file ../prompts/examples/city/city-assistant-prompt.txt \
   --prompt-name "Municipal Assistant Prompt"
+
+  # Create an API key for 'city' Collection
+python ./admin/api_key_manager.py --url http://localhost:3000 create \
+  --collection activity \
+  --name "Activity Assistant" \
+  --prompt-file ../prompts/examples/city/activity-assistant-prompt.txt \
+  --prompt-name "Activity Assistant Prompt"
 ```
 
 ### 5. Client Setup
@@ -124,25 +124,15 @@ python ./admin/api_key_manager.py --url http://localhost:3000 create \
 ```bash
 cd clients/python
 python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
+source venv/bin/activate
 pip install -r requirements.txt
 python chat_client.py --url http://localhost:3000 --api-key your-api-key
-```
-
-#### TypeScript/JavaScript Client
-
-```bash
-cd clients/typescript/api
-npm install
-npm run build
-
-# Use in your project
-npm link @schmitech/chatbot-api
 ```
 
 ### Configuration
 
 The system is highly configurable through a YAML configuration file, allowing you to:
+
 - Select and configure inference providers
 - Choose embedding and vector database backends
 - Set up safety and reranking services
@@ -150,14 +140,6 @@ The system is highly configurable through a YAML configuration file, allowing yo
 - Manage API authentication
 - Set up HTTPS/SSL
 - Configure system resources and threading
-
-### System Requirements
-
-- Python 3.12+
-- MongoDB for API key management
-- Vector database (ChromaDB by default)
-- Optional: GPU for accelerated inference
-- Optional: Elasticsearch for advanced logging
 
 ## 📚 Documentation
 

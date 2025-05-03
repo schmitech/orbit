@@ -1,6 +1,6 @@
 general:
   port: 3001
-  verbose: true
+  verbose: false
   https:
     enabled: false
     port: 3443
@@ -86,38 +86,26 @@ datasources:
     db_path: "./chroma_db"
     host: "localhost"
     port: 8000
-    domain_adapter: "qa"
+    domain_adapter: "chroma_qa"
     confidence_threshold: 0.85
     relevance_threshold: 0.7
     embedding_provider: null 
   sqlite:
-    db_path: "./sqlite_db.db"
-    domain_adapter: "qa"
+    db_path: "../utils/sqllite/rag_database.db"
+    domain_adapter: "sqlite_qa"
     confidence_threshold: 0.5
     relevance_threshold: 0.5
     max_results: 10
     return_results: 3
-    adapter_params:
-      boost_exact_matches: true
   postgres:
     host: "localhost"
     port: 5432
     username: ${DATASOURCE_POSTGRES_USERNAME}
     password: ${DATASOURCE_POSTGRES_PASSWORD}
-    database: "retrieval"
-    schema: "public"
-    table: "documents"
-    embedding_column: "embedding"
-    content_column: "content"
-    metadata_columns: ["source", "date", "author"]
-    domain_adapter: "qa"
-    confidence_threshold: 0.6
+    confidence_threshold: 0.5
     relevance_threshold: 0.5
     max_results: 10
     return_results: 3
-    adapter_params:
-      boost_exact_matches: true
-      confidence_threshold: 0.7
   milvus:
     host: "localhost"
     port: 19530
@@ -125,16 +113,12 @@ datasources:
     metric_type: "IP"  # Options: L2, IP, COSINE
     embedding_provider: null
     domain_adapter: "generic"
-    adapter_params:
-      confidence_threshold: 0.7
   pinecone:
     api_key: ${DATASOURCE_PINECONE_API_KEY}
     environment: ${DATASOURCE_PINECONE_ENVIRONMENT}
     index_name: ${DATASOURCE_PINECONE_INDEX_NAME}
     embedding_provider: null
     domain_adapter: "generic"
-    adapter_params:
-      confidence_threshold: 0.7
   elasticsearch:
     node: 'https://localhost:9200'
     auth:

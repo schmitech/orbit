@@ -304,10 +304,7 @@ def get_default_config() -> Dict[str, Any]:
                 "relevance_threshold": 0.5,
                 "max_results": 10,
                 "return_results": 3,
-                "domain_adapter": "sql_qa",
-                "adapter_params": {
-                    "boost_exact_matches": True
-                }
+                "domain_adapter": "qa"
             },
             "postgres": {
                 "host": "localhost",
@@ -315,15 +312,11 @@ def get_default_config() -> Dict[str, Any]:
                 "database": "retrieval",
                 "username": "${DATASOURCE_POSTGRES_USERNAME}",
                 "password": "${DATASOURCE_POSTGRES_PASSWORD}",
-                "schema": "public",
-                "table": "documents",
-                "embedding_column": "embedding",
-                "content_column": "content",
-                "metadata_columns": ["source", "date", "author"],
-                "domain_adapter": "generic",
-                "adapter_params": {
-                    "confidence_threshold": 0.7
-                }
+                "confidence_threshold": 0.7,
+                "relevance_threshold": 0.5,
+                "max_results": 10,
+                "return_results": 3,
+                "domain_adapter": "qa"
             },
             "milvus": {
                 "host": "localhost",
@@ -331,10 +324,7 @@ def get_default_config() -> Dict[str, Any]:
                 "dim": 768,
                 "metric_type": "IP",
                 "embedding_provider": None,
-                "domain_adapter": "generic",
-                "adapter_params": {
-                    "confidence_threshold": 0.7
-                }
+                "domain_adapter": "generic"
             },
             "pinecone": {
                 "api_key": "${DATASOURCE_PINECONE_API_KEY}",

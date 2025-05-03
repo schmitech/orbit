@@ -51,4 +51,6 @@ Thumbs.db
 *.sublime-workspace
 *.sublime-project
 *.db
+sqlite_db
+chroma_db
 .vscode/launch.json

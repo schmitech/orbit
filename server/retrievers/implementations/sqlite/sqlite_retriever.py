@@ -9,6 +9,7 @@ import traceback
 from typing import Dict, Any, List, Optional, Union
 from difflib import SequenceMatcher
 from fastapi import HTTPException
+import json
 
 from retrievers.base.sql_retriever import SQLRetriever
 from retrievers.base.base_retriever import RetrieverFactory
@@ -32,8 +33,26 @@ class SqliteRetriever(SQLRetriever):
             connection: Optional SQLite connection
             domain_adapter: Optional domain adapter for document handling
         """
+        # Extract adapter params before calling parent constructor to avoid passing them
+        adapter_params = {}
+        datasource_config = config.get('datasources', {}).get('sqlite', config.get('sqlite', {}))
+        
+        # Remove boost_exact_matches from adapter_params to avoid the error
+        if 'adapter_params' in datasource_config:
+            # Make a copy to avoid modifying the original config
+            adapter_params = dict(datasource_config['adapter_params'])
+            if 'boost_exact_matches' in adapter_params:
+                del adapter_params['boost_exact_matches']
+            
+            # Temporarily remove adapter_params from config
+            temp_adapter_params = datasource_config.pop('adapter_params', None)
+        
         # Call the parent constructor first
         super().__init__(config=config, connection=connection, domain_adapter=domain_adapter, **kwargs)
+        
+        # Restore adapter_params if we removed it
+        if 'temp_adapter_params' in locals() and temp_adapter_params is not None:
+            datasource_config['adapter_params'] = temp_adapter_params
         
         # Initialize database path
         self.db_path = self.datasource_config.get('db_path', '../utils/sqllite/rag_database.db')
@@ -260,6 +279,140 @@ class SqliteRetriever(SQLRetriever):
             logger.error(f"Error in token-based search: {str(e)}")
             return []
 
+    def _get_search_query(self, query: str, collection_name: str) -> Dict[str, Any]:
+        """
+        Create a SQL query based on user's query.
+        
+        Args:
+            query: The user's query
+            collection_name: The collection/table name
+            
+        Returns:
+            A dict with SQL query and parameters
+        """
+        # Create a better search query that looks for keywords
+        query_tokens = self._tokenize_text(query)
+        
+        if not query_tokens:
+            # Fallback to basic query
+            return {
+                "sql": f"SELECT * FROM {collection_name} LIMIT ?",
+                "params": [self.max_results]
+            }
+        
+        # For QA collections, search in the question field
+        if collection_name.lower() in ["qa", "question_answer", "qa_pairs", "city"]:
+            # Build a search condition that checks for each token in the question field
+            conditions = []
+            params = []
+            
+            for token in query_tokens:
+                if len(token) > 2:  # Only use tokens with sufficient length
+                    conditions.append("question LIKE ?")
+                    params.append(f"%{token}%")
+            
+            if conditions:
+                # Use OR to be more inclusive in our search
+                where_clause = " OR ".join(conditions)
+                
+                # Use ORDER BY to sort by relevance based on how many tokens match
+                # We'll count the number of matching tokens for each result
+                order_by_clause = ""
+                for token in query_tokens:
+                    if len(token) > 2:
+                        order_by_clause += f" + (CASE WHEN question LIKE '%{token}%' THEN 1 ELSE 0 END)"
+                
+                if order_by_clause:
+                    order_by_clause = f"ORDER BY ({order_by_clause[3:]}) DESC"
+                
+                # Build the final SQL query
+                sql = f"""
+                    SELECT * FROM {collection_name} 
+                    WHERE {where_clause}
+                    {order_by_clause}
+                    LIMIT ?
+                """
+                params.append(self.max_results)
+                
+                if self.verbose:
+                    logger.info(f"Generated SQL query: {sql}")
+                    logger.info(f"With parameters: {params}")
+                
+                return {
+                    "sql": sql,
+                    "params": params
+                }
+        
+        # For more generic queries, also try full-text search if SQLite supports it
+        # First check if there's an FTS virtual table for this collection
+        try:
+            if self.connection:
+                cursor = self.connection.cursor()
+                cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'fts%'")
+                fts_tables = cursor.fetchall()
+                
+                # If we have FTS tables, try using them
+                for fts_table in fts_tables:
+                    fts_name = fts_table[0]
+                    # Check if this FTS table relates to our collection
+                    if collection_name.lower() in fts_name.lower():
+                        # Use SQLite FTS match operator
+                        query_text = " OR ".join(query_tokens)
+                        sql = f"""
+                            SELECT * FROM {fts_name} 
+                            WHERE {fts_name} MATCH ?
+                            LIMIT ?
+                        """
+                        params = [query_text, self.max_results]
+                        
+                        if self.verbose:
+                            logger.info(f"Using FTS query: {sql}")
+                            logger.info(f"With parameters: {params}")
+                            
+                        return {
+                            "sql": sql,
+                            "params": params
+                        }
+        except Exception as e:
+            # FTS query might fail if the table structure doesn't support it
+            logger.warning(f"FTS query attempt failed: {str(e)}")
+        
+        # Fallback to basic query with simple keyword matching across key text fields
+        conditions = []
+        params = []
+        search_fields = [f for f in self.default_search_fields if f not in ["id"]]
+        
+        if not search_fields:
+            search_fields = ["content", "text", "body", "description"]
+            
+        for field in search_fields:
+            for token in query_tokens:
+                if len(token) > 2:  # Only use tokens with sufficient length
+                    conditions.append(f"{field} LIKE ?")
+                    params.append(f"%{token}%")
+        
+        if conditions:
+            where_clause = " OR ".join(conditions)
+            sql = f"""
+                SELECT * FROM {collection_name} 
+                WHERE {where_clause}
+                LIMIT ?
+            """
+            params.append(self.max_results)
+            return {
+                "sql": sql,
+                "params": params
+            }
+            
+        # Final fallback
+        if self.verbose:
+            logger.info("Using fallback query with no specific matching")
+            
+        return {
+            "sql": f"SELECT * FROM {collection_name} LIMIT ?",
+            "params": [self.max_results]
+        }
+
     async def get_relevant_context(self, 
                            query: str, 
                            api_key: Optional[str] = None, 
@@ -279,7 +432,6 @@ class SqliteRetriever(SQLRetriever):
         """
         try:
             # Call the parent implementation which handles common functionality
-            # Use super() instead of directly referencing BaseRetriever
             await super().get_relevant_context(query, api_key, collection_name, **kwargs)
             
             debug_mode = self.verbose
@@ -323,7 +475,7 @@ class SqliteRetriever(SQLRetriever):
                         compare_field = field
                         compare_value = row[field]
                         break
-                
+            
                 # If no priority field found, use the first text field
                 if not compare_field:
                     for field, value in row.items():
@@ -331,7 +483,7 @@ class SqliteRetriever(SQLRetriever):
                             compare_field = field
                             compare_value = value
                             break
-                
+            
                 # Skip if no suitable field found
                 if not compare_field:
                     continue
@@ -347,26 +499,70 @@ class SqliteRetriever(SQLRetriever):
                 
                 # Include in results if score exceeds threshold
                 if combined_score >= self.relevance_threshold:
-                    # Determine raw document content
-                    raw_doc = ""
-                    if "content" in row:
-                        raw_doc = row["content"]
-                    elif "question" in row and "answer" in row:
-                        raw_doc = f"Question: {row['question']}\nAnswer: {row['answer']}"
-                    elif compare_field:
-                        raw_doc = compare_value
-                    
-                    # Use domain adapter to format the document
-                    context_item = self.format_document(raw_doc, dict(row))
-                    context_item["confidence"] = combined_score
-                    
-                    # Add source info to metadata
-                    if "metadata" not in context_item:
-                        context_item["metadata"] = {}
-                    context_item["metadata"]["source"] = self._get_datasource_name()
-                    context_item["metadata"]["collection"] = self.collection
-                    
-                    results.append(context_item)
+                    # For QA documents, ensure we have both question and answer
+                    if "question" in row and "answer" in row:
+                        # Create a properly formatted QA document
+                        context_item = {
+                            "id": row.get("id"),
+                            "question": row["question"],
+                            "answer": row["answer"],
+                            "confidence": combined_score,
+                            "content": f"Question: {row['question']}\nAnswer: {row['answer']}",
+                            "raw_document": f"Question: {row['question']}\nAnswer: {row['answer']}",
+                            "metadata": {
+                                "source": self._get_datasource_name(),
+                                "collection": self.collection,
+                                "string_similarity": similarity,
+                                "token_match_ratio": token_match_ratio
+                            }
+                        }
+                        results.append(context_item)
+                    else:
+                        # For non-QA documents, get raw document content
+                        raw_doc = ""
+                        if "content" in row:
+                            raw_doc = row["content"]
+                        elif compare_field:
+                            raw_doc = compare_value
+                        
+                        # Use domain adapter to format the document if available
+                        if self.domain_adapter and hasattr(self.domain_adapter, 'format_document'):
+                            context_item = self.domain_adapter.format_document(raw_doc, dict(row))
+                            context_item["confidence"] = combined_score
+                            
+                            # Ensure required fields are present
+                            if "content" not in context_item:
+                                context_item["content"] = raw_doc
+                            if "raw_document" not in context_item:
+                                context_item["raw_document"] = raw_doc
+                        else:
+                            # Create a basic context item with all required fields
+                            context_item = {
+                                "content": raw_doc,
+                                "confidence": combined_score,
+                                "raw_document": raw_doc,
+                                "metadata": {}
+                            }
+                        
+                        # Add source info to metadata
+                        if "metadata" not in context_item:
+                            context_item["metadata"] = {}
+                        context_item["metadata"]["source"] = self._get_datasource_name()
+                        context_item["metadata"]["collection"] = self.collection
+                        
+                        results.append(context_item)
+            
+            # Add debug logging after results are created
+            if debug_mode and results:
+                logger.info(f"First result details: {json.dumps(results[0])}")
+                
+                # Ensure all required fields are present
+                if 'content' not in results[0]:
+                    logger.warning("Missing 'content' field in results - LLM may not be able to use this")
+                if 'confidence' not in results[0]:
+                    logger.warning("Missing 'confidence' field in results")
+                if 'metadata' not in results[0]:
+                    logger.warning("Missing 'metadata' field in results")
             
             # Apply domain-specific filtering
             results = self.apply_domain_filtering(results, query)

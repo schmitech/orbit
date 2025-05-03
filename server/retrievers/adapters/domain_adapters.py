@@ -158,7 +158,17 @@ class DocumentAdapterFactory:
             raise ValueError(f"Unknown adapter type: {adapter_type}")
             
         logger.info(f"Creating adapter of type '{adapter_type}'")
-        return cls._registered_adapters[adapter_type](**kwargs)
+        # Ensure config is properly passed to the adapter constructor
+        config = kwargs.pop('config', None)
+        try:
+            # Create the adapter instance with the config if provided
+            if config is not None:
+                return cls._registered_adapters[adapter_type](config=config, **kwargs)
+            else:
+                return cls._registered_adapters[adapter_type](**kwargs)
+        except Exception as e:
+            logger.error(f"Error creating {adapter_type} adapter: {str(e)}")
+            raise
 
     @classmethod
     def get_registered_adapters(cls):
