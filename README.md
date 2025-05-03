@@ -82,13 +82,13 @@ https://ollama.com/download
 ollama pull gemma3:1b
 ollama pull nomic-embed-text
 ```
-### 3. Launch Server
+### 4. Launch Server
 ```bash
 cd server
 ./start.sh
 ```
 
-### 2. Sample Database Setup
+### 5. Sample Database Setup
 ```bash
 # For SQLite database
 ./setup-demo-db.sh sqlite
@@ -105,7 +105,7 @@ The script will:
 
 Server will be available at `http://localhost:3000`
 
-### 5. Client Setup
+### 6. Client Setup
 
 #### Python Client
 
