@@ -167,11 +167,16 @@ async def ingest_to_chroma(
     if not initialized:
         raise ValueError(f"Failed to initialize {embedding_provider} embedding service")
     
-    print(f"Successfully initialized {embedding_provider} embedding service")
+    print(f"\nEmbedding Service Details:")
+    print(f"Provider: {embedding_provider}")
+    # Get model name from config
+    model_name = config['embeddings'][embedding_provider]['model']
+    print(f"Model: {model_name}")
     
     # Get dimensions to verify connection
     dimensions = await embedding_service.get_dimensions()
-    print(f"Embedding dimensions: {dimensions}")
+    print(f"Dimensions: {dimensions}")
+    print("-" * 50)
     
     # Load Q&A pairs
     with open(json_file_path, 'r', encoding='utf-8') as f:

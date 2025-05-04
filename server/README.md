@@ -13,6 +13,7 @@ A FastAPI server providing conversational AI with Ollama integration, ChromaDB f
 - **Real-time Streaming**: Support for streaming responses via Server-Sent Events (SSE).
 - **Logging**: Detailed logging with Elasticsearch support.
 - **HTTPS Support**: Secure communication using TLS.
+- **MCP Protocol**: Compatible with the standard Message Content Protocol (MCP) used by popular LLM providers.
 
 
 ## 🛠️ Installation
@@ -111,6 +112,51 @@ Server available at `http://localhost:3000`
   "response": "Generated response..."
 }
 ```
+
+### MCP Protocol Chat
+- **Endpoint**: `POST /v1/chat`
+- **Headers**:
+  ```json
+  {
+    "X-API-Key": "your-api-key"
+  }
+  ```
+- **Request Body**:
+```json
+{
+  "messages": [
+    {
+      "id": "msg_1234567890",
+      "object": "thread.message",
+      "role": "user",
+      "content": [
+        {
+          "type": "text",
+          "text": "Your message here"
+        }
+      ],
+      "created_at": 1683753347
+    }
+  ],
+  "stream": true
+}
+```
+- **Response**:
+```json
+{
+  "id": "resp_1234567890",
+  "object": "thread.message",
+  "created_at": 1683753348,
+  "role": "assistant",
+  "content": [
+    {
+      "type": "text",
+      "text": "Generated response..."
+    }
+  ]
+}
+```
+- **See documentation**: [MCP Protocol](docs/mcp_protocol.md)
 
 ### Health Check
 - **Endpoint**: `GET /health`

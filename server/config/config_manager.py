@@ -267,7 +267,8 @@ def get_default_config() -> Dict[str, Any]:
                 "key_file": "./key.pem"
             },
             "inference_provider": "ollama",
-            "datasource_provider": "chroma"
+            "datasource_provider": "chroma",
+            "mcp_protocol": False  # Toggle for MCP protocol compatibility
         },
         "messages": {
             "no_results_response": "I'm sorry, but I don't have any specific information about that topic in my knowledge base.",

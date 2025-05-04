@@ -2,7 +2,7 @@
 Pydantic models for the API
 """
 
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from pydantic import BaseModel, Field
 
 
@@ -67,3 +67,35 @@ class SystemPromptResponse(BaseModel):
 class ApiKeyPromptAssociate(BaseModel):
     """API key and system prompt association request model"""
     prompt_id: str
+
+
+class MCPMessage(BaseModel):
+    """MCP protocol message model"""
+    id: str = Field(description="Unique identifier for the message")
+    object: str = Field(default="thread.message", description="Object type")
+    role: str = Field(description="Role of the message (user or assistant)")
+    content: List[Dict[str, Any]] = Field(description="Content of the message")
+    created_at: int = Field(default=0, description="Unix timestamp when message was created")
+    
+
+class MCPChatRequest(BaseModel):
+    """MCP protocol chat request model"""
+    messages: List[MCPMessage] = Field(description="Messages in the conversation")
+    stream: bool = Field(default=True, description="Whether to stream the response")
+    
+
+class MCPChatResponse(BaseModel):
+    """MCP protocol chat response model"""
+    id: str = Field(description="Unique identifier for the response")
+    object: str = Field(default="thread.message", description="Object type")
+    created_at: int = Field(description="Unix timestamp when response was created")
+    role: str = Field(default="assistant", description="Role of the message")
+    content: List[Dict[str, Any]] = Field(description="Content of the response")
+    
+
+class MCPChatChunk(BaseModel):
+    """MCP protocol streaming chunk model"""
+    id: str = Field(description="Unique identifier for the chunk")
+    object: str = Field(default="thread.message.delta", description="Object type")
+    created_at: int = Field(description="Unix timestamp when chunk was created")
+    delta: Dict[str, Any] = Field(description="Delta content for streaming")

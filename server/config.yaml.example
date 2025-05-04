@@ -7,7 +7,8 @@ general:
     cert_file: "./cert.pem"
     key_file: "./key.pem"
   inference_provider: "ollama"
-  datasource_provider: "chroma"
+  datasource_provider: "sqlite"
+  mcp_protocol: disabled
 
 messages:
   no_results_response: "I'm sorry, but I don't have any specific information about that topic in my knowledge base."
@@ -15,7 +16,7 @@ messages:
 
 embedding:
   provider: "ollama"
-  enabled: true
+  enabled: false
   fail_on_error: false
 
 api_keys:

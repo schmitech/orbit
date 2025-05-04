@@ -19,6 +19,14 @@ Features:
     - Safety check for user queries using GuardrailService
     - HTTPS support using provided certificates
     - API key management
+    - MCP protocol compatibility for universal client support
+    
+MCP Protocol:
+    The Message Content Protocol (MCP) endpoint is available at /v1/chat and follows
+    the standard format used by many LLM providers. This enables compatibility with
+    various client libraries and tools that support the MCP format.
+    
+    To enable MCP support, set the 'mcp_protocol' option to true in the config.yaml file.
 """
 
 import os
@@ -27,13 +35,15 @@ import logging
 import logging.handlers
 import json
 import asyncio
+import time
+import uuid
 from typing import Dict, Any, Optional, List, Callable, Awaitable
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 
 import uvicorn
 from fastapi import FastAPI, Request, Depends, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import chromadb
 from langchain_ollama import OllamaEmbeddings
@@ -47,6 +57,7 @@ load_dotenv()
 # Import local modules (ensure these exist in your project structure)
 from config.config_manager import load_config, _is_true_value
 from models.schema import ChatMessage, ApiKeyCreate, ApiKeyResponse, ApiKeyDeactivate, SystemPromptCreate, SystemPromptUpdate, SystemPromptResponse, ApiKeyPromptAssociate
+from models.schema import MCPMessage, MCPChatRequest, MCPChatResponse, MCPChatChunk
 from models import ChatMessage
 from services import ChatService, LoggerService, GuardrailService, RerankerService, ApiKeyService, PromptService
 from inference import LLMClientFactory
@@ -860,9 +871,13 @@ class InferenceServer:
         embedding_enabled = _is_true_value(embedding_config.get('enabled', True))
         embedding_provider = embedding_config.get('provider', 'ollama')
         
+        # Get MCP protocol setting
+        mcp_enabled = _is_true_value(self.config['general'].get('mcp_protocol', False))
+        
         self.logger.info(f"Inference provider: {inference_provider}")
         self.logger.info(f"Datasource provider: {datasource_provider}")
         self.logger.info(f"Embedding: {'enabled' if embedding_enabled else 'disabled'}")
+        self.logger.info(f"MCP protocol: {'enabled' if mcp_enabled else 'disabled'}")
         
         if embedding_enabled:
             self.logger.info(f"Embedding provider: {embedding_provider}")
@@ -892,6 +907,13 @@ class InferenceServer:
             self.logger.info(f"Relevance threshold: {self.app.state.retriever.relevance_threshold}")
         
         self.logger.info(f"Verbose mode: {_is_true_value(self.config['general'].get('verbose', False))}")
+        
+        # Log API endpoints
+        self.logger.info("API Endpoints:")
+        self.logger.info("  - Standard chat: POST /chat")
+        if mcp_enabled:
+            self.logger.info("  - MCP protocol: POST /v1/chat")
+        self.logger.info("  - Health check: GET /health")
 
     def _configure_middleware(self) -> None:
         """Configure middleware for the FastAPI application."""
@@ -1008,6 +1030,174 @@ class InferenceServer:
                 if "error" in result:
                     raise HTTPException(status_code=500, detail=result["error"])
                 return result
+                
+        # MCP protocol endpoint
+        @self.app.post("/v1/chat")
+        async def mcp_chat_endpoint(
+            request: Request,
+            mcp_request: MCPChatRequest,
+            chat_service = Depends(get_chat_service),
+            api_key_result: tuple[str, Optional[ObjectId]] = Depends(get_api_key)
+        ):
+            """
+            Process an MCP protocol chat request and return a response
+            
+            This endpoint implements the MCP protocol for compatibility with
+            tools and clients that support it.
+            """
+            # Check if MCP protocol is enabled
+            if not self._is_mcp_enabled():
+                raise HTTPException(status_code=404, detail="MCP protocol is not enabled")
+                
+            collection_name, system_prompt_id = api_key_result
+            
+            # Extract the API key from the request header
+            api_key = request.headers.get("X-API-Key")
+            
+            # Mask API key for logging
+            masked_api_key = f"***{api_key[-4:]}" if api_key else "***"
+            
+            # Resolve client IP (using X-Forwarded-For if available)
+            client_ip = request.headers.get("X-Forwarded-For", request.client.host if request.client else "unknown")
+            
+            # Extract user message from MCP request
+            if not mcp_request.messages:
+                raise HTTPException(status_code=400, detail="No messages provided")
+                
+            # Get the last user message
+            user_messages = [msg for msg in mcp_request.messages if msg.role == "user"]
+            if not user_messages:
+                raise HTTPException(status_code=400, detail="No user messages found")
+                
+            last_user_message = user_messages[-1]
+            
+            # Extract text content from the message using the validation method
+            try:
+                message_text = self._validate_mcp_content(last_user_message.content)
+            except HTTPException as e:
+                self.logger.error(f"MCP content validation error: {str(e.detail)}")
+                raise
+            
+            # Log the collection and prompt being used
+            if self.config.get('general', {}).get('verbose', False):
+                self.logger.info(f"[MCP] Using collection '{collection_name}' for chat request from {client_ip}")
+                self.logger.info(f"[MCP] API key: {masked_api_key}")
+                self.logger.info(f"[MCP] User message: {message_text}")
+                if system_prompt_id:
+                    self.logger.info(f"[MCP] Using system prompt ID: {system_prompt_id}")
+            
+            # Determine if streaming is requested
+            stream = mcp_request.stream
+            
+            if stream:
+                # Handle streaming response
+                async def mcp_stream_generator():
+                    # Initialize streaming response
+                    message_id = str(uuid.uuid4())
+                    current_time = int(time.time())
+                    
+                    try:
+                        content_buffer = ""
+                        
+                        # Stream content
+                        async for chunk in chat_service.process_chat_stream(
+                            message=message_text,
+                            client_ip=client_ip,
+                            collection_name=collection_name,
+                            system_prompt_id=system_prompt_id,
+                            api_key=api_key
+                        ):
+                            # Parse chunk data
+                            try:
+                                if chunk.startswith("data: "):
+                                    chunk = chunk[6:].strip()  # Remove "data: " prefix
+                                
+                                chunk_data = json.loads(chunk)
+                                
+                                # Skip done messages
+                                if chunk_data.get("done", False):
+                                    continue
+                                    
+                                # Extract content
+                                content = chunk_data.get("response", "")
+                                if content:
+                                    # Add to buffer
+                                    content_buffer += content
+                                    
+                                    # Create MCP delta
+                                    mcp_chunk = MCPChatChunk(
+                                        id=message_id,
+                                        created_at=current_time,
+                                        delta={
+                                            "role": "assistant",
+                                            "content": [{"type": "text", "text": content}]
+                                        }
+                                    )
+                                    
+                                    yield f"data: {json.dumps(mcp_chunk.dict())}\n\n"
+                            except json.JSONDecodeError:
+                                # If not valid JSON, try to extract text content directly
+                                if chunk:
+                                    content_buffer += chunk
+                                    mcp_chunk = MCPChatChunk(
+                                        id=message_id,
+                                        created_at=current_time,
+                                        delta={
+                                            "role": "assistant",
+                                            "content": [{"type": "text", "text": chunk}]
+                                        }
+                                    )
+                                    yield f"data: {json.dumps(mcp_chunk.dict())}\n\n"
+                        
+                        # Send final done message
+                        yield f"data: [DONE]\n\n"
+                        
+                    except Exception as e:
+                        self.logger.error(f"Error in MCP streaming: {str(e)}")
+                        error_chunk = MCPChatChunk(
+                            id=message_id,
+                            created_at=current_time,
+                            delta={"error": str(e)}
+                        )
+                        yield f"data: {json.dumps(error_chunk.dict())}\n\n"
+                        yield f"data: [DONE]\n\n"
+                
+                return StreamingResponse(
+                    mcp_stream_generator(),
+                    media_type="text/event-stream"
+                )
+            else:
+                # Handle non-streaming response
+                try:
+                    result = await chat_service.process_chat(
+                        message=message_text,
+                        client_ip=client_ip,
+                        collection_name=collection_name,
+                        system_prompt_id=system_prompt_id,
+                        api_key=api_key
+                    )
+                    
+                    if "error" in result:
+                        raise HTTPException(status_code=500, detail=result["error"])
+                    
+                    # Create MCP response
+                    message_id = str(uuid.uuid4())
+                    current_time = int(time.time())
+                    
+                    response_text = result.get("response", "")
+                    
+                    mcp_response = MCPChatResponse(
+                        id=message_id,
+                        created_at=current_time,
+                        role="assistant",
+                        content=[{"type": "text", "text": response_text}]
+                    )
+                    
+                    return JSONResponse(content=mcp_response.dict())
+                    
+                except Exception as e:
+                    self.logger.error(f"Error in MCP response: {str(e)}")
+                    raise HTTPException(status_code=500, detail=str(e))
 
         # API Key management routes
         @self.app.post("/admin/api-keys", response_model=ApiKeyResponse)
@@ -1309,6 +1499,41 @@ class InferenceServer:
                 host=host,
                 port=port
             )
+
+    def _is_mcp_enabled(self) -> bool:
+        """
+        Check if MCP protocol support is enabled in the configuration.
+        
+        Returns:
+            True if MCP protocol is enabled, False otherwise
+        """
+        return _is_true_value(self.config.get('general', {}).get('mcp_protocol', False))
+    
+    def _validate_mcp_content(self, content: List[Dict[str, Any]]) -> str:
+        """
+        Validate and extract text content from MCP content format.
+        
+        Args:
+            content: List of content items in MCP format
+            
+        Returns:
+            Extracted text content
+            
+        Raises:
+            HTTPException: If no valid text content is found
+        """
+        if not content:
+            raise HTTPException(status_code=400, detail="Empty content in MCP message")
+            
+        message_text = ""
+        for content_item in content:
+            if content_item.get("type") == "text":
+                message_text += content_item.get("text", "")
+        
+        if not message_text:
+            raise HTTPException(status_code=400, detail="No text content found in MCP message")
+            
+        return message_text
 
 # Create a global app instance for direct use by uvicorn in development mode
 app = FastAPI(
