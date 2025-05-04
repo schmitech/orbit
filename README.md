@@ -117,6 +117,13 @@ pip install -r requirements.txt
 python chat_client.py --url http://localhost:3000 --api-key your-api-key
 ```
 
+Try queries like:
+
+"What is the fee for a residential parking permit?"
+"What are the hours for the public swimming pool?"
+
+You can find the training datasets under /utils/sample-data. The ones for city asistant is /utils/sample-data/city-qa-pairs.json.
+
 ### Configuration
 
 The system is configurable through a YAML configuration file, allowing you to:
