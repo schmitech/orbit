@@ -49,10 +49,16 @@ from tqdm import tqdm
 import chromadb
 import argparse
 from pathlib import Path
+from dotenv import load_dotenv
 
 # Add server directory to path for importing embedding services
 server_path = Path(__file__).resolve().parents[3] / "server"
 sys.path.append(str(server_path))
+
+# Load environment variables from .env file in the server directory
+dotenv_path = server_path / ".env"
+load_dotenv(dotenv_path=dotenv_path)
+print(f"Loading environment variables from: {dotenv_path}")
 
 from embeddings.base import EmbeddingServiceFactory
 

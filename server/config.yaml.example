@@ -7,7 +7,7 @@ general:
     cert_file: "./cert.pem"
     key_file: "./key.pem"
   inference_provider: "ollama"
-  datasource_provider: "sqlite"
+  datasource_provider: "chroma"
 
 messages:
   no_results_response: "I'm sorry, but I don't have any specific information about that topic in my knowledge base."
@@ -58,23 +58,32 @@ embeddings:
   ollama:
     base_url: "http://localhost:11434"
     model: "nomic-embed-text"
+    dimensions: 768
   huggingface:
     model: "sentence-transformers/all-mpnet-base-v2"
     device: "cpu"  # Options: cpu, cuda
     normalize: true
+    dimensions: 768
+  jina:
+    api_key: ${JINA_API_KEY}
+    base_url: "https://api.jina.ai/v1"
+    model: "jina-embeddings-v3"
+    task: "text-matching"
+    dimensions: 1024
+    batch_size: 10
   openai:
     api_key: ${OPENAI_API_KEY}
-    model: "text-embedding-3-small"
-    dimensions: 1536
+    model: "text-embedding-3-large"
+    dimensions: 1024
     batch_size: 10
-  bedrock:
-    region: "ca-central-1"
-    model: "amazon.titan-embed-text-v1"
-    dimensions: 1536
   cohere:
     api_key: ${COHERE_API_KEY}
     model: "embed-english-v3.0"
-    truncation: true
+    input_type: "search_document"
+    dimensions: 1024
+    batch_size: 32
+    truncate: "NONE"
+    embedding_types: ["float"]
   mistral:
     api_key: ${MISTRAL_API_KEY}
     api_base: "https://api.mistral.ai/v1"
@@ -104,13 +113,11 @@ datasources:
     database: "retrieval"
     username: ${DATASOURCE_POSTGRES_USERNAME}
     password: ${DATASOURCE_POSTGRES_PASSWORD}
+    domain_adapter: "sqlite_qa"
     confidence_threshold: 0.5
     relevance_threshold: 0.5
     max_results: 10
     return_results: 3
-    domain_adapter: "qa"
-    adapter_params:
-      confidence_threshold: 0.7
   milvus:
     host: "localhost"
     port: 19530
@@ -164,7 +171,7 @@ inference:
     model: "Qwen2.5-14B-Instruct"
     stream: true
   llama_cpp:
-    model_path: "gguf/gemma-3-4b-it-q4_0.gguf" # Use script download_hugging_face_gguf_model.py to get GGUF files from huggingface
+    model_path: "gguf/gemma-3-4b-it-q4_0.gguf"
     chat_format: "chatml"  # Chat format to use (chatml, llama-2, gemma, etc.)
     temperature: 0.1
     top_p: 0.8

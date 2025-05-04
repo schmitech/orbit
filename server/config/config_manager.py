@@ -70,6 +70,30 @@ def _log_config_summary(config: Dict[str, Any], source_path: str):
     if _is_true_value(log_config.get('file', {}).get('enabled', True)):
         logger.info(f"    File: rotation={log_config.get('file', {}).get('rotation', 'midnight')}, max_size_mb={log_config.get('file', {}).get('max_size_mb', 10)}")
     
+    # Embedding settings
+    embedding_provider = config.get('embedding', {}).get('provider', 'ollama')
+    logger.info(f"  Embedding: provider={embedding_provider}, enabled={_is_true_value(config.get('embedding', {}).get('enabled', True))}")
+    
+    # Log the specific embedding provider configuration
+    if embedding_provider == 'openai':
+        openai_config = config.get('embeddings', {}).get('openai', {})
+        logger.info(f"    OpenAI: model={openai_config.get('model', 'text-embedding-3-small')}, dimensions={openai_config.get('dimensions', 1536)}")
+    elif embedding_provider == 'ollama':
+        ollama_config = config.get('embeddings', {}).get('ollama', {})
+        logger.info(f"    Ollama: model={ollama_config.get('model', 'nomic-embed-text')}, dimensions={ollama_config.get('dimensions', 768)}")
+    elif embedding_provider == 'huggingface':
+        hf_config = config.get('embeddings', {}).get('huggingface', {})
+        logger.info(f"    HuggingFace: model={hf_config.get('model')}, dimensions={hf_config.get('dimensions', 768)}, device={hf_config.get('device', 'cpu')}")
+    elif embedding_provider == 'jina':
+        jina_config = config.get('embeddings', {}).get('jina', {})
+        logger.info(f"    Jina: model={jina_config.get('model')}, dimensions={jina_config.get('dimensions', 1024)}")
+    elif embedding_provider == 'cohere':
+        cohere_config = config.get('embeddings', {}).get('cohere', {})
+        logger.info(f"    Cohere: model={cohere_config.get('model')}, dimensions={cohere_config.get('dimensions', 1024)}, input_type={cohere_config.get('input_type', 'search_document')}")
+    elif embedding_provider == 'mistral':
+        mistral_config = config.get('embeddings', {}).get('mistral', {})
+        logger.info(f"    Mistral: model={mistral_config.get('model')}, dimensions={mistral_config.get('dimensions', 1024)}")
+    
     # Safety settings
     safety_mode = config.get('safety', {}).get('mode', 'strict')
     safety_enabled = config.get('safety', {}).get('enabled', True)
@@ -90,6 +114,11 @@ def _log_config_summary(config: Dict[str, Any], source_path: str):
         es_node = _mask_url(es_config.get('node', ''))
         has_api_key = bool(es_config.get('api_key'))
         logger.info(f"  Elasticsearch: enabled=True, node={es_node}, index={es_config.get('index')}, auth='API Key'")
+    
+    # MongoDB settings - mask credentials
+    mongodb_config = config.get('internal_services', {}).get('mongodb', {})
+    if mongodb_config:
+        logger.info(f"  MongoDB: host={mongodb_config.get('host')}, port={mongodb_config.get('port')}, db={mongodb_config.get('database')}")
     
     # Log if HTTPS is enabled
     https_enabled = _is_true_value(config.get('general', {}).get('https', {}).get('enabled', False))
@@ -240,6 +269,10 @@ def get_default_config() -> Dict[str, Any]:
             "inference_provider": "ollama",
             "datasource_provider": "chroma"
         },
+        "messages": {
+            "no_results_response": "I'm sorry, but I don't have any specific information about that topic in my knowledge base.",
+            "collection_not_found": "I couldn't find the requested collection. Please make sure the collection exists before querying it."
+        },
         "api_keys": {
             "header_name": "X-API-Key",
             "prefix": "orbit_",
@@ -262,6 +295,53 @@ def get_default_config() -> Dict[str, Any]:
             },
             "capture_warnings": True,
             "propagate": False
+        },
+        "embedding": {
+            "provider": "ollama",
+            "enabled": True,
+            "fail_on_error": False
+        },
+        "embeddings": {
+            "ollama": {
+                "base_url": "http://localhost:11434",
+                "model": "nomic-embed-text",
+                "dimensions": 768
+            },
+            "huggingface": {
+                "model": "sentence-transformers/all-mpnet-base-v2",
+                "device": "cpu",
+                "normalize": True,
+                "dimensions": 768
+            },
+            "jina": {
+                "api_key": "${JINA_API_KEY}",
+                "base_url": "https://api.jina.ai/v1",
+                "model": "jina-embeddings-v3",
+                "task": "text-matching",
+                "dimensions": 1024,
+                "batch_size": 10
+            },
+            "openai": {
+                "api_key": "${OPENAI_API_KEY}",
+                "model": "text-embedding-3-large",
+                "dimensions": 1024,
+                "batch_size": 10
+            },
+            "cohere": {
+                "api_key": "${COHERE_API_KEY}",
+                "model": "embed-english-v3.0",
+                "input_type": "search_document",
+                "dimensions": 1024,
+                "batch_size": 32,
+                "truncate": "NONE",
+                "embedding_types": ["float"]
+            },
+            "mistral": {
+                "api_key": "${MISTRAL_API_KEY}",
+                "api_base": "https://api.mistral.ai/v1",
+                "model": "mistral-embed",
+                "dimensions": 1024
+            }
         },
         "safety": {
             "enabled": True,
@@ -286,11 +366,6 @@ def get_default_config() -> Dict[str, Any]:
             "batch_size": 5,
             "temperature": 0.0,
             "top_n": 3
-        },
-        "embedding": {
-            "provider": "ollama",
-            "enabled": True,
-            "fail_on_error": False
         },
         "datasources": {
             "chroma": {
@@ -321,10 +396,7 @@ def get_default_config() -> Dict[str, Any]:
                 "relevance_threshold": 0.5,
                 "max_results": 10,
                 "return_results": 3,
-                "domain_adapter": "qa",
-                "adapter_params": {
-                    "confidence_threshold": 0.7
-                }
+                "domain_adapter": "qa"
             },
             "milvus": {
                 "host": "localhost",
@@ -364,6 +436,14 @@ def get_default_config() -> Dict[str, Any]:
                 "node": "http://localhost:9200",
                 "index": "orbit",
                 "api_key": ""
+            },
+            "mongodb": {
+                "host": "localhost",
+                "port": 27017,
+                "database": "orbit",
+                "apikey_collection": "api_keys",
+                "username": "${INTERNAL_SERVICES_MONGODB_USERNAME}",
+                "password": "${INTERNAL_SERVICES_MONGODB_PASSWORD}"
             }
         }
     }

@@ -6,6 +6,7 @@ import logging
 import aiohttp
 import json
 import asyncio
+import os
 from typing import List, Dict, Any, Optional
 
 from embeddings.base import EmbeddingService
@@ -24,9 +25,17 @@ class OpenAIEmbeddingService(EmbeddingService):
             config: Configuration dictionary for OpenAI
         """
         super().__init__(config)
-        self.api_key = config.get('api_key')
+        # First try to get the API key from environment variable, then from config
+        self.api_key = os.environ.get('OPENAI_API_KEY') or config.get('api_key')
         if not self.api_key:
-            raise ValueError("OpenAI API key is required")
+            raise ValueError("OpenAI API key is required. Set OPENAI_API_KEY environment variable or provide in config.")
+        
+        # If the API key contains a variable reference like ${OPENAI_API_KEY}, try to resolve it
+        if self.api_key.startswith('${') and self.api_key.endswith('}'):
+            env_var = self.api_key[2:-1]  # Remove ${ and }
+            self.api_key = os.environ.get(env_var)
+            if not self.api_key:
+                raise ValueError(f"Environment variable {env_var} is not set")
         
         self.model = config.get('model', 'text-embedding-3-small')
         self.dimensions = config.get('dimensions', 1536)  # Default for text-embedding-3-small
@@ -43,11 +52,27 @@ class OpenAIEmbeddingService(EmbeddingService):
         """
         try:
             self.session = aiohttp.ClientSession()
-            if await self.verify_connection():
-                self.logger.info(f"Initialized OpenAI embedding service with model {self.model} ({self.dimensions} dimensions)")
-                self.initialized = True
-                return True
-            return False
+            # Using a direct connection test instead of calling verify_connection to avoid recursion
+            url = f"{self.base_url}/embeddings"
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {self.api_key}"
+            }
+            
+            payload = {
+                "input": "test connection",
+                "model": self.model
+            }
+            
+            async with self.session.post(url, headers=headers, json=payload) as response:
+                if response.status == 200:
+                    self.logger.info(f"Initialized OpenAI embedding service with model {self.model} ({self.dimensions} dimensions)")
+                    self.initialized = True
+                    return True
+                else:
+                    error_text = await response.text()
+                    self.logger.error(f"Error from OpenAI during initialization: {error_text}")
+                    return False
         except Exception as e:
             self.logger.error(f"Failed to initialize OpenAI embedding service: {str(e)}")
             return False
@@ -63,7 +88,9 @@ class OpenAIEmbeddingService(EmbeddingService):
             A list of floats representing the embedding vector
         """
         if not self.initialized:
-            await self.initialize()
+            success = await self.initialize()
+            if not success:
+                raise ValueError("Failed to initialize OpenAI embedding service")
         
         try:
             url = f"{self.base_url}/embeddings"
@@ -101,7 +128,9 @@ class OpenAIEmbeddingService(EmbeddingService):
             A list of embedding vectors (each a list of floats)
         """
         if not self.initialized:
-            await self.initialize()
+            success = await self.initialize()
+            if not success:
+                raise ValueError("Failed to initialize OpenAI embedding service")
         
         all_embeddings = []
         
@@ -187,10 +216,29 @@ class OpenAIEmbeddingService(EmbeddingService):
         Returns:
             True if the connection is working, False otherwise
         """
+        if not self.session:
+            self.session = aiohttp.ClientSession()
+            
         try:
-            # Try to generate a test embedding to verify connection
-            await self.embed_query("test connection")
-            return True
+            # Directly test the API without calling embed_query to avoid recursion
+            url = f"{self.base_url}/embeddings"
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {self.api_key}"
+            }
+            
+            payload = {
+                "input": "test connection",
+                "model": self.model
+            }
+            
+            async with self.session.post(url, headers=headers, json=payload) as response:
+                if response.status == 200:
+                    return True
+                else:
+                    error_text = await response.text()
+                    self.logger.error(f"Error verifying connection to OpenAI: {error_text}")
+                    return False
         except Exception as e:
             self.logger.error(f"Error verifying connection to OpenAI: {str(e)}")
             return False

@@ -107,7 +107,8 @@ class PromptService:
                         "updated_at": now
                     }}
                 )
-                logger.info(f"Updated existing prompt '{name}' to version {version}")
+                if self.verbose:
+                    logger.info(f"Updated existing prompt '{name}' to version {version}")
                 return existing["_id"]
             
             # Create a new prompt

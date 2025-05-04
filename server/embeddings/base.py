@@ -124,10 +124,6 @@ class EmbeddingServiceFactory:
             from embeddings.openai import OpenAIEmbeddingService
             provider_config = config.get('embeddings', {}).get('openai', {})
             return OpenAIEmbeddingService(provider_config)
-        elif provider_name == 'bedrock':
-            from embeddings.bedrock import BedrockEmbeddingService
-            provider_config = config.get('embeddings', {}).get('bedrock', {})
-            return BedrockEmbeddingService(provider_config)
         elif provider_name == 'cohere':
             from embeddings.cohere import CohereEmbeddingService
             provider_config = config.get('embeddings', {}).get('cohere', {})
@@ -136,5 +132,9 @@ class EmbeddingServiceFactory:
             from embeddings.mistral import MistralEmbeddingService
             provider_config = config.get('embeddings', {}).get('mistral', {})
             return MistralEmbeddingService(provider_config)
+        elif provider_name == 'jina':
+            from embeddings.jina import JinaEmbeddingService
+            provider_config = config.get('embeddings', {}).get('jina', {})
+            return JinaEmbeddingService(provider_config)
         else:
             raise ValueError(f"Unsupported embedding provider: {provider_name}")

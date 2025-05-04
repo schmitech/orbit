@@ -26,9 +26,10 @@ class HuggingFaceEmbeddingService(EmbeddingService):
         self.model_name = config.get('model', 'sentence-transformers/all-mpnet-base-v2')
         self.device = config.get('device', 'cpu')
         self.normalize = config.get('normalize', True)
+        # Get dimensions from config, or set to None to determine dynamically
+        self.dimensions = config.get('dimensions')
         self.model = None
         self.tokenizer = None
-        self.dimensions = None
         self.executor = ThreadPoolExecutor(max_workers=1)  # For running model inference in separate thread
     
     async def initialize(self) -> bool:
@@ -228,6 +229,7 @@ class HuggingFaceEmbeddingService(EmbeddingService):
         Returns:
             The number of dimensions in the embedding vectors
         """
+        # If dimensions are specified in config, use that value
         if self.dimensions:
             return self.dimensions
         
@@ -236,7 +238,8 @@ class HuggingFaceEmbeddingService(EmbeddingService):
             if self.model:
                 # Get dimensions from model config
                 try:
-                    return self.model.config.hidden_size
+                    self.dimensions = self.model.config.hidden_size
+                    return self.dimensions
                 except AttributeError:
                     # Generate a test embedding to determine dimensions
                     embedding = await self.embed_query("test")

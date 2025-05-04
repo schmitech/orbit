@@ -26,8 +26,9 @@ class OllamaEmbeddingService(EmbeddingService):
         super().__init__(config)
         self.base_url = config.get('base_url', 'http://localhost:11434')
         self.model = config.get('model', 'nomic-embed-text')
+        # Get dimensions from config, or set to None to determine dynamically
+        self.dimensions = config.get('dimensions')
         self.session = None
-        self.dimensions = None  # Will be determined during initialization
         self._session_lock = asyncio.Lock()
         self._init_lock = asyncio.Lock()
         self._initializing = False
@@ -170,6 +171,7 @@ class OllamaEmbeddingService(EmbeddingService):
         Returns:
             The number of dimensions in the embedding vectors
         """
+        # If dimensions are specified in config, use that value
         if self.dimensions:
             return self.dimensions
         
@@ -188,15 +190,18 @@ class OllamaEmbeddingService(EmbeddingService):
                     error_text = await response.text()
                     self.logger.error(f"Error from Ollama: {error_text}")
                     # Default fallback dimensions
-                    return 768
+                    self.dimensions = 768
+                    return self.dimensions
                 
                 data = await response.json()
                 embedding = data.get('embedding', [])
-                return len(embedding)
+                self.dimensions = len(embedding)
+                return self.dimensions
         except Exception as e:
             self.logger.error(f"Failed to determine embedding dimensions: {str(e)}")
             # Default fallback dimensions
-            return 768
+            self.dimensions = 768
+            return self.dimensions
     
     async def verify_connection(self) -> bool:
         """
