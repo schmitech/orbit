@@ -3,7 +3,7 @@ Guardrail Service
 ================
 
 A service that provides safety verification for user queries using configurable
-guardrails through LLM-based verification.
+guardrails through LLM-based verification or content moderation API.
 
 This service isolates the safety check logic for easier testing and reuse
 across different client components.
@@ -14,6 +14,7 @@ import aiohttp
 import logging
 from utils.language_detector import LanguageDetector
 from typing import Dict, Any, Tuple, Optional
+from moderators.base import ModeratorFactory
 
 from config.config_manager import _is_true_value
 
@@ -22,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 class GuardrailService:
-    """Handles safety verification of user queries using LLM-based guardrails"""
+    """Handles safety verification of user queries using LLM-based guardrails or content moderation API"""
 
     def __init__(self, config: Dict[str, Any]):
         """
@@ -44,35 +45,44 @@ class GuardrailService:
             logger.warning(f"Unknown safety mode '{self.safety_mode}', defaulting to 'strict'")
             self.safety_mode = 'strict'
             
-        # Get provider information
-        # First check for provider_override, otherwise use the general inference provider
-        provider_name = safety_config.get('provider_override')
-        if not provider_name:
-            provider_name = config.get('general', {}).get('inference_provider', 'ollama')
-            
-        self.provider = provider_name
-        self.model = safety_config.get('model', 'gemma3:12b')
+        # Get moderator information
+        # First check for moderator, otherwise use the general inference provider
+        self.moderator_name = safety_config.get('moderator')
+        if not self.moderator_name:
+            self.moderator_name = config.get('general', {}).get('inference_provider', 'ollama')
         
-        # Get provider-specific configuration from inference section
-        provider_config = config.get('inference', {}).get(self.provider, {})
-        self.base_url = provider_config.get('base_url', 'http://localhost:11434')
-        
-        logger.info(f"Safety service using provider: {self.provider}")
-        logger.info(f"Safety service using base URL: {self.base_url}")
+        # If using a recognized moderator
+        if self.moderator_name in ModeratorFactory._registry:
+            self.use_moderator = True
+            self.moderator = ModeratorFactory.create_moderator(config, self.moderator_name)
+            logger.info(f"Safety service using moderator: {self.moderator_name}")
+        else:
+            # Fallback to using the inference provider
+            self.use_moderator = False
+            self.provider = self.moderator_name
+            self.model = safety_config.get('model', 'gemma3:12b')
             
+            # Get provider-specific configuration from inference section
+            provider_config = config.get('inference', {}).get(self.provider, {})
+            self.base_url = provider_config.get('base_url', 'http://localhost:11434')
+            
+            logger.info(f"Safety service using inference provider: {self.provider}")
+            logger.info(f"Safety service using base URL: {self.base_url}")
+        
         # Get retry configuration
         self.max_retries = safety_config.get('max_retries', 3)
         self.retry_delay = safety_config.get('retry_delay', 1.0)
         self.request_timeout = safety_config.get('request_timeout', 15)
         self.allow_on_timeout = safety_config.get('allow_on_timeout', False)
         
-        # Model parameters
-        self.temperature = safety_config.get('temperature', 0.0)
-        self.top_p = safety_config.get('top_p', 1.0)
-        self.top_k = safety_config.get('top_k', 1)
-        self.num_predict = safety_config.get('num_predict', 20)
-        self.stream = _is_true_value(safety_config.get('stream', False))
-        self.repeat_penalty = safety_config.get('repeat_penalty', 1.1)
+        # Model parameters (used only when not using a dedicated moderator)
+        if not self.use_moderator:
+            self.temperature = safety_config.get('temperature', 0.0)
+            self.top_p = safety_config.get('top_p', 1.0)
+            self.top_k = safety_config.get('top_k', 1)
+            self.num_predict = safety_config.get('num_predict', 20)
+            self.stream = _is_true_value(safety_config.get('stream', False))
+            self.repeat_penalty = safety_config.get('repeat_penalty', 1.1)
         
         # Initialize session as None (lazy initialization)
         self.session = None
@@ -83,17 +93,17 @@ class GuardrailService:
         self.detector = LanguageDetector(self.verbose)
         
         if self.verbose:
-            logger.info(f"GuardrailService initialized with provider {self.provider}, model {self.model}, enabled={self.enabled}, mode={self.safety_mode}")
+            if self.use_moderator:
+                logger.info(f"GuardrailService initialized with moderator {self.moderator_name}, enabled={self.enabled}, mode={self.safety_mode}")
+            else:
+                logger.info(f"GuardrailService initialized with provider {self.provider}, model {self.model}, enabled={self.enabled}, mode={self.safety_mode}")
 
     def _load_safety_prompt(self) -> str:
         """
-        Load safety prompt from file if available
+        Load safety prompt from file if available, or use default if file is missing
         
         Returns:
             str: The safety prompt content
-            
-        Raises:
-            RuntimeError: If safety prompt cannot be loaded
         """
         try:
             prompt_file = self.config.get('general', {}).get('safety_prompt_file', '../prompts/safety_prompt.txt')
@@ -106,20 +116,31 @@ class GuardrailService:
                 content = ' '.join(content.split())
                 return content.strip()
         except Exception as e:
-            logger.error(f"Could not load safety prompt from file {prompt_file}: {str(e)}")
-            raise RuntimeError(f"Safety prompt file '{prompt_file}' is required but could not be loaded: {str(e)}")
+            logger.warning(f"Could not load safety prompt from file {prompt_file}: {str(e)}")
+            logger.info("Using default safety prompt instead")
+            
+            # Default safety prompt if file is missing
+            return ("You are a content safety system. Evaluate if the following query is safe to answer. "
+                    "Return EXACTLY 'SAFE: true' if it is safe to respond to, or 'SAFE: false' if it contains "
+                    "harmful, illegal, unethical or offensive content.")
 
     async def initialize(self):
-        """Initialize the aiohttp session with appropriate timeouts"""
-        if self.session is None:
-            # Use the safety request timeout for the session
-            timeout = aiohttp.ClientTimeout(total=self.request_timeout)
-            connector = aiohttp.TCPConnector(limit=20)  # Use reasonable default limit
-            self.session = aiohttp.ClientSession(timeout=timeout, connector=connector)
+        """Initialize the service and required connections"""
+        if self.use_moderator:
+            # Initialize the moderator
+            await self.moderator.initialize()
+        else:
+            # Initialize aiohttp session with appropriate timeouts
+            if self.session is None:
+                timeout = aiohttp.ClientTimeout(total=self.request_timeout)
+                connector = aiohttp.TCPConnector(limit=20)
+                self.session = aiohttp.ClientSession(timeout=timeout, connector=connector)
             
     async def close(self):
-        """Close the aiohttp session"""
-        if self.session:
+        """Close connections and release resources"""
+        if self.use_moderator:
+            await self.moderator.close()
+        elif self.session:
             await self.session.close()
             self.session = None
 
@@ -161,13 +182,83 @@ class GuardrailService:
             if self.verbose:
                 logger.info("Safety checks disabled by configuration, skipping check")
             return True, None
+        
+        # If using a dedicated moderator, use it for content moderation
+        if self.use_moderator:
+            return await self._check_safety_with_moderator(query)
+        
+        # Otherwise use the legacy LLM-based approach
+        return await self._check_safety_with_llm(query)
+    
+    async def _check_safety_with_moderator(self, query: str) -> Tuple[bool, Optional[str]]:
+        """
+        Check query safety using a dedicated content moderator.
+        
+        Args:
+            query: The user message to check
             
+        Returns:
+            Tuple[bool, Optional[str]]: (is_safe, refusal_message)
+        """
+        for attempt in range(self.max_retries):
+            try:
+                if self.verbose:
+                    logger.info(f"🔍 Performing moderator safety check for query: '{query[:50]}...' (attempt {attempt+1}/{self.max_retries})")
+                
+                # Use the moderator to check content
+                result = await self.moderator.moderate_content(query)
+                
+                # The content is safe if it's not flagged
+                is_safe = not result.is_flagged
+                
+                # Add detailed logging with emojis
+                if self.verbose:
+                    if is_safe:
+                        logger.info(f"✅ MODERATION PASSED: Query was deemed SAFE by {self.moderator_name} moderator")
+                    else:
+                        # Get flagged categories with scores > 0.5
+                        try:
+                            flagged_categories = {k: v for k, v in result.categories.items() if v > 0.5}
+                            logger.info(f"🛑 MODERATION BLOCKED: Query was flagged as UNSAFE by {self.moderator_name} moderator")
+                            logger.info(f"⚠️ Flagged categories: {flagged_categories}")
+                        except Exception as category_error:
+                            logger.error(f"Error processing moderation categories: {str(category_error)}")
+                            logger.info(f"🛑 MODERATION BLOCKED: Query was flagged as UNSAFE (categories unavailable)")
+                
+                # Return appropriate response
+                refusal_message = None if is_safe else "I cannot assist with that type of request."
+                return is_safe, refusal_message
+                
+            except Exception as e:
+                logger.error(f"❌ Error in moderator safety check: {str(e)}", exc_info=True)
+                if attempt < self.max_retries - 1:
+                    if self.verbose:
+                        logger.info(f"🔄 Retrying in {self.retry_delay} seconds... (Attempt {attempt+1} of {self.max_retries})")
+                    await asyncio.sleep(self.retry_delay)
+                else:
+                    # If all retries fail and we're configured to allow on timeout
+                    if self.allow_on_timeout:
+                        logger.warning("⚠️ MODERATION ERROR: Allowing query through due to allow_on_timeout setting")
+                        return True, None
+                    logger.warning("🚫 MODERATION FAILED: Blocking query after multiple failed attempts")
+                    return False, "I cannot assist with that request due to a service issue. Please try again later."
+    
+    async def _check_safety_with_llm(self, query: str) -> Tuple[bool, Optional[str]]:
+        """
+        Legacy method to check safety using LLM-based verification.
+        
+        Args:
+            query: The user message to check
+            
+        Returns:
+            Tuple[bool, Optional[str]]: (is_safe, refusal_message)
+        """
         # Check if the query is in a non-English language
         query_language = self.detector.detect(query)
         is_non_english = query_language != "en"
 
         if self.verbose:
-            logger.info(f"GuardrailService - Language detection result: '{query}' detected as '{query_language}'")
+            logger.info(f"🌐 Language detection result: '{query[:50]}...' detected as '{query_language}'")
 
         for attempt in range(self.max_retries):
             try:
@@ -189,11 +280,11 @@ class GuardrailService:
                 
                 # Log the query being checked
                 if self.verbose:
-                    logger.info(f"Performing safety check for query: '{query}' (attempt {attempt+1}/{self.max_retries})")
+                    logger.info(f"🔍 Performing LLM safety check for query: '{query[:50]}...' (attempt {attempt+1}/{self.max_retries})")
                     if is_non_english:
-                        logger.info(f"Query detected as non-English, using specialized prompt")
-                    logger.debug(f"Using full safety prompt: '{prompt}'")
-                    logger.info(f"Sending safety check request to {self.provider} model: {self.model}")
+                        logger.info(f"🌍 Query detected as non-English, using specialized prompt")
+                    logger.debug(f"📝 Using full safety prompt: '{prompt[:100]}...'")
+                    logger.info(f"🤖 Sending safety check request to {self.provider} model: {self.model}")
 
                 # Create payload for the API
                 payload = {
@@ -215,7 +306,7 @@ class GuardrailService:
                 ) as response:
                     if response.status != 200:
                         error_text = await response.text()
-                        logger.error(f"Safety check failed with status {response.status}: {error_text}")
+                        logger.error(f"❌ Safety check failed with status {response.status}: {error_text}")
                         return False, "I cannot assist with that type of request."
 
                     data = await response.json()
@@ -228,36 +319,44 @@ class GuardrailService:
                     
                     # Log timing and response only in verbose mode
                     if self.verbose:
-                        logger.info(f"Safety check completed in {end_time - start_time:.3f}s")
-                        logger.info(f"Safety check raw response: '{model_response}'")
-                        if is_non_english:
-                            logger.info(f"Processing non-English safety response")
+                        logger.info(f"⏱️ Safety check completed in {end_time - start_time:.3f}s")
+                        logger.info(f"🔄 Safety check raw response: '{model_response}'")
                     
                     # Process the response to determine safety
                     is_safe, refusal_message = await self._process_safety_response(model_response, is_non_english)
+                    
+                    # Add more visible logging with emojis
+                    if self.verbose:
+                        if is_safe:
+                            logger.info(f"✅ LLM SAFETY CHECK PASSED: Query was deemed SAFE")
+                        else:
+                            logger.info(f"🛑 LLM SAFETY CHECK BLOCKED: Query was deemed UNSAFE")
+                    
                     return is_safe, refusal_message
 
             except asyncio.TimeoutError:
-                logger.warning(f"Safety check timed out (attempt {attempt+1}/{self.max_retries})")
+                logger.warning(f"⏱️ Safety check timed out (attempt {attempt+1}/{self.max_retries})")
                 if attempt < self.max_retries - 1:
                     if self.verbose:
-                        logger.info(f"Retrying in {self.retry_delay} seconds...")
+                        logger.info(f"🔄 Retrying in {self.retry_delay} seconds...")
                     await asyncio.sleep(self.retry_delay)
                 else:
-                    logger.error("Safety check failed after all retry attempts")
+                    logger.error("❌ Safety check failed after all retry attempts")
                     # After all retries fail, default to allowing the query through if configured
                     if self.allow_on_timeout:
-                        logger.warning("Allowing query through due to allow_on_timeout setting")
+                        logger.warning("⚠️ Allowing query through due to allow_on_timeout setting")
                         return True, None
+                    logger.warning("🚫 Blocking query after timeout")
                     return False, "I cannot assist with that request due to a service issue. Please try again later."
             except Exception as e:
-                logger.error(f"Error in safety check: {str(e)}", exc_info=True)
+                logger.error(f"❌ Error in safety check: {str(e)}", exc_info=True)
                 if attempt < self.max_retries - 1:
                     if self.verbose:
-                        logger.info(f"Retrying in {self.retry_delay} seconds...")
+                        logger.info(f"🔄 Retrying in {self.retry_delay} seconds...")
                     await asyncio.sleep(self.retry_delay)
                 else:
                     # If all retries fail, fallback to default response
+                    logger.warning("🚫 Blocking query after error")
                     return False, "I cannot assist with that type of request."
     
     async def _process_safety_response(self, model_response: str, is_non_english: bool = False) -> Tuple[bool, Optional[str]]:

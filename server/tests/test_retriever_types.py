@@ -13,7 +13,10 @@ import string
 # Add the server directory to path to fix import issues
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from retrievers.base_retriever import VectorDBRetriever, SQLRetriever, RetrieverFactory
+from retrievers.base.base_retriever import BaseRetriever
+from retrievers.base.vector_retriever import VectorDBRetriever
+from retrievers.base.sql_retriever import SQLRetriever
+from retrievers.base.base_retriever import RetrieverFactory
 
 # Sample implementations for testing
 class TestVectorRetriever(VectorDBRetriever):
@@ -52,24 +55,16 @@ class TestSQLRetriever(SQLRetriever):
     async def set_collection(self, collection_name: str) -> None:
         self.collection = collection_name
         
-    def _tokenize_text(self, text: str) -> List[str]:
-        # Simple tokenization for testing
-        text = text.lower()
-        text = text.translate(str.maketrans('', '', string.punctuation))
-        return [token for token in text.split() if len(token) > 1]
-        
-    def _calculate_similarity(self, query: str, text: str) -> float:
-        # Simple similarity for testing
-        query_tokens = set(self._tokenize_text(query))
-        text_tokens = set(self._tokenize_text(text))
-        
-        if not query_tokens or not text_tokens:
-            return 0.0
-            
-        # Jaccard similarity
-        intersection = len(query_tokens.intersection(text_tokens))
-        union = len(query_tokens.union(text_tokens))
-        return intersection / union if union > 0 else 0.0
+    async def execute_query(self, sql: str, params: List[Any] = None) -> List[Dict[str, Any]]:
+        # Return test data
+        return [
+            {
+                "question": "Test SQL question?",
+                "answer": "Test SQL answer",
+                "confidence": 0.85,
+                "content": "Test SQL content"
+            }
+        ]
         
     async def get_relevant_context(self, 
                                   query: str, 
@@ -163,7 +158,7 @@ def mock_embedding_service():
 @pytest.mark.asyncio
 async def test_vector_retriever_with_embeddings(test_config, mock_api_key_service, mock_embedding_service):
     """Test vector retriever with embeddings"""
-    retriever = TestVectorRetriever(config=test_config)
+    retriever = TestVectorRetriever(config=test_config, embeddings=mock_embedding_service)
     
     # Initialize and verify embeddings are set up
     await retriever.initialize()
@@ -188,7 +183,7 @@ async def test_vector_retriever_with_embeddings(test_config, mock_api_key_servic
 @pytest.mark.asyncio
 async def test_sql_retriever(test_config, mock_api_key_service):
     """Test SQL retriever functionality"""
-    retriever = TestSQLRetriever(config=test_config)
+    retriever = TestSQLRetriever(config=test_config, connection=MagicMock())
     
     # Initialize
     await retriever.initialize()

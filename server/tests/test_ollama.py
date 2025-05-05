@@ -35,7 +35,7 @@ backend_dir = os.path.dirname(server_dir)
 sys.path.append(server_dir)
 
 # Load config using os.path.join for cross-platform compatibility
-config_path = os.path.join(backend_dir, 'config', 'config.yaml')
+config_path = os.path.join(backend_dir, 'server', 'config.yaml')
 with open(config_path, 'r') as file:
     config = yaml.safe_load(file)
 

@@ -12,7 +12,7 @@ from unittest.mock import patch, MagicMock
 # Add the server directory to path to fix import issues
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from retrievers.base_retriever import BaseRetriever, RetrieverFactory
+from retrievers.base.base_retriever import BaseRetriever, RetrieverFactory
 
 # Sample minimal retriever implementation for testing
 class TestRetriever(BaseRetriever):

@@ -319,19 +319,25 @@ class InferenceServer:
         # Get the main inference provider from general settings
         main_provider = self.config['general'].get('inference_provider', 'ollama')
         
-        # Check if there's a provider override for this component
+        # Check if there's a component-specific override
         component_config = self.config.get(component_name, {})
-        provider_override = component_config.get('provider_override')
         
-        # If there's a valid override, use it; otherwise inherit from main provider
-        if provider_override and provider_override in self.config.get('inference', {}):
-            provider = provider_override
-            self.logger.info(f"{component_name.capitalize()} uses custom provider: {provider}")
+        # For safety component, check for 'moderator'
+        if component_name == 'safety':
+            moderator = component_config.get('moderator')
+            if moderator:
+                self.logger.info(f"{component_name.capitalize()} uses moderator: {moderator}")
+                return moderator
         else:
-            provider = main_provider
-            self.logger.info(f"{component_name.capitalize()} inherits provider from general: {provider}")
+            # For reranker, continue using provider_override
+            provider_override = component_config.get('provider_override')
+            if provider_override and provider_override in self.config.get('inference', {}):
+                self.logger.info(f"{component_name.capitalize()} uses custom provider: {provider_override}")
+                return provider_override
         
-        return provider
+        # If no override found, inherit from main provider
+        self.logger.info(f"{component_name.capitalize()} inherits provider from general: {main_provider}")
+        return main_provider
 
     def _resolve_component_model(self, component_name: str, provider: str) -> str:
         """
@@ -743,14 +749,6 @@ class InferenceServer:
         )
         
         app.state.logger_service = LoggerService(self.config)
-        
-        # Initialize the health service with the appropriate datasource client
-        # datasource_provider = self.config['general'].get('datasource_provider', 'chroma')
-        # if datasource_provider == 'chroma':
-        #     app.state.health_service = HealthService(self.config, app.state.chroma_client, app.state.llm_client)
-        # else:
-        #     # For any other datasource provider, use the datasource_client
-        #     app.state.health_service = HealthService(self.config, app.state.datasource_client, app.state.llm_client)
 
         # Log datasource domain adapter settings
         datasource_provider = self.config['general'].get('datasource_provider', 'chroma')
@@ -871,6 +869,12 @@ class InferenceServer:
         embedding_enabled = _is_true_value(embedding_config.get('enabled', True))
         embedding_provider = embedding_config.get('provider', 'ollama')
         
+        # Get safety configuration
+        safety_config = self.config.get('safety', {})
+        safety_enabled = _is_true_value(safety_config.get('enabled', True))
+        safety_moderator = safety_config.get('moderator', 'ollama')
+        safety_mode = safety_config.get('mode', 'strict')
+        
         # Get MCP protocol setting
         mcp_enabled = _is_true_value(self.config['general'].get('mcp_protocol', False))
         
@@ -878,6 +882,18 @@ class InferenceServer:
         self.logger.info(f"Datasource provider: {datasource_provider}")
         self.logger.info(f"Embedding: {'enabled' if embedding_enabled else 'disabled'}")
         self.logger.info(f"MCP protocol: {'enabled' if mcp_enabled else 'disabled'}")
+        
+        # Log safety information
+        self.logger.info(f"Safety: {'enabled' if safety_enabled else 'disabled'}")
+        if safety_enabled:
+            self.logger.info(f"Safety moderator: {safety_moderator}")
+            self.logger.info(f"Safety mode: {safety_mode}")
+            
+            # Log moderator-specific information if available
+            if safety_moderator in self.config.get('moderators', {}):
+                moderator_config = self.config['moderators'][safety_moderator]
+                model = moderator_config.get('model', 'unknown')
+                self.logger.info(f"Moderation model: {model}")
         
         if embedding_enabled:
             self.logger.info(f"Embedding provider: {embedding_provider}")
