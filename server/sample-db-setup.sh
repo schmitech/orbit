@@ -60,19 +60,6 @@ if [ "$DATASOURCE" = "sqlite" ]; then
     # Create new SQLite database with sample data
     python ../utils/sqllite/rag_cli.py setup --db-path ./sqlite_db --data-path ../utils/sample-data/city-qa-pairs.json
 else
-    # Check if Ollama is running
-    if ! curl -s http://localhost:11434/api/tags > /dev/null; then
-        echo "Error: Ollama is not running. Please start Ollama before proceeding."
-        exit 1
-    fi
-
-    # Check if nomic-embed-text model exists
-    if ! curl -s http://localhost:11434/api/tags | grep -q "nomic-embed-text"; then
-        echo "Error: nomic-embed-text model not found in Ollama."
-        echo "Please pull the model using: ollama pull nomic-embed-text"
-        exit 1
-    fi
-
     # Remove existing Chroma database directory if it exists
     if [ -d "./chroma_db" ]; then
         echo "Removing existing Chroma database..."

@@ -7,7 +7,7 @@ general:
     cert_file: "./cert.pem"
     key_file: "./key.pem"
   inference_provider: "ollama"
-  datasource_provider: "sqlite"
+  datasource_provider: "chroma"
   mcp_protocol: disabled
 
 messages:
@@ -16,7 +16,7 @@ messages:
 
 embedding:
   provider: "ollama"
-  enabled: false
+  enabled: true
   fail_on_error: false
 
 api_keys:
@@ -56,14 +56,20 @@ internal_services:
     password: ${INTERNAL_SERVICES_MONGODB_PASSWORD}
 
 embeddings:
+  llama_cpp:
+    model_path: "gguf/nomic-embed-text-v1.5-Q4_0.gguf"
+    model: "nomic-embed-text-v1.5-Q4_0"
+    n_ctx: 1024 
+    n_threads: 4
+    n_gpu_layers: -1
+    main_gpu: 0 
+    tensor_split: null  # Optional: GPU memory split for multi-GPU setups
+    batch_size: 8
+    dimensions: 768
+    embed_type: "llama_embedding"
   ollama:
     base_url: "http://localhost:11434"
     model: "nomic-embed-text"
-    dimensions: 768
-  huggingface:
-    model: "sentence-transformers/all-mpnet-base-v2"
-    device: "cpu"  # Options: cpu, cuda
-    normalize: true
     dimensions: 768
   jina:
     api_key: ${JINA_API_KEY}
@@ -132,8 +138,6 @@ datasources:
     index_name: ${DATASOURCE_PINECONE_INDEX_NAME}
     embedding_provider: null
     domain_adapter: "generic"
-    adapter_params:
-      confidence_threshold: 0.7
   elasticsearch:
     node: 'https://localhost:9200'
     auth:
@@ -146,9 +150,8 @@ datasources:
     database: "orbit"
     apikey_collection: "api_keys"
     username: ${DATASOURCE_MONGODB_USERNAME}
-    password: ${DATASOURCE_MONGODB_PASSWORD}    
+    password: ${DATASOURCE_MONGODB_PASSWORD}
 
-# Inference providers
 inference:
   ollama:
     base_url: "http://localhost:11434"
@@ -178,7 +181,7 @@ inference:
     top_p: 0.8
     top_k: 20
     max_tokens: 1024
-    n_ctx: 4096
+    n_ctx: 1024
     n_threads: 4
     stream: true
     # GPU acceleration parameters

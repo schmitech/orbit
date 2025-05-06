@@ -81,9 +81,6 @@ def _log_config_summary(config: Dict[str, Any], source_path: str):
     elif embedding_provider == 'ollama':
         ollama_config = config.get('embeddings', {}).get('ollama', {})
         logger.info(f"    Ollama: model={ollama_config.get('model', 'nomic-embed-text')}, dimensions={ollama_config.get('dimensions', 768)}")
-    elif embedding_provider == 'huggingface':
-        hf_config = config.get('embeddings', {}).get('huggingface', {})
-        logger.info(f"    HuggingFace: model={hf_config.get('model')}, dimensions={hf_config.get('dimensions', 768)}, device={hf_config.get('device', 'cpu')}")
     elif embedding_provider == 'jina':
         jina_config = config.get('embeddings', {}).get('jina', {})
         logger.info(f"    Jina: model={jina_config.get('model')}, dimensions={jina_config.get('dimensions', 1024)}")
@@ -308,12 +305,6 @@ def get_default_config() -> Dict[str, Any]:
                 "model": "nomic-embed-text",
                 "dimensions": 768
             },
-            "huggingface": {
-                "model": "sentence-transformers/all-mpnet-base-v2",
-                "device": "cpu",
-                "normalize": True,
-                "dimensions": 768
-            },
             "jina": {
                 "api_key": "${JINA_API_KEY}",
                 "base_url": "https://api.jina.ai/v1",
@@ -409,11 +400,6 @@ def get_default_config() -> Dict[str, Any]:
                 "temperature": 0.0,
                 "batch_size": 5
             },
-            "huggingface": {
-                "model": "BAAI/bge-reranker-large",
-                "device": "cpu",
-                "batch_size": 16
-            },
             "jina": {
                 "api_key": "${JINA_API_KEY}",
                 "model": "jina-reranker-v2-base-en",
@@ -473,10 +459,7 @@ def get_default_config() -> Dict[str, Any]:
                 "environment": "${DATASOURCE_PINECONE_ENVIRONMENT}",
                 "index_name": "${DATASOURCE_PINECONE_INDEX_NAME}",
                 "embedding_provider": None,
-                "domain_adapter": "generic",
-                "adapter_params": {
-                    "confidence_threshold": 0.7
-                }
+                "domain_adapter": "generic"
             }
         },
         "inference": {

@@ -116,10 +116,6 @@ class EmbeddingServiceFactory:
             from embeddings.ollama import OllamaEmbeddingService
             provider_config = config.get('embeddings', {}).get('ollama', {})
             return OllamaEmbeddingService(provider_config)
-        elif provider_name == 'huggingface':
-            from embeddings.huggingface import HuggingFaceEmbeddingService
-            provider_config = config.get('embeddings', {}).get('huggingface', {})
-            return HuggingFaceEmbeddingService(provider_config)
         elif provider_name == 'openai':
             from embeddings.openai import OpenAIEmbeddingService
             provider_config = config.get('embeddings', {}).get('openai', {})
@@ -136,5 +132,9 @@ class EmbeddingServiceFactory:
             from embeddings.jina import JinaEmbeddingService
             provider_config = config.get('embeddings', {}).get('jina', {})
             return JinaEmbeddingService(provider_config)
+        elif provider_name == 'llama_cpp':
+            from embeddings.llama_cpp import LlamaCppEmbeddingService
+            provider_config = config.get('embeddings', {}).get('llama_cpp', {})
+            return LlamaCppEmbeddingService(provider_config)
         else:
             raise ValueError(f"Unsupported embedding provider: {provider_name}")
