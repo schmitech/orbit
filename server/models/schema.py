@@ -99,3 +99,26 @@ class MCPChatChunk(BaseModel):
     object: str = Field(default="thread.message.delta", description="Object type")
     created_at: int = Field(description="Unix timestamp when chunk was created")
     delta: Dict[str, Any] = Field(description="Delta content for streaming")
+
+
+class MCPJsonRpcRequest(BaseModel):
+    """JSON-RPC 2.0 request model for Anthropic's MCP protocol"""
+    jsonrpc: str = Field(default="2.0", description="JSON-RPC version")
+    method: str = Field(description="Method name to invoke")
+    params: Dict[str, Any] = Field(description="Method parameters")
+    id: str = Field(description="Unique identifier for the request")
+
+
+class MCPJsonRpcResponse(BaseModel):
+    """JSON-RPC 2.0 response model for Anthropic's MCP protocol"""
+    jsonrpc: str = Field(default="2.0", description="JSON-RPC version")
+    result: Optional[Dict[str, Any]] = Field(default=None, description="Result object")
+    error: Optional[Dict[str, Any]] = Field(default=None, description="Error object")
+    id: str = Field(description="Request identifier that this is a response to")
+
+
+class MCPJsonRpcError(BaseModel):
+    """JSON-RPC 2.0 error model for Anthropic's MCP protocol"""
+    code: int = Field(description="Error code")
+    message: str = Field(description="Error message")
+    data: Optional[Dict[str, Any]] = Field(default=None, description="Additional error data")

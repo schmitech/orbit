@@ -1,20 +1,39 @@
-# 🚀 FastAPI Chat Server
+# 🚀 ORBIT Server
 
-A FastAPI server providing conversational AI with Ollama integration, ChromaDB for retrieval-augmented generation, safety checks, API key authentication, and elasticsearch logging.
+A high-performance FastAPI server that provides enterprise-grade conversational AI capabilities. Built with privacy and scalability in mind, ORBIT Server offers a comprehensive suite of features for building and deploying AI applications.
+
+## 🌟 Core Capabilities
+
+- **🤖 Conversational AI**
+  - Local model inference
+  - Streaming responses with Server-Sent Events (SSE)
+  - Context-aware chat with RAG
+  - Support for multiple model providers
+
+- **🔍 Knowledge Retrieval**
+  - ChromaDB integration for vector search
+  - Efficient document embedding
+  - Configurable retrieval strategies
+  - Support for multiple vector stores
+
+- **🛡️ Enterprise Security**
+  - API key authentication
+  - MongoDB-based key management
+  - Configurable safety guardrails
+  - HTTPS/TLS support
+
+- **📊 Advanced Monitoring**
+  - Elasticsearch integration
+  - Detailed request logging
+  - Performance metrics
+  - Health check endpoints
+
+- **🔄 Protocol Support**
+  - Standard REST API
+  - MCP Protocol compatibility
+  - SSE for streaming
 
 ---
-
-## 🌟 Key Features
-
-- **Context-Aware Chat**: Intelligent responses enhanced with retrieval-augmented generation (RAG).
-- **ChromaDB & Ollama Integration**: Efficient vector database and embedding management.
-- **API Key Authentication**: Secure access control for chat requests.
-- **Safety Guardrails**: Configurable safety service for content moderation.
-- **Real-time Streaming**: Support for streaming responses via Server-Sent Events (SSE).
-- **Logging**: Detailed logging with Elasticsearch support.
-- **HTTPS Support**: Secure communication using TLS.
-- **MCP Protocol**: Compatible with the standard Message Content Protocol (MCP) used by popular LLM providers.
-
 
 ## 🛠️ Installation
 
@@ -26,44 +45,10 @@ cd /server
 Create and activate your Python environment:
 
 ```bash
-python3 -m venv venv
+setup.sh
 source venv/bin/activate
 ```
 
-Install the required packages:
-
-```bash
-pip install -r requirements.txt
-```
-
-### Configuration
-Create a `config.yaml` file using the provided `config.yaml.example`:
-
-```yaml
-general:
-  port: 3000
-  host: "0.0.0.0"
-  verbose: false
-  https:
-    enabled: false
-
-logging:
-  level: "INFO"
-  file:
-    enabled: true
-  console:
-    enabled: true
-
-chroma:
-  host: localhost
-  port: 8000
-  collection: qa-chatbot
-
-ollama:
-  base_url: http://localhost:11434
-  model: llama2
-  embed_model: nomic-embed-text
-```
 
 ---
 
@@ -260,35 +245,6 @@ curl -I https://your-azure-domain.cloudapp.azure.com:3443/health
 Note: The certificates from Let's Encrypt expire after 90 days. You'll need to renew them using:
 ```bash
 sudo certbot renew
-```
-
----
-
-## 📈 Reranker Service
-Improves retrieval precision by re-ranking documents.
-
-Configure in `config.yaml`:
-```yaml
-reranker:
-  enabled: true
-  model: "gemma3:4b"
-  top_n: 3
-```
-
----
-
-## 🛡️ Safety Service
-
-Modes available:
-- **Strict**: Exact safety compliance.
-- **Fuzzy**: Flexible safety matching.
-- **Disabled**: No safety checks.
-
-Example configuration:
-```yaml
-safety:
-  mode: "fuzzy"
-  model: "gemma3:12b"
 ```
 
 ---

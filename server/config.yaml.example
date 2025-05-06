@@ -8,7 +8,7 @@ general:
     key_file: "./key.pem"
   inference_provider: "ollama"
   datasource_provider: "chroma"
-  mcp_protocol: disabled
+  mcp_protocol: false
 
 messages:
   no_results_response: "I'm sorry, but I don't have any specific information about that topic in my knowledge base."

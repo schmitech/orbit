@@ -57,7 +57,7 @@ load_dotenv()
 # Import local modules (ensure these exist in your project structure)
 from config.config_manager import load_config, _is_true_value
 from models.schema import ChatMessage, ApiKeyCreate, ApiKeyResponse, ApiKeyDeactivate, SystemPromptCreate, SystemPromptUpdate, SystemPromptResponse, ApiKeyPromptAssociate
-from models.schema import MCPMessage, MCPChatRequest, MCPChatResponse, MCPChatChunk
+from models.schema import MCPMessage, MCPChatRequest, MCPChatResponse, MCPChatChunk, MCPJsonRpcRequest, MCPJsonRpcResponse, MCPJsonRpcError
 from models import ChatMessage
 from services import ChatService, LoggerService, GuardrailService, RerankerService, ApiKeyService, PromptService
 from inference import LLMClientFactory
@@ -1051,15 +1051,14 @@ class InferenceServer:
         @self.app.post("/v1/chat")
         async def mcp_chat_endpoint(
             request: Request,
-            mcp_request: MCPChatRequest,
             chat_service = Depends(get_chat_service),
             api_key_result: tuple[str, Optional[ObjectId]] = Depends(get_api_key)
         ):
             """
             Process an MCP protocol chat request and return a response
             
-            This endpoint implements the MCP protocol for compatibility with
-            tools and clients that support it.
+            This endpoint implements the MCP protocol using JSON-RPC 2.0 format
+            for compatibility with tools and clients that support it.
             """
             # Check if MCP protocol is enabled
             if not self._is_mcp_enabled():
@@ -1076,144 +1075,222 @@ class InferenceServer:
             # Resolve client IP (using X-Forwarded-For if available)
             client_ip = request.headers.get("X-Forwarded-For", request.client.host if request.client else "unknown")
             
-            # Extract user message from MCP request
-            if not mcp_request.messages:
-                raise HTTPException(status_code=400, detail="No messages provided")
-                
-            # Get the last user message
-            user_messages = [msg for msg in mcp_request.messages if msg.role == "user"]
-            if not user_messages:
-                raise HTTPException(status_code=400, detail="No user messages found")
-                
-            last_user_message = user_messages[-1]
+            # Get request body
+            body = await request.json()
             
-            # Extract text content from the message using the validation method
+            # Validate JSON-RPC request format
+            if not all(key in body for key in ["jsonrpc", "method", "params", "id"]):
+                raise HTTPException(status_code=400, detail="Invalid request format: missing required JSON-RPC fields")
+            
             try:
-                message_text = self._validate_mcp_content(last_user_message.content)
-            except HTTPException as e:
-                self.logger.error(f"MCP content validation error: {str(e.detail)}")
-                raise
+                jsonrpc_request = MCPJsonRpcRequest(**body)
+            except Exception as e:
+                raise HTTPException(status_code=400, detail=f"Invalid request format: {str(e)}")
             
-            # Log the collection and prompt being used
+            # Log the request
             if self.config.get('general', {}).get('verbose', False):
-                self.logger.info(f"[MCP] Using collection '{collection_name}' for chat request from {client_ip}")
+                self.logger.info(f"[MCP] Request method: {jsonrpc_request.method}")
+                self.logger.info(f"[MCP] Using collection '{collection_name}' for request from {client_ip}")
                 self.logger.info(f"[MCP] API key: {masked_api_key}")
-                self.logger.info(f"[MCP] User message: {message_text}")
                 if system_prompt_id:
                     self.logger.info(f"[MCP] Using system prompt ID: {system_prompt_id}")
             
-            # Determine if streaming is requested
-            stream = mcp_request.stream
-            
-            if stream:
-                # Handle streaming response
-                async def mcp_stream_generator():
-                    # Initialize streaming response
-                    message_id = str(uuid.uuid4())
-                    current_time = int(time.time())
+            try:
+                # Handle different MCP methods
+                if jsonrpc_request.method == "query":
+                    # Handle query method - extract message from params
+                    message = jsonrpc_request.params.get("message", "")
+                    stream = jsonrpc_request.params.get("stream", False)
                     
-                    try:
-                        content_buffer = ""
+                    if not message:
+                        return MCPJsonRpcResponse(
+                            jsonrpc="2.0",
+                            error={
+                                "code": -32602,
+                                "message": "Invalid params: missing message"
+                            },
+                            id=jsonrpc_request.id
+                        )
+                    
+                    # Handle streaming if requested
+                    if stream:
+                        async def stream_generator():
+                            try:
+                                # Send the first chunk to establish the stream
+                                yield f'data: {json.dumps({"jsonrpc": "2.0", "id": jsonrpc_request.id, "result": {"type": "start"}})}\n\n'
+                                
+                                # Process message in streaming mode
+                                buffer = ""
+                                async for chunk in chat_service.process_chat_stream(
+                                    message=message,
+                                    client_ip=client_ip,
+                                    collection_name=collection_name,
+                                    system_prompt_id=system_prompt_id,
+                                    api_key=api_key
+                                ):
+                                    # Parse chunk data
+                                    try:
+                                        if chunk.startswith("data: "):
+                                            chunk = chunk[6:].strip()  # Remove "data: " prefix
+                                        
+                                        chunk_data = json.loads(chunk)
+                                        
+                                        # Skip done messages
+                                        if chunk_data.get("done", False):
+                                            continue
+                                            
+                                        # Extract content
+                                        content = chunk_data.get("response", "")
+                                        if content:
+                                            # Add to buffer
+                                            buffer += content
+                                            
+                                            # Create JSON-RPC chunk
+                                            chunk_response = {
+                                                "jsonrpc": "2.0", 
+                                                "id": jsonrpc_request.id,
+                                                "result": {
+                                                    "type": "chunk",
+                                                    "content": content
+                                                }
+                                            }
+                                            
+                                            yield f"data: {json.dumps(chunk_response)}\n\n"
+                                    except json.JSONDecodeError:
+                                        # If not valid JSON, try to extract text content directly
+                                        if chunk:
+                                            buffer += chunk
+                                            chunk_response = {
+                                                "jsonrpc": "2.0", 
+                                                "id": jsonrpc_request.id,
+                                                "result": {
+                                                    "type": "chunk",
+                                                    "content": chunk
+                                                }
+                                            }
+                                            yield f"data: {json.dumps(chunk_response)}\n\n"
+                            
+                                # Send final message with complete response and sources
+                                final_response = {
+                                    "jsonrpc": "2.0",
+                                    "id": jsonrpc_request.id,
+                                    "result": {
+                                        "type": "end",
+                                        "response": buffer,
+                                        "sources": []  # Add sources here if available
+                                    }
+                                }
+                                
+                                yield f"data: {json.dumps(final_response)}\n\n"
+                                yield f"data: [DONE]\n\n"
+                                
+                            except Exception as e:
+                                self.logger.error(f"Error in MCP streaming: {str(e)}")
+                                error_response = {
+                                    "jsonrpc": "2.0",
+                                    "id": jsonrpc_request.id,
+                                    "error": {
+                                        "code": -32603,
+                                        "message": f"Internal error: {str(e)}"
+                                    }
+                                }
+                                yield f"data: {json.dumps(error_response)}\n\n"
+                                yield f"data: [DONE]\n\n"
                         
-                        # Stream content
-                        async for chunk in chat_service.process_chat_stream(
-                            message=message_text,
+                        return StreamingResponse(
+                            stream_generator(),
+                            media_type="text/event-stream"
+                        )
+                    else:
+                        # Process the query (non-streaming)
+                        result = await chat_service.process_chat(
+                            message=message,
                             client_ip=client_ip,
                             collection_name=collection_name,
                             system_prompt_id=system_prompt_id,
                             api_key=api_key
-                        ):
-                            # Parse chunk data
-                            try:
-                                if chunk.startswith("data: "):
-                                    chunk = chunk[6:].strip()  # Remove "data: " prefix
-                                
-                                chunk_data = json.loads(chunk)
-                                
-                                # Skip done messages
-                                if chunk_data.get("done", False):
-                                    continue
-                                    
-                                # Extract content
-                                content = chunk_data.get("response", "")
-                                if content:
-                                    # Add to buffer
-                                    content_buffer += content
-                                    
-                                    # Create MCP delta
-                                    mcp_chunk = MCPChatChunk(
-                                        id=message_id,
-                                        created_at=current_time,
-                                        delta={
-                                            "role": "assistant",
-                                            "content": [{"type": "text", "text": content}]
-                                        }
-                                    )
-                                    
-                                    yield f"data: {json.dumps(mcp_chunk.dict())}\n\n"
-                            except json.JSONDecodeError:
-                                # If not valid JSON, try to extract text content directly
-                                if chunk:
-                                    content_buffer += chunk
-                                    mcp_chunk = MCPChatChunk(
-                                        id=message_id,
-                                        created_at=current_time,
-                                        delta={
-                                            "role": "assistant",
-                                            "content": [{"type": "text", "text": chunk}]
-                                        }
-                                    )
-                                    yield f"data: {json.dumps(mcp_chunk.dict())}\n\n"
-                        
-                        # Send final done message
-                        yield f"data: [DONE]\n\n"
-                        
-                    except Exception as e:
-                        self.logger.error(f"Error in MCP streaming: {str(e)}")
-                        error_chunk = MCPChatChunk(
-                            id=message_id,
-                            created_at=current_time,
-                            delta={"error": str(e)}
                         )
-                        yield f"data: {json.dumps(error_chunk.dict())}\n\n"
-                        yield f"data: [DONE]\n\n"
+                        
+                        if "error" in result:
+                            return MCPJsonRpcResponse(
+                                jsonrpc="2.0",
+                                error={
+                                    "code": -32603,
+                                    "message": result["error"]
+                                },
+                                id=jsonrpc_request.id
+                            )
+                        
+                        # Return successful response
+                        return MCPJsonRpcResponse(
+                            jsonrpc="2.0",
+                            result={
+                                "response": result.get("response", ""),
+                                "sources": result.get("sources", [])
+                            },
+                            id=jsonrpc_request.id
+                        )
                 
-                return StreamingResponse(
-                    mcp_stream_generator(),
-                    media_type="text/event-stream"
+                elif jsonrpc_request.method == "tools":
+                    # Handle tools method - process tool requests from the model
+                    tools = jsonrpc_request.params.get("tools", [])
+                    
+                    if not tools:
+                        return MCPJsonRpcResponse(
+                            jsonrpc="2.0",
+                            error={
+                                "code": -32602,
+                                "message": "Invalid params: missing tools"
+                            },
+                            id=jsonrpc_request.id
+                        )
+                    
+                    # Process tools (example implementation)
+                    tool_results = []
+                    for tool in tools:
+                        tool_name = tool.get("name", "")
+                        tool_params = tool.get("parameters", {})
+                        
+                        # Simply log the tool request for now
+                        self.logger.info(f"Tool request: name={tool_name}, params={tool_params}")
+                        
+                        # Add a placeholder result
+                        tool_results.append({
+                            "tool_name": tool_name,
+                            "result": f"Processed tool: {tool_name}",
+                            "status": "success"
+                        })
+                    
+                    # Return results of all tool operations
+                    return MCPJsonRpcResponse(
+                        jsonrpc="2.0",
+                        result={
+                            "tool_results": tool_results
+                        },
+                        id=jsonrpc_request.id
+                    )
+                    
+                else:
+                    # Method not supported
+                    return MCPJsonRpcResponse(
+                        jsonrpc="2.0",
+                        error={
+                            "code": -32601,
+                            "message": f"Method not found: {jsonrpc_request.method}"
+                        },
+                        id=jsonrpc_request.id
+                    )
+                
+            except Exception as e:
+                self.logger.error(f"Error in MCP endpoint: {str(e)}")
+                return MCPJsonRpcResponse(
+                    jsonrpc="2.0",
+                    error={
+                        "code": -32603,
+                        "message": f"Internal error: {str(e)}"
+                    },
+                    id=jsonrpc_request.id
                 )
-            else:
-                # Handle non-streaming response
-                try:
-                    result = await chat_service.process_chat(
-                        message=message_text,
-                        client_ip=client_ip,
-                        collection_name=collection_name,
-                        system_prompt_id=system_prompt_id,
-                        api_key=api_key
-                    )
-                    
-                    if "error" in result:
-                        raise HTTPException(status_code=500, detail=result["error"])
-                    
-                    # Create MCP response
-                    message_id = str(uuid.uuid4())
-                    current_time = int(time.time())
-                    
-                    response_text = result.get("response", "")
-                    
-                    mcp_response = MCPChatResponse(
-                        id=message_id,
-                        created_at=current_time,
-                        role="assistant",
-                        content=[{"type": "text", "text": response_text}]
-                    )
-                    
-                    return JSONResponse(content=mcp_response.dict())
-                    
-                except Exception as e:
-                    self.logger.error(f"Error in MCP response: {str(e)}")
-                    raise HTTPException(status_code=500, detail=str(e))
 
         # API Key management routes
         @self.app.post("/admin/api-keys", response_model=ApiKeyResponse)

@@ -17,25 +17,49 @@
 
 ORBIT is a modular, self-hosted toolkit that provides a unified API for open-source AI inference models. It enables you to run AI models on your own infrastructure, maintaining complete control over your data while eliminating commercial API dependencies.
 
-## 🌟 Key Features
+## 🌟 Features
 
-- **🔒 Privacy First**: All data remains within your infrastructure
-- **🔄 Flexible Deployment**: Deploy on cloud, on-premise, or hybrid environments
-- **🛠 Full Customization**: Adapt to your specific domain needs
-- **🔓 No Vendor Lock-in**: Complete control over inference models and data
-- **🚀 High Performance**: Optimized for various hardware configurations
-- **🔍 RAG Support**: Built-in support for Retrieval-Augmented Generation
-- **🔐 API Key Management**: Secure access control and authentication
-- **📊 Monitoring**: Comprehensive logging and analytics
+- **🔒 Privacy First**:
+  - Complete data sovereignty and control
+  - No data sent to external services
+  - Ideal for organizations with strict privacy requirements
+  - Full control over sensitive information
 
-## 💼 Use Cases
+- **🔄 Flexible Deployment**:
+  - Cloud platforms
+  - On-premise servers
+  - Hybrid setups
+  - Adaptable to different infrastructure requirements
 
-- **🎯 Customer Support**: AI-powered support with your knowledge base
-- **📚 Knowledge Management**: Intelligent document Q&A systems
-- **🎓 Education**: Interactive learning assistants
-- **🏥 Healthcare**: HIPAA-compliant medical information systems
-- **💰 Financial Services**: Secure financial advisory assistants
-- **⚖️ Legal Services**: Confidential legal research tools
+- **🛠 Full Customization**:
+  - Custom model selection and configuration
+  - Domain-specific adaptations
+  - Integration with existing systems
+  - Configurable safety and reranking services
+
+- **🔓 No Vendor Lock-in**:
+  - Freedom to choose inference providers
+  - Control over data storage and management
+  - Flexible API configurations
+  - System resource management
+
+- **🔍 RAG Support**:
+  - Multiple vector database options
+  - Context-aware AI responses
+  - Designed for accuracy and relevance
+  - Adaptable retrieval strategies
+
+- **🌐 Multilingual Support**:
+  - Automatic language detection
+  - Native response in user's language
+  - Support for 12+ major languages
+  - Seamless language switching
+
+- **🛡️ Content Moderation**:
+  - Configurable safety checks
+  - Multiple moderation modes (strict/fuzzy)
+  - Dedicated moderation models
+  - Automatic content filtering
 
 ## 🚀 Quick Start
 
@@ -135,20 +159,6 @@ The system is configurable through a YAML configuration file, allowing you to:
 - Manage API authentication
 - Set up HTTPS/SSL
 - Configure system resources and threading
-
-## 📚 Documentation
-
-- [Server Documentation](server/README.md)
-- [Admin Tools Guide](server/admin/README.md)
-- [TypeScript Client API](clients/typescript/api/README.md)
-
-## 📊 Monitoring
-
-ORBIT provides logging through:
-
-- File-based logging (JSON format)
-- Elasticsearch integration (optional)
-- Health check endpoints
 
 ## 🤝 Contributing
 
