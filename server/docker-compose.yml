@@ -1,0 +1,22 @@
+services:
+  # FastAPI server
+  orbit-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: orbit-server:latest
+    container_name: orbit-server
+    ports:
+      - "${ORBIT_PORT:-3000}:${ORBIT_PORT:-3000}"
+    volumes:
+      - ./config.yaml:/app/config.yaml
+      - ./logs:/app/logs
+    restart: unless-stopped
+
+networks:
+  default:
+    driver: bridge
+
+volumes:
+  ollama-data:
+  mongodb-data:
