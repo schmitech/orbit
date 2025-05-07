@@ -17,8 +17,8 @@ import os
 init()
 
 # Ensure history directory exists
-os.makedirs(os.path.expanduser("~/.chat_client_history"), exist_ok=True)
-HISTORY_FILE = os.path.expanduser("~/.chat_client_history/chat_history")
+os.makedirs(os.path.expanduser("~/.orbit_client_history"), exist_ok=True)
+HISTORY_FILE = os.path.expanduser("~/.orbit_client_history/chat_history")
 
 # Create a prompt session with history
 session = PromptSession(history=FileHistory(HISTORY_FILE))
@@ -33,9 +33,6 @@ prompt_style = PromptStyle.from_dict({
 
 def clean_response(text):
     """Clean any artifacts or strange characters from the response without removing non-English text"""
-    # Don't remove non-ASCII characters - this was causing Chinese and Arabic to be stripped
-    # text = re.sub(r'[^\x20-\x7E\n.,!?:;\'"-]', '', text)  # REMOVE THIS LINE
-    
     # Fix missing spaces after punctuation (for Latin-based languages)
     # But exclude decimal points in numbers (e.g., $70.83)
     text = re.sub(r'([.,!?:;])(?!\d)([A-Za-z0-9])', r'\1 \2', text)
@@ -254,7 +251,7 @@ def main():
     args = parser.parse_args()
     
     # Use colorama for system messages
-    print(f"{Fore.CYAN}Welcome to the Chat Client!{Style.RESET_ALL}")
+    print(f"{Fore.CYAN}Welcome to the Orbit Chat Client!{Style.RESET_ALL}")
     print(f"{Fore.CYAN}Server URL: {args.url}{Style.RESET_ALL}")
     if args.mcp:
         print(f"{Fore.CYAN}Using MCP protocol format{Style.RESET_ALL}")
@@ -300,4 +297,4 @@ def main():
             print(f"{Fore.RED}An error occurred: {e}{Style.RESET_ALL}")
 
 if __name__ == "__main__":
-    main()
+    main() 
