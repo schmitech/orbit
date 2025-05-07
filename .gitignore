@@ -54,3 +54,4 @@ sqlite_db
 chroma_db
 .vscode/launch.json
 gguf
+*.yaml.working

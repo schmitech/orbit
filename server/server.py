@@ -60,6 +60,7 @@ from models.schema import ChatMessage, ApiKeyCreate, ApiKeyResponse, ApiKeyDeact
 from models.schema import MCPMessage, MCPChatRequest, MCPChatResponse, MCPChatChunk, MCPJsonRpcRequest, MCPJsonRpcResponse, MCPJsonRpcError
 from models import ChatMessage
 from services import ChatService, LoggerService, GuardrailService, RerankerService, ApiKeyService, PromptService
+from services.mongodb_service import MongoDBService
 from inference import LLMClientFactory
 from utils.text_utils import mask_api_key
 from embeddings.base import EmbeddingServiceFactory
@@ -453,6 +454,36 @@ class InferenceServer:
         # Resolve provider configurations
         self._resolve_provider_configs()
         
+        # Initialize shared MongoDB service
+        app.state.mongodb_service = MongoDBService(self.config)
+        self.logger.info("Initializing shared MongoDB service...")
+        try:
+            await app.state.mongodb_service.initialize()
+            self.logger.info("Shared MongoDB service initialized successfully")
+        except Exception as e:
+            self.logger.error(f"Failed to initialize shared MongoDB service: {str(e)}")
+            raise
+        
+        # Initialize API Key Service with shared MongoDB service
+        app.state.api_key_service = ApiKeyService(self.config, app.state.mongodb_service)
+        self.logger.info("Initializing API Key Service...")
+        try:
+            await app.state.api_key_service.initialize()
+            self.logger.info("API Key Service initialized successfully")
+        except Exception as e:
+            self.logger.error(f"Failed to initialize API Key Service: {str(e)}")
+            raise
+        
+        # Initialize Prompt Service with shared MongoDB service
+        app.state.prompt_service = PromptService(self.config, app.state.mongodb_service)
+        self.logger.info("Initializing Prompt Service...")
+        try:
+            await app.state.prompt_service.initialize()
+            self.logger.info("Prompt Service initialized successfully")
+        except Exception as e:
+            self.logger.error(f"Failed to initialize Prompt Service: {str(e)}")
+            raise
+        
         # Set up lazy loading for datasource client
         datasource_provider = self.config['general'].get('datasource_provider', 'chroma')
         self.logger.info(f"Setting up lazy loading for {datasource_provider} datasource client")
@@ -513,28 +544,6 @@ class InferenceServer:
                     return getattr(client, name)
             
             app.state.datasource_client = LazyDatasourceClient()
-        
-        # Initialize API Key Service
-        app.state.api_key_service = ApiKeyService(self.config)
-        self.logger.info("Initializing API Key Service...")
-        try:
-            await app.state.api_key_service.initialize()
-            self.logger.info("API Key Service initialized successfully")
-        except Exception as e:
-            self.logger.error(f"Failed to initialize API Key Service: {str(e)}")
-            self.logger.error(f"MongoDB connection details: {self.config.get('internal_services', {}).get('mongodb', {})}")
-            raise
-        
-        # Initialize Prompt Service
-        app.state.prompt_service = PromptService(self.config)
-        self.logger.info("Initializing Prompt Service...")
-        try:
-            await app.state.prompt_service.initialize()
-            self.logger.info("Prompt Service initialized successfully")
-        except Exception as e:
-            self.logger.error(f"Failed to initialize Prompt Service: {str(e)}")
-            self.logger.error(f"MongoDB connection details: {self.config.get('mongodb', {})}")
-            raise
         
         # Check if embedding services are enabled
         embedding_enabled = _is_true_value(self.config['embedding'].get('enabled', True))
@@ -858,6 +867,10 @@ class InferenceServer:
         
         if hasattr(app.state, 'embedding_service') and app.state.embedding_service is not None:
             shutdown_tasks.append(app.state.embedding_service.close())
+            
+        # Close shared MongoDB service
+        if hasattr(app.state, 'mongodb_service') and app.state.mongodb_service is not None:
+            app.state.mongodb_service.close()
         
         # Only run asyncio.gather if there are tasks to gather
         if shutdown_tasks:

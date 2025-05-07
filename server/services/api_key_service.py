@@ -8,81 +8,41 @@ and system prompt for a given API key.
 """
 
 import logging
-import motor.motor_asyncio
-from typing import Dict, Any, Optional, Tuple
-from fastapi import HTTPException
-from datetime import datetime
 import secrets
 import string
+from typing import Dict, Any, Optional, Tuple
+from datetime import datetime
+from fastapi import HTTPException
 from bson import ObjectId
 
 from utils.text_utils import mask_api_key
+from services.mongodb_service import MongoDBService
 
 logger = logging.getLogger(__name__)
 
 class ApiKeyService:
     """Service for handling API key authentication and collection mapping"""
     
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: Dict[str, Any], mongodb_service: Optional[MongoDBService] = None):
         """Initialize the API key service with configuration"""
         self.config = config
-        self.client = None
-        self.database = None
-        self.api_keys_collection = None
-        self._initialized = False
         self.verbose = config.get('general', {}).get('verbose', False)
-
+        
+        # Use provided MongoDB service or create a new one
+        self.mongodb = mongodb_service or MongoDBService(config)
+        
+        # MongoDB collection name for API keys
+        self.collection_name = config.get('mongodb', {}).get('apikey_collection', 'api_keys')
+        
     async def initialize(self) -> None:
-        """Initialize connection to MongoDB"""
-        if self._initialized:
-            return
-            
-        mongodb_config = self.config.get('mongodb', {})
-        try:
-            # Log MongoDB configuration (without sensitive data)
-            logger.info(f"Initializing MongoDB connection with config: host={mongodb_config.get('host')}, port={mongodb_config.get('port')}, database={mongodb_config.get('database')}")
-            
-            # Construct connection string for MongoDB Atlas
-            if "mongodb.net" in mongodb_config.get('host', ''):
-                # MongoDB Atlas connection string format
-                connection_string = "mongodb+srv://"
-                if mongodb_config.get('username') and mongodb_config.get('password'):
-                    connection_string += f"{mongodb_config['username']}:{mongodb_config['password']}@"
-                connection_string += f"{mongodb_config['host']}"
-                connection_string += f"/{mongodb_config['database']}?retryWrites=true&w=majority"
-                logger.info("Using MongoDB Atlas connection string format")
-            else:
-                # Standard MongoDB connection string format
-                connection_string = "mongodb://"
-                if mongodb_config.get('username') and mongodb_config.get('password'):
-                    connection_string += f"{mongodb_config['username']}:{mongodb_config['password']}@"
-                connection_string += f"{mongodb_config['host']}:{mongodb_config['port']}"
-                logger.info("Using standard MongoDB connection string format")
-            
-            logger.info(f"Attempting to connect to MongoDB at {mongodb_config['host']}")
-            
-            # Connect to MongoDB
-            self.client = motor.motor_asyncio.AsyncIOMotorClient(connection_string)
-            logger.info("MongoDB client created successfully")
-            
-            # Test the connection
-            await self.client.admin.command('ping')
-            logger.info("MongoDB connection test successful")
-            
-            self.database = self.client[mongodb_config['database']]
-            self.api_keys_collection = self.database[mongodb_config['apikey_collection']]
-            logger.info(f"Using database '{mongodb_config['database']}' and collection '{mongodb_config['apikey_collection']}'")
-            
-            # Create index on api_key field for faster lookups
-            await self.api_keys_collection.create_index("api_key", unique=True)
-            logger.info("Created unique index on api_key field")
-            
-            logger.info("API Key Service initialized successfully")
-            self._initialized = True
-        except Exception as e:
-            logger.error(f"Failed to initialize API Key Service: {str(e)}")
-            logger.error(f"MongoDB connection details: host={mongodb_config.get('host')}, port={mongodb_config.get('port')}")
-            raise HTTPException(status_code=500, detail=f"Failed to initialize API Key Service: {str(e)}")
+        """Initialize the service"""
+        await self.mongodb.initialize()
+        
+        # Create index on api_key field for faster lookups
+        await self.mongodb.create_index(self.collection_name, "api_key", unique=True)
+        logger.info("Created unique index on api_key field")
+        
+        logger.info("API Key Service initialized successfully")
     
     def _generate_api_key(self, length: int = 32) -> str:
         """
@@ -113,11 +73,8 @@ class ApiKeyService:
         Returns:
             Dictionary with API key status information
         """
-        if not self._initialized:
-            await self.initialize()
-            
         try:
-            key_doc = await self.api_keys_collection.find_one({"api_key": api_key})
+            key_doc = await self.mongodb.find_one(self.collection_name, {"api_key": api_key})
             
             if not key_doc:
                 return {
@@ -159,9 +116,6 @@ class ApiKeyService:
         Returns:
             Tuple of (is_valid, collection_name, system_prompt_id)
         """
-        if not self._initialized:
-            await self.initialize()
-            
         # Get default behavior from config
         allow_default = self.config.get('api_keys', {}).get('allow_default', False)
         default_collection = self.config.get('chroma', {}).get('collection')
@@ -178,7 +132,7 @@ class ApiKeyService:
             
         try:
             # Find the API key in the database
-            key_doc = await self.api_keys_collection.find_one({"api_key": api_key})
+            key_doc = await self.mongodb.find_one(self.collection_name, {"api_key": api_key})
             
             # Create a masked version of the API key for logging
             masked_key = mask_api_key(api_key)
@@ -253,12 +207,6 @@ class ApiKeyService:
         Returns:
             Dictionary with the created API key details
         """
-        if self.api_keys_collection is None:
-            raise HTTPException(status_code=500, detail="API key service not initialized")
-            
-        if not self._initialized:
-            await self.initialize()
-            
         # Generate a new API key
         api_key = self._generate_api_key()
         
@@ -268,18 +216,17 @@ class ApiKeyService:
             key_doc = {
                 "api_key": api_key,
                 "collection_name": collection_name,
-                # "collection": collection_name,  # Add collection field for consistency
                 "client_name": client_name,
                 "notes": notes,
                 "created_at": created_at,
-                "active": True  # Changed from is_active to active for consistency
+                "active": True
             }
             
             # Add system prompt ID if provided
             if system_prompt_id:
                 key_doc["system_prompt_id"] = system_prompt_id
                 
-            await self.api_keys_collection.insert_one(key_doc)
+            await self.mongodb.insert_one(self.collection_name, key_doc)
             
             result = {
                 "api_key": api_key,
@@ -310,20 +257,17 @@ class ApiKeyService:
         Returns:
             True if successful, False otherwise
         """
-        if not self._initialized:
-            await self.initialize()
-            
         try:
             # Ensure system_prompt_id is an ObjectId
             if isinstance(system_prompt_id, str):
-                system_prompt_id = ObjectId(system_prompt_id)
+                system_prompt_id = await self.mongodb.ensure_id_is_object_id(system_prompt_id)
                 
-            result = await self.api_keys_collection.update_one(
+            success = await self.mongodb.update_one(
+                self.collection_name,
                 {"api_key": api_key},
                 {"$set": {"system_prompt_id": system_prompt_id}}
             )
             
-            success = result.modified_count > 0
             if success:
                 masked_key = mask_api_key(api_key)
                 logger.info(f"Updated API key {masked_key} with system prompt ID: {system_prompt_id}")
@@ -346,15 +290,12 @@ class ApiKeyService:
         Returns:
             True if successful, False otherwise
         """
-        if not self._initialized:
-            await self.initialize()
-            
         try:
-            result = await self.api_keys_collection.update_one(
+            return await self.mongodb.update_one(
+                self.collection_name,
                 {"api_key": api_key},
                 {"$set": {"active": False}}
             )
-            return result.modified_count > 0
         except Exception as e:
             logger.error(f"Error deactivating API key: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Error deactivating API key: {str(e)}")
@@ -369,18 +310,8 @@ class ApiKeyService:
         Returns:
             True if successful, False otherwise
         """
-        if not self._initialized:
-            await self.initialize()
-            
         try:
-            result = await self.api_keys_collection.delete_one({"api_key": api_key})
-            return result.deleted_count > 0
+            return await self.mongodb.delete_one(self.collection_name, {"api_key": api_key})
         except Exception as e:
             logger.error(f"Error deleting API key: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Error deleting API key: {str(e)}")
-    
-    async def close(self) -> None:
-        """Close the MongoDB connection"""
-        if self.client:
-            self.client.close()
-            self._initialized = False

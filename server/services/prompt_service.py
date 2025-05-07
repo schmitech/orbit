@@ -8,78 +8,38 @@ that can be associated with API keys.
 """
 
 import logging
-import motor.motor_asyncio
 from typing import Dict, Any, Optional, List
 from fastapi import HTTPException
 from datetime import datetime
 from bson import ObjectId
+
+from services.mongodb_service import MongoDBService
 
 logger = logging.getLogger(__name__)
 
 class PromptService:
     """Service for managing system prompts in MongoDB"""
     
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: Dict[str, Any], mongodb_service: Optional[MongoDBService] = None):
         """Initialize the prompt service with configuration"""
         self.config = config
-        self.client = None
-        self.database = None
-        self.prompts_collection = None
-        self._initialized = False
         self.verbose = config.get('general', {}).get('verbose', False)
         
+        # Use provided MongoDB service or create a new one
+        self.mongodb = mongodb_service or MongoDBService(config)
+        
+        # MongoDB collection name for prompts
+        self.collection_name = config.get('mongodb', {}).get('prompts_collection', 'system_prompts')
+        
     async def initialize(self) -> None:
-        """Initialize connection to MongoDB"""
-        if self._initialized:
-            return
-            
-        mongodb_config = self.config.get('mongodb', {})
-        try:
-            # Log MongoDB configuration (without sensitive data)
-            logger.info(f"Initializing MongoDB connection with config: host={mongodb_config.get('host')}, port={mongodb_config.get('port')}, database={mongodb_config.get('database')}")
-            
-            # Construct connection string for MongoDB Atlas
-            if "mongodb.net" in mongodb_config.get('host', ''):
-                # MongoDB Atlas connection string format
-                connection_string = "mongodb+srv://"
-                if mongodb_config.get('username') and mongodb_config.get('password'):
-                    connection_string += f"{mongodb_config['username']}:{mongodb_config['password']}@"
-                connection_string += f"{mongodb_config['host']}"
-                connection_string += f"/{mongodb_config['database']}?retryWrites=true&w=majority"
-                logger.info("Using MongoDB Atlas connection string format")
-            else:
-                # Standard MongoDB connection string format
-                connection_string = "mongodb://"
-                if mongodb_config.get('username') and mongodb_config.get('password'):
-                    connection_string += f"{mongodb_config['username']}:{mongodb_config['password']}@"
-                connection_string += f"{mongodb_config['host']}:{mongodb_config['port']}"
-                logger.info("Using standard MongoDB connection string format")
-            
-            logger.info(f"Attempting to connect to MongoDB at {mongodb_config['host']}")
-            
-            # Connect to MongoDB
-            self.client = motor.motor_asyncio.AsyncIOMotorClient(connection_string)
-            logger.info("MongoDB client created successfully")
-            
-            # Test the connection
-            await self.client.admin.command('ping')
-            logger.info("MongoDB connection test successful")
-            
-            self.database = self.client[mongodb_config['database']]
-            prompts_collection_name = mongodb_config.get('prompts_collection', 'system_prompts')
-            self.prompts_collection = self.database[prompts_collection_name]
-            logger.info(f"Using database '{mongodb_config['database']}' and collection '{prompts_collection_name}'")
-            
-            # Create index on name field for faster lookups
-            await self.prompts_collection.create_index("name", unique=True)
-            logger.info("Created unique index on name field")
-            
-            logger.info("Prompt Service initialized successfully")
-            self._initialized = True
-        except Exception as e:
-            logger.error(f"Failed to initialize Prompt Service: {str(e)}")
-            logger.error(f"MongoDB connection details: host={mongodb_config.get('host')}, port={mongodb_config.get('port')}")
-            raise HTTPException(status_code=500, detail=f"Failed to initialize Prompt Service: {str(e)}")
+        """Initialize the service"""
+        await self.mongodb.initialize()
+        
+        # Create index on name field for faster lookups
+        await self.mongodb.create_index(self.collection_name, "name", unique=True)
+        logger.info("Created unique index on name field")
+        
+        logger.info("Prompt Service initialized successfully")
     
     async def create_prompt(self, name: str, prompt_text: str, version: str = "1.0") -> ObjectId:
         """
@@ -93,9 +53,6 @@ class PromptService:
         Returns:
             ObjectId of the created prompt
         """
-        if not self._initialized:
-            await self.initialize()
-            
         try:
             now = datetime.utcnow()
             prompt_doc = {
@@ -107,10 +64,11 @@ class PromptService:
             }
             
             # Check if a prompt with this name already exists
-            existing = await self.prompts_collection.find_one({"name": name})
+            existing = await self.mongodb.find_one(self.collection_name, {"name": name})
             if existing:
                 # Update the existing prompt instead of creating a new one
-                result = await self.prompts_collection.update_one(
+                result = await self.mongodb.update_one(
+                    self.collection_name,
                     {"name": name},
                     {"$set": {
                         "prompt": prompt_text,
@@ -123,9 +81,9 @@ class PromptService:
                 return existing["_id"]
             
             # Create a new prompt
-            result = await self.prompts_collection.insert_one(prompt_doc)
-            prompt_id = result.inserted_id
-            logger.info(f"Created new prompt '{name}' with ID: {prompt_id}")
+            prompt_id = await self.mongodb.insert_one(self.collection_name, prompt_doc)
+            if self.verbose:
+                logger.info(f"Created new prompt '{name}' with ID: {prompt_id}")
             return prompt_id
         except Exception as e:
             logger.error(f"Error creating prompt: {str(e)}")
@@ -141,19 +99,17 @@ class PromptService:
         Returns:
             The prompt document or None if not found
         """
-        if not self._initialized:
-            await self.initialize()
-            
         try:
-            # Ensure prompt_id is an ObjectId
+            # Handle None input
             if prompt_id is None:
                 logger.info("No prompt_id provided to get_prompt_by_id")
                 return None
                 
+            # Ensure prompt_id is an ObjectId
             original_prompt_id = prompt_id
             if isinstance(prompt_id, str):
                 try:
-                    prompt_id = ObjectId(prompt_id)
+                    prompt_id = await self.mongodb.ensure_id_is_object_id(prompt_id)
                     if self.verbose:
                         logger.info(f"Converted string prompt ID '{original_prompt_id}' to ObjectId: {prompt_id}")
                 except Exception as e:
@@ -162,7 +118,8 @@ class PromptService:
             
             if self.verbose:
                 logger.info(f"Looking up prompt with ID: {prompt_id}")
-            prompt = await self.prompts_collection.find_one({"_id": prompt_id})
+                
+            prompt = await self.mongodb.find_one(self.collection_name, {"_id": prompt_id})
             
             if prompt:
                 if self.verbose:
@@ -189,12 +146,8 @@ class PromptService:
         Returns:
             The prompt document or None if not found
         """
-        if not self._initialized:
-            await self.initialize()
-            
         try:
-            prompt = await self.prompts_collection.find_one({"name": name})
-            return prompt
+            return await self.mongodb.find_one(self.collection_name, {"name": name})
         except Exception as e:
             logger.error(f"Error retrieving prompt by name: {str(e)}")
             return None
@@ -206,12 +159,8 @@ class PromptService:
         Returns:
             List of all prompt documents
         """
-        if not self._initialized:
-            await self.initialize()
-            
         try:
-            cursor = self.prompts_collection.find({})
-            prompts = await cursor.to_list(length=100)  # Limit to 100 prompts
+            prompts = await self.mongodb.find_many(self.collection_name, {})
             
             # Convert _id to string representation
             for prompt in prompts:
@@ -234,16 +183,13 @@ class PromptService:
         Returns:
             True if successful, False otherwise
         """
-        if not self._initialized:
-            await self.initialize()
-            
         try:
             # Ensure prompt_id is an ObjectId
             if isinstance(prompt_id, str):
-                prompt_id = ObjectId(prompt_id)
+                prompt_id = await self.mongodb.ensure_id_is_object_id(prompt_id)
                 
             # Get the current prompt to determine version update
-            current_prompt = await self.prompts_collection.find_one({"_id": prompt_id})
+            current_prompt = await self.mongodb.find_one(self.collection_name, {"_id": prompt_id})
             
             if not current_prompt:
                 logger.warning(f"Prompt with ID {prompt_id} not found for update")
@@ -275,12 +221,12 @@ class PromptService:
                     update_doc["version"] = f"{current_prompt['version']}.1"
             
             # Perform the update
-            result = await self.prompts_collection.update_one(
+            success = await self.mongodb.update_one(
+                self.collection_name,
                 {"_id": prompt_id},
                 {"$set": update_doc}
             )
             
-            success = result.modified_count > 0
             if success:
                 logger.info(f"Updated prompt with ID {prompt_id} to version {update_doc.get('version')}")
             else:
@@ -301,22 +247,12 @@ class PromptService:
         Returns:
             True if successful, False otherwise
         """
-        if not self._initialized:
-            await self.initialize()
-            
         try:
             # Ensure prompt_id is an ObjectId
             if isinstance(prompt_id, str):
-                prompt_id = ObjectId(prompt_id)
+                prompt_id = await self.mongodb.ensure_id_is_object_id(prompt_id)
                 
-            result = await self.prompts_collection.delete_one({"_id": prompt_id})
-            return result.deleted_count > 0
+            return await self.mongodb.delete_one(self.collection_name, {"_id": prompt_id})
         except Exception as e:
             logger.error(f"Error deleting prompt: {str(e)}")
             return False
-    
-    async def close(self) -> None:
-        """Close the MongoDB connection"""
-        if self.client:
-            self.client.close()
-            self._initialized = False
