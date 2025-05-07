@@ -1,105 +1,168 @@
 """
-Enhanced SQLite implementation with domain adaptation support
+ SQLite retriever that works with the new adapter architecture
 """
 
 import logging
 import sqlite3
 import string
 import traceback
+import os
 from typing import Dict, Any, List, Optional, Union
 from difflib import SequenceMatcher
 from fastapi import HTTPException
-import json
 
-from retrievers.base.sql_retriever import SQLRetriever
-from retrievers.base.base_retriever import RetrieverFactory
+from retrievers.base.base_retriever import BaseRetriever, RetrieverFactory
 
 # Configure logging
 logger = logging.getLogger(__name__)
 
-class SqliteRetriever(SQLRetriever):
-    """Enhanced SQLite implementation with domain support"""
+class SqliteRetriever(BaseRetriever):
+    """
+     SQLite retriever that works with the new adapter architecture.
+    This implementation is more flexible and can work with different domain adapters.
+    """
 
     def __init__(self, 
                 config: Dict[str, Any],
+                domain_adapter = None,
                 connection: Any = None,
-                domain_adapter=None,
                 **kwargs):
         """
         Initialize SQLiteRetriever.
         
         Args:
             config: Configuration dictionary containing SQLite and general settings
-            connection: Optional SQLite connection
             domain_adapter: Optional domain adapter for document handling
+            connection: Optional SQLite connection
+            **kwargs: Additional arguments
         """
-        # Extract adapter params before calling parent constructor to avoid passing them
-        adapter_params = {}
-        datasource_config = config.get('datasources', {}).get('sqlite', config.get('sqlite', {}))
+        # Call the parent constructor first to set up basic retriever functionality
+        super().__init__(config=config, domain_adapter=domain_adapter, **kwargs)
         
-        # Remove boost_exact_matches from adapter_params to avoid the error
-        if 'adapter_params' in datasource_config:
-            # Make a copy to avoid modifying the original config
-            adapter_params = dict(datasource_config['adapter_params'])
-            if 'boost_exact_matches' in adapter_params:
-                del adapter_params['boost_exact_matches']
-            
-            # Temporarily remove adapter_params from config
-            temp_adapter_params = datasource_config.pop('adapter_params', None)
+        # Extract SQLite-specific configuration
+        sqlite_config = self.datasource_config
         
-        # Call the parent constructor first
-        super().__init__(config=config, connection=connection, domain_adapter=domain_adapter, **kwargs)
+        # Core settings
+        self.db_path = sqlite_config.get('db_path', 'sqlite_db')
+        self.relevance_threshold = sqlite_config.get('relevance_threshold', 0.5)
+        self.max_results = sqlite_config.get('max_results', 10)
+        self.return_results = sqlite_config.get('return_results', 3)
         
-        # Restore adapter_params if we removed it
-        if 'temp_adapter_params' in locals() and temp_adapter_params is not None:
-            datasource_config['adapter_params'] = temp_adapter_params
-        
-        # Initialize database path
-        self.db_path = self.datasource_config.get('db_path', '../utils/sqllite/rag_database.db')
+        # Set default collection - this will be overridden when needed
+        self.collection = sqlite_config.get('collection', 'qa_data')
         
         # Flag to track if search_tokens table exists
         self.has_token_table = False
+        
+        # Define standard stopwords for tokenization
+        self.stopwords = {
+            'the', 'a', 'an', 'and', 'is', 'are', 'in', 'on', 'at', 'to', 'for', 
+            'of', 'with', 'by', 'about', 'that', 'this', 'these', 'those', 'my', 
+            'your', 'his', 'her', 'its', 'our', 'their', 'can', 'be',
+            'have', 'has', 'had', 'do', 'does', 'did', 'i', 'you', 'he', 'she', 
+            'it', 'we', 'they', 'what', 'where', 'when', 'why', 'how'
+        }
+        
+        # Default fields to search
+        self.default_search_fields = ['id', 'content', 'question', 'answer', 'title']
+        
+        # Initialize connection if provided
+        self.connection = connection
+        if connection:
+            # Enable column access by name
+            self.connection.row_factory = sqlite3.Row
+        else:
+            # Initialize connection immediately
+            self._initialize_connection()
 
     def _get_datasource_name(self) -> str:
         """Return the name of this datasource for config lookup"""
         return 'sqlite'
 
+    def _initialize_connection(self) -> None:
+        """Initialize the database connection."""
+        try:
+            # Create the database directory if it doesn't exist
+            db_dir = os.path.dirname(self.db_path)
+            if db_dir and not os.path.exists(db_dir):
+                os.makedirs(db_dir)
+            
+            # Connect to the database
+            self.connection = sqlite3.connect(self.db_path)
+            # Enable column access by name
+            self.connection.row_factory = sqlite3.Row
+            
+            if self.verbose:
+                logger.info(f"Connected to SQLite database at {self.db_path}")
+            
+            # Check if we need to create the default table
+            self._create_default_table_if_needed()
+                
+        except Exception as e:
+            logger.error(f"Failed to connect to SQLite database: {str(e)}")
+            raise ValueError(f"Database connection error: {str(e)}")
+
+    def _create_default_table_if_needed(self) -> None:
+        """Create the default table if it doesn't exist."""
+        if not self.connection:
+            return
+            
+        cursor = self.connection.cursor()
+        try:
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?", (self.collection,))
+            if not cursor.fetchone():
+                if self.verbose:
+                    logger.info(f"Creating default table '{self.collection}'")
+                
+                # Create the table with appropriate structure for QA data
+                cursor.execute(f'''
+                    CREATE TABLE IF NOT EXISTS {self.collection} (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        question TEXT,
+                        answer TEXT,
+                        metadata TEXT
+                    )
+                ''')
+                self.connection.commit()
+                
+                # Insert some sample data to get started
+                cursor.execute(f'''
+                    INSERT INTO {self.collection} (question, answer, metadata)
+                    VALUES (?, ?, ?)
+                ''', (
+                    "What is the purpose of this system?", 
+                    "This system provides a flexible retrieval architecture with domain-specific adapters.",
+                    '{"source": "documentation", "type": "overview"}'
+                ))
+                
+                cursor.execute(f'''
+                    INSERT INTO {self.collection} (question, answer, metadata)
+                    VALUES (?, ?, ?)
+                ''', (
+                    "How do adapters work in this system?", 
+                    "Adapters provide domain-specific document handling, allowing the system to process different types of data without changing the core retrieval logic.",
+                    '{"source": "documentation", "type": "technical"}'
+                ))
+                
+                self.connection.commit()
+                
+                if self.verbose:
+                    logger.info(f"Created default table '{self.collection}' with sample data")
+        except Exception as e:
+            logger.warning(f"Could not create default table: {str(e)}")
+
     async def initialize(self) -> None:
-        """Initialize required services."""
+        """Initialize required services and verify database structure."""
         # Call parent initialize to set up API key service
         await super().initialize()
         
-        # Initialize database connection
-        try:
-            if not self.connection:
-                self.connection = sqlite3.connect(self.db_path)
-                # Enable column access by name
-                self.connection.row_factory = sqlite3.Row
-                if self.verbose:
-                    logger.info(f"Connected to SQLite database at {self.db_path}")
-                    
-                # Verify the database structure
-                await self._check_database_structure()
-        except Exception as e:
-            logger.error(f"Failed to connect to SQLite database: {str(e)}")
-            raise HTTPException(status_code=500, detail=f"Database connection error: {str(e)}")
-
-    async def _check_database_structure(self) -> None:
-        """Check if the database has the required tables and structure."""
+        # Ensure connection is initialized
         if not self.connection:
-            raise ValueError("Database connection not initialized")
-            
+            self._initialize_connection()
+        
+        # Check for search_tokens table
+        cursor = self.connection.cursor()
         try:
-            cursor = self.connection.cursor()
-            
-            # Check if the collection table exists
-            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?", (self.collection,))
-            if not cursor.fetchone():
-                error_msg = f"Table '{self.collection}' not found in the database at {self.db_path}"
-                logger.error(error_msg)
-                raise ValueError(error_msg)
-                
-            # Check for search_tokens table (optional but helpful)
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='search_tokens'")
             if cursor.fetchone():
                 self.has_token_table = True
@@ -109,17 +172,12 @@ class SqliteRetriever(SQLRetriever):
                 self.has_token_table = False
                 if self.verbose:
                     logger.info("'search_tokens' table not found - using string similarity only")
-                
-            # Log success
-            if self.verbose:
-                logger.info(f"Database structure verified: collection '{self.collection}' found")
-                
         except Exception as e:
-            logger.error(f"Error checking database structure: {str(e)}")
-            raise
+            logger.warning(f"Error checking for search_tokens table: {str(e)}")
+            self.has_token_table = False
 
     async def close(self) -> None:
-        """Close any open services."""
+        """Close any open services and connections."""
         # Close parent services
         await super().close()
         
@@ -139,27 +197,23 @@ class SqliteRetriever(SQLRetriever):
         if not collection_name:
             raise ValueError("Collection name cannot be empty")
             
-        # Verify that the table exists
+        # Set the collection name
+        self.collection = collection_name
+        if self.verbose:
+            logger.info(f"Switched to collection (table): {collection_name}")
+            
+        # Verify the table exists
         if self.connection:
             cursor = self.connection.cursor()
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?", (collection_name,))
             if not cursor.fetchone():
                 error_msg = f"Table '{collection_name}' not found in the database"
                 logger.error(error_msg)
-                raise HTTPException(status_code=404, detail=error_msg)
-                
-        # Set the collection name
-        self.collection = collection_name
-        if self.verbose:
-            logger.info(f"Switched to collection (table): {collection_name}")
-            
-        # Check table structure to discover fields
-        try:
-            cursor = self.connection.cursor()
-            cursor.execute(f"PRAGMA table_info({collection_name})")
-            columns = cursor.fetchall()
+                raise ValueError(error_msg)
             
             # Update default search fields based on table structure
+            cursor.execute(f"PRAGMA table_info({collection_name})")
+            columns = cursor.fetchall()
             field_names = [col[1] for col in columns]
             
             # Prioritize common field names
@@ -174,8 +228,44 @@ class SqliteRetriever(SQLRetriever):
             
             if self.verbose:
                 logger.info(f"Using search fields: {self.default_search_fields}")
-        except Exception as e:
-            logger.error(f"Error examining table structure: {str(e)}")
+
+    def _tokenize_text(self, text: str) -> List[str]:
+        """
+        Tokenize text for better matching.
+        
+        Args:
+            text: Text to tokenize
+            
+        Returns:
+            List of tokens
+        """
+        # Convert to lowercase
+        text = text.lower()
+        
+        # Remove punctuation
+        text = text.translate(str.maketrans('', '', string.punctuation))
+        
+        # Split into tokens
+        tokens = text.split()
+        
+        # Remove stopwords and short tokens
+        filtered_tokens = [token for token in tokens if token not in self.stopwords and len(token) > 1]
+        
+        return filtered_tokens
+        
+    def _calculate_similarity(self, query: str, text: str) -> float:
+        """
+        Calculate similarity between query and text.
+        
+        Args:
+            query: The user's query
+            text: The text to compare against
+            
+        Returns:
+            Similarity score between 0 and 1
+        """
+        # Use SequenceMatcher for similarity calculation
+        return SequenceMatcher(None, query.lower(), text.lower()).ratio()
 
     async def execute_query(self, sql: str, params: List[Any] = None) -> List[Dict[str, Any]]:
         """
@@ -195,6 +285,12 @@ class SqliteRetriever(SQLRetriever):
             params = []
             
         try:
+            # Log the query and parameters if verbose mode is enabled
+            if self.verbose:
+                logger.info("Executing SQL query:")
+                logger.info(f"SQL: {sql}")
+                logger.info(f"Parameters: {params}")
+            
             cursor = self.connection.cursor()
             cursor.execute(sql, params)
             
@@ -217,14 +313,138 @@ class SqliteRetriever(SQLRetriever):
                     item = {column_names[i]: value for i, value in enumerate(row)}
                 
                 result.append(item)
-                
+            
+            # Log the number of results if verbose mode is enabled
+            if self.verbose:
+                logger.info(f"Query returned {len(result)} rows")
+                if result:
+                    logger.info(f"First row columns: {list(result[0].keys())}")
+            
             return result
             
         except Exception as e:
             logger.error(f"Error executing query: {str(e)}")
             logger.error(f"SQL: {sql}")
             logger.error(f"Params: {params}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return []
+
+    def _get_search_query(self, query: str, collection_name: str) -> Dict[str, Any]:
+        """
+        Generate a SQL query based on the user's query.
+        
+        Args:
+            query: The user's query
+            collection_name: The collection/table name
+            
+        Returns:
+            Dict with SQL query, parameters, and fields
+        """
+        # Tokenize the query
+        query_tokens = self._tokenize_text(query)
+        
+        if self.verbose:
+            logger.info(f"Generating search query for: '{query}'")
+            logger.info(f"Tokenized query: {query_tokens}")
+            logger.info(f"Using collection: {collection_name}")
+        
+        if not query_tokens:
+            # Fallback to basic query
+            if self.verbose:
+                logger.info("No valid tokens found, using basic query")
+            return {
+                "sql": f"SELECT * FROM {collection_name} LIMIT ?",
+                "params": [self.max_results],
+                "fields": self.default_search_fields
+            }
+        
+        # For QA collections, search primarily in the question field
+        if "question" in self.default_search_fields:
+            # Build a search condition that checks for each token in the question field
+            conditions = []
+            params = []
+            
+            for token in query_tokens:
+                if len(token) > 2:  # Only use tokens with sufficient length
+                    conditions.append("question LIKE ?")
+                    params.append(f"%{token}%")
+            
+            if conditions:
+                # Use OR to be more inclusive in our search
+                where_clause = " OR ".join(conditions)
+                
+                # Use ORDER BY to sort by relevance based on how many tokens match
+                # We'll count the number of matching tokens for each result
+                order_by_clause = ""
+                for token in query_tokens:
+                    if len(token) > 2:
+                        order_by_clause += f" + (CASE WHEN question LIKE '%{token}%' THEN 1 ELSE 0 END)"
+                
+                if order_by_clause:
+                    order_by_clause = f"ORDER BY ({order_by_clause[3:]}) DESC"
+                
+                # Build the final SQL query
+                sql = f"""
+                    SELECT * FROM {collection_name} 
+                    WHERE {where_clause}
+                    {order_by_clause}
+                    LIMIT ?
+                """
+                params.append(self.max_results)
+                
+                if self.verbose:
+                    logger.info("Generated QA-specific search query:")
+                    logger.info(f"SQL: {sql}")
+                    logger.info(f"Parameters: {params}")
+                    logger.info(f"Search fields: {self.default_search_fields}")
+                
+                return {
+                    "sql": sql,
+                    "params": params,
+                    "fields": self.default_search_fields
+                }
+        
+        # For more generic queries, search across all text fields
+        conditions = []
+        params = []
+        search_fields = [f for f in self.default_search_fields if f != "id"]
+        
+        for field in search_fields:
+            for token in query_tokens:
+                if len(token) > 2:  # Only use tokens with sufficient length
+                    conditions.append(f"{field} LIKE ?")
+                    params.append(f"%{token}%")
+        
+        if conditions:
+            where_clause = " OR ".join(conditions)
+            sql = f"""
+                SELECT * FROM {collection_name} 
+                WHERE {where_clause}
+                LIMIT ?
+            """
+            params.append(self.max_results)
+            
+            if self.verbose:
+                logger.info("Generated generic search query:")
+                logger.info(f"SQL: {sql}")
+                logger.info(f"Parameters: {params}")
+                logger.info(f"Search fields: {search_fields}")
+            
+            return {
+                "sql": sql,
+                "params": params,
+                "fields": search_fields
+            }
+            
+        # Final fallback
+        if self.verbose:
+            logger.info("No valid search conditions found, using fallback query")
+        
+        return {
+            "sql": f"SELECT * FROM {collection_name} LIMIT ?",
+            "params": [self.max_results],
+            "fields": self.default_search_fields
+        }
 
     async def _search_by_tokens(self, query_tokens: List[str]) -> List[Dict[str, Any]]:
         """
@@ -279,167 +499,38 @@ class SqliteRetriever(SQLRetriever):
             logger.error(f"Error in token-based search: {str(e)}")
             return []
 
-    def _get_search_query(self, query: str, collection_name: str) -> Dict[str, Any]:
-        """
-        Create a SQL query based on user's query.
-        
-        Args:
-            query: The user's query
-            collection_name: The collection/table name
-            
-        Returns:
-            A dict with SQL query and parameters
-        """
-        # Create a better search query that looks for keywords
-        query_tokens = self._tokenize_text(query)
-        
-        if not query_tokens:
-            # Fallback to basic query
-            return {
-                "sql": f"SELECT * FROM {collection_name} LIMIT ?",
-                "params": [self.max_results]
-            }
-        
-        # For QA collections, search in the question field
-        if collection_name.lower() in ["qa", "question_answer", "qa_pairs", "city"]:
-            # Build a search condition that checks for each token in the question field
-            conditions = []
-            params = []
-            
-            for token in query_tokens:
-                if len(token) > 2:  # Only use tokens with sufficient length
-                    conditions.append("question LIKE ?")
-                    params.append(f"%{token}%")
-            
-            if conditions:
-                # Use OR to be more inclusive in our search
-                where_clause = " OR ".join(conditions)
-                
-                # Use ORDER BY to sort by relevance based on how many tokens match
-                # We'll count the number of matching tokens for each result
-                order_by_clause = ""
-                for token in query_tokens:
-                    if len(token) > 2:
-                        order_by_clause += f" + (CASE WHEN question LIKE '%{token}%' THEN 1 ELSE 0 END)"
-                
-                if order_by_clause:
-                    order_by_clause = f"ORDER BY ({order_by_clause[3:]}) DESC"
-                
-                # Build the final SQL query
-                sql = f"""
-                    SELECT * FROM {collection_name} 
-                    WHERE {where_clause}
-                    {order_by_clause}
-                    LIMIT ?
-                """
-                params.append(self.max_results)
-                
-                if self.verbose:
-                    logger.info(f"Generated SQL query: {sql}")
-                    logger.info(f"With parameters: {params}")
-                
-                return {
-                    "sql": sql,
-                    "params": params
-                }
-        
-        # For more generic queries, also try full-text search if SQLite supports it
-        # First check if there's an FTS virtual table for this collection
-        try:
-            if self.connection:
-                cursor = self.connection.cursor()
-                cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'fts%'")
-                fts_tables = cursor.fetchall()
-                
-                # If we have FTS tables, try using them
-                for fts_table in fts_tables:
-                    fts_name = fts_table[0]
-                    # Check if this FTS table relates to our collection
-                    if collection_name.lower() in fts_name.lower():
-                        # Use SQLite FTS match operator
-                        query_text = " OR ".join(query_tokens)
-                        sql = f"""
-                            SELECT * FROM {fts_name} 
-                            WHERE {fts_name} MATCH ?
-                            LIMIT ?
-                        """
-                        params = [query_text, self.max_results]
-                        
-                        if self.verbose:
-                            logger.info(f"Using FTS query: {sql}")
-                            logger.info(f"With parameters: {params}")
-                            
-                        return {
-                            "sql": sql,
-                            "params": params
-                        }
-        except Exception as e:
-            # FTS query might fail if the table structure doesn't support it
-            logger.warning(f"FTS query attempt failed: {str(e)}")
-        
-        # Fallback to basic query with simple keyword matching across key text fields
-        conditions = []
-        params = []
-        search_fields = [f for f in self.default_search_fields if f not in ["id"]]
-        
-        if not search_fields:
-            search_fields = ["content", "text", "body", "description"]
-            
-        for field in search_fields:
-            for token in query_tokens:
-                if len(token) > 2:  # Only use tokens with sufficient length
-                    conditions.append(f"{field} LIKE ?")
-                    params.append(f"%{token}%")
-        
-        if conditions:
-            where_clause = " OR ".join(conditions)
-            sql = f"""
-                SELECT * FROM {collection_name} 
-                WHERE {where_clause}
-                LIMIT ?
-            """
-            params.append(self.max_results)
-            return {
-                "sql": sql,
-                "params": params
-            }
-            
-        # Final fallback
-        if self.verbose:
-            logger.info("Using fallback query with no specific matching")
-            
-        return {
-            "sql": f"SELECT * FROM {collection_name} LIMIT ?",
-            "params": [self.max_results]
-        }
-
     async def get_relevant_context(self, 
-                           query: str, 
-                           api_key: Optional[str] = None, 
-                           collection_name: Optional[str] = None,
-                           **kwargs) -> List[Dict[str, Any]]:
+                                 query: str, 
+                                 api_key: Optional[str] = None, 
+                                 collection_name: Optional[str] = None,
+                                 **kwargs) -> List[Dict[str, Any]]:
         """
         Retrieve and filter relevant context from SQLite with domain adaptation.
         
         Args:
-            query: The user's query.
-            api_key: Optional API key for accessing the collection.
-            collection_name: Optional explicit collection name.
+            query: The user's query
+            api_key: Optional API key for accessing the collection
+            collection_name: Optional explicit collection name
             **kwargs: Additional parameters
             
         Returns:
-            A list of context items filtered by relevance.
+            A list of context items filtered by relevance
         """
         try:
-            # Call the parent implementation which handles common functionality
-            await super().get_relevant_context(query, api_key, collection_name, **kwargs)
+            # Resolve the collection
+            if collection_name:
+                await self.set_collection(collection_name)
+            elif api_key:
+                collection = await self._resolve_collection(api_key)
+                await self.set_collection(collection)
+            elif not self.collection:
+                raise ValueError("No collection specified")
+            
+            # Ensure we have a connection
+            if not self.connection:
+                self._initialize_connection()
             
             debug_mode = self.verbose
-            
-            if not self.connection:
-                error_msg = "Database connection not initialized"
-                logger.error(error_msg)
-                raise ValueError(error_msg)
             
             # Tokenize the query
             query_tokens = self._tokenize_text(query)
@@ -456,7 +547,7 @@ class SqliteRetriever(SQLRetriever):
             if token_results:
                 rows = token_results
             else:
-                # Use domain-specific search query
+                # Get search query from domain-specific method
                 search_config = self._get_search_query(query, self.collection)
                 rows = await self.execute_query(search_config["sql"], search_config["params"])
             
@@ -497,78 +588,47 @@ class SqliteRetriever(SQLRetriever):
                 # Calculate combined score
                 combined_score = (0.7 * token_match_ratio) + (0.3 * similarity) if token_match_ratio > 0 else similarity
                 
-                # Include in results if score exceeds threshold
+                # Process if score exceeds threshold
                 if combined_score >= self.relevance_threshold:
-                    # For QA documents, ensure we have both question and answer
+                    # Determine document content
+                    raw_doc = ""
                     if "question" in row and "answer" in row:
-                        # Create a properly formatted QA document
-                        context_item = {
-                            "id": row.get("id"),
-                            "question": row["question"],
-                            "answer": row["answer"],
-                            "confidence": combined_score,
-                            "content": f"Question: {row['question']}\nAnswer: {row['answer']}",
-                            "raw_document": f"Question: {row['question']}\nAnswer: {row['answer']}",
-                            "metadata": {
-                                "source": self._get_datasource_name(),
-                                "collection": self.collection,
-                                "string_similarity": similarity,
-                                "token_match_ratio": token_match_ratio
-                            }
-                        }
-                        results.append(context_item)
+                        raw_doc = f"Question: {row['question']}\nAnswer: {row['answer']}"
+                    elif "content" in row:
+                        raw_doc = row["content"]
+                    elif compare_field:
+                        raw_doc = compare_value
                     else:
-                        # For non-QA documents, get raw document content
-                        raw_doc = ""
-                        if "content" in row:
-                            raw_doc = row["content"]
-                        elif compare_field:
-                            raw_doc = compare_value
+                        continue  # Skip if no content found
+                    
+                    # Use domain adapter to format document
+                    if self.domain_adapter and hasattr(self.domain_adapter, 'format_document'):
+                        # Convert row to regular dict for metadata
+                        metadata = dict(row)
                         
-                        # Use domain adapter to format the document if available
-                        if self.domain_adapter and hasattr(self.domain_adapter, 'format_document'):
-                            context_item = self.domain_adapter.format_document(raw_doc, dict(row))
-                            context_item["confidence"] = combined_score
-                            
-                            # Ensure required fields are present
-                            if "content" not in context_item:
-                                context_item["content"] = raw_doc
-                            if "raw_document" not in context_item:
-                                context_item["raw_document"] = raw_doc
-                        else:
-                            # Create a basic context item with all required fields
-                            context_item = {
-                                "content": raw_doc,
-                                "confidence": combined_score,
-                                "raw_document": raw_doc,
-                                "metadata": {}
-                            }
+                        # Format the document using the domain adapter
+                        context_item = self.domain_adapter.format_document(raw_doc, metadata)
                         
-                        # Add source info to metadata
+                        # Add confidence score
+                        context_item["confidence"] = combined_score
+                        
+                        # Add metadata about the source
                         if "metadata" not in context_item:
                             context_item["metadata"] = {}
+                        
                         context_item["metadata"]["source"] = self._get_datasource_name()
                         context_item["metadata"]["collection"] = self.collection
+                        context_item["metadata"]["similarity"] = similarity
+                        context_item["metadata"]["token_match_ratio"] = token_match_ratio
                         
                         results.append(context_item)
             
-            # Add debug logging after results are created
-            if debug_mode and results:
-                logger.info(f"First result details: {json.dumps(results[0])}")
-                
-                # Ensure all required fields are present
-                if 'content' not in results[0]:
-                    logger.warning("Missing 'content' field in results - LLM may not be able to use this")
-                if 'confidence' not in results[0]:
-                    logger.warning("Missing 'confidence' field in results")
-                if 'metadata' not in results[0]:
-                    logger.warning("Missing 'metadata' field in results")
-            
-            # Apply domain-specific filtering
-            results = self.apply_domain_filtering(results, query)
+            # Apply domain-specific filtering if available
+            if self.domain_adapter and hasattr(self.domain_adapter, 'apply_domain_specific_filtering'):
+                results = self.domain_adapter.apply_domain_specific_filtering(results, query)
             
             # Sort by confidence and limit results
-            results.sort(key=lambda x: x["confidence"], reverse=True)
+            results.sort(key=lambda x: x.get("confidence", 0), reverse=True)
             results = results[:self.return_results]
             
             if debug_mode:
@@ -582,6 +642,7 @@ class SqliteRetriever(SQLRetriever):
             logger.error(f"Error retrieving context: {str(e)}")
             logger.error(traceback.format_exc())
             return []
+
 
 # Register the retriever with the factory
 RetrieverFactory.register_retriever('sqlite', SqliteRetriever)

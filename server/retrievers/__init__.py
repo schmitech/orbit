@@ -23,7 +23,7 @@ __all__ = [
 
 # Import implementations to register them
 from .implementations.chroma import ChromaRetriever
-from .implementations.sqlite import SQLiteRetriever
+from .implementations.sqlite import SqliteRetriever
 from .adapters.qa import QARetriever
 
 # Force import our specialized adapters to ensure registration

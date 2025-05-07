@@ -1,3 +1,3 @@
-from .sqlite_retriever import SqliteRetriever as SQLiteRetriever
+from .sqlite_retriever import SqliteRetriever
 
-__all__ = ['SQLiteRetriever']
+__all__ = ['SqliteRetriever']

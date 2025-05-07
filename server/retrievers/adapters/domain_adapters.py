@@ -1,10 +1,13 @@
 """
-Domain-specific adapters for vector DB retrievers
+domain adapters for retrievers with registry integration
 """
 
 from abc import ABC, abstractmethod
 from typing import Dict, Any, List, Optional, Union
 import logging
+
+# Import the registry
+from retrievers.adapters.registry import ADAPTER_REGISTRY
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -15,6 +18,16 @@ class DocumentAdapter(ABC):
     This allows extending retrievers to different domains without changing core code.
     """
     
+    def __init__(self, config: Dict[str, Any] = None, **kwargs):
+        """
+        Initialize the document adapter.
+        
+        Args:
+            config: Optional configuration dictionary
+            **kwargs: Additional parameters
+        """
+        self.config = config or {}
+        
     @abstractmethod
     def format_document(self, raw_doc: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -62,18 +75,32 @@ class DocumentAdapter(ABC):
 class QADocumentAdapter(DocumentAdapter):
     """Adapter for question-answer type documents"""
     
-    def __init__(self, confidence_threshold: float = 0.7, boost_exact_matches: bool = False):
-        self.confidence_threshold = confidence_threshold
-        self.boost_exact_matches = boost_exact_matches
+    def __init__(self, config: Dict[str, Any] = None, **kwargs):
+        """
+        Initialize QA document adapter.
+        
+        Args:
+            config: Optional configuration dictionary
+            **kwargs: Additional parameters
+        """
+        super().__init__(config=config, **kwargs)
+        
+        # Extract configuration values with sensible defaults
+        self.confidence_threshold = self.config.get('confidence_threshold', 0.7)
+        self.boost_exact_matches = self.config.get('boost_exact_matches', False)
+        self.verbose = self.config.get('verbose', False)
+        
+        if self.verbose:
+            logger.info(f"Initialized QA Document Adapter with confidence threshold: {self.confidence_threshold}")
     
     def format_document(self, raw_doc: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
         """Format document for QA domain"""
         item = {
             "raw_document": raw_doc,
-            "metadata": metadata.copy(),
+            "metadata": metadata.copy() if metadata else {},
         }
         
-        if "question" in metadata and "answer" in metadata:
+        if metadata and "question" in metadata and "answer" in metadata:
             item["content"] = f"Question: {metadata['question']}\nAnswer: {metadata['answer']}"
             item["question"] = metadata["question"]
             item["answer"] = metadata["answer"]
@@ -99,29 +126,58 @@ class QADocumentAdapter(DocumentAdapter):
                                       context_items: List[Dict[str, Any]], 
                                       query: str) -> List[Dict[str, Any]]:
         """Apply QA-specific filtering/ranking"""
+        if not context_items:
+            return []
+            
         # If boost_exact_matches is enabled, increase confidence for exact matches
-        if self.boost_exact_matches and context_items:
+        if self.boost_exact_matches:
             for item in context_items:
                 if "question" in item and query.lower() in item["question"].lower():
                     # Boost confidence for questions containing the query
                     item["confidence"] = min(1.0, item["confidence"] * 1.2)
+                    
+                    # For exact matches, boost even more
+                    if query.lower() == item["question"].lower():
+                        item["confidence"] = min(1.0, item["confidence"] * 1.5)
                 
-        return context_items
+        # Filter out items below confidence threshold
+        filtered_items = [item for item in context_items 
+                         if item.get("confidence", 0) >= self.confidence_threshold]
+        
+        # Sort by confidence score
+        filtered_items.sort(key=lambda x: x.get("confidence", 0), reverse=True)
+        
+        return filtered_items
 
 
 class GenericDocumentAdapter(DocumentAdapter):
     """Adapter for generic document retrieval (not QA-specific)"""
     
+    def __init__(self, config: Dict[str, Any] = None, **kwargs):
+        """
+        Initialize generic document adapter.
+        
+        Args:
+            config: Optional configuration dictionary
+            **kwargs: Additional parameters
+        """
+        super().__init__(config=config, **kwargs)
+        
+        # Extract configuration values with sensible defaults
+        self.confidence_threshold = self.config.get('confidence_threshold', 0.5)
+        self.relevance_threshold = self.config.get('relevance_threshold', 0.3)
+        self.verbose = self.config.get('verbose', False)
+        
     def format_document(self, raw_doc: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
         """Format document for general retrieval"""
         item = {
             "raw_document": raw_doc,
             "content": raw_doc,
-            "metadata": metadata.copy(),
+            "metadata": metadata.copy() if metadata else {},
         }
         
         # Extract title if available
-        if "title" in metadata:
+        if metadata and "title" in metadata:
             item["title"] = metadata["title"]
             
         return item
@@ -134,8 +190,17 @@ class GenericDocumentAdapter(DocumentAdapter):
                                       context_items: List[Dict[str, Any]], 
                                       query: str) -> List[Dict[str, Any]]:
         """Apply generic content filtering"""
-        # Could implement document importance weighting here
-        return context_items
+        if not context_items:
+            return []
+            
+        # Filter out items below confidence threshold
+        filtered_items = [item for item in context_items 
+                         if item.get("confidence", 0) >= self.confidence_threshold]
+        
+        # Sort by confidence score
+        filtered_items.sort(key=lambda x: x.get("confidence", 0), reverse=True)
+        
+        return filtered_items
 
 
 class DocumentAdapterFactory:
@@ -144,36 +209,83 @@ class DocumentAdapterFactory:
     _registered_adapters = {}
     
     @classmethod
-    def register_adapter(cls, name: str, adapter_class):
-        """Register a document adapter"""
-        cls._registered_adapters[name] = adapter_class
-        logger.info(f"Registered adapter '{name}' - total adapters: {len(cls._registered_adapters)}")
+    def register_adapter(cls, adapter_type: str, factory_func):
+        """
+        Register a new adapter type with its factory function.
+        
+        Args:
+            adapter_type: Type identifier for the adapter
+            factory_func: Function that creates the adapter instance
+        """
+        cls._registered_adapters[adapter_type.lower()] = factory_func
+        logger.info(f"Registered adapter type: {adapter_type}")
     
     @classmethod
-    def create_adapter(cls, adapter_type: str, **kwargs):
-        """Create an adapter instance"""
-        if adapter_type not in cls._registered_adapters:
-            logger.error(f"Unknown adapter type: {adapter_type}")
-            logger.error(f"Available adapters: {list(cls._registered_adapters.keys())}")
-            raise ValueError(f"Unknown adapter type: {adapter_type}")
+    def create_adapter(cls, adapter_type: str, **kwargs) -> DocumentAdapter:
+        """
+        Create a document adapter instance.
+        
+        Args:
+            adapter_type: Type of adapter to create (e.g., 'qa', 'generic')
+            **kwargs: Additional arguments to pass to the adapter
             
-        logger.info(f"Creating adapter of type '{adapter_type}'")
-        # Ensure config is properly passed to the adapter constructor
-        config = kwargs.pop('config', None)
-        try:
-            # Create the adapter instance with the config if provided
-            if config is not None:
-                return cls._registered_adapters[adapter_type](config=config, **kwargs)
-            else:
-                return cls._registered_adapters[adapter_type](**kwargs)
-        except Exception as e:
-            logger.error(f"Error creating {adapter_type} adapter: {str(e)}")
-            raise
+        Returns:
+            A document adapter instance
+            
+        Raises:
+            ValueError: If the adapter type is not supported
+        """
+        adapter_type = adapter_type.lower()
+        
+        # Try to get from registered adapters first
+        if adapter_type in cls._registered_adapters:
+            return cls._registered_adapters[adapter_type](**kwargs)
+            
+        # Fall back to built-in adapters
+        if adapter_type == 'qa':
+            return QADocumentAdapter(**kwargs)
+        elif adapter_type == 'generic':
+            return GenericDocumentAdapter(**kwargs)
+        else:
+            raise ValueError(f"Unsupported adapter type: {adapter_type}")
 
-    @classmethod
-    def get_registered_adapters(cls):
-        """Get list of registered adapter names"""
-        return list(cls._registered_adapters.keys())
 
-# Log available adapters on module load
-logger.info(f"Domain adapters module loaded with adapters: {DocumentAdapterFactory.get_registered_adapters()}")
+# Register adapters with the registry
+def register_adapters():
+    """Register all built-in adapters with the registry"""
+    # Register QA document adapter
+    ADAPTER_REGISTRY.register(
+        adapter_type="retriever",
+        datasource="sqlite",
+        adapter_name="qa",
+        factory_func=lambda **kwargs: QADocumentAdapter(**kwargs)
+    )
+    
+    # Register Generic document adapter for SQLite
+    ADAPTER_REGISTRY.register(
+        adapter_type="retriever",
+        datasource="sqlite",
+        adapter_name="generic",
+        factory_func=lambda **kwargs: GenericDocumentAdapter(**kwargs)
+    )
+    
+    # Register QA document adapter for Chroma
+    ADAPTER_REGISTRY.register(
+        adapter_type="retriever",
+        datasource="chroma",
+        adapter_name="qa",
+        factory_func=lambda **kwargs: QADocumentAdapter(**kwargs)
+    )
+    
+    # Register Generic document adapter for Chroma
+    ADAPTER_REGISTRY.register(
+        adapter_type="retriever",
+        datasource="chroma",
+        adapter_name="generic",
+        factory_func=lambda **kwargs: GenericDocumentAdapter(**kwargs)
+    )
+    
+    logger.info("Registered built-in domain adapters with the registry")
+
+# Register adapters when module is imported
+register_adapters()

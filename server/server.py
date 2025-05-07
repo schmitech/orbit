@@ -64,9 +64,11 @@ from inference import LLMClientFactory
 from utils.text_utils import mask_api_key
 from embeddings.base import EmbeddingServiceFactory
 from retrievers.base.base_retriever import RetrieverFactory
-from retrievers.adapters.domain_adapters import DocumentAdapterFactory
-from retrievers.implementations.chroma import ChromaRetriever
-from retrievers.implementations.sqlite import SQLiteRetriever
+from retrievers.adapters.registry import ADAPTER_REGISTRY
+from utils.mongodb_utils import configure_mongodb_logging
+
+# Configure MongoDB logging
+configure_mongodb_logging()
 
 class InferenceServer:
     """
@@ -576,56 +578,68 @@ class InferenceServer:
         
         # Set up lazy-loaded retriever for the configured datasource provider
         try:
-            # Get the datasource provider from configuration 
-            datasource_provider = self.config['general'].get('datasource_provider', 'chroma')
-            self.logger.info(f"Setting up lazy loading for {datasource_provider} retriever")
+            # Get the adapter configuration
+            adapter_configs = self.config.get('adapters', [])
+            if not adapter_configs:
+                raise ValueError("No adapter configurations found in config")
             
-            # Import necessary components
-            from retrievers.base.base_retriever import RetrieverFactory
-            from retrievers.adapters.domain_adapters import DocumentAdapterFactory
+            # Get the configured adapter path from general settings
+            configured_adapter = self.config['general'].get('adapter', '')
+            if not configured_adapter:
+                raise ValueError("No adapter specified in general.adapter")
+            
+            # Parse the adapter path (e.g., "adapters.chroma.qa" -> datasource="chroma", adapter="qa")
+            try:
+                _, datasource, adapter_type = configured_adapter.split('.')
+            except ValueError:
+                raise ValueError(f"Invalid adapter path format: {configured_adapter}. Expected format: adapters.<datasource>.<adapter>")
+            
+            # Find the matching adapter configuration
+            retriever_config = next(
+                (cfg for cfg in adapter_configs 
+                 if cfg.get('type') == 'retriever' 
+                 and cfg.get('datasource') == datasource 
+                 and cfg.get('adapter') == adapter_type),
+                None
+            )
+            
+            if not retriever_config:
+                raise ValueError(f"No matching adapter configuration found for {configured_adapter}")
+            
+            # Extract adapter details
+            implementation = retriever_config.get('implementation')
+            
+            if not implementation:
+                raise ValueError("Missing required adapter implementation field")
+            
+            self.logger.info(f"Setting up lazy loading for {datasource} retriever with {adapter_type} adapter")
             
             # Register a factory function for lazy loading the specified retriever
             def create_configured_retriever():
                 """Factory function to create the properly configured retriever when needed"""
-                # Check for domain adapter configuration
-                datasource_config = self.config.get('datasources', {}).get(datasource_provider, {})
-                domain_adapter_type = datasource_config.get('domain_adapter', 'qa')
-                adapter_params = datasource_config.get('adapter_params', {})
-                
-                # Log the domain adapter being used
-                self.logger.info(f"Lazy loading {domain_adapter_type} domain adapter for {datasource_provider} retriever")
-                
-                # Import the specific retriever for the selected datasource
-                if datasource_provider == 'sqlite':
-                    from retrievers.implementations.sqlite import SQLiteRetriever
-                    retriever_class = SQLiteRetriever
-                elif datasource_provider == 'chroma':
-                    from retrievers.implementations.chroma import ChromaRetriever
-                    retriever_class = ChromaRetriever
-                else:
-                    # For other providers, we'll need to import dynamically
-                    try:
-                        module_name = f"retrievers.implementations.{datasource_provider}"
-                        module = __import__(module_name, fromlist=[f"{datasource_provider.capitalize()}Retriever"])
-                        retriever_class = getattr(module, f"{datasource_provider.capitalize()}Retriever")
-                    except (ImportError, AttributeError) as e:
-                        self.logger.error(f"Could not load retriever class for {datasource_provider}: {str(e)}")
-                        raise ValueError(f"Unsupported datasource provider: {datasource_provider}")
-                
-                # Create the domain adapter
+                # Import the specific retriever class
                 try:
-                    self.logger.info(f"Creating domain adapter of type '{domain_adapter_type}'")
-                    domain_adapter = DocumentAdapterFactory.create_adapter(
-                        domain_adapter_type, 
-                        config=self.config,
-                        **adapter_params
+                    module_path, class_name = implementation.rsplit('.', 1)
+                    module = __import__(module_path, fromlist=[class_name])
+                    retriever_class = getattr(module, class_name)
+                except (ImportError, AttributeError) as e:
+                    self.logger.error(f"Could not load retriever class from {implementation}: {str(e)}")
+                    raise ValueError(f"Failed to load retriever implementation: {str(e)}")
+                
+                # Create the domain adapter using the registry
+                try:
+                    # Create adapter using registry with the full config
+                    adapter_config = retriever_config.get('config', {})
+                    domain_adapter = ADAPTER_REGISTRY.create(
+                        adapter_type='retriever',
+                        datasource=datasource,
+                        adapter_name=adapter_type,
+                        **adapter_config  # Pass config values as kwargs
                     )
-                    self.logger.info(f"Successfully created {domain_adapter_type} domain adapter")
+                    self.logger.info(f"Successfully created {adapter_type} domain adapter with config: {adapter_config}")
                 except Exception as adapter_error:
                     self.logger.error(f"Error creating domain adapter: {str(adapter_error)}")
-                    self.logger.warning(f"Falling back to default QA adapter")
-                    from retrievers.adapters.domain_adapters import QADocumentAdapter
-                    domain_adapter = QADocumentAdapter(confidence_threshold=0.7)
+                    raise ValueError(f"Failed to create domain adapter: {str(adapter_error)}")
                 
                 # Prepare appropriate arguments based on the provider type
                 retriever_kwargs = {
@@ -634,20 +648,20 @@ class InferenceServer:
                 }
                 
                 # Add appropriate client/connection based on the provider type
-                if datasource_provider == 'chroma':
+                if datasource == 'chroma':
                     retriever_kwargs['embeddings'] = app.state.embedding_service
                     if hasattr(app.state, 'chroma_client'):
                         retriever_kwargs['collection'] = app.state.chroma_client
-                elif datasource_provider == 'sqlite':
+                elif datasource == 'sqlite':
                     if hasattr(app.state, 'datasource_client'):
                         retriever_kwargs['connection'] = app.state.datasource_client
                 
                 # Create and return the retriever instance
-                self.logger.info(f"Creating {datasource_provider} retriever instance")
+                self.logger.info(f"Creating {datasource} retriever instance")
                 return retriever_class(**retriever_kwargs)
             
             # Register the factory function with the RetrieverFactory
-            RetrieverFactory.register_lazy_retriever(datasource_provider, create_configured_retriever)
+            RetrieverFactory.register_lazy_retriever(datasource, create_configured_retriever)
             
             # Create a lazy retriever accessor for the app state
             class LazyRetrieverAccessor:
@@ -663,8 +677,8 @@ class InferenceServer:
                     return getattr(self._retriever, name)
             
             # Set the lazy retriever accessor in app state
-            app.state.retriever = LazyRetrieverAccessor(datasource_provider)
-            self.logger.info(f"Successfully set up lazy loading for {datasource_provider} retriever")
+            app.state.retriever = LazyRetrieverAccessor(datasource)
+            self.logger.info(f"Successfully set up lazy loading for {datasource} retriever")
             
         except Exception as e:
             self.logger.error(f"Error setting up lazy loading for retriever: {str(e)}")
@@ -674,10 +688,12 @@ class InferenceServer:
             def create_fallback_retriever():
                 try:
                     from retrievers.implementations.chroma import ChromaRetriever
-                    from retrievers.adapters.domain_adapters import DocumentAdapterFactory
                     
                     # Create a default QA adapter
-                    domain_adapter = DocumentAdapterFactory.create_adapter('qa')
+                    domain_adapter = ADAPTER_REGISTRY.create(
+                        adapter_type='qa',
+                        config=self.config
+                    )
                     
                     return ChromaRetriever(
                         config=self.config,
@@ -689,7 +705,6 @@ class InferenceServer:
                     raise
             
             # Register the fallback retriever factory
-            from retrievers.base.base_retriever import RetrieverFactory
             RetrieverFactory.register_lazy_retriever('fallback', create_fallback_retriever)
             
             # Create a lazy accessor that uses the fallback retriever
@@ -862,7 +877,6 @@ class InferenceServer:
         
         # Get selected providers
         inference_provider = self.config['general'].get('inference_provider', 'ollama')
-        datasource_provider = self.config['general'].get('datasource_provider', 'chroma')
         
         # Get embedding configuration
         embedding_config = self.config.get('embedding', {})
@@ -879,7 +893,6 @@ class InferenceServer:
         mcp_enabled = _is_true_value(self.config['general'].get('mcp_protocol', False))
         
         self.logger.info(f"Inference provider: {inference_provider}")
-        self.logger.info(f"Datasource provider: {datasource_provider}")
         self.logger.info(f"Embedding: {'enabled' if embedding_enabled else 'disabled'}")
         self.logger.info(f"MCP protocol: {'enabled' if mcp_enabled else 'disabled'}")
         
@@ -908,17 +921,6 @@ class InferenceServer:
             self.logger.info(f"Server running with {model_name} model")
         
         # Log datasource configuration
-        if datasource_provider == 'chroma':
-            chroma_config = self.config['datasources']['chroma']
-            use_local = chroma_config.get('use_local', False)
-            if use_local:
-                db_path = chroma_config.get('db_path', '../utils/chroma/chroma_db')
-                self.logger.info(f"ChromaDB: Using local filesystem at {db_path}")
-            else:
-                self.logger.info(f"ChromaDB: Using remote server at {chroma_config.get('host')}:{chroma_config.get('port')}")
-            self.logger.info(f"Confidence threshold: {chroma_config.get('confidence_threshold', 0.85)}")
-        
-        # Retriever settings
         if hasattr(self.app.state, 'retriever'):
             self.logger.info(f"Relevance threshold: {self.app.state.retriever.relevance_threshold}")
         
@@ -1019,10 +1021,10 @@ class InferenceServer:
             
             # Log the collection and prompt being used
             if self.config.get('general', {}).get('verbose', False):
-                self.logger.info(f"Using collection '{collection_name}' for chat request from {client_ip}")
-                self.logger.info(f"API key: {masked_api_key}")
+                self.logger.debug(f"Using collection '{collection_name}' for chat request from {client_ip}")
+                self.logger.debug(f"API key: {masked_api_key}")
                 if system_prompt_id:
-                    self.logger.info(f"Using system prompt ID: {system_prompt_id}")
+                    self.logger.debug(f"Using system prompt ID: {system_prompt_id}")
 
             if stream:
                 return StreamingResponse(
@@ -1060,10 +1062,17 @@ class InferenceServer:
             This endpoint implements the MCP protocol using JSON-RPC 2.0 format
             for compatibility with tools and clients that support it.
             """
+            if _is_true_value(self.config.get('general', {}).get('verbose', False)):
+                self.logger.debug("MCP endpoint hit - checking configuration...")
+            
             # Check if MCP protocol is enabled
             if not self._is_mcp_enabled():
+                self.logger.error("MCP protocol is not enabled in configuration")
                 raise HTTPException(status_code=404, detail="MCP protocol is not enabled")
-                
+            
+            if _is_true_value(self.config.get('general', {}).get('verbose', False)):
+                self.logger.debug("MCP protocol is enabled, processing request...")
+            
             collection_name, system_prompt_id = api_key_result
             
             # Extract the API key from the request header
@@ -1076,24 +1085,34 @@ class InferenceServer:
             client_ip = request.headers.get("X-Forwarded-For", request.client.host if request.client else "unknown")
             
             # Get request body
-            body = await request.json()
+            try:
+                body = await request.json()
+                if _is_true_value(self.config.get('general', {}).get('verbose', False)):
+                    self.logger.debug(f"MCP request body: {json.dumps(body)}")
+            except Exception as e:
+                self.logger.error(f"Failed to parse request body: {str(e)}")
+                raise HTTPException(status_code=400, detail=f"Invalid request body: {str(e)}")
             
             # Validate JSON-RPC request format
             if not all(key in body for key in ["jsonrpc", "method", "params", "id"]):
+                self.logger.error("Invalid request format: missing required JSON-RPC fields")
                 raise HTTPException(status_code=400, detail="Invalid request format: missing required JSON-RPC fields")
             
             try:
                 jsonrpc_request = MCPJsonRpcRequest(**body)
+                if _is_true_value(self.config.get('general', {}).get('verbose', False)):
+                    self.logger.debug(f"Parsed JSON-RPC request: method={jsonrpc_request.method}, id={jsonrpc_request.id}")
             except Exception as e:
+                self.logger.error(f"Failed to parse JSON-RPC request: {str(e)}")
                 raise HTTPException(status_code=400, detail=f"Invalid request format: {str(e)}")
             
             # Log the request
             if self.config.get('general', {}).get('verbose', False):
-                self.logger.info(f"[MCP] Request method: {jsonrpc_request.method}")
-                self.logger.info(f"[MCP] Using collection '{collection_name}' for request from {client_ip}")
-                self.logger.info(f"[MCP] API key: {masked_api_key}")
+                self.logger.debug(f"[MCP] Request method: {jsonrpc_request.method}")
+                self.logger.debug(f"[MCP] Using collection '{collection_name}' for request from {client_ip}")
+                self.logger.debug(f"[MCP] API key: {masked_api_key}")
                 if system_prompt_id:
-                    self.logger.info(f"[MCP] Using system prompt ID: {system_prompt_id}")
+                    self.logger.debug(f"[MCP] Using system prompt ID: {system_prompt_id}")
             
             try:
                 # Handle different MCP methods
@@ -1600,7 +1619,11 @@ class InferenceServer:
         Returns:
             True if MCP protocol is enabled, False otherwise
         """
-        return _is_true_value(self.config.get('general', {}).get('mcp_protocol', False))
+        mcp_enabled = _is_true_value(self.config.get('general', {}).get('mcp_protocol', False))
+        if _is_true_value(self.config.get('general', {}).get('verbose', False)):
+            self.logger.debug(f"MCP Protocol Status: {'Enabled' if mcp_enabled else 'Disabled'}")
+            self.logger.debug(f"Full MCP config: {self.config.get('general', {}).get('mcp_protocol')}")
+        return mcp_enabled
     
     def _validate_mcp_content(self, content: List[Dict[str, Any]]) -> str:
         """

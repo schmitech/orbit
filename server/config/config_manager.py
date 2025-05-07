@@ -264,7 +264,6 @@ def get_default_config() -> Dict[str, Any]:
                 "key_file": "./key.pem"
             },
             "inference_provider": "ollama",
-            "datasource_provider": "chroma",
             "mcp_protocol": False  # Toggle for MCP protocol compatibility
         },
         "messages": {
@@ -421,7 +420,6 @@ def get_default_config() -> Dict[str, Any]:
                 "db_path": "./chroma_db",
                 "host": "localhost",
                 "port": 8000,
-                "domain_adapter": "qa",
                 "confidence_threshold": 0.85,
                 "relevance_threshold": 0.7,
                 "embedding_provider": None
@@ -431,8 +429,7 @@ def get_default_config() -> Dict[str, Any]:
                 "confidence_threshold": 0.7,
                 "relevance_threshold": 0.5,
                 "max_results": 10,
-                "return_results": 3,
-                "domain_adapter": "qa"
+                "return_results": 3
             },
             "postgres": {
                 "host": "localhost",
@@ -443,23 +440,20 @@ def get_default_config() -> Dict[str, Any]:
                 "confidence_threshold": 0.7,
                 "relevance_threshold": 0.5,
                 "max_results": 10,
-                "return_results": 3,
-                "domain_adapter": "qa"
+                "return_results": 3
             },
             "milvus": {
                 "host": "localhost",
                 "port": 19530,
                 "dim": 768,
                 "metric_type": "IP",
-                "embedding_provider": None,
-                "domain_adapter": "generic"
+                "embedding_provider": None
             },
             "pinecone": {
                 "api_key": "${DATASOURCE_PINECONE_API_KEY}",
                 "environment": "${DATASOURCE_PINECONE_ENVIRONMENT}",
                 "index_name": "${DATASOURCE_PINECONE_INDEX_NAME}",
-                "embedding_provider": None,
-                "domain_adapter": "generic"
+                "embedding_provider": None
             }
         },
         "inference": {

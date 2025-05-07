@@ -52,10 +52,18 @@ from langchain_ollama import OllamaEmbeddings
 import chromadb
 import argparse
 from pathlib import Path
+from dotenv import load_dotenv
 
 # Add server directory to path for importing embedding services
 server_path = Path(__file__).resolve().parents[3] / "server"
 sys.path.append(str(server_path))
+
+# Load environment variables from server's .env file
+server_env_path = server_path / ".env"
+if server_env_path.exists():
+    load_dotenv(server_env_path)
+else:
+    print(f"Warning: .env file not found at {server_env_path}")
 
 # Import the same embedding factory used during creation
 from embeddings.base import EmbeddingServiceFactory

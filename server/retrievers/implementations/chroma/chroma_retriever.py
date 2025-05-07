@@ -15,6 +15,7 @@ from ...base.vector_retriever import VectorDBRetriever
 from ...base.base_retriever import RetrieverFactory
 from services.api_key_service import ApiKeyService
 from embeddings.base import EmbeddingService
+from ...adapters.registry import ADAPTER_REGISTRY
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -37,8 +38,31 @@ class ChromaRetriever(VectorDBRetriever):
             domain_adapter: Optional domain adapter for specific document types
             collection: Optional ChromaDB collection
         """
-        # Call the parent constructor first
-        super().__init__(config=config, embeddings=embeddings, domain_adapter=domain_adapter)
+        # Get ChromaDB configuration from datasources section
+        datasource_config = config.get('datasources', {}).get('chroma', {})
+        
+        # Get adapter config if available
+        adapter_config = None
+        for adapter in config.get('adapters', []):
+            if (adapter.get('type') == 'retriever' and 
+                adapter.get('datasource') == 'chroma' and 
+                adapter.get('adapter') == 'qa'):
+                adapter_config = adapter.get('config', {})
+                break
+        
+        # Merge configs with adapter config taking precedence
+        merged_config = {**datasource_config}
+        if adapter_config:
+            merged_config.update(adapter_config)
+            
+        # Override max_results and return_results in config before parent initialization
+        if 'max_results' in merged_config:
+            config['max_results'] = merged_config['max_results']
+        if 'return_results' in merged_config:
+            config['return_results'] = merged_config['return_results']
+            
+        # Call the parent constructor with the merged config
+        super().__init__(config=config, embeddings=embeddings, domain_adapter=domain_adapter, datasource_config=merged_config)
         
         # Store collection
         self.collection = collection
@@ -46,13 +70,15 @@ class ChromaRetriever(VectorDBRetriever):
         # Flag to determine if we're using the old or new embedding service
         self.using_new_embedding_service = isinstance(embeddings, EmbeddingService)
         
+        # Store datasource config for later use
+        self.datasource_config = merged_config
+        
         # Initialize ChromaDB client based on use_local setting
-        chroma_config = self.datasource_config
-        use_local = chroma_config.get('use_local', False)
+        use_local = self.datasource_config.get('use_local', False)
         
         if use_local:
             # Use PersistentClient for local filesystem access
-            db_path = chroma_config.get('db_path', '../utils/chroma/chroma_db')
+            db_path = self.datasource_config.get('db_path', '../utils/chroma/chroma_db')
             db_path = Path(db_path).resolve()
             
             # Ensure the directory exists
@@ -63,10 +89,10 @@ class ChromaRetriever(VectorDBRetriever):
         else:
             # Use HttpClient for remote server access
             self.chroma_client = HttpClient(
-                host=chroma_config.get('host', 'localhost'),
-                port=int(chroma_config.get('port', 8000))
+                host=self.datasource_config.get('host', 'localhost'),
+                port=int(self.datasource_config.get('port', 8000))
             )
-            logger.info(f"Connected to ChromaDB server at {chroma_config.get('host')}:{chroma_config.get('port')}")
+            logger.info(f"Connected to ChromaDB server at {self.datasource_config.get('host')}:{self.datasource_config.get('port')}")
         
         # Configure ChromaDB and related HTTP client logging based on verbose setting
         if not self.verbose:
@@ -118,6 +144,25 @@ class ChromaRetriever(VectorDBRetriever):
                 )
                 self.using_new_embedding_service = False
         
+        # Initialize domain adapter if not provided
+        if self.domain_adapter is None:
+            try:
+                # Get adapter configuration from datasource config
+                adapter_path = self.datasource_config.get('domain_adapter', 'adapters.chroma.qa')
+                logger.info(f"Creating domain adapter: {adapter_path}")
+                
+                # Create adapter using registry
+                self.domain_adapter = ADAPTER_REGISTRY.create(
+                    adapter_type='retriever',
+                    datasource='chroma',
+                    adapter_name='qa',
+                    config=self.config
+                )
+                logger.info(f"Successfully created {adapter_path} domain adapter")
+            except Exception as e:
+                logger.error(f"Failed to create domain adapter: {str(e)}")
+                raise
+        
         logger.info("ChromaRetriever initialized successfully")
 
     async def close(self) -> None:
@@ -162,39 +207,9 @@ class ChromaRetriever(VectorDBRetriever):
                 logger.error(error_msg)
                 raise HTTPException(status_code=500, detail=error_msg)
 
-    def _format_metadata(self, doc: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Format and create a context item from a document and its metadata.
-        Specialized for QA pairs.
-        
-        Args:
-            doc: The document text
-            metadata: The document metadata
-            
-        Returns:
-            A formatted context item
-        """
-        # Create the base item with confidence
-        item = {
-            "raw_document": doc,
-            "metadata": metadata.copy(),  # Include full metadata
-        }
-        
-        # Set the content field based on document type
-        if "question" in metadata and "answer" in metadata:
-            # If it's a QA pair, set content to the question and answer together
-            item["content"] = f"Question: {metadata['question']}\nAnswer: {metadata['answer']}"
-            item["question"] = metadata["question"]
-            item["answer"] = metadata["answer"]
-        else:
-            # Otherwise, use the document content
-            item["content"] = doc
-            
-        return item
-        
     def format_document(self, doc: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Format document using internal _format_metadata method or domain adapter if available.
+        Format document using domain adapter if available.
         This provides compatibility with domain adapter pattern.
         
         Args:
@@ -207,8 +222,12 @@ class ChromaRetriever(VectorDBRetriever):
         if self.domain_adapter and hasattr(self.domain_adapter, 'format_document'):
             return self.domain_adapter.format_document(doc, metadata)
         
-        # Fall back to the QA-specific formatting
-        return self._format_metadata(doc, metadata)
+        # Fall back to basic formatting if no adapter
+        return {
+            "raw_document": doc,
+            "metadata": metadata.copy(),
+            "content": doc
+        }
     
     def apply_domain_filtering(self, context_items, query):
         """
@@ -259,6 +278,8 @@ class ChromaRetriever(VectorDBRetriever):
             if debug_mode:
                 logger.info(f"Using embedding service: {type(self.embeddings).__name__}")
                 logger.info(f"New embedding service: {self.using_new_embedding_service}")
+                logger.info(f"Using confidence threshold: {self.confidence_threshold}")
+                logger.info(f"Using relevance threshold: {self.relevance_threshold}")
             
             # Ensure collection is properly set
             if not hasattr(self, 'collection') or self.collection is None:
@@ -320,7 +341,7 @@ class ChromaRetriever(VectorDBRetriever):
                 # Get max distance to normalize if using Euclidean
                 max_distance = max(results['distances'][0]) if is_euclidean else 1
                 
-                # Process and filter each result based on the relevance threshold
+                # Process and filter each result based on both thresholds
                 for doc, metadata, distance in zip(
                     results['documents'][0],
                     results['metadatas'][0],
@@ -336,16 +357,18 @@ class ChromaRetriever(VectorDBRetriever):
                         # For cosine: just use 1 - distance (closer to 1 is better)
                         similarity = 1 - distance
                     
-                    # Always include at least the top result if we got results back
-                    is_top_result = (doc == results['documents'][0][0] and 
-                                    metadata == results['metadatas'][0][0])
-                    
-                    if similarity >= self.relevance_threshold or is_top_result:
+                    # Apply both thresholds - only include if meets both thresholds
+                    if (similarity >= self.relevance_threshold and 
+                        similarity >= self.confidence_threshold):
                         # Create formatted context item using format_document which handles domain adapters
                         item = self.format_document(doc, metadata)
                         item["confidence"] = similarity  # Add confidence score
-                        
                         context_items.append(item)
+                        if debug_mode:
+                            logger.info(f"Added document with confidence {similarity:.4f}")
+                    else:
+                        if debug_mode:
+                            logger.info(f"Filtered out document with confidence {similarity:.4f} (below thresholds: relevance={self.relevance_threshold}, confidence={self.confidence_threshold})")
                 
                 # Sort the context items by confidence
                 context_items = sorted(context_items, key=lambda x: x.get("confidence", 0), reverse=True)
@@ -359,7 +382,7 @@ class ChromaRetriever(VectorDBRetriever):
                 if debug_mode:
                     logger.info(f"Retrieved {len(context_items)} relevant context items")
                     if context_items:
-                        logger.info(f"Top confidence score: {context_items[0].get('confidence', 0)}")
+                        logger.info(f"Top confidence score: {context_items[0].get('confidence', 0):.4f}")
                     else:
                         logger.warning("NO CONTEXT ITEMS AFTER FILTERING")
                 

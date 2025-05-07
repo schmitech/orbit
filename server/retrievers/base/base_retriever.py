@@ -19,6 +19,7 @@ class BaseRetriever(ABC):
     def __init__(self, 
                 config: Dict[str, Any],
                 domain_adapter=None,
+                datasource_config: Optional[Dict[str, Any]] = None,
                 **kwargs):
         """
         Initialize BaseRetriever with common configuration.
@@ -26,14 +27,15 @@ class BaseRetriever(ABC):
         Args:
             config: Configuration dictionary
             domain_adapter: Optional domain adapter instance
+            datasource_config: Optional datasource-specific configuration
         """
         if not config:
             raise ValueError("Config is required for retriever initialization")
             
         self.config = config
         
-        # Extract datasource-specific configuration
-        self.datasource_config = self._get_datasource_config()
+        # Use provided datasource config or get it from the config
+        self.datasource_config = datasource_config or self._get_datasource_config()
         
         # Common parameters across retrievers
         self.confidence_threshold = self.datasource_config.get('confidence_threshold', 0.7)

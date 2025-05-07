@@ -7,7 +7,7 @@ general:
     cert_file: "./cert.pem"
     key_file: "./key.pem"
   inference_provider: "ollama"
-  datasource_provider: "chroma"
+  adapter: "adapters.sqlite.qa"
   mcp_protocol: false
 
 messages:
@@ -16,7 +16,7 @@ messages:
 
 embedding:
   provider: "ollama"
-  enabled: true
+  enabled: false
   fail_on_error: false
 
 api_keys:
@@ -97,19 +97,41 @@ embeddings:
     model: "mistral-embed"
     dimensions: 1024
 
+adapters:
+  - type: "retriever"
+    datasource: "sqlite"
+    adapter: "qa"
+    implementation: "retrievers.implementations.sqlite.sqlite_retriever.SqliteRetriever"
+    config:
+      confidence_threshold: 0.5
+      relevance_threshold: 0.5
+      max_results: 5
+      return_results: 3
+      db_path: "./sqlite_db"
+      
+  - type: "retriever"
+    datasource: "chroma"
+    adapter: "qa"
+    implementation: "retrievers.implementations.chroma.chroma_retriever.ChromaRetriever"
+    config:
+      confidence_threshold: 0.85
+      relevance_threshold: 0.7
+      embedding_provider: null
+      max_results: 5
+      return_results: 3
+      db_path: "./chroma_db"
+
 datasources:
   chroma:
     use_local: true
     db_path: "./chroma_db"
     host: "localhost"
     port: 8000
-    domain_adapter: "chroma_qa"
     confidence_threshold: 0.85
     relevance_threshold: 0.7
     embedding_provider: null 
   sqlite:
     db_path: "sqlite_db"
-    domain_adapter: "sqlite_qa"
     confidence_threshold: 0.5
     relevance_threshold: 0.5
     max_results: 10
@@ -120,7 +142,6 @@ datasources:
     database: "retrieval"
     username: ${DATASOURCE_POSTGRES_USERNAME}
     password: ${DATASOURCE_POSTGRES_PASSWORD}
-    domain_adapter: "sqlite_qa"
     confidence_threshold: 0.5
     relevance_threshold: 0.5
     max_results: 10
@@ -131,13 +152,11 @@ datasources:
     dim: 768
     metric_type: "IP"  # Options: L2, IP, COSINE
     embedding_provider: null
-    domain_adapter: "generic"
   pinecone:
     api_key: ${DATASOURCE_PINECONE_API_KEY}
     environment: ${DATASOURCE_PINECONE_ENVIRONMENT}
     index_name: ${DATASOURCE_PINECONE_INDEX_NAME}
     embedding_provider: null
-    domain_adapter: "generic"
   elasticsearch:
     node: 'https://localhost:9200'
     auth:
@@ -255,9 +274,9 @@ inference:
     stream: true 
 
 safety:
-  enabled: true
+  enabled: false
   mode: "fuzzy"
-  moderator: "ollama"
+  moderator: "openai"
   max_retries: 3
   retry_delay: 1.0
   request_timeout: 10
@@ -327,4 +346,4 @@ rerankers:
     temperature: 0.0
     max_tokens: 256
     batch_size: 8
-    credentials_path: ""  # Path to service account key file
+    credentials_path: ""
