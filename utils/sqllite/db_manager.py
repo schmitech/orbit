@@ -75,7 +75,7 @@ def delete_qa_by_id(qa_id, db_path="rag_database.db"):
     cursor = conn.cursor()
     
     # First delete related tokens
-    cursor.execute("DELETE FROM search_tokens WHERE city_id = ?", (qa_id,))
+    cursor.execute("DELETE FROM search_tokens WHERE question_id = ?", (qa_id,))
     
     # Then delete the QA pair
     cursor.execute("DELETE FROM city WHERE id = ?", (qa_id,))
@@ -138,7 +138,7 @@ def add_qa_pair(question, answer, db_path="rag_database.db"):
     # Insert tokens
     for token in set(tokens):
         cursor.execute(
-            "INSERT INTO search_tokens (token, city_id) VALUES (?, ?)",
+            "INSERT INTO search_tokens (token, question_id) VALUES (?, ?)",
             (token, qa_id)
         )
     

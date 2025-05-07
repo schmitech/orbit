@@ -30,6 +30,7 @@ class ApiKeyService:
         self.database = None
         self.api_keys_collection = None
         self._initialized = False
+        self.verbose = config.get('general', {}).get('verbose', False)
 
     async def initialize(self) -> None:
         """Initialize connection to MongoDB"""
@@ -41,14 +42,24 @@ class ApiKeyService:
             # Log MongoDB configuration (without sensitive data)
             logger.info(f"Initializing MongoDB connection with config: host={mongodb_config.get('host')}, port={mongodb_config.get('port')}, database={mongodb_config.get('database')}")
             
-            # Construct connection string
-            connection_string = "mongodb://"
-            if mongodb_config.get('username') and mongodb_config.get('password'):
-                connection_string += f"{mongodb_config['username']}:****@"
-                logger.info("Using authentication for MongoDB connection")
+            # Construct connection string for MongoDB Atlas
+            if "mongodb.net" in mongodb_config.get('host', ''):
+                # MongoDB Atlas connection string format
+                connection_string = "mongodb+srv://"
+                if mongodb_config.get('username') and mongodb_config.get('password'):
+                    connection_string += f"{mongodb_config['username']}:{mongodb_config['password']}@"
+                connection_string += f"{mongodb_config['host']}"
+                connection_string += f"/{mongodb_config['database']}?retryWrites=true&w=majority"
+                logger.info("Using MongoDB Atlas connection string format")
+            else:
+                # Standard MongoDB connection string format
+                connection_string = "mongodb://"
+                if mongodb_config.get('username') and mongodb_config.get('password'):
+                    connection_string += f"{mongodb_config['username']}:{mongodb_config['password']}@"
+                connection_string += f"{mongodb_config['host']}:{mongodb_config['port']}"
+                logger.info("Using standard MongoDB connection string format")
             
-            connection_string += f"{mongodb_config['host']}:{mongodb_config['port']}"
-            logger.info(f"Attempting to connect to MongoDB at {mongodb_config['host']}:{mongodb_config['port']}")
+            logger.info(f"Attempting to connect to MongoDB at {mongodb_config['host']}")
             
             # Connect to MongoDB
             self.client = motor.motor_asyncio.AsyncIOMotorClient(connection_string)
@@ -158,7 +169,7 @@ class ApiKeyService:
         # API key is required unless allow_default is True
         if not api_key:
             if allow_default and default_collection:
-                if self.config.get('general', {}).get('verbose', False):
+                if self.verbose:
                     logger.info(f"No API key provided, using default collection: {default_collection}")
                 return True, default_collection, None
             else:
@@ -192,7 +203,7 @@ class ApiKeyService:
             # Get the system prompt ID if it exists
             system_prompt_id = key_doc.get("system_prompt_id")
                 
-            if self.config.get('general', {}).get('verbose', False):
+            if self.verbose:
                 logger.info(f"Valid API key ({masked_key}). Using collection: {collection_name}")
                 if system_prompt_id:
                     logger.info(f"API key {masked_key} has associated system prompt ID: {system_prompt_id}")

@@ -16,6 +16,7 @@ from ...base.base_retriever import RetrieverFactory
 from services.api_key_service import ApiKeyService
 from embeddings.base import EmbeddingService
 from ...adapters.registry import ADAPTER_REGISTRY
+from utils.lazy_loader import LazyLoader
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -73,26 +74,30 @@ class ChromaRetriever(VectorDBRetriever):
         # Store datasource config for later use
         self.datasource_config = merged_config
         
-        # Initialize ChromaDB client based on use_local setting
-        use_local = self.datasource_config.get('use_local', False)
+        # Create a lazy loader for the ChromaDB client
+        def create_chroma_client():
+            use_local = self.datasource_config.get('use_local', False)
+            
+            if use_local:
+                # Use PersistentClient for local filesystem access
+                db_path = self.datasource_config.get('db_path', '../utils/chroma/chroma_db')
+                db_path = Path(db_path).resolve()
+                
+                # Ensure the directory exists
+                os.makedirs(db_path, exist_ok=True)
+                
+                logger.info(f"Using local ChromaDB at path: {db_path}")
+                return PersistentClient(path=str(db_path))
+            else:
+                # Use HttpClient for remote server access
+                logger.info(f"Connecting to ChromaDB at {self.datasource_config.get('host')}:{self.datasource_config.get('port')}...")
+                return HttpClient(
+                    host=self.datasource_config.get('host', 'localhost'),
+                    port=int(self.datasource_config.get('port', 8000))
+                )
         
-        if use_local:
-            # Use PersistentClient for local filesystem access
-            db_path = self.datasource_config.get('db_path', '../utils/chroma/chroma_db')
-            db_path = Path(db_path).resolve()
-            
-            # Ensure the directory exists
-            os.makedirs(db_path, exist_ok=True)
-            
-            self.chroma_client = PersistentClient(path=str(db_path))
-            logger.info(f"Using local ChromaDB at path: {db_path}")
-        else:
-            # Use HttpClient for remote server access
-            self.chroma_client = HttpClient(
-                host=self.datasource_config.get('host', 'localhost'),
-                port=int(self.datasource_config.get('port', 8000))
-            )
-            logger.info(f"Connected to ChromaDB server at {self.datasource_config.get('host')}:{self.datasource_config.get('port')}")
+        # Create a lazy loader for the ChromaDB client
+        self._chroma_client_loader = LazyLoader(create_chroma_client, "ChromaDB client")
         
         # Configure ChromaDB and related HTTP client logging based on verbose setting
         if not self.verbose:
@@ -100,6 +105,11 @@ class ChromaRetriever(VectorDBRetriever):
             for logger_name in ["httpx", "chromadb"]:
                 client_logger = logging.getLogger(logger_name)
                 client_logger.setLevel(logging.WARNING)
+
+    @property
+    def chroma_client(self):
+        """Lazy-loaded ChromaDB client property."""
+        return self._chroma_client_loader.get_instance()
 
     def _get_datasource_name(self) -> str:
         """Return the name of this datasource for config lookup"""
@@ -181,7 +191,7 @@ class ChromaRetriever(VectorDBRetriever):
         if not collection_name:
             raise ValueError("Collection name cannot be empty")
         try:
-            # Try to get the collection
+            # Try to get the collection using the lazy-loaded client
             self.collection = self.chroma_client.get_collection(name=collection_name)
             if self.verbose:
                 logger.info(f"Switched to collection: {collection_name}")

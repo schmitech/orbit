@@ -57,15 +57,15 @@ def search_qa(query, db_path="rag_database.db", top_n=5, similarity_threshold=0.
     # First approach: Token-based matching
     placeholders = ','.join(['?'] * len(query_tokens))
     cursor.execute(f"""
-        SELECT city_id, COUNT(*) as match_count 
+        SELECT question_id, COUNT(*) as match_count 
         FROM search_tokens 
         WHERE token IN ({placeholders})
-        GROUP BY city_id 
+        GROUP BY question_id 
         ORDER BY match_count DESC
         LIMIT 20
     """, query_tokens)
     
-    candidate_ids = [row['city_id'] for row in cursor.fetchall()]
+    candidate_ids = [row['question_id'] for row in cursor.fetchall()]
     
     # If no token matches, try direct fuzzy matching on questions
     if not candidate_ids:

@@ -27,8 +27,8 @@ def create_database(db_path="rag_database.db"):
     CREATE TABLE IF NOT EXISTS search_tokens (
         id INTEGER PRIMARY KEY,
         token TEXT NOT NULL,
-        city_id INTEGER,
-        FOREIGN KEY (city_id) REFERENCES city(id)
+        question_id INTEGER,
+        FOREIGN KEY (question_id) REFERENCES city(id)
     )
     ''')
     

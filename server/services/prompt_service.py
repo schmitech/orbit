@@ -36,23 +36,34 @@ class PromptService:
         mongodb_config = self.config.get('mongodb', {})
         try:
             # Log MongoDB configuration (without sensitive data)
-            logger.info(f"Initializing MongoDB connection for Prompt Service with config: host={mongodb_config.get('host')}, port={mongodb_config.get('port')}, database={mongodb_config.get('database')}")
+            logger.info(f"Initializing MongoDB connection with config: host={mongodb_config.get('host')}, port={mongodb_config.get('port')}, database={mongodb_config.get('database')}")
             
-            # Construct connection string
-            connection_string = "mongodb://"
-            if mongodb_config.get('username') and mongodb_config.get('password'):
-                connection_string += f"{mongodb_config['username']}:****@"
-                logger.info("Using authentication for MongoDB connection")
+            # Construct connection string for MongoDB Atlas
+            if "mongodb.net" in mongodb_config.get('host', ''):
+                # MongoDB Atlas connection string format
+                connection_string = "mongodb+srv://"
+                if mongodb_config.get('username') and mongodb_config.get('password'):
+                    connection_string += f"{mongodb_config['username']}:{mongodb_config['password']}@"
+                connection_string += f"{mongodb_config['host']}"
+                connection_string += f"/{mongodb_config['database']}?retryWrites=true&w=majority"
+                logger.info("Using MongoDB Atlas connection string format")
+            else:
+                # Standard MongoDB connection string format
+                connection_string = "mongodb://"
+                if mongodb_config.get('username') and mongodb_config.get('password'):
+                    connection_string += f"{mongodb_config['username']}:{mongodb_config['password']}@"
+                connection_string += f"{mongodb_config['host']}:{mongodb_config['port']}"
+                logger.info("Using standard MongoDB connection string format")
             
-            connection_string += f"{mongodb_config['host']}:{mongodb_config['port']}"
+            logger.info(f"Attempting to connect to MongoDB at {mongodb_config['host']}")
             
             # Connect to MongoDB
             self.client = motor.motor_asyncio.AsyncIOMotorClient(connection_string)
-            logger.info("MongoDB client created successfully for Prompt Service")
+            logger.info("MongoDB client created successfully")
             
             # Test the connection
             await self.client.admin.command('ping')
-            logger.info("MongoDB connection test successful for Prompt Service")
+            logger.info("MongoDB connection test successful")
             
             self.database = self.client[mongodb_config['database']]
             prompts_collection_name = mongodb_config.get('prompts_collection', 'system_prompts')

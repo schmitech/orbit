@@ -12,6 +12,7 @@ from difflib import SequenceMatcher
 from fastapi import HTTPException
 
 from retrievers.base.base_retriever import BaseRetriever, RetrieverFactory
+from utils.lazy_loader import LazyLoader
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -66,48 +67,53 @@ class SqliteRetriever(BaseRetriever):
         # Default fields to search
         self.default_search_fields = ['id', 'content', 'question', 'answer', 'title']
         
+        # Create a lazy loader for the SQLite connection
+        def create_sqlite_connection():
+            try:
+                # Create the database directory if it doesn't exist
+                db_dir = os.path.dirname(self.db_path)
+                if db_dir and not os.path.exists(db_dir):
+                    os.makedirs(db_dir)
+                
+                # Connect to the database
+                conn = sqlite3.connect(self.db_path)
+                # Enable column access by name
+                conn.row_factory = sqlite3.Row
+                
+                if self.verbose:
+                    logger.info(f"Connected to SQLite database at {self.db_path}")
+                
+                # Check if we need to create the default table
+                self._create_default_table_if_needed(conn)
+                
+                return conn
+                    
+            except Exception as e:
+                logger.error(f"Failed to connect to SQLite database: {str(e)}")
+                raise ValueError(f"Database connection error: {str(e)}")
+        
+        # Create a lazy loader for the SQLite connection
+        self._connection_loader = LazyLoader(create_sqlite_connection, "SQLite connection")
+        
         # Initialize connection if provided
-        self.connection = connection
         if connection:
-            # Enable column access by name
-            self.connection.row_factory = sqlite3.Row
-        else:
-            # Initialize connection immediately
-            self._initialize_connection()
+            self._connection_loader.set_instance(connection)
+
+    @property
+    def connection(self):
+        """Lazy-loaded SQLite connection property."""
+        return self._connection_loader.get_instance()
 
     def _get_datasource_name(self) -> str:
         """Return the name of this datasource for config lookup"""
         return 'sqlite'
 
-    def _initialize_connection(self) -> None:
-        """Initialize the database connection."""
-        try:
-            # Create the database directory if it doesn't exist
-            db_dir = os.path.dirname(self.db_path)
-            if db_dir and not os.path.exists(db_dir):
-                os.makedirs(db_dir)
-            
-            # Connect to the database
-            self.connection = sqlite3.connect(self.db_path)
-            # Enable column access by name
-            self.connection.row_factory = sqlite3.Row
-            
-            if self.verbose:
-                logger.info(f"Connected to SQLite database at {self.db_path}")
-            
-            # Check if we need to create the default table
-            self._create_default_table_if_needed()
-                
-        except Exception as e:
-            logger.error(f"Failed to connect to SQLite database: {str(e)}")
-            raise ValueError(f"Database connection error: {str(e)}")
-
-    def _create_default_table_if_needed(self) -> None:
+    def _create_default_table_if_needed(self, conn: sqlite3.Connection) -> None:
         """Create the default table if it doesn't exist."""
-        if not self.connection:
+        if not conn:
             return
             
-        cursor = self.connection.cursor()
+        cursor = conn.cursor()
         try:
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?", (self.collection,))
             if not cursor.fetchone():
@@ -123,7 +129,7 @@ class SqliteRetriever(BaseRetriever):
                         metadata TEXT
                     )
                 ''')
-                self.connection.commit()
+                conn.commit()
                 
                 # Insert some sample data to get started
                 cursor.execute(f'''
@@ -144,7 +150,7 @@ class SqliteRetriever(BaseRetriever):
                     '{"source": "documentation", "type": "technical"}'
                 ))
                 
-                self.connection.commit()
+                conn.commit()
                 
                 if self.verbose:
                     logger.info(f"Created default table '{self.collection}' with sample data")
@@ -155,10 +161,6 @@ class SqliteRetriever(BaseRetriever):
         """Initialize required services and verify database structure."""
         # Call parent initialize to set up API key service
         await super().initialize()
-        
-        # Ensure connection is initialized
-        if not self.connection:
-            self._initialize_connection()
         
         # Check for search_tokens table
         cursor = self.connection.cursor()
@@ -182,10 +184,12 @@ class SqliteRetriever(BaseRetriever):
         await super().close()
         
         # Close database connection
-        if self.connection:
-            self.connection.close()
-            if self.verbose:
-                logger.info("Closed SQLite database connection")
+        if hasattr(self, '_connection_loader'):
+            conn = self._connection_loader.get_instance()
+            if conn:
+                conn.close()
+                if self.verbose:
+                    logger.info("Closed SQLite database connection")
 
     async def set_collection(self, collection_name: str) -> None:
         """
@@ -528,7 +532,7 @@ class SqliteRetriever(BaseRetriever):
             
             # Ensure we have a connection
             if not self.connection:
-                self._initialize_connection()
+                self._connection_loader.get_instance()
             
             debug_mode = self.verbose
             

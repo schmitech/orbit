@@ -71,7 +71,7 @@ def load_city_qa_data(json_path="../sample-data/city-qa-pairs.json", db_path="ra
         # Insert tokens into search_tokens table
         for token in set(tokens):  # Using set to avoid duplicates
             cursor.execute(
-                "INSERT INTO search_tokens (token, city_id) VALUES (?, ?)",
+                "INSERT INTO search_tokens (token, question_id) VALUES (?, ?)",
                 (token, qa_id)
             )
     

@@ -49,7 +49,7 @@ After=network.target
 Type=simple
 User=your_username
 WorkingDirectory=/path/to/open-inference-platform/chroma
-ExecStart=/bin/bash -c 'source venv/bin/activate && chroma run --host 0.0.0.0 --port 8000 --path ./chroma_db'
+ExecStart=/bin/bash -c 'source venv/bin/activate && chroma run --host 0.0.0.0 --port 8000 --path --path ../../server/chroma_db'
 Restart=always
 RestartSec=3
 

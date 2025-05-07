@@ -23,6 +23,7 @@ fi
 if [ ! -f "$CONFIG_PATH" ]; then
     echo "Warning: Config file not found. Defaulting to port 3000."
     PORT="3000"
+    USE_LOCAL="true"  # Default to local if config not found
 else
     # Determine if HTTPS is enabled
     HTTPS_ENABLED=$(python3 -c "
@@ -46,6 +47,14 @@ with open('$CONFIG_PATH') as f:
     print(config.get('general', {}).get('port', 3000))
 ")
     fi
+    
+    # Read use_local setting from config
+    USE_LOCAL=$(python3 -c "
+import yaml
+with open('$CONFIG_PATH') as f:
+    config = yaml.safe_load(f)
+    print(str(config.get('datasources', {}).get('chroma', {}).get('use_local', True)).lower())
+")
 fi
 
 echo "🚀 Setting up sample QA collections..."
@@ -61,15 +70,22 @@ if [ "$DATASOURCE" = "sqlite" ]; then
     python ../utils/sqllite/rag_cli.py setup --db-path ./sqlite_db --data-path ../utils/sample-data/city-qa-pairs.json
 else
     # Remove existing Chroma database directory if it exists
-    if [ -d "./chroma_db" ]; then
-        echo "Removing existing Chroma database..."
-        rm -rf ./chroma_db
+    if [ "$USE_LOCAL" = "true" ]; then
+        if [ -d "./chroma_db" ]; then
+            echo "Removing existing Chroma database..."
+            rm -rf ./chroma_db
+        fi
     fi
 
     # Create Chroma collections
     echo "Creating Chroma collections..."
-    python ../utils/chroma/scripts/create_qa_pairs_collection.py city ../utils/sample-data/city-qa-pairs.json --local --db-path ./chroma_db
-    python ../utils/chroma/scripts/create_qa_pairs_collection.py activity ../utils/sample-data/activity_qa_pairs.json --local --db-path ./chroma_db
+    LOCAL_FLAG=""
+    if [ "$USE_LOCAL" = "true" ]; then
+        LOCAL_FLAG="--local --db-path ./chroma_db"
+    fi
+    
+    python ../utils/chroma/scripts/create_qa_pairs_collection.py city ../utils/sample-data/city-qa-pairs.json $LOCAL_FLAG
+    python ../utils/chroma/scripts/create_qa_pairs_collection.py activity ../utils/sample-data/activity_qa_pairs.json $LOCAL_FLAG
 fi
 
 echo "✅ Sample QA collections created."
