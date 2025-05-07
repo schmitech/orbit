@@ -11,6 +11,8 @@ services:
     volumes:
       - ./config.yaml:/app/config.yaml
       - ./logs:/app/logs
+    env_file:
+      - .env
     restart: unless-stopped
 
 networks:
