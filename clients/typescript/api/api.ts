@@ -12,6 +12,48 @@ export interface ChatResponse {
   response: string;
 }
 
+// MCP Protocol interfaces
+interface MCPRequest {
+  jsonrpc: "2.0";
+  method: string;
+  params: {
+    name: string;
+    arguments: {
+      messages?: Array<{
+        role: string;
+        content: string;
+      }>;
+      stream?: boolean;
+      tools?: Array<{
+        name: string;
+        parameters: Record<string, any>;
+      }>;
+    };
+  };
+  id: string;
+}
+
+interface MCPResponse {
+  jsonrpc: "2.0";
+  id: string;
+  result?: {
+    type?: "start" | "chunk" | "complete";
+    chunk?: {
+      content: string;
+    };
+    output?: {
+      messages: Array<{
+        role: string;
+        content: string;
+      }>;
+    };
+  };
+  error?: {
+    code: number;
+    message: string;
+  };
+}
+
 // Store the configured API URL and key
 let configuredApiUrl: string | null = null;
 let configuredApiKey: string | null = null;
@@ -51,7 +93,6 @@ const getFetchOptions = (apiUrl: string, options: RequestInit = {}): RequestInit
   // Only use agents in Node.js environment
   if (typeof window === 'undefined') {
     if (isHttps && httpsAgent) {
-      // Using 'any' type to bypass TypeScript limitations with Node.js http.Agent
       return { ...options, agent: httpsAgent } as any;
     } else if (httpAgent) {
       return { ...options, agent: httpAgent } as any;
@@ -67,9 +108,42 @@ const getFetchOptions = (apiUrl: string, options: RequestInit = {}): RequestInit
     headers: {
       ...options.headers,
       'Connection': 'keep-alive',
-      'X-Request-ID': requestId, // Add unique ID to track requests
-      'X-API-Key': getApiKey()   // Add API key to headers
+      'X-Request-ID': requestId,
+      'X-API-Key': getApiKey()
     }
+  };
+};
+
+// Create MCP request
+const createMCPRequest = (message: string, stream: boolean = true): MCPRequest => {
+  return {
+    jsonrpc: "2.0",
+    method: "tools/call",
+    params: {
+      name: "chat",
+      arguments: {
+        messages: [
+          { role: "user", content: message }
+        ],
+        stream
+      }
+    },
+    id: Date.now().toString(36) + Math.random().toString(36).substring(2)
+  };
+};
+
+// Create MCP tools request
+const createMCPToolsRequest = (tools: Array<{ name: string; parameters: Record<string, any> }>): MCPRequest => {
+  return {
+    jsonrpc: "2.0",
+    method: "tools/call",
+    params: {
+      name: "tools",
+      arguments: {
+        tools
+      }
+    },
+    id: Date.now().toString(36) + Math.random().toString(36).substring(2)
   };
 };
 
@@ -80,13 +154,13 @@ export async function* streamChat(
   try {
     const API_URL = getApiUrl();
     
-    const response = await fetch(`${API_URL}/chat`, getFetchOptions(API_URL, {
+    const response = await fetch(`${API_URL}/v1/chat`, getFetchOptions(API_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Accept': stream ? 'text/event-stream' : 'application/json'
       },
-      body: JSON.stringify({ message, stream }),
+      body: JSON.stringify(createMCPRequest(message, stream)),
     }));
 
     if (!response.ok) {
@@ -97,11 +171,16 @@ export async function* streamChat(
 
     if (!stream) {
       // Handle non-streaming response
-      const data = await response.json() as ChatResponse;
-      yield {
-        text: data.response,
-        done: true
-      };
+      const data = await response.json() as MCPResponse;
+      if (data.error) {
+        throw new Error(`MCP Error: ${data.error.message}`);
+      }
+      if (data.result?.output?.messages?.[0]?.content) {
+        yield {
+          text: data.result.output.messages[0].content,
+          done: true
+        };
+      }
       return;
     }
     
@@ -110,7 +189,7 @@ export async function* streamChat(
 
     const decoder = new TextDecoder();
     let buffer = '';
-    let currentFullText = ''; // Track full response to detect duplicates
+    let currentFullText = '';
 
     while (true) {
       const { done, value } = await reader.read();
@@ -124,34 +203,38 @@ export async function* streamChat(
       for (const line of lines) {
         if (line.trim() && line.startsWith('data: ')) {
           try {
-            // Properly extract the JSON part by trimming whitespace after 'data:'
             const jsonText = line.slice(6).trim();
-            const data = JSON.parse(jsonText);
+            if (jsonText === '[DONE]') {
+              yield { text: '', done: true };
+              break;
+            }
+
+            const data = JSON.parse(jsonText) as MCPResponse;
             
-            if (data.text) {
-              // Check if this is a duplicate or overlapping chunk
-              const newText = extractNewText(data.text, currentFullText);
+            if (data.result) {
+              let content = '';
               
-              // Only yield if we have new text
-              if (newText) {
-                currentFullText += newText;
-                yield {
-                  text: newText,
-                  done: data.done || false
-                };
-              } else if (data.done) {
-                // Always send done signal even if no new text
-                yield {
-                  text: '',
-                  done: true
-                };
+              // Handle different response types
+              if (data.result.type === 'start') {
+                continue;
+              } else if (data.result.type === 'chunk' && data.result.chunk) {
+                content = data.result.chunk.content;
+              } else if (data.result.type === 'complete' && data.result.output?.messages?.[0]) {
+                content = data.result.output.messages[0].content;
               }
-            } else {
-              // Pass through as-is if no text property
-              yield {
-                text: data.text || '',
-                done: data.done || false
-              };
+
+              if (content) {
+                const newText = extractNewText(content, currentFullText);
+                if (newText) {
+                  currentFullText += newText;
+                  yield {
+                    text: newText,
+                    done: data.result.type === 'complete'
+                  };
+                } else if (data.result.type === 'complete') {
+                  yield { text: '', done: true };
+                }
+              }
             }
           } catch (error) {
             console.warn('Error parsing JSON chunk:', line, 'Error:', error);
@@ -160,26 +243,21 @@ export async function* streamChat(
       }
     }
 
+    // Handle any remaining buffer
     if (buffer && buffer.startsWith('data: ')) {
       try {
-        // Properly extract the JSON part by trimming whitespace after 'data:'
         const jsonText = buffer.slice(6).trim();
-        const data = JSON.parse(jsonText);
-        
-        if (data.text) {
-          // Check for duplicates in final chunk
-          const newText = extractNewText(data.text, currentFullText);
-          if (newText || data.done) {
-            yield {
-              text: newText || '',
-              done: data.done || false
-            };
+        if (jsonText !== '[DONE]') {
+          const data = JSON.parse(jsonText) as MCPResponse;
+          if (data.result?.chunk?.content) {
+            const newText = extractNewText(data.result.chunk.content, currentFullText);
+            if (newText) {
+              yield {
+                text: newText,
+                done: data.result.type === 'complete'
+              };
+            }
           }
-        } else {
-          yield {
-            text: data.text || '',
-            done: data.done || false
-          };
         }
       } catch (error) {
         console.warn('Error parsing final JSON buffer:', buffer, 'Error:', error);
@@ -196,34 +274,49 @@ export async function* streamChat(
 
 // Helper function to extract only new text from incoming chunks
 function extractNewText(incomingText: string, currentText: string): string {
-  // If we have no current text, all text is new
   if (!currentText) return incomingText;
-  
-  // Handle exact duplicates
   if (currentText.endsWith(incomingText)) return '';
-
-  // If incoming text is larger, check if it's an expanded version
+  
   if (incomingText.length > currentText.length) {
-    // If incoming text contains all of current text at the beginning,
-    // only return the new part
     if (incomingText.startsWith(currentText)) {
       return incomingText.slice(currentText.length);
     }
     
-    // Sometimes the FastAPI server might send growing chunks like "Hel" -> "Hello" -> "Hello wo" -> "Hello world"
-    // Find the longest common prefix
     let i = 0;
     const minLength = Math.min(currentText.length, incomingText.length);
     while (i < minLength && currentText[i] === incomingText[i]) {
       i++;
     }
     
-    // If there's significant overlap, extract only the new part
     if (i > currentText.length / 2) {
       return incomingText.slice(i);
     }
   }
   
-  // Default: return the full text (this handles non-overlapping chunks)
   return incomingText;
+}
+
+// New function to send tools request
+export async function sendToolsRequest(tools: Array<{ name: string; parameters: Record<string, any> }>): Promise<MCPResponse> {
+  const API_URL = getApiUrl();
+  
+  const response = await fetch(`${API_URL}/v1/chat`, getFetchOptions(API_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(createMCPToolsRequest(tools)),
+  }));
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Network response was not ok: ${response.status} ${errorText}`);
+  }
+
+  const data = await response.json() as MCPResponse;
+  if (data.error) {
+    throw new Error(`MCP Error: ${data.error.message}`);
+  }
+
+  return data;
 }

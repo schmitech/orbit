@@ -21,7 +21,7 @@ import requests
 import sseclient
 from typing import Dict, Any, List, Optional
 
-def create_jsonrpc_request(message: str, stream: bool = True) -> Dict[str, Any]:
+def create_mcp_chat_request(message: str, stream: bool = True) -> Dict[str, Any]:
     """
     Create a JSON-RPC 2.0 MCP request with the given message.
     
@@ -34,15 +34,20 @@ def create_jsonrpc_request(message: str, stream: bool = True) -> Dict[str, Any]:
     """
     return {
         "jsonrpc": "2.0",
-        "method": "query",
+        "method": "tools/call",
         "params": {
-            "message": message,
-            "stream": stream
+            "name": "chat",
+            "arguments": {
+                "messages": [
+                    {"role": "user", "content": message}
+                ],
+                "stream": stream
+            }
         },
         "id": str(uuid.uuid4())
     }
 
-def create_jsonrpc_tools_request(tools: List[Dict[str, Any]]) -> Dict[str, Any]:
+def create_mcp_tools_request(tools: List[Dict[str, Any]]) -> Dict[str, Any]:
     """
     Create a JSON-RPC 2.0 MCP tools request.
     
@@ -52,11 +57,22 @@ def create_jsonrpc_tools_request(tools: List[Dict[str, Any]]) -> Dict[str, Any]:
     Returns:
         A dictionary with the JSON-RPC tools request
     """
+    # Convert traditional tools format to MCP format
+    mcp_tools = []
+    for tool in tools:
+        mcp_tools.append({
+            "name": tool["name"],
+            "arguments": tool["parameters"]
+        })
+    
     return {
         "jsonrpc": "2.0",
-        "method": "tools",
+        "method": "tools/call",
         "params": {
-            "tools": tools
+            "name": "tool_invoker",
+            "arguments": {
+                "tools": mcp_tools
+            }
         },
         "id": str(uuid.uuid4())
     }
@@ -73,7 +89,7 @@ def send_non_streaming_request(url: str, api_key: str, message: str) -> None:
     print(f"\n[Non-Streaming MCP Request] Message: '{message}'")
     
     # Create request data
-    request_data = create_jsonrpc_request(message, stream=False)
+    request_data = create_mcp_chat_request(message, stream=False)
     
     # Create headers
     headers = {
@@ -103,7 +119,15 @@ def send_non_streaming_request(url: str, api_key: str, message: str) -> None:
             print(f"ID: {response_data.get('id')}")
             
             if "result" in response_data:
-                print(f"\nResponse text: {response_data['result'].get('response', '')}")
+                # Check if response is in new MCP format
+                if "output" in response_data["result"] and "messages" in response_data["result"]["output"]:
+                    messages = response_data["result"]["output"]["messages"]
+                    assistant_message = next((m for m in messages if m.get("role") == "assistant"), None)
+                    if assistant_message:
+                        print(f"\nResponse text: {assistant_message.get('content', '')}")
+                # Handle older format for backward compatibility
+                elif "response" in response_data["result"]:
+                    print(f"\nResponse text: {response_data['result'].get('response', '')}")
                 
                 # Print sources if available
                 if "sources" in response_data["result"]:
@@ -114,7 +138,7 @@ def send_non_streaming_request(url: str, api_key: str, message: str) -> None:
             elif "error" in response_data:
                 print(f"\nError: {response_data['error'].get('code')} - {response_data['error'].get('message')}")
             
-            # Print full JSON response if verbose
+            # Print full JSON response
             print("\nFull JSON response:")
             print(json.dumps(response_data, indent=2))
         else:
@@ -135,7 +159,7 @@ def send_streaming_request(url: str, api_key: str, message: str) -> None:
     print(f"\n[Streaming MCP Request] Message: '{message}'")
     
     # Create request data
-    request_data = create_jsonrpc_request(message, stream=True)
+    request_data = create_mcp_chat_request(message, stream=True)
     
     # Create headers
     headers = {
@@ -171,15 +195,15 @@ def send_streaming_request(url: str, api_key: str, message: str) -> None:
                     chunk_data = json.loads(event.data)
                     chunk_count += 1
                     
-                    # Process JSON-RPC streaming chunk
-                    if "result" in chunk_data and "content" in chunk_data["result"]:
-                        text_chunk = chunk_data["result"]["content"]
-                        full_text += text_chunk
-                        print(text_chunk, end="", flush=True)
-                    elif "result" in chunk_data and "type" in chunk_data["result"]:
-                        # Handle chunk type (start/chunk/end)
-                        chunk_type = chunk_data["result"]["type"]
-                        if chunk_type in ["chunk", "end"] and "content" in chunk_data["result"]:
+                    # Process MCP-compliant streaming chunk
+                    if "result" in chunk_data:
+                        if chunk_data["result"].get("type") == "chunk" and "chunk" in chunk_data["result"]:
+                            # New MCP format
+                            text_chunk = chunk_data["result"]["chunk"].get("content", "")
+                            full_text += text_chunk
+                            print(text_chunk, end="", flush=True)
+                        elif "content" in chunk_data["result"]:
+                            # Older format for backward compatibility
                             text_chunk = chunk_data["result"]["content"]
                             full_text += text_chunk
                             print(text_chunk, end="", flush=True)
@@ -224,7 +248,7 @@ def send_tools_request(url: str, api_key: str) -> None:
         }
     ]
     
-    request_data = create_jsonrpc_tools_request(tools)
+    request_data = create_mcp_tools_request(tools)
     
     # Create headers
     headers = {
@@ -253,12 +277,21 @@ def send_tools_request(url: str, api_key: str) -> None:
             print(f"JSON-RPC: {response_data.get('jsonrpc')}")
             print(f"ID: {response_data.get('id')}")
             
-            if "result" in response_data and "tool_results" in response_data["result"]:
-                print("\nTool results:")
-                for result in response_data["result"]["tool_results"]:
-                    print(f"- Tool: {result.get('tool_name')}")
-                    print(f"  Status: {result.get('status')}")
-                    print(f"  Result: {result.get('result')}")
+            # Handle MCP format tool results
+            if "result" in response_data:
+                if "output" in response_data["result"] and "tools" in response_data["result"]["output"]:
+                    print("\nTool results:")
+                    for result in response_data["result"]["output"]["tools"]:
+                        print(f"- Tool: {result.get('name')}")
+                        print(f"  Status: {result.get('status', 'completed')}")
+                        print(f"  Result: {result.get('output')}")
+                # Handle legacy format
+                elif "tool_results" in response_data["result"]:
+                    print("\nTool results:")
+                    for result in response_data["result"]["tool_results"]:
+                        print(f"- Tool: {result.get('tool_name')}")
+                        print(f"  Status: {result.get('status')}")
+                        print(f"  Result: {result.get('result')}")
             
             # Print full JSON response
             print("\nFull JSON response:")
@@ -291,7 +324,7 @@ def main():
     print("=======================")
     print(f"Server URL: {args.url}")
     print(f"API key: {args.api_key[:4]}...{args.api_key[-4:]}")
-    print(f"Mode: JSON-RPC 2.0")
+    print(f"Mode: JSON-RPC 2.0 (MCP-compliant)")
     
     if args.tools:
         print("Request type: Tools")
@@ -307,4 +340,4 @@ def main():
             send_non_streaming_request(args.url, args.api_key, args.message)
 
 if __name__ == "__main__":
-    main() 
+    main()

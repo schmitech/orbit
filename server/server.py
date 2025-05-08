@@ -838,45 +838,59 @@ class InferenceServer:
         # Create a list to collect shutdown tasks
         shutdown_tasks = []
         
-        # Only add services to shutdown_tasks if they exist, were initialized, and have a close method
-        if hasattr(app.state, 'llm_client') and app.state.llm_client is not None:
-            shutdown_tasks.append(app.state.llm_client.close())
+        # Helper function to safely add shutdown task
+        def add_shutdown_task(service, service_name):
+            if service is not None and hasattr(service, 'close'):
+                try:
+                    if asyncio.iscoroutinefunction(service.close):
+                        shutdown_tasks.append(service.close())
+                    else:
+                        service.close()
+                except Exception as e:
+                    self.logger.error(f"Error preparing shutdown for {service_name}: {str(e)}")
         
-        if hasattr(app.state, 'logger_service') and app.state.logger_service is not None:
-            shutdown_tasks.append(app.state.logger_service.close())
+        # Add services to shutdown tasks if they exist and have close methods
+        if hasattr(app.state, 'llm_client'):
+            add_shutdown_task(app.state.llm_client, 'LLM Client')
+        
+        if hasattr(app.state, 'logger_service'):
+            add_shutdown_task(app.state.logger_service, 'Logger Service')
         
         # Handle lazy-loaded retriever closure
         if hasattr(app.state, 'retriever'):
-            # Check if the retriever was actually initialized by checking for _retriever attribute
             if hasattr(app.state.retriever, '_retriever') and app.state.retriever._retriever is not None:
-                shutdown_tasks.append(app.state.retriever._retriever.close())
+                add_shutdown_task(app.state.retriever._retriever, 'Retriever')
             else:
                 self.logger.info("Retriever was never initialized, no need to close")
         
-        if hasattr(app.state, 'guardrail_service') and app.state.guardrail_service is not None:
-            shutdown_tasks.append(app.state.guardrail_service.close())
+        if hasattr(app.state, 'guardrail_service'):
+            add_shutdown_task(app.state.guardrail_service, 'Guardrail Service')
         
-        if hasattr(app.state, 'prompt_service') and app.state.prompt_service is not None:
-            shutdown_tasks.append(app.state.prompt_service.close())
+        if hasattr(app.state, 'prompt_service'):
+            # PromptService doesn't have a close method, so we skip it
+            self.logger.info("Skipping PromptService shutdown (no close method)")
         
-        if hasattr(app.state, 'reranker_service') and app.state.reranker_service is not None:
-            shutdown_tasks.append(app.state.reranker_service.close())
+        if hasattr(app.state, 'reranker_service'):
+            add_shutdown_task(app.state.reranker_service, 'Reranker Service')
         
-        if hasattr(app.state, 'api_key_service') and app.state.api_key_service is not None:
-            shutdown_tasks.append(app.state.api_key_service.close())
+        if hasattr(app.state, 'api_key_service'):
+            add_shutdown_task(app.state.api_key_service, 'API Key Service')
         
-        if hasattr(app.state, 'embedding_service') and app.state.embedding_service is not None:
-            shutdown_tasks.append(app.state.embedding_service.close())
+        if hasattr(app.state, 'embedding_service'):
+            add_shutdown_task(app.state.embedding_service, 'Embedding Service')
             
         # Close shared MongoDB service
-        if hasattr(app.state, 'mongodb_service') and app.state.mongodb_service is not None:
-            app.state.mongodb_service.close()
+        if hasattr(app.state, 'mongodb_service'):
+            add_shutdown_task(app.state.mongodb_service, 'MongoDB Service')
         
         # Only run asyncio.gather if there are tasks to gather
         if shutdown_tasks:
             try:
-                await asyncio.gather(*shutdown_tasks)
+                # Wait for all shutdown tasks to complete with a timeout
+                await asyncio.wait_for(asyncio.gather(*shutdown_tasks, return_exceptions=True), timeout=30.0)
                 self.logger.info("Services shut down successfully")
+            except asyncio.TimeoutError:
+                self.logger.error("Timeout while shutting down services")
             except Exception as e:
                 self.logger.error(f"Error during shutdown of services: {str(e)}")
         else:
@@ -941,9 +955,9 @@ class InferenceServer:
         
         # Log API endpoints
         self.logger.info("API Endpoints:")
-        self.logger.info("  - Standard chat: POST /chat")
-        if mcp_enabled:
-            self.logger.info("  - MCP protocol: POST /v1/chat")
+        # self.logger.info("  - Standard chat: POST /chat")
+        # if mcp_enabled:
+        self.logger.info("  - MCP protocol: POST /v1/chat")
         self.logger.info("  - Health check: GET /health")
 
     def _configure_middleware(self) -> None:
@@ -1003,64 +1017,6 @@ class InferenceServer:
                     not self.config.get('api_keys', {}).get('require_for_health', False)):
                     return "default", None
                 raise e
-
-        # Chat endpoint
-        @self.app.post("/chat")
-        async def chat_endpoint(
-            request: Request,
-            chat_message: ChatMessage,
-            chat_service = Depends(get_chat_service),
-            api_key_result: tuple[str, Optional[ObjectId]] = Depends(get_api_key)
-        ):
-            """
-            Process a chat message and return a response
-            
-            This endpoint validates the API key and uses the associated collection
-            for retrieval augmented generation.
-            """
-            collection_name, system_prompt_id = api_key_result
-            
-            # Extract the API key from the request header
-            api_key = request.headers.get("X-API-Key")
-            
-            # Mask API key for logging
-            masked_api_key = f"***{api_key[-4:]}" if api_key else "***"
-            
-            # Resolve client IP (using X-Forwarded-For if available)
-            client_ip = request.headers.get("X-Forwarded-For", request.client.host if request.client else "unknown")
-            
-            # Determine if streaming is requested via header or request payload
-            stream = (request.headers.get("Accept") == "text/event-stream") or chat_message.stream
-            
-            # Log the collection and prompt being used
-            if self.config.get('general', {}).get('verbose', False):
-                self.logger.debug(f"Using collection '{collection_name}' for chat request from {client_ip}")
-                self.logger.debug(f"API key: {masked_api_key}")
-                if system_prompt_id:
-                    self.logger.debug(f"Using system prompt ID: {system_prompt_id}")
-
-            if stream:
-                return StreamingResponse(
-                    chat_service.process_chat_stream(
-                        message=chat_message.message,
-                        client_ip=client_ip,
-                        collection_name=collection_name,
-                        system_prompt_id=system_prompt_id,
-                        api_key=api_key
-                    ),
-                    media_type="text/event-stream"
-                )
-            else:
-                result = await chat_service.process_chat(
-                    message=chat_message.message,
-                    client_ip=client_ip,
-                    collection_name=collection_name,
-                    system_prompt_id=system_prompt_id,
-                    api_key=api_key
-                )
-                if "error" in result:
-                    raise HTTPException(status_code=500, detail=result["error"])
-                return result
                 
         # MCP protocol endpoint
         @self.app.post("/v1/chat")
@@ -1073,28 +1029,13 @@ class InferenceServer:
             Process an MCP protocol chat request and return a response
             
             This endpoint implements the MCP protocol using JSON-RPC 2.0 format
-            for compatibility with tools and clients that support it.
+            with the tools/call method and chat tool.
             """
-            if _is_true_value(self.config.get('general', {}).get('verbose', False)):
-                self.logger.debug("MCP endpoint hit - checking configuration...")
-            
-            # Check if MCP protocol is enabled
-            if not self._is_mcp_enabled():
-                self.logger.error("MCP protocol is not enabled in configuration")
-                raise HTTPException(status_code=404, detail="MCP protocol is not enabled")
-            
-            if _is_true_value(self.config.get('general', {}).get('verbose', False)):
-                self.logger.debug("MCP protocol is enabled, processing request...")
-            
             collection_name, system_prompt_id = api_key_result
             
-            # Extract the API key from the request header
+            # Extract the API key and client info
             api_key = request.headers.get("X-API-Key")
-            
-            # Mask API key for logging
             masked_api_key = f"***{api_key[-4:]}" if api_key else "***"
-            
-            # Resolve client IP (using X-Forwarded-For if available)
             client_ip = request.headers.get("X-Forwarded-For", request.client.host if request.client else "unknown")
             
             # Get request body
@@ -1113,13 +1054,14 @@ class InferenceServer:
             
             try:
                 jsonrpc_request = MCPJsonRpcRequest(**body)
+                # Log request info if verbose
                 if _is_true_value(self.config.get('general', {}).get('verbose', False)):
                     self.logger.debug(f"Parsed JSON-RPC request: method={jsonrpc_request.method}, id={jsonrpc_request.id}")
             except Exception as e:
                 self.logger.error(f"Failed to parse JSON-RPC request: {str(e)}")
                 raise HTTPException(status_code=400, detail=f"Invalid request format: {str(e)}")
             
-            # Log the request
+            # Log the request details if verbose
             if self.config.get('general', {}).get('verbose', False):
                 self.logger.debug(f"[MCP] Request method: {jsonrpc_request.method}")
                 self.logger.debug(f"[MCP] Using collection '{collection_name}' for request from {client_ip}")
@@ -1128,33 +1070,71 @@ class InferenceServer:
                     self.logger.debug(f"[MCP] Using system prompt ID: {system_prompt_id}")
             
             try:
-                # Handle different MCP methods
-                if jsonrpc_request.method == "query":
-                    # Handle query method - extract message from params
-                    message = jsonrpc_request.params.get("message", "")
-                    stream = jsonrpc_request.params.get("stream", False)
-                    
-                    if not message:
+                # Handle the tools/call method for chat
+                if jsonrpc_request.method == "tools/call":
+                    # Validate tool name is "chat"
+                    tool_name = jsonrpc_request.params.get("name", "")
+                    if tool_name != "chat":
                         return MCPJsonRpcResponse(
                             jsonrpc="2.0",
                             error={
-                                "code": -32602,
-                                "message": "Invalid params: missing message"
+                                "code": -32601,
+                                "message": f"Tool not supported: {tool_name}"
                             },
                             id=jsonrpc_request.id
                         )
                     
+                    # Extract arguments
+                    arguments = jsonrpc_request.params.get("arguments", {})
+                    messages = arguments.get("messages", [])
+                    
+                    if not messages:
+                        return MCPJsonRpcResponse(
+                            jsonrpc="2.0",
+                            error={
+                                "code": -32602,
+                                "message": "Invalid params: missing messages"
+                            },
+                            id=jsonrpc_request.id
+                        )
+                    
+                    # Extract the last user message
+                    user_messages = [m for m in messages if m.get("role") == "user"]
+                    if not user_messages:
+                        return MCPJsonRpcResponse(
+                            jsonrpc="2.0",
+                            error={
+                                "code": -32602,
+                                "message": "Invalid params: no user message found"
+                            },
+                            id=jsonrpc_request.id
+                        )
+                    
+                    # Get the last user message content
+                    last_user_message = user_messages[-1].get("content", "")
+                    
+                    # Check for streaming parameter
+                    stream = arguments.get("stream", False)
+                    
                     # Handle streaming if requested
                     if stream:
+                        # Implement streaming response
                         async def stream_generator():
                             try:
                                 # Send the first chunk to establish the stream
-                                yield f'data: {json.dumps({"jsonrpc": "2.0", "id": jsonrpc_request.id, "result": {"type": "start"}})}\n\n'
+                                start_response = {
+                                    "jsonrpc": "2.0", 
+                                    "id": jsonrpc_request.id,
+                                    "result": {
+                                        "type": "start"
+                                    }
+                                }
+                                yield f'data: {json.dumps(start_response)}\n\n'
                                 
                                 # Process message in streaming mode
                                 buffer = ""
                                 async for chunk in chat_service.process_chat_stream(
-                                    message=message,
+                                    message=last_user_message,
                                     client_ip=client_ip,
                                     collection_name=collection_name,
                                     system_prompt_id=system_prompt_id,
@@ -1177,13 +1157,17 @@ class InferenceServer:
                                             # Add to buffer
                                             buffer += content
                                             
-                                            # Create JSON-RPC chunk
+                                            # Format response as per MCP
                                             chunk_response = {
                                                 "jsonrpc": "2.0", 
                                                 "id": jsonrpc_request.id,
                                                 "result": {
+                                                    "name": "chat",
                                                     "type": "chunk",
-                                                    "content": content
+                                                    "chunk": {
+                                                        "content": content,
+                                                        "role": "assistant"
+                                                    }
                                                 }
                                             }
                                             
@@ -1196,20 +1180,31 @@ class InferenceServer:
                                                 "jsonrpc": "2.0", 
                                                 "id": jsonrpc_request.id,
                                                 "result": {
+                                                    "name": "chat",
                                                     "type": "chunk",
-                                                    "content": chunk
+                                                    "chunk": {
+                                                        "content": chunk,
+                                                        "role": "assistant"
+                                                    }
                                                 }
                                             }
                                             yield f"data: {json.dumps(chunk_response)}\n\n"
                             
-                                # Send final message with complete response and sources
+                                # Send final message with complete response
                                 final_response = {
                                     "jsonrpc": "2.0",
                                     "id": jsonrpc_request.id,
                                     "result": {
-                                        "type": "end",
-                                        "response": buffer,
-                                        "sources": []  # Add sources here if available
+                                        "name": "chat",
+                                        "type": "complete",
+                                        "output": {
+                                            "messages": [
+                                                {
+                                                    "role": "assistant",
+                                                    "content": buffer
+                                                }
+                                            ]
+                                        }
                                     }
                                 }
                                 
@@ -1234,9 +1229,9 @@ class InferenceServer:
                             media_type="text/event-stream"
                         )
                     else:
-                        # Process the query (non-streaming)
+                        # Process the chat message (non-streaming)
                         result = await chat_service.process_chat(
-                            message=message,
+                            message=last_user_message,
                             client_ip=client_ip,
                             collection_name=collection_name,
                             system_prompt_id=system_prompt_id,
@@ -1253,55 +1248,22 @@ class InferenceServer:
                                 id=jsonrpc_request.id
                             )
                         
-                        # Return successful response
+                        # Format the response as per MCP
                         return MCPJsonRpcResponse(
                             jsonrpc="2.0",
                             result={
-                                "response": result.get("response", ""),
-                                "sources": result.get("sources", [])
+                                "name": "chat",
+                                "output": {
+                                    "messages": [
+                                        {
+                                            "role": "assistant",
+                                            "content": result.get("response", "")
+                                        }
+                                    ]
+                                }
                             },
                             id=jsonrpc_request.id
                         )
-                
-                elif jsonrpc_request.method == "tools":
-                    # Handle tools method - process tool requests from the model
-                    tools = jsonrpc_request.params.get("tools", [])
-                    
-                    if not tools:
-                        return MCPJsonRpcResponse(
-                            jsonrpc="2.0",
-                            error={
-                                "code": -32602,
-                                "message": "Invalid params: missing tools"
-                            },
-                            id=jsonrpc_request.id
-                        )
-                    
-                    # Process tools (example implementation)
-                    tool_results = []
-                    for tool in tools:
-                        tool_name = tool.get("name", "")
-                        tool_params = tool.get("parameters", {})
-                        
-                        # Simply log the tool request for now
-                        self.logger.info(f"Tool request: name={tool_name}, params={tool_params}")
-                        
-                        # Add a placeholder result
-                        tool_results.append({
-                            "tool_name": tool_name,
-                            "result": f"Processed tool: {tool_name}",
-                            "status": "success"
-                        })
-                    
-                    # Return results of all tool operations
-                    return MCPJsonRpcResponse(
-                        jsonrpc="2.0",
-                        result={
-                            "tool_results": tool_results
-                        },
-                        id=jsonrpc_request.id
-                    )
-                    
                 else:
                     # Method not supported
                     return MCPJsonRpcResponse(
@@ -1625,49 +1587,10 @@ class InferenceServer:
                 port=port
             )
 
-    def _is_mcp_enabled(self) -> bool:
-        """
-        Check if MCP protocol support is enabled in the configuration.
-        
-        Returns:
-            True if MCP protocol is enabled, False otherwise
-        """
-        mcp_enabled = _is_true_value(self.config.get('general', {}).get('mcp_protocol', False))
-        if _is_true_value(self.config.get('general', {}).get('verbose', False)):
-            self.logger.debug(f"MCP Protocol Status: {'Enabled' if mcp_enabled else 'Disabled'}")
-            self.logger.debug(f"Full MCP config: {self.config.get('general', {}).get('mcp_protocol')}")
-        return mcp_enabled
-    
-    def _validate_mcp_content(self, content: List[Dict[str, Any]]) -> str:
-        """
-        Validate and extract text content from MCP content format.
-        
-        Args:
-            content: List of content items in MCP format
-            
-        Returns:
-            Extracted text content
-            
-        Raises:
-            HTTPException: If no valid text content is found
-        """
-        if not content:
-            raise HTTPException(status_code=400, detail="Empty content in MCP message")
-            
-        message_text = ""
-        for content_item in content:
-            if content_item.get("type") == "text":
-                message_text += content_item.get("text", "")
-        
-        if not message_text:
-            raise HTTPException(status_code=400, detail="No text content found in MCP message")
-            
-        return message_text
-
 # Create a global app instance for direct use by uvicorn in development mode
 app = FastAPI(
-    title="Open Inference Server",
-    description="A FastAPI server with chat endpoint and RAG capabilities",
+    title="ORBIT Open Inference Server",
+    description="Open source inference server with chat endpoint and RAG capabilities",
     version="1.0.0"
 )
 

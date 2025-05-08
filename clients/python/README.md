@@ -45,9 +45,7 @@ orbit-chat --url http://localhost:3000 --api-key your-test-key
 pip uninstall schmitech-orbit-client
 ```
 
-## Package Management
-
-### Building from Source
+## Publishing Package:
 
 To build the package from source:
 

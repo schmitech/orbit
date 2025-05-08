@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
+# Version: 1.2.0 - Updated for MCP protocol
 import requests
 import json
 import sys
 import time
 import argparse
 import re
+import uuid
 from colorama import Fore, Style, init
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import FileHistory
@@ -94,19 +96,27 @@ def stream_chat(url, message, api_key=None, debug=False):
     if api_key:
         headers["X-API-Key"] = api_key
     
-    # Create MCP request data
+    # Create MCP request data using uuid for ID (consistent with test_mcp_client.py)
     data = {
         "jsonrpc": "2.0",
-        "method": "query",
+        "method": "tools/call",
         "params": {
-            "message": message,
-            "stream": True
+            "name": "chat",
+            "arguments": {
+                "messages": [
+                    {"role": "user", "content": message}
+                ],
+                "stream": True
+            }
         },
-        "id": str(int(time.time() * 1000))  # Use timestamp as request ID
+        "id": str(uuid.uuid4())  # Use UUID instead of timestamp
     }
     
     if debug:
-        print(f"\n{Fore.YELLOW}Debug - Request:{Style.RESET_ALL}")
+        print(f"\n{Fore.YELLOW}Debug - Request URL:{Style.RESET_ALL} {url}")
+        print(f"\n{Fore.YELLOW}Debug - Request Headers:{Style.RESET_ALL}")
+        print(json.dumps({k: v if k != 'X-API-Key' else f'***{v[-4:]}' for k, v in headers.items()}, indent=2))
+        print(f"\n{Fore.YELLOW}Debug - Request Body:{Style.RESET_ALL}")
         print(json.dumps(data, indent=2))
     
     try:
@@ -118,7 +128,7 @@ def stream_chat(url, message, api_key=None, debug=False):
             if response.status_code != 200:
                 print(f"{Fore.RED}Error: Server returned status code {response.status_code}{Style.RESET_ALL}")
                 if debug:
-                    print(response.text)
+                    print(f"Response: {response.text}")
                 return None, None
             
             # Process the streaming response
@@ -155,20 +165,19 @@ def stream_chat(url, message, api_key=None, debug=False):
                         
                         # Handle MCP protocol response
                         if "result" in data:
-                            if "content" in data["result"]:
-                                content = data["result"]["content"]
-                                buffer += content
-                            elif "type" in data["result"]:
+                            if "type" in data["result"]:
                                 # Handle different chunk types
                                 chunk_type = data["result"]["type"]
                                 if chunk_type == "start":
                                     continue
-                                elif chunk_type in ["chunk", "end"] and "content" in data["result"]:
-                                    content = data["result"]["content"]
+                                elif chunk_type == "chunk" and "chunk" in data["result"]:
+                                    content = data["result"]["chunk"].get("content", "")
                                     buffer += content
-                                elif chunk_type == "end" and "response" in data["result"]:
+                                elif chunk_type == "complete" and "output" in data["result"]:
                                     # Final response with complete text
-                                    buffer = data["result"]["response"]
+                                    messages = data["result"]["output"].get("messages", [])
+                                    if messages:
+                                        buffer = messages[0].get("content", "")
                             else:
                                 continue
                         else:
@@ -222,7 +231,7 @@ def stream_chat(url, message, api_key=None, debug=False):
             return full_response, timing_info
             
     except requests.exceptions.RequestException as e:
-        print(f"Error connecting to server: {e}")
+        print(f"{Fore.RED}Error connecting to server: {e}{Style.RESET_ALL}")
         return None, None
 
 def main():
@@ -277,4 +286,4 @@ def main():
             print(f"{Fore.RED}An error occurred: {e}{Style.RESET_ALL}")
 
 if __name__ == "__main__":
-    main() 
+    main()

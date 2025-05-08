@@ -2,30 +2,35 @@
 
 /**
  * This script runs a query against the chatbot API and displays the results.
- * Usage: npm run test-query "your query here" "http://your-api-url.com" "your-api-key"
+ * Usage: DEBUG=1 npm run test-query "your query here" "http://your-api-url.com" "your-api-key"
  */
 
 import { configureApi, streamChat } from '../api.ts';
 import readline from 'readline';
 
 // Get the query, API URL, and API key from command line arguments
-const query = process.argv[2];
-const apiUrl = process.argv[3] || 'http://localhost:3000';
-const apiKey = process.argv[4];
+const args = process.argv.slice(2);
+const debug = process.env.DEBUG === '1';
+const query = args[0];
+const apiUrl = args[1] || 'http://localhost:3000';
+const apiKey = args[2];
 
 if (!query) {
   console.error('Error: No query provided');
-  console.error('Usage: npm run test-query "your query here" "http://your-api-url.com" "your-api-key"');
+  console.error('Usage: DEBUG=1 npm run test-query "your query here" "http://your-api-url.com" "your-api-key"');
   process.exit(1);
 }
 
 if (!apiKey) {
   console.error('Error: No API key provided');
-  console.error('Usage: npm run test-query "your query here" "http://your-api-url.com" "your-api-key"');
+  console.error('Usage: DEBUG=1 npm run test-query "your query here" "http://your-api-url.com" "your-api-key"');
   process.exit(1);
 }
 
 console.log(`Using API URL: ${apiUrl}`);
+if (debug) {
+  console.log('Debug mode: Enabled');
+}
 console.log(`\n🔍 Testing query: "${query}"\n`);
 
 // Configure the API with the provided URL and API key
@@ -38,6 +43,10 @@ async function runQuery() {
 
     // Use streamChat with streaming enabled
     for await (const response of streamChat(query, false, true)) {
+      if (debug) {
+        console.log('\n📦 Response payload:', JSON.stringify(response, null, 2));
+      }
+      
       if (response.text) {
         // Write the text directly
         process.stdout.write(response.text);
@@ -50,22 +59,11 @@ async function runQuery() {
         buffer = ''; // Clear the buffer after the query is complete
       }
     }
-
-    // Create readline interface
-    const rl = readline.createInterface({
-      input: process.stdin,
-      output: process.stdout
-    });
-
-    // Wait for user to press Enter before exiting
-    await new Promise(resolve => {
-      rl.question('\nPress Enter to exit...', () => {
-        rl.close();
-        resolve();
-      });
-    });
   } catch (error) {
     console.error('\n❌ Error during test:', error);
+    if (debug) {
+      console.error('Error details:', JSON.stringify(error, null, 2));
+    }
     process.exit(1);
   }
 }
