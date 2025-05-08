@@ -2,13 +2,54 @@
 
 A Python client for interacting with Orbit chat servers. This client provides a command-line interface for chatting with Orbit servers, supporting both standard and MCP protocol formats.
 
-## Package Management
-
 ### Installation
 
 ```bash
 pip install schmitech-orbit-client
 ```
+
+## Build and Test Before Publishing
+
+Before publishing to PyPI, you should test your package locally. Here's how:
+
+1. Build the package locally:
+```bash
+# Install build tools if not already installed
+pip install build
+
+# Build the package
+python -m build
+```
+
+2. Install the package in development mode:
+```bash
+# Install in editable mode
+pip install -e .
+
+# Or install the built wheel directly
+pip install dist/schmitech_orbit_client-*.whl
+```
+
+3. Test the CLI:
+```bash
+# Test basic functionality
+orbit-chat --url http://localhost:3000
+
+# Test with debug mode
+orbit-chat --url http://localhost:3000 --debug
+
+# Test with API key
+orbit-chat --url http://localhost:3000 --api-key your-test-key
+```
+
+4. Uninstall test version:
+```bash
+pip uninstall schmitech-orbit-client
+```
+
+## Package Management
+
+
 
 ### Building from Source
 
