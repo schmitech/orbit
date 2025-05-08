@@ -2,32 +2,36 @@
 
 /**
  * This script picks multiple random questions from a JSON file and runs them against the chatbot API.
- * Usage: npm run test-query-from-pairs path/to/questions.json "http://your-api-url.com" "your-api-key" [number_of_questions]
+ * Usage: npm run test-query-from-pairs path/to/questions.json "http://your-api-url.com" "your-api-key" [number_of_questions] ["your-session-id"]
  */
 
 import { configureApi, streamChat } from '../api.ts';
 import fs from 'fs';
 
-// Get the JSON file path, API URL, API key, and number of questions from command line arguments
+// Get the JSON file path, API URL, API key, number of questions, and optional session ID from command line arguments
 const jsonFilePath = process.argv[2];
 const apiUrl = process.argv[3] || 'http://localhost:3000';
 const apiKey = process.argv[4];
 const numQuestions = parseInt(process.argv[5], 10) || 1; // Default to 1 if not specified
+const sessionId = process.argv[6]; // Optional session ID
 
 if (!jsonFilePath) {
   console.error('Error: No JSON file provided');
-  console.error('Usage: npm run test-query-from-pairs path/to/questions.json "http://your-api-url.com" "your-api-key" [number_of_questions]');
+  console.error('Usage: npm run test-query-from-pairs path/to/questions.json "http://your-api-url.com" "your-api-key" [number_of_questions] ["your-session-id"]');
   process.exit(1);
 }
 
 if (!apiKey) {
   console.error('Error: No API key provided');
-  console.error('Usage: npm run test-query-from-pairs path/to/questions.json "http://your-api-url.com" "your-api-key" [number_of_questions]');
+  console.error('Usage: npm run test-query-from-pairs path/to/questions.json "http://your-api-url.com" "your-api-key" [number_of_questions] ["your-session-id"]');
   process.exit(1);
 }
 
 console.log(`Using API URL: ${apiUrl}`);
 console.log(`Number of random questions to test: ${numQuestions}`);
+if (sessionId) {
+  console.log(`Using Session ID: ${sessionId}`);
+}
 
 try {
   // Read and parse the JSON file
@@ -51,8 +55,8 @@ try {
     selectedIndices.add(Math.floor(Math.random() * qaData.length));
   }
   
-  // Configure the API with the provided URL and API key
-  configureApi(apiUrl, apiKey);
+  // Configure the API with the provided URL, API key, and optional session ID
+  configureApi(apiUrl, apiKey, sessionId);
   
   // Function to run a single query
   async function runSingleQuery(qa, index, totalQueries) {

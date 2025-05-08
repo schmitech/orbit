@@ -71,7 +71,7 @@ def clean_response(text):
     
     return text.strip()
 
-def stream_chat(url, message, api_key=None, debug=False):
+def stream_chat(url, message, api_key=None, session_id=None, debug=False):
     """
     Stream a chat response from the server using MCP protocol, displaying it gradually like a chatbot.
     
@@ -79,6 +79,7 @@ def stream_chat(url, message, api_key=None, debug=False):
         url (str): The chat server URL
         message (str): The message to send to the chat server
         api_key (str): Optional API key for authentication
+        session_id (str): Session ID for tracking the conversation
         debug (bool): Whether to show debug information
         
     Returns:
@@ -95,6 +96,10 @@ def stream_chat(url, message, api_key=None, debug=False):
     
     if api_key:
         headers["X-API-Key"] = api_key
+    
+    # Add session ID to headers
+    if session_id:
+        headers["X-Session-ID"] = session_id
     
     # Create MCP request data using uuid for ID (consistent with test_mcp_client.py)
     data = {
@@ -238,13 +243,18 @@ def main():
     parser = argparse.ArgumentParser(description="Chat Client for Testing Chat Server")
     parser.add_argument("--url", default="http://localhost:3000", help="Chat server URL (will be appended with /v1/chat)")
     parser.add_argument("--api-key", help="API key for authentication")
+    parser.add_argument("--session-id", help="Session ID to use (default: generates a new UUID). Can be any non-empty string.")
     parser.add_argument("--debug", action="store_true", help="Enable debug mode")
     parser.add_argument("--show-timing", action="store_true", help="Show latency timing information")
     args = parser.parse_args()
     
+    # Generate or use provided session ID
+    session_id = args.session_id if args.session_id else str(uuid.uuid4())
+    
     # Use colorama for system messages
     print(f"{Fore.CYAN}Welcome to the Orbit Chat Client!{Style.RESET_ALL}")
     print(f"{Fore.CYAN}Server URL: {args.url}{Style.RESET_ALL}")
+    print(f"{Fore.CYAN}Session ID: {session_id}{Style.RESET_ALL}")
     print(f"{Fore.CYAN}Type 'exit' or 'quit' to end the conversation.{Style.RESET_ALL}")
     print(f"{Fore.CYAN}You can use arrow keys to navigate, up/down for history.{Style.RESET_ALL}")
     
@@ -268,6 +278,7 @@ def main():
                 args.url, 
                 user_input, 
                 api_key=args.api_key,
+                session_id=session_id,
                 debug=args.debug
             )
             

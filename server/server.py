@@ -919,9 +919,22 @@ class InferenceServer:
         # Get MCP protocol setting
         mcp_enabled = _is_true_value(self.config['general'].get('mcp_protocol', False))
         
+        # Get session ID configuration
+        session_config = self.config.get('general', {}).get('session_id', {})
+        session_enabled = _is_true_value(session_config.get('enabled', False))
+        session_header = session_config.get('header_name', 'X-Session-ID')
+        
+        # Get API key configuration
+        api_key_config = self.config.get('api_keys', {})
+        api_key_enabled = _is_true_value(api_key_config.get('enabled', True))
+        api_key_header = api_key_config.get('header_name', 'X-API-Key')
+        require_for_health = _is_true_value(api_key_config.get('require_for_health', False))
+        
         self.logger.info(f"Inference provider: {inference_provider}")
         self.logger.info(f"Embedding: {'enabled' if embedding_enabled else 'disabled'}")
         self.logger.info(f"MCP protocol: {'enabled' if mcp_enabled else 'disabled'}")
+        self.logger.info(f"Session ID: {'enabled' if session_enabled else 'disabled'} (header: {session_header})")
+        self.logger.info(f"API Key: {'enabled' if api_key_enabled else 'disabled'} (header: {api_key_header}, required for health: {require_for_health})")
         
         # Log safety information
         self.logger.info(f"Safety: {'enabled' if safety_enabled else 'disabled'}")
@@ -989,6 +1002,39 @@ class InferenceServer:
         async def get_prompt_service(request: Request):
             return request.app.state.prompt_service
 
+        async def validate_session_id(request: Request) -> str:
+            """
+            Validate the session ID from the request header.
+            Requires clients to provide their own session ID if session_id.enabled is true.
+            
+            Args:
+                request: The incoming request
+                
+            Returns:
+                The validated session ID or None if session validation is disabled
+            
+            Raises:
+                HTTPException: If session ID is missing or empty when session validation is enabled
+            """
+            # Check if session ID validation is enabled
+            session_enabled = _is_true_value(request.app.state.config.get('general', {}).get('session_id', {}).get('enabled', False))
+            
+            if not session_enabled:
+                # If session validation is disabled, return None
+                return None
+            
+            # Get session ID header name from config
+            session_header = request.app.state.config['general']['session_id']['header_name']
+            session_id = request.headers.get(session_header)
+            
+            if not session_id or not session_id.strip():
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Session ID is required. Please provide a non-empty string in the {session_header} header."
+                )
+            
+            return session_id.strip()
+
         async def get_api_key(
             request: Request,
             api_key_service = Depends(get_api_key_service)
@@ -1023,7 +1069,8 @@ class InferenceServer:
         async def mcp_chat_endpoint(
             request: Request,
             chat_service = Depends(get_chat_service),
-            api_key_result: tuple[str, Optional[ObjectId]] = Depends(get_api_key)
+            api_key_result: tuple[str, Optional[ObjectId]] = Depends(get_api_key),
+            session_id: str = Depends(validate_session_id)
         ):
             """
             Process an MCP protocol chat request and return a response
@@ -1038,13 +1085,32 @@ class InferenceServer:
             masked_api_key = f"***{api_key[-4:]}" if api_key else "***"
             client_ip = request.headers.get("X-Forwarded-For", request.client.host if request.client else "unknown")
             
+            # Enhanced verbose logging
+            if _is_true_value(self.config.get('general', {}).get('verbose', False)):
+                self.logger.debug("=" * 50)
+                self.logger.debug("Incoming MCP Request Details:")
+                self.logger.debug(f"Session ID: {session_id}")
+                self.logger.debug(f"Client IP: {client_ip}")
+                self.logger.debug(f"Collection: {collection_name}")
+                self.logger.debug(f"System Prompt ID: {system_prompt_id}")
+                self.logger.debug(f"API Key: {masked_api_key}")
+                self.logger.debug(f"Request Method: {request.method}")
+                self.logger.debug(f"Request URL: {request.url}")
+                self.logger.debug("Request Headers:")
+                for header, value in request.headers.items():
+                    if header.lower() == "x-api-key":
+                        self.logger.debug(f"  {header}: {masked_api_key}")
+                    else:
+                        self.logger.debug(f"  {header}: {value}")
+            
             # Get request body
             try:
                 body = await request.json()
                 if _is_true_value(self.config.get('general', {}).get('verbose', False)):
-                    self.logger.debug(f"MCP request body: {json.dumps(body)}")
+                    self.logger.debug("Request Body:")
+                    self.logger.debug(json.dumps(body, indent=2))
             except Exception as e:
-                self.logger.error(f"Failed to parse request body: {str(e)}")
+                self.logger.error(f"Failed to parse request body for session {session_id}: {str(e)}")
                 raise HTTPException(status_code=400, detail=f"Invalid request body: {str(e)}")
             
             # Validate JSON-RPC request format
@@ -1054,20 +1120,16 @@ class InferenceServer:
             
             try:
                 jsonrpc_request = MCPJsonRpcRequest(**body)
-                # Log request info if verbose
+                # Enhanced verbose logging for JSON-RPC request
                 if _is_true_value(self.config.get('general', {}).get('verbose', False)):
-                    self.logger.debug(f"Parsed JSON-RPC request: method={jsonrpc_request.method}, id={jsonrpc_request.id}")
+                    self.logger.debug("JSON-RPC Request Details:")
+                    self.logger.debug(f"  Method: {jsonrpc_request.method}")
+                    self.logger.debug(f"  ID: {jsonrpc_request.id}")
+                    self.logger.debug("  Params:")
+                    self.logger.debug(json.dumps(jsonrpc_request.params, indent=2))
             except Exception as e:
                 self.logger.error(f"Failed to parse JSON-RPC request: {str(e)}")
                 raise HTTPException(status_code=400, detail=f"Invalid request format: {str(e)}")
-            
-            # Log the request details if verbose
-            if self.config.get('general', {}).get('verbose', False):
-                self.logger.debug(f"[MCP] Request method: {jsonrpc_request.method}")
-                self.logger.debug(f"[MCP] Using collection '{collection_name}' for request from {client_ip}")
-                self.logger.debug(f"[MCP] API key: {masked_api_key}")
-                if system_prompt_id:
-                    self.logger.debug(f"[MCP] Using system prompt ID: {system_prompt_id}")
             
             try:
                 # Handle the tools/call method for chat
@@ -1075,6 +1137,8 @@ class InferenceServer:
                     # Validate tool name is "chat"
                     tool_name = jsonrpc_request.params.get("name", "")
                     if tool_name != "chat":
+                        if _is_true_value(self.config.get('general', {}).get('verbose', False)):
+                            self.logger.debug(f"Unsupported tool requested: {tool_name}")
                         return MCPJsonRpcResponse(
                             jsonrpc="2.0",
                             error={
@@ -1088,7 +1152,17 @@ class InferenceServer:
                     arguments = jsonrpc_request.params.get("arguments", {})
                     messages = arguments.get("messages", [])
                     
+                    if _is_true_value(self.config.get('general', {}).get('verbose', False)):
+                        self.logger.debug("Chat Arguments:")
+                        self.logger.debug(f"  Stream: {arguments.get('stream', False)}")
+                        self.logger.debug(f"  Message Count: {len(messages)}")
+                        self.logger.debug("  Messages:")
+                        for msg in messages:
+                            self.logger.debug(f"    Role: {msg.get('role')}")
+                            self.logger.debug(f"    Content Length: {len(msg.get('content', ''))}")
+                    
                     if not messages:
+                        self.logger.error("No messages provided in request")
                         return MCPJsonRpcResponse(
                             jsonrpc="2.0",
                             error={
@@ -1101,6 +1175,7 @@ class InferenceServer:
                     # Extract the last user message
                     user_messages = [m for m in messages if m.get("role") == "user"]
                     if not user_messages:
+                        self.logger.error("No user message found in request")
                         return MCPJsonRpcResponse(
                             jsonrpc="2.0",
                             error={
@@ -1113,9 +1188,15 @@ class InferenceServer:
                     # Get the last user message content
                     last_user_message = user_messages[-1].get("content", "")
                     
+                    if _is_true_value(self.config.get('general', {}).get('verbose', False)):
+                        self.logger.debug(f"Processing user message (length: {len(last_user_message)})")
+                    
                     # Check for streaming parameter
                     stream = arguments.get("stream", False)
                     
+                    if _is_true_value(self.config.get('general', {}).get('verbose', False)):
+                        self.logger.debug(f"Streaming mode: {'enabled' if stream else 'disabled'}")
+
                     # Handle streaming if requested
                     if stream:
                         # Implement streaming response

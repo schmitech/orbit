@@ -1,6 +1,6 @@
 # 🤖 Chatbot API Client
 
-A JavaScript/TypeScript client for seamless interaction with the Chatbot server, now supporting API key authentication.
+A JavaScript/TypeScript client for seamless interaction with the Chatbot server, now supporting API key authentication and session tracking.
 
 ---
 
@@ -37,7 +37,8 @@ Integrate directly into websites via CDN:
 
   configureApi({
     apiUrl: 'https://your-api-server.com',
-    apiKey: 'your-api-key'
+    apiKey: 'your-api-key',
+    sessionId: 'your-session-id' // Optional
   });
 
   async function handleChat() {
@@ -61,7 +62,8 @@ import { configureApi, streamChat } from '@schmitech/chatbot-api';
 
 configureApi({
   apiUrl: 'https://your-api-server.com',
-  apiKey: 'your-api-key'
+  apiKey: 'your-api-key',
+  sessionId: 'your-session-id' // Optional
 });
 ```
 
@@ -69,7 +71,11 @@ configureApi({
 
 ```javascript
 async function chat() {
-  configureApi({ apiUrl: 'https://your-api-server.com', apiKey: 'your-api-key' });
+  configureApi({ 
+    apiUrl: 'https://your-api-server.com', 
+    apiKey: 'your-api-key',
+    sessionId: 'user_123_session_456' // Optional
+  });
 
   for await (const response of streamChat('Hello, how can I help?', false)) {
     console.log(response.text);
@@ -84,7 +90,11 @@ chat();
 
 ```javascript
 async function chatWithVoice() {
-  configureApi({ apiUrl: 'https://your-api-server.com', apiKey: 'your-api-key' });
+  configureApi({ 
+    apiUrl: 'https://your-api-server.com', 
+    apiKey: 'your-api-key',
+    sessionId: 'user_123_session_456' // Optional
+  });
 
   for await (const response of streamChat('Tell me a joke', true)) {
     if (response.type === 'audio') {
@@ -111,7 +121,8 @@ import { configureApi, streamChat } from '@schmitech/chatbot-api';
 
 configureApi({
   apiUrl: 'https://your-api-server.com',
-  apiKey: 'your-api-key'
+  apiKey: 'your-api-key',
+  sessionId: 'user_123_session_456' // Optional
 });
 
 function ChatComponent() {
@@ -149,7 +160,11 @@ export default ChatComponent;
 ### 📲 React Native
 
 ```javascript
-configureApi({ apiUrl: 'https://your-api-server.com', apiKey: 'your-api-key' });
+configureApi({ 
+  apiUrl: 'https://your-api-server.com', 
+  apiKey: 'your-api-key',
+  sessionId: 'user_123_session_456' // Optional
+});
 
 async function handleChat(message) {
   for await (const response of streamChat(message, false)) {
@@ -168,6 +183,7 @@ async function handleChat(message) {
 |-----------|-------------|----------|
 | `apiUrl`  | Chatbot API URL | ✅ Yes |
 | `apiKey`  | API key for authentication | ✅ Yes |
+| `sessionId` | Session ID for tracking conversations | ❌ No |
 
 ### `streamChat(message, voiceEnabled)`
 
@@ -192,10 +208,11 @@ interface StreamResponse {
 ### 🧪 Testing
 
 ```bash
-npm run build
-npm test
-npm run test:watch
-npm run test-query "your query" "http://your-api-server.com" "your-api-key"
+# Test single query
+npm run test-query "your query" "http://your-api-server.com" "your-api-key" ["your-session-id"]
+
+# Test multiple queries from JSON file
+npm run test-query-from-pairs questions.json "http://your-api-server.com" "your-api-key" [number_of_questions] ["your-session-id"]
 ```
 
 ---

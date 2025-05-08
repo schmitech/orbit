@@ -54,20 +54,25 @@ interface MCPResponse {
   };
 }
 
-// Store the configured API URL and key
+// Store the configured API URL, key, and session ID
 let configuredApiUrl: string | null = null;
 let configuredApiKey: string | null = null;
+let configuredSessionId: string | null = null;
 
-// Configure the API with a custom URL and API key
-export const configureApi = (apiUrl: string, apiKey: string): void => {
+// Configure the API with a custom URL, API key, and optional session ID
+export const configureApi = (apiUrl: string, apiKey: string, sessionId?: string): void => {
   if (!apiUrl || typeof apiUrl !== 'string') {
     throw new Error('API URL must be a valid string');
   }
   if (!apiKey || typeof apiKey !== 'string') {
     throw new Error('API key must be a valid string');
   }
+  if (sessionId !== undefined && typeof sessionId !== 'string') {
+    throw new Error('Session ID must be a valid string');
+  }
   configuredApiUrl = apiUrl;
   configuredApiKey = apiKey;
+  configuredSessionId = sessionId || null;
 }
 
 // Get the configured API URL or throw an error if not configured
@@ -84,6 +89,11 @@ const getApiKey = (): string => {
     throw new Error('API key not configured. Please call configureApi() with your API key before using any API functions.');
   }
   return configuredApiKey;
+};
+
+// Get the configured session ID
+const getSessionId = (): string | null => {
+  return configuredSessionId;
 };
 
 // Helper to get fetch options with connection pooling if available
@@ -103,13 +113,23 @@ const getFetchOptions = (apiUrl: string, options: RequestInit = {}): RequestInit
   const requestId = Date.now().toString(36) + Math.random().toString(36).substring(2);
   
   // Use keep-alive header in browser environments
+  const headers: Record<string, string> = {
+    'Connection': 'keep-alive',
+    'X-Request-ID': requestId,
+    'X-API-Key': getApiKey()
+  };
+
+  // Add session ID to headers if configured
+  const sessionId = getSessionId();
+  if (sessionId) {
+    headers['X-Session-ID'] = sessionId;
+  }
+  
   return {
     ...options,
     headers: {
       ...options.headers,
-      'Connection': 'keep-alive',
-      'X-Request-ID': requestId,
-      'X-API-Key': getApiKey()
+      ...headers
     }
   };
 };

@@ -38,6 +38,9 @@ orbit-chat --url http://localhost:3000 --debug
 
 # Test with API key
 orbit-chat --url http://localhost:3000 --api-key your-test-key
+
+# Test with custom session ID
+orbit-chat --url http://localhost:3000 --session-id my_custom_session_123
 ```
 
 4. Uninstall test version:
@@ -92,6 +95,7 @@ orbit-chat --url http://your-server:3000
 # Advanced usage with all options
 orbit-chat --url http://your-server:3000 \
            --api-key your-api-key \
+           --session-id your-session-id \
            --debug \
            --show-timing
 ```
@@ -100,8 +104,22 @@ orbit-chat --url http://your-server:3000 \
 
 - `--url`: Chat server URL (default: http://localhost:3000)
 - `--api-key`: API key for authentication
+- `--session-id`: Session ID for tracking the conversation (default: auto-generated UUID)
 - `--debug`: Enable debug mode to see request/response details
 - `--show-timing`: Show latency timing information
+
+#### Session ID Examples
+
+```bash
+# Using auto-generated UUID (default)
+orbit-chat --url http://localhost:3000
+
+# Using a custom session ID
+orbit-chat --url http://localhost:3000 --session-id user_123_session_456
+
+# Using a UUID format session ID
+orbit-chat --url http://localhost:3000 --session-id 123e4567-e89b-12d3-a456-426614174000
+```
 
 #### Interactive Features
 
@@ -128,6 +146,7 @@ response, timing_info = stream_chat(
     url="http://your-server:3000",
     message="Hello, how are you?",
     api_key="your-api-key",  # optional
+    session_id="your-session-id",  # optional
     debug=True
 )
 
@@ -147,6 +166,7 @@ response, timing_info = stream_chat(
 - **Debug Mode**: Detailed request/response information for troubleshooting
 - **Performance Metrics**: Latency timing information
 - **Authentication**: API key support for secure communication
+- **Session Tracking**: Session ID support for conversation tracking
 - **Cross-platform**: Works on Windows, macOS, and Linux
 - **Unicode Support**: Full support for non-English characters
 
@@ -157,6 +177,7 @@ response, timing_info = stream_chat(
 $ orbit-chat --url http://localhost:3000
 Welcome to the Orbit Chat Client!
 Server URL: http://localhost:3000
+Session ID: 123e4567-e89b-12d3-a456-426614174000
 Type 'exit' or 'quit' to end the conversation.
 You can use arrow keys to navigate, up/down for history.
 

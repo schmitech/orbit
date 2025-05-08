@@ -264,7 +264,11 @@ def get_default_config() -> Dict[str, Any]:
                 "key_file": "./key.pem"
             },
             "inference_provider": "ollama",
-            "mcp_protocol": False  # Toggle for MCP protocol compatibility
+            "mcp_protocol": False,  # Toggle for MCP protocol compatibility
+            "session_id": {
+                "header_name": "X-Session-ID",
+                "enabled": False
+            }
         },
         "messages": {
             "no_results_response": "I'm sorry, but I don't have any specific information about that topic in my knowledge base.",

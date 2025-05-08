@@ -55,19 +55,6 @@ if ! pip install -r requirements.txt; then
     exit 1
 fi
 
-# Copy configuration files
-print_message "yellow" "Copying configuration files..."
-if [ -f "config.yaml.example" ] && [ ! -f "config.yaml" ]; then
-    cp config.yaml.example config.yaml
-    print_message "green" "Created config.yaml from template."
-else
-    if [ ! -f "config.yaml.example" ]; then
-        print_message "red" "Warning: config.yaml.example not found."
-    elif [ -f "config.yaml" ]; then
-        print_message "yellow" "config.yaml already exists, skipping."
-    fi
-fi
-
 if [ -f ".env.example" ] && [ ! -f ".env" ]; then
     cp .env.example .env
     print_message "green" "Created .env from template."
