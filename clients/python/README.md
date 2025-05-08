@@ -1,12 +1,10 @@
-# Schmitech Orbit Client
+# Orbit Client
 
-A Python client for interacting with Orbit chat servers. This client provides a command-line interface for chatting with Orbit servers, supporting both standard and MCP protocol formats.
+A Python client for interacting with Orbit chat servers. This client provides a command-line interface for chatting with Orbit servers, supporting MCP protocol.
 
-### Installation
+### GitHub Project
 
-```bash
-pip install schmitech-orbit-client
-```
+https://github.com/schmitech/orbit/tree/main/clients/python
 
 ## Build and Test Before Publishing
 
@@ -48,8 +46,6 @@ pip uninstall schmitech-orbit-client
 ```
 
 ## Package Management
-
-
 
 ### Building from Source
 
@@ -99,8 +95,7 @@ orbit-chat --url http://your-server:3000
 orbit-chat --url http://your-server:3000 \
            --api-key your-api-key \
            --debug \
-           --show-timing \
-           --mcp
+           --show-timing
 ```
 
 #### Command-line Options
@@ -109,7 +104,6 @@ orbit-chat --url http://your-server:3000 \
 - `--api-key`: API key for authentication
 - `--debug`: Enable debug mode to see request/response details
 - `--show-timing`: Show latency timing information
-- `--mcp`: Use MCP protocol format instead of standard format
 
 #### Interactive Features
 
@@ -136,8 +130,7 @@ response, timing_info = stream_chat(
     url="http://your-server:3000",
     message="Hello, how are you?",
     api_key="your-api-key",  # optional
-    debug=True,              # optional
-    use_mcp=True            # optional
+    debug=True
 )
 
 # The response contains:
@@ -150,7 +143,7 @@ response, timing_info = stream_chat(
 ## Features
 
 - **Interactive CLI**: Command-line interface with history navigation
-- **Protocol Support**: Both standard and MCP protocol formats
+- **Protocol Support**: MCP protocol format
 - **Real-time Streaming**: Responses appear gradually, character by character
 - **Colored Output**: Better readability with syntax highlighting
 - **Debug Mode**: Detailed request/response information for troubleshooting

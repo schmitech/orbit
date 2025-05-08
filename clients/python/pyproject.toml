@@ -4,24 +4,24 @@ build-backend = "hatchling.build"
 
 [project]
 name = "schmitech-orbit-client"
-version = "0.1.0"
-description = "A Python client for interacting with Orbit chat servers"
+version = "0.1.2"
+description = "An MCP Python client for interacting with Orbit chat servers"
 readme = "README.md"
 requires-python = ">=3.12"
-license = "MIT"
+license = "Apache-2.0"
 authors = [
     { name = "Schmitech", email = "info@schmitech.ca" }
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: Apache Software License",
     "Operating System :: OS Independent",
 ]
 dependencies = [
     "python-dotenv>=1.0.0",
     "requests>=2.31.0",
     "colorama>=0.4.6",
-    "prompt-toolkit>=3.0.43",
+    "prompt-toolkit>=3.0.51",
 ]
 
 [project.urls]

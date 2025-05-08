@@ -69,27 +69,22 @@ def clean_response(text):
     
     return text.strip()
 
-def stream_chat(url, message, api_key=None, debug=False, use_mcp=False):
+def stream_chat(url, message, api_key=None, debug=False):
     """
-    Stream a chat response from the server, displaying it gradually like a chatbot.
+    Stream a chat response from the server using MCP protocol, displaying it gradually like a chatbot.
     
     Args:
         url (str): The chat server URL
         message (str): The message to send to the chat server
         api_key (str): Optional API key for authentication
         debug (bool): Whether to show debug information
-        use_mcp (bool): Whether to use the MCP protocol format
         
     Returns:
         tuple: (response_text, latency_info)
     """
     # Ensure URL ends with correct endpoint
-    if use_mcp:
-        if not url.endswith('/v1/chat'):
-            url = url.rstrip('/') + '/v1/chat'
-    else:
-        if not url.endswith('/chat'):
-            url = url.rstrip('/') + '/chat'
+    if not url.endswith('/v1/chat'):
+        url = url.rstrip('/') + '/v1/chat'
         
     headers = {
         "Content-Type": "application/json",
@@ -99,22 +94,16 @@ def stream_chat(url, message, api_key=None, debug=False, use_mcp=False):
     if api_key:
         headers["X-API-Key"] = api_key
     
-    # Create request data based on protocol
-    if use_mcp:
-        data = {
-            "jsonrpc": "2.0",
-            "method": "query",
-            "params": {
-                "message": message,
-                "stream": True
-            },
-            "id": str(int(time.time() * 1000))  # Use timestamp as request ID
-        }
-    else:
-        data = {
+    # Create MCP request data
+    data = {
+        "jsonrpc": "2.0",
+        "method": "query",
+        "params": {
             "message": message,
             "stream": True
-        }
+        },
+        "id": str(int(time.time() * 1000))  # Use timestamp as request ID
+    }
     
     if debug:
         print(f"\n{Fore.YELLOW}Debug - Request:{Style.RESET_ALL}")
@@ -164,34 +153,29 @@ def stream_chat(url, message, api_key=None, debug=False, use_mcp=False):
                                 print(f"\n{Fore.YELLOW}Debug - Stream complete{Style.RESET_ALL}")
                             break
                         
-                        # Get the text content based on protocol
-                        if use_mcp:
-                            # Handle MCP protocol response
-                            if "result" in data:
-                                if "content" in data["result"]:
+                        # Handle MCP protocol response
+                        if "result" in data:
+                            if "content" in data["result"]:
+                                content = data["result"]["content"]
+                                buffer += content
+                            elif "type" in data["result"]:
+                                # Handle different chunk types
+                                chunk_type = data["result"]["type"]
+                                if chunk_type == "start":
+                                    continue
+                                elif chunk_type in ["chunk", "end"] and "content" in data["result"]:
                                     content = data["result"]["content"]
                                     buffer += content
-                                elif "type" in data["result"]:
-                                    # Handle different chunk types
-                                    chunk_type = data["result"]["type"]
-                                    if chunk_type == "start":
-                                        continue
-                                    elif chunk_type in ["chunk", "end"] and "content" in data["result"]:
-                                        content = data["result"]["content"]
-                                        buffer += content
-                                    elif chunk_type == "end" and "response" in data["result"]:
-                                        # Final response with complete text
-                                        buffer = data["result"]["response"]
-                                else:
-                                    continue
+                                elif chunk_type == "end" and "response" in data["result"]:
+                                    # Final response with complete text
+                                    buffer = data["result"]["response"]
                             else:
                                 continue
-                            
-                            # Use the accumulated buffer for display
-                            content = buffer
                         else:
-                            # Handle standard protocol response
-                            content = data.get('text', '')
+                            continue
+                            
+                        # Use the accumulated buffer for display
+                        content = buffer
                         
                         if content:
                             # We already have the fixed text from the server, just clean it for display
@@ -243,18 +227,15 @@ def stream_chat(url, message, api_key=None, debug=False, use_mcp=False):
 
 def main():
     parser = argparse.ArgumentParser(description="Chat Client for Testing Chat Server")
-    parser.add_argument("--url", default="http://localhost:3000", help="Chat server URL (with or without /chat)")
+    parser.add_argument("--url", default="http://localhost:3000", help="Chat server URL (will be appended with /v1/chat)")
     parser.add_argument("--api-key", help="API key for authentication")
     parser.add_argument("--debug", action="store_true", help="Enable debug mode")
     parser.add_argument("--show-timing", action="store_true", help="Show latency timing information")
-    parser.add_argument("--mcp", action="store_true", help="Use MCP protocol format")
     args = parser.parse_args()
     
     # Use colorama for system messages
     print(f"{Fore.CYAN}Welcome to the Orbit Chat Client!{Style.RESET_ALL}")
     print(f"{Fore.CYAN}Server URL: {args.url}{Style.RESET_ALL}")
-    if args.mcp:
-        print(f"{Fore.CYAN}Using MCP protocol format{Style.RESET_ALL}")
     print(f"{Fore.CYAN}Type 'exit' or 'quit' to end the conversation.{Style.RESET_ALL}")
     print(f"{Fore.CYAN}You can use arrow keys to navigate, up/down for history.{Style.RESET_ALL}")
     
@@ -278,8 +259,7 @@ def main():
                 args.url, 
                 user_input, 
                 api_key=args.api_key,
-                debug=args.debug,
-                use_mcp=args.mcp
+                debug=args.debug
             )
             
             # Display timing information if requested
