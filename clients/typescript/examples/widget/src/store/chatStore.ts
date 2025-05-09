@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { streamChat, configureApi } from '@schmitech/chatbot-api';
+import { streamChat, configureApi } from '../../../../api/api';
 import { getApiUrl, getApiKey } from '../index';
 
 export type MessageRole = 'user' | 'assistant' | 'system';
@@ -24,13 +24,23 @@ interface ChatState {
 function ensureApiConfigured() {
   try {
     if (typeof window !== 'undefined' && window.CHATBOT_API_URL && window.CHATBOT_API_KEY) {
-      configureApi(window.CHATBOT_API_URL, window.CHATBOT_API_KEY);
+      const sessionId = generateUUID();
+      configureApi(window.CHATBOT_API_URL, window.CHATBOT_API_KEY, sessionId);
       return true;
     }
   } catch (err) {
     console.error('Failed to configure API:', err);
   }
   return false;
+}
+
+// Function to generate a UUID v4
+function generateUUID(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
 }
 
 // Try to configure the API

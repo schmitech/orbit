@@ -23,7 +23,7 @@ class LanguageDetector:
     accuracy. Configurable to use multiple detection libraries when available.
     """
     
-    def __init__(self, verbose: bool = False, min_confidence: float = 0.5):
+    def __init__(self, verbose: bool = False, min_confidence: float = 0.7):
         """
         Initialize the language detector.
         
@@ -44,9 +44,20 @@ class LanguageDetector:
             # Make langdetect results deterministic
             DetectorFactory.seed = 0
             
+            def langdetect_with_confidence(text):
+                try:
+                    from langdetect import detect_langs
+                    results = detect_langs(text)
+                    if results:
+                        return results[0].lang, results[0].prob
+                    return None, 0.0
+                except:
+                    return None, 0.0
+            
             self.detectors['langdetect'] = {
-                'detect': langdetect_detect,
-                'exception': LangDetectException
+                'detect': langdetect_with_confidence,
+                'exception': LangDetectException,
+                'weight': 1.0  # Base weight
             }
             
             if self.verbose:
@@ -61,11 +72,12 @@ class LanguageDetector:
             
             def langid_detect(text):
                 lang, score = langid.classify(text)
-                return lang
+                return lang, score
                 
             self.detectors['langid'] = {
                 'detect': langid_detect,
-                'exception': Exception
+                'exception': Exception,
+                'weight': 1.2  # Slightly higher weight for technical text
             }
             
             if self.verbose:
@@ -82,15 +94,18 @@ class LanguageDetector:
             def pycld2_detect(text):
                 try:
                     isReliable, textBytesFound, details = pycld2.detect(text)
-                    if isReliable:
-                        return details[0][1]
-                    return None
+                    if isReliable and details:
+                        # Calculate confidence based on reliability and bytes found
+                        confidence = min(1.0, textBytesFound / len(text))
+                        return details[0][1], confidence
+                    return None, 0.0
                 except:
-                    return None
+                    return None, 0.0
                 
             self.detectors['pycld2'] = {
                 'detect': pycld2_detect,
-                'exception': Exception
+                'exception': Exception,
+                'weight': 1.5  # Higher weight for technical content
             }
             
             if self.verbose:
@@ -127,6 +142,13 @@ class LanguageDetector:
                     logger.debug(f"Text too short for detection: '{text}', defaulting to English")
                 return "en"
             
+            # Quick check for English wh-words at the start
+            words = text.split()
+            if words and words[0].lower() in {"who", "what", "when", "where", "why", "how", "which"}:
+                if self.verbose:
+                    logger.debug(f"Detected English wh-question: '{words[0]}', returning English")
+                return "en"
+            
             # Calculate character statistics
             stats = self._calculate_char_stats(text)
             script_info = self._analyze_script(text)
@@ -160,32 +182,38 @@ class LanguageDetector:
             for detector_name, detector in self.detectors.items():
                 detect_func = detector['detect']
                 exception_type = detector.get('exception', Exception)
+                detector_weight = detector.get('weight', 1.0)
                 
                 try:
                     # For langdetect, try all variations for robust results
                     if detector_name == 'langdetect':
                         for variant in variations:
                             try:
-                                lang = detect_func(variant)
-                                language_votes[lang] = language_votes.get(lang, 0) + 1
-                                
-                                # Store details for debugging
-                                if lang not in detection_details:
-                                    detection_details[lang] = []
-                                detection_details[lang].append(f"{detector_name}:'{variant}'")
+                                lang, confidence = detect_func(variant)
+                                if lang:
+                                    # Apply detector weight and confidence
+                                    weighted_vote = detector_weight * confidence
+                                    language_votes[lang] = language_votes.get(lang, 0) + weighted_vote
+                                    
+                                    # Store details for debugging
+                                    if lang not in detection_details:
+                                        detection_details[lang] = []
+                                    detection_details[lang].append(f"{detector_name}:{confidence:.2f}:'{variant}'")
                                 
                             except exception_type:
                                 continue
                     # For other detectors, just use the original text
                     else:
-                        lang = detect_func(text)
+                        lang, confidence = detect_func(text)
                         if lang:
-                            language_votes[lang] = language_votes.get(lang, 0) + 1
+                            # Apply detector weight and confidence
+                            weighted_vote = detector_weight * confidence
+                            language_votes[lang] = language_votes.get(lang, 0) + weighted_vote
                             
                             # Store details for debugging
                             if lang not in detection_details:
                                 detection_details[lang] = []
-                            detection_details[lang].append(f"{detector_name}:original")
+                            detection_details[lang].append(f"{detector_name}:{confidence:.2f}:original")
                             
                 except Exception as e:
                     if self.verbose:
@@ -195,7 +223,8 @@ class LanguageDetector:
             # If no votes, fallback to original method with langdetect
             if not language_votes and 'langdetect' in self.detectors:
                 try:
-                    return self.detectors['langdetect']['detect'](text)
+                    lang, confidence = self.detectors['langdetect']['detect'](text)
+                    return lang if lang else "en"
                 except:
                     return "en"
             elif not language_votes:
@@ -211,7 +240,7 @@ class LanguageDetector:
             
             # Log detailed information if verbose
             if self.verbose:
-                vote_info = ", ".join([f"{lang}: {votes}" for lang, votes in sorted_votes])
+                vote_info = ", ".join([f"{lang}: {votes:.2f}" for lang, votes in sorted_votes])
                 logger.debug(f"Language votes: {vote_info}, confidence: {confidence:.2f}")
                 
                 for lang, details in detection_details.items():
@@ -388,7 +417,7 @@ class LanguageDetector:
         
         for detector_name, detector in self.detectors.items():
             try:
-                lang = detector['detect'](text)
+                lang, confidence = detector['detect'](text)
                 language_votes[lang] = language_votes.get(lang, 0) + 1
             except:
                 continue
@@ -446,6 +475,12 @@ class LanguageDetector:
         
         For short texts, language detection can be unreliable. By creating
         multiple variations and testing each one, we get more robust results.
+        
+        Strategy:
+        - Very short texts (<20 chars): Duplicate the entire text
+        - Short texts (20-60 chars): Duplicate with slight modifications
+        - Medium texts (60-120 chars): Add context variations
+        - Long texts (>120 chars): Use original only
         """
         variations = [text]  # Original text
         
@@ -454,12 +489,36 @@ class LanguageDetector:
         if text_no_punct != text:
             variations.append(text_no_punct)
         
-        # Duplicate short text to give more context (helps with statistical models)
-        if len(text) < 20:
+        text_len = len(text)
+        
+        # For very short texts (<20 chars), duplicate as is
+        if text_len < 20:
             variations.append(text + " " + text)
+            
+        # For short texts (20-60 chars), try different duplication strategies
+        elif text_len < 60:
+            # Simple duplication
+            variations.append(text + " " + text)
+            
+            # Duplicate with slight modifications for technical content
+            if any(c in text for c in '{}[]()<>'):
+                # For code-like content, add a space between duplicates
+                variations.append(text + " " + text)
+            else:
+                # For regular text, try with a period
+                variations.append(text + ". " + text)
+                
+        # For medium texts (60-120 chars), try context variations
+        elif text_len < 120:
+            # For technical content, try adding common context
+            if any(c in text for c in '{}[]()<>'):
+                variations.append("Code example: " + text)
+            # For documentation-like content
+            elif text.endswith('.') or text.endswith('?') or text.endswith('!'):
+                variations.append("Note: " + text)
         
         # Add capitalization variations for very short texts
-        if len(text) < 10:
+        if text_len < 10:
             variations.append(text.lower())
-        
+            
         return variations

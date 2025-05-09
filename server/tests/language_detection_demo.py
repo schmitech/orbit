@@ -126,6 +126,15 @@ async def main():
         {"lang": "Italian", "text": "Ciao, come stai oggi?"},
         {"lang": "Portuguese", "text": "Olá, como você está hoje?"},
         {"lang": "Russian", "text": "Привет, как ты сегодня?"},
+        {"lang": "Greek", "text": "Γεια σας, πώς είστε σήμερα;"},
+        {"lang": "Greek (Technical)", "text": "Παρακαλώ ελέγξτε τη διαμόρφωση του συστήματος."},
+        {"lang": "Bulgarian", "text": "Здравейте, как сте днес?"},
+        {"lang": "Bulgarian (Technical)", "text": "Моля, проверете конфигурацията на системата."},
+        {"lang": "Latin", "text": "Lorem ipsum dolor sit amet, consectetur adipiscing elit."},
+        {"lang": "Latin (Technical)", "text": "Per se, ad hoc, et cetera, vice versa."},
+        {"lang": "Chinese (Simplified)", "text": "你好，今天过得怎么样？"},
+        {"lang": "Chinese (Traditional)", "text": "你好，今天過得怎麼樣？"},
+        {"lang": "Chinese (Technical)", "text": "请检查系统配置并重启服务器。"},
         {"lang": "Mixed", "text": "Hello and bonjour, how are you? Comment ça va?"}
     ]
     

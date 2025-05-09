@@ -185,20 +185,32 @@ async function handleChat(message) {
 | `apiKey`  | API key for authentication | ✅ Yes |
 | `sessionId` | Session ID for tracking conversations | ❌ No |
 
-### `streamChat(message, voiceEnabled)`
+---
 
-Streams responses from the server:
-- `message`: Message string
-- `voiceEnabled`: Boolean, enables audio response
+## 📤 Publish to npm
 
-Returns an async generator yielding:
-```typescript
-interface StreamResponse {
-  text?: string;
-  content?: string;
-  done?: boolean;
-  type?: string;
-}
+**Build package:**
+
+```bash
+npm run build
+```
+
+**Test locally (optional):**
+
+```bash
+npm pack --dry-run
+```
+
+**Update version:**
+
+```bash
+npm version [patch|minor|major]
+```
+
+**Publish:**
+
+```bash
+npm publish --access public
 ```
 
 ---

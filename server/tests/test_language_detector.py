@@ -2,6 +2,7 @@ import unittest
 import logging
 import sys
 import os
+import argparse
 
 # Ensure we can import your LanguageDetector
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -18,6 +19,13 @@ class TestLanguageDetectorRobust(unittest.TestCase):
     
     def setUp(self):
         self.detector = LanguageDetector(verbose=True)
+
+    def test_query(self, query):
+        """Test language detection for a specific query."""
+        logger.info(f"Testing query: {query}")
+        result = self.detector.detect(query)
+        logger.info(f"Detected language: {result}")
+        return result
 
     def test_english_sentences(self):
         for txt in [
@@ -121,4 +129,16 @@ class TestLanguageDetectorRobust(unittest.TestCase):
                 self.assertEqual(self.detector.detect(txt), "en")
 
 if __name__ == "__main__":
-    unittest.main()
+    parser = argparse.ArgumentParser(description='Test language detection for a query')
+    parser.add_argument('--query', type=str, help='Query to test language detection')
+    args = parser.parse_args()
+
+    if args.query:
+        # Run single query test
+        detector = LanguageDetector(verbose=True)
+        result = detector.detect(args.query)
+        print(f"\nQuery: {args.query}")
+        print(f"Detected language: {result}")
+    else:
+        # Run all tests
+        unittest.main()

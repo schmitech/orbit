@@ -4,6 +4,7 @@ interface Window {
   initChatbotWidget: (config: { 
     apiUrl: string; 
     apiKey: string;
+    sessionId: string;
     containerSelector?: string;
     widgetConfig?: Partial<ChatConfig>;
   }) => void;
@@ -15,6 +16,7 @@ interface Window {
     injectChatWidget: (config: { 
       apiUrl: string; 
       apiKey: string;
+      sessionId: string;
       containerSelector?: string;
       widgetConfig?: Partial<ChatConfig>;
     }) => void;
@@ -23,6 +25,7 @@ interface Window {
     setApiKey: (key: string) => void;
     getApiKey: () => string;
     updateWidgetConfig: (config: Partial<ChatConfig>) => void;
+    configureApi: (apiUrl: string, apiKey: string, sessionId: string) => void;
     _latestConfig?: ChatConfig;
   };
 } 

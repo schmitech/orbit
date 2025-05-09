@@ -12,5 +12,5 @@ declare module '@schmitech/chatbot-api' {
     voiceEnabled: boolean
   ): AsyncGenerator<StreamResponse>;
   
-  export function configureApi(apiUrl: string, apiKey: string): void;
+  export function configureApi(apiUrl: string, apiKey: string, sessionId: string): void;
 } 

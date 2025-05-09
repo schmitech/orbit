@@ -15,6 +15,28 @@ print_message() {
     esac
 }
 
+# Default value for INSTALL_LLAMA_CPP
+INSTALL_LLAMA_CPP=false
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --install-llama-cpp)
+            INSTALL_LLAMA_CPP=true
+            shift
+            ;;
+        *)
+            echo "Unknown option: $1"
+            exit 1
+            ;;
+    esac
+done
+
+# Print initial status about llama-cpp
+if [ "$INSTALL_LLAMA_CPP" = false ]; then
+    print_message "yellow" "Note: llama-cpp-python will be skipped during installation. Use --install-llama-cpp to include it."
+fi
+
 # Check if Python 3.12 is installed
 if ! command -v python3 &> /dev/null; then
     print_message "red" "Error: Python 3.12 is not installed. Please install Python 3.12 first."
@@ -48,12 +70,26 @@ if ! pip install --upgrade pip; then
     exit 1
 fi
 
+# Create temporary requirements file without llama-cpp-python if not installing it
+if [ "$INSTALL_LLAMA_CPP" = false ]; then
+    print_message "yellow" "Skipping llama-cpp-python installation..."
+    grep -v "llama-cpp-python" requirements.txt > requirements_temp.txt
+    mv requirements_temp.txt requirements_temp.txt
+else
+    print_message "yellow" "Including llama-cpp-python in installation..."
+    cp requirements.txt requirements_temp.txt
+fi
+
 # Install requirements
 print_message "yellow" "Installing requirements..."
-if ! pip install -r requirements.txt; then
+if ! pip install -r requirements_temp.txt; then
     print_message "red" "Error: Failed to install requirements."
+    rm -f requirements_temp.txt
     exit 1
 fi
+
+# Clean up temporary file
+rm -f requirements_temp.txt
 
 if [ -f ".env.example" ] && [ ! -f ".env" ]; then
     cp .env.example .env

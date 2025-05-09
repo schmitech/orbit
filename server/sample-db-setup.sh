@@ -2,14 +2,42 @@
 
 set -e
 
+# Default value for CREATE_API_KEYS
+CREATE_API_KEYS=true
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --no-api-keys)
+            CREATE_API_KEYS=false
+            shift
+            ;;
+        sqlite|chroma)
+            DATASOURCE=$1
+            shift
+            ;;
+        *)
+            echo "Usage: $0 [--no-api-keys] [sqlite|chroma]"
+            echo "Options:"
+            echo "  --no-api-keys    Skip API key creation"
+            echo "  sqlite|chroma    Specify the datasource type"
+            exit 1
+            ;;
+    esac
+done
+
 # Check if datasource argument is provided
-if [ "$1" != "sqlite" ] && [ "$1" != "chroma" ]; then
-    echo "Usage: $0 [sqlite|chroma]"
+if [ -z "$DATASOURCE" ]; then
+    echo "Usage: $0 [--no-api-keys] [sqlite|chroma]"
     echo "Please specify the datasource type: sqlite or chroma"
     exit 1
 fi
 
-DATASOURCE=$1
+if [ "$DATASOURCE" != "sqlite" ] && [ "$DATASOURCE" != "chroma" ]; then
+    echo "Usage: $0 [--no-api-keys] [sqlite|chroma]"
+    echo "Please specify the datasource type: sqlite or chroma"
+    exit 1
+fi
 
 # Find config.yaml (same logic as start.sh)
 CONFIG_PATH="config.yaml"
@@ -84,76 +112,91 @@ else
         LOCAL_FLAG="--local --db-path ./chroma_db"
     fi
     
+    # Create city collection
+    python ../utils/chroma/scripts/delete_collection.py city
     python ../utils/chroma/scripts/create_qa_pairs_collection.py city ../utils/sample-data/city-qa-pairs.json $LOCAL_FLAG
+    
+    # Create activity collection
+    python ../utils/chroma/scripts/delete_collection.py activity
     python ../utils/chroma/scripts/create_qa_pairs_collection.py activity ../utils/sample-data/activity_qa_pairs.json $LOCAL_FLAG
 fi
 
 echo "✅ Sample QA collections created."
-echo ""
-echo "🔑 Creating API keys for collections..."
-echo "  • Connecting to server on port $PORT"
-echo "  • Using collection 'city'"
-echo "  • Using prompt file '../prompts/examples/city/city-assistant-normal-prompt.txt'"
-echo ""
 
-# Create API key for 'city' collection and capture full output
-API_KEY_OUTPUT=$(python3 ./admin/api_key_manager.py --url http://localhost:$PORT create \
-  --collection city \
-  --name "City Assistant" \
-  --prompt-file ../prompts/examples/city/city-assistant-normal-prompt.txt \
-  --prompt-name "Municipal Assistant Prompt")
-
-# Extract just the API key - properly capture orbit_ format keys
-CITY_API_KEY=$(echo "$API_KEY_OUTPUT" | grep -o '"api_key": "orbit_[A-Za-z0-9]\+"' | cut -d'"' -f4)
-
-echo "✅ API key created successfully!"
-
-# If using Chroma, create additional API key for activity collection
-if [ "$DATASOURCE" = "chroma" ]; then
+if [ "$CREATE_API_KEYS" = true ]; then
     echo ""
-    echo "🔑 Creating API key for activity collection..."
-    echo "  • Using collection 'activity'"
-    echo "  • Using prompt file '../prompts/examples/activity/activity-assistant-normal-prompt.txt'"
+    echo "🔑 Creating API keys for collections..."
+    echo "  • Connecting to server on port $PORT"
+    echo "  • Using collection 'city'"
+    echo "  • Using prompt file '../prompts/examples/city/city-assistant-normal-prompt.txt'"
     echo ""
 
-    ACTIVITY_API_KEY_OUTPUT=$(python3 ./admin/api_key_manager.py --url http://localhost:$PORT create \
-      --collection activity \
-      --name "Activity Assistant" \
-      --prompt-file ../prompts/examples/activity/activity-assistant-normal-prompt.txt \
-      --prompt-name "Activity Assistant Prompt")
+    # Create API key for 'city' collection and capture full output
+    API_KEY_OUTPUT=$(python3 ./admin/api_key_manager.py --url http://localhost:$PORT create \
+      --collection city \
+      --name "City Assistant" \
+      --prompt-file ../prompts/examples/city/city-assistant-normal-prompt.txt \
+      --prompt-name "Municipal Assistant Prompt")
 
-    ACTIVITY_API_KEY=$(echo "$ACTIVITY_API_KEY_OUTPUT" | grep -o '"api_key": "orbit_[A-Za-z0-9]\+"' | cut -d'"' -f4)
-    echo "✅ Activity API key created successfully!"
+    # Extract just the API key - properly capture orbit_ format keys
+    CITY_API_KEY=$(echo "$API_KEY_OUTPUT" | grep -o '"api_key": "orbit_[A-Za-z0-9]\+"' | cut -d'"' -f4)
+
+    echo "✅ API key created successfully!"
+
+    # If using Chroma, create additional API key for activity collection
+    if [ "$DATASOURCE" = "chroma" ]; then
+        echo ""
+        echo "🔑 Creating API key for activity collection..."
+        echo "  • Using collection 'activity'"
+        echo "  • Using prompt file '../prompts/examples/activity/activity-assistant-normal-prompt.txt'"
+        echo ""
+
+        ACTIVITY_API_KEY_OUTPUT=$(python3 ./admin/api_key_manager.py --url http://localhost:$PORT create \
+          --collection activity \
+          --name "Activity Assistant" \
+          --prompt-file ../prompts/examples/activity/activity-assistant-normal-prompt.txt \
+          --prompt-name "Activity Assistant Prompt")
+
+        ACTIVITY_API_KEY=$(echo "$ACTIVITY_API_KEY_OUTPUT" | grep -o '"api_key": "orbit_[A-Za-z0-9]\+"' | cut -d'"' -f4)
+        echo "✅ Activity API key created successfully!"
+    fi
+else
+    echo ""
+    echo "⏭️  Skipping API key creation as requested"
 fi
 
 echo ""
 echo "🎉 Demo database setup complete!"
-echo ""
-echo "You can now test the server using the Python client."
-echo ""
-echo "================================================================"
-echo "CLIENT SETUP INSTRUCTIONS:"
-echo "================================================================"
-echo ""
-echo "Run these commands to set up and start the client:"
-echo ""
-echo "  cd ../clients/python"
-echo "  python -m venv venv"
-echo "  source venv/bin/activate"
-echo "  pip install -r requirements.txt"
-echo ""
-echo "Then run this command to chat with your ORBIT assistant:"
-echo ""
-echo "  python chat_client.py --url http://localhost:$PORT --api-key $CITY_API_KEY"
-echo ""
-echo "================================================================"
-echo "API KEYS:"
-echo "================================================================"
-echo "City API KEY: $CITY_API_KEY"
-if [ "$DATASOURCE" = "chroma" ]; then
+
+if [ "$CREATE_API_KEYS" = true ]; then
     echo ""
-    echo "Activity API KEY: $ACTIVITY_API_KEY"
+    echo "You can now test the server using the Python client."
+    echo ""
+    echo "================================================================"
+    echo "CLIENT SETUP INSTRUCTIONS:"
+    echo "================================================================"
+    echo ""
+    echo "Run these commands to set up and start the client:"
+    echo ""
+    echo "  cd ../clients/python"
+    echo "  python -m venv venv"
+    echo "  source venv/bin/activate"
+    echo "  pip install -r requirements.txt"
+    echo ""
+    echo "Then run this command to chat with your ORBIT assistant:"
+    echo ""
+    echo "  python chat_client.py --url http://localhost:$PORT --api-key $CITY_API_KEY"
+    echo ""
+    echo "================================================================"
+    echo "API KEYS:"
+    echo "================================================================"
+    echo "City API KEY: $CITY_API_KEY"
+    if [ "$DATASOURCE" = "chroma" ]; then
+        echo ""
+        echo "Activity API KEY: $ACTIVITY_API_KEY"
+    fi
+    echo "================================================================"
 fi
-echo "================================================================"
+
 echo ""
 echo "Happy orbiting! 🚀"

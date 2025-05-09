@@ -15,6 +15,7 @@ export default ChatWidget;
 // This will be the global API URL that components can import
 let apiUrl: string | null = null;
 let apiKey: string | null = null;
+let sessionId: string | null = null;
 let currentConfig: ChatConfig | null = null;
 
 export function getApiUrl(): string {
@@ -44,8 +45,8 @@ export function setApiUrl(url: string): void {
   if (typeof window !== 'undefined') {
     window.CHATBOT_API_URL = url;
     // Configure the API with both URL and key
-    if (apiKey) {
-      configureApi(url, apiKey);
+    if (apiKey && sessionId) {
+      configureApi(url, apiKey, sessionId);
     }
   }
 }
@@ -55,8 +56,8 @@ export function setApiKey(key: string): void {
   if (typeof window !== 'undefined') {
     window.CHATBOT_API_KEY = key;
     // Configure the API with both URL and key
-    if (apiUrl) {
-      configureApi(apiUrl, key);
+    if (apiUrl && sessionId) {
+      configureApi(apiUrl, key, sessionId);
     }
   }
 }
@@ -98,15 +99,19 @@ export function updateWidgetConfig(config: Partial<ChatConfig>): void {
 export function injectChatWidget(config: { 
   apiUrl: string,
   apiKey: string,
+  sessionId: string,
   containerSelector?: string,
   widgetConfig?: Partial<ChatConfig>
 }): void {
   // Ensure we're in a browser environment
   if (typeof window === 'undefined') return;
 
-  // Set API URL and key, and configure API
-  setApiUrl(config.apiUrl);
-  setApiKey(config.apiKey);
+  apiUrl = config.apiUrl;
+  apiKey = config.apiKey;
+  sessionId = config.sessionId;
+  
+  // Configure API with all required parameters
+  configureApi(config.apiUrl, config.apiKey, config.sessionId);
   
   // Store initial config if provided
   if (config.widgetConfig) {
@@ -170,7 +175,8 @@ if (typeof window !== 'undefined') {
     getApiUrl,
     setApiKey,
     getApiKey,
-    updateWidgetConfig
+    updateWidgetConfig,
+    configureApi
   };
   
   console.log('Chatbot widget loaded.');

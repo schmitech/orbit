@@ -4,6 +4,7 @@ import { useChatStore, Message } from './store/chatStore';
 import ReactMarkdown from 'react-markdown';
 import clsx from 'clsx';
 import { getChatConfig, defaultTheme, ChatConfig } from './config/index';
+import { configureApi } from '@schmitech/chatbot-api';
 
 // Custom link component for ReactMarkdown
 const MarkdownLink = (props: React.AnchorHTMLAttributes<HTMLAnchorElement>) => {
@@ -47,6 +48,9 @@ const ChatIcon = ({ iconName, size, className, style }: {
 
 export interface ChatWidgetProps extends Partial<ChatConfig> {
   config?: never;
+  sessionId: string;
+  apiUrl: string;
+  apiKey: string;
 }
 
 export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
@@ -80,13 +84,20 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Load configuration
+  // Load configuration and configure API
   const baseConfig = getChatConfig();
   const [currentConfig, setCurrentConfig] = useState({
     ...baseConfig,
     ...props
   });
   const theme = currentConfig.theme || defaultTheme;
+
+  // Configure API on mount
+  useEffect(() => {
+    if (props.apiUrl && props.apiKey && props.sessionId) {
+      configureApi(props.apiUrl, props.apiKey, props.sessionId);
+    }
+  }, [props.apiUrl, props.apiKey, props.sessionId]);
 
   // Listen for configuration updates
   useEffect(() => {
@@ -166,9 +177,8 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
     const linkedText = text.replace(urlRegex, (match, url, punctuation) =>
       `[${url}](${url})${punctuation}`
     );
-    return linkedText
-      .replace(/\n{2,}/g, '\n\n')
-      .replace(/\n/g, '\n');
+    // Normalize line breaks to a single newline
+    return linkedText.replace(/\n{3,}/g, '\n\n');
   };
 
   // Format timestamp (note: uses a relative offset since messages lack explicit timestamps)
@@ -271,95 +281,151 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
     messageIndex: number,
     inputRef: React.RefObject<HTMLTextAreaElement>
   }) => {
+    // Use a ref to store the current animation progress
     const [displayedContent, setDisplayedContent] = useState('');
     const [isThinking, setIsThinking] = useState(true);
-    const charIndexRef = useRef(0);
+    const currentIndexRef = useRef(0);
     const isAnimatingRef = useRef(false);
     const animationFrameRef = useRef<number>();
-  
+    // This flag tracks whether animation has been initialized
+    const hasInitializedRef = useRef(false);
+    // We'll use this to store the full content to ensure continuity
+    const fullContentRef = useRef(content);
+
+    // Initialize animation only once
     useEffect(() => {
+      // Skip if this message has already been animated
       if (hasBeenAnimated(messageIndex)) {
         setDisplayedContent(content);
         setIsThinking(false);
         onComplete();
         return;
       }
-  
-      if (!isAnimatingRef.current) {
-        isAnimatingRef.current = true;
-        isTypingRef.current = true;
-        setIsAnimating(true);
-        let currentIndex = 0;
-        let lastScrollTime = 0;
-  
-        const animateText = (timestamp: number) => {
-          if (currentIndex < content.length) {
-            const newContent = content.slice(0, currentIndex + 1);
-            setDisplayedContent(newContent);
-  
-            if (currentIndex === 0) {
-              setIsThinking(false);
-            }
-  
-            // Scroll every 100ms during animation
-            if (timestamp - lastScrollTime > 100) {
-              scrollToBottom();
-              lastScrollTime = timestamp;
-            }
-  
-            currentIndex++;
-            animationFrameRef.current = requestAnimationFrame(animateText);
-          } else {
-            isTypingRef.current = false;
-            onComplete();
-            isAnimatingRef.current = false;
-            setIsAnimating(false);
-            scrollToBottom();
-          }
-        };
-  
-        animationFrameRef.current = requestAnimationFrame(animateText);
+
+      // Skip if we've already initialized
+      if (hasInitializedRef.current) {
+        return;
       }
-  
+
+      // Mark as initialized to prevent restart on re-render
+      hasInitializedRef.current = true;
+      fullContentRef.current = content;
+
+      // Start the animation
+      startTypingAnimation();
+
       return () => {
         if (animationFrameRef.current) {
           cancelAnimationFrame(animationFrameRef.current);
         }
-        isAnimatingRef.current = false;
-        isTypingRef.current = false;
-        setIsAnimating(false);
       };
-    }, [content, messageIndex, onComplete]);
-  
-    // Listen for user typing in the widget's own textarea
+    }, [messageIndex]);
+
+    // Function to handle animation
+    const startTypingAnimation = () => {
+      if (isAnimatingRef.current) return;
+
+      isAnimatingRef.current = true;
+      isTypingRef.current = true;
+      setIsAnimating(true);
+      
+      // Start from current position (important for resuming after tab switching)
+      let currentIndex = currentIndexRef.current;
+      let lastScrollTime = 0;
+
+      // Show thinking state only at the beginning
+      if (currentIndex === 0) {
+        setIsThinking(true);
+      } else {
+        setIsThinking(false);
+      }
+
+      const animateText = (timestamp: number) => {
+        if (currentIndex < fullContentRef.current.length) {
+          const newContent = fullContentRef.current.slice(0, currentIndex + 1);
+          setDisplayedContent(newContent);
+          
+          // Exit thinking state after first character
+          if (currentIndex === 0) {
+            setIsThinking(false);
+          }
+
+          // Scroll occasionally during animation
+          if (timestamp - lastScrollTime > 100) {
+            scrollToBottom();
+            lastScrollTime = timestamp;
+          }
+
+          // Save the current position (crucial for resuming)
+          currentIndex++;
+          currentIndexRef.current = currentIndex;
+          
+          animationFrameRef.current = requestAnimationFrame(animateText);
+        } else {
+          // Animation is complete
+          completeAnimation();
+        }
+      };
+
+      animationFrameRef.current = requestAnimationFrame(animateText);
+    };
+
+    // Handle animation completion
+    const completeAnimation = () => {
+      isTypingRef.current = false;
+      onComplete();
+      isAnimatingRef.current = false;
+      setIsAnimating(false);
+      scrollToBottom();
+    };
+
+    // Handle user input to skip animation
     useEffect(() => {
       const handleUserInput = () => {
         if (isAnimatingRef.current) {
           if (animationFrameRef.current) {
             cancelAnimationFrame(animationFrameRef.current);
           }
-          setDisplayedContent(content);
+          setDisplayedContent(fullContentRef.current);
           setIsThinking(false);
-          onComplete();
-          isAnimatingRef.current = false;
-          isTypingRef.current = false;
-          setIsAnimating(false);
-          scrollToBottom();
+          completeAnimation();
         }
       };
-  
-      const textarea = inputRef.current || document.querySelector('textarea');
+
+      const textarea = inputRef.current;
       if (textarea) {
         textarea.addEventListener('input', handleUserInput);
       }
-  
+
       return () => {
         if (textarea) {
           textarea.removeEventListener('input', handleUserInput);
         }
       };
-    }, [content, onComplete, inputRef]);
-  
+    }, [inputRef, onComplete]);
+
+    // This is the key handler for document visibility changes
+    useEffect(() => {
+      const handleVisibilityChange = () => {
+        if (document.hidden) {
+          // Page is hidden, pause by canceling current animation
+          if (animationFrameRef.current) {
+            cancelAnimationFrame(animationFrameRef.current);
+            isAnimatingRef.current = false;
+          }
+        } else if (hasInitializedRef.current && !isAnimatingRef.current && currentIndexRef.current > 0 && currentIndexRef.current < fullContentRef.current.length) {
+          // Page is visible again, and animation was in progress - resume
+          startTypingAnimation();
+        }
+      };
+
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+      
+      return () => {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      };
+    }, []);
+
     return (
       <>
         {displayedContent && (
@@ -373,7 +439,10 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
             <ReactMarkdown
               components={{
                 a: (props) => <MarkdownLink {...props} />,
-                p: (props) => <p className="mb-4" style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }} {...props} />,
+                p: (props) => <p style={{ 
+                  overflowWrap: 'anywhere', 
+                  wordBreak: 'break-word'
+                }} {...props} />,
                 code: (props) => <code style={{ display: 'block', whiteSpace: 'pre-wrap', overflowX: 'auto', overflowWrap: 'anywhere' }} {...props} />
               }}
             >
@@ -589,7 +658,10 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
                               <ReactMarkdown
                                 components={{
                                   a: (props) => <MarkdownLink {...props} />,
-                                  p: (props) => <p className="mb-4" style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }} {...props} />,
+                                  p: (props) => <p style={{ 
+                                    overflowWrap: 'anywhere', 
+                                    wordBreak: 'break-word'
+                                  }} {...props} />,
                                   code: (props) => <code style={{ display: 'block', whiteSpace: 'pre-wrap', overflowX: 'auto', overflowWrap: 'anywhere' }} {...props} />
                                 }}
                               >
@@ -821,14 +893,26 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
         }
         
         .prose {
-          font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-          font-size: 16px;
-          line-height: 1.6;
+          max-width: 100%;
         }
         
+        .prose > * {
+          margin-top: 0 !important;
+          margin-bottom: 0 !important;
+        }
+
         .prose p {
-          margin-bottom: 1rem;
-          font-size: 16px;
+          margin: 0 0 0.5em 0 !important;
+          padding: 0;
+          line-height: 1.5;
+        }
+
+        .prose p:last-child {
+          margin-bottom: 0 !important;
+        }
+
+        .prose p + p {
+          margin-top: 0 !important;
         }
         
         .prose code {

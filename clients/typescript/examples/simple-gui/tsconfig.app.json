@@ -22,5 +22,5 @@
 
     "emitDeclarationOnly": true
   },
-  "include": ["src"]
+  "include": ["src", "../../api/**/*"]
 }
