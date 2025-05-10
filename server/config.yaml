@@ -1,6 +1,6 @@
 general:
   port: 3000
-  verbose: false
+  verbose: true
   https:
     enabled: false
     port: 3443
@@ -45,13 +45,12 @@ logging:
 internal_services:
   elasticsearch:
     enabled: false
-    node: 'http://localhost:9200'
+    node: 'https://localhost:9200'
     index: 'orbit'
     api_key: ${INTERNAL_SERVICES_ELASTICSEARCH_API_KEY}
 
   mongodb:
-    host: "orbit.yp0onu1.mongodb.net"
-    # host: "localhost"
+    host: "localhost"
     port: 27017
     database: "orbit"
     apikey_collection: "api_keys"
@@ -73,7 +72,7 @@ embeddings:
   ollama:
     base_url: "http://localhost:11434"
     model: "nomic-embed-text"
-    dimensions: 768
+    dimensions: 1024
   jina:
     api_key: ${JINA_API_KEY}
     base_url: "https://api.jina.ai/v1"
@@ -101,32 +100,31 @@ embeddings:
     dimensions: 1024
 
 adapters:
-  - type: "retriever"
+  - name: "qa-sqlite"
+    type: "retriever"
     datasource: "sqlite"
     adapter: "qa"
-    implementation: "retrievers.implementations.sqlite.sqlite_retriever.SqliteRetriever"
+    implementation: "retrievers.implementations.sqlite.qa_sqlite_retriever.QASqliteRetriever"
     config:
       confidence_threshold: 0.3
-      relevance_threshold: 0.3
       max_results: 5
       return_results: 3
-      db_path: "./sqlite_db"
-      
-  - type: "retriever"
+
+  - name: "qa-chroma"
+    type: "retriever"
     datasource: "chroma"
     adapter: "qa"
-    implementation: "retrievers.implementations.chroma.chroma_retriever.ChromaRetriever"
+    implementation: "retrievers.implementations.chroma.qa_chroma_retriever.QAChromaRetriever"
     config:
-      confidence_threshold: 0.5
-      relevance_threshold: 0.5
+      confidence_threshold: 0.3
+      distance_scaling_factor: 200.0
       embedding_provider: null
       max_results: 5
       return_results: 3
-      db_path: "./chroma_db"
 
 datasources:
   chroma:
-    use_local: false
+    use_local: true
     db_path: "./chroma_db"
     host: "localhost"
     port: 8000
@@ -174,11 +172,10 @@ inference:
     num_predict: 1024
     num_ctx: 8192
     num_threads: 8
-    model: "gemma3:1b"
-    embed_model: "nomic-embed-text"
+    model: "nomic-embed-text"
     stream: true
   vllm:
-    host: "localhost"
+    host: "3.96.164.110"
     port: 5000
     temperature: 0.1
     top_p: 0.8

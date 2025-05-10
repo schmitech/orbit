@@ -782,8 +782,7 @@ class InferenceServer:
 
         self.logger.info(f"  {datasource_provider.capitalize()} Retriever: " +
                     f"domain_adapter={domain_adapter}, " +
-                    f"confidence_threshold={datasource_config.get('confidence_threshold', 0.85)}, " +
-                    f"relevance_threshold={datasource_config.get('relevance_threshold', 0.7)}")
+                    f"confidence_threshold={datasource_config.get('confidence_threshold', 0.85)}")
 
         if adapter_params:
             adapter_params_str = ", ".join([f"{k}={v}" for k, v in adapter_params.items()])
@@ -962,7 +961,7 @@ class InferenceServer:
         
         # Log datasource configuration
         if hasattr(self.app.state, 'retriever'):
-            self.logger.info(f"Relevance threshold: {self.app.state.retriever.relevance_threshold}")
+            self.logger.info(f"Confidence threshold: {self.app.state.retriever.confidence_threshold}")
         
         self.logger.info(f"Verbose mode: {_is_true_value(self.config['general'].get('verbose', False))}")
         

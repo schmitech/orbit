@@ -2,8 +2,8 @@
 QA-specific retrievers and adapters for different datasources.
 """
 
-from ...implementations.chroma.chroma_retriever import ChromaRetriever
-from ...implementations.sqlite.sqlite_retriever import SqliteRetriever
+from ...implementations.chroma.qa_chroma_retriever import QAChromaRetriever
+from ...implementations.sqlite.qa_sqlite_retriever import QASqliteRetriever
 from .chroma_qa_adapter import ChromaQAAdapter
 from .qa_sqlite_adapter import QASqliteAdapter
 
@@ -24,17 +24,17 @@ def QARetriever(datasource_type, *args, **kwargs):
     confidence_threshold = config.get('confidence_threshold', 0.5)
     
     if datasource_type.lower() == 'chroma':
-        retriever = ChromaRetriever(*args, **kwargs)
+        retriever = QAChromaRetriever(*args, **kwargs)
         retriever.domain_adapter = ChromaQAAdapter(confidence_threshold=confidence_threshold)
         return retriever
     elif datasource_type.lower() == 'sqlite':
-        retriever = SqliteRetriever(*args, **kwargs)
+        retriever = QASqliteRetriever(*args, **kwargs)
         retriever.domain_adapter = QASqliteAdapter(confidence_threshold=confidence_threshold)
         return retriever
     else:
         raise ValueError(f"Unsupported datasource type for QA retrieval: {datasource_type}")
 
-__all__ = ['QARetriever', 'ChromaRetriever', 'SqliteRetriever', 'ChromaQAAdapter', 'QASqliteAdapter']
+__all__ = ['QARetriever', 'QAChromaRetriever', 'QASqliteRetriever', 'ChromaQAAdapter', 'QASqliteAdapter']
 
 """
 QA adapter package initialization.

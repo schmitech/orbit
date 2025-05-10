@@ -17,7 +17,7 @@ from utils.lazy_loader import LazyLoader
 # Configure logging
 logger = logging.getLogger(__name__)
 
-class SqliteRetriever(BaseRetriever):
+class QASqliteRetriever(BaseRetriever):
     """
      SQLite retriever that works with the new adapter architecture.
     This implementation is more flexible and can work with different domain adapters.
@@ -37,6 +37,15 @@ class SqliteRetriever(BaseRetriever):
             connection: Optional SQLite connection
             **kwargs: Additional arguments
         """
+        # Get adapter config if available
+        adapter_config = None
+        for adapter in config.get('adapters', []):
+            if (adapter.get('type') == 'retriever' and 
+                adapter.get('datasource') == 'sqlite' and 
+                adapter.get('adapter') == 'qa'):
+                adapter_config = adapter.get('config', {})
+                break
+        
         # Call the parent constructor first to set up basic retriever functionality
         super().__init__(config=config, domain_adapter=domain_adapter, **kwargs)
         
@@ -45,9 +54,11 @@ class SqliteRetriever(BaseRetriever):
         
         # Core settings
         self.db_path = sqlite_config.get('db_path', 'sqlite_db')
-        self.relevance_threshold = sqlite_config.get('relevance_threshold', 0.5)
         self.max_results = sqlite_config.get('max_results', 10)
         self.return_results = sqlite_config.get('return_results', 3)
+        
+        # Get confidence threshold from adapter config
+        self.confidence_threshold = adapter_config.get('confidence_threshold', 0.3) if adapter_config else 0.3
         
         # Set default collection - this will be overridden when needed
         self.collection = sqlite_config.get('collection', 'qa_data')
@@ -268,8 +279,25 @@ class SqliteRetriever(BaseRetriever):
         Returns:
             Similarity score between 0 and 1
         """
+        if not query or not text:
+            return 0.0
+            
+        # Convert both to lowercase for better matching
+        query = query.lower()
+        text = text.lower()
+        
         # Use SequenceMatcher for similarity calculation
-        return SequenceMatcher(None, query.lower(), text.lower()).ratio()
+        base_similarity = SequenceMatcher(None, query, text).ratio()
+        
+        # Boost exact matches and partial matches
+        if query in text:
+            # Exact match found
+            return 1.0
+        elif any(word in text for word in query.split()):
+            # Some words match, boost the score
+            return min(1.0, base_similarity * 1.2)
+        
+        return base_similarity
 
     async def execute_query(self, sql: str, params: List[Any] = None) -> List[Dict[str, Any]]:
         """
@@ -589,11 +617,18 @@ class SqliteRetriever(BaseRetriever):
                 # Get token match ratio if available
                 token_match_ratio = row.get("token_match_ratio", 0)
                 
-                # Calculate combined score
-                combined_score = (0.7 * token_match_ratio) + (0.3 * similarity) if token_match_ratio > 0 else similarity
+                # Calculate combined score with adjusted weights
+                # Give more weight to token matches when available
+                if token_match_ratio > 0:
+                    combined_score = (0.6 * token_match_ratio) + (0.4 * similarity)
+                else:
+                    combined_score = similarity
+                
+                if self.verbose:
+                    logger.info(f"Document similarity: {similarity:.4f}, token ratio: {token_match_ratio:.4f}, combined: {combined_score:.4f}")
                 
                 # Process if score exceeds threshold
-                if combined_score >= self.relevance_threshold:
+                if combined_score >= self.confidence_threshold:
                     # Determine document content
                     raw_doc = ""
                     if "question" in row and "answer" in row:
@@ -649,4 +684,4 @@ class SqliteRetriever(BaseRetriever):
 
 
 # Register the retriever with the factory
-RetrieverFactory.register_retriever('sqlite', SqliteRetriever)
+RetrieverFactory.register_retriever('sqlite', QASqliteRetriever)

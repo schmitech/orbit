@@ -20,7 +20,6 @@ from fastapi import HTTPException
 from ..base.sql_retriever import SQLRetriever
 from ..base.base_retriever import RetrieverFactory
 
-# Configure logging
 logger = logging.getLogger(__name__)
 
 class SQLTemplateRetriever(SQLRetriever):
@@ -274,6 +273,3 @@ class SQLTemplateRetriever(SQLRetriever):
             logger.error(f"Error retrieving context: {str(e)}")
             logger.error(traceback.format_exc())
             return []
-
-# Uncomment to register your retriever with the factory
-# RetrieverFactory.register_retriever('sql_template', SQLTemplateRetriever) 

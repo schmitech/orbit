@@ -21,7 +21,7 @@ from utils.lazy_loader import LazyLoader
 # Configure logging
 logger = logging.getLogger(__name__)
 
-class ChromaRetriever(VectorDBRetriever):
+class QAChromaRetriever(VectorDBRetriever):
     """Chroma implementation of the VectorDBRetriever interface with QA support"""
 
     def __init__(self, 
@@ -31,7 +31,7 @@ class ChromaRetriever(VectorDBRetriever):
                 collection: Any = None,
                 **kwargs):
         """
-        Initialize ChromaRetriever.
+        Initialize QAChromaRetriever.
         
         Args:
             config: Configuration dictionary containing Chroma and general settings
@@ -73,6 +73,12 @@ class ChromaRetriever(VectorDBRetriever):
         
         # Store datasource config for later use
         self.datasource_config = merged_config
+        
+        # Get confidence threshold from adapter config
+        self.confidence_threshold = adapter_config.get('confidence_threshold', 0.3) if adapter_config else 0.3
+        
+        # Get distance scaling factor from adapter config
+        self.distance_scaling_factor = adapter_config.get('distance_scaling_factor', 200.0) if adapter_config else 200.0
         
         # Create a lazy loader for the ChromaDB client
         def create_chroma_client():
@@ -173,7 +179,7 @@ class ChromaRetriever(VectorDBRetriever):
                 logger.error(f"Failed to create domain adapter: {str(e)}")
                 raise
         
-        logger.info("ChromaRetriever initialized successfully")
+        logger.info("QAChromaRetriever initialized successfully")
 
     async def close(self) -> None:
         """Close any open services."""
@@ -184,7 +190,7 @@ class ChromaRetriever(VectorDBRetriever):
         if self.using_new_embedding_service and self.embeddings:
             await self.embeddings.close()
         
-        logger.info("ChromaRetriever closed successfully")
+        logger.info("QAChromaRetriever closed successfully")
 
     async def set_collection(self, collection_name: str) -> None:
         """Set the current collection for retrieval."""
@@ -289,7 +295,7 @@ class ChromaRetriever(VectorDBRetriever):
                 logger.info(f"Using embedding service: {type(self.embeddings).__name__}")
                 logger.info(f"New embedding service: {self.using_new_embedding_service}")
                 logger.info(f"Using confidence threshold: {self.confidence_threshold}")
-                logger.info(f"Using relevance threshold: {self.relevance_threshold}")
+                logger.info(f"Distance scaling factor: {self.distance_scaling_factor}")
             
             # Ensure collection is properly set
             if not hasattr(self, 'collection') or self.collection is None:
@@ -312,6 +318,7 @@ class ChromaRetriever(VectorDBRetriever):
                 if debug_mode:
                     logger.info(f"Querying ChromaDB with {len(query_embedding)}-dimensional embedding")
                     logger.info(f"Max results: {self.max_results}")
+                    logger.info(f"Confidence threshold: {self.confidence_threshold}")
                     
                 try:
                     # Make sure we're not trying to query on the client instead of the collection
@@ -329,8 +336,13 @@ class ChromaRetriever(VectorDBRetriever):
                         doc_count = len(results['documents'][0]) if results['documents'] else 0
                         logger.info(f"ChromaDB query returned {doc_count} documents")
                         if doc_count > 0:
-                            logger.info(f"First document (truncated): {results['documents'][0][0][:100] if results['documents'][0] else 'None'}")
-                            logger.info(f"First distance: {results['distances'][0][0] if results['distances'][0] else 'None'}")
+                            logger.info("=== Initial Results from ChromaDB ===")
+                            for i, (doc, metadata, distance) in enumerate(zip(results['documents'][0], results['metadatas'][0], results['distances'][0])):
+                                logger.info(f"\nDocument {i+1}:")
+                                logger.info(f"Distance: {distance:.4f}")
+                                logger.info(f"Content (truncated): {doc[:200]}...")
+                                if metadata:
+                                    logger.info(f"Metadata: {metadata}")
                         else:
                             logger.warning("NO DOCUMENTS RETURNED FROM CHROMADB")
                 except Exception as chroma_error:
@@ -340,59 +352,89 @@ class ChromaRetriever(VectorDBRetriever):
                 
                 context_items = []
                 
-                # DISTANCE HANDLING: Check if distances are unusually large (suggesting L2 or Euclidean)
-                is_euclidean = False
-                first_distance = results['distances'][0][0] if results['distances'] and results['distances'][0] else 0
-                if first_distance > 10:  # Arbitrary threshold for detecting Euclidean distances
-                    is_euclidean = True
-                    if debug_mode:
-                        logger.info(f"Detected Euclidean distances (large values). Will adjust similarity calculation.")
+                # Calculate similarity score from distance
+                # ChromaDB returns L2 distances, where smaller values = more similar
+                # Convert to similarity score between 0 and 1
+                distance = float(results['distances'][0][0])
                 
-                # Get max distance to normalize if using Euclidean
-                max_distance = max(results['distances'][0]) if is_euclidean else 1
+                # More lenient similarity calculation for cross-language matching
+                # Using a sigmoid-like function that gives higher scores for larger distances
+                similarity = 1.0 / (1.0 + (distance / self.distance_scaling_factor))  # Scale down the distance to get higher similarity scores
                 
-                # Process and filter each result based on both thresholds
-                for doc, metadata, distance in zip(
-                    results['documents'][0],
-                    results['metadatas'][0],
-                    results['distances'][0]
-                ):
-                    # Adjust similarity calculation based on distance metric
-                    if is_euclidean:
-                        # For Euclidean: normalize to [0,1] range and invert (smaller is better)
-                        # This handles the case where distances are very large
-                        normalized_distance = distance / max_distance if max_distance > 0 else 0
-                        similarity = 1 - normalized_distance
-                    else:
-                        # For cosine: just use 1 - distance (closer to 1 is better)
-                        similarity = 1 - distance
+                if debug_mode:
+                    logger.info("\n=== Processing Results ===")
+                    logger.info(f"Raw distance: {distance:.4f}")
+                    logger.info(f"Converted similarity score: {similarity:.4f}")
+                    logger.info(f"Confidence threshold: {self.confidence_threshold}")
+                    logger.info(f"Distance scaling factor: {self.distance_scaling_factor}")
+                
+                # Process if score exceeds threshold
+                if similarity >= self.confidence_threshold:
+                    # Format the document using the domain adapter
+                    context_item = self.format_document(results['documents'][0][0][0], results['metadatas'][0][0])
                     
-                    # Apply both thresholds - only include if meets both thresholds
-                    if (similarity >= self.relevance_threshold and 
-                        similarity >= self.confidence_threshold):
-                        # Create formatted context item using format_document which handles domain adapters
-                        item = self.format_document(doc, metadata)
-                        item["confidence"] = similarity  # Add confidence score
-                        context_items.append(item)
-                        if debug_mode:
-                            logger.info(f"Added document with confidence {similarity:.4f}")
-                    else:
-                        if debug_mode:
-                            logger.info(f"Filtered out document with confidence {similarity:.4f} (below thresholds: relevance={self.relevance_threshold}, confidence={self.confidence_threshold})")
+                    # Add confidence score
+                    context_item["confidence"] = similarity
+                    
+                    # Add metadata about the source
+                    if "metadata" not in context_item:
+                        context_item["metadata"] = {}
+                    
+                    context_item["metadata"]["source"] = self._get_datasource_name()
+                    context_item["metadata"]["collection"] = collection_name
+                    context_item["metadata"]["similarity"] = similarity
+                    context_item["metadata"]["distance"] = distance  # Keep original distance for debugging
+                    
+                    context_items.append(context_item)
+                    
+                    if debug_mode:
+                        logger.info("\n=== Accepted Document ===")
+                        logger.info(f"Confidence: {similarity:.4f}")
+                        logger.info(f"Content (truncated): {context_item.get('content', '')[:200]}...")
+                        logger.info(f"Metadata: {context_item.get('metadata', {})}")
+                else:
+                    if debug_mode:
+                        logger.info("\n=== Rejected Document ===")
+                        logger.info(f"Confidence: {similarity:.4f} (below threshold: {self.confidence_threshold})")
+                        logger.info(f"Content (truncated): {results['documents'][0][0][:200]}...")
+                        logger.info(f"Metadata: {results['metadatas'][0][0]}")
                 
                 # Sort the context items by confidence
                 context_items = sorted(context_items, key=lambda x: x.get("confidence", 0), reverse=True)
                 
                 # Apply domain-specific filtering/reranking if available
-                context_items = self.apply_domain_filtering(context_items, query)
+                if self.domain_adapter and hasattr(self.domain_adapter, 'apply_domain_filtering'):
+                    if debug_mode:
+                        logger.info("\n=== Before Domain Filtering ===")
+                        logger.info(f"Number of items: {len(context_items)}")
+                        for i, item in enumerate(context_items):
+                            logger.info(f"\nItem {i+1}:")
+                            logger.info(f"Confidence: {item.get('confidence', 0):.4f}")
+                            logger.info(f"Content (truncated): {item.get('content', '')[:200]}...")
+                    
+                    context_items = self.domain_adapter.apply_domain_filtering(context_items, query)
+                    
+                    if debug_mode:
+                        logger.info("\n=== After Domain Filtering ===")
+                        logger.info(f"Number of items: {len(context_items)}")
+                        for i, item in enumerate(context_items):
+                            logger.info(f"\nItem {i+1}:")
+                            logger.info(f"Confidence: {item.get('confidence', 0):.4f}")
+                            logger.info(f"Content (truncated): {item.get('content', '')[:200]}...")
                 
                 # Apply final limit
                 context_items = context_items[:self.return_results]
                 
                 if debug_mode:
+                    logger.info("\n=== Final Results ===")
                     logger.info(f"Retrieved {len(context_items)} relevant context items")
                     if context_items:
                         logger.info(f"Top confidence score: {context_items[0].get('confidence', 0):.4f}")
+                        for i, item in enumerate(context_items):
+                            logger.info(f"\nFinal Item {i+1}:")
+                            logger.info(f"Confidence: {item.get('confidence', 0):.4f}")
+                            logger.info(f"Content (truncated): {item.get('content', '')[:200]}...")
+                            logger.info(f"Metadata: {item.get('metadata', {})}")
                     else:
                         logger.warning("NO CONTEXT ITEMS AFTER FILTERING")
                 
@@ -411,4 +453,4 @@ class ChromaRetriever(VectorDBRetriever):
             return []
 
 # Register the retriever with the factory
-RetrieverFactory.register_retriever('chroma', ChromaRetriever)
+RetrieverFactory.register_retriever('chroma', QAChromaRetriever)

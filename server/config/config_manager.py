@@ -102,7 +102,7 @@ def _log_config_summary(config: Dict[str, Any], source_path: str):
     
     # Inference settings (Ollama)
     ollama_config = config.get('inference', {}).get('ollama', {})
-    logger.info(f"  Ollama: base_url={_mask_url(ollama_config.get('base_url'))}, model={ollama_config.get('model')}, embed_model={ollama_config.get('embed_model')}")
+    logger.info(f"  Ollama: base_url={_mask_url(ollama_config.get('base_url'))}, model={ollama_config.get('model')}")
     logger.info(f"  Stream: {_is_true_value(ollama_config.get('stream', True))}")
     
     # Elasticsearch settings - mask credentials
@@ -424,10 +424,11 @@ def get_default_config() -> Dict[str, Any]:
                 "db_path": "./chroma_db",
                 "host": "localhost",
                 "port": 8000,
-                "embedding_provider": None
+                "embedding_provider": None,
+                "distance_scaling_factor": 200.0  # Default value for cross-language matching
             },
             "sqlite": {
-                "db_path": "../utils/sqllite/rag_database.db"
+                "db_path": "sqlite_db"
             },
             "postgres": {
                 "host": "localhost",
@@ -459,7 +460,6 @@ def get_default_config() -> Dict[str, Any]:
                 "repeat_penalty": 1.1,
                 "num_predict": 1024,
                 "model": "llama2",
-                "embed_model": "nomic-embed-text",
                 "stream": True
             }
         },

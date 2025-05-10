@@ -1,3 +1,3 @@
-from .chroma_retriever import ChromaRetriever
+from .qa_chroma_retriever import QAChromaRetriever
 
-__all__ = ['ChromaRetriever']
+__all__ = ['QAChromaRetriever']

@@ -159,6 +159,15 @@ class LanguageDetector:
                     logger.debug(f"Text contains mostly non-alphabetic characters, defaulting to English")
                 return "en"
             
+            # For CJK text, use script analysis to determine language
+            if script_info['script_type'] in ('Chinese', 'Korean', 'Japanese'):
+                if script_info['script_type'] == 'Chinese':
+                    return 'zh'
+                elif script_info['script_type'] == 'Korean':
+                    return 'ko'
+                elif script_info['script_type'] == 'Japanese':
+                    return 'ja'
+            
             # For short product names (single words with capitalization)
             if len(text.split()) == 1 and len(text) < 15 and text[0].isupper():
                 # This is likely a product name or proper noun
@@ -293,7 +302,9 @@ class LanguageDetector:
         total_chars = 0
         latin_chars = 0
         cyrillic_chars = 0
-        cjk_chars = 0
+        chinese_chars = 0
+        korean_chars = 0
+        japanese_chars = 0
         arabic_chars = 0
         
         for char in text:
@@ -307,8 +318,20 @@ class LanguageDetector:
                 latin_chars += 1
             elif category == "CYRILLIC":
                 cyrillic_chars += 1
-            elif category in ("CJK", "HIRAGANA", "KATAKANA", "HANGUL"):
-                cjk_chars += 1
+            elif category == "CJK":
+                # Check for Korean Hangul
+                if '\uAC00' <= char <= '\uD7A3':  # Hangul Syllables
+                    korean_chars += 1
+                # Check for Japanese Hiragana and Katakana
+                elif '\u3040' <= char <= '\u309F' or '\u30A0' <= char <= '\u30FF':  # Hiragana and Katakana
+                    japanese_chars += 1
+                else:
+                    # Most likely Chinese
+                    chinese_chars += 1
+            elif category in ("HIRAGANA", "KATAKANA"):
+                japanese_chars += 1
+            elif category == "HANGUL":
+                korean_chars += 1
             elif category == "ARABIC":
                 arabic_chars += 1
         
@@ -317,18 +340,27 @@ class LanguageDetector:
         if total_chars > 0:
             latin_ratio = latin_chars / total_chars
             cyrillic_ratio = cyrillic_chars / total_chars
-            cjk_ratio = cjk_chars / total_chars
+            chinese_ratio = chinese_chars / total_chars
+            korean_ratio = korean_chars / total_chars
+            japanese_ratio = japanese_chars / total_chars
             arabic_ratio = arabic_chars / total_chars
             
-            max_ratio = max(latin_ratio, cyrillic_ratio, cjk_ratio, arabic_ratio)
+            # Calculate total CJK ratio for backward compatibility
+            cjk_ratio = chinese_ratio + korean_ratio + japanese_ratio
+            
+            max_ratio = max(latin_ratio, cyrillic_ratio, chinese_ratio, korean_ratio, japanese_ratio, arabic_ratio)
             
             if max_ratio > 0.5:  # If more than 50% of chars are of one script type
                 if latin_ratio == max_ratio:
                     script_type = "Latin"
                 elif cyrillic_ratio == max_ratio:
                     script_type = "Cyrillic"
-                elif cjk_ratio == max_ratio:
-                    script_type = "CJK"
+                elif chinese_ratio == max_ratio:
+                    script_type = "Chinese"
+                elif korean_ratio == max_ratio:
+                    script_type = "Korean"
+                elif japanese_ratio == max_ratio:
+                    script_type = "Japanese"
                 elif arabic_ratio == max_ratio:
                     script_type = "Arabic"
         
@@ -336,7 +368,10 @@ class LanguageDetector:
             "script_type": script_type,
             "latin_ratio": latin_chars / total_chars if total_chars > 0 else 0,
             "cyrillic_ratio": cyrillic_chars / total_chars if total_chars > 0 else 0,
-            "cjk_ratio": cjk_chars / total_chars if total_chars > 0 else 0,
+            "chinese_ratio": chinese_chars / total_chars if total_chars > 0 else 0,
+            "korean_ratio": korean_chars / total_chars if total_chars > 0 else 0,
+            "japanese_ratio": japanese_chars / total_chars if total_chars > 0 else 0,
+            "cjk_ratio": (chinese_chars + korean_chars + japanese_chars) / total_chars if total_chars > 0 else 0,
             "arabic_ratio": arabic_chars / total_chars if total_chars > 0 else 0
         }
     

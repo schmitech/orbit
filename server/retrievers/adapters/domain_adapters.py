@@ -164,8 +164,7 @@ class GenericDocumentAdapter(DocumentAdapter):
         super().__init__(config=config, **kwargs)
         
         # Extract configuration values with sensible defaults
-        self.confidence_threshold = self.config.get('confidence_threshold', 0.5)
-        self.relevance_threshold = self.config.get('relevance_threshold', 0.3)
+        self.confidence_threshold = self.config.get('confidence_threshold', 0.3)
         self.verbose = self.config.get('verbose', False)
         
     def format_document(self, raw_doc: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
