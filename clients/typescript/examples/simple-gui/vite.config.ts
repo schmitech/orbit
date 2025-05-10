@@ -12,5 +12,13 @@ export default defineConfig({
   },
   optimizeDeps: {
     exclude: ['../../api/dist/api.mjs']
+  },
+  server: {
+    hmr: {
+      overlay: false
+    },
+    watch: {
+      usePolling: false
+    }
   }
 });

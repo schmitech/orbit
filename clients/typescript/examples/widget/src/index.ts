@@ -12,6 +12,28 @@ export type { ChatWidgetProps, ChatConfig };
 // Also export as default for backward compatibility
 export default ChatWidget;
 
+// Function to generate a UUID v4
+function generateUUID(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+
+// Function to get or create session ID
+function getSessionId(): string {
+  const storageKey = 'orbit_session_id';
+  let sessionId = sessionStorage.getItem(storageKey);
+  
+  if (!sessionId) {
+    sessionId = generateUUID();
+    sessionStorage.setItem(storageKey, sessionId);
+  }
+  
+  return sessionId;
+}
+
 // This will be the global API URL that components can import
 let apiUrl: string | null = null;
 let apiKey: string | null = null;
@@ -99,7 +121,7 @@ export function updateWidgetConfig(config: Partial<ChatConfig>): void {
 export function injectChatWidget(config: { 
   apiUrl: string,
   apiKey: string,
-  sessionId: string,
+  sessionId?: string, // Make sessionId optional
   containerSelector?: string,
   widgetConfig?: Partial<ChatConfig>
 }): void {
@@ -108,10 +130,11 @@ export function injectChatWidget(config: {
 
   apiUrl = config.apiUrl;
   apiKey = config.apiKey;
-  sessionId = config.sessionId;
+  // Use provided sessionId or generate/get one
+  sessionId = config.sessionId || getSessionId();
   
   // Configure API with all required parameters
-  configureApi(config.apiUrl, config.apiKey, config.sessionId);
+  configureApi(config.apiUrl, config.apiKey, sessionId);
   
   // Store initial config if provided
   if (config.widgetConfig) {

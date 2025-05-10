@@ -424,27 +424,17 @@ def get_default_config() -> Dict[str, Any]:
                 "db_path": "./chroma_db",
                 "host": "localhost",
                 "port": 8000,
-                "confidence_threshold": 0.85,
-                "relevance_threshold": 0.7,
                 "embedding_provider": None
             },
             "sqlite": {
-                "db_path": "../utils/sqllite/rag_database.db",
-                "confidence_threshold": 0.7,
-                "relevance_threshold": 0.5,
-                "max_results": 10,
-                "return_results": 3
+                "db_path": "../utils/sqllite/rag_database.db"
             },
             "postgres": {
                 "host": "localhost",
                 "port": 5432,
                 "database": "retrieval",
                 "username": "${DATASOURCE_POSTGRES_USERNAME}",
-                "password": "${DATASOURCE_POSTGRES_PASSWORD}",
-                "confidence_threshold": 0.7,
-                "relevance_threshold": 0.5,
-                "max_results": 10,
-                "return_results": 3
+                "password": "${DATASOURCE_POSTGRES_PASSWORD}"
             },
             "milvus": {
                 "host": "localhost",

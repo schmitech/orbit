@@ -112,7 +112,9 @@ class ChatService:
                         language_name = language_names.get(detected_lang, f"the language with code '{detected_lang}'")
                     
                     # Create enhanced prompt with language instruction
-                    enhanced_prompt = original_prompt + f"\n\nThe user's message is in {language_name}. Please respond in {language_name}."
+                    enhanced_prompt = f"""IMPORTANT: The user's message is in {language_name}. You MUST respond in {language_name} only.
+
+{original_prompt}"""
                     
                     if self.verbose:
                         logger.info(f"Enhanced prompt with language instruction for: {language_name}")

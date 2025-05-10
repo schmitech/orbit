@@ -1,5 +1,26 @@
 #!/bin/bash
 
+# sample-db-setup.sh
+# This script sets up a sample database for the ORBIT system with either SQLite or Chroma as the backend.
+#
+# Usage:
+#   ./sample-db-setup.sh [--no-api-keys] [sqlite|chroma]
+#
+# Options:
+#   --no-api-keys    Skip API key creation
+#   sqlite|chroma    Specify the datasource type (required)
+#
+# Examples:
+#   ./sample-db-setup.sh sqlite              # Set up SQLite database with API keys
+#   ./sample-db-setup.sh chroma              # Set up Chroma database with API keys
+#   ./sample-db-setup.sh --no-api-keys sqlite # Set up SQLite database without API keys
+#
+# The script will:
+# 1. Set up the specified database type (SQLite or Chroma)
+# 2. Create sample QA collections
+# 3. Optionally create API keys for the collections
+# 4. Display setup instructions and API keys if created
+
 set -e
 
 # Default value for CREATE_API_KEYS
@@ -113,11 +134,9 @@ else
     fi
     
     # Create city collection
-    python ../utils/chroma/scripts/delete_collection.py city
     python ../utils/chroma/scripts/create_qa_pairs_collection.py city ../utils/sample-data/city-qa-pairs.json $LOCAL_FLAG
     
     # Create activity collection
-    python ../utils/chroma/scripts/delete_collection.py activity
     python ../utils/chroma/scripts/create_qa_pairs_collection.py activity ../utils/sample-data/activity_qa_pairs.json $LOCAL_FLAG
 fi
 

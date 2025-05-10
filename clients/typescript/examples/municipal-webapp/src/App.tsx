@@ -17,11 +17,34 @@ import Contact from './pages/Contact';
 import Employment from './pages/Employment';
 import { useRef } from 'react';
 
+// Function to generate a UUID v4
+function generateUUID(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+
+// Function to get or create session ID
+function getSessionId(): string {
+  const storageKey = 'orbit_session_id';
+  let sessionId = sessionStorage.getItem(storageKey);
+  
+  if (!sessionId) {
+    sessionId = generateUUID();
+    sessionStorage.setItem(storageKey, sessionId);
+  }
+  
+  return sessionId;
+}
+
 declare global {
   interface Window {
     initChatbotWidget?: (config: {
       apiUrl: string,
       apiKey: string,
+      sessionId?: string,
       containerSelector?: string,
       widgetConfig?: {
         header?: {
@@ -65,6 +88,8 @@ declare global {
     }) => void;
     ChatbotWidget?: {
       updateWidgetConfig: (config: any) => void;
+      setApiUrl: (apiUrl: string) => void;
+      setApiKey: (apiKey: string) => void;
     };
   }
 }
@@ -79,9 +104,19 @@ function App() {
       console.log('Initializing chatbot widget...');
       
       try {
+        const apiUrl = import.meta.env.VITE_API_ENDPOINT || 'http://localhost:3000';
+        const apiKey = import.meta.env.VITE_API_KEY || 'api_dummy_key';
+        
+        // Configure the API first
+        if (window.ChatbotWidget) {
+          window.ChatbotWidget.setApiUrl(apiUrl);
+          window.ChatbotWidget.setApiKey(apiKey);
+        }
+        
         window.initChatbotWidget({
-          apiUrl: import.meta.env.VITE_API_ENDPOINT || 'http://localhost:3000',
-          apiKey: import.meta.env.VITE_API_KEY || 'api_dummy_key',
+          apiUrl: apiUrl,
+          apiKey: apiKey,
+          sessionId: getSessionId(),
           widgetConfig: {
             header: {
               title: "City of Maple Assistant"

@@ -8,7 +8,7 @@ general:
     key_file: "./key.pem"
   session_id:
     header_name: "X-Session-ID"
-    enabled: false
+    enabled: true
   inference_provider: "ollama"
   adapter: "adapters.sqlite.qa"
 
@@ -50,7 +50,8 @@ internal_services:
     api_key: ${INTERNAL_SERVICES_ELASTICSEARCH_API_KEY}
 
   mongodb:
-    host: "localhost"
+    host: "orbit.yp0onu1.mongodb.net"
+    # host: "localhost"
     port: 27017
     database: "orbit"
     apikey_collection: "api_keys"
@@ -105,8 +106,8 @@ adapters:
     adapter: "qa"
     implementation: "retrievers.implementations.sqlite.sqlite_retriever.SqliteRetriever"
     config:
-      confidence_threshold: 0.5
-      relevance_threshold: 0.5
+      confidence_threshold: 0.3
+      relevance_threshold: 0.3
       max_results: 5
       return_results: 3
       db_path: "./sqlite_db"
@@ -116,8 +117,8 @@ adapters:
     adapter: "qa"
     implementation: "retrievers.implementations.chroma.chroma_retriever.ChromaRetriever"
     config:
-      confidence_threshold: 0.85
-      relevance_threshold: 0.7
+      confidence_threshold: 0.5
+      relevance_threshold: 0.5
       embedding_provider: null
       max_results: 5
       return_results: 3
@@ -129,25 +130,15 @@ datasources:
     db_path: "./chroma_db"
     host: "localhost"
     port: 8000
-    confidence_threshold: 0.85
-    relevance_threshold: 0.7
     embedding_provider: null 
   sqlite:
     db_path: "sqlite_db"
-    confidence_threshold: 0.5
-    relevance_threshold: 0.5
-    max_results: 10
-    return_results: 3
   postgres:
     host: "localhost"
     port: 5432
     database: "retrieval"
     username: ${DATASOURCE_POSTGRES_USERNAME}
     password: ${DATASOURCE_POSTGRES_PASSWORD}
-    confidence_threshold: 0.5
-    relevance_threshold: 0.5
-    max_results: 10
-    return_results: 3
   milvus:
     host: "localhost"
     port: 19530
@@ -304,7 +295,7 @@ moderators:
 
 reranker:
   enabled: false
-  provider_override: null
+  provider_override: null  # If null, uses general.inference_provider
   model: "gemma3:1b"
   batch_size: 5
   temperature: 0.0
@@ -348,4 +339,4 @@ rerankers:
     temperature: 0.0
     max_tokens: 256
     batch_size: 8
-    credentials_path: ""
+    credentials_path: ""  # Path to service account key file
