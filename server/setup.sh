@@ -1,5 +1,35 @@
 #!/bin/bash
 
+# =============================================================================
+# Orbit Server Setup Script
+# =============================================================================
+#
+# This script sets up the development environment for the Orbit server.
+#
+# Requirements:
+#   - Python 3.12
+#   - Bash shell
+#   - Internet connection (for downloading dependencies and models)
+#
+# Features:
+#   - Creates a Python virtual environment
+#   - Installs required Python packages from requirements.txt
+#   - Optional: Installs llama-cpp-python and downloads Gemma 3 1B GGUF model
+#   - Sets up .env file from template if it doesn't exist
+#
+# Usage:
+#   Basic setup (without llama-cpp):
+#     ./setup.sh
+#
+#   Full setup (with llama-cpp and GGUF model):
+#     ./setup.sh --install-llama-cpp
+#
+# After running:
+#   - Activate the virtual environment: source venv/bin/activate
+#   - The server will be ready to run with all dependencies installed
+#
+# =============================================================================
+
 # Exit on error
 set -e
 
@@ -13,6 +43,22 @@ print_message() {
         "yellow") echo -e "\033[0;33m$message\033[0m" ;;
         *) echo "$message" ;;
     esac
+}
+
+# Function to download GGUF model
+download_gguf_model() {
+    print_message "yellow" "Downloading Gemma 3 1B GGUF model..."
+    
+    # Create gguf directory if it doesn't exist
+    mkdir -p gguf
+    
+    # Download the model
+    if ! curl -L "https://huggingface.co/unsloth/gemma-3-1b-it-GGUF/resolve/main/gemma-3-1b-it-Q4_0.gguf" -o "gguf/gemma-3-1b-it-Q4_0.gguf"; then
+        print_message "red" "Error: Failed to download GGUF model."
+        exit 1
+    fi
+    
+    print_message "green" "GGUF model downloaded successfully."
 }
 
 # Default value for INSTALL_LLAMA_CPP
@@ -90,6 +136,11 @@ fi
 
 # Clean up temporary file
 rm -f requirements_temp.txt
+
+# Download GGUF model if llama-cpp is enabled
+if [ "$INSTALL_LLAMA_CPP" = true ]; then
+    download_gguf_model
+fi
 
 if [ -f ".env.example" ] && [ ! -f ".env" ]; then
     cp .env.example .env

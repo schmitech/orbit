@@ -20,13 +20,6 @@ Features:
     - HTTPS support using provided certificates
     - API key management
     - MCP protocol compatibility for universal client support
-    
-MCP Protocol:
-    The Message Content Protocol (MCP) endpoint is available at /v1/chat and follows
-    the standard format used by many LLM providers. This enables compatibility with
-    various client libraries and tools that support the MCP format.
-    
-    To enable MCP support, set the 'mcp_protocol' option to true in the config.yaml file.
 """
 
 import os
@@ -57,7 +50,7 @@ load_dotenv()
 # Import local modules (ensure these exist in your project structure)
 from config.config_manager import load_config, _is_true_value
 from models.schema import ChatMessage, ApiKeyCreate, ApiKeyResponse, ApiKeyDeactivate, SystemPromptCreate, SystemPromptUpdate, SystemPromptResponse, ApiKeyPromptAssociate
-from models.schema import MCPMessage, MCPChatRequest, MCPChatResponse, MCPChatChunk, MCPJsonRpcRequest, MCPJsonRpcResponse, MCPJsonRpcError
+from models.schema import MCPJsonRpcRequest, MCPJsonRpcResponse, MCPJsonRpcError
 from models import ChatMessage
 from services import ChatService, LoggerService, GuardrailService, RerankerService, ApiKeyService, PromptService
 from services.mongodb_service import MongoDBService
@@ -915,9 +908,6 @@ class InferenceServer:
         safety_moderator = safety_config.get('moderator', 'ollama')
         safety_mode = safety_config.get('mode', 'strict')
         
-        # Get MCP protocol setting
-        mcp_enabled = _is_true_value(self.config['general'].get('mcp_protocol', False))
-        
         # Get session ID configuration
         session_config = self.config.get('general', {}).get('session_id', {})
         session_enabled = _is_true_value(session_config.get('enabled', False))
@@ -931,7 +921,6 @@ class InferenceServer:
         
         self.logger.info(f"Inference provider: {inference_provider}")
         self.logger.info(f"Embedding: {'enabled' if embedding_enabled else 'disabled'}")
-        self.logger.info(f"MCP protocol: {'enabled' if mcp_enabled else 'disabled'}")
         self.logger.info(f"Session ID: {'enabled' if session_enabled else 'disabled'} (header: {session_header})")
         self.logger.info(f"API Key: {'enabled' if api_key_enabled else 'disabled'} (header: {api_key_header}, required for health: {require_for_health})")
         
@@ -967,8 +956,6 @@ class InferenceServer:
         
         # Log API endpoints
         self.logger.info("API Endpoints:")
-        # self.logger.info("  - Standard chat: POST /chat")
-        # if mcp_enabled:
         self.logger.info("  - MCP protocol: POST /v1/chat")
         self.logger.info("  - Health check: GET /health")
 

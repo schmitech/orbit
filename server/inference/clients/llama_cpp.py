@@ -42,12 +42,12 @@ class QALlamaCppClient(BaseLLMClient, LLMClientMixin):
         self.tensor_split = llama_cpp_config.get('tensor_split', None)
         
         # Add stop tokens and repetition penalty
-        self.stop_tokens = [
-            "<|file_ref_name|>", "<|file_ref>", "<|file_name|>",
+        self.stop_tokens = llama_cpp_config.get('stop_tokens', [
+            "<|im_start|>", "<|file_ref_name|>", "<|file_ref>", "<|file_name|>",
             "<|im_end|>", "</im_end|>", "<im_end>", "</im_end>",
             "</s>", "<|endoftext|>", "<|system_prompt|>",
-            "<|file_ref|>system_prompt"
-        ]
+            "<|file_ref|>system_prompt", "<|im_start|>"  # Added im_start to default list
+        ])
         self.repeat_penalty = llama_cpp_config.get('repeat_penalty', 1.1)
         
         self.llama_model = None
@@ -206,17 +206,19 @@ class QALlamaCppClient(BaseLLMClient, LLMClientMixin):
             cleanup_patterns = [
                 "<|file_ref_name|>", "<|file_ref>", "<|file_name|>",
                 "<|im_end|>", "</im_end|>", "<im_end>", "</im_end>",
-                "<|system_prompt|>", "<|file_ref|>system_prompt"
+                "<|system_prompt|>", "<|file_ref|>system_prompt",
+                "<|im_start|>", "</im_start|>", "<im_start>", "</im_start>"  # Added im_start patterns
             ]
             
-            # Clean up any pattern that appears at the end of the response
+            # Clean up any pattern that appears anywhere in the response
             for pattern in cleanup_patterns:
-                if pattern in response_text:
-                    parts = response_text.split(pattern)
-                    response_text = parts[0].strip()
+                response_text = response_text.replace(pattern, "")
             
             # Remove any trailing special tokens or incomplete tags
             response_text = response_text.split("<|")[0].strip()
+            
+            # Remove any remaining whitespace artifacts
+            response_text = " ".join(response_text.split())
             
             if self.verbose:
                 self.logger.debug(f"Response length: {len(response_text)} characters")
@@ -302,7 +304,9 @@ class QALlamaCppClient(BaseLLMClient, LLMClientMixin):
                     top_p=self.top_p,
                     top_k=self.top_k,
                     max_tokens=self.max_tokens,
-                    stream=True
+                    stream=True,
+                    stop=self.stop_tokens,
+                    repeat_penalty=self.repeat_penalty
                 )
             
             # Start streaming in a separate thread
@@ -316,16 +320,32 @@ class QALlamaCppClient(BaseLLMClient, LLMClientMixin):
                     if "delta" in choice and "content" in choice["delta"]:
                         text = choice["delta"]["content"]
                         if text:
-                            chunk_count += 1
-                            
-                            if self.verbose and chunk_count % 10 == 0:
-                                self.logger.debug(f"Received chunk {chunk_count}")
+                            # Skip chunks that match stop tokens
+                            if any(token in text for token in self.stop_tokens):
+                                continue
                                 
-                            yield json.dumps({
-                                "response": text,
-                                "sources": [],
-                                "done": False
-                            })
+                            # Strip out any stray stop-token emissions entirely
+                            if text.strip() in self.stop_tokens:
+                                continue
+
+                            # Remove stop-token substrings but leave llama.cpp's leading space
+                            for pattern in self.stop_tokens:
+                                text = text.replace(pattern, "")
+
+                            # Truncate at any control-token boundary
+                            text = text.split("<|")[0]
+
+                            if text:
+                                chunk_count += 1
+                                
+                                if self.verbose and chunk_count % 10 == 0:
+                                    self.logger.debug(f"Received chunk {chunk_count}")
+                                    
+                                yield json.dumps({
+                                    "response": text,
+                                    "sources": [],
+                                    "done": False
+                                })
             
             if self.verbose:
                 self.logger.info(f"Streaming complete. Received {chunk_count} chunks")
