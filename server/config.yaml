@@ -9,8 +9,8 @@ general:
   session_id:
     header_name: "X-Session-ID"
     enabled: true
-  inference_provider: "llama_cpp"
-  adapter: "adapters.sqlite.qa"
+  inference_provider: "ollama"
+  adapter: "qa-sqlite"
 
 messages:
   no_results_response: "I'm sorry, but I don't have any specific information about that topic in my knowledge base."
@@ -45,7 +45,7 @@ logging:
 internal_services:
   elasticsearch:
     enabled: false
-    node: 'https://localhost:9200'
+    node: 'http://localhost:9200'
     index: 'orbit'
     api_key: ${INTERNAL_SERVICES_ELASTICSEARCH_API_KEY}
 

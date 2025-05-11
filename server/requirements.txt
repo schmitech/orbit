@@ -1,5 +1,4 @@
 ollama==0.4.7
-llama-cpp-python==0.3.8
 chromadb>=1.0.7
 langchain-ollama>=0.2.3
 langchain-community>=0.0.10
@@ -34,3 +33,4 @@ pycountry>=24.6.1
 safetensors==0.5.3
 regex==2024.11.6
 sseclient-py==1.8.0
+llama-cpp-python==0.3.8

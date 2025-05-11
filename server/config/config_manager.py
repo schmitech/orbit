@@ -117,6 +117,13 @@ def _log_config_summary(config: Dict[str, Any], source_path: str):
     if mongodb_config:
         logger.info(f"  MongoDB: host={mongodb_config.get('host')}, port={mongodb_config.get('port')}, db={mongodb_config.get('database')}")
     
+    # Log adapter configuration
+    adapter_configs = config.get('adapters', [])
+    if adapter_configs:
+        logger.info("  Adapters:")
+        for adapter in adapter_configs:
+            logger.info(f"    {adapter.get('name')}: type={adapter.get('type')}, datasource={adapter.get('datasource')}, adapter={adapter.get('adapter')}")
+    
     # Log if HTTPS is enabled
     https_enabled = _is_true_value(config.get('general', {}).get('https', {}).get('enabled', False))
     if https_enabled:
@@ -478,5 +485,33 @@ def get_default_config() -> Dict[str, Any]:
                 "username": "${INTERNAL_SERVICES_MONGODB_USERNAME}",
                 "password": "${INTERNAL_SERVICES_MONGODB_PASSWORD}"
             }
-        }
+        },
+        "adapters": [
+            {
+                "name": "qa-sqlite",
+                "type": "retriever",
+                "datasource": "sqlite",
+                "adapter": "qa",
+                "implementation": "retrievers.implementations.sqlite.qa_sqlite_retriever.QASqliteRetriever",
+                "config": {
+                    "confidence_threshold": 0.3,
+                    "max_results": 5,
+                    "return_results": 3
+                }
+            },
+            {
+                "name": "qa-chroma",
+                "type": "retriever",
+                "datasource": "chroma",
+                "adapter": "qa",
+                "implementation": "retrievers.implementations.chroma.qa_chroma_retriever.QAChromaRetriever",
+                "config": {
+                    "confidence_threshold": 0.3,
+                    "distance_scaling_factor": 200.0,
+                    "embedding_provider": None,
+                    "max_results": 5,
+                    "return_results": 3
+                }
+            }
+        ]
     }

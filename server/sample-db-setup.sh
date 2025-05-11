@@ -151,7 +151,7 @@ if [ "$CREATE_API_KEYS" = true ]; then
     echo ""
 
     # Create API key for 'city' collection and capture full output
-    API_KEY_OUTPUT=$(python3 ./admin/api_key_manager.py --url http://localhost:$PORT create \
+    API_KEY_OUTPUT=$(python3 ../admin/api_key_manager.py --url http://localhost:$PORT create \
       --collection city \
       --name "City Assistant" \
       --prompt-file ../prompts/examples/city/city-assistant-normal-prompt.txt \
@@ -170,7 +170,7 @@ if [ "$CREATE_API_KEYS" = true ]; then
         echo "  • Using prompt file '../prompts/examples/activity/activity-assistant-normal-prompt.txt'"
         echo ""
 
-        ACTIVITY_API_KEY_OUTPUT=$(python3 ./admin/api_key_manager.py --url http://localhost:$PORT create \
+        ACTIVITY_API_KEY_OUTPUT=$(python3 ../admin/api_key_manager.py --url http://localhost:$PORT create \
           --collection activity \
           --name "Activity Assistant" \
           --prompt-file ../prompts/examples/activity/activity-assistant-normal-prompt.txt \

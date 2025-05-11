@@ -585,34 +585,28 @@ class InferenceServer:
             if not adapter_configs:
                 raise ValueError("No adapter configurations found in config")
             
-            # Get the configured adapter path from general settings
-            configured_adapter = self.config['general'].get('adapter', '')
-            if not configured_adapter:
+            # Get the configured adapter name from general settings
+            configured_adapter_name = self.config['general'].get('adapter', '')
+            if not configured_adapter_name:
                 raise ValueError("No adapter specified in general.adapter")
             
-            # Parse the adapter path (e.g., "adapters.chroma.qa" -> datasource="chroma", adapter="qa")
-            try:
-                _, datasource, adapter_type = configured_adapter.split('.')
-            except ValueError:
-                raise ValueError(f"Invalid adapter path format: {configured_adapter}. Expected format: adapters.<datasource>.<adapter>")
-            
-            # Find the matching adapter configuration
+            # Find the matching adapter configuration by name
             retriever_config = next(
                 (cfg for cfg in adapter_configs 
-                 if cfg.get('type') == 'retriever' 
-                 and cfg.get('datasource') == datasource 
-                 and cfg.get('adapter') == adapter_type),
+                 if cfg.get('name') == configured_adapter_name),
                 None
             )
             
             if not retriever_config:
-                raise ValueError(f"No matching adapter configuration found for {configured_adapter}")
+                raise ValueError(f"No matching adapter configuration found for {configured_adapter_name}")
             
             # Extract adapter details
             implementation = retriever_config.get('implementation')
+            datasource = retriever_config.get('datasource')
+            adapter_type = retriever_config.get('adapter')
             
-            if not implementation:
-                raise ValueError("Missing required adapter implementation field")
+            if not implementation or not datasource or not adapter_type:
+                raise ValueError("Missing required adapter fields (implementation, datasource, or adapter)")
             
             self.logger.info(f"Setting up lazy loading for {datasource} retriever with {adapter_type} adapter")
             

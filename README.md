@@ -17,6 +17,23 @@
 
 ORBIT is a modular, self-hosted toolkit that provides a unified API for open-source AI inference models. It enables you to run AI models on your own infrastructure, maintaining complete control over your data while eliminating commercial API dependencies.
 
+## Sovereignty and Data Control
+
+ORBIT is designed with digital sovereignty in mind, offering several key advantages:
+
+1. **Complete Data Control**: All data processing happens on your infrastructure, ensuring sensitive information never leaves your environment
+2. **No External Dependencies**: By eliminating reliance on commercial AI APIs, you maintain full control over your AI capabilities
+3. **Compliance Ready**: Self-hosted deployment makes it easier to comply with data residency requirements and privacy regulations
+4. **Transparency**: Open-source nature allows full visibility into the system's operations and data handling
+5. **Customization**: Ability to modify and adapt the system to meet specific organizational or national requirements
+
+This makes ORBIT particularly valuable for:
+
+- Government agencies requiring sovereign AI capabilities
+- Organizations with strict data privacy requirements
+- Countries implementing digital sovereignty initiatives
+- Enterprises needing to maintain control over their AI infrastructure
+
 ## 🌟 Features
 
 - **🔒 Privacy First**:
