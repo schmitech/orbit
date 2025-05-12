@@ -236,10 +236,18 @@ inference:
     secret_access_key: ${AWS_SECRET_ACCESS_KEY}
     region: "ca-central-1"
     model: "anthropic.claude-3-sonnet-20240229-v1:0"
+    content_type: "application/json"
+    accept: "application/json"
+    max_tokens: 1024
   azure:
     base_url: http://azure-ai.endpoint.microsoft.com
     deployment: "azure-ai-deployment"
     api_key: ${AZURE_ACCESS_KEY}
+    temperature: 0.1
+    top_p: 0.8
+    max_tokens: 1024
+    stream: true
+    verbose: true
   openai:
     api_key: ${OPENAI_API_KEY}
     model: "gpt-4.1"
@@ -258,11 +266,11 @@ inference:
   anthropic:
     api_key: ${ANTHROPIC_API_KEY}
     api_base: "https://api.anthropic.com/v1"
-    model: "claude-3.5-sonnet"
+    model: "claude-3-opus-20240229"
     temperature: 0.1
     top_p: 0.8
     max_tokens: 1024
-    stream: true 
+    stream: true
   together:
     api_key: ${TOGETHER_API_KEY}
     api_base: "https://api.together.xyz/v1"
@@ -271,7 +279,23 @@ inference:
     top_p: 0.8
     max_tokens: 1024
     stream: true
-    show_thinking: false  # Controls whether to include the model's thinking process in responses
+    show_thinking: false
+  xai:
+    api_key: ${XAI_API_KEY}
+    api_base: "https://api.x.ai/v1"
+    model: "grok-3-mini-beta"
+    temperature: 0.1
+    top_p: 0.8
+    max_tokens: 1024
+    stream: true
+    show_thinking: false
+  huggingface:
+    model_name: "meta-llama/Llama-2-7b-hf"
+    device: "cuda"
+    max_length: 1024
+    temperature: 0.7
+    top_p: 0.9
+    stream: false
 
 safety:
   enabled: false

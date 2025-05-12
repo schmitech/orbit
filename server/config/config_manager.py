@@ -110,6 +110,11 @@ def _log_config_summary(config: Dict[str, Any], source_path: str):
     if together_config:
         logger.info(f"  Together AI: model={together_config.get('model')}, show_thinking={_is_true_value(together_config.get('show_thinking', False))}")
     
+    # XAI settings
+    xai_config = config.get('inference', {}).get('xai', {})
+    if xai_config:
+        logger.info(f"  XAI: model={xai_config.get('model')}, show_thinking={_is_true_value(xai_config.get('show_thinking', False))}")
+    
     # Elasticsearch settings - mask credentials
     es_config = config.get('internal_services', {}).get('elasticsearch', {})
     if _is_true_value(es_config.get('enabled', False)):
@@ -348,6 +353,16 @@ def get_default_config() -> Dict[str, Any]:
                 "api_base": "https://api.mistral.ai/v1",
                 "model": "mistral-embed",
                 "dimensions": 1024
+            },
+            "azure": {
+                "base_url": "http://azure-ai.endpoint.microsoft.com",
+                "deployment": "azure-ai-deployment",
+                "api_key": "${AZURE_ACCESS_KEY}",
+                "temperature": 0.1,
+                "top_p": 0.8,
+                "max_tokens": 1024,
+                "stream": True,
+                "verbose": False
             }
         },
         "safety": {
@@ -474,10 +489,29 @@ def get_default_config() -> Dict[str, Any]:
                 "model": "llama2",
                 "stream": True
             },
+            "aws": {
+                "access_key": "${AWS_BEDROCK_ACCESS_KEY}",
+                "secret_access_key": "${AWS_SECRET_ACCESS_KEY}",
+                "region": "us-east-1",
+                "model": "amazon.titan-embed-001",
+                "content_type": "application/json",
+                "accept": "application/json",
+                "max_tokens": 1024
+            },
             "together": {
                 "api_key": "${TOGETHER_API_KEY}",
                 "api_base": "https://api.together.xyz/v1",
                 "model": "meta-llama/Llama-3-8b-chat-hf",
+                "temperature": 0.1,
+                "top_p": 0.8,
+                "max_tokens": 1024,
+                "stream": True,
+                "show_thinking": False
+            },
+            "xai": {
+                "api_key": "${XAI_API_KEY}",
+                "api_base": "https://api.x.ai/v1",
+                "model": "grok-3-mini-beta",
                 "temperature": 0.1,
                 "top_p": 0.8,
                 "max_tokens": 1024,

@@ -147,5 +147,35 @@ class LLMClientFactory:
                 prompt_service, 
                 no_results_message
             )
+        elif provider == 'xai':
+            from .clients.xai import XAIClient
+            return XAIClient(
+                config, 
+                retriever, 
+                guardrail_service, 
+                reranker_service, 
+                prompt_service, 
+                no_results_message
+            )
+        elif provider == 'aws':
+            from .clients.aws import AWSBedrockClient
+            return AWSBedrockClient(
+                config, 
+                retriever, 
+                guardrail_service, 
+                reranker_service, 
+                prompt_service, 
+                no_results_message
+            )
+        elif provider == 'azure':
+            from .clients.azure import AzureOpenAIClient
+            return AzureOpenAIClient(
+                config, 
+                retriever, 
+                guardrail_service, 
+                reranker_service, 
+                prompt_service, 
+                no_results_message
+            )
         else:
             raise ValueError(f"Unsupported inference provider: {provider}") 

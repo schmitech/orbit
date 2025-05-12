@@ -34,4 +34,6 @@ safetensors==0.5.3
 regex==2024.11.6
 sseclient-py==1.8.0
 llama-cpp-python==0.3.8
-together-1.5.7
+together==1.5.7
+boto3==1.38.13
+azure-ai-inference==1.0.0b9

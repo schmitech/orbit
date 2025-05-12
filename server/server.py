@@ -279,14 +279,6 @@ class InferenceServer:
             self.config['reranker']['resolved_provider'] = reranker_provider
             self.config['reranker']['resolved_model'] = reranker_model
         
-        # # For backward compatibility, copy selected inference provider config to the old location
-        # if inference_provider in self.config.get('inference', {}):
-        #     self.config['ollama'] = self.config['inference'][inference_provider]
-        
-        # # For backward compatibility, copy selected datasource provider config to the old location
-        # if datasource_provider in self.config.get('datasources', {}):
-        #     self.config['chroma'] = self.config['datasources'][datasource_provider]
-        
         # Handle mongodb settings for backward compatibility
         if 'internal_services' in self.config and 'mongodb' in self.config['internal_services']:
             self.config['mongodb'] = self.config['internal_services']['mongodb']
@@ -1651,7 +1643,7 @@ class InferenceServer:
 # Create a global app instance for direct use by uvicorn in development mode
 app = FastAPI(
     title="ORBIT Open Inference Server",
-    description="Open source inference server with chat endpoint and RAG capabilities",
+    description="MCP inference server with RAG capabilities",
     version="1.0.0"
 )
 

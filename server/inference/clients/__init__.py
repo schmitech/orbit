@@ -15,6 +15,9 @@ from .vertex_ai import VertexAIClient
 from .mistral import MistralClient
 from .anthropic import AnthropicClient
 from .together import TogetherAIClient
+from .xai import XAIClient
+from .aws import AWSBedrockClient
+from .azure import AzureOpenAIClient
 __all__ = [
     "OllamaClient", 
     "QAVLLMClient", 
@@ -26,5 +29,8 @@ __all__ = [
     "VertexAIClient",
     "MistralClient",
     "AnthropicClient",
-    "TogetherAIClient"
+    "TogetherAIClient",
+    "XAIClient",
+    "AWSBedrockClient",
+    "AzureOpenAIClient"
 ] 
