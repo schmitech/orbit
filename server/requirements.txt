@@ -34,3 +34,4 @@ safetensors==0.5.3
 regex==2024.11.6
 sseclient-py==1.8.0
 llama-cpp-python==0.3.8
+together-1.5.7

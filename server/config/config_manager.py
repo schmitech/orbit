@@ -105,6 +105,11 @@ def _log_config_summary(config: Dict[str, Any], source_path: str):
     logger.info(f"  Ollama: base_url={_mask_url(ollama_config.get('base_url'))}, model={ollama_config.get('model')}")
     logger.info(f"  Stream: {_is_true_value(ollama_config.get('stream', True))}")
     
+    # Together AI settings
+    together_config = config.get('inference', {}).get('together', {})
+    if together_config:
+        logger.info(f"  Together AI: model={together_config.get('model')}, show_thinking={_is_true_value(together_config.get('show_thinking', False))}")
+    
     # Elasticsearch settings - mask credentials
     es_config = config.get('internal_services', {}).get('elasticsearch', {})
     if _is_true_value(es_config.get('enabled', False)):
@@ -468,6 +473,16 @@ def get_default_config() -> Dict[str, Any]:
                 "num_predict": 1024,
                 "model": "llama2",
                 "stream": True
+            },
+            "together": {
+                "api_key": "${TOGETHER_API_KEY}",
+                "api_base": "https://api.together.xyz/v1",
+                "model": "meta-llama/Llama-3-8b-chat-hf",
+                "temperature": 0.1,
+                "top_p": 0.8,
+                "max_tokens": 1024,
+                "stream": True,
+                "show_thinking": False
             }
         },
         "internal_services": {

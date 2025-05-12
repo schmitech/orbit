@@ -263,6 +263,15 @@ inference:
     top_p: 0.8
     max_tokens: 1024
     stream: true 
+  together:
+    api_key: ${TOGETHER_API_KEY}
+    api_base: "https://api.together.xyz/v1"
+    model: "Qwen/Qwen3-235B-A22B-fp8-tput"
+    temperature: 0.1
+    top_p: 0.8
+    max_tokens: 1024
+    stream: true
+    show_thinking: false  # Controls whether to include the model's thinking process in responses
 
 safety:
   enabled: false

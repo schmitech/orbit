@@ -14,7 +14,7 @@ from .deepseek import DeepSeekClient
 from .vertex_ai import VertexAIClient
 from .mistral import MistralClient
 from .anthropic import AnthropicClient
-
+from .together import TogetherAIClient
 __all__ = [
     "OllamaClient", 
     "QAVLLMClient", 
@@ -25,5 +25,6 @@ __all__ = [
     "DeepSeekClient",
     "VertexAIClient",
     "MistralClient",
-    "AnthropicClient"
+    "AnthropicClient",
+    "TogetherAIClient"
 ] 

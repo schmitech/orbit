@@ -137,5 +137,15 @@ class LLMClientFactory:
                 prompt_service, 
                 no_results_message
             )
+        elif provider == 'together':
+            from .clients.together import TogetherAIClient
+            return TogetherAIClient(
+                config, 
+                retriever, 
+                guardrail_service, 
+                reranker_service, 
+                prompt_service, 
+                no_results_message
+            )
         else:
             raise ValueError(f"Unsupported inference provider: {provider}") 
