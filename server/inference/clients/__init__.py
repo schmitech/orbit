@@ -18,6 +18,8 @@ from .together import TogetherAIClient
 from .xai import XAIClient
 from .aws import AWSBedrockClient
 from .azure import AzureOpenAIClient
+from .openrouter import OpenRouterClient
+
 __all__ = [
     "OllamaClient", 
     "QAVLLMClient", 
@@ -32,5 +34,6 @@ __all__ = [
     "TogetherAIClient",
     "XAIClient",
     "AWSBedrockClient",
-    "AzureOpenAIClient"
+    "AzureOpenAIClient",
+    "OpenRouterClient"
 ] 

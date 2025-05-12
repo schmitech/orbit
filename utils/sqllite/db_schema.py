@@ -11,7 +11,11 @@ def create_database(db_path="rag_database.db"):
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     
-    # Create city table
+    # Drop existing tables if they exist
+    cursor.execute('DROP TABLE IF EXISTS search_tokens')
+    cursor.execute('DROP TABLE IF EXISTS city')
+    
+    # Create city table with all columns including question_tokens
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS city (
         id INTEGER PRIMARY KEY,
