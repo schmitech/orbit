@@ -34,50 +34,6 @@ This makes ORBIT particularly valuable for:
 - Countries implementing digital sovereignty initiatives
 - Enterprises needing to maintain control over their AI infrastructure
 
-## 🌟 Features
-
-- **🔒 Privacy First**:
-  - Complete data sovereignty and control
-  - No data sent to external services
-  - Ideal for organizations with strict privacy requirements
-  - Full control over sensitive information
-
-- **🔄 Flexible Deployment**:
-  - Cloud platforms
-  - On-premise servers
-  - Hybrid setups
-  - Adaptable to different infrastructure requirements
-
-- **🛠 Full Customization**:
-  - Custom model selection and configuration
-  - Domain-specific adaptations
-  - Integration with existing systems
-  - Configurable safety and reranking services
-
-- **🔓 No Vendor Lock-in**:
-  - Freedom to choose inference providers
-  - Control over data storage and management
-  - Flexible API configurations
-  - System resource management
-
-- **🔍 RAG Support**:
-  - Multiple vector database options
-  - Context-aware AI responses
-  - Designed for accuracy and relevance
-  - Adaptable retrieval strategies
-
-- **🌐 Multilingual Support**:
-  - Automatic language detection
-  - Native response in user's language
-  - Support for 12+ major languages
-  - Seamless language switching
-
-- **🛡️ Content Moderation**:
-  - Configurable safety checks
-  - Multiple moderation modes (strict/fuzzy)
-  - Dedicated moderation models
-  - Automatic content filtering
-
 ## 🚀 Quick Start
 
 ### System Requirements
@@ -151,19 +107,11 @@ Server will be available at `http://localhost:3000`
 #### Python Client
 
 ```bash
-cd clients/python
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-python chat_client.py --url http://localhost:3000 --api-key your-api-key
+pip install schmitech-orbit-client
+
+# The chat client implementation can be found in /clients/python/schmitech_orbit_client/chat_client.py
+orbit-chat --url http://localhost:3000
 ```
-
-Try queries like:
-
-"What is the fee for a residential parking permit?"
-"What are the hours for the public swimming pool?"
-
-You can find the training datasets under /utils/sample-data. The ones for city asistant is /utils/sample-data/city-qa-pairs.json.
 
 ### Configuration
 

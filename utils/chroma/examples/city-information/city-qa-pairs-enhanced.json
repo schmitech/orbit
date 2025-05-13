@@ -1,0 +1,263 @@
+[
+    {
+        "question": "Where can I find the property tax rates for this year?",
+        "department": "Revenue Services",
+        "response_time": 1,
+        "cost": "$0",
+        "timeframe": "annual"
+    },
+    {
+        "question": "How do I report a pothole on my street?",
+        "department": "Public Works",
+        "response_time": 3,
+        "cost": "$200",
+        "location": "streets",
+        "priority": "medium"
+    },
+    {
+        "question": "What is the fee for a residential parking permit?",
+        "department": "Transportation",
+        "cost": "$25",
+        "timeframe": "annual",
+        "popularity": 8.5
+    },
+    {
+        "question": "Where can I dispose of hazardous household waste?",
+        "department": "Environmental Services",
+        "location": "456 Green Ave",
+        "response_time": 0,
+        "cost": "$0",
+        "usage_rate": 1500
+    },
+    {
+        "question": "How do I renew my dog license?",
+        "department": "Animal Services",
+        "response_time": 1,
+        "cost": "$15",
+        "timeframe": "annual",
+        "online_completion_rate": 0.78
+    },
+    {
+        "question": "What are the hours for the public swimming pool?",
+        "department": "Parks and Recreation",
+        "location": "Central Community Pool",
+        "timeframe": "summer",
+        "daily_visitors": 450,
+        "cost": "$5"
+    },
+    {
+        "question": "How can I get a copy of my birth certificate?",
+        "department": "Vital Records",
+        "location": "City Hall",
+        "response_time": 5,
+        "cost": "$20",
+        "processing_volume": 120
+    },
+    {
+        "question": "What is the process for obtaining a marriage license?",
+        "department": "City Clerk",
+        "location": "City Hall",
+        "response_time": 1,
+        "cost": "$75",
+        "processing_volume": 85
+    },
+    {
+        "question": "Where can I find the city's zoning maps?",
+        "department": "Planning",
+        "location": "City Hall",
+        "response_time": 0,
+        "cost": "$0",
+        "digital_vs_paper": 0.85
+    },
+    {
+        "question": "How do I report a street light outage?",
+        "department": "Public Works",
+        "location": "streets",
+        "response_time": 2,
+        "cost": "$175",
+        "priority": "medium",
+        "monthly_reports": 65
+    },
+    {
+        "question": "What are the requirements for a home-based business license?",
+        "department": "Economic Development",
+        "response_time": 7,
+        "cost": "$75",
+        "approval_rate": 0.92,
+        "annual_applications": 320
+    },
+    {
+        "question": "How can I pay my water bill online?",
+        "department": "Utilities",
+        "response_time": 0,
+        "cost": "$0",
+        "timeframe": "monthly",
+        "online_completion_rate": 0.65,
+        "average_bill": "$78.50"
+    },
+    {
+        "question": "What is the curfew for minors in the city?",
+        "department": "Police",
+        "enforcement_rate": 0.4,
+        "annual_violations": 120
+    },
+    {
+        "question": "Where can I find information about property tax deferral programs?",
+        "department": "Revenue Services",
+        "response_time": 0,
+        "avg_savings": "$850",
+        "eligible_population": 2500,
+        "participation_rate": 0.35,
+        "timeframe": "annual"
+    },
+    {
+        "question": "How do I request a bulk item pickup?",
+        "department": "Waste Management",
+        "response_time": 2,
+        "cost": "$35",
+        "timeframe": "as needed",
+        "monthly_volume": 175
+    },
+    {
+        "question": "What are the regulations for backyard fire pits?",
+        "department": "Fire Department",
+        "enforcement_rate": 0.25,
+        "annual_permits": 850,
+        "related_incidents": 12
+    },
+    {
+        "question": "How can I apply for a sidewalk cafe permit?",
+        "department": "Business Licensing",
+        "response_time": 14,
+        "cost": "$150",
+        "timeframe": "annual",
+        "approval_rate": 0.88,
+        "annual_revenue": "$12750"
+    },
+    {
+        "question": "What is the penalty for late water bill payments?",
+        "department": "Utilities",
+        "timeframe": "monthly",
+        "late_payment_rate": 0.12,
+        "average_penalty": "$3.93",
+        "annual_revenue": "$68425"
+    },
+    {
+        "question": "Where can I find the city's annual budget?",
+        "department": "Finance",
+        "cost": "$0",
+        "response_time": 0,
+        "timeframe": "annual",
+        "budget_amount": "$125000000",
+        "page_views": 8500
+    },
+    {
+        "question": "How do I report illegal dumping?",
+        "department": "Code Enforcement",
+        "response_time": 1,
+        "cost": "$0",
+        "clean_up_cost": "$750",
+        "annual_reports": 430,
+        "successful_enforcement": 0.35
+    },
+    {
+        "question": "What are the requirements for a food truck license?",
+        "department": "Health Department",
+        "response_time": 14,
+        "cost": "$200",
+        "timeframe": "annual",
+        "inspection_pass_rate": 0.78,
+        "number_of_licensees": 45
+    },
+    {
+        "question": "How can I reserve a picnic area in a city park?",
+        "department": "Parks and Recreation",
+        "response_time": 1,
+        "cost": "$50",
+        "timeframe": "daily",
+        "annual_bookings": 1250,
+        "online_completion_rate": 0.82
+    },
+    {
+        "question": "What is the fee for a garage sale permit?",
+        "department": "City Clerk",
+        "response_time": 1,
+        "cost": "$5",
+        "timeframe": "3 days",
+        "annual_permits": 950,
+        "revenue": "$4750"
+    },
+    {
+        "question": "Where can I find the city council meeting schedule?",
+        "department": "City Council",
+        "location": "City Hall",
+        "response_time": 0,
+        "timeframe": "biweekly",
+        "attendance": 75,
+        "streaming_viewers": 450
+    },
+    {
+        "question": "How do I apply for a low-income utility assistance program?",
+        "department": "Social Services",
+        "response_time": 10,
+        "avg_benefit": "$350",
+        "annual_applicants": 850,
+        "approval_rate": 0.65,
+        "program_budget": "$193375"
+    },
+    {
+        "question": "What are the leaf collection dates for my neighborhood?",
+        "department": "Public Works",
+        "response_time": 0,
+        "cost": "$0",
+        "timeframe": "fall",
+        "service_cost": "$135000",
+        "tonnage_collected": 850
+    },
+    {
+        "question": "How can I volunteer for city beautification projects?",
+        "department": "Parks and Recreation",
+        "response_time": 3,
+        "cost": "$0",
+        "annual_volunteers": 650,
+        "volunteer_hours": 3900,
+        "value_created": "$58500"
+    },
+    {
+        "question": "What is the process for subdividing a property?",
+        "department": "Planning",
+        "response_time": 45,
+        "cost": "$500",
+        "approval_rate": 0.73,
+        "annual_applications": 65,
+        "revenue": "$32500"
+    },
+    {
+        "question": "Where can I get a permit for a block party?",
+        "department": "Police",
+        "response_time": 7,
+        "cost": "$25",
+        "timeframe": "1 day",
+        "annual_permits": 85,
+        "staffing_cost": "$9775"
+    },
+    {
+        "question": "How do I report a broken traffic signal?",
+        "department": "Transportation",
+        "response_time": 0.5,
+        "cost": "$0",
+        "repair_cost": "$350",
+        "priority": "high",
+        "annual_reports": 120
+    },
+    {
+        "question": "What are the regulations for short-term rentals?",
+        "department": "Planning",
+        "response_time": 14,
+        "cost": "$250",
+        "timeframe": "annual",
+        "active_permits": 210,
+        "annual_revenue": "$52500",
+        "tax_revenue": "$315000"
+    }
+] 
