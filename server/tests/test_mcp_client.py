@@ -86,13 +86,13 @@ def create_mcp_tools_request(tools: List[Dict[str, Any]]) -> Dict[str, Any]:
         "id": str(uuid.uuid4())
     }
 
-def send_non_streaming_request(url: str, api_key: str, message: str, session_id: str) -> None:
+def send_non_streaming_request(url: str, api_key: Optional[str], message: str, session_id: str) -> None:
     """
     Send a non-streaming MCP request and print the response.
     
     Args:
         url: The server URL
-        api_key: The API key to use
+        api_key: Optional API key to use
         message: The message to send
         session_id: The session ID to use
     """
@@ -105,9 +105,12 @@ def send_non_streaming_request(url: str, api_key: str, message: str, session_id:
     # Create headers
     headers = {
         "Content-Type": "application/json",
-        "X-API-Key": api_key,
         "X-Session-ID": session_id
     }
+    
+    # Add API key header if provided
+    if api_key:
+        headers["X-API-Key"] = api_key
     
     # Log request details
     print("\nRequest Details:")
@@ -159,13 +162,13 @@ def send_non_streaming_request(url: str, api_key: str, message: str, session_id:
     except Exception as e:
         print(f"Request failed: {str(e)}")
 
-def send_streaming_request(url: str, api_key: str, message: str, session_id: str) -> None:
+def send_streaming_request(url: str, api_key: Optional[str], message: str, session_id: str) -> None:
     """
     Send a streaming MCP request and print the chunked response.
     
     Args:
         url: The server URL
-        api_key: The API key to use
+        api_key: Optional API key to use
         message: The message to send
         session_id: The session ID to use
     """
@@ -178,9 +181,12 @@ def send_streaming_request(url: str, api_key: str, message: str, session_id: str
     # Create headers
     headers = {
         "Content-Type": "application/json",
-        "X-API-Key": api_key,
         "X-Session-ID": session_id
     }
+    
+    # Add API key header if provided
+    if api_key:
+        headers["X-API-Key"] = api_key
     
     # Log request details
     print("\nRequest Details:")
@@ -212,6 +218,14 @@ def send_streaming_request(url: str, api_key: str, message: str, session_id: str
                     
                     # Process MCP-compliant streaming chunk
                     if "result" in chunk_data:
+                        # Handle error responses (including moderation blocks)
+                        if "error" in chunk_data["result"]:
+                            error_msg = chunk_data["result"]["error"].get("message", "Unknown error")
+                            print(f"\nError: {error_msg}")
+                            full_text = error_msg
+                            break
+                            
+                        # Handle normal content chunks
                         if chunk_data["result"].get("type") == "chunk" and "chunk" in chunk_data["result"]:
                             # New MCP format
                             text_chunk = chunk_data["result"]["chunk"].get("content", "")
@@ -236,13 +250,13 @@ def send_streaming_request(url: str, api_key: str, message: str, session_id: str
     except Exception as e:
         print(f"Request failed: {str(e)}")
 
-def send_tools_request(url: str, api_key: str, session_id: str) -> None:
+def send_tools_request(url: str, api_key: Optional[str], session_id: str) -> None:
     """
     Send a tools request using JSON-RPC format.
     
     Args:
         url: The server URL
-        api_key: The API key to use
+        api_key: Optional API key to use
         session_id: The session ID to use
     """
     print("\n[MCP Tools Request]")
@@ -270,9 +284,12 @@ def send_tools_request(url: str, api_key: str, session_id: str) -> None:
     # Create headers
     headers = {
         "Content-Type": "application/json",
-        "X-API-Key": api_key,
         "X-Session-ID": session_id
     }
+    
+    # Add API key header if provided
+    if api_key:
+        headers["X-API-Key"] = api_key
     
     # Log request details
     print("\nRequest Details:")
@@ -326,8 +343,8 @@ def main():
     parser = argparse.ArgumentParser(description="Test the MCP protocol endpoint")
     parser.add_argument("--url", default="http://localhost:3000/v1/chat",
                        help="The server URL (default: http://localhost:3000/v1/chat)")
-    parser.add_argument("--api-key", required=True,
-                       help="The API key to use for authentication")
+    parser.add_argument("--api-key",
+                       help="Optional API key to use for authentication")
     parser.add_argument("--stream", action="store_true",
                        help="Use streaming mode (default: False)")
     parser.add_argument("--message", default="What is the fee for a residential parking permit?",
@@ -346,7 +363,10 @@ def main():
     print("MCP Protocol Client Test")
     print("=======================")
     print(f"Server URL: {args.url}")
-    print(f"API key: {args.api_key[:4]}...{args.api_key[-4:]}")
+    if args.api_key:
+        print(f"API key: {args.api_key[:4]}...{args.api_key[-4:]}")
+    else:
+        print("API key: None (inference-only mode)")
     print(f"Session ID: {session_id}")
     print(f"Mode: JSON-RPC 2.0 (MCP-compliant)")
     

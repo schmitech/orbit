@@ -179,6 +179,23 @@ class ChatService:
                 system_prompt_id=enhanced_prompt_id
             )
             
+            # Check if the response was blocked by moderation
+            if "error" in response_data:
+                # Log the blocked response
+                await self._log_response(response_data["error"], client_ip)
+                
+                # Log conversation if API key is provided
+                if api_key:
+                    await self._log_conversation(message, response_data["error"], client_ip, api_key)
+                
+                # Format moderation error in MCP protocol format
+                return {
+                    "error": {
+                        "code": -32603,
+                        "message": response_data["error"]
+                    }
+                }
+            
             response = response_data.get("response", "")
             # Clean and format the response
             response = fix_text_formatting(response)

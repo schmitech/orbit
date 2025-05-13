@@ -52,7 +52,7 @@ from config.config_manager import load_config, _is_true_value
 from models.schema import ChatMessage, ApiKeyCreate, ApiKeyResponse, ApiKeyDeactivate, SystemPromptCreate, SystemPromptUpdate, SystemPromptResponse, ApiKeyPromptAssociate
 from models.schema import MCPJsonRpcRequest, MCPJsonRpcResponse, MCPJsonRpcError
 from models import ChatMessage
-from services import ChatService, LoggerService, GuardrailService, RerankerService, ApiKeyService, PromptService
+from services import ChatService, LoggerService, GuardrailService, RerankerService, ApiKeyService, PromptService, HealthService
 from services.mongodb_service import MongoDBService
 from inference import LLMClientFactory
 from utils.text_utils import mask_api_key
@@ -257,41 +257,49 @@ class InferenceServer:
         This method maps the selected providers to the legacy config structure
         to minimize changes to existing code.
         """
+        # Check if inference_only is enabled
+        inference_only = _is_true_value(self.config.get('general', {}).get('inference_only', False))
+        
         # Get selected providers
         inference_provider = self.config['general'].get('inference_provider', 'ollama')
-        datasource_provider = self.config['general'].get('datasource_provider', 'chroma')
-        embedding_provider = self.config['embedding'].get('provider', 'ollama')
         
-        # Resolve providers for safety and reranker components
-        safety_provider = self._resolve_component_provider('safety')
-        reranker_provider = self._resolve_component_provider('reranker')
-        
-        # Resolve models for safety and reranker
-        safety_model = self._resolve_component_model('safety', safety_provider)
-        reranker_model = self._resolve_component_model('reranker', reranker_provider)
-        
-        # Update safety and reranker configurations with resolved values
-        if 'safety' in self.config:
-            self.config['safety']['resolved_provider'] = safety_provider
-            self.config['safety']['resolved_model'] = safety_model
-        
-        if 'reranker' in self.config:
-            self.config['reranker']['resolved_provider'] = reranker_provider
-            self.config['reranker']['resolved_model'] = reranker_model
-        
-        # Handle mongodb settings for backward compatibility
-        if 'internal_services' in self.config and 'mongodb' in self.config['internal_services']:
-            self.config['mongodb'] = self.config['internal_services']['mongodb']
-        
-        # Handle elasticsearch settings for backward compatibility
-        if 'internal_services' in self.config and 'elasticsearch' in self.config['internal_services']:
-            self.config['elasticsearch'] = self.config['internal_services']['elasticsearch']
-        
-        self.logger.info(f"Using inference provider: {inference_provider}")
-        self.logger.info(f"Using datasource provider: {datasource_provider}")
-        self.logger.info(f"Using embedding provider: {embedding_provider}")
-        self.logger.info(f"Using safety provider: {safety_provider}")
-        self.logger.info(f"Using reranker provider: {reranker_provider}")
+        # Only resolve embedding and datasource providers if not in inference_only mode
+        if not inference_only:
+            datasource_provider = self.config['general'].get('datasource_provider', 'chroma')
+            embedding_provider = self.config['embedding'].get('provider', 'ollama')
+            
+            # Resolve providers for safety and reranker components
+            safety_provider = self._resolve_component_provider('safety')
+            reranker_provider = self._resolve_component_provider('reranker')
+            
+            # Resolve models for safety and reranker
+            safety_model = self._resolve_component_model('safety', safety_provider)
+            reranker_model = self._resolve_component_model('reranker', reranker_provider)
+            
+            # Update safety and reranker configurations with resolved values
+            if 'safety' in self.config:
+                self.config['safety']['resolved_provider'] = safety_provider
+                self.config['safety']['resolved_model'] = safety_model
+            
+            if 'reranker' in self.config:
+                self.config['reranker']['resolved_provider'] = reranker_provider
+                self.config['reranker']['resolved_model'] = reranker_model
+            
+            # Handle mongodb settings for backward compatibility
+            if 'internal_services' in self.config and 'mongodb' in self.config['internal_services']:
+                self.config['mongodb'] = self.config['internal_services']['mongodb']
+            
+            # Handle elasticsearch settings for backward compatibility
+            if 'internal_services' in self.config and 'elasticsearch' in self.config['internal_services']:
+                self.config['elasticsearch'] = self.config['internal_services']['elasticsearch']
+            
+            self.logger.info(f"Using datasource provider: {datasource_provider}")
+            self.logger.info(f"Using embedding provider: {embedding_provider}")
+            self.logger.info(f"Using safety provider: {safety_provider}")
+            self.logger.info(f"Using reranker provider: {reranker_provider}")
+        else:
+            # In inference_only mode, only log the inference provider
+            self.logger.info(f"Using inference provider: {inference_provider}")
     
     def _resolve_component_provider(self, component_name: str) -> str:
         """
@@ -439,275 +447,192 @@ class InferenceServer:
         # Resolve provider configurations
         self._resolve_provider_configs()
         
-        # Initialize shared MongoDB service
-        app.state.mongodb_service = MongoDBService(self.config)
-        self.logger.info("Initializing shared MongoDB service...")
-        try:
-            await app.state.mongodb_service.initialize()
-            self.logger.info("Shared MongoDB service initialized successfully")
-        except Exception as e:
-            self.logger.error(f"Failed to initialize shared MongoDB service: {str(e)}")
-            raise
+        # Check if inference_only is enabled
+        inference_only = _is_true_value(self.config.get('general', {}).get('inference_only', False))
         
-        # Initialize API Key Service with shared MongoDB service
-        app.state.api_key_service = ApiKeyService(self.config, app.state.mongodb_service)
-        self.logger.info("Initializing API Key Service...")
-        try:
-            await app.state.api_key_service.initialize()
-            self.logger.info("API Key Service initialized successfully")
-        except Exception as e:
-            self.logger.error(f"Failed to initialize API Key Service: {str(e)}")
-            raise
-        
-        # Initialize Prompt Service with shared MongoDB service
-        app.state.prompt_service = PromptService(self.config, app.state.mongodb_service)
-        self.logger.info("Initializing Prompt Service...")
-        try:
-            await app.state.prompt_service.initialize()
-            self.logger.info("Prompt Service initialized successfully")
-        except Exception as e:
-            self.logger.error(f"Failed to initialize Prompt Service: {str(e)}")
-            raise
-        
-        # Set up lazy loading for datasource client
-        datasource_provider = self.config['general'].get('datasource_provider', 'chroma')
-        self.logger.info(f"Setting up lazy loading for {datasource_provider} datasource client")
-        
-        # Import LazyLoader utility
-        from utils.lazy_loader import LazyLoader
-        
-        if datasource_provider == 'chroma':
-            # Create a factory function for ChromaDB client
-            def create_chroma_client():
-                chroma_conf = self.config['datasources']['chroma']
-                use_local = chroma_conf.get('use_local', False)
-                
-                if use_local:
-                    # Use PersistentClient for local filesystem access
-                    import os
-                    from pathlib import Path
-                    
-                    db_path = chroma_conf.get('db_path', '../utils/chroma/chroma_db')
-                    db_path = Path(db_path).resolve()
-                    
-                    # Ensure the directory exists
-                    os.makedirs(db_path, exist_ok=True)
-                    
-                    self.logger.info(f"Initializing local ChromaDB at path: {db_path}")
-                    return chromadb.PersistentClient(path=str(db_path))
-                else:
-                    # Use HttpClient for remote server access
-                    self.logger.info(f"Connecting to ChromaDB at {chroma_conf['host']}:{chroma_conf['port']}...")
-                    return chromadb.HttpClient(
-                        host=chroma_conf['host'],
-                        port=int(chroma_conf['port'])
-                    )
-            
-            # Create a lazy loader for ChromaDB
-            app.state.chroma_client_loader = LazyLoader(create_chroma_client, "ChromaDB client")
-            
-            # Create a proxy class that lazily loads the client
-            class LazyChromaClient:
-                def __getattr__(self, name):
-                    client = app.state.chroma_client_loader.get_instance()
-                    return getattr(client, name)
-            
-            app.state.chroma_client = LazyChromaClient()
+        if inference_only:
+            self.logger.info("Inference-only mode enabled - skipping unnecessary service initialization")
+            app.state.retriever = None
+            app.state.embedding_service = None
+            app.state.guardrail_service = None
+            app.state.reranker_service = None
+            app.state.mongodb_service = None
+            app.state.api_key_service = None
+            app.state.prompt_service = None
         else:
-            # Create a factory function for the selected datasource client
-            def create_datasource_client():
-                self.logger.info(f"Initializing {datasource_provider} datasource client...")
-                return self._initialize_datasource_client(datasource_provider)
-            
-            # Create a lazy loader for the datasource client
-            app.state.datasource_client_loader = LazyLoader(create_datasource_client, f"{datasource_provider} client")
-            
-            # Create a proxy class that lazily loads the client
-            class LazyDatasourceClient:
-                def __getattr__(self, name):
-                    client = app.state.datasource_client_loader.get_instance()
-                    return getattr(client, name)
-            
-            app.state.datasource_client = LazyDatasourceClient()
-        
-        # Check if embedding services are enabled
-        embedding_enabled = _is_true_value(self.config['embedding'].get('enabled', True))
-        
-        if embedding_enabled:
-            # Determine embedding provider for the datasource
-            embedding_provider = self._resolve_datasource_embedding_provider(datasource_provider)
-            self.logger.info(f"Using {embedding_provider} for embeddings with {datasource_provider}")
-            
-            # Initialize embedding service
+            # Initialize shared MongoDB service first
+            app.state.mongodb_service = MongoDBService(self.config)
+            self.logger.info("Initializing shared MongoDB service...")
             try:
-                app.state.embedding_service = EmbeddingServiceFactory.create_embedding_service(
-                    self.config,
-                    provider_name=embedding_provider
+                await app.state.mongodb_service.initialize()
+                self.logger.info("Shared MongoDB service initialized successfully")
+            except Exception as e:
+                self.logger.error(f"Failed to initialize shared MongoDB service: {str(e)}")
+                raise
+            
+            # Initialize API Key Service with shared MongoDB service
+            app.state.api_key_service = ApiKeyService(self.config, app.state.mongodb_service)
+            self.logger.info("Initializing API Key Service...")
+            try:
+                await app.state.api_key_service.initialize()
+                self.logger.info("API Key Service initialized successfully")
+            except Exception as e:
+                self.logger.error(f"Failed to initialize API Key Service: {str(e)}")
+                raise
+            
+            # Initialize Prompt Service with shared MongoDB service
+            app.state.prompt_service = PromptService(self.config, app.state.mongodb_service)
+            self.logger.info("Initializing Prompt Service...")
+            try:
+                await app.state.prompt_service.initialize()
+                self.logger.info("Prompt Service initialized successfully")
+            except Exception as e:
+                self.logger.error(f"Failed to initialize Prompt Service: {str(e)}")
+                raise
+            
+            # Set up lazy-loaded retriever for the configured datasource provider
+            try:
+                # Get the adapter configuration
+                adapter_configs = self.config.get('adapters', [])
+                if not adapter_configs:
+                    raise ValueError("No adapter configurations found in config")
+                
+                # Get the configured adapter name from general settings
+                configured_adapter_name = self.config['general'].get('adapter', '')
+                if not configured_adapter_name:
+                    raise ValueError("No adapter specified in general.adapter")
+                
+                # Find the matching adapter configuration by name
+                retriever_config = next(
+                    (cfg for cfg in adapter_configs 
+                     if cfg.get('name') == configured_adapter_name),
+                    None
                 )
                 
-                # Initialize the embedding service
-                self.logger.info(f"Initializing {embedding_provider} embedding service...")
-                if not await app.state.embedding_service.initialize():
-                    self.logger.error(f"Failed to initialize {embedding_provider} embedding service")
-                    raise Exception(f"Failed to initialize {embedding_provider} embedding service")
+                if not retriever_config:
+                    raise ValueError(f"No matching adapter configuration found for {configured_adapter_name}")
                 
-                # Verify embedding service works by testing a simple query
-                self.logger.info("Testing embedding service with a sample query...")
-                test_embedding = await app.state.embedding_service.embed_query("test query")
-                if not test_embedding or len(test_embedding) == 0:
-                    self.logger.error(f"Embedding service returned empty embedding for test query")
-                    raise Exception(f"Embedding service test failed - empty embedding returned")
-                else:
-                    self.logger.info(f"Embedding service test succeeded: generated {len(test_embedding)} dimensional embedding")
+                # Extract adapter details
+                implementation = retriever_config.get('implementation')
+                datasource = retriever_config.get('datasource')
+                adapter_type = retriever_config.get('adapter')
+                
+                if not implementation or not datasource or not adapter_type:
+                    raise ValueError("Missing required adapter fields (implementation, datasource, or adapter)")
+                
+                self.logger.info(f"Setting up lazy loading for {datasource} retriever with {adapter_type} adapter")
+                
+                # Register a factory function for lazy loading the specified retriever
+                def create_configured_retriever():
+                    """Factory function to create the properly configured retriever when needed"""
+                    # Import the specific retriever class
+                    try:
+                        module_path, class_name = implementation.rsplit('.', 1)
+                        module = __import__(module_path, fromlist=[class_name])
+                        retriever_class = getattr(module, class_name)
+                    except (ImportError, AttributeError) as e:
+                        self.logger.error(f"Could not load retriever class from {implementation}: {str(e)}")
+                        raise ValueError(f"Failed to load retriever implementation: {str(e)}")
+                    
+                    # Create the domain adapter using the registry
+                    try:
+                        # Create adapter using registry with the full config
+                        adapter_config = retriever_config.get('config', {})
+                        domain_adapter = ADAPTER_REGISTRY.create(
+                            adapter_type='retriever',
+                            datasource=datasource,
+                            adapter_name=adapter_type,
+                            **adapter_config  # Pass config values as kwargs
+                        )
+                        self.logger.info(f"Successfully created {adapter_type} domain adapter with config: {adapter_config}")
+                    except Exception as adapter_error:
+                        self.logger.error(f"Error creating domain adapter: {str(adapter_error)}")
+                        raise ValueError(f"Failed to create domain adapter: {str(adapter_error)}")
+                    
+                    # Prepare appropriate arguments based on the provider type
+                    retriever_kwargs = {
+                        'config': self.config, 
+                        'domain_adapter': domain_adapter
+                    }
+                    
+                    # Add appropriate client/connection based on the provider type
+                    if datasource == 'chroma':
+                        # Only add embeddings if not in inference_only mode
+                        if not inference_only and hasattr(app.state, 'embedding_service'):
+                            retriever_kwargs['embeddings'] = app.state.embedding_service
+                        if hasattr(app.state, 'chroma_client'):
+                            retriever_kwargs['collection'] = app.state.chroma_client
+                    elif datasource == 'sqlite':
+                        if hasattr(app.state, 'datasource_client'):
+                            retriever_kwargs['connection'] = app.state.datasource_client
+                    
+                    # Create and return the retriever instance
+                    self.logger.info(f"Creating {datasource} retriever instance")
+                    return retriever_class(**retriever_kwargs)
+                
+                # Register the factory function with the RetrieverFactory
+                RetrieverFactory.register_lazy_retriever(datasource, create_configured_retriever)
+                
+                # Create a lazy retriever accessor for the app state
+                class LazyRetrieverAccessor:
+                    def __init__(self, retriever_type):
+                        self.retriever_type = retriever_type
+                        self._retriever = None
+                    
+                    def __getattr__(self, name):
+                        # Initialize the retriever on first access
+                        if self._retriever is None:
+                            self._retriever = RetrieverFactory.create_retriever(self.retriever_type)
+                        # Delegate attribute access to the actual retriever
+                        return getattr(self._retriever, name)
+                
+                # Set the lazy retriever accessor in app state
+                app.state.retriever = LazyRetrieverAccessor(datasource)
+                self.logger.info(f"Successfully set up lazy loading for {datasource} retriever")
+                
             except Exception as e:
-                self.logger.error(f"Error initializing embedding service: {str(e)}")
-                if self.config['embedding'].get('fail_on_error', False):
-                    raise
-                self.logger.warning("Continuing without embeddings service due to initialization error")
-                app.state.embedding_service = None
-        else:
-            # Skip embedding initialization
-            self.logger.info("Embedding services disabled in configuration")
-            app.state.embedding_service = None
-        
-        # Set up lazy-loaded retriever for the configured datasource provider
-        try:
-            # Get the adapter configuration
-            adapter_configs = self.config.get('adapters', [])
-            if not adapter_configs:
-                raise ValueError("No adapter configurations found in config")
-            
-            # Get the configured adapter name from general settings
-            configured_adapter_name = self.config['general'].get('adapter', '')
-            if not configured_adapter_name:
-                raise ValueError("No adapter specified in general.adapter")
-            
-            # Find the matching adapter configuration by name
-            retriever_config = next(
-                (cfg for cfg in adapter_configs 
-                 if cfg.get('name') == configured_adapter_name),
-                None
-            )
-            
-            if not retriever_config:
-                raise ValueError(f"No matching adapter configuration found for {configured_adapter_name}")
-            
-            # Extract adapter details
-            implementation = retriever_config.get('implementation')
-            datasource = retriever_config.get('datasource')
-            adapter_type = retriever_config.get('adapter')
-            
-            if not implementation or not datasource or not adapter_type:
-                raise ValueError("Missing required adapter fields (implementation, datasource, or adapter)")
-            
-            self.logger.info(f"Setting up lazy loading for {datasource} retriever with {adapter_type} adapter")
-            
-            # Register a factory function for lazy loading the specified retriever
-            def create_configured_retriever():
-                """Factory function to create the properly configured retriever when needed"""
-                # Import the specific retriever class
-                try:
-                    module_path, class_name = implementation.rsplit('.', 1)
-                    module = __import__(module_path, fromlist=[class_name])
-                    retriever_class = getattr(module, class_name)
-                except (ImportError, AttributeError) as e:
-                    self.logger.error(f"Could not load retriever class from {implementation}: {str(e)}")
-                    raise ValueError(f"Failed to load retriever implementation: {str(e)}")
+                self.logger.error(f"Error setting up lazy loading for retriever: {str(e)}")
+                self.logger.warning("Will attempt to initialize default retriever on first request")
                 
-                # Create the domain adapter using the registry
-                try:
-                    # Create adapter using registry with the full config
-                    adapter_config = retriever_config.get('config', {})
-                    domain_adapter = ADAPTER_REGISTRY.create(
-                        adapter_type='retriever',
-                        datasource=datasource,
-                        adapter_name=adapter_type,
-                        **adapter_config  # Pass config values as kwargs
-                    )
-                    self.logger.info(f"Successfully created {adapter_type} domain adapter with config: {adapter_config}")
-                except Exception as adapter_error:
-                    self.logger.error(f"Error creating domain adapter: {str(adapter_error)}")
-                    raise ValueError(f"Failed to create domain adapter: {str(adapter_error)}")
+                # Create a simple lazy factory that will attempt to create a fallback retriever on first access
+                def create_fallback_retriever():
+                    try:
+                        from retrievers.implementations.chroma import ChromaRetriever
+                        
+                        # Create a default QA adapter
+                        domain_adapter = ADAPTER_REGISTRY.create(
+                            adapter_type='qa',
+                            config=self.config
+                        )
+                        
+                        return ChromaRetriever(
+                            config=self.config,
+                            embeddings=app.state.embedding_service,
+                            domain_adapter=domain_adapter
+                        )
+                    except Exception as fallback_error:
+                        self.logger.error(f"Failed to initialize fallback retriever: {str(fallback_error)}")
+                        raise
                 
-                # Prepare appropriate arguments based on the provider type
-                retriever_kwargs = {
-                    'config': self.config, 
-                    'domain_adapter': domain_adapter
-                }
+                # Register the fallback retriever factory
+                RetrieverFactory.register_lazy_retriever('fallback', create_fallback_retriever)
                 
-                # Add appropriate client/connection based on the provider type
-                if datasource == 'chroma':
-                    retriever_kwargs['embeddings'] = app.state.embedding_service
-                    if hasattr(app.state, 'chroma_client'):
-                        retriever_kwargs['collection'] = app.state.chroma_client
-                elif datasource == 'sqlite':
-                    if hasattr(app.state, 'datasource_client'):
-                        retriever_kwargs['connection'] = app.state.datasource_client
-                
-                # Create and return the retriever instance
-                self.logger.info(f"Creating {datasource} retriever instance")
-                return retriever_class(**retriever_kwargs)
-            
-            # Register the factory function with the RetrieverFactory
-            RetrieverFactory.register_lazy_retriever(datasource, create_configured_retriever)
-            
-            # Create a lazy retriever accessor for the app state
-            class LazyRetrieverAccessor:
-                def __init__(self, retriever_type):
-                    self.retriever_type = retriever_type
-                    self._retriever = None
-                
-                def __getattr__(self, name):
-                    # Initialize the retriever on first access
-                    if self._retriever is None:
-                        self._retriever = RetrieverFactory.create_retriever(self.retriever_type)
-                    # Delegate attribute access to the actual retriever
-                    return getattr(self._retriever, name)
-            
-            # Set the lazy retriever accessor in app state
-            app.state.retriever = LazyRetrieverAccessor(datasource)
-            self.logger.info(f"Successfully set up lazy loading for {datasource} retriever")
-            
-        except Exception as e:
-            self.logger.error(f"Error setting up lazy loading for retriever: {str(e)}")
-            self.logger.warning("Will attempt to initialize default retriever on first request")
-            
-            # Create a simple lazy factory that will attempt to create a fallback retriever on first access
-            def create_fallback_retriever():
-                try:
-                    from retrievers.implementations.chroma import ChromaRetriever
+                # Create a lazy accessor that uses the fallback retriever
+                class FallbackRetrieverAccessor:
+                    def __init__(self):
+                        self._retriever = None
                     
-                    # Create a default QA adapter
-                    domain_adapter = ADAPTER_REGISTRY.create(
-                        adapter_type='qa',
-                        config=self.config
-                    )
-                    
-                    return ChromaRetriever(
-                        config=self.config,
-                        embeddings=app.state.embedding_service,
-                        domain_adapter=domain_adapter
-                    )
-                except Exception as fallback_error:
-                    self.logger.error(f"Failed to initialize fallback retriever: {str(fallback_error)}")
-                    raise
-            
-            # Register the fallback retriever factory
-            RetrieverFactory.register_lazy_retriever('fallback', create_fallback_retriever)
-            
-            # Create a lazy accessor that uses the fallback retriever
-            class FallbackRetrieverAccessor:
-                def __init__(self):
-                    self._retriever = None
+                    def __getattr__(self, name):
+                        if self._retriever is None:
+                            self._retriever = RetrieverFactory.create_retriever('fallback')
+                        return getattr(self._retriever, name)
                 
-                def __getattr__(self, name):
-                    if self._retriever is None:
-                        self._retriever = RetrieverFactory.create_retriever('fallback')
-                    return getattr(self._retriever, name)
-            
-            app.state.retriever = FallbackRetrieverAccessor()
+                app.state.retriever = FallbackRetrieverAccessor()
         
-        # Initialize GuardrailService only if safety is enabled
+        # Initialize Logger Service (always needed)
+        app.state.logger_service = LoggerService(self.config)
+        
+        # Initialize GuardrailService if safety is enabled (regardless of inference_only mode)
         if _is_true_value(self.config.get('safety', {}).get('enabled', False)):
             app.state.guardrail_service = GuardrailService(self.config)
             self.logger.info("Initializing GuardrailService...")
@@ -724,8 +649,8 @@ class InferenceServer:
         # Load no results message
         no_results_message = self._load_no_results_message()
         
-        # Initialize reranker service if enabled
-        if _is_true_value(self.config.get('reranker', {}).get('enabled', False)):
+        # Initialize reranker service if enabled and not in inference_only mode
+        if not inference_only and _is_true_value(self.config.get('reranker', {}).get('enabled', False)):
             app.state.reranker_service = RerankerService(self.config)
         else:
             app.state.reranker_service = None
@@ -733,39 +658,15 @@ class InferenceServer:
         # Create LLM client using the factory
         inference_provider = self.config['general'].get('inference_provider', 'ollama')
         
-        # Use a lazy-loading proxy for the retriever to ensure it's only initialized when needed
-        class LazyRetrieverProxy:
-            def __init__(self, retriever_accessor):
-                self.retriever_accessor = retriever_accessor
-            
-            def __getattr__(self, name):
-                # This will trigger the lazy loading in the accessor when needed
-                return getattr(self.retriever_accessor, name)
-        
+        # Create LLM client with all required services
         app.state.llm_client = LLMClientFactory.create_llm_client(
             self.config, 
-            LazyRetrieverProxy(app.state.retriever),  # Wrap in proxy to ensure lazy loading
-            guardrail_service=app.state.guardrail_service,
+            None if inference_only else app.state.retriever,  # Pass None if inference_only is true
+            guardrail_service=app.state.guardrail_service,  # Always pass guardrail service if it exists
             reranker_service=app.state.reranker_service,
-            prompt_service=app.state.prompt_service,
+            prompt_service=None if inference_only else app.state.prompt_service,
             no_results_message=no_results_message
         )
-        
-        app.state.logger_service = LoggerService(self.config)
-
-        # Log datasource domain adapter settings
-        datasource_provider = self.config['general'].get('datasource_provider', 'chroma')
-        datasource_config = self.config.get('datasources', {}).get(datasource_provider, {})
-        domain_adapter = datasource_config.get('domain_adapter', 'qa')
-        adapter_params = datasource_config.get('adapter_params', {})
-
-        self.logger.info(f"  {datasource_provider.capitalize()} Retriever: " +
-                    f"domain_adapter={domain_adapter}, " +
-                    f"confidence_threshold={datasource_config.get('confidence_threshold', 0.85)}")
-
-        if adapter_params:
-            adapter_params_str = ", ".join([f"{k}={v}" for k, v in adapter_params.items()])
-            self.logger.info(f"  Adapter params: {adapter_params_str}")
         
         # Initialize all services concurrently
         init_tasks = [
@@ -777,11 +678,8 @@ class InferenceServer:
         if app.state.guardrail_service is not None:
             init_tasks.append(app.state.guardrail_service.initialize())
         
-        # The retriever will be initialized on first access with lazy loading
-        # No need to initialize it here
-        
-        # Only initialize reranker if enabled
-        if app.state.reranker_service:
+        # Only initialize reranker if enabled and not in inference_only mode
+        if not inference_only and app.state.reranker_service:
             init_tasks.append(app.state.reranker_service.initialize())
         
         await asyncio.gather(*init_tasks)
@@ -793,6 +691,13 @@ class InferenceServer:
         
         # Initialize remaining services
         app.state.chat_service = ChatService(self.config, app.state.llm_client, app.state.logger_service)
+
+        # Initialize Health Service last, after all other services are initialized
+        app.state.health_service = HealthService(
+            config=self.config,
+            datasource_client=app.state.datasource_client if hasattr(app.state, 'datasource_client') else None,
+            llm_client=app.state.llm_client
+        )
 
     def _load_no_results_message(self) -> str:
         """
@@ -880,6 +785,13 @@ class InferenceServer:
         self.logger.info("Server Configuration Summary")
         self.logger.info("=" * 50)
         
+        # Check if inference_only is enabled
+        inference_only = _is_true_value(self.config.get('general', {}).get('inference_only', False))
+        
+        # Log mode first and prominently
+        self.logger.info(f"Mode: {'INFERENCE-ONLY' if inference_only else 'FULL'} (RAG {'disabled' if inference_only else 'enabled'})")
+        self.logger.info("-" * 50)
+        
         # Get selected providers
         inference_provider = self.config['general'].get('inference_provider', 'ollama')
         
@@ -906,7 +818,16 @@ class InferenceServer:
         require_for_health = _is_true_value(api_key_config.get('require_for_health', False))
         
         self.logger.info(f"Inference provider: {inference_provider}")
-        self.logger.info(f"Embedding: {'enabled' if embedding_enabled else 'disabled'}")
+        
+        # Only log embedding info if not in inference_only mode
+        if not inference_only:
+            self.logger.info(f"Embedding: {'enabled' if embedding_enabled else 'disabled'}")
+            if embedding_enabled:
+                self.logger.info(f"Embedding provider: {embedding_provider}")
+                if embedding_provider in self.config.get('embeddings', {}):
+                    embed_model = self.config['embeddings'][embedding_provider].get('model', 'unknown')
+                    self.logger.info(f"Embedding model: {embed_model}")
+        
         self.logger.info(f"Session ID: {'enabled' if session_enabled else 'disabled'} (header: {session_header})")
         self.logger.info(f"API Key: {'enabled' if api_key_enabled else 'disabled'} (header: {api_key_header}, required for health: {require_for_health})")
         
@@ -922,21 +843,18 @@ class InferenceServer:
                 model = moderator_config.get('model', 'unknown')
                 self.logger.info(f"Moderation model: {model}")
         
-        if embedding_enabled:
-            self.logger.info(f"Embedding provider: {embedding_provider}")
-            # Log embedding model information
-            if embedding_provider in self.config.get('embeddings', {}):
-                embed_model = self.config['embeddings'][embedding_provider].get('model', 'unknown')
-                self.logger.info(f"Embedding model: {embed_model}")
-        
         # Log model information based on the selected inference provider
         if inference_provider in self.config.get('inference', {}):
             model_name = self.config['inference'][inference_provider].get('model', 'unknown')
             self.logger.info(f"Server running with {model_name} model")
         
-        # Log datasource configuration
-        if hasattr(self.app.state, 'retriever'):
-            self.logger.info(f"Confidence threshold: {self.app.state.retriever.confidence_threshold}")
+        # Log retriever information only if not in inference_only mode and retriever exists
+        if not inference_only and hasattr(self.app.state, 'retriever') and self.app.state.retriever is not None:
+            try:
+                self.logger.info(f"Confidence threshold: {self.app.state.retriever.confidence_threshold}")
+            except AttributeError:
+                # Skip logging if retriever is not fully initialized
+                pass
         
         self.logger.info(f"Verbose mode: {_is_true_value(self.config['general'].get('verbose', False))}")
         
@@ -1021,9 +939,22 @@ class InferenceServer:
             Returns:
                 Tuple of (collection_name, system_prompt_id) associated with the API key
             """
+            # Check if inference_only is enabled
+            inference_only = _is_true_value(request.app.state.config.get('general', {}).get('inference_only', False))
+            
+            if inference_only:
+                # In inference_only mode, return default values without validation
+                return "default", None
+            
             # Get API key from header
-            header_name = self.config.get('api_keys', {}).get('header_name', 'X-API-Key')
+            header_name = request.app.state.config.get('api_keys', {}).get('header_name', 'X-API-Key')
             api_key = request.headers.get(header_name)
+            
+            # For health endpoint, only require API key if explicitly configured
+            if request.url.path == "/health":
+                require_for_health = _is_true_value(request.app.state.config.get('api_keys', {}).get('require_for_health', False))
+                if not require_for_health:
+                    return "default", None
             
             # Validate API key and get collection name and system prompt ID
             try:
@@ -1032,7 +963,7 @@ class InferenceServer:
             except HTTPException as e:
                 # Allow health check without API key if configured
                 if (request.url.path == "/health" and 
-                    not self.config.get('api_keys', {}).get('require_for_health', False)):
+                    not request.app.state.config.get('api_keys', {}).get('require_for_health', False)):
                     return "default", None
                 raise e
                 
@@ -1200,6 +1131,20 @@ class InferenceServer:
                                         
                                         chunk_data = json.loads(chunk)
                                         
+                                        # Handle error responses (including moderation blocks)
+                                        if "error" in chunk_data:
+                                            error_response = {
+                                                "jsonrpc": "2.0",
+                                                "id": jsonrpc_request.id,
+                                                "error": {
+                                                    "code": chunk_data["error"].get("code", -32603),
+                                                    "message": chunk_data["error"].get("message", "Unknown error")
+                                                }
+                                            }
+                                            yield f"data: {json.dumps(error_response)}\n\n"
+                                            yield f"data: [DONE]\n\n"
+                                            return
+                                            
                                         # Skip done messages
                                         if chunk_data.get("done", False):
                                             continue
@@ -1291,12 +1236,13 @@ class InferenceServer:
                             api_key=api_key
                         )
                         
+                        # Handle error responses (including moderation blocks)
                         if "error" in result:
                             return MCPJsonRpcResponse(
                                 jsonrpc="2.0",
                                 error={
-                                    "code": -32603,
-                                    "message": result["error"]
+                                    "code": result["error"].get("code", -32603),
+                                    "message": result["error"].get("message", "Unknown error")
                                 },
                                 id=jsonrpc_request.id
                             )
@@ -1461,11 +1407,10 @@ class InferenceServer:
         # Health check endpoint
         @self.app.get("/health")
         async def health_check(
-            health_service = Depends(get_health_service),
-            collection_name: str = Depends(get_api_key)
+            health_service = Depends(get_health_service)
         ):
             """Check the health of the application and its dependencies"""
-            health = await health_service.get_health_status(collection_name)
+            health = await health_service.get_health_status()
             return health
 
         # System Prompts management routes

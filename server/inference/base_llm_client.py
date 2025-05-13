@@ -34,6 +34,9 @@ class BaseLLMClient(ABC):
         self.prompt_service = prompt_service
         self.no_results_message = no_results_message
         self.logger = logging.getLogger(self.__class__.__name__)
+        
+        # Add inference_only configuration
+        self.inference_only = config.get('general', {}).get('inference_only', False)
     
     @abstractmethod
     async def initialize(self) -> None:

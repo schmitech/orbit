@@ -1,6 +1,6 @@
 general:
   port: 3000
-  verbose: true
+  verbose: false
   https:
     enabled: false
     port: 3443
@@ -10,14 +10,20 @@ general:
     header_name: "X-Session-ID"
     enabled: true
   inference_provider: "ollama"
-  adapter: "qa-sqlite"
+  inference_only: true # Act as pass-through LLM without RAG. No API key required.
+  adapter: "qa-chroma"
+
+orbit_db:
+  provider: "sqlite"
+  config:
+    db_path: "./sqlite_db"
 
 messages:
   no_results_response: "I'm sorry, but I don't have any specific information about that topic in my knowledge base."
   collection_not_found: "I couldn't find the requested collection. Please make sure the collection exists before querying it."
 
 embedding:
-  provider: "ollama"
+  provider: "openai"
   enabled: true
   fail_on_error: false
 
@@ -125,7 +131,7 @@ adapters:
 datasources:
   chroma:
     use_local: true
-    db_path: "./chroma_db"
+    db_path: "chroma_db"
     host: "localhost"
     port: 8000
     embedding_provider: null 
@@ -309,7 +315,7 @@ inference:
 safety:
   enabled: false
   mode: "fuzzy"
-  moderator: "openai"
+  moderator: "ollama"
   max_retries: 3
   retry_delay: 1.0
   request_timeout: 10

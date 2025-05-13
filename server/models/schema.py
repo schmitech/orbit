@@ -13,8 +13,8 @@ class ChatMessage(BaseModel):
 
 
 class HealthStatus(BaseModel):
-    status: str
-    components: Dict[str, Dict[str, Any]]
+    """Health status model"""
+    status: str = Field(description="Overall health status of the server")
 
 
 class ApiKeyCreate(BaseModel):

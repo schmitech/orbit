@@ -147,29 +147,43 @@ def stream_chat(url, message, api_key=None, session_id=None, debug=False):
                         # Decode the line
                         line = line.decode('utf-8')
                         
-                        # Skip if not a data line
+                        # Skip if not a data line or empty line
                         if not line.startswith('data: '):
                             continue
                             
+                        # Skip empty data lines
+                        data_text = line[6:].strip()  # Skip "data: " prefix
+                        if not data_text:
+                            continue
+                            
+                        # Check for [DONE] message
+                        if data_text == "[DONE]":
+                            if debug:
+                                print(f"\n{Fore.YELLOW}Debug - Stream complete{Style.RESET_ALL}")
+                            break
+                            
                         # Parse the JSON data
-                        data = json.loads(line[6:])  # Skip "data: " prefix
+                        try:
+                            data = json.loads(data_text)
+                        except json.JSONDecodeError as e:
+                            # Only log JSON decode errors if we're in debug mode
+                            if debug:
+                                print(f"\n{Fore.YELLOW}Debug - Skipping malformed JSON: {e}{Style.RESET_ALL}")
+                            continue
                         
                         # Record time of first token
                         if first_token_time is None:
                             first_token_time = time.time()
                         
-                        if debug:
-                            print(f"\n{Fore.YELLOW}Debug - Received:{Style.RESET_ALL}")
-                            print(json.dumps(data, indent=2))
-                        
-                        # Check if we're done
-                        if data == "[DONE]":
-                            if debug:
-                                print(f"\n{Fore.YELLOW}Debug - Stream complete{Style.RESET_ALL}")
-                            break
-                        
                         # Handle MCP protocol response
                         if "result" in data:
+                            # Handle error responses (including moderation blocks)
+                            if "error" in data["result"]:
+                                error_msg = data["result"]["error"].get("message", "Unknown error")
+                                print(f"\n{Fore.RED}Error: {error_msg}{Style.RESET_ALL}")
+                                full_response = error_msg
+                                break
+                                
                             if "type" in data["result"]:
                                 # Handle different chunk types
                                 chunk_type = data["result"]["type"]
@@ -177,12 +191,25 @@ def stream_chat(url, message, api_key=None, session_id=None, debug=False):
                                     continue
                                 elif chunk_type == "chunk" and "chunk" in data["result"]:
                                     content = data["result"]["chunk"].get("content", "")
-                                    buffer += content
-                                elif chunk_type == "complete" and "output" in data["result"]:
-                                    # Final response with complete text
-                                    messages = data["result"]["output"].get("messages", [])
-                                    if messages:
-                                        buffer = messages[0].get("content", "")
+                                    if content:  # Only add non-empty content
+                                        buffer += content
+                                elif chunk_type == "complete":
+                                    # Handle complete response
+                                    if "output" in data["result"] and "messages" in data["result"]["output"]:
+                                        messages = data["result"]["output"]["messages"]
+                                        if messages and messages[0].get("role") == "assistant":
+                                            # For moderation responses, the content might be empty
+                                            # but we should still display the message
+                                            if not messages[0].get("content"):
+                                                buffer = "I'm sorry, but I cannot respond to that message as it may violate content safety guidelines."
+                                            else:
+                                                buffer = messages[0].get("content", "")
+                                    elif "response" in data["result"]:
+                                        # Handle direct response field
+                                        buffer = data["result"]["response"]
+                            elif "response" in data["result"]:
+                                # Handle direct response field
+                                buffer = data["result"]["response"]
                             else:
                                 continue
                         else:
@@ -191,7 +218,7 @@ def stream_chat(url, message, api_key=None, session_id=None, debug=False):
                         # Use the accumulated buffer for display
                         content = buffer
                         
-                        if content:
+                        if content:  # Only display if we have content
                             # We already have the fixed text from the server, just clean it for display
                             clean_content = clean_response(content)
                             

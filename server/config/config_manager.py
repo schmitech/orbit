@@ -274,6 +274,7 @@ def get_default_config() -> Dict[str, Any]:
         "general": {
             "port": 3000,
             "verbose": "false",
+            "inference_only": False,
             "https": {
                 "enabled": False,
                 "port": 3443,
@@ -451,8 +452,7 @@ def get_default_config() -> Dict[str, Any]:
                 "db_path": "./chroma_db",
                 "host": "localhost",
                 "port": 8000,
-                "embedding_provider": None,
-                "distance_scaling_factor": 200.0  # Default value for cross-language matching
+                "embedding_provider": None
             },
             "sqlite": {
                 "db_path": "sqlite_db"

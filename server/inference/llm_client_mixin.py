@@ -75,6 +75,10 @@ class LLMClientMixin:
         Returns:
             List of retrieved and optionally reranked documents
         """
+        if self.inference_only:
+            # In inference_only mode, return empty list to skip RAG
+            return []
+        
         # Log if verbose mode is enabled
         if getattr(self, 'verbose', False):
             self.logger.info(f"Retrieving context from collection: {collection_name}")
@@ -135,7 +139,12 @@ class LLMClientMixin:
         Returns:
             Formatted prompt string
         """
-        prompt = f"{system_prompt}\n\nContext information:\n{context}\n\nUser: {message}\nAssistant:"
+        if self.inference_only:
+            # In inference_only mode, just use the system prompt and user message
+            prompt = f"{system_prompt}\n\nUser: {message}\nAssistant:"
+        else:
+            # Normal mode with RAG
+            prompt = f"{system_prompt}\n\nContext information:\n{context}\n\nUser: {message}\nAssistant:"
         
         if getattr(self, 'verbose', False):
             self.logger.debug(f"Prepared prompt length: {len(prompt)} characters")
