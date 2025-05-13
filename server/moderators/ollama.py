@@ -56,7 +56,7 @@ class OllamaModerator(ModeratorService):
         async with self._session_lock:
             if self.session is None or self.session.closed:
                 connector = aiohttp.TCPConnector(limit=10, limit_per_host=5)
-                timeout = aiohttp.ClientTimeout(total=30)
+                timeout = aiohttp.ClientTimeout(total=60, connect=30)
                 self.session = aiohttp.ClientSession(connector=connector, timeout=timeout)
             return self.session
     

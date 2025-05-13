@@ -2,7 +2,7 @@
 
 /**
  * This script picks multiple random questions from a JSON file and runs them against the chatbot API.
- * Usage: npm run test-query-from-pairs path/to/questions.json "http://your-api-url.com" "your-api-key" [number_of_questions] ["your-session-id"]
+ * Usage: npm run test-query-from-pairs path/to/questions.json "http://your-api-url.com" ["your-api-key"] [number_of_questions] ["your-session-id"]
  */
 
 import { configureApi, streamChat } from '../api.ts';
@@ -17,18 +17,15 @@ const sessionId = process.argv[6]; // Optional session ID
 
 if (!jsonFilePath) {
   console.error('Error: No JSON file provided');
-  console.error('Usage: npm run test-query-from-pairs path/to/questions.json "http://your-api-url.com" "your-api-key" [number_of_questions] ["your-session-id"]');
-  process.exit(1);
-}
-
-if (!apiKey) {
-  console.error('Error: No API key provided');
-  console.error('Usage: npm run test-query-from-pairs path/to/questions.json "http://your-api-url.com" "your-api-key" [number_of_questions] ["your-session-id"]');
+  console.error('Usage: npm run test-query-from-pairs path/to/questions.json "http://your-api-url.com" ["your-api-key"] [number_of_questions] ["your-session-id"]');
   process.exit(1);
 }
 
 console.log(`Using API URL: ${apiUrl}`);
 console.log(`Number of random questions to test: ${numQuestions}`);
+if (apiKey) {
+  console.log(`Using API Key: ${apiKey}`);
+}
 if (sessionId) {
   console.log(`Using Session ID: ${sessionId}`);
 }

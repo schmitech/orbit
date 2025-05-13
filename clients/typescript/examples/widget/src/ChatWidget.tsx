@@ -177,8 +177,10 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
     const linkedText = text.replace(urlRegex, (match, url, punctuation) =>
       `[${url}](${url})${punctuation}`
     );
-    // Normalize line breaks to a single newline
-    return linkedText.replace(/\n{3,}/g, '\n\n');
+    
+    // Only add the two spaces to lines that aren't already part of a paragraph break
+    // This preserves intentional single line breaks without adding extra spacing
+    return linkedText;
   };
 
   // Format timestamp (note: uses a relative offset since messages lack explicit timestamps)
@@ -441,7 +443,9 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
                 a: (props) => <MarkdownLink {...props} />,
                 p: (props) => <p style={{ 
                   overflowWrap: 'anywhere', 
-                  wordBreak: 'break-word'
+                  wordBreak: 'break-word',
+                  whiteSpace: 'pre-line',
+                  margin: '0 0 0.5em 0'
                 }} {...props} />,
                 code: (props) => <code style={{ display: 'block', whiteSpace: 'pre-wrap', overflowX: 'auto', overflowWrap: 'anywhere' }} {...props} />
               }}
@@ -660,7 +664,9 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
                                   a: (props) => <MarkdownLink {...props} />,
                                   p: (props) => <p style={{ 
                                     overflowWrap: 'anywhere', 
-                                    wordBreak: 'break-word'
+                                    wordBreak: 'break-word',
+                                    whiteSpace: 'pre-line',
+                                    margin: '0 0 0.5em 0'
                                   }} {...props} />,
                                   code: (props) => <code style={{ display: 'block', whiteSpace: 'pre-wrap', overflowX: 'auto', overflowWrap: 'anywhere' }} {...props} />
                                 }}
@@ -905,6 +911,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
           margin: 0 0 0.5em 0 !important;
           padding: 0;
           line-height: 1.5;
+          white-space: pre-line;
         }
 
         .prose p:last-child {

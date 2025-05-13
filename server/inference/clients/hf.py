@@ -87,8 +87,10 @@ class HuggingFaceClient(BaseLLMClient, LLMClientMixin):
     ) -> dict:
         """Generate response using Hugging Face model."""
         try:
-            if not await self._check_message_safety(message):
-                return await self._handle_unsafe_message()
+            is_safe, refusal_message = await self._check_message_safety(message)
+            if not is_safe:
+                yield await self._handle_unsafe_message_stream(refusal_message)
+                return
 
             docs = await self._retrieve_and_rerank_docs(message, collection_name)
             system_prompt = await self._get_system_prompt(system_prompt_id)

@@ -44,7 +44,7 @@ configureApi(apiEndpoint, apiKey, getSessionId());
 console.log('API configured with endpoint:', apiEndpoint);
 
 function App() {
-  const { messages, isLoading, addMessage, setIsLoading, appendToLastMessage } = useChatStore();
+  const { messages, isLoading, sendMessage } = useChatStore();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -56,26 +56,7 @@ function App() {
   }, [messages]);
 
   const handleSendMessage = async (content: string) => {
-    addMessage({ role: 'user', content });
-    setIsLoading(true);
-    addMessage({ role: 'assistant', content: '' });
-  
-    try {
-      for await (const chunk of streamChat(content, true)) {
-        if (chunk.text) {
-          appendToLastMessage(chunk.text);
-        }
-        
-        if (chunk.done) {
-          setIsLoading(false);
-        }
-      }
-    } catch (error) {
-      console.error('Error in chat:', error);
-      appendToLastMessage('Sorry, there was an error processing your request.');
-    } finally {
-      setIsLoading(false);
-    }
+    sendMessage(content);
   };
 
   return (

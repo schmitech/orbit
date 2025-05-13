@@ -25,7 +25,7 @@ interface MCPResponse {
         message: string;
     };
 }
-export declare const configureApi: (apiUrl: string, apiKey: string, sessionId: string) => void;
+export declare const configureApi: (apiUrl: string, apiKey?: string | null, sessionId?: string | null) => void;
 export declare function streamChat(message: string, stream?: boolean): AsyncGenerator<StreamResponse>;
 export declare function sendToolsRequest(tools: Array<{
     name: string;

@@ -30,12 +30,14 @@ import json
 import asyncio
 import time
 import uuid
-from typing import Dict, Any, Optional, List, Callable, Awaitable
+import warnings
+import atexit
+from typing import Dict, Any, Optional, List, Callable, Awaitable, Set
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 
 import uvicorn
-from fastapi import FastAPI, Request, Depends, HTTPException
+from fastapi import FastAPI, Request, Depends, HTTPException, Response
 from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import chromadb
@@ -63,6 +65,47 @@ from utils.mongodb_utils import configure_mongodb_logging
 
 # Configure MongoDB logging
 configure_mongodb_logging()
+
+# Global registry to track aiohttp client sessions
+_AIOHTTP_SESSIONS = set()
+
+# Register aiohttp session to track it
+def register_aiohttp_session(session):
+    """Register an aiohttp ClientSession for tracking"""
+    global _AIOHTTP_SESSIONS
+    _AIOHTTP_SESSIONS.add(session)
+    return session
+
+# Close all tracked sessions
+async def close_all_aiohttp_sessions():
+    """Close all tracked aiohttp ClientSessions"""
+    global _AIOHTTP_SESSIONS
+    if not _AIOHTTP_SESSIONS:
+        return
+    
+    logger = logging.getLogger(__name__)
+    logger.info(f"Closing {len(_AIOHTTP_SESSIONS)} aiohttp sessions")
+    
+    close_tasks = []
+    for session in list(_AIOHTTP_SESSIONS):
+        if not session.closed:
+            close_tasks.append(session.close())
+    
+    if close_tasks:
+        await asyncio.gather(*close_tasks, return_exceptions=True)
+    
+    _AIOHTTP_SESSIONS.clear()
+    logger.info("All aiohttp sessions closed")
+
+# Monkey patch aiohttp.ClientSession to track all created sessions
+import aiohttp
+original_init = aiohttp.ClientSession.__init__
+
+def patched_init(self, *args, **kwargs):
+    original_init(self, *args, **kwargs)
+    register_aiohttp_session(self)
+
+aiohttp.ClientSession.__init__ = patched_init
 
 class InferenceServer:
     """
@@ -766,6 +809,9 @@ class InferenceServer:
         if hasattr(app.state, 'mongodb_service'):
             add_shutdown_task(app.state.mongodb_service, 'MongoDB Service')
         
+        # Close all tracked aiohttp sessions
+        shutdown_tasks.append(close_all_aiohttp_sessions())
+        
         # Only run asyncio.gather if there are tasks to gather
         if shutdown_tasks:
             try:
@@ -808,7 +854,7 @@ class InferenceServer:
         
         # Get session ID configuration
         session_config = self.config.get('general', {}).get('session_id', {})
-        session_enabled = _is_true_value(session_config.get('enabled', False))
+        session_enabled = _is_true_value(session_config.get('required', False))
         session_header = session_config.get('header_name', 'X-Session-ID')
         
         # Get API key configuration
@@ -829,7 +875,7 @@ class InferenceServer:
                     self.logger.info(f"Embedding model: {embed_model}")
         
         self.logger.info(f"Session ID: {'enabled' if session_enabled else 'disabled'} (header: {session_header})")
-        self.logger.info(f"API Key: {'enabled' if api_key_enabled else 'disabled'} (header: {api_key_header}, required for health: {require_for_health})")
+        self.logger.info(f"API Key: {'enabled' if api_key_enabled else 'disabled'} (header: {api_key_header})")
         
         # Log safety information
         self.logger.info(f"Safety: {'enabled' if safety_enabled else 'disabled'}")
@@ -892,6 +938,11 @@ class InferenceServer:
         async def get_prompt_service(request: Request):
             return request.app.state.prompt_service
 
+        # Add favicon.ico handler to return 204 No Content
+        @self.app.get("/favicon.ico")
+        async def favicon():
+            return Response(status_code=204)
+
         async def validate_session_id(request: Request) -> str:
             """
             Validate the session ID from the request header.
@@ -907,7 +958,7 @@ class InferenceServer:
                 HTTPException: If session ID is missing or empty when session validation is enabled
             """
             # Check if session ID validation is enabled
-            session_enabled = _is_true_value(request.app.state.config.get('general', {}).get('session_id', {}).get('enabled', False))
+            session_enabled = _is_true_value(request.app.state.config.get('general', {}).get('session_id', {}).get('required', False))
             
             if not session_enabled:
                 # If session validation is disabled, return None
@@ -1124,7 +1175,7 @@ class InferenceServer:
                                     system_prompt_id=system_prompt_id,
                                     api_key=api_key
                                 ):
-                                    # Parse chunk data
+                                    # Process chunk data
                                     try:
                                         if chunk.startswith("data: "):
                                             chunk = chunk[6:].strip()  # Remove "data: " prefix
@@ -1133,22 +1184,31 @@ class InferenceServer:
                                         
                                         # Handle error responses (including moderation blocks)
                                         if "error" in chunk_data:
+                                            # Format the error response as a complete message
                                             error_response = {
                                                 "jsonrpc": "2.0",
                                                 "id": jsonrpc_request.id,
-                                                "error": {
-                                                    "code": chunk_data["error"].get("code", -32603),
-                                                    "message": chunk_data["error"].get("message", "Unknown error")
+                                                "result": {
+                                                    "name": "chat",
+                                                    "type": "complete",
+                                                    "output": {
+                                                        "messages": [
+                                                            {
+                                                                "role": "assistant",
+                                                                "content": chunk_data["error"]
+                                                            }
+                                                        ]
+                                                    }
                                                 }
                                             }
                                             yield f"data: {json.dumps(error_response)}\n\n"
                                             yield f"data: [DONE]\n\n"
                                             return
-                                            
+                                        
                                         # Skip done messages
                                         if chunk_data.get("done", False):
                                             continue
-                                            
+                                        
                                         # Extract content
                                         content = chunk_data.get("response", "")
                                         if content:
@@ -1556,34 +1616,44 @@ class InferenceServer:
         # Use HTTPS if enabled in config
         https_enabled = _is_true_value(self.config.get('general', {}).get('https', {}).get('enabled', False))
         
+        # Set SSL params based on config
+        ssl_keyfile = None
+        ssl_certfile = None
+        port_to_use = port
+        
         if https_enabled:
-            try:
-                ssl_keyfile = self.config['general']['https']['key_file']
-                ssl_certfile = self.config['general']['https']['cert_file']
-                https_port = int(self.config['general']['https'].get('port', 3443))
+            ssl_keyfile = self.config['general']['https']['key_file']
+            ssl_certfile = self.config['general']['https']['cert_file']
+            port_to_use = int(self.config['general']['https'].get('port', 3443))
+        
+        # Configure uvicorn with signal handlers for graceful shutdown
+        config = uvicorn.Config(
+            self.app,
+            host=host,
+            port=port_to_use,
+            ssl_keyfile=ssl_keyfile,
+            ssl_certfile=ssl_certfile,
+            loop="asyncio",
+            timeout_keep_alive=30,
+            timeout_graceful_shutdown=30,
+        )
+        
+        server = uvicorn.Server(config)
+        
+        try:
+            # Register a shutdown function to ensure all aiohttp sessions are closed
+            atexit.register(lambda: asyncio.run(close_all_aiohttp_sessions()))
+            
+            # Start the server
+            if https_enabled:
+                self.logger.info(f"Starting HTTPS server on {host}:{port_to_use}")
+            else:
+                self.logger.info(f"Starting HTTP server on {host}:{port_to_use}")
                 
-                self.logger.info(f"Starting HTTPS server on {host}:{https_port}")
-                
-                # Run without reload option - this is handled by the start script
-                uvicorn.run(
-                    self.app,
-                    host=host,
-                    port=https_port,
-                    ssl_keyfile=ssl_keyfile,
-                    ssl_certfile=ssl_certfile
-                )
-            except Exception as e:
-                self.logger.error(f"Failed to start HTTPS server: {str(e)}")
-                import sys
-                sys.exit(1)
-        else:
-            self.logger.info(f"Starting HTTP server on {host}:{port}")
-            # Run without reload option - this is handled by the start script
-            uvicorn.run(
-                self.app,
-                host=host,
-                port=port
-            )
+            server.run()
+        except KeyboardInterrupt:
+            self.logger.info("Received shutdown signal, initiating graceful shutdown...")
+            # The server will handle the graceful shutdown through its signal handlers
 
 # Create a global app instance for direct use by uvicorn in development mode
 app = FastAPI(

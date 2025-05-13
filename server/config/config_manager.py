@@ -285,7 +285,7 @@ def get_default_config() -> Dict[str, Any]:
             "mcp_protocol": False,  # Toggle for MCP protocol compatibility
             "session_id": {
                 "header_name": "X-Session-ID",
-                "enabled": False
+                "required": False
             }
         },
         "messages": {
@@ -295,7 +295,6 @@ def get_default_config() -> Dict[str, Any]:
         "api_keys": {
             "header_name": "X-API-Key",
             "prefix": "orbit_",
-            "require_for_health": True
         },
         "logging": {
             "level": "INFO",

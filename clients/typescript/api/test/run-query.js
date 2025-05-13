@@ -2,7 +2,7 @@
 
 /**
  * This script runs a query against the chatbot API and displays the results.
- * Usage: DEBUG=1 npm run test-query "your query here" "http://your-api-url.com" "your-api-key" ["your-session-id"]
+ * Usage: DEBUG=1 npm run test-query "your query here" "http://your-api-url.com" ["your-api-key"] ["your-session-id"]
  */
 
 import { configureApi, streamChat } from '../api.ts';
@@ -18,17 +18,14 @@ const sessionId = args[3]; // Optional session ID
 
 if (!query) {
   console.error('Error: No query provided');
-  console.error('Usage: DEBUG=1 npm run test-query "your query here" "http://your-api-url.com" "your-api-key" ["your-session-id"]');
-  process.exit(1);
-}
-
-if (!apiKey) {
-  console.error('Error: No API key provided');
-  console.error('Usage: DEBUG=1 npm run test-query "your query here" "http://your-api-url.com" "your-api-key" ["your-session-id"]');
+  console.error('Usage: DEBUG=1 npm run test-query "your query here" "http://your-api-url.com" ["your-api-key"] ["your-session-id"]');
   process.exit(1);
 }
 
 console.log(`Using API URL: ${apiUrl}`);
+if (apiKey) {
+  console.log(`Using API Key: ${apiKey}`);
+}
 if (sessionId) {
   console.log(`Using Session ID: ${sessionId}`);
 }

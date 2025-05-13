@@ -108,8 +108,9 @@ class XAIClient(BaseLLMClient, LLMClientMixin):
         system_prompt_id: Optional[str] = None
     ) -> dict:
         """Non-streaming chat completion using x.ai Grok."""
-        if not await self._check_message_safety(message):
-            return await self._handle_unsafe_message()
+        is_safe, refusal_message = await self._check_message_safety(message)
+        if not is_safe:
+            return await self._handle_unsafe_message(refusal_message)
 
         try:
             # Retrieve context and prompts
@@ -117,7 +118,9 @@ class XAIClient(BaseLLMClient, LLMClientMixin):
             system_prompt = await self._get_system_prompt(system_prompt_id)
             context = self._format_context(docs)
 
-            await self.initialize()
+            # Initialize session if not already initialized
+            if not self.session:
+                await self.initialize()
             start = time.time()
 
             payload = {
@@ -167,8 +170,9 @@ class XAIClient(BaseLLMClient, LLMClientMixin):
         system_prompt_id: Optional[str] = None
     ) -> AsyncGenerator[str, None]:
         """Streaming chat completion via Server-Sent Events."""
-        if not await self._check_message_safety(message):
-            yield await self._handle_unsafe_message_stream()
+        is_safe, refusal_message = await self._check_message_safety(message)
+        if not is_safe:
+            yield await self._handle_unsafe_message_stream(refusal_message)
             return
 
         try:
@@ -176,7 +180,9 @@ class XAIClient(BaseLLMClient, LLMClientMixin):
             system_prompt = await self._get_system_prompt(system_prompt_id)
             context = self._format_context(docs)
 
-            await self.initialize()
+            # Initialize session if not already initialized
+            if not self.session:
+                await self.initialize()
             payload = {
                 "model": self.model,
                 "messages": [

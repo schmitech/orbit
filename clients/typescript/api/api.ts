@@ -59,16 +59,16 @@ let configuredApiUrl: string | null = null;
 let configuredApiKey: string | null = null;
 let configuredSessionId: string | null = null;
 
-// Configure the API with a custom URL, API key, and session ID
-export const configureApi = (apiUrl: string, apiKey: string, sessionId: string): void => {
+// Configure the API with a custom URL, API key (optional), and session ID (optional)
+export const configureApi = (apiUrl: string, apiKey: string | null = null, sessionId: string | null = null): void => {
   if (!apiUrl || typeof apiUrl !== 'string') {
     throw new Error('API URL must be a valid string');
   }
-  if (!apiKey || typeof apiKey !== 'string') {
-    throw new Error('API key must be a valid string');
+  if (apiKey !== null && typeof apiKey !== 'string') {
+    throw new Error('API key must be a valid string or null');
   }
-  if (!sessionId || typeof sessionId !== 'string') {
-    throw new Error('Session ID must be a valid string');
+  if (sessionId !== null && typeof sessionId !== 'string') {
+    throw new Error('Session ID must be a valid string or null');
   }
   configuredApiUrl = apiUrl;
   configuredApiKey = apiKey;
@@ -83,19 +83,13 @@ const getApiUrl = (): string => {
   return configuredApiUrl;
 };
 
-// Get the configured API key or throw an error if not configured
-const getApiKey = (): string => {
-  if (!configuredApiKey) {
-    throw new Error('API key not configured. Please call configureApi() with your API key before using any API functions.');
-  }
+// Get the configured API key or return null if not configured
+const getApiKey = (): string | null => {
   return configuredApiKey;
 };
 
-// Get the configured session ID or throw an error if not configured
-const getSessionId = (): string => {
-  if (!configuredSessionId) {
-    throw new Error('Session ID not configured. Please call configureApi() with your session ID before using any API functions.');
-  }
+// Get the configured session ID or return null if not configured
+const getSessionId = (): string | null => {
   return configuredSessionId;
 };
 
@@ -118,10 +112,20 @@ const getFetchOptions = (apiUrl: string, options: RequestInit = {}): RequestInit
   // Use keep-alive header in browser environments
   const headers: Record<string, string> = {
     'Connection': 'keep-alive',
-    'X-Request-ID': requestId,
-    'X-API-Key': getApiKey(),
-    'X-Session-ID': getSessionId()
+    'X-Request-ID': requestId
   };
+  
+  // Add API key to headers only if it exists
+  const apiKey = getApiKey();
+  if (apiKey) {
+    headers['X-API-Key'] = apiKey;
+  }
+  
+  // Add session ID to headers only if it exists
+  const sessionId = getSessionId();
+  if (sessionId) {
+    headers['X-Session-ID'] = sessionId;
+  }
   
   return {
     ...options,
@@ -174,7 +178,7 @@ export async function* streamChat(
     
     // Add timeout to the fetch request
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+    const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
 
     const response = await fetch(`${API_URL}/v1/chat`, {
       ...getFetchOptions(API_URL, {

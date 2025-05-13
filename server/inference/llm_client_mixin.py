@@ -17,7 +17,7 @@ class LLMClientMixin:
     reducing code duplication and making clients more maintainable.
     """
     
-    async def _check_message_safety(self, message: str) -> bool:
+    async def _check_message_safety(self, message: str) -> tuple[bool, Optional[str]]:
         """
         Check if a message passes safety checks.
         
@@ -25,16 +25,20 @@ class LLMClientMixin:
             message: The user's message
             
         Returns:
-            True if message is safe, False otherwise
+            Tuple of (is_safe, refusal_message):
+            - is_safe: True if message is safe, False otherwise
+            - refusal_message: Custom refusal message if unsafe, None if safe
         """
         if not self.guardrail_service:
-            return True
+            return True, None
             
-        is_safe = await self.guardrail_service.is_safe(message)
+        # Call the full check_safety method instead of is_safe to get the refusal message
+        is_safe, refusal_message = await self.guardrail_service.check_safety(message)
+        
         if not is_safe and getattr(self, 'verbose', False):
             self.logger.warning("Message failed safety check")
             
-        return is_safe
+        return is_safe, refusal_message
     
     async def _get_system_prompt(self, system_prompt_id: Optional[str] = None) -> str:
         """
@@ -100,29 +104,37 @@ class LLMClientMixin:
             
         return retrieved_docs
     
-    async def _handle_unsafe_message(self) -> Dict[str, Any]:
+    async def _handle_unsafe_message(self, refusal_message: Optional[str] = None) -> Dict[str, Any]:
         """
         Generate a standard response for unsafe messages.
         
+        Args:
+            refusal_message: Optional custom message from guardrail service
+            
         Returns:
             Dictionary with safety response
         """
+        message = refusal_message or "I cannot assist with that type of request."
         return {
-            "response": "I'm sorry, but I cannot respond to that message as it may violate content safety guidelines.",
+            "response": message,
             "sources": [],
             "tokens": 0,
             "processing_time": 0
         }
     
-    async def _handle_unsafe_message_stream(self) -> str:
+    async def _handle_unsafe_message_stream(self, refusal_message: Optional[str] = None) -> str:
         """
         Generate a standard streaming response for unsafe messages.
         
+        Args:
+            refusal_message: Optional custom message from guardrail service
+            
         Returns:
             JSON string with safety response
         """
+        message = refusal_message or "I cannot assist with that type of request."
         return json.dumps({
-            "response": "I'm sorry, but I cannot respond to that message as it may violate content safety guidelines.",
+            "response": message,
             "sources": [],
             "done": True
         })
