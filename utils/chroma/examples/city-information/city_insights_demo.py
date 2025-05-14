@@ -63,7 +63,7 @@ async def run_demo(collection_name, use_local=False, db_path="./chroma_db"):
             }
         
         # Import the retriever and adapter classes
-        from server.retrievers.implementations.chroma.qa_chroma_retriever import QAChromaRetriever
+        from server.retrievers.implementations.qa_chroma_retriever import QAChromaRetriever
         from utils.insights_adapter import InsightsAdapter
         
         # Initialize the retriever

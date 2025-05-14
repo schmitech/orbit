@@ -54,7 +54,6 @@ from config.config_manager import load_config, _is_true_value
 from models.schema import ChatMessage, ApiKeyCreate, ApiKeyResponse, ApiKeyDeactivate, SystemPromptCreate, SystemPromptUpdate, SystemPromptResponse, ApiKeyPromptAssociate
 from models.schema import MCPJsonRpcRequest, MCPJsonRpcResponse, MCPJsonRpcError
 from models import ChatMessage
-from services import ChatService, LoggerService, GuardrailService, RerankerService, ApiKeyService, PromptService, HealthService
 from services.mongodb_service import MongoDBService
 from inference import LLMClientFactory
 from utils.text_utils import mask_api_key
@@ -106,6 +105,9 @@ def patched_init(self, *args, **kwargs):
     register_aiohttp_session(self)
 
 aiohttp.ClientSession.__init__ = patched_init
+
+# At the top level, keep ChatService imported since it's always needed
+from services.chat_service import ChatService
 
 class InferenceServer:
     """
@@ -178,11 +180,14 @@ class InferenceServer:
         root_logger = logging.getLogger()
         root_logger.setLevel(log_level)
         
-        # Clear existing handlers
+        # Clear existing handlers to prevent duplicates
         root_logger.handlers.clear()
         
         # Configure console logging
-        if _is_true_value(log_config.get('console', {}).get('enabled', True)):
+        console_enabled = _is_true_value(log_config.get('console', {}).get('enabled', True))
+        file_enabled = _is_true_value(log_config.get('file', {}).get('enabled', True))
+        
+        if console_enabled:
             console_handler = logging.StreamHandler()
             console_handler.setFormatter(
                 json_formatter if log_config.get('console', {}).get('format') == 'json' else text_formatter
@@ -190,8 +195,8 @@ class InferenceServer:
             console_handler.setLevel(log_level)
             root_logger.addHandler(console_handler)
         
-        # Configure file logging
-        if _is_true_value(log_config.get('file', {}).get('enabled', True)):
+        # Configure file logging only if enabled AND console is disabled OR they have different destinations
+        if file_enabled:
             file_config = log_config['file']
             log_file = os.path.join(log_dir, file_config.get('filename', 'server.log'))
             
@@ -222,8 +227,8 @@ class InferenceServer:
         if _is_true_value(log_config.get('capture_warnings', True)):
             logging.captureWarnings(True)
         
-        # Set propagation
-        root_logger.propagate = log_config.get('propagate', False)
+        # Disable propagation to prevent duplicate messages
+        root_logger.propagate = False
         
         self.logger = logging.getLogger(__name__)
         self.logger.info("Logging configuration completed")
@@ -478,12 +483,7 @@ class InferenceServer:
                 )
     
     async def _initialize_services(self, app: FastAPI) -> None:
-        """
-        Initialize all services and clients required by the application.
-        
-        Args:
-            app: The FastAPI application to attach services to
-        """
+        """Initialize all services and clients required by the application."""
         # Store config in app state
         app.state.config = self.config
         
@@ -503,7 +503,8 @@ class InferenceServer:
             app.state.api_key_service = None
             app.state.prompt_service = None
         else:
-            # Initialize shared MongoDB service first
+            # Lazy import and initialize MongoDB service
+            from services.mongodb_service import MongoDBService
             app.state.mongodb_service = MongoDBService(self.config)
             self.logger.info("Initializing shared MongoDB service...")
             try:
@@ -513,7 +514,8 @@ class InferenceServer:
                 self.logger.error(f"Failed to initialize shared MongoDB service: {str(e)}")
                 raise
             
-            # Initialize API Key Service with shared MongoDB service
+            # Lazy import and initialize API Key Service
+            from services.api_key_service import ApiKeyService
             app.state.api_key_service = ApiKeyService(self.config, app.state.mongodb_service)
             self.logger.info("Initializing API Key Service...")
             try:
@@ -523,7 +525,8 @@ class InferenceServer:
                 self.logger.error(f"Failed to initialize API Key Service: {str(e)}")
                 raise
             
-            # Initialize Prompt Service with shared MongoDB service
+            # Lazy import and initialize Prompt Service
+            from services.prompt_service import PromptService
             app.state.prompt_service = PromptService(self.config, app.state.mongodb_service)
             self.logger.info("Initializing Prompt Service...")
             try:
@@ -672,11 +675,13 @@ class InferenceServer:
                 
                 app.state.retriever = FallbackRetrieverAccessor()
         
-        # Initialize Logger Service (always needed)
+        # Always import Logger Service since it's always needed
+        from services.logger_service import LoggerService
         app.state.logger_service = LoggerService(self.config)
         
-        # Initialize GuardrailService if safety is enabled (regardless of inference_only mode)
+        # Lazy import GuardrailService only if safety is enabled
         if _is_true_value(self.config.get('safety', {}).get('enabled', False)):
+            from services.guardrail_service import GuardrailService
             app.state.guardrail_service = GuardrailService(self.config)
             self.logger.info("Initializing GuardrailService...")
             try:
@@ -692,8 +697,9 @@ class InferenceServer:
         # Load no results message
         no_results_message = self._load_no_results_message()
         
-        # Initialize reranker service if enabled and not in inference_only mode
+        # Lazy import reranker service only if enabled and not in inference_only mode
         if not inference_only and _is_true_value(self.config.get('reranker', {}).get('enabled', False)):
+            from services.reranker_service import RerankerService
             app.state.reranker_service = RerankerService(self.config)
         else:
             app.state.reranker_service = None
@@ -732,10 +738,11 @@ class InferenceServer:
             self.logger.error(f"Failed to connect to {inference_provider}. Exiting...")
             raise Exception(f"Failed to connect to {inference_provider}")
         
-        # Initialize remaining services
+        # Initialize remaining services - ChatService is always needed
         app.state.chat_service = ChatService(self.config, app.state.llm_client, app.state.logger_service)
 
-        # Initialize Health Service last, after all other services are initialized
+        # Lazy import Health Service
+        from services.health_service import HealthService
         app.state.health_service = HealthService(
             config=self.config,
             datasource_client=app.state.datasource_client if hasattr(app.state, 'datasource_client') else None,
@@ -922,11 +929,25 @@ class InferenceServer:
 
     def _configure_routes(self) -> None:
         """Configure routes and endpoints for the FastAPI application."""
-        # Define dependencies
+        # Define dependencies with lazy imports
         async def get_chat_service(request: Request):
+            if not hasattr(request.app.state, 'chat_service'):
+                from services.chat_service import ChatService
+                request.app.state.chat_service = ChatService(
+                    request.app.state.config, 
+                    request.app.state.llm_client, 
+                    request.app.state.logger_service
+                )
             return request.app.state.chat_service
 
         async def get_health_service(request: Request):
+            if not hasattr(request.app.state, 'health_service'):
+                from services.health_service import HealthService
+                request.app.state.health_service = HealthService(
+                    config=request.app.state.config,
+                    datasource_client=getattr(request.app.state, 'datasource_client', None),
+                    llm_client=request.app.state.llm_client
+                )
             return request.app.state.health_service
 
         async def get_guardrail_service(request: Request):
@@ -976,16 +997,12 @@ class InferenceServer:
             
             return session_id.strip()
 
-        async def get_api_key(
-            request: Request,
-            api_key_service = Depends(get_api_key_service)
-        ) -> tuple[Optional[str], Optional[ObjectId]]:
+        async def get_api_key(request: Request) -> tuple[Optional[str], Optional[ObjectId]]:
             """
             Extract API key from request headers and validate it
             
             Args:
                 request: The incoming request
-                api_key_service: The API key service
                 
             Returns:
                 Tuple of (collection_name, system_prompt_id) associated with the API key
@@ -1007,9 +1024,19 @@ class InferenceServer:
                 if not require_for_health:
                     return "default", None
             
+            # Check if API key service is available
+            if not hasattr(request.app.state, 'api_key_service') or request.app.state.api_key_service is None:
+                # If no API key service is available, allow access with default collection
+                # This handles the case where API keys are disabled in config
+                api_keys_enabled = _is_true_value(request.app.state.config.get('api_keys', {}).get('enabled', True))
+                if not api_keys_enabled or (request.url.path == "/health" and not _is_true_value(request.app.state.config.get('api_keys', {}).get('require_for_health', False))):
+                    return "default", None
+                else:
+                    raise HTTPException(status_code=503, detail="API key service is not available")
+            
             # Validate API key and get collection name and system prompt ID
             try:
-                collection_name, system_prompt_id = await api_key_service.get_collection_for_api_key(api_key)
+                collection_name, system_prompt_id = await request.app.state.api_key_service.get_collection_for_api_key(api_key)
                 return collection_name, system_prompt_id
             except HTTPException as e:
                 # Allow health check without API key if configured
@@ -1349,14 +1376,30 @@ class InferenceServer:
         @self.app.post("/admin/api-keys", response_model=ApiKeyResponse)
         async def create_api_key(
             api_key_data: ApiKeyCreate,
-            api_key_service = Depends(get_api_key_service)
+            request: Request
         ):
             """
             Create a new API key associated with a specific collection
             
             This is an admin-only endpoint and should be properly secured in production.
             """
+            # Check if inference_only is enabled
+            inference_only = _is_true_value(request.app.state.config.get('general', {}).get('inference_only', False))
+            if inference_only:
+                raise HTTPException(
+                    status_code=503, 
+                    detail="API key management is not available in inference-only mode"
+                )
+            
+            # Check if API key service is available
+            if not hasattr(request.app.state, 'api_key_service') or request.app.state.api_key_service is None:
+                raise HTTPException(
+                    status_code=503, 
+                    detail="API key service is not available"
+                )
+            
             # In production, add authentication middleware to restrict access to admin endpoints
+            api_key_service = request.app.state.api_key_service
             
             api_key_response = await api_key_service.create_api_key(
                 api_key_data.collection_name,
@@ -1372,14 +1415,30 @@ class InferenceServer:
 
         @self.app.get("/admin/api-keys")
         async def list_api_keys(
-            api_key_service = Depends(get_api_key_service)
+            request: Request
         ):
             """
             List all API keys
             
             This is an admin-only endpoint and should be properly secured in production.
             """
+            # Check if inference_only is enabled
+            inference_only = _is_true_value(request.app.state.config.get('general', {}).get('inference_only', False))
+            if inference_only:
+                raise HTTPException(
+                    status_code=503, 
+                    detail="API key management is not available in inference-only mode"
+                )
+            
+            # Check if API key service is available
+            if not hasattr(request.app.state, 'api_key_service') or request.app.state.api_key_service is None:
+                raise HTTPException(
+                    status_code=503, 
+                    detail="API key service is not available"
+                )
+            
             # In production, add authentication middleware to restrict access to admin endpoints
+            api_key_service = request.app.state.api_key_service
             
             try:
                 # Ensure service is initialized
@@ -1405,13 +1464,29 @@ class InferenceServer:
         @self.app.get("/admin/api-keys/{api_key}/status")
         async def get_api_key_status(
             api_key: str,
-            api_key_service = Depends(get_api_key_service)
+            request: Request
         ):
             """
             Get the status of a specific API key
             
             This is an admin-only endpoint and should be properly secured in production.
             """
+            # Check if inference_only is enabled
+            inference_only = _is_true_value(request.app.state.config.get('general', {}).get('inference_only', False))
+            if inference_only:
+                raise HTTPException(
+                    status_code=503, 
+                    detail="API key management is not available in inference-only mode"
+                )
+            
+            # Check if API key service is available
+            if not hasattr(request.app.state, 'api_key_service') or request.app.state.api_key_service is None:
+                raise HTTPException(
+                    status_code=503, 
+                    detail="API key service is not available"
+                )
+            
+            api_key_service = request.app.state.api_key_service
             status = await api_key_service.get_api_key_status(api_key)
             # Log with masked API key
             masked_api_key = f"***{api_key[-4:]}" if api_key else "***"
@@ -1477,9 +1552,25 @@ class InferenceServer:
         @self.app.post("/admin/prompts", response_model=SystemPromptResponse)
         async def create_prompt(
             prompt_data: SystemPromptCreate,
-            prompt_service = Depends(get_prompt_service)
+            request: Request
         ):
             """Create a new system prompt"""
+            # Check if inference_only is enabled
+            inference_only = _is_true_value(request.app.state.config.get('general', {}).get('inference_only', False))
+            if inference_only:
+                raise HTTPException(
+                    status_code=503, 
+                    detail="Prompt management is not available in inference-only mode"
+                )
+            
+            # Check if prompt service is available
+            if not hasattr(request.app.state, 'prompt_service') or request.app.state.prompt_service is None:
+                raise HTTPException(
+                    status_code=503, 
+                    detail="Prompt service is not available"
+                )
+            
+            prompt_service = request.app.state.prompt_service
             prompt_id = await prompt_service.create_prompt(
                 prompt_data.name,
                 prompt_data.prompt,

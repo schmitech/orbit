@@ -8,6 +8,7 @@ import logging
 from typing import Dict, Any, Optional
 
 from .base_llm_client import BaseLLMClient
+from .clients import get_client_class
 
 class LLMClientFactory:
     """Factory for creating LLM clients based on the selected inference provider."""
@@ -37,9 +38,12 @@ class LLMClientFactory:
         """
         provider = config['general'].get('inference_provider', 'ollama')
         
-        if provider == 'ollama':
-            from .clients.ollama import OllamaClient
-            return OllamaClient(
+        try:
+            # Get the appropriate client class dynamically
+            client_class = get_client_class(provider)
+            
+            # Create and return the client instance
+            return client_class(
                 config, 
                 retriever, 
                 guardrail_service, 
@@ -47,145 +51,6 @@ class LLMClientFactory:
                 prompt_service, 
                 no_results_message
             )
-        elif provider == 'vllm':
-            from .clients.vllm import QAVLLMClient
-            return QAVLLMClient(
-                config, 
-                retriever, 
-                guardrail_service, 
-                reranker_service, 
-                prompt_service, 
-                no_results_message
-            )
-        elif provider == 'llama_cpp':
-            from .clients.llama_cpp import QALlamaCppClient
-            return QALlamaCppClient(
-                config, 
-                retriever, 
-                guardrail_service, 
-                reranker_service, 
-                prompt_service, 
-                no_results_message
-            )
-        elif provider == 'openai':
-            from .clients.openai import OpenAIClient
-            return OpenAIClient(
-                config, 
-                retriever, 
-                guardrail_service, 
-                reranker_service, 
-                prompt_service, 
-                no_results_message
-            )
-        elif provider == 'gemini':
-            from .clients.gemini import GeminiClient
-            return GeminiClient(
-                config, 
-                retriever, 
-                guardrail_service, 
-                reranker_service, 
-                prompt_service, 
-                no_results_message
-            )
-        elif provider == 'groq':
-            from .clients.groq import GroqClient
-            return GroqClient(
-                config, 
-                retriever, 
-                guardrail_service, 
-                reranker_service, 
-                prompt_service, 
-                no_results_message
-            )
-        elif provider == 'deepseek':
-            from .clients.deepseek import DeepSeekClient
-            return DeepSeekClient(
-                config, 
-                retriever, 
-                guardrail_service, 
-                reranker_service, 
-                prompt_service, 
-                no_results_message
-            )
-        elif provider == 'vertex':
-            from .clients.vertex_ai import VertexAIClient
-            return VertexAIClient(
-                config, 
-                retriever, 
-                guardrail_service, 
-                reranker_service, 
-                prompt_service, 
-                no_results_message
-            )
-        elif provider == 'mistral':
-            from .clients.mistral import MistralClient
-            return MistralClient(
-                config, 
-                retriever, 
-                guardrail_service, 
-                reranker_service, 
-                prompt_service, 
-                no_results_message
-            )
-        elif provider == 'anthropic':
-            from .clients.anthropic import AnthropicClient
-            return AnthropicClient(
-                config, 
-                retriever, 
-                guardrail_service, 
-                reranker_service, 
-                prompt_service, 
-                no_results_message
-            )
-        elif provider == 'together':
-            from .clients.together import TogetherAIClient
-            return TogetherAIClient(
-                config, 
-                retriever, 
-                guardrail_service, 
-                reranker_service, 
-                prompt_service, 
-                no_results_message
-            )
-        elif provider == 'xai':
-            from .clients.xai import XAIClient
-            return XAIClient(
-                config, 
-                retriever, 
-                guardrail_service, 
-                reranker_service, 
-                prompt_service, 
-                no_results_message
-            )
-        elif provider == 'aws':
-            from .clients.aws import AWSBedrockClient
-            return AWSBedrockClient(
-                config, 
-                retriever, 
-                guardrail_service, 
-                reranker_service, 
-                prompt_service, 
-                no_results_message
-            )
-        elif provider == 'azure':
-            from .clients.azure import AzureOpenAIClient
-            return AzureOpenAIClient(
-                config, 
-                retriever, 
-                guardrail_service, 
-                reranker_service, 
-                prompt_service, 
-                no_results_message
-            )
-        elif provider == 'openrouter':
-            from .clients.openrouter import OpenRouterClient
-            return OpenRouterClient(
-                config, 
-                retriever, 
-                guardrail_service, 
-                reranker_service, 
-                prompt_service, 
-                no_results_message
-            )
-        else:
-            raise ValueError(f"Unsupported inference provider: {provider}") 
+        except (ImportError, ValueError) as e:
+            logging.error(f"Failed to create LLM client for provider {provider}: {str(e)}")
+            raise 

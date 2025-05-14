@@ -63,8 +63,23 @@ print(f"Loading environment variables from: {dotenv_path}")
 from embeddings.base import EmbeddingServiceFactory
 
 def load_config():
-    CONFIG_PATH = Path(__file__).resolve().parents[3] / "server" / "config.yaml"
-    return yaml.safe_load(CONFIG_PATH.read_text())
+    """Load configuration file from project root"""
+    # Get the directory of this script
+    script_dir = Path(__file__).resolve().parent
+    
+    # Get the project root (3 levels up: scripts -> chroma -> utils -> project_root)
+    project_root = script_dir.parents[2]
+    
+    # Try to find config.yaml in project root first, then in config subdirectory
+    config_path = project_root / "config.yaml"
+    if not config_path.exists():
+        config_path = project_root / "config" / "config.yaml"
+    
+    if not config_path.exists():
+        raise FileNotFoundError(f"Config file not found in {project_root} or {project_root}/config/")
+    
+    print(f"Loading config from: {config_path}")
+    return yaml.safe_load(config_path.read_text())
 
 async def ingest_to_chroma(
     json_file_path: str,

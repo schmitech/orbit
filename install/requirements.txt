@@ -1,0 +1,47 @@
+# Core/Minimal Requirements
+ollama==0.4.8
+motor>=3.7.0
+pymongo>=4.12.0
+chromadb>=1.0.9
+langchain-ollama>=0.2.3
+langchain-community>=0.0.10
+pydantic>=2.10.0
+PyYAML>=6.0.1
+fastapi>=0.115.9
+uvicorn==0.34.2
+python-dotenv==1.0.1
+requests==2.31.0
+python-multipart>=0.0.14
+langid==1.1.6
+pycld2==0.42
+langdetect>=1.0.9
+pytest>=8.3.5
+python-json-logger>=2.0.7
+tqdm>=4.66.2
+aiohttp>=3.11.1
+aiodns>=3.2.0
+regex==2024.11.6
+sseclient-py==1.8.0
+psutil==6.0.0
+pycountry>=24.6.1
+llama-cpp-python==0.3.9
+elasticsearch==9.0.0
+
+
+# These are required for working with HF Models:
+huggingface-hub==0.30.2
+safetensors==0.5.3
+pytorch==2.1.0
+transformers==4.35.0
+
+# Cloud or Commercial Inference and Embeddings
+openai==1.76
+anthropic==0.50.0
+google-generativeai==0.8.5
+cohere==5.15.0
+groq==0.23.1
+deepseek==1.0.0
+mistralai==1.7.0
+together==1.5.7
+boto3==1.38.13
+azure-ai-inference==1.0.0b9

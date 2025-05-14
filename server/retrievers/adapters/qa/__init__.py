@@ -2,8 +2,8 @@
 QA-specific retrievers and adapters for different datasources.
 """
 
-from ...implementations.chroma.qa_chroma_retriever import QAChromaRetriever
-from ...implementations.sqlite.qa_sqlite_retriever import QASqliteRetriever
+from ...implementations.qa_chroma_retriever import QAChromaRetriever
+from ...implementations.qa_sqlite_retriever import QASqliteRetriever
 from .chroma_qa_adapter import ChromaQAAdapter
 from .qa_sqlite_adapter import QASqliteAdapter
 

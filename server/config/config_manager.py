@@ -282,7 +282,6 @@ def get_default_config() -> Dict[str, Any]:
                 "key_file": "./key.pem"
             },
             "inference_provider": "ollama",
-            "mcp_protocol": False,  # Toggle for MCP protocol compatibility
             "session_id": {
                 "header_name": "X-Session-ID",
                 "required": False
@@ -325,17 +324,17 @@ def get_default_config() -> Dict[str, Any]:
                 "model": "nomic-embed-text",
                 "dimensions": 768
             },
+            "openai": {
+                "api_key": "${OPENAI_API_KEY}",
+                "model": "text-embedding-3-large",
+                "dimensions": 1024,
+                "batch_size": 10
+            },
             "jina": {
                 "api_key": "${JINA_API_KEY}",
                 "base_url": "https://api.jina.ai/v1",
                 "model": "jina-embeddings-v3",
                 "task": "text-matching",
-                "dimensions": 1024,
-                "batch_size": 10
-            },
-            "openai": {
-                "api_key": "${OPENAI_API_KEY}",
-                "model": "text-embedding-3-large",
                 "dimensions": 1024,
                 "batch_size": 10
             },
@@ -353,16 +352,6 @@ def get_default_config() -> Dict[str, Any]:
                 "api_base": "https://api.mistral.ai/v1",
                 "model": "mistral-embed",
                 "dimensions": 1024
-            },
-            "azure": {
-                "base_url": "http://azure-ai.endpoint.microsoft.com",
-                "deployment": "azure-ai-deployment",
-                "api_key": "${AZURE_ACCESS_KEY}",
-                "temperature": 0.1,
-                "top_p": 0.8,
-                "max_tokens": 1024,
-                "stream": True,
-                "verbose": False
             }
         },
         "safety": {

@@ -475,6 +475,11 @@ class QAVLLMClient(BaseLLMClient, LLMClientMixin):
         text = re.sub(r'\([^)]*I cannot [^)]*\)', '', text)
         text = re.sub(r'\([^)]*would be [^)]*\)', '', text)
         
+        # Remove citation markers at the end of sentences or paragraphs
+        text = re.sub(r'\s*\[\d+\](?:\s*\.)?', '.', text)  # Replace [N] or [N]. with .
+        text = re.sub(r'\s*\[\d+\]\s*$', '', text)  # Remove [N] at the end of text
+        text = re.sub(r'\s*\[\d+\]\s*\n', '\n', text)  # Remove [N] at the end of lines
+        
         # Clean up extra whitespace and newlines created by removals
         text = re.sub(r'\n{3,}', '\n\n', text)  # Replace 3+ newlines with 2
         text = re.sub(r' {2,}', ' ', text)      # Replace 2+ spaces with 1

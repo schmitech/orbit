@@ -10,9 +10,7 @@ import asyncio
 import traceback
 from typing import Dict, Any, Union, List, Optional, TypedDict
 from datetime import datetime
-from logging.handlers import TimedRotatingFileHandler, RotatingFileHandler
 
-from pythonjsonlogger import jsonlogger
 from elasticsearch import AsyncElasticsearch
 from elasticsearch.exceptions import ConnectionError, TransportError, NotFoundError
 from fastapi import HTTPException
@@ -77,45 +75,6 @@ class LoggerService:
         self.log_config = config.get('logging', {})
         self.log_dir = self.log_config.get('file', {}).get('directory', 'logs')
         os.makedirs(self.log_dir, exist_ok=True)
-        
-        # Set up the file-based JSON logger for chat interactions
-        self.file_logger = self._setup_chat_logger()
-
-    def _setup_chat_logger(self) -> logging.Logger:
-        """Set up a JSON-formatted logger with file rotation for chat interactions."""
-        chat_logger = logging.getLogger("chat_file_logger")
-        chat_logger.setLevel(logging.INFO)
-        chat_logger.handlers.clear()  # Remove any existing handlers
-
-        log_file = os.path.join(self.log_dir, 'chat.log')
-        file_config = self.log_config.get('file', {})
-        rotation = file_config.get('rotation', 'midnight')
-        backup_count = file_config.get('backup_count', 30)
-        max_size_mb = file_config.get('max_size_mb', 10)
-
-        if rotation == 'midnight':
-            handler = TimedRotatingFileHandler(
-                filename=log_file,
-                when='midnight',
-                interval=1,
-                backupCount=backup_count,
-                encoding='utf-8'
-            )
-            # Append current date to rotated log filenames
-            handler.namer = lambda name: name.replace('chat.log', f'chat-{datetime.now().strftime("%Y-%m-%d")}.log')
-        else:
-            handler = RotatingFileHandler(
-                filename=log_file,
-                maxBytes=max_size_mb * 1024 * 1024,
-                backupCount=backup_count,
-                encoding='utf-8'
-            )
-        
-        formatter = jsonlogger.JsonFormatter("%(asctime)s %(levelname)s %(message)s")
-        handler.setFormatter(formatter)
-        chat_logger.addHandler(handler)
-        chat_logger.propagate = False
-        return chat_logger
 
     async def initialize_elasticsearch(self) -> None:
         """Initialize the Elasticsearch client if enabled."""
@@ -280,15 +239,7 @@ class LoggerService:
         api_key: Optional[str] = None
     ) -> None:
         """
-        Log a chat interaction to the file-based logger and Elasticsearch.
-        
-        Args:
-            query: The user's query.
-            response: The generated response.
-            ip: Optional IP address.
-            backend: The backend service used (defaults to inference_provider from config).
-            blocked: Whether the request was blocked.
-            api_key: Optional API key for logging.
+        Log a chat interaction to Elasticsearch only.
         """
         timestamp = datetime.now()
         ip_metadata = self._format_ip_address(ip)
@@ -317,7 +268,6 @@ class LoggerService:
                 "timestamp": timestamp.isoformat()
             }
 
-        self.file_logger.info("Chat Interaction", extra=log_data)
         await self._log_to_elasticsearch(log_data, timestamp, query, response, backend, blocked, ip_metadata)
 
     async def _log_to_elasticsearch(

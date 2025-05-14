@@ -84,12 +84,22 @@ class HuggingFaceClient(BaseLLMClient, LLMClientMixin):
         message: str,
         collection_name: str,
         system_prompt_id: Optional[str] = None
-    ) -> dict:
+    ) -> AsyncGenerator[dict, None]:
         """Generate response using Hugging Face model."""
         try:
             is_safe, refusal_message = await self._check_message_safety(message)
             if not is_safe:
-                yield await self._handle_unsafe_message_stream(refusal_message)
+                yield {
+                    "response": refusal_message,
+                    "sources": [],
+                    "tokens": 0,
+                    "token_usage": {
+                        "prompt_tokens": 0,
+                        "completion_tokens": 0,
+                        "total_tokens": 0
+                    },
+                    "processing_time": 0
+                }
                 return
 
             docs = await self._retrieve_and_rerank_docs(message, collection_name)
@@ -119,7 +129,11 @@ class HuggingFaceClient(BaseLLMClient, LLMClientMixin):
             text = self.tokenizer.decode(generated, skip_special_tokens=True)
 
             sources = self._format_sources(docs)
-            return {
+            if not isinstance(sources, list):
+                self.logger.warning(f"'_format_sources' returned type {type(sources).__name__} (value: {str(sources)[:100]}) for sources, defaulting to empty list.")
+                sources = []
+
+            yield {
                 "response": text.strip(),
                 "sources": sources,
                 "tokens": len(generated),
@@ -132,7 +146,18 @@ class HuggingFaceClient(BaseLLMClient, LLMClientMixin):
             }
         except Exception as e:
             self.logger.error(f"Error generating response: {str(e)}")
-            raise
+            yield {
+                "error": str(e),
+                "response": "",
+                "sources": [],
+                "tokens": 0,
+                "token_usage": {
+                    "prompt_tokens": 0,
+                    "completion_tokens": 0,
+                    "total_tokens": 0
+                },
+                "processing_time": 0
+            }
 
     async def generate_response_stream(
         self,
@@ -140,17 +165,24 @@ class HuggingFaceClient(BaseLLMClient, LLMClientMixin):
         collection_name: str,
         system_prompt_id: Optional[str] = None
     ) -> AsyncGenerator[str, None]:
-        """Streaming not supported; yields full response as one chunk."""
+        """Stream response using Hugging Face model."""
         try:
-            result = await self.generate_response(message, collection_name, system_prompt_id)
-            yield json.dumps({
-                "response": result["response"],
-                "sources": result["sources"],
-                "done": True,
-                "tokens": result["tokens"],
-                "token_usage": result["token_usage"],
-                "processing_time": result["processing_time"]
-            })
+            async for result in self.generate_response(message, collection_name, system_prompt_id):
+                if "error" in result:
+                    yield json.dumps({
+                        "error": result["error"],
+                        "done": True
+                    })
+                    return
+                
+                yield json.dumps({
+                    "response": result["response"],
+                    "sources": result["sources"],
+                    "done": True,
+                    "tokens": result["tokens"],
+                    "token_usage": result["token_usage"],
+                    "processing_time": result["processing_time"]
+                })
         except Exception as e:
             self.logger.error(f"Error in generate_response_stream: {str(e)}")
             yield json.dumps({

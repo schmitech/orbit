@@ -9,9 +9,36 @@ from typing import Dict, Any, List, Optional, Type, Tuple, Union
 import importlib
 from fastapi import HTTPException
 from utils.lazy_loader import AdapterRegistry
+from embeddings.base import EmbeddingServiceFactory
 
 # Configure logging
 logger = logging.getLogger(__name__)
+
+def get_embedding_provider(provider_name: str, **kwargs) -> Any:
+    """
+    Get the appropriate embedding provider based on the provider name
+    
+    Args:
+        provider_name: Name of the embedding provider ('openai', 'ollama', 'cohere', etc.)
+        **kwargs: Additional arguments to pass to the embedding provider
+        
+    Returns:
+        An instance of the embedding provider
+    """
+    try:
+        # Create a config dictionary with the provider configuration
+        config = {
+            'embeddings': {
+                provider_name: kwargs
+            },
+            'embedding': {
+                'provider': provider_name
+            }
+        }
+        return EmbeddingServiceFactory.create_embedding_service(config, provider_name)
+    except Exception as e:
+        logger.error(f"Failed to create embedding service for provider {provider_name}: {str(e)}")
+        raise ValueError(f"Unsupported or misconfigured embedding provider: {provider_name}")
 
 class BaseRetriever(ABC):
     """Enhanced base abstract class that all retriever implementations should extend"""

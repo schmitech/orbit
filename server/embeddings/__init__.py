@@ -1,7 +1,12 @@
 """
-Embeddings package for handling different embedding providers.
+Embeddings package for text embeddings.
 """
 
-from embeddings.base import EmbeddingService, EmbeddingServiceFactory
-
-__all__ = ['EmbeddingService', 'EmbeddingServiceFactory']
+# Remove direct imports, use lazy loading instead
+__all__ = [
+    'EmbeddingServiceFactory',
+    'OpenAIEmbeddings',
+    'OllamaEmbeddings',
+    'JinaEmbeddings',
+    'CohereEmbeddings'
+]

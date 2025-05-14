@@ -12,9 +12,11 @@ across different client components.
 import asyncio
 import aiohttp
 import logging
+import os
 from utils.language_detector import LanguageDetector
 from typing import Dict, Any, Tuple, Optional
 from moderators.base import ModeratorFactory
+from moderators import register_moderator
 
 from config.config_manager import _is_true_value
 
@@ -48,25 +50,42 @@ class GuardrailService:
         # Get moderator information
         # First check for moderator, otherwise use the general inference provider
         self.moderator_name = safety_config.get('moderator')
-        if not self.moderator_name:
-            self.moderator_name = config.get('general', {}).get('inference_provider', 'ollama')
         
+        # Debug output to help identify configuration issues
+        if self.moderator_name:
+            logger.info(f"Configured moderator from safety config: {self.moderator_name}")
+            
+            # Try to lazily register the configured moderator
+            registration_success = register_moderator(self.moderator_name)
+            if registration_success:
+                logger.info(f"Successfully registered moderator: {self.moderator_name}")
+            else:
+                logger.warning(f"Failed to register moderator: {self.moderator_name}")
+        else:
+            logger.info("No moderator specified in safety config, will use inference provider")
+            
+        # Load the available moderators
+        available_moderators = list(ModeratorFactory._registry.keys()) if hasattr(ModeratorFactory, '_registry') else []
+        logger.info(f"Available moderators: {available_moderators}")
+            
         # If using a recognized moderator
-        if self.moderator_name in ModeratorFactory._registry:
+        if self.moderator_name and self.moderator_name in ModeratorFactory._registry:
             self.use_moderator = True
             self.moderator = ModeratorFactory.create_moderator(config, self.moderator_name)
             logger.info(f"Safety service using moderator: {self.moderator_name}")
         else:
-            # Fallback to using the inference provider
+            # If no valid moderator, fall back to using the general inference provider
             self.use_moderator = False
-            self.provider = self.moderator_name
-            self.model = safety_config.get('model', 'gemma3:12b')
+            # Get the general inference provider instead of using moderator name as provider
+            self.provider = config.get('general', {}).get('inference_provider', 'ollama')
+            self.model = safety_config.get('model', config.get('inference', {}).get(self.provider, {}).get('model', 'gemma3:1b'))
+            self.base_url = config.get('inference', {}).get(self.provider, {}).get('base_url', 'http://localhost:11434')
             
-            # Get provider-specific configuration from inference section
-            provider_config = config.get('inference', {}).get(self.provider, {})
-            self.base_url = provider_config.get('base_url', 'http://localhost:11434')
+            if self.moderator_name and self.moderator_name not in ModeratorFactory._registry:
+                logger.warning(f"Configured moderator '{self.moderator_name}' not found in registry. Falling back to {self.provider}.")
             
             logger.info(f"Safety service using inference provider: {self.provider}")
+            logger.info(f"Safety service using model: {self.model}")
             logger.info(f"Safety service using base URL: {self.base_url}")
         
         # Get retry configuration
@@ -106,7 +125,25 @@ class GuardrailService:
             str: The safety prompt content
         """
         try:
-            prompt_file = self.config.get('general', {}).get('safety_prompt_file', '../prompts/safety_prompt.txt')
+            # Get the safety prompt path from the safety section if available, otherwise use default
+            safety_config = self.config.get('safety', {})
+            prompt_file = safety_config.get('safety_prompt_path', 'prompts/safety_prompt.txt')
+            
+            # Resolve to absolute path if needed
+            if not os.path.isabs(prompt_file):
+                # Get the project root (where config.yaml is located)
+                if os.path.isfile('config.yaml'):
+                    # We're already in the project root
+                    project_root = os.getcwd()
+                else:
+                    # Assume we're in a subdirectory (like server)
+                    project_root = os.path.dirname(os.getcwd())
+                
+                # Join with the project root to get absolute path
+                prompt_file = os.path.join(project_root, prompt_file)
+            
+            logger.info(f"Loading safety prompt from: {prompt_file}")
+            
             with open(prompt_file, 'r') as file:
                 # Clean up the prompt by stripping whitespace and normalizing linebreaks
                 content = file.read()

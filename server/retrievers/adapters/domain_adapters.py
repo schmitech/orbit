@@ -200,6 +200,54 @@ class GenericDocumentAdapter(DocumentAdapter):
         filtered_items.sort(key=lambda x: x.get("confidence", 0), reverse=True)
         
         return filtered_items
+    
+    def format_document(self, raw_doc: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
+        """Format document for file-based retrieval"""
+        item = {
+            "raw_document": raw_doc,
+            "content": raw_doc,
+            "metadata": metadata.copy() if metadata else {},
+        }
+        
+        # Extract file-specific metadata
+        if metadata:
+            if "filename" in metadata:
+                item["filename"] = metadata["filename"]
+            if "file_type" in metadata:
+                item["file_type"] = metadata["file_type"]
+            if "page_number" in metadata:
+                item["page_number"] = metadata["page_number"]
+            
+        return item
+    
+    def extract_direct_answer(self, context: List[Dict[str, Any]]) -> Optional[str]:
+        """Extract a direct answer if available in the context"""
+        if not context:
+            return None
+            
+        # For document files, we don't have a direct answer format
+        # but we can return the most relevant chunk if confidence is high
+        first_result = context[0]
+        if first_result.get("confidence", 0) >= self.confidence_threshold:
+            return first_result.get("content")
+        
+        return None
+    
+    def apply_domain_specific_filtering(self, 
+                                      context_items: List[Dict[str, Any]], 
+                                      query: str) -> List[Dict[str, Any]]:
+        """Apply document-specific filtering/ranking"""
+        if not context_items:
+            return []
+            
+        # Filter out items below confidence threshold
+        filtered_items = [item for item in context_items 
+                         if item.get("confidence", 0) >= self.confidence_threshold]
+        
+        # Sort by confidence score
+        filtered_items.sort(key=lambda x: x.get("confidence", 0), reverse=True)
+        
+        return filtered_items
 
 
 class DocumentAdapterFactory:
@@ -245,6 +293,8 @@ class DocumentAdapterFactory:
             return QADocumentAdapter(**kwargs)
         elif adapter_type == 'generic':
             return GenericDocumentAdapter(**kwargs)
+        elif adapter_type == 'file':
+            return DocumentFileAdapter(**kwargs)
         else:
             raise ValueError(f"Unsupported adapter type: {adapter_type}")
 

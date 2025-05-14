@@ -13,3 +13,30 @@ from . import registry
 
 # Import subdirectories with specialized adapters
 from . import qa 
+
+"""
+Adapter registration and initialization
+"""
+
+from retrievers.adapters.registry import ADAPTER_REGISTRY
+
+def register_adapters():
+    """Register all available adapters"""
+    # Register QA adapter
+    ADAPTER_REGISTRY.register(
+        adapter_type='retriever',
+        datasource='memory',
+        adapter_name='qa',
+        implementation='retrievers.adapters.domain_adapters.QADocumentAdapter'
+    )
+    
+    # Register generic adapter
+    ADAPTER_REGISTRY.register(
+        adapter_type='retriever',
+        datasource='memory',
+        adapter_name='generic',
+        implementation='retrievers.adapters.domain_adapters.GenericDocumentAdapter'
+    )
+
+# Initialize registry
+register_adapters() 
