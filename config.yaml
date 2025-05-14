@@ -18,7 +18,7 @@ messages:
   collection_not_found: "I couldn't find the requested collection. Please make sure the collection exists before querying it."
 
 embedding:
-  provider: "openai"
+  provider: "ollama"
   enabled: true
   fail_on_error: false
 
