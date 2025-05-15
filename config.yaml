@@ -1,6 +1,6 @@
 general:
   port: 3000
-  verbose: true
+  verbose: false
   https:
     enabled: false
     port: 3443
@@ -10,7 +10,8 @@ general:
     header_name: "X-Session-ID"
     required: true
   inference_provider: "ollama"
-  inference_only: false # Act as pass-through LLM without RAG. No API key required.
+  language_detection: false
+  inference_only: true
   adapter: "qa-sqlite"
 
 messages:
@@ -19,7 +20,7 @@ messages:
 
 embedding:
   provider: "ollama"
-  enabled: true
+  enabled: false
   fail_on_error: false
 
 api_keys:
@@ -336,7 +337,7 @@ moderators:
 
 reranker:
   enabled: false
-  provider_override: null  # If null, uses general.inference_provider
+  provider_override: ollama  # If null, uses general.inference_provider
   model: "gemma3:1b"
   batch_size: 5
   temperature: 0.0

@@ -23,8 +23,16 @@ class ChatService:
         self.llm_client = llm_client
         self.logger_service = logger_service
         self.verbose = _is_true_value(config.get('general', {}).get('verbose', False))
-        # Initialize language detector
-        self.language_detector = LanguageDetector(verbose=self.verbose)
+        # Initialize language detector only if enabled
+        self.language_detection_enabled = _is_true_value(config.get('general', {}).get('language_detection', True))
+        if self.language_detection_enabled:
+            self.language_detector = LanguageDetector(verbose=self.verbose)
+            if self.verbose:
+                logger.info("Language detection enabled")
+        else:
+            self.language_detector = None
+            if self.verbose:
+                logger.info("Language detection disabled")
     
     async def _log_conversation(self, query: str, response: str, client_ip: str, api_key: Optional[str] = None):
         """Log conversation asynchronously without delaying the main response."""
@@ -64,6 +72,10 @@ class ChatService:
             The original system_prompt_id (if no language detection enhancements needed)
             or None if the prompt was enhanced in-place and doesn't need to be fetched again
         """
+        # Skip language detection if disabled
+        if not self.language_detection_enabled:
+            return system_prompt_id
+            
         # Don't modify anything if there's no prompt service
         if not hasattr(self.llm_client, 'prompt_service') or not self.llm_client.prompt_service:
             return system_prompt_id
@@ -112,30 +124,80 @@ class ChatService:
                         language_name = language_names.get(detected_lang, f"the language with code '{detected_lang}'")
                     
                     # Create enhanced prompt with language instruction
-                    enhanced_prompt = f"""IMPORTANT: The user's message is in {language_name}. You MUST respond in {language_name} only.
+                    enhanced_prompt = f"""{original_prompt}
 
-{original_prompt}"""
+IMPORTANT: The user's message is in {language_name}. You MUST respond in {language_name} only."""
                     
                     if self.verbose:
                         logger.info(f"Enhanced prompt with language instruction for: {language_name}")
+                        logger.info(f"Full enhanced prompt:\n{enhanced_prompt}")
                     
-                    # Create a temporary system prompt with the enhanced content
-                    try:
-                        temp_prompt_name = f"temp_lang_{detected_lang}_{str(system_prompt_id)[-6:]}"
-                        temp_prompt_id = await self.llm_client.prompt_service.create_prompt(
-                            name=temp_prompt_name,
-                            prompt_text=enhanced_prompt,
-                            version="temp"
-                        )
-                        return temp_prompt_id
-                    except Exception as e:
-                        logger.error(f"Failed to create temporary language-enhanced prompt: {str(e)}")
-                        # Fall back to original prompt ID if enhancement fails
-                        return system_prompt_id
+                    # Set the enhanced prompt directly on the LLM client
+                    self.llm_client.override_system_prompt = enhanced_prompt
+                    return None
             
         # Return original prompt ID if no modification was made
         return system_prompt_id
     
+    async def _process_chat_base(self, message: str, client_ip: str, collection_name: str, system_prompt_id: Optional[ObjectId] = None, api_key: Optional[str] = None):
+        """
+        Base method for processing chat messages, handling common functionality.
+        
+        Args:
+            message: The chat message
+            client_ip: Client IP address
+            collection_name: Collection name to use for retrieval
+            system_prompt_id: Optional system prompt ID to use
+            api_key: Optional API key for authentication
+            
+        Returns:
+            Tuple of (enhanced_prompt_id, response_data)
+        """
+        # Log the incoming message and parameters
+        await self._log_request(message, client_ip, collection_name)
+        
+        if self.verbose:
+            # Mask API key for logging
+            masked_api_key = "None"
+            if api_key:
+                masked_api_key = mask_api_key(api_key, show_last=True)
+            
+            logger.info(f"System prompt ID: {system_prompt_id}")
+            logger.info(f"API key: {masked_api_key}")
+            if system_prompt_id:
+                # Log the prompt details if we have a prompt service on the LLM client
+                if hasattr(self.llm_client, 'prompt_service') and self.llm_client.prompt_service:
+                    prompt_doc = await self.llm_client.prompt_service.get_prompt_by_id(system_prompt_id)
+                    if prompt_doc:
+                        logger.info(f"Using system prompt: {prompt_doc.get('name', 'Unknown')}")
+                        logger.info(f"Prompt content (first 100 chars): {prompt_doc.get('prompt', '')[:100]}...")
+                    else:
+                        logger.warning(f"System prompt ID {system_prompt_id} not found")
+        
+        # Detect language and enhance the system prompt if needed
+        enhanced_prompt_id = await self._detect_and_enhance_prompt(message, system_prompt_id)
+        
+        # Generate response
+        if enhanced_prompt_id is None:
+            # If enhanced_prompt_id is None, we've set an override prompt in memory
+            response_data = await self.llm_client.generate_response(
+                message=message,
+                collection_name=collection_name
+            )
+            # Clear the override after use
+            if hasattr(self.llm_client, 'clear_override_system_prompt'):
+                self.llm_client.clear_override_system_prompt()
+            elif hasattr(self.llm_client, 'override_system_prompt'):
+                self.llm_client.override_system_prompt = None
+        else:
+            response_data = await self.llm_client.generate_response(
+                message=message,
+                collection_name=collection_name,
+                system_prompt_id=enhanced_prompt_id
+            )
+            
+        return enhanced_prompt_id, response_data
+
     async def process_chat(self, message: str, client_ip: str, collection_name: str, system_prompt_id: Optional[ObjectId] = None, api_key: Optional[str] = None) -> Dict[str, Any]:
         """
         Process a chat message and return a response
@@ -148,36 +210,8 @@ class ChatService:
             api_key: Optional API key for authentication
         """
         try:
-            # Log the incoming message and parameters
-            await self._log_request(message, client_ip, collection_name)
-            
-            if self.verbose:
-                # Mask API key for logging
-                masked_api_key = "None"
-                if api_key:
-                    masked_api_key = mask_api_key(api_key, show_last=True)
-                
-                logger.info(f"System prompt ID: {system_prompt_id}")
-                logger.info(f"API key: {masked_api_key}")
-                if system_prompt_id:
-                    # Log the prompt details if we have a prompt service on the LLM client
-                    if hasattr(self.llm_client, 'prompt_service') and self.llm_client.prompt_service:
-                        prompt_doc = await self.llm_client.prompt_service.get_prompt_by_id(system_prompt_id)
-                        if prompt_doc:
-                            logger.info(f"Using system prompt: {prompt_doc.get('name', 'Unknown')}")
-                            logger.info(f"Prompt content (first 100 chars): {prompt_doc.get('prompt', '')[:100]}...")
-                        else:
-                            logger.warning(f"System prompt ID {system_prompt_id} not found")
-            
-            # Detect language and enhance the system prompt if needed
-            enhanced_prompt_id = await self._detect_and_enhance_prompt(message, system_prompt_id)
-            
-            # Generate response
-            response_data = await self.llm_client.generate_response(
-                message=message,
-                collection_name=collection_name,
-                system_prompt_id=enhanced_prompt_id
-            )
+            # Use base processing
+            _, response_data = await self._process_chat_base(message, client_ip, collection_name, system_prompt_id, api_key)
             
             # Check if the response was blocked by moderation
             if "error" in response_data:
@@ -214,38 +248,27 @@ class ChatService:
     
     async def process_chat_stream(self, message: str, client_ip: str, collection_name: str, system_prompt_id: Optional[ObjectId] = None, api_key: Optional[str] = None):
         try:
-            # Log the incoming message and parameters
-            await self._log_request(message, client_ip, collection_name)
-            
-            if self.verbose:
-                # Mask API key for logging
-                masked_api_key = "None"
-                if api_key:
-                    masked_api_key = mask_api_key(api_key, show_last=True)
-                
-                logger.info(f"System prompt ID: {system_prompt_id}")
-                logger.info(f"API key: {masked_api_key}")
-                if system_prompt_id:
-                    # Log the prompt details if we have a prompt service on the LLM client
-                    if hasattr(self.llm_client, 'prompt_service') and self.llm_client.prompt_service:
-                        prompt_doc = await self.llm_client.prompt_service.get_prompt_by_id(system_prompt_id)
-                        if prompt_doc:
-                            logger.info(f"Using system prompt: {prompt_doc.get('name', 'Unknown')}")
-                            logger.info(f"Prompt content (first 100 chars): {prompt_doc.get('prompt', '')[:100]}...")
-                        else:
-                            logger.warning(f"System prompt ID {system_prompt_id} not found")
-            
-            # Detect language and enhance the system prompt if needed
-            enhanced_prompt_id = await self._detect_and_enhance_prompt(message, system_prompt_id)
+            # Use base processing
+            enhanced_prompt_id, _ = await self._process_chat_base(message, client_ip, collection_name, system_prompt_id, api_key)
             
             # Generate and stream response
             accumulated_text = ""
             
-            async for chunk in self.llm_client.generate_response_stream(
-                message=message,
-                collection_name=collection_name,
-                system_prompt_id=enhanced_prompt_id
-            ):
+            # Choose the correct call based on whether we're using an in-memory override or a prompt ID
+            if enhanced_prompt_id is None:
+                # If enhanced_prompt_id is None, we've set an override prompt in memory
+                stream_generator = self.llm_client.generate_response_stream(
+                    message=message,
+                    collection_name=collection_name
+                )
+            else:
+                stream_generator = self.llm_client.generate_response_stream(
+                    message=message,
+                    collection_name=collection_name,
+                    system_prompt_id=enhanced_prompt_id
+                )
+                
+            async for chunk in stream_generator:
                 try:
                     chunk_data = json.loads(chunk)
                     
@@ -274,6 +297,13 @@ class ChatService:
                             # Log conversation to Elasticsearch if API key is provided
                             if api_key:
                                 await self._log_conversation(message, accumulated_text, client_ip, api_key)
+                            
+                            # Clear the override after use if we used in-memory override
+                            if enhanced_prompt_id is None:
+                                if hasattr(self.llm_client, 'clear_override_system_prompt'):
+                                    self.llm_client.clear_override_system_prompt()
+                                elif hasattr(self.llm_client, 'override_system_prompt'):
+                                    self.llm_client.override_system_prompt = None
                                 
                 except json.JSONDecodeError:
                     logger.error(f"Error parsing chunk as JSON: {chunk}")

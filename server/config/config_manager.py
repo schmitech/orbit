@@ -275,6 +275,7 @@ def get_default_config() -> Dict[str, Any]:
             "port": 3000,
             "verbose": "false",
             "inference_only": False,
+            "language_detection": True,
             "https": {
                 "enabled": False,
                 "port": 3443,

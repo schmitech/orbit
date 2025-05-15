@@ -120,7 +120,8 @@ class GroqClient(BaseLLMClient, LLMClientMixin):
             Dictionary containing response and metadata
         """
         try:
-            self.logger.info(f"Generating response for message: {message[:100]}...")
+            if self.verbose:
+                self.logger.info(f"Generating response for message: {message[:100]}...")
             
             # Check if the message is safe
             is_safe, refusal_message = await self._check_message_safety(message)
@@ -143,7 +144,8 @@ class GroqClient(BaseLLMClient, LLMClientMixin):
             # Call the Groq API
             start_time = time.time()
             
-            self.logger.info(f"Calling Groq API with model: {self.model}")
+            if self.verbose:
+                self.logger.info(f"Calling Groq API with model: {self.model}")
             
             # Prepare messages for the API call
             messages = [
@@ -174,7 +176,8 @@ class GroqClient(BaseLLMClient, LLMClientMixin):
                 "total": response.usage.total_tokens
             }
             
-            self.logger.info(f"Token usage: {tokens}")
+            if self.verbose:
+                self.logger.info(f"Token usage: {tokens}")
             
             return {
                 "response": response_text,
@@ -205,7 +208,8 @@ class GroqClient(BaseLLMClient, LLMClientMixin):
             Chunks of the response as they are generated
         """
         try:
-            self.logger.info(f"Starting streaming response for message: {message[:100]}...")
+            if self.verbose:
+                self.logger.info(f"Starting streaming response for message: {message[:100]}...")
             
             # Check if the message is safe
             is_safe, refusal_message = await self._check_message_safety(message)
@@ -226,7 +230,8 @@ class GroqClient(BaseLLMClient, LLMClientMixin):
             if not self.groq_client:
                 await self.initialize()
             
-            self.logger.info(f"Calling Groq API with model: {self.model}")
+            if self.verbose:
+                self.logger.info(f"Calling Groq API with model: {self.model}")
             
             # Prepare messages for the API call
             messages = [
@@ -252,7 +257,7 @@ class GroqClient(BaseLLMClient, LLMClientMixin):
                         chunk_text = chunk.choices[0].delta.content
                         chunk_count += 1
                         
-                        if chunk_count % 10 == 0:
+                        if self.verbose and chunk_count % 10 == 0:
                             self.logger.debug(f"Streaming chunk {chunk_count}")
                             
                         yield json.dumps({
@@ -261,7 +266,8 @@ class GroqClient(BaseLLMClient, LLMClientMixin):
                             "done": False
                         })
                 
-                self.logger.info(f"Streaming complete. Sent {chunk_count} chunks")
+                if self.verbose:
+                    self.logger.info(f"Streaming complete. Sent {chunk_count} chunks")
                 
                 # When stream is complete, send the sources
                 sources = self._format_sources(retrieved_docs)

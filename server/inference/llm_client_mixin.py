@@ -50,6 +50,12 @@ class LLMClientMixin:
         Returns:
             System prompt string
         """
+        # First check if there's an in-memory override
+        if hasattr(self, 'override_system_prompt') and self.override_system_prompt:
+            if getattr(self, 'verbose', False):
+                self.logger.info("Using in-memory system prompt override")
+            return self.override_system_prompt
+            
         system_prompt = "You are a helpful assistant that provides accurate information."
         
         if not system_prompt_id or not self.prompt_service:
@@ -198,4 +204,31 @@ class LLMClientMixin:
         if getattr(self, 'verbose', False):
             self.logger.info(f"Estimated token usage: {estimated_tokens}")
             
-        return estimated_tokens 
+        return estimated_tokens
+    
+    def clear_override_system_prompt(self) -> None:
+        """
+        Clear any in-memory system prompt override.
+        """
+        if hasattr(self, 'override_system_prompt'):
+            self.override_system_prompt = None
+            if getattr(self, 'verbose', False):
+                self.logger.info("Cleared in-memory system prompt override")
+                
+    def _measure_execution_time(self, start_time: float) -> float:
+        """
+        Calculate execution time from start time to now.
+        
+        Args:
+            start_time: The start time from time.time()
+            
+        Returns:
+            Processing time in seconds
+        """
+        end_time = time.time()
+        processing_time = end_time - start_time
+        
+        if getattr(self, 'verbose', False):
+            self.logger.info(f"Received response in {processing_time:.2f} seconds")
+            
+        return processing_time 

@@ -35,6 +35,7 @@ import atexit
 from typing import Dict, Any, Optional, List, Callable, Awaitable, Set
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
+from datetime import datetime
 
 import uvicorn
 from fastapi import FastAPI, Request, Depends, HTTPException, Response
@@ -859,6 +860,9 @@ class InferenceServer:
         safety_moderator = safety_config.get('moderator', 'ollama')
         safety_mode = safety_config.get('mode', 'strict')
         
+        # Get language detection configuration
+        language_detection_enabled = _is_true_value(self.config.get('general', {}).get('language_detection', True))
+        
         # Get session ID configuration
         session_config = self.config.get('general', {}).get('session_id', {})
         session_enabled = _is_true_value(session_config.get('required', False))
@@ -881,6 +885,7 @@ class InferenceServer:
                     embed_model = self.config['embeddings'][embedding_provider].get('model', 'unknown')
                     self.logger.info(f"Embedding model: {embed_model}")
         
+        self.logger.info(f"Language Detection: {'enabled' if language_detection_enabled else 'disabled'}")
         self.logger.info(f"Session ID: {'enabled' if session_enabled else 'disabled'} (header: {session_header})")
         self.logger.info(f"API Key: {'enabled' if api_key_enabled else 'disabled'} (header: {api_key_header})")
         
@@ -926,6 +931,15 @@ class InferenceServer:
             allow_methods=["*"],  # Allows all methods
             allow_headers=["*"],  # Allows all headers
         )
+
+        # Add custom logging middleware
+        @self.app.middleware("http")
+        async def log_requests(request: Request, call_next):
+            start_time = time.time()
+            response = await call_next(request)
+            process_time = time.time() - start_time
+            self.logger.info(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S,%f')[:-3]} - {request.client.host} - {request.method} {request.url.path} - {response.status_code} - {process_time:.3f}s")
+            return response
 
     def _configure_routes(self) -> None:
         """Configure routes and endpoints for the FastAPI application."""
@@ -1727,6 +1741,7 @@ class InferenceServer:
             loop="asyncio",
             timeout_keep_alive=30,
             timeout_graceful_shutdown=30,
+            access_log=False  # Disable FastAPI's default access logging
         )
         
         server = uvicorn.Server(config)
