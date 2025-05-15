@@ -93,10 +93,6 @@ Copy and configure the main config file:
 
 ### 5. Launch Server
 ```bash
-# Start the server
-./bin/start.sh
-
-# Or use the control script
 ./bin/orbit.sh start
 ```
 
@@ -133,14 +129,6 @@ Copy and configure the main config file:
 ./install/setup-demo-db.sh chroma
 ```
 
-The script will:
-- Set up the database (SQLite or Chroma)
-- Create necessary collections
-- Generate API keys for the collections
-- Provide instructions for testing the setup
-
-Server will be available at `http://localhost:3000`
-
 ### 9. Client Setup
 
 #### Python Client
@@ -149,7 +137,7 @@ Server will be available at `http://localhost:3000`
 pip install schmitech-orbit-client
 
 # The chat client implementation can be found in /clients/python/schmitech_orbit_client/chat_client.py
-orbit-chat --url http://localhost:3000
+orbit-chat --url http://localhost:3000 --api-key orbit-api-key
 ```
 
 ### Configuration
@@ -171,111 +159,3 @@ Contributions are welcome! Please read our [Code of Conduct](CODE_OF_CONDUCT.md)
 ## 📃 License
 
 This project is licensed under the Apache 2.0 License - see the [LICENSE](LICENSE) file for details.
-
-# Orbit Adapter Roadmap
-
-## Current Adapters
-Orbit currently supports the following adapters:
-- **qa-sqlite**: SQLite-based retriever for question answering
-- **qa-chroma**: Chroma vector database retriever for question answering
-
-## Future Adapter Roadmap
-
-### Enterprise Data Integration Adapters
-Connect Orbit with enterprise systems to provide AI capabilities on organizational data.
-
-| Adapter | Description | Priority |
-|---------|-------------|----------|
-| SAP Connector | Integrate with SAP ERP systems for business process intelligence | High |
-| Salesforce Adapter | Connect with CRM data to enhance customer interactions | High |
-| Microsoft 365 Integration | Access SharePoint, Teams, and Office data for internal knowledge | Medium |
-| Enterprise Database Connectors | Support for Teradata, Oracle, SQL Server to query enterprise data | Medium |
-
-### Specialized Knowledge Adapters
-Domain-specific adapters for industries with specialized requirements.
-
-| Adapter | Description | Priority |
-|---------|-------------|----------|
-| Legal Document Analyzer | Process legal documents with citation support and compliance features | High |
-| Financial Data Adapter | Handle financial reports with regulatory compliance and data security | High |
-| Healthcare Knowledge Base | Process medical literature and patient data with HIPAA compliance | Medium |
-| Scientific Research Connector | Access and query scientific papers and research databases | Medium |
-
-### Multimodal Adapters
-Extend Orbit beyond text to handle various data types.
-
-| Adapter | Description | Priority |
-|---------|-------------|----------|
-| Document OCR Processor | Extract text from images and documents for analysis | High |
-| Audio Transcription | Convert meeting recordings and calls to searchable text | Medium |
-| Video Content Analysis | Extract insights from video content | Low |
-| Chart/Graph Interpreter | Understand and explain visual data representations | Medium |
-
-### Real-time Adapters
-Connect to live data sources for up-to-date intelligence.
-
-| Adapter | Description | Priority |
-|---------|-------------|----------|
-| Market Data Connector | Access real-time financial market data | High |
-| Customer Support Integration | Connect to live customer service platforms | Medium |
-| IoT Sensor Data | Process information from connected devices and sensors | Medium |
-| Social Media Monitor | Track brand mentions and sentiment in real time | Low |
-
-### Advanced Analytics Adapters
-Add sophisticated analytical capabilities to Orbit.
-
-| Adapter | Description | Priority |
-|---------|-------------|----------|
-| Time-series Forecasting | Predict future trends based on historical data | High |
-| BI Dashboard Connector | Integrate with business intelligence platforms | Medium |
-| Anomaly Detection | Identify unusual patterns in operational data | Medium |
-| Sentiment Analysis | Analyze customer feedback and communications | Low |
-
-### Workflow Automation Adapters
-Integrate AI capabilities into business processes.
-
-| Adapter | Description | Priority |
-|---------|-------------|----------|
-| Business Process Modeling | Model and optimize workflows with AI assistance | High |
-| Approval Workflow Integration | Streamline document and request approvals | Medium |
-| Document Generation | Create reports and documents from templates and data | Medium |
-| Task Management | AI-assisted project and task management | Low |
-
-## Implementation Guidelines
-
-Each new adapter should follow Orbit's adapter pattern:
-
-```yaml
-- name: "adapter-name"
-  type: "retriever"
-  datasource: "data-source-type"
-  adapter: "adapter-type"
-  implementation: "path.to.implementation.Class"
-  config:
-    # Adapter-specific configuration options
-    confidence_threshold: 0.5
-    max_results: 5
-    return_results: 3
-    # Other adapter-specific settings
-```
-
-## Development Priorities
-
-1. Focus first on enterprise integrations that unlock organizational data
-2. Prioritize industry-specific adapters based on customer demand
-3. Develop multimodal capabilities to handle diverse data types
-4. Add real-time adapters for time-sensitive applications
-5. Implement advanced analytics for deeper insights
-6. Create workflow automation to streamline business processes
-
-## Contributing
-
-Interested in developing a new adapter? Please follow these steps:
-1. Check the roadmap to see if your adapter is already planned
-2. Open an issue to discuss the adapter requirements
-3. Follow the adapter implementation guidelines
-4. Submit a pull request with thorough documentation
-
----
-
-This roadmap is a living document and will be updated as we gather more feedback from customers and the community.
