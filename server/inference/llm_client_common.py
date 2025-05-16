@@ -1,5 +1,5 @@
 """
-LLM Client Mixin
+LLM Client Common
 
 This module provides common functionality shared across different LLM client implementations.
 """
@@ -9,11 +9,11 @@ import time
 import logging
 from typing import Dict, List, Any, Optional, AsyncGenerator
 
-class LLMClientMixin:
+class LLMClientCommon:
     """
-    Mixin class providing common functionality for LLM clients.
+    Common class providing common functionality for LLM clients.
     
-    This mixin implements common patterns found across different LLM client implementations,
+    This Common implements common patterns found across different LLM client implementations,
     reducing code duplication and making clients more maintainable.
     """
     

@@ -5,9 +5,9 @@ import os
 from typing import Any, Dict, Optional, AsyncGenerator
 
 from ..base_llm_client import BaseLLMClient
-from ..llm_client_mixin import LLMClientMixin
+from ..llm_client_common import LLMClientCommon
 
-class OpenRouterClient(BaseLLMClient, LLMClientMixin):
+class OpenRouterClient(BaseLLMClient, LLMClientCommon):
     """LLM client implementation for OpenRouter.ai using the OpenAI library."""
 
     def __init__(

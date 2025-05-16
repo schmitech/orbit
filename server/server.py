@@ -1,25 +1,35 @@
 """
-Open Inference Server
+ORBIT Server
 ==================
 
-A modular FastAPI server that provides a chat endpoint with Ollama LLM integration
-and Chroma vector database for retrieval augmented generation.
+A modular MCP-compliant FastAPI server that provides a chat completion endpoint.
 
-This implementation follows object-oriented principles to create a maintainable
-and well-structured application.
+Architecture Overview:
+    - FastAPI-based web server with async support
+    - Modular design with separate services for different functionalities
+    - Support for multiple LLM providers (Ollama, HuggingFace, etc.)
+    - SQL and Vector database integration for RAG capabilities
+    - API key management and authentication
+    - Session management
+    - Logging and Health monitoring
 
-Usage:
-    python main.py
+Key Components:
+    - InferenceServer: Main server class managing the application lifecycle
+    - Services: Modular components for specific functionalities (chat, health, etc.)
+    - Clients: Provider-specific implementations for LLM and vector database
+    - Adapters: Interface adapters for different data sources and models
+    - Middleware: Request/response processing and logging
 
 Features:
-    - Chat endpoint with context-aware responses
-    - Health check endpoint
-    - ChromaDB integration for document retrieval
-    - Ollama integration for embeddings and LLM responses
+    - Chat endpoint with context-aware responses using MCP protocol
+    - Health check endpoint for monitoring
     - Safety check for user queries using GuardrailService
     - HTTPS support using provided certificates
-    - API key management
-    - MCP protocol compatibility for universal client support
+    - API key management with collection-based access control
+    - Session management for tracking conversations
+    - Support for streaming responses
+    - Language detection and safety moderation
+    - Configurable retriever and reranker components
 """
 
 import os
@@ -29,10 +39,8 @@ import logging.handlers
 import json
 import asyncio
 import time
-import uuid
-import warnings
 import atexit
-from typing import Dict, Any, Optional, List, Callable, Awaitable, Set
+from typing import Any, Optional
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -54,11 +62,9 @@ load_dotenv()
 from config.config_manager import load_config, _is_true_value
 from models.schema import ChatMessage, ApiKeyCreate, ApiKeyResponse, ApiKeyDeactivate, SystemPromptCreate, SystemPromptUpdate, SystemPromptResponse, ApiKeyPromptAssociate
 from models.schema import MCPJsonRpcRequest, MCPJsonRpcResponse, MCPJsonRpcError
-from models import ChatMessage
 from services.mongodb_service import MongoDBService
 from inference import LLMClientFactory
 from utils.text_utils import mask_api_key
-from embeddings.base import EmbeddingServiceFactory
 from retrievers.base.base_retriever import RetrieverFactory
 from retrievers.adapters.registry import ADAPTER_REGISTRY
 from utils.mongodb_utils import configure_mongodb_logging
@@ -69,16 +75,30 @@ configure_mongodb_logging()
 # Global registry to track aiohttp client sessions
 _AIOHTTP_SESSIONS = set()
 
-# Register aiohttp session to track it
 def register_aiohttp_session(session):
-    """Register an aiohttp ClientSession for tracking"""
+    """
+    Register an aiohttp ClientSession for tracking and cleanup.
+    
+    This function is used to keep track of all aiohttp client sessions
+    created by the application to ensure proper cleanup during shutdown.
+    
+    Args:
+        session: The aiohttp ClientSession to register
+        
+    Returns:
+        The registered session
+    """
     global _AIOHTTP_SESSIONS
     _AIOHTTP_SESSIONS.add(session)
     return session
 
-# Close all tracked sessions
 async def close_all_aiohttp_sessions():
-    """Close all tracked aiohttp ClientSessions"""
+    """
+    Close all tracked aiohttp ClientSessions.
+    
+    This function is called during server shutdown to ensure all
+    aiohttp client sessions are properly closed to prevent resource leaks.
+    """
     global _AIOHTTP_SESSIONS
     if not _AIOHTTP_SESSIONS:
         return
@@ -102,6 +122,11 @@ import aiohttp
 original_init = aiohttp.ClientSession.__init__
 
 def patched_init(self, *args, **kwargs):
+    """
+    Patched initialization for aiohttp.ClientSession to automatically register sessions.
+    
+    This patch ensures all aiohttp client sessions are tracked for proper cleanup.
+    """
     original_init(self, *args, **kwargs)
     register_aiohttp_session(self)
 
@@ -114,14 +139,58 @@ class InferenceServer:
     """
     A modular inference server built with FastAPI that provides chat endpoints
     with LLM integration and vector database retrieval capabilities.
+
+    This class serves as the main entry point for the Open Inference Server application.
+    It manages the application lifecycle, including initialization, configuration,
+    service management, and graceful shutdown.
+
+    Key Responsibilities:
+        - Configuration loading and validation
+        - Service initialization and management
+        - Route configuration and middleware setup
+        - API endpoint implementation
+        - Resource cleanup and graceful shutdown
+
+    The server supports two main modes:
+        1. Full Mode: Includes RAG capabilities with vector database integration
+        2. Inference-Only Mode: Basic chat functionality without RAG features
+
+    Service Management:
+        - Chat Service: Handles chat interactions and message processing
+        - Health Service: Monitors system health and dependencies
+        - Guardrail Service: Provides content safety checks
+        - API Key Service: Manages API key authentication and access control
+        - Prompt Service: Handles system prompts and templates
+        - Logger Service: Manages application logging
+        - Retriever Service: Handles document retrieval for RAG
+        - Reranker Service: Ranks retrieved documents by relevance
+
+    Configuration:
+        The server can be configured using a YAML configuration file that specifies:
+        - Server settings (host, port, HTTPS)
+        - Provider configurations (LLM, embedding, vector database)
+        - Service settings (safety, reranker, logging)
+        - API settings (key management, session handling)
     """
     
     def __init__(self, config_path: Optional[str] = None):
         """
         Initialize the InferenceServer with optional custom configuration path.
         
+        This method sets up the basic server infrastructure, including:
+        - Basic logging configuration
+        - Configuration loading
+        - Thread pool for I/O operations
+        - FastAPI application initialization
+        - Middleware and route configuration
+        
         Args:
-            config_path: Optional path to a custom configuration file
+            config_path: Optional path to a custom configuration file.
+                        If not provided, uses default configuration.
+        
+        Raises:
+            FileNotFoundError: If the specified config file doesn't exist
+            ValueError: If the configuration is invalid
         """
         # Initialize basic logging until proper configuration is loaded
         self._setup_initial_logging()
@@ -154,7 +223,22 @@ class InferenceServer:
         self.logger.info("InferenceServer initialized")
 
     def _setup_initial_logging(self) -> None:
-        """Set up basic logging configuration before loading the full config."""
+        """
+        Set up basic logging configuration before loading the full config.
+        
+        This method initializes a basic logging configuration that will be used
+        until the full configuration is loaded. It ensures that critical startup
+        messages are properly logged.
+        
+        The basic configuration includes:
+        - Console output
+        - Timestamp formatting
+        - Log level set to INFO
+        - Basic log format
+        
+        This is a temporary setup that will be replaced by the full logging
+        configuration once the config is loaded.
+        """
         logging.basicConfig(
             level=logging.INFO,
             format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -165,7 +249,27 @@ class InferenceServer:
         logging.getLogger('clients.ollama_client').setLevel(logging.DEBUG)
 
     def _setup_logging(self) -> None:
-        """Configure logging based on the application configuration."""
+        """
+        Configure logging based on the application configuration.
+        
+        This method sets up the full logging configuration based on the loaded
+        configuration file. It supports:
+        - Console and file logging
+        - JSON and text formats
+        - Log rotation
+        - Custom log levels
+        - Warning capture
+        
+        Configuration options include:
+        - Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+        - Log format (JSON or text)
+        - Log file settings (path, rotation, size limits)
+        - Console output settings
+        - Warning capture settings
+        
+        The configuration is applied to the root logger and can be overridden
+        for specific loggers if needed.
+        """
         log_config = self.config.get('logging', {})
         log_level = getattr(logging, log_config.get('level', 'INFO').upper())
         
@@ -199,7 +303,7 @@ class InferenceServer:
         # Configure file logging only if enabled AND console is disabled OR they have different destinations
         if file_enabled:
             file_config = log_config['file']
-            log_file = os.path.join(log_dir, file_config.get('filename', 'server.log'))
+            log_file = os.path.join(log_dir, file_config.get('filename', 'orbit.log'))
             
             # Set up rotating file handler
             if file_config.get('rotation') == 'midnight':
@@ -242,10 +346,23 @@ class InferenceServer:
     def _create_lifespan_manager(self):
         """
         Create an asynccontextmanager for the FastAPI application lifespan.
-        This manages initialization and cleanup of resources.
+        
+        This method creates a lifespan manager that handles the initialization and cleanup
+        of all server resources. It ensures proper startup and shutdown of services,
+        including:
+        - Service initialization
+        - Configuration validation
+        - Resource allocation
+        - Graceful shutdown of services
+        
+        The lifespan manager is used by FastAPI to manage the application lifecycle.
+        It runs during server startup and shutdown.
         
         Returns:
-            An asynccontextmanager function for the FastAPI app
+            An asynccontextmanager function that handles the FastAPI app lifecycle
+        
+        Raises:
+            Exception: If service initialization fails
         """
         @asynccontextmanager
         async def lifespan(app: FastAPI):
@@ -275,13 +392,27 @@ class InferenceServer:
     def _resolve_datasource_embedding_provider(self, datasource_name: str) -> str:
         """
         Resolve embedding provider for a specific datasource.
-        This implements the inheritance with override capability.
+        
+        This method implements a provider resolution system that supports:
+        - Inheritance from main embedding provider
+        - Datasource-specific overrides
+        - Fallback to default provider
+        
+        The resolution process:
+        1. Gets the main embedding provider from config
+        2. Checks for datasource-specific override
+        3. Validates the provider exists in config
+        4. Returns the appropriate provider name
         
         Args:
             datasource_name: The name of the datasource ('chroma', 'milvus', etc.)
             
         Returns:
             The embedding provider name to use for this datasource
+            
+        Note:
+            If the specified provider override is not found in the config,
+            the method falls back to the main provider.
         """
         # Get the main embedding provider from embedding settings
         main_provider = self.config['embedding'].get('provider', 'ollama')
@@ -303,8 +434,30 @@ class InferenceServer:
     def _resolve_provider_configs(self) -> None:
         """
         Resolve provider configurations and ensure backward compatibility.
-        This method maps the selected providers to the legacy config structure
-        to minimize changes to existing code.
+        
+        This method handles the resolution of all provider configurations in the system,
+        including:
+        - Inference provider (LLM)
+        - Embedding provider
+        - Datasource provider
+        - Safety provider
+        - Reranker provider
+        
+        The resolution process:
+        1. Checks for inference-only mode
+        2. Resolves each provider configuration
+        3. Updates component-specific settings
+        4. Handles backward compatibility
+        
+        The method supports:
+        - Provider inheritance
+        - Component-specific overrides
+        - Model resolution
+        - Backward compatibility mapping
+        
+        Note:
+            In inference-only mode, only the inference provider is resolved.
+            Other providers are skipped to minimize resource usage.
         """
         # Check if inference_only is enabled
         inference_only = _is_true_value(self.config.get('general', {}).get('inference_only', False))
@@ -484,7 +637,38 @@ class InferenceServer:
                 )
     
     async def _initialize_services(self, app: FastAPI) -> None:
-        """Initialize all services and clients required by the application."""
+        """
+        Initialize all services and clients required by the application.
+        
+        This method is responsible for setting up all the services needed by the server,
+        including:
+        - Configuration resolution and validation
+        - Service initialization based on configuration
+        - Client setup for external services
+        - Lazy loading of optional services
+        
+        The initialization process is mode-aware:
+        - In full mode: Initializes all services including RAG capabilities
+        - In inference-only mode: Initializes only essential services
+        
+        Services initialized include:
+        - MongoDB service for data persistence
+        - API key service for authentication
+        - Prompt service for system prompts
+        - Retriever service for document retrieval
+        - Logger service for application logging
+        - Guardrail service for content safety
+        - Reranker service for document ranking
+        - LLM client for model inference
+        - Chat service for message handling
+        - Health service for monitoring
+        
+        Args:
+            app: The FastAPI application instance
+            
+        Raises:
+            Exception: If any service fails to initialize
+        """
         # Store config in app state
         app.state.config = self.config
         
@@ -644,7 +828,7 @@ class InferenceServer:
                 # Create a simple lazy factory that will attempt to create a fallback retriever on first access
                 def create_fallback_retriever():
                     try:
-                        from retrievers.implementations.chroma import ChromaRetriever
+                        from retrievers.implementations.qa_chroma_retriever import ChromaRetriever
                         
                         # Create a default QA adapter
                         domain_adapter = ADAPTER_REGISTRY.create(
@@ -834,7 +1018,30 @@ class InferenceServer:
             self.logger.info("No services to shut down")
 
     def _log_configuration_summary(self) -> None:
-        """Log a summary of the server configuration."""
+        """
+        Log a summary of the server configuration.
+        
+        This method provides a comprehensive overview of the server's configuration
+        by logging key settings and their values. It includes:
+        - Server mode (Full/Inference-only)
+        - Provider configurations
+        - Service settings
+        - API settings
+        - Model information
+        - Endpoint information
+        
+        The summary is formatted for easy reading and includes:
+        - Clear section headers
+        - Grouped related settings
+        - Enabled/disabled status
+        - Provider and model details
+        
+        This summary is logged at server startup to help with:
+        - Configuration verification
+        - Debugging
+        - System monitoring
+        - Documentation
+        """
         self.logger.info("=" * 50)
         self.logger.info("Server Configuration Summary")
         self.logger.info("=" * 50)
@@ -922,17 +1129,26 @@ class InferenceServer:
         self.logger.info("  - Health check: GET /health")
 
     def _configure_middleware(self) -> None:
-        """Configure middleware for the FastAPI application."""
-        # Add CORS middleware
+        """
+        Configure middleware for the FastAPI application.
+        
+        This method sets up:
+        - CORS middleware for cross-origin requests
+        - Custom logging middleware for request/response tracking
+        
+        The CORS middleware is configured to allow all origins, methods, and headers
+        for development. In production, this should be restricted to specific origins.
+        """
+        # Add CORS middleware with permissive settings for development
         self.app.add_middleware(
             CORSMiddleware,
-            allow_origins=["*"],  # Allows all origins
+            allow_origins=["*"],  # TODO: Restrict in production
             allow_credentials=True,
-            allow_methods=["*"],  # Allows all methods
-            allow_headers=["*"],  # Allows all headers
+            allow_methods=["*"],
+            allow_headers=["*"],
         )
 
-        # Add custom logging middleware
+        # Add request logging middleware
         @self.app.middleware("http")
         async def log_requests(request: Request, call_next):
             start_time = time.time()
@@ -942,7 +1158,31 @@ class InferenceServer:
             return response
 
     def _configure_routes(self) -> None:
-        """Configure routes and endpoints for the FastAPI application."""
+        """
+        Configure routes and endpoints for the FastAPI application.
+        
+        This method sets up all the API endpoints and their dependencies, including:
+        - Chat endpoint with MCP protocol support
+        - Health check endpoint
+        - API key management endpoints
+        - System prompt management endpoints
+        
+        Each endpoint is configured with appropriate:
+        - Request validation
+        - Authentication checks
+        - Response formatting
+        - Error handling
+        
+        The endpoints support:
+        - Streaming responses for chat
+        - JSON-RPC protocol for chat
+        - REST API for management functions
+        - Health monitoring
+        - API key management
+        - System prompt management
+        
+        Dependencies are lazy-loaded to improve startup time and resource usage.
+        """
         # Define dependencies with lazy imports
         async def get_chat_service(request: Request):
             if not hasattr(request.app.state, 'chat_service'):
@@ -1393,9 +1633,29 @@ class InferenceServer:
             request: Request
         ):
             """
-            Create a new API key associated with a specific collection
+            Create a new API key for accessing the server.
             
-            This is an admin-only endpoint and should be properly secured in production.
+            This endpoint allows administrators to create API keys with:
+            - Collection-based access control
+            - Client identification
+            - Usage notes
+            - Optional system prompt association
+            
+            Security considerations:
+            - This is an admin-only endpoint
+            - Should be protected by additional authentication
+            - API keys should be stored securely
+            - Keys should be rotated periodically
+            
+            Args:
+                api_key_data: The API key creation request data
+                request: The incoming request
+                
+            Returns:
+                ApiKeyResponse containing the created API key and metadata
+                
+            Raises:
+                HTTPException: If API key creation fails or service is unavailable
             """
             # Check if inference_only is enabled
             inference_only = _is_true_value(request.app.state.config.get('general', {}).get('inference_only', False))
@@ -1412,7 +1672,6 @@ class InferenceServer:
                     detail="API key service is not available"
                 )
             
-            # In production, add authentication middleware to restrict access to admin endpoints
             api_key_service = request.app.state.api_key_service
             
             api_key_response = await api_key_service.create_api_key(
@@ -1432,9 +1691,29 @@ class InferenceServer:
             request: Request
         ):
             """
-            List all API keys
+            List all API keys in the system.
             
-            This is an admin-only endpoint and should be properly secured in production.
+            This endpoint provides a list of all API keys with:
+            - Masked key values
+            - Collection associations
+            - Client information
+            - Creation timestamps
+            - Status information
+            
+            Security considerations:
+            - This is an admin-only endpoint
+            - Should be protected by additional authentication
+            - API keys are masked in the response
+            - Limited to 100 keys per request
+            
+            Args:
+                request: The incoming request
+                
+            Returns:
+                List of API key records with masked values
+                
+            Raises:
+                HTTPException: If API key listing fails or service is unavailable
             """
             # Check if inference_only is enabled
             inference_only = _is_true_value(request.app.state.config.get('general', {}).get('inference_only', False))
@@ -1451,7 +1730,6 @@ class InferenceServer:
                     detail="API key service is not available"
                 )
             
-            # In production, add authentication middleware to restrict access to admin endpoints
             api_key_service = request.app.state.api_key_service
             
             try:
@@ -1481,9 +1759,29 @@ class InferenceServer:
             request: Request
         ):
             """
-            Get the status of a specific API key
+            Get the status of a specific API key.
             
-            This is an admin-only endpoint and should be properly secured in production.
+            This endpoint provides detailed status information for an API key:
+            - Active/inactive status
+            - Last used timestamp
+            - Associated collection
+            - System prompt association
+            - Usage statistics
+            
+            Security considerations:
+            - This is an admin-only endpoint
+            - Should be protected by additional authentication
+            - API key is masked in logs
+            
+            Args:
+                api_key: The API key to check
+                request: The incoming request
+                
+            Returns:
+                Status information for the specified API key
+                
+            Raises:
+                HTTPException: If API key status check fails or service is unavailable
             """
             # Check if inference_only is enabled
             inference_only = _is_true_value(request.app.state.config.get('general', {}).get('inference_only', False))
@@ -1502,9 +1800,11 @@ class InferenceServer:
             
             api_key_service = request.app.state.api_key_service
             status = await api_key_service.get_api_key_status(api_key)
+            
             # Log with masked API key
             masked_api_key = f"***{api_key[-4:]}" if api_key else "***"
             self.logger.info(f"Checked status for API key: {masked_api_key}")
+            
             return status
 
         @self.app.post("/admin/api-keys/deactivate")
@@ -1713,7 +2013,34 @@ class InferenceServer:
             raise
 
     def run(self) -> None:
-        """Run the FastAPI application with the configured settings."""
+        """
+        Run the FastAPI application with the configured settings.
+        
+        This method starts the server with the following features:
+        - HTTPS support if configured
+        - Graceful shutdown handling
+        - Signal handling for clean termination
+        - Automatic session cleanup
+        
+        The server can run in two modes:
+        1. HTTP mode: Standard HTTP server
+        2. HTTPS mode: Secure server with SSL/TLS
+        
+        Configuration is read from:
+        - Server settings (host, port)
+        - SSL settings (certificates, keys)
+        - Timeout settings
+        - Logging settings
+        
+        The server uses uvicorn as the ASGI server with:
+        - Async support
+        - Keep-alive connections
+        - Graceful shutdown
+        - Custom logging
+        
+        Raises:
+            Exception: If server fails to start
+        """
         # Get server settings from config
         port = int(self.config.get('general', {}).get('port', 3000))
         host = self.config.get('general', {}).get('host', '0.0.0.0')
@@ -1773,14 +2100,16 @@ app = FastAPI(
 def create_app() -> FastAPI:
     """
     Factory function to create a FastAPI application instance.
-    This is useful for uvicorn's multiple worker mode.
     
-    This function looks for a config path in the OIS_CONFIG_PATH environment variable.
+    This function is used by uvicorn's multiple worker mode to create
+    separate application instances for each worker process.
+    
+    The configuration path is read from the OIS_CONFIG_PATH environment variable.
+    If not set, the default configuration will be used.
     
     Returns:
-        A configured FastAPI application
+        A configured FastAPI application instance
     """
-    # Check for config path in environment variables
     config_path = os.environ.get('OIS_CONFIG_PATH')
     
     # Create server instance

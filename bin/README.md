@@ -216,7 +216,7 @@ orbit restart --config production.yaml
 
 ORBIT creates/uses these files:
 - `../server.pid`: Process ID file for server management
-- `../logs/server.log`: Server output and logs
+- `../logs/orbit.log`: Server output and logs
 - `.env`: Optional configuration file
 
 ## Error Handling
@@ -227,7 +227,7 @@ ORBIT provides clear error messages and exit codes:
 
 Check logs for detailed error information:
 ```bash
-tail -f ../logs/server.log
+tail -f ../logs/orbit.log
 ```
 
 ## Tips

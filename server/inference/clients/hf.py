@@ -6,9 +6,9 @@ from typing import Any, Optional, AsyncGenerator
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from ..base_llm_client import BaseLLMClient
-from ..llm_client_mixin import LLMClientMixin
+from ..llm_client_common import LLMClientCommon
 
-class HuggingFaceClient(BaseLLMClient, LLMClientMixin):
+class HuggingFaceClient(BaseLLMClient, LLMClientCommon):
     """LLM client implementation using Hugging Face Transformers."""
 
     def __init__(

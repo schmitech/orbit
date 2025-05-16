@@ -301,7 +301,7 @@ def get_default_config() -> Dict[str, Any]:
             "file": {
                 "enabled": True,
                 "directory": "logs",
-                "filename": "server.log",
+                "filename": "orbit.log",
                 "max_size_mb": 10,
                 "backup_count": 30,
                 "rotation": "midnight",

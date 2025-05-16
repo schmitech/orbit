@@ -14,9 +14,9 @@ import socket
 import urllib.parse
 
 from ..base_llm_client import BaseLLMClient
-from ..llm_client_mixin import LLMClientMixin
+from ..llm_client_common import LLMClientCommon
 
-class QAVLLMClient(BaseLLMClient, LLMClientMixin):
+class QAVLLMClient(BaseLLMClient, LLMClientCommon):
     """LLM client implementation for vLLM."""
     
     def __init__(self, config: Dict[str, Any], retriever: Any, guardrail_service: Any = None, 

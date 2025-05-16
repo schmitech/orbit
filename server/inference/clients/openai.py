@@ -12,9 +12,9 @@ import logging
 import os
 
 from ..base_llm_client import BaseLLMClient
-from ..llm_client_mixin import LLMClientMixin
+from ..llm_client_common import LLMClientCommon
 
-class OpenAIClient(BaseLLMClient, LLMClientMixin):
+class OpenAIClient(BaseLLMClient, LLMClientCommon):
     """LLM client implementation for OpenAI."""
     
     def __init__(self, config: Dict[str, Any], retriever: Any, guardrail_service: Any = None, 

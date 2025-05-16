@@ -96,7 +96,7 @@ class ServerController:
         self.project_root = script_dir.parent
         
         self.pid_file = self.project_root / pid_file
-        self.log_file = self.project_root / "logs" / "server.log"
+        self.log_file = self.project_root / "logs" / "orbit.log"
     
     def _read_pid(self) -> Optional[int]:
         """

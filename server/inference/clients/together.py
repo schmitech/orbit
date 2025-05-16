@@ -7,9 +7,9 @@ from typing import Dict, List, Any, Optional, AsyncGenerator
 from together import AsyncTogether
 
 from ..base_llm_client import BaseLLMClient
-from ..llm_client_mixin import LLMClientMixin
+from ..llm_client_common import LLMClientCommon
 
-class TogetherAIClient(BaseLLMClient, LLMClientMixin):
+class TogetherAIClient(BaseLLMClient, LLMClientCommon):
     '''LLM client implementation for Together.ai using the official Python package.'''
     def __init__(self, config: Dict[str, Any], retriever: Any, guardrail_service: Any = None, 
                  reranker_service: Any = None, prompt_service: Any = None, no_results_message: str = ''):

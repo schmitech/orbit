@@ -55,7 +55,7 @@ logging:
   file:
     enabled: true              # Enable logging to file
     directory: "logs"          # Directory for log files
-    filename: "server.log"     # Name of the log file
+    filename: "orbit.log"     # Name of the log file
     max_size_mb: 10           # Maximum size of each log file in megabytes
     backup_count: 30          # Number of backup log files to keep
     rotation: "midnight"      # When to rotate logs (midnight, hourly, daily)

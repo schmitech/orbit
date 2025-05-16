@@ -8,9 +8,9 @@ from azure.ai.inference import ChatCompletionsClient
 from azure.core.credentials import AzureKeyCredential
 
 from ..base_llm_client import BaseLLMClient
-from ..llm_client_mixin import LLMClientMixin
+from ..llm_client_common import LLMClientCommon
 
-class AzureOpenAIClient(BaseLLMClient, LLMClientMixin):
+class AzureOpenAIClient(BaseLLMClient, LLMClientCommon):
     """LLM client implementation for Azure AI Inference."""
 
     def __init__(

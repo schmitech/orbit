@@ -6,9 +6,9 @@ import aiohttp
 from typing import Dict, List, Any, Optional, AsyncGenerator
 
 from ..base_llm_client import BaseLLMClient
-from ..llm_client_mixin import LLMClientMixin
+from ..llm_client_common import LLMClientCommon
 
-class XAIClient(BaseLLMClient, LLMClientMixin):
+class XAIClient(BaseLLMClient, LLMClientCommon):
     """LLM client implementation for x.ai Grok inference."""
 
     def __init__(

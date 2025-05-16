@@ -13,9 +13,13 @@ RUN apt-get update && apt-get install -y \
 RUN useradd -m -s /bin/bash orbit
 WORKDIR /app
 
-# Copy requirements and config files
-COPY requirements.txt .
+# Copy dependency management files and config
+COPY dependencies.toml .
+COPY setup.sh .
 COPY config.yaml .
+
+# Make setup script executable
+RUN chmod +x setup.sh
 
 # Create and activate virtual environment
 RUN python3 -m venv venv
@@ -24,14 +28,23 @@ ENV PATH="/app/venv/bin:$PATH"
 # Upgrade pip
 RUN pip install --upgrade pip
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Install TOML parser
+RUN pip install tomli
+
+# Install Python dependencies using setup.sh
+RUN ./setup.sh --profile all
+
+# Create necessary directories
+RUN mkdir -p /app/gguf /app/logs
+
+# Copy GGUF model first
+COPY gguf/gemma-3-1b-it-Q4_0.gguf /app/gguf/
 
 # Copy application code
 COPY . .
 
-# Create logs directory
-RUN mkdir -p /app/logs && chown -R orbit:orbit /app
+# Set proper permissions
+RUN chown -R orbit:orbit /app
 
 # Switch to non-root user
 USER orbit

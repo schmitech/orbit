@@ -7,9 +7,9 @@ import asyncio
 from typing import Any, Optional, AsyncGenerator
 
 from ..base_llm_client import BaseLLMClient
-from ..llm_client_mixin import LLMClientMixin
+from ..llm_client_common import LLMClientCommon
 
-class AWSBedrockClient(BaseLLMClient, LLMClientMixin):
+class AWSBedrockClient(BaseLLMClient, LLMClientCommon):
     """LLM client implementation for AWS Bedrock via boto3."""
 
     def __init__(

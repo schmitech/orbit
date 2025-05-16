@@ -15,9 +15,9 @@ import os
 from mistralai import Mistral
 
 from ..base_llm_client import BaseLLMClient
-from ..llm_client_mixin import LLMClientMixin
+from ..llm_client_common import LLMClientCommon
 
-class MistralClient(BaseLLMClient, LLMClientMixin):
+class MistralClient(BaseLLMClient, LLMClientCommon):
     """LLM client implementation for Mistral AI."""
     
     def __init__(self, config: Dict[str, Any], retriever: Any, guardrail_service: Any = None, 
