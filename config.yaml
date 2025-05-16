@@ -32,7 +32,7 @@ logging:
   file:
     enabled: true
     directory: "logs"
-    filename: "server.log"
+    filename: "orbit.log"
     max_size_mb: 10
     backup_count: 30
     rotation: "midnight"
@@ -42,6 +42,17 @@ logging:
     format: "text"
   capture_warnings: true
   propagate: false
+  loggers:
+    inference.clients.llama_cpp:
+      level: "ERROR"
+    llama_cpp:
+      level: "ERROR"
+    llama_cpp.llama:
+      level: "ERROR"
+    ggml:
+      level: "ERROR"
+    metal:
+      level: "ERROR"
 
 internal_services:
   elasticsearch:
@@ -64,7 +75,7 @@ embeddings:
     model: "nomic-embed-text-v1.5-Q4_0"
     n_ctx: 1024 
     n_threads: 4
-    n_gpu_layers: -1
+    n_gpu_layers: 0
     main_gpu: 0 
     tensor_split: null  # Optional: GPU memory split for multi-GPU setups
     batch_size: 8
@@ -187,6 +198,7 @@ inference:
   llama_cpp:
     model_path: "gguf/gemma-3-1b-it-Q4_0.gguf"
     chat_format: "chatml"  # Chat format to use (chatml, llama-2, gemma, etc.)
+    verbose: false
     temperature: 0.1
     top_p: 0.8
     top_k: 20
@@ -195,9 +207,9 @@ inference:
     n_ctx: 1024
     n_threads: 4
     stream: true
-    n_gpu_layers: -1  # -1 means offload all layers to GPU
-    main_gpu: 0       # Use the first GPU (index 0)
-    tensor_split: null # Optional: distribute model across multiple GPUs e.g. [0.5, 0.5]
+    n_gpu_layers: 0  # Disable GPU/Metal support
+    main_gpu: 0
+    tensor_split: null
     stop_tokens: ["<|im_start|>", "<|im_end|>", "</s>", "<|endoftext|>"]
   gemini:
     api_key: ${GOOGLE_API_KEY}

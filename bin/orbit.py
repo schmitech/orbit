@@ -150,7 +150,8 @@ class ServerController:
     def start(self, config_path: Optional[str] = None, 
               host: Optional[str] = None, 
               port: Optional[int] = None,
-              reload: bool = False) -> bool:
+              reload: bool = False,
+              delete_logs: bool = False) -> bool:
         """
         Start the server if it's not already running.
         
@@ -159,6 +160,7 @@ class ServerController:
             host: Optional host to bind to
             port: Optional port to bind to
             reload: Whether to enable auto-reload for development
+            delete_logs: Whether to delete the logs folder before starting
             
         Returns:
             True if the server was started successfully, False otherwise
@@ -171,6 +173,12 @@ class ServerController:
         
         # Clean up stale PID file
         self._remove_pid_file()
+        
+        # Delete logs if requested
+        if delete_logs and self.log_file.parent.exists():
+            import shutil
+            shutil.rmtree(self.log_file.parent)
+            print("Logs folder deleted.")
         
         # Build the command to start the server
         # Change to project root and run main.py from server directory
@@ -259,12 +267,13 @@ class ServerController:
             self._remove_pid_file()
             return False
     
-    def stop(self, timeout: int = 30) -> bool:
+    def stop(self, timeout: int = 30, delete_logs: bool = False) -> bool:
         """
         Stop the server if it's running.
         
         Args:
             timeout: Maximum time to wait for graceful shutdown (seconds)
+            delete_logs: Whether to delete the logs folder after stopping
             
         Returns:
             True if the server was stopped successfully, False otherwise
@@ -291,6 +300,13 @@ class ServerController:
                 if not self._is_process_running(pid):
                     print("Server stopped successfully.")
                     self._remove_pid_file()
+                    
+                    # Delete logs if requested
+                    if delete_logs and self.log_file.parent.exists():
+                        import shutil
+                        shutil.rmtree(self.log_file.parent)
+                        print("Logs folder deleted.")
+                    
                     return True
                 time.sleep(0.5)
             
@@ -317,7 +333,8 @@ class ServerController:
     
     def restart(self, config_path: Optional[str] = None,
                 host: Optional[str] = None,
-                port: Optional[int] = None) -> bool:
+                port: Optional[int] = None,
+                delete_logs: bool = False) -> bool:
         """
         Restart the server.
         
@@ -325,6 +342,7 @@ class ServerController:
             config_path: Optional path to the configuration file
             host: Optional host to bind to
             port: Optional port to bind to
+            delete_logs: Whether to delete the logs folder during restart
             
         Returns:
             True if the server was restarted successfully, False otherwise
@@ -333,7 +351,7 @@ class ServerController:
         
         # Stop the server if it's running
         if self._read_pid():
-            if not self.stop():
+            if not self.stop(delete_logs=delete_logs):
                 print("Failed to stop server for restart.")
                 return False
             
@@ -341,7 +359,7 @@ class ServerController:
             time.sleep(2)
         
         # Start the server with new configuration
-        return self.start(config_path=config_path, host=host, port=port)
+        return self.start(config_path=config_path, host=host, port=port, delete_logs=delete_logs)
     
     def status(self) -> Dict[str, Any]:
         """
@@ -934,16 +952,19 @@ Examples:
         start_parser.add_argument('--host', type=str, help='Host to bind to')
         start_parser.add_argument('--port', type=int, help='Port to bind to')
         start_parser.add_argument('--reload', action='store_true', help='Enable auto-reload for development')
+        start_parser.add_argument('--delete-logs', action='store_true', help='Delete logs folder before starting')
         
         # Stop command
         stop_parser = subparsers.add_parser('stop', help='Stop the server')
         stop_parser.add_argument('--timeout', type=int, default=30, help='Timeout for graceful shutdown (seconds)')
+        stop_parser.add_argument('--delete-logs', action='store_true', help='Delete logs folder after stopping')
         
         # Restart command
         restart_parser = subparsers.add_parser('restart', help='Restart the server')
         restart_parser.add_argument('--config', type=str, help='Path to configuration file')
         restart_parser.add_argument('--host', type=str, help='Host to bind to')
         restart_parser.add_argument('--port', type=int, help='Port to bind to')
+        restart_parser.add_argument('--delete-logs', action='store_true', help='Delete logs folder during restart')
         
         # Status command
         status_parser = subparsers.add_parser('status', help='Check server status')
@@ -1022,19 +1043,21 @@ Examples:
                 config_path=args.config,
                 host=args.host,
                 port=args.port,
-                reload=args.reload
+                reload=args.reload,
+                delete_logs=args.delete_logs
             )
             return 0 if success else 1
         
         elif args.command == 'stop':
-            success = self.server_controller.stop(timeout=args.timeout)
+            success = self.server_controller.stop(timeout=args.timeout, delete_logs=args.delete_logs)
             return 0 if success else 1
         
         elif args.command == 'restart':
             success = self.server_controller.restart(
                 config_path=args.config,
                 host=args.host,
-                port=args.port
+                port=args.port,
+                delete_logs=args.delete_logs
             )
             return 0 if success else 1
         

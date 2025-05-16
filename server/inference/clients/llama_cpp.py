@@ -11,6 +11,19 @@ import os
 from typing import Dict, List, Any, Optional, AsyncGenerator
 import logging
 
+# Suppress Metal/OpenCL initialization messages
+os.environ["LLAMA_CPP_VERBOSE"] = "0"
+os.environ["METAL_DEBUG_ERROR_MODE"] = "0"  
+os.environ["METAL_DEVICE_WRAPPER_TYPE"] = "0"
+os.environ["METAL_DEBUG_OPTIONS"] = "silent"  # Additional Metal setting
+os.environ["GGML_METAL_SILENCE_INIT_LOGS"] = "1"  # Special for ggml_metal_init logs
+os.environ["GGML_METAL_VERBOSE"] = "0"  # Another GGML Metal setting
+os.environ["OPENCL_LOG_LEVEL"] = "0"
+os.environ["GGML_SILENT"] = "1"  # Suppress all GGML messages
+os.environ["GGML_VERBOSE"] = "0"  # Additional GGML verbosity control
+os.environ["GGML_DEBUG"] = "0"  # Disable GGML debug messages
+os.environ["GGML_METAL_DEBUG"] = "0"  # Disable Metal-specific debug messages
+
 from ..base_llm_client import BaseLLMClient
 from ..llm_client_common import LLMClientCommon
 

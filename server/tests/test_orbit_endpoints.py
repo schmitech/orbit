@@ -57,7 +57,7 @@ async def app():
     os.environ['TEST_CONFIG'] = json.dumps(TEST_CONFIG)
 
     # Import the create_app function and create an app for testing
-    from server import create_app
+    from main import create_app
     app = create_app()
     
     # Force configuration to use test values

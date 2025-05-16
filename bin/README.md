@@ -54,11 +54,20 @@ orbit start --host 0.0.0.0 --port 8080
 # Start with auto-reload (development mode)
 orbit start --reload
 
+# Start and delete existing logs
+orbit start --delete-logs
+
 # Stop the server
 orbit stop
 
+# Stop and delete logs
+orbit stop --delete-logs
+
 # Restart the server
 orbit restart
+
+# Restart and delete logs
+orbit restart --delete-logs
 
 # Check server status
 orbit status
@@ -185,10 +194,16 @@ For development with auto-reload:
 # Start with auto-reload
 orbit start --reload
 
+# Start fresh with deleted logs
+orbit start --delete-logs
+
 # Make code changes - server auto-restarts
 
 # When done, stop the server
 orbit stop
+
+# Stop and clean up logs
+orbit stop --delete-logs
 ```
 
 ### Production Deployment
@@ -198,11 +213,17 @@ For production environments:
 # Start with specific configuration
 orbit start --config production.yaml
 
+# Start fresh with deleted logs
+orbit start --config production.yaml --delete-logs
+
 # Monitor status
 orbit status
 
 # Graceful restart for updates
 orbit restart --config production.yaml
+
+# Restart and clean logs
+orbit restart --config production.yaml --delete-logs
 ```
 
 ## Environment Variables

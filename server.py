@@ -1,9 +1,8 @@
 """
-Open Inference Server - Main Application
-=======================================
+ORBIT Server
+==================
 
-Entry point for the Open Inference Server application.
-This script creates and runs the InferenceServer class.
+A modular MCP-compliant FastAPI server that provides a chat completion endpoint.
 
 Architecture Overview:
     - FastAPI-based web server with async support
@@ -13,17 +12,14 @@ Architecture Overview:
     - API key management and authentication
     - Session management
     - Logging and Health monitoring
-
-Usage:
-    python main.py [--config CONFIG_PATH]
 """
 
 import os
-import argparse
 import asyncio
 import aiohttp
 import logging
-from fastapi import FastAPI
+
+# Import the InferenceServer class from the new file
 from inference_server import InferenceServer
 
 # Configure MongoDB logging
@@ -90,6 +86,7 @@ def patched_init(self, *args, **kwargs):
 aiohttp.ClientSession.__init__ = patched_init
 
 # Create a global app instance for direct use by uvicorn in development mode
+from fastapi import FastAPI
 app = FastAPI(
     title="ORBIT Open Inference Server",
     description="MCP inference server with RAG capabilities",
@@ -117,20 +114,3 @@ def create_app() -> FastAPI:
     
     # Return just the FastAPI app instance
     return server.app
-
-def parse_arguments():
-    """Parse command line arguments."""
-    parser = argparse.ArgumentParser(description='Open Inference Server')
-    parser.add_argument('--config', type=str, help='Path to configuration file')
-    return parser.parse_args()
-
-def main():
-    """Main entry point for the application."""
-    args = parse_arguments()
-    
-    # Create and run the inference server
-    server = InferenceServer(config_path=args.config)
-    server.run()
-
-if __name__ == "__main__":
-    main()

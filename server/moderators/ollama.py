@@ -34,6 +34,7 @@ class OllamaModerator(ModeratorService):
         self.base_url = ollama_config.get('base_url', 'http://localhost:11434')
         self.model = ollama_config.get('model', 'gemma3:12b')  # Using Gemma 3 12b by default
         self.batch_size = ollama_config.get('batch_size', 1)
+        self.verbose = config.get('general', {}).get('verbose', False)  # Get verbose from general config
         
         # Get path to safety prompt
         server_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -67,7 +68,8 @@ class OllamaModerator(ModeratorService):
         try:
             with open(self.safety_prompt_path, 'r') as f:
                 self.safety_prompt = f.read()
-            logger.info(f"✅ Loaded safety prompt from {self.safety_prompt_path}")
+            if self.verbose:
+                logger.info(f"✅ Loaded safety prompt from {self.safety_prompt_path}")
         except Exception as e:
             logger.error(f"❌ Failed to load safety prompt: {str(e)}")
             # Use a basic fallback
@@ -89,7 +91,8 @@ class OllamaModerator(ModeratorService):
             
             # Check if the connection works
             if await self.verify_connection():
-                logger.info(f"✅ Initialized Ollama moderation service with model {self.model}")
+                if self.verbose:
+                    logger.info(f"✅ Initialized Ollama moderation service with model {self.model}")
                 self.initialized = True
                 return True
             return False
@@ -111,7 +114,8 @@ class OllamaModerator(ModeratorService):
             if not self.initialized:
                 await self.initialize()
             
-            logger.info(f"🔍 Moderating content with {self.model}: {content[:50]}...")
+            if self.verbose:
+                logger.info(f"🔍 Moderating content with {self.model}: {content[:50]}...")
             
             # Get a session
             session = await self._get_session()
@@ -167,10 +171,11 @@ class OllamaModerator(ModeratorService):
             if is_unsafe:
                 categories["Policy Violation"] = 0.9
             
-            if is_unsafe:
-                logger.info(f"🛑 Content flagged as unsafe (Response: '{response_text}')")
-            else:
-                logger.info(f"✅ Content determined to be safe (Response: '{response_text}')")
+            if self.verbose:
+                if is_unsafe:
+                    logger.info(f"🛑 Content flagged as unsafe (Response: '{response_text}')")
+                else:
+                    logger.info(f"✅ Content determined to be safe (Response: '{response_text}')")
             
             return ModerationResult(
                 is_flagged=is_unsafe,
@@ -252,7 +257,8 @@ class OllamaModerator(ModeratorService):
                     return False
                 
                 # Successfully connected
-                logger.info(f"✅ Connection to Ollama verified with model {self.model}")
+                if self.verbose:
+                    logger.info(f"✅ Connection to Ollama verified with model {self.model}")
                 return True
                 
         except Exception as e:
@@ -266,7 +272,8 @@ class OllamaModerator(ModeratorService):
         try:
             if self.session and not self.session.closed:
                 await self.session.close()
-                logger.info("Closed Ollama session")
+                if self.verbose:
+                    logger.info("Closed Ollama session")
         except Exception as e:
             logger.error(f"❌ Error closing Ollama session: {str(e)}")
         finally:
