@@ -33,7 +33,7 @@ class MongoDBService:
         if self._initialized:
             return
             
-        mongodb_config = self.config.get('mongodb', {})
+        mongodb_config = self.config.get('internal_services', {}).get('mongodb', {})
         try:
             # Log MongoDB configuration (without sensitive data)
             logger.info(f"Initializing MongoDB connection with config: host={mongodb_config.get('host')}, port={mongodb_config.get('port')}, database={mongodb_config.get('database')}")
@@ -41,18 +41,11 @@ class MongoDBService:
             # Construct connection string for MongoDB Atlas
             if "mongodb.net" in mongodb_config.get('host', ''):
                 # MongoDB Atlas connection string format
-                connection_string = "mongodb+srv://"
-                if mongodb_config.get('username') and mongodb_config.get('password'):
-                    connection_string += f"{mongodb_config['username']}:{mongodb_config['password']}@"
-                connection_string += f"{mongodb_config['host']}"
-                connection_string += f"/{mongodb_config['database']}?retryWrites=true&w=majority"
+                connection_string = f"mongodb+srv://{mongodb_config['username']}:{mongodb_config['password']}@{mongodb_config['host']}/{mongodb_config['database']}?retryWrites=true&w=majority"
                 logger.info("Using MongoDB Atlas connection string format")
             else:
                 # Standard MongoDB connection string format
-                connection_string = "mongodb://"
-                if mongodb_config.get('username') and mongodb_config.get('password'):
-                    connection_string += f"{mongodb_config['username']}:{mongodb_config['password']}@"
-                connection_string += f"{mongodb_config['host']}:{mongodb_config['port']}"
+                connection_string = f"mongodb://{mongodb_config['username']}:{mongodb_config['password']}@{mongodb_config['host']}:{mongodb_config['port']}/{mongodb_config['database']}"
                 logger.info("Using standard MongoDB connection string format")
             
             logger.info(f"Attempting to connect to MongoDB at {mongodb_config['host']}")

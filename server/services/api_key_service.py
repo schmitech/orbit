@@ -11,7 +11,7 @@ import logging
 import secrets
 import string
 from typing import Dict, Any, Optional, Tuple
-from datetime import datetime
+from datetime import datetime, UTC
 from fastapi import HTTPException
 from bson import ObjectId
 
@@ -34,13 +34,23 @@ class ApiKeyService:
         # MongoDB collection name for API keys
         self.collection_name = config.get('mongodb', {}).get('apikey_collection', 'api_keys')
         
+        # Initialize state
+        self._initialized = False
+        self.api_keys_collection = None
+        
     async def initialize(self) -> None:
         """Initialize the service"""
         await self.mongodb.initialize()
         
+        # Set up the API keys collection
+        self.api_keys_collection = self.mongodb.database[self.collection_name]
+        
         # Create index on api_key field for faster lookups
         await self.mongodb.create_index(self.collection_name, "api_key", unique=True)
         logger.info("Created unique index on api_key field")
+        
+        # Set initialized flag
+        self._initialized = True
         
         logger.info("API Key Service initialized successfully")
     
@@ -93,10 +103,14 @@ class ApiKeyService:
                     "exists": True  # Mark as existing, details can be fetched separately
                 }
                 
+            # For backward compatibility, ensure both collection and collection_name are available
+            collection = key_doc.get("collection_name") or key_doc.get("collection")
+                
             return {
                 "exists": True,
                 "active": bool(key_doc.get("active")),  # Convert to boolean
-                "collection": key_doc.get("collection") or key_doc.get("collection_name"),
+                "collection": collection,  # Use collection for compatibility
+                "collection_name": collection,  # Keep collection_name too
                 "client_name": key_doc.get("client_name"),
                 "created_at": key_doc.get("created_at"),
                 "system_prompt": system_prompt_info
@@ -199,52 +213,66 @@ class ApiKeyService:
         Create a new API key for a specific collection
         
         Args:
-            collection_name: Collection name to associate with the key
-            client_name: Name of the client
+            collection_name: Name of the collection this key will access
+            client_name: Name of the client/organization
             notes: Optional notes about this API key
-            system_prompt_id: Optional ObjectId of a system prompt to associate
+            system_prompt_id: Optional ID of the system prompt to associate
             
         Returns:
-            Dictionary with the created API key details
+            Dictionary containing the new API key and metadata
         """
-        # Generate a new API key
-        api_key = self._generate_api_key()
-        
-        # Store the API key in MongoDB
         try:
-            created_at = datetime.utcnow()
+            # Generate a new API key
+            api_key = self._generate_api_key()
+            
+            # Get current time with UTC timezone
+            now = datetime.now(UTC)
+            
+            # Create the document
             key_doc = {
                 "api_key": api_key,
                 "collection_name": collection_name,
                 "client_name": client_name,
                 "notes": notes,
-                "created_at": created_at,
-                "active": True
+                "active": True,
+                "created_at": now
             }
             
             # Add system prompt ID if provided
             if system_prompt_id:
+                # Ensure system_prompt_id is an ObjectId
+                if isinstance(system_prompt_id, str):
+                    try:
+                        system_prompt_id = ObjectId(system_prompt_id)
+                    except Exception as e:
+                        logger.error(f"Invalid system prompt ID format: {str(e)}")
+                        raise HTTPException(status_code=400, detail="Invalid system prompt ID format")
                 key_doc["system_prompt_id"] = system_prompt_id
-                
+            
+            # Insert into database
             await self.mongodb.insert_one(self.collection_name, key_doc)
             
-            result = {
+            if self.verbose:
+                logger.info(f"Created new API key for collection: {collection_name}")
+                if system_prompt_id:
+                    logger.info(f"Associated with system prompt ID: {system_prompt_id}")
+            
+            # Return the API key and metadata
+            # Include both collection and collection_name for compatibility
+            return {
                 "api_key": api_key,
-                "collection": collection_name,  # Match schema expected field name
+                "collection": collection_name,  # Add collection field for API compatibility
+                "collection_name": collection_name,
                 "client_name": client_name,
                 "notes": notes,
-                "created_at": created_at.timestamp(),  # Convert to timestamp as expected by model
-                "active": True
+                "active": True,
+                "created_at": now.timestamp(),  # Convert datetime to timestamp
+                "system_prompt_id": str(system_prompt_id) if system_prompt_id else None
             }
             
-            # Include system prompt ID in the result if provided
-            if system_prompt_id:
-                result["system_prompt_id"] = str(system_prompt_id)
-                
-            return result
         except Exception as e:
             logger.error(f"Error creating API key: {str(e)}")
-            raise HTTPException(status_code=500, detail="Error creating API key")
+            raise HTTPException(status_code=500, detail=f"Failed to create API key: {str(e)}")
     
     async def update_api_key_system_prompt(self, api_key: str, system_prompt_id: ObjectId) -> bool:
         """
@@ -252,30 +280,44 @@ class ApiKeyService:
         
         Args:
             api_key: The API key to update
-            system_prompt_id: The ObjectId of the system prompt
+            system_prompt_id: ID of the system prompt to associate
             
         Returns:
-            True if successful, False otherwise
+            True if the update was successful, False otherwise
         """
         try:
+            # First verify the API key exists
+            key_doc = await self.mongodb.find_one(self.collection_name, {"api_key": api_key})
+            if not key_doc:
+                logger.warning(f"Attempted to update non-existent API key: {mask_api_key(api_key)}")
+                return False
+                
             # Ensure system_prompt_id is an ObjectId
             if isinstance(system_prompt_id, str):
-                system_prompt_id = await self.mongodb.ensure_id_is_object_id(system_prompt_id)
+                try:
+                    system_prompt_id = ObjectId(system_prompt_id)
+                except Exception as e:
+                    logger.error(f"Invalid system prompt ID format: {str(e)}")
+                    return False
                 
-            success = await self.mongodb.update_one(
+            # Verify the system prompt exists
+            prompt_doc = await self.mongodb.find_one('system_prompts', {"_id": system_prompt_id})
+            if not prompt_doc:
+                logger.warning(f"Attempted to associate non-existent system prompt: {system_prompt_id}")
+                return False
+            
+            # Update the API key document
+            result = await self.mongodb.update_one(
                 self.collection_name,
                 {"api_key": api_key},
                 {"$set": {"system_prompt_id": system_prompt_id}}
             )
             
-            if success:
-                masked_key = mask_api_key(api_key)
-                logger.info(f"Updated API key {masked_key} with system prompt ID: {system_prompt_id}")
-            else:
-                masked_key = mask_api_key(api_key)
-                logger.warning(f"API key {masked_key} was not found or not modified")
+            if self.verbose:
+                logger.info(f"Updated system prompt for API key {mask_api_key(api_key)} to {system_prompt_id}")
                 
-            return success
+            return result
+            
         except Exception as e:
             logger.error(f"Error updating API key system prompt: {str(e)}")
             return False

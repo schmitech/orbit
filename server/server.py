@@ -1741,13 +1741,27 @@ class InferenceServer:
                 cursor = api_key_service.api_keys_collection.find({})
                 api_keys = await cursor.to_list(length=100)  # Limit to 100 keys
                 
-                # Convert _id to string representation and mask API keys
+                # Convert MongoDB documents to JSON-serializable format
+                serialized_keys = []
                 for key in api_keys:
-                    key["_id"] = str(key["_id"])
-                    if "api_key" in key:
-                        key["api_key"] = f"***{key['api_key'][-4:]}" if key["api_key"] else "***"
+                    # Convert _id to string
+                    key_dict = {
+                        "_id": str(key["_id"]),
+                        "api_key": f"***{key['api_key'][-4:]}" if key.get("api_key") else "***",
+                        "collection_name": key.get("collection_name"),
+                        "client_name": key.get("client_name"),
+                        "notes": key.get("notes"),
+                        "active": key.get("active", True),
+                        "created_at": key.get("created_at").timestamp() if key.get("created_at") else None
+                    }
+                    
+                    # Handle system_prompt_id if it exists
+                    if key.get("system_prompt_id"):
+                        key_dict["system_prompt_id"] = str(key["system_prompt_id"])
+                    
+                    serialized_keys.append(key_dict)
                 
-                return api_keys
+                return serialized_keys
                 
             except Exception as e:
                 self.logger.error(f"Error listing API keys: {str(e)}")

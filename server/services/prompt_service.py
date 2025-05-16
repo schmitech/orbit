@@ -10,7 +10,7 @@ that can be associated with API keys.
 import logging
 from typing import Dict, Any, Optional, List
 from fastapi import HTTPException
-from datetime import datetime
+from datetime import datetime, UTC
 from bson import ObjectId
 
 from services.mongodb_service import MongoDBService
@@ -54,7 +54,7 @@ class PromptService:
             ObjectId of the created prompt
         """
         try:
-            now = datetime.utcnow()
+            now = datetime.now(UTC)
             prompt_doc = {
                 "name": name,
                 "prompt": prompt_text,
@@ -198,7 +198,7 @@ class PromptService:
             # Prepare update document
             update_doc = {
                 "prompt": prompt_text,
-                "updated_at": datetime.utcnow()
+                "updated_at": datetime.now(UTC)
             }
             
             # Update version if provided, otherwise increment minor version
