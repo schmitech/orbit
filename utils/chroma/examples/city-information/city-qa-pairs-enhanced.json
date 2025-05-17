@@ -1,263 +1,2744 @@
 [
     {
         "question": "Where can I find the property tax rates for this year?",
+        "question_variants": [
+            "What are the current property tax rates?",
+            "How much is the property tax rate this year?",
+            "What percentage do I pay for property taxes?",
+            "Can I check this year's property tax rates?",
+            "What's the residential property tax rate?"
+        ],
+        "keywords": [
+            "property tax",
+            "tax rates",
+            "residential rate",
+            "commercial rate",
+            "tax exemptions",
+            "senior citizen discount",
+            "veteran discount",
+            "disability reduction"
+        ],
+        "category": "Taxes and Revenue",
+        "intent": "lookup_tax_rates",
         "department": "Revenue Services",
         "response_time": 1,
         "cost": "$0",
-        "timeframe": "annual"
+        "timeframe": "annual",
+        "answer": "Property tax rates vary by property type. Residential properties have a base rate of 1.2%, while commercial properties are taxed at 1.8% and industrial properties at 2.1%. Special exemptions are available for senior citizens (25% reduction), veterans (15% reduction), and people with disabilities (20% reduction). Downtown businesses pay an additional 0.3%, while enterprise zone businesses receive a 0.5% reduction. You can pay online with instant processing (2.5% convenience fee) or in person at City Hall or Satellite Office during business hours.",
+        "tax_categories": {
+            "residential": {
+                "base_rate": "1.2%",
+                "special_districts": [
+                    "school",
+                    "parks",
+                    "library"
+                ],
+                "exemptions": {
+                    "senior_citizen": "25% reduction",
+                    "veteran": "15% reduction",
+                    "disability": "20% reduction"
+                }
+            },
+            "commercial": {
+                "base_rate": "1.8%",
+                "industrial_rate": "2.1%",
+                "special_rates": {
+                    "downtown_business": "0.3% additional",
+                    "enterprise_zone": "0.5% reduction"
+                }
+            }
+        },
+        "payment_options": {
+            "online": {
+                "processing_time": "instant",
+                "payment_methods": [
+                    "credit_card",
+                    "bank_transfer",
+                    "e_check"
+                ],
+                "convenience_fee": "2.5%"
+            },
+            "in_person": {
+                "locations": [
+                    "City Hall",
+                    "Satellite Office"
+                ],
+                "hours": "9am-5pm weekdays",
+                "payment_methods": [
+                    "cash",
+                    "check",
+                    "money_order"
+                ]
+            }
+        },
+        "statistics": {
+            "annual_collection_rate": 0.98,
+            "total_revenue": "$85M",
+            "delinquency_rate": 0.02,
+            "online_payment_adoption": 0.75
+        }
     },
     {
         "question": "How do I report a pothole on my street?",
+        "question_variants": [
+            "What's the process for reporting street potholes?",
+            "Where can I report a pothole in my neighborhood?",
+            "How to notify the city about road damage?",
+            "What's the best way to report street potholes?",
+            "Can I report potholes through the city app?"
+        ],
+        "keywords": [
+            "pothole",
+            "street repair",
+            "road maintenance",
+            "CityFix app",
+            "311 service",
+            "road damage",
+            "street maintenance"
+        ],
+        "category": "Public Works",
+        "intent": "report_road_issue",
         "department": "Public Works",
         "response_time": 3,
         "cost": "$200",
         "location": "streets",
-        "priority": "medium"
+        "priority": "medium",
+        "answer": "You can report potholes through three convenient channels: the CityFix mobile app (rated 4.5/5), the online portal at city.gov/potholes, or by calling 311 (24/7 service). The online portal and app require location details, size information, and photos of the pothole. Repairs are typically completed within 48-72 hours after assessment, which occurs within 24 hours of reporting. The city uses hot mix asphalt or cold patch materials, and all repairs come with a 90-day warranty. The city handles approximately 8,500 pothole reports annually with an average repair time of 36 hours and a citizen satisfaction rate of 88%.",
+        "reporting_channels": {
+            "online_portal": {
+                "url": "city.gov/potholes",
+                "required_fields": [
+                    "location",
+                    "size",
+                    "photos"
+                ],
+                "completion_time": "5 minutes",
+                "tracking_number": true
+            },
+            "mobile_app": {
+                "name": "CityFix",
+                "features": [
+                    "gps_location",
+                    "photo_upload",
+                    "status_tracking"
+                ],
+                "rating": 4.5,
+                "downloads": 25000
+            },
+            "phone": {
+                "number": "311",
+                "hours": "24/7",
+                "average_wait_time": "2 minutes"
+            }
+        },
+        "repair_process": {
+            "assessment_time": "24 hours",
+            "repair_timeframe": "48-72 hours",
+            "materials_used": [
+                "hot_mix_asphalt",
+                "cold_patch"
+            ],
+            "quality_control": {
+                "inspection_required": true,
+                "warranty_period": "90 days"
+            }
+        },
+        "performance_metrics": {
+            "annual_reports": 8500,
+            "average_repair_time": "36 hours",
+            "citizen_satisfaction": 0.88,
+            "cost_per_repair": "$200",
+            "preventive_maintenance": {
+                "annual_inspections": 4,
+                "coverage_area": "100%",
+                "cost_savings": "$500000"
+            }
+        }
     },
     {
         "question": "What is the fee for a residential parking permit?",
+        "question_variants": [
+            "How much does a residential parking permit cost?",
+            "What's the price for a resident parking permit?",
+            "How much to get a parking permit for my neighborhood?",
+            "What's the cost of a residential zone parking permit?",
+            "How much for a yearly parking permit?"
+        ],
+        "keywords": [
+            "parking permit",
+            "residential parking",
+            "zone parking",
+            "visitor permit",
+            "temporary permit",
+            "parking regulations"
+        ],
+        "category": "Transportation",
+        "intent": "lookup_parking_permit",
         "department": "Transportation",
         "cost": "$25",
         "timeframe": "annual",
-        "popularity": 8.5
+        "popularity": 8.5,
+        "answer": "Residential parking permits are available in three types: Standard ($25/year), Visitor ($15/2 weeks), and Temporary ($10/month). Standard permits are for residents and property owners with zone-specific and time-limited restrictions. Visitor permits can be renewed up to 4 times per year and are available to guests of residents. Temporary permits are for construction, moving, or special events. The application process requires proof of residence, vehicle registration, and driver's license, with processing taking 2 business days. Permits can be delivered by mail, pickup, or digitally. Renewal notifications are sent 30 days before expiry with a 15-day grace period. Violations are subject to a $75 fine, and appeals can be made within 14 days.",
+        "permit_types": {
+            "standard": {
+                "cost": "$25",
+                "duration": "1 year",
+                "eligibility": [
+                    "resident",
+                    "property_owner"
+                ],
+                "restrictions": [
+                    "zone_specific",
+                    "time_limited"
+                ]
+            },
+            "visitor": {
+                "cost": "$15",
+                "duration": "2 weeks",
+                "renewal_limit": "4 times/year",
+                "eligibility": [
+                    "guest_of_resident"
+                ]
+            },
+            "temporary": {
+                "cost": "$10",
+                "duration": "1 month",
+                "use_cases": [
+                    "construction",
+                    "moving",
+                    "special_events"
+                ]
+            }
+        },
+        "application_process": {
+            "required_documents": [
+                "proof_of_residence",
+                "vehicle_registration",
+                "driver_license"
+            ],
+            "processing_time": "2 business days",
+            "delivery_methods": [
+                "mail",
+                "pickup",
+                "digital"
+            ],
+            "renewal_process": {
+                "notification": "30 days before expiry",
+                "grace_period": "15 days",
+                "late_fee": "$10"
+            }
+        },
+        "enforcement": {
+            "patrol_frequency": "daily",
+            "violation_fine": "$75",
+            "appeal_process": {
+                "timeframe": "14 days",
+                "success_rate": 0.35
+            }
+        },
+        "statistics": {
+            "active_permits": 25000,
+            "annual_revenue": "$625000",
+            "compliance_rate": 0.92,
+            "customer_satisfaction": 0.85
+        }
     },
     {
         "question": "Where can I dispose of hazardous household waste?",
+        "question_variants": [
+            "How do I get rid of hazardous waste from my home?",
+            "What's the proper way to dispose of household chemicals?",
+            "Where can I take my hazardous household materials?",
+            "How to safely dispose of household hazardous waste?",
+            "What's the location for dropping off hazardous waste?"
+        ],
+        "keywords": [
+            "hazardous waste",
+            "household chemicals",
+            "waste disposal",
+            "environmental services",
+            "recycling center",
+            "toxic materials",
+            "waste management"
+        ],
+        "category": "Environmental Services",
+        "intent": "find_waste_disposal",
         "department": "Environmental Services",
         "location": "456 Green Ave",
         "response_time": 0,
         "cost": "$0",
-        "usage_rate": 1500
+        "usage_rate": 1500,
+        "answer": "You can dispose of hazardous household waste free of charge at the Environmental Services facility located at 456 Green Ave. This facility accepts various types of household hazardous materials including cleaning products, paints, solvents, and other potentially harmful substances. The service is available to all city residents and there is no cost for disposal. The facility handles approximately 1,500 drop-offs annually, ensuring safe and environmentally responsible disposal of hazardous materials."
     },
     {
         "question": "How do I renew my dog license?",
+        "question_variants": [
+            "What's the process for renewing a dog license?",
+            "How can I get my dog license renewed?",
+            "Where do I go to renew my dog's license?",
+            "What's needed to renew a dog license?",
+            "Can I renew my dog license online?"
+        ],
+        "keywords": [
+            "dog license",
+            "pet registration",
+            "animal services",
+            "license renewal",
+            "pet ownership",
+            "animal control",
+            "pet documentation"
+        ],
+        "category": "Animal Services",
+        "intent": "renew_pet_license",
         "department": "Animal Services",
         "response_time": 1,
         "cost": "$15",
         "timeframe": "annual",
-        "online_completion_rate": 0.78
+        "online_completion_rate": 0.78,
+        "answer": "Dog license renewal can be completed online or in person for a fee of $15. The online renewal process is quick and convenient, with a 78% completion rate. You'll need to provide your current license number and proof of up-to-date rabies vaccination. The renewal is valid for one year from the date of issuance. Online renewals are processed immediately, while in-person renewals at the Animal Services office may take up to one business day to process."
     },
     {
         "question": "What are the hours for the public swimming pool?",
+        "question_variants": [
+            "When is the community pool open?",
+            "What are the operating hours for the public pool?",
+            "What time does the swimming pool open and close?",
+            "When can I use the public swimming pool?",
+            "What are the pool hours at Central Community Pool?"
+        ],
+        "keywords": [
+            "swimming pool",
+            "pool hours",
+            "public pool",
+            "community pool",
+            "recreation",
+            "swimming facilities",
+            "pool schedule"
+        ],
+        "category": "Parks and Recreation",
+        "intent": "check_facility_hours",
         "department": "Parks and Recreation",
         "location": "Central Community Pool",
         "timeframe": "summer",
         "daily_visitors": 450,
-        "cost": "$5"
+        "cost": "$5",
+        "answer": "The Central Community Pool is open during the summer season with an admission fee of $5 per person. The pool serves approximately 450 visitors daily and offers various programs including lap swimming, recreational swimming, and swimming lessons. The facility is managed by the Parks and Recreation Department and provides a safe, family-friendly environment for aquatic activities. Please note that hours may vary during holidays and special events."
     },
     {
         "question": "How can I get a copy of my birth certificate?",
+        "question_variants": [
+            "Where can I obtain my birth certificate?",
+            "What's the process for getting a birth certificate copy?",
+            "How do I request a copy of my birth certificate?",
+            "What do I need to get my birth certificate?",
+            "Can I order my birth certificate online?"
+        ],
+        "keywords": [
+            "birth certificate",
+            "vital records",
+            "birth record",
+            "document request",
+            "official documents",
+            "certificate copy",
+            "vital statistics"
+        ],
+        "category": "Vital Records",
+        "intent": "request_vital_record",
         "department": "Vital Records",
         "location": "City Hall",
         "response_time": 5,
         "cost": "$20",
-        "processing_volume": 120
+        "processing_volume": 120,
+        "answer": "You can obtain a copy of your birth certificate at the Vital Records office in City Hall. The process takes approximately 5 business days and costs $20. You'll need to provide valid identification and proof of your relationship to the person named on the certificate. The office processes about 120 requests daily. For faster service, you can request expedited processing for an additional fee. The certificate can be picked up in person or mailed to your address."
     },
     {
         "question": "What is the process for obtaining a marriage license?",
+        "question_variants": [
+            "How do I get a marriage license?",
+            "What's needed to apply for a marriage license?",
+            "Where can I get a marriage license?",
+            "What are the requirements for a marriage license?",
+            "How long does it take to get a marriage license?"
+        ],
+        "keywords": [
+            "marriage license",
+            "wedding license",
+            "marriage certificate",
+            "wedding documentation",
+            "marriage requirements",
+            "city clerk",
+            "marriage application"
+        ],
+        "category": "City Clerk",
+        "intent": "obtain_marriage_license",
         "department": "City Clerk",
         "location": "City Hall",
         "response_time": 1,
         "cost": "$75",
-        "processing_volume": 85
+        "processing_volume": 85,
+        "answer": "To obtain a marriage license, visit the City Clerk's office at City Hall. The process takes about one business day and costs $75. Both parties must appear in person with valid identification, proof of age, and if applicable, documentation of any previous marriages. The license is valid for 90 days from the date of issuance. The office processes approximately 85 marriage licenses monthly. You can schedule an appointment online or walk in during business hours."
     },
     {
         "question": "Where can I find the city's zoning maps?",
+        "question_variants": [
+            "How do I access the city zoning maps?",
+            "Where are the zoning maps located?",
+            "How can I view the city's zoning information?",
+            "What's the best way to check zoning maps?",
+            "Can I get zoning maps online?"
+        ],
+        "keywords": [
+            "zoning maps",
+            "city planning",
+            "zoning regulations",
+            "land use",
+            "property zoning",
+            "development zones",
+            "planning department"
+        ],
+        "category": "Planning",
+        "intent": "find_zoning_info",
         "department": "Planning",
         "location": "City Hall",
         "response_time": 0,
         "cost": "$0",
-        "digital_vs_paper": 0.85
+        "digital_vs_paper": 0.85,
+        "answer": "The city's zoning maps are available both online and in person at the Planning Department in City Hall. The digital version is preferred by 85% of users and can be accessed through the city's planning portal. The maps show detailed zoning districts, overlays, and special planning areas. You can search by address or browse by district. For detailed information about specific properties or zoning regulations, planning staff are available to assist during business hours."
     },
     {
         "question": "How do I report a street light outage?",
+        "question_variants": [
+            "What's the process for reporting broken street lights?",
+            "How can I notify the city about a street light that's out?",
+            "Where do I report non-working street lights?",
+            "What's the best way to report street light problems?",
+            "Can I report street light outages online?"
+        ],
+        "keywords": [
+            "street light",
+            "light outage",
+            "street lighting",
+            "public works",
+            "infrastructure repair",
+            "street maintenance",
+            "lighting issues"
+        ],
+        "category": "Public Works",
+        "intent": "report_infrastructure_issue",
         "department": "Public Works",
         "location": "streets",
         "response_time": 2,
         "cost": "$175",
         "priority": "medium",
-        "monthly_reports": 65
+        "monthly_reports": 65,
+        "answer": "You can report street light outages through the city's online portal, by calling 311, or using the CityFix mobile app. The report should include the street light's location and pole number if visible. The Public Works Department typically responds within 2 business days, with an average repair cost of $175 per light. The department handles approximately 65 outage reports monthly. For emergency situations or multiple outages, please call 311 directly for faster response."
     },
     {
         "question": "What are the requirements for a home-based business license?",
+        "question_variants": [
+            "How do I get a license for a home business?",
+            "What's needed to start a home-based business?",
+            "What are the rules for home businesses?",
+            "How can I legally operate a business from home?",
+            "What permits do I need for a home business?"
+        ],
+        "keywords": [
+            "home business",
+            "business license",
+            "home-based business",
+            "business permit",
+            "home occupation",
+            "business requirements",
+            "entrepreneurship"
+        ],
+        "category": "Economic Development",
+        "intent": "obtain_business_license",
         "department": "Economic Development",
         "response_time": 7,
         "cost": "$75",
         "approval_rate": 0.92,
-        "annual_applications": 320
+        "annual_applications": 320,
+        "answer": "To obtain a home-based business license, you'll need to submit an application to the Economic Development Department along with a $75 fee. The process typically takes 7 business days, with a 92% approval rate. Requirements include proof of residence, business plan, zoning compliance verification, and any necessary professional certifications. The city processes about 320 home business applications annually. Additional requirements may apply depending on the type of business, such as food preparation or client visits."
     },
     {
         "question": "How can I pay my water bill online?",
+        "question_variants": [
+            "What's the process for paying water bills online?",
+            "How do I set up online water bill payment?",
+            "Can I pay my water bill through the website?",
+            "What are the options for paying water bills online?",
+            "How to make online water bill payments?"
+        ],
+        "keywords": [
+            "water bill",
+            "online payment",
+            "utility payment",
+            "bill payment",
+            "water service",
+            "online billing",
+            "utility account"
+        ],
+        "category": "Utilities",
+        "intent": "pay_utility_bill",
         "department": "Utilities",
         "response_time": 0,
         "cost": "$0",
         "timeframe": "monthly",
         "online_completion_rate": 0.65,
-        "average_bill": "$78.50"
+        "average_bill": "$78.50",
+        "answer": "You can pay your water bill online through the city's utility portal. The process is free and instant, with a 65% online completion rate. You'll need your account number and can pay using credit card, debit card, or bank transfer. The average monthly bill is $78.50. You can also set up automatic payments or paperless billing. The online system allows you to view payment history, download bills, and set up payment reminders. For first-time users, you'll need to create an account and link it to your utility account number."
     },
     {
         "question": "What is the curfew for minors in the city?",
+        "question_variants": [
+            "What time do minors need to be home?",
+            "What are the curfew hours for teenagers?",
+            "When do minors have to be off the streets?",
+            "What's the city's curfew law for minors?",
+            "What are the curfew restrictions for youth?"
+        ],
+        "keywords": [
+            "curfew",
+            "minors",
+            "youth restrictions",
+            "city ordinance",
+            "juvenile law",
+            "parental control",
+            "public safety"
+        ],
+        "category": "Police",
+        "intent": "check_curfew_laws",
         "department": "Police",
         "enforcement_rate": 0.4,
-        "annual_violations": 120
+        "annual_violations": 120,
+        "answer": "The city enforces a curfew for minors under 18 years of age. The curfew is in effect from 11:00 PM to 5:00 AM on weekdays and 12:00 AM to 5:00 AM on weekends. The police department has a 40% enforcement rate, with approximately 120 annual violations. Exceptions are made for minors accompanied by parents or guardians, traveling to or from work, or participating in school or religious activities. Violations may result in warnings, fines, or mandatory community service, depending on the circumstances."
     },
     {
         "question": "Where can I find information about property tax deferral programs?",
+        "question_variants": [
+            "How do I apply for property tax deferral?",
+            "What are the property tax deferral options?",
+            "How can I defer my property taxes?",
+            "What programs are available for tax deferral?",
+            "How to get help with property tax payments?"
+        ],
+        "keywords": [
+            "property tax",
+            "tax deferral",
+            "tax assistance",
+            "property tax relief",
+            "tax payment plans",
+            "tax assistance programs",
+            "property tax help"
+        ],
+        "category": "Revenue Services",
+        "intent": "find_tax_assistance",
         "department": "Revenue Services",
         "response_time": 0,
         "avg_savings": "$850",
         "eligible_population": 2500,
         "participation_rate": 0.35,
-        "timeframe": "annual"
+        "timeframe": "annual",
+        "answer": "Information about property tax deferral programs is available through the Revenue Services Department. These programs help eligible property owners defer their tax payments, with an average savings of $850 per participant. Approximately 2,500 residents are eligible for these programs, with a 35% participation rate. Programs include options for seniors, disabled individuals, and those experiencing financial hardship. Applications are accepted annually, and eligibility is based on income, property value, and other factors. You can apply online, by mail, or in person at the Revenue Services office."
     },
     {
         "question": "How do I request a bulk item pickup?",
+        "question_variants": [
+            "What's the process for scheduling bulk item collection?",
+            "How can I arrange for large item pickup?",
+            "Where do I schedule bulk waste collection?",
+            "What's the procedure for large item disposal?",
+            "How to get rid of large household items?"
+        ],
+        "keywords": [
+            "bulk pickup",
+            "large item disposal",
+            "waste collection",
+            "furniture disposal",
+            "appliance removal",
+            "bulk waste",
+            "waste management"
+        ],
+        "category": "Waste Management",
+        "intent": "schedule_bulk_pickup",
         "department": "Waste Management",
         "response_time": 2,
         "cost": "$35",
         "timeframe": "as needed",
-        "monthly_volume": 175
+        "monthly_volume": 175,
+        "answer": "To request a bulk item pickup, contact the Waste Management Department. The service costs $35 per pickup and is available on an as-needed basis. The department handles approximately 175 bulk pickups monthly. You can schedule the pickup online, by phone, or through the CityFix app. Items should be placed at the curb by 7:00 AM on the scheduled pickup day. The service includes pickup of furniture, appliances, and other large household items. Hazardous materials and construction debris are not accepted through this service."
     },
     {
         "question": "What are the regulations for backyard fire pits?",
+        "question_variants": [
+            "What are the rules for using fire pits?",
+            "How can I legally have a backyard fire?",
+            "What are the fire pit requirements?",
+            "What's allowed with outdoor fire pits?",
+            "What are the safety rules for fire pits?"
+        ],
+        "keywords": [
+            "fire pit",
+            "backyard fire",
+            "fire safety",
+            "outdoor burning",
+            "fire regulations",
+            "fire permit",
+            "fire safety code"
+        ],
+        "category": "Fire Department",
+        "intent": "check_fire_regulations",
         "department": "Fire Department",
         "enforcement_rate": 0.25,
         "annual_permits": 850,
-        "related_incidents": 12
+        "related_incidents": 12,
+        "answer": "Backyard fire pits require a permit from the Fire Department, with 850 permits issued annually. The enforcement rate is 25%, with 12 related incidents reported yearly. Regulations require fire pits to be at least 15 feet from structures, 10 feet from property lines, and 25 feet from combustible materials. Only clean, dry wood is permitted; no trash or construction materials. Fires must be attended at all times and extinguished by 11:00 PM. The Fire Department conducts periodic inspections to ensure compliance with safety regulations."
     },
     {
         "question": "How can I apply for a sidewalk cafe permit?",
+        "question_variants": [
+            "What's the process for getting a sidewalk cafe license?",
+            "How do I get permission for outdoor seating?",
+            "What's needed for a sidewalk dining permit?",
+            "How to set up outdoor cafe seating?",
+            "What are the requirements for sidewalk cafes?"
+        ],
+        "keywords": [
+            "sidewalk cafe",
+            "outdoor dining",
+            "restaurant permit",
+            "sidewalk seating",
+            "outdoor seating",
+            "cafe license",
+            "business permit"
+        ],
+        "category": "Business Licensing",
+        "intent": "obtain_outdoor_seating_permit",
         "department": "Business Licensing",
         "response_time": 14,
         "cost": "$150",
         "timeframe": "annual",
         "approval_rate": 0.88,
-        "annual_revenue": "$12750"
+        "annual_revenue": "$12750",
+        "answer": "To apply for a sidewalk cafe permit, submit an application to the Business Licensing Department. The process takes approximately 14 days and costs $150 annually. The approval rate is 88%, with the program generating $12,750 in annual revenue. Requirements include proof of business license, liability insurance, site plan, and compliance with ADA accessibility standards. The permit allows outdoor seating during business hours, with specific size limitations based on sidewalk width. Inspections are required before opening and may be conducted periodically throughout the year."
     },
     {
         "question": "What is the penalty for late water bill payments?",
+        "question_variants": [
+            "What happens if I pay my water bill late?",
+            "What are the late fees for water bills?",
+            "How much is the late payment penalty?",
+            "What's the consequence of late water bill payment?",
+            "What are the water bill late payment charges?"
+        ],
+        "keywords": [
+            "water bill",
+            "late payment",
+            "utility penalty",
+            "late fee",
+            "payment deadline",
+            "bill payment",
+            "utility charges"
+        ],
+        "category": "Utilities",
+        "intent": "check_late_payment_penalties",
         "department": "Utilities",
         "timeframe": "monthly",
         "late_payment_rate": 0.12,
         "average_penalty": "$3.93",
-        "annual_revenue": "$68425"
+        "annual_revenue": "$68425",
+        "answer": "Late water bill payments incur a penalty of $3.93 on average, with a 12% late payment rate. The Utilities Department collects approximately $68,425 annually in late fees. Payments are considered late after the 15th of each month. After 30 days, service may be subject to disconnection. To avoid penalties, you can set up automatic payments or payment reminders through the online portal. Payment plans are available for customers experiencing financial hardship, but must be arranged before the due date."
     },
     {
         "question": "Where can I find the city's annual budget?",
+        "question_variants": [
+            "How can I access the city budget?",
+            "Where is the annual budget published?",
+            "How do I view the city's financial plan?",
+            "What's the process for finding budget information?",
+            "Can I get the city budget online?"
+        ],
+        "keywords": [
+            "city budget",
+            "annual budget",
+            "municipal finance",
+            "budget document",
+            "financial plan",
+            "city finances",
+            "budget information"
+        ],
+        "category": "Finance",
+        "intent": "find_budget_information",
         "department": "Finance",
         "cost": "$0",
         "response_time": 0,
         "timeframe": "annual",
         "budget_amount": "$125000000",
-        "page_views": 8500
+        "page_views": 8500,
+        "answer": "The city's annual budget of $125 million is available online through the Finance Department's website and in person at City Hall. The document receives approximately 8,500 page views annually. The budget includes detailed breakdowns of revenue sources, departmental allocations, capital projects, and financial forecasts. You can access the current and previous years' budgets, as well as budget summaries and presentations. The Finance Department also offers budget workshops and public hearings where residents can learn about and provide input on the budget process."
     },
     {
         "question": "How do I report illegal dumping?",
+        "question_variants": [
+            "What's the process for reporting illegal waste disposal?",
+            "How can I report someone dumping trash illegally?",
+            "Where do I report illegal garbage dumping?",
+            "What's the best way to report illegal dumping?",
+            "How to notify authorities about illegal waste?"
+        ],
+        "keywords": [
+            "illegal dumping",
+            "waste disposal",
+            "code violation",
+            "environmental crime",
+            "waste management",
+            "code enforcement",
+            "environmental protection"
+        ],
+        "category": "Code Enforcement",
+        "intent": "report_illegal_activity",
         "department": "Code Enforcement",
         "response_time": 1,
         "cost": "$0",
         "clean_up_cost": "$750",
         "annual_reports": 430,
-        "successful_enforcement": 0.35
+        "successful_enforcement": 0.35,
+        "answer": "You can report illegal dumping through the Code Enforcement Department's online portal, by calling 311, or using the CityFix app. The department responds within one business day and handles approximately 430 reports annually, with a 35% successful enforcement rate. The average clean-up cost is $750 per incident. Reports should include the location, description of materials, and any available photos or video evidence. Anonymous reporting is available, and rewards are offered for information leading to successful enforcement actions. The department works with other agencies to investigate and prosecute violators."
     },
     {
         "question": "What are the requirements for a food truck license?",
+        "question_variants": [
+            "How do I get a food truck permit?",
+            "What's needed to operate a food truck?",
+            "What are the food truck regulations?",
+            "How to start a food truck business?",
+            "What permits do I need for a food truck?"
+        ],
+        "keywords": [
+            "food truck",
+            "mobile food",
+            "food vendor",
+            "business license",
+            "food permit",
+            "health inspection",
+            "mobile food service"
+        ],
+        "category": "Health Department",
+        "intent": "obtain_food_vendor_license",
         "department": "Health Department",
         "response_time": 14,
         "cost": "$200",
         "timeframe": "annual",
         "inspection_pass_rate": 0.78,
-        "number_of_licensees": 45
+        "number_of_licensees": 45,
+        "answer": "To obtain a food truck license, apply to the Health Department. The process takes approximately 14 days and costs $200 annually. The department has 45 active licensees with a 78% inspection pass rate. Requirements include proof of business registration, vehicle registration, insurance, and completion of food safety training. The vehicle must pass health inspections and meet all safety standards. Licensees must maintain proper food storage, preparation, and service practices. The license allows operation in designated areas during approved hours, with specific requirements for waste disposal and cleaning."
     },
     {
         "question": "How can I reserve a picnic area in a city park?",
+        "question_variants": [
+            "What's the process for booking a picnic spot?",
+            "How do I reserve a park picnic area?",
+            "Where can I book a picnic space?",
+            "What's needed to reserve a park picnic area?",
+            "How to get a picnic area reservation?"
+        ],
+        "keywords": [
+            "picnic area",
+            "park reservation",
+            "picnic spot",
+            "park booking",
+            "outdoor space",
+            "park facilities",
+            "recreation reservation"
+        ],
+        "category": "Parks and Recreation",
+        "intent": "reserve_park_facility",
         "department": "Parks and Recreation",
         "response_time": 1,
         "cost": "$50",
         "timeframe": "daily",
         "annual_bookings": 1250,
-        "online_completion_rate": 0.82
+        "online_completion_rate": 0.82,
+        "answer": "You can reserve picnic areas in city parks through the Parks and Recreation Department. The cost is $50 per day, with approximately 1,250 annual bookings. The online reservation system has an 82% completion rate. Reservations can be made up to 90 days in advance and require a minimum of 24 hours' notice. The fee includes access to picnic tables, grills, and nearby restrooms. Some areas may have additional amenities like playgrounds or sports facilities. Cancellations must be made 48 hours in advance for a full refund."
     },
     {
         "question": "What is the fee for a garage sale permit?",
+        "question_variants": [
+            "How much does a garage sale permit cost?",
+            "What's the price for a yard sale permit?",
+            "How much to get a garage sale license?",
+            "What's the cost of a yard sale permit?",
+            "How much for a garage sale permit?"
+        ],
+        "keywords": [
+            "garage sale",
+            "yard sale",
+            "permit fee",
+            "sale permit",
+            "residential sale",
+            "neighborhood sale",
+            "community sale"
+        ],
+        "category": "City Clerk",
+        "intent": "obtain_sale_permit",
         "department": "City Clerk",
         "response_time": 1,
         "cost": "$5",
         "timeframe": "3 days",
         "annual_permits": 950,
-        "revenue": "$4750"
+        "revenue": "$4750",
+        "answer": "A garage sale permit costs $5 and is valid for 3 days. The City Clerk's office issues approximately 950 permits annually, generating $4,750 in revenue. The permit process takes one business day to complete. Permits are required for all residential sales and can be obtained online or in person. The permit allows you to display and sell items from your property during daylight hours. Signs must be removed within 24 hours of the sale's conclusion. Multiple sales at the same address are limited to four per year."
     },
     {
         "question": "Where can I find the city council meeting schedule?",
+        "question_variants": [
+            "When are the city council meetings?",
+            "How can I see the council meeting calendar?",
+            "What's the schedule for council meetings?",
+            "Where do I find council meeting times?",
+            "How to check city council meeting dates?"
+        ],
+        "keywords": [
+            "city council",
+            "council meetings",
+            "meeting schedule",
+            "public meetings",
+            "council calendar",
+            "government meetings",
+            "public hearings"
+        ],
+        "category": "City Council",
+        "intent": "find_meeting_schedule",
         "department": "City Council",
         "location": "City Hall",
         "response_time": 0,
         "timeframe": "biweekly",
         "attendance": 75,
-        "streaming_viewers": 450
+        "streaming_viewers": 450,
+        "answer": "The city council meeting schedule is available on the City Council's website, at City Hall, and through the city's mobile app. Meetings are held biweekly, with an average in-person attendance of 75 and 450 streaming viewers. The schedule includes regular council meetings, committee meetings, and special sessions. Agendas are posted 72 hours before each meeting. Meetings are streamed live and archived for later viewing. Public comment periods are available at each meeting, and residents can also submit comments online or by mail."
     },
     {
         "question": "How do I apply for a low-income utility assistance program?",
+        "question_variants": [
+            "What's the process for getting utility bill help?",
+            "How can I get assistance with utility bills?",
+            "What programs help with utility payments?",
+            "How to apply for utility bill assistance?",
+            "What's available for low-income utility help?"
+        ],
+        "keywords": [
+            "utility assistance",
+            "low-income help",
+            "bill assistance",
+            "utility aid",
+            "financial assistance",
+            "utility support",
+            "bill payment help"
+        ],
+        "category": "Social Services",
+        "intent": "apply_for_utility_assistance",
         "department": "Social Services",
         "response_time": 10,
         "avg_benefit": "$350",
         "annual_applicants": 850,
         "approval_rate": 0.65,
-        "program_budget": "$193375"
+        "program_budget": "$193375",
+        "answer": "To apply for the low-income utility assistance program, contact the Social Services Department. The application process takes approximately 10 days, with an average benefit of $350 per household. The program has an annual budget of $193,375 and serves 850 applicants with a 65% approval rate. Eligibility is based on income, household size, and utility usage. Required documentation includes proof of income, utility bills, and identification. Applications can be submitted online, by mail, or in person. The program offers both one-time assistance and ongoing support for qualifying households."
     },
     {
         "question": "What are the leaf collection dates for my neighborhood?",
+        "question_variants": [
+            "When is leaf pickup in my area?",
+            "What's the schedule for leaf collection?",
+            "How do I find my leaf pickup dates?",
+            "When will leaves be collected in my neighborhood?",
+            "What are the fall leaf collection dates?"
+        ],
+        "keywords": [
+            "leaf collection",
+            "yard waste",
+            "leaf pickup",
+            "fall cleanup",
+            "yard debris",
+            "leaf removal",
+            "neighborhood cleanup"
+        ],
+        "category": "Public Works",
+        "intent": "check_collection_schedule",
         "department": "Public Works",
         "response_time": 0,
         "cost": "$0",
         "timeframe": "fall",
         "service_cost": "$135000",
-        "tonnage_collected": 850
+        "tonnage_collected": 850,
+        "answer": "Leaf collection schedules are available through the Public Works Department's website, mobile app, or by calling 311. The service is free and operates during the fall season. The program costs $135,000 annually and collects approximately 850 tons of leaves. Collection dates vary by neighborhood and are based on your address. Leaves should be raked to the curb by 7:00 AM on your scheduled collection day. The service includes multiple passes through each neighborhood to ensure complete collection. Weather conditions may affect the schedule, with updates posted on the department's website."
     },
     {
         "question": "How can I volunteer for city beautification projects?",
+        "question_variants": [
+            "What's the process for joining city cleanup projects?",
+            "How do I get involved in city beautification?",
+            "Where can I volunteer for city improvement?",
+            "What opportunities exist for city beautification?",
+            "How to participate in city cleanup programs?"
+        ],
+        "keywords": [
+            "city beautification",
+            "volunteer opportunities",
+            "community cleanup",
+            "public service",
+            "city improvement",
+            "community projects",
+            "volunteer work"
+        ],
+        "category": "Parks and Recreation",
+        "intent": "find_volunteer_opportunities",
         "department": "Parks and Recreation",
         "response_time": 3,
         "cost": "$0",
         "annual_volunteers": 650,
         "volunteer_hours": 3900,
-        "value_created": "$58500"
+        "value_created": "$58500",
+        "answer": "You can volunteer for city beautification projects through the Parks and Recreation Department. The program engages 650 annual volunteers who contribute 3,900 hours of service, creating $58,500 in value. Opportunities include park cleanup, tree planting, garden maintenance, and public art projects. Volunteers can sign up online, by phone, or in person. The department provides necessary tools, safety equipment, and training. Projects are scheduled throughout the year, with special events during spring and fall cleanup seasons. Group and individual volunteer opportunities are available, and the department can accommodate various skill levels and physical abilities."
     },
     {
         "question": "What is the process for subdividing a property?",
+        "question_variants": [
+            "How do I split my property into multiple lots?",
+            "What's needed to subdivide land?",
+            "What are the steps for property subdivision?",
+            "How to divide a property into smaller lots?",
+            "What's the procedure for land subdivision?"
+        ],
+        "keywords": [
+            "property subdivision",
+            "land division",
+            "property split",
+            "lot division",
+            "land development",
+            "property planning",
+            "subdivision process"
+        ],
+        "category": "Planning",
+        "intent": "subdivide_property",
         "department": "Planning",
         "response_time": 45,
         "cost": "$500",
         "approval_rate": 0.73,
         "annual_applications": 65,
-        "revenue": "$32500"
+        "revenue": "$32500",
+        "answer": "The property subdivision process is handled by the Planning Department. The application fee is $500, and the process typically takes 45 days to complete. The department processes 65 applications annually with a 73% approval rate, generating $32,500 in revenue. Requirements include a survey, environmental assessment, utility plans, and compliance with zoning regulations. The process involves multiple reviews, public hearings, and approval from various departments. Successful applications must meet minimum lot size requirements, provide adequate access, and ensure proper utility connections. The department offers pre-application meetings to discuss requirements and potential issues."
     },
     {
         "question": "Where can I get a permit for a block party?",
+        "question_variants": [
+            "How do I get permission for a block party?",
+            "What's needed to organize a block party?",
+            "How to apply for a block party permit?",
+            "What's the process for a neighborhood party?",
+            "How can I host a block party legally?"
+        ],
+        "keywords": [
+            "block party",
+            "neighborhood event",
+            "street closure",
+            "community event",
+            "party permit",
+            "street party",
+            "neighborhood gathering"
+        ],
+        "category": "Police",
+        "intent": "obtain_event_permit",
         "department": "Police",
         "response_time": 7,
         "cost": "$25",
         "timeframe": "1 day",
         "annual_permits": 85,
-        "staffing_cost": "$9775"
+        "staffing_cost": "$9775",
+        "answer": "Block party permits are issued by the Police Department. The application process takes 7 days and costs $25 for a one-day permit. The department issues 85 permits annually, with a staffing cost of $9,775. Requirements include a petition signed by 75% of affected residents, proof of liability insurance, and a detailed event plan. The permit allows street closure during specified hours, typically 8:00 AM to 10:00 PM. The department provides barricades and traffic control assistance. Applications must be submitted at least 14 days before the event date. The permit includes noise restrictions and cleanup requirements."
     },
     {
         "question": "How do I report a broken traffic signal?",
+        "question_variants": [
+            "What's the process for reporting traffic light problems?",
+            "How can I notify the city about a broken traffic light?",
+            "Where do I report malfunctioning traffic signals?",
+            "What's the best way to report traffic light issues?",
+            "How to report non-working traffic lights?"
+        ],
+        "keywords": [
+            "traffic signal",
+            "traffic light",
+            "signal repair",
+            "traffic control",
+            "signal malfunction",
+            "traffic safety",
+            "signal maintenance"
+        ],
+        "category": "Transportation",
+        "intent": "report_traffic_issue",
         "department": "Transportation",
         "response_time": 0.5,
         "cost": "$0",
         "repair_cost": "$350",
         "priority": "high",
-        "annual_reports": 120
+        "annual_reports": 120,
+        "answer": "You can report broken traffic signals through the Transportation Department's online portal, by calling 311, or using the CityFix app. The department responds within 30 minutes for high-priority issues. The average repair cost is $350 per signal, with 120 reports handled annually. Reports should include the intersection location, signal number if visible, and description of the problem. The department prioritizes reports based on safety impact and traffic volume. Emergency situations are handled immediately, while minor issues are addressed within 24 hours. The department conducts regular maintenance to prevent signal failures."
     },
     {
         "question": "What are the regulations for short-term rentals?",
+        "question_variants": [
+            "What are the rules for Airbnb rentals?",
+            "How do I legally rent my property short-term?",
+            "What's needed for a short-term rental permit?",
+            "What are the requirements for vacation rentals?",
+            "How to get a short-term rental license?"
+        ],
+        "keywords": [
+            "short-term rental",
+            "Airbnb",
+            "vacation rental",
+            "rental permit",
+            "property rental",
+            "rental regulations",
+            "rental license"
+        ],
+        "category": "Planning",
+        "intent": "check_rental_regulations",
         "department": "Planning",
         "response_time": 14,
         "cost": "$250",
         "timeframe": "annual",
         "active_permits": 210,
         "annual_revenue": "$52500",
-        "tax_revenue": "$315000"
-    }
-] 
+        "tax_revenue": "$315000",
+        "answer": "Short-term rental regulations require a permit from the Planning Department. The application process takes 14 days and costs $250 annually. The department has 210 active permits, generating $52,500 in permit revenue and $315,000 in tax revenue. Requirements include proof of property ownership, insurance, safety inspections, and compliance with zoning regulations. Permits allow rentals of 30 days or less, with a maximum of 180 days per year. Hosts must collect and remit occupancy taxes and maintain guest records. The department conducts periodic inspections and responds to neighbor complaints. Violations may result in fines or permit revocation."
+    },
+    {
+        "question": "How do I apply for a senior citizen bus pass?",
+        "question_variants": [
+            "What's the process for getting a senior bus discount?",
+            "Where can I get a reduced-fare bus pass for seniors?",
+            "How to obtain a senior citizen transit pass?",
+            "What's needed for a senior bus pass application?",
+            "Can seniors get discounted public transportation?"
+        ],
+        "keywords": [
+            "senior citizen",
+            "bus pass",
+            "transit discount",
+            "public transportation",
+            "elderly services",
+            "reduced fare",
+            "transit benefits"
+        ],
+        "category": "Transportation",
+        "intent": "apply_transit_discount",
+        "department": "Public Transit",
+        "response_time": 3,
+        "cost": "$15",
+        "timeframe": "monthly",
+        "annual_users": 5000,
+        "answer": "Senior citizens (65+) can apply for a discounted bus pass at any Transit Center or online. The pass costs $15/month (regularly $50) and requires proof of age. Processing takes 3 business days. Over 5,000 seniors use this program annually.",
+        "eligibility": {
+            "age_requirement": "65+",
+            "required_docs": [
+                "photo_id",
+                "proof_of_age"
+            ]
+        },
+        "distribution_channels": {
+            "online": {
+                "url": "city.gov/senior-transit",
+                "processing_time": "3 business days"
+            },
+            "in_person": {
+                "locations": [
+                    "Main Transit Center",
+                    "Northside Hub"
+                ],
+                "hours": "8am-6pm weekdays"
+            }
+        },
+        "statistics": {
+            "annual_participation": 5000,
+            "cost_savings": "$420/year per senior",
+            "program_cost": "$200000"
+        }
+    },
+    {
+        "question": "Where can I recycle electronics?",
+        "question_variants": [
+            "How do I dispose of old electronics properly?",
+            "What's the location for e-waste recycling?",
+            "Where to recycle broken computers and TVs?",
+            "How to safely get rid of electronic waste?",
+            "What facilities accept old electronics?"
+        ],
+        "keywords": [
+            "electronics recycling",
+            "e-waste",
+            "computer disposal",
+            "TV recycling",
+            "hazardous electronics",
+            "green disposal",
+            "environmental recycling"
+        ],
+        "category": "Environmental Services",
+        "intent": "find_e-waste_disposal",
+        "department": "Waste Management",
+        "location": "789 Eco Drive",
+        "response_time": 0,
+        "cost": "$0",
+        "timeframe": "weekly",
+        "annual_tonnage": 12,
+        "answer": "Electronics recycling is available at the GreenTech Facility (789 Eco Drive) every Saturday (9 AM–2 PM). Accepted items include TVs, computers, and phones. The city recycles ~12 tons of e-waste annually.",
+        "accepted_materials": {
+            "electronics": [
+                "computers",
+                "TVs",
+                "phones",
+                "printers"
+            ],
+            "restrictions": [
+                "no household appliances",
+                "no batteries"
+            ]
+        },
+        "environmental_impact": {
+            "toxics_diverted": "3.5 tons/year",
+            "energy_saved": "1.2M kWh/year"
+        }
+    },
+    {
+        "question": "How do I contest a parking ticket?",
+        "question_variants": [
+            "What's the appeal process for parking citations?",
+            "How can I fight a parking ticket?",
+            "Where do I dispute a parking violation?",
+            "What's the procedure for contesting tickets?",
+            "Can I appeal my parking fine online?"
+        ],
+        "keywords": [
+            "parking ticket",
+            "citation appeal",
+            "ticket dispute",
+            "parking fine",
+            "violation contest",
+            "parking enforcement",
+            "traffic citations"
+        ],
+        "category": "Transportation",
+        "intent": "contest_parking_violation",
+        "department": "Parking Authority",
+        "response_time": 14,
+        "cost": "$0",
+        "success_rate": 0.22,
+        "annual_appeals": 3200,
+        "answer": "Contest tickets online at city.gov/parking-appeals within 14 days. Include photos or evidence. Success rate is 22%. Fines double if unpaid after 30 days.",
+        "appeal_process": {
+            "methods": [
+                "online",
+                "mail",
+                "in_person"
+            ],
+            "requirements": [
+                "ticket_number",
+                "evidence"
+            ],
+            "deadline": "14 days"
+        },
+        "enforcement": {
+            "late_fee": "100% increase after 30 days",
+            "collections_rate": 0.89
+        }
+    },
+    {
+        "question": "How can I reserve a tennis court?",
+        "question_variants": [
+            "What's the process for booking tennis courts?",
+            "How do I schedule time at public tennis courts?",
+            "Where can I reserve court time for tennis?",
+            "Can I book tennis courts online?",
+            "What's the system for tennis court reservations?"
+        ],
+        "keywords": [
+            "tennis court",
+            "court reservation",
+            "sports facilities",
+            "park amenities",
+            "recreation booking",
+            "court scheduling",
+            "public tennis"
+        ],
+        "category": "Parks and Recreation",
+        "intent": "reserve_sports_facility",
+        "department": "Parks and Recreation",
+        "response_time": 0,
+        "cost": "$10/hour",
+        "timeframe": "daily",
+        "annual_reservations": 7800,
+        "answer": "Reserve tennis courts through the Parks Department app or website for $10/hour. Courts can be booked up to 7 days in advance. Prime time (4-8pm) has 30-minute limits when others are waiting.",
+        "reservation_system": {
+            "max_advance": "7 days",
+            "peak_hours": {
+                "time": "4-8pm",
+                "limit": "30 minutes when busy"
+            },
+            "payment_methods": [
+                "credit_card",
+                "account_credit"
+            ]
+        }
+    },
+    {
+        "question": "What's the noise ordinance for residential areas?",
+        "question_variants": [
+            "What are the quiet hours in neighborhoods?",
+            "How loud can music be in residential zones?",
+            "What time do noise restrictions start?",
+            "What's the law about nighttime noise?",
+            "When is excessive noise prohibited?"
+        ],
+        "keywords": [
+            "noise ordinance",
+            "quiet hours",
+            "noise complaint",
+            "residential noise",
+            "sound restrictions",
+            "neighborhood peace",
+            "noise pollution"
+        ],
+        "category": "Public Safety",
+        "intent": "check_noise_regulations",
+        "department": "Police",
+        "response_time": 0,
+        "enforcement_rate": 0.45,
+        "annual_complaints": 1250,
+        "answer": "Quiet hours are 10pm-7am weekdays and 11pm-8am weekends. Maximum daytime decibel levels: 55dB residential, 65dB commercial. Fines start at $100 for violations.",
+        "ordinance_details": {
+            "hours": {
+                "weekdays": "10pm-7am",
+                "weekends": "11pm-8am"
+            },
+            "decibel_limits": {
+                "residential": "55dB daytime",
+                "commercial": "65dB daytime"
+            },
+            "penalties": {
+                "first_offense": "$100",
+                "repeat_offenses": "up to $500"
+            }
+        }
+    },
+    {
+        "question": "How do I get a copy of a police report?",
+        "question_variants": [
+            "Where can I obtain an accident report?",
+            "What's the process for requesting police records?",
+            "How to get a copy of an incident report?",
+            "Where are police reports filed?",
+            "Can I access police reports online?"
+        ],
+        "keywords": [
+            "police report",
+            "incident report",
+            "accident report",
+            "public records",
+            "crime report",
+            "police records",
+            "report request"
+        ],
+        "category": "Public Safety",
+        "intent": "request_police_report",
+        "department": "Police",
+        "response_time": 5,
+        "cost": "$15",
+        "processing_volume": 85,
+        "answer": "Request police reports at the Records Division (M-F 8am-4pm) or online. Fees: $15 for standard reports, $25 for certified copies. Processing takes 3-5 business days.",
+        "request_options": {
+            "in_person": {
+                "location": "Police Headquarters",
+                "hours": "M-F 8am-4pm"
+            },
+            "online": {
+                "portal": "city.gov/police-records",
+                "processing_time": "3-5 days"
+            }
+        }
+    },
+    {
+        "question": "What are the rules for political yard signs?",
+        "question_variants": [
+            "When can I put up election signs?",
+            "What are the regulations for campaign signs?",
+            "How big can political yard signs be?",
+            "When must campaign signs be removed?",
+            "Are there restrictions on political signage?"
+        ],
+        "keywords": [
+            "political signs",
+            "campaign signs",
+            "yard signs",
+            "election signage",
+            "sign regulations",
+            "temporary signs",
+            "first amendment"
+        ],
+        "category": "Code Enforcement",
+        "intent": "check_sign_regulations",
+        "department": "Code Enforcement",
+        "response_time": 0,
+        "timeframe": "election_season",
+        "annual_violations": 45,
+        "answer": "Political signs may be displayed 45 days before to 7 days after elections. Maximum size: 4 sq ft residential, 16 sq ft commercial. Prohibited in public rights-of-way.",
+        "sign_regulations": {
+            "display_period": "45 days pre to 7 days post-election",
+            "size_limits": {
+                "residential": "4 sq ft",
+                "commercial": "16 sq ft"
+            },
+            "placement_rules": [
+                "no_rights_of_way",
+                "no_utility_poles"
+            ]
+        }
+    },
+    {
+        "question": "How do I adopt a pet from the city shelter?",
+        "question_variants": [
+            "What's the process for adopting an animal?",
+            "Where can I adopt a dog or cat?",
+            "How to get a pet from the municipal shelter?",
+            "What are the requirements for pet adoption?",
+            "Can I visit the animal shelter to adopt?"
+        ],
+        "keywords": [
+            "pet adoption",
+            "animal shelter",
+            "adopt a pet",
+            "rescue animals",
+            "shelter pets",
+            "dog adoption",
+            "cat adoption"
+        ],
+        "category": "Animal Services",
+        "intent": "adopt_pet",
+        "department": "Animal Services",
+        "response_time": 1,
+        "cost": "$75",
+        "annual_adoptions": 1200,
+        "answer": "Visit the City Animal Shelter (123 Pet Lane) to adopt. Fees: $75 (dogs), $50 (cats) including vaccinations and microchip. Open Tue-Sun 11am-5pm. 1,200 pets adopted annually.",
+        "adoption_process": {
+            "requirements": [
+                "photo_id",
+                "proof_of_address"
+            ],
+            "included_services": [
+                "vaccinations",
+                "microchip",
+                "spay/neuter"
+            ],
+            "shelter_hours": "Tue-Sun 11am-5pm"
+        }
+    },
+    {
+        "question": "Where can I get free COVID-19 tests?",
+        "question_variants": [
+            "How do I get free coronavirus tests?",
+            "What locations offer no-cost COVID testing?",
+            "Where are free testing kits available?",
+            "How to obtain free at-home test kits?",
+            "What's the distribution for free tests?"
+        ],
+        "keywords": [
+            "COVID-19",
+            "free tests",
+            "coronavirus testing",
+            "public health",
+            "test kits",
+            "health services",
+            "pandemic response"
+        ],
+        "category": "Public Health",
+        "intent": "find_covid_tests",
+        "department": "Health Department",
+        "response_time": 0,
+        "distribution_sites": 8,
+        "monthly_distribution": 5000,
+        "answer": "Free test kits available at all public libraries and 8 health clinics. Limit 5 kits per household monthly. 5,000 kits distributed monthly.",
+        "distribution_details": {
+            "locations": [
+                "all_libraries",
+                "health_clinics"
+            ],
+            "limits": "5 kits/household/month",
+            "types": [
+                "rapid_antigen",
+                "PCR_by_appointment"
+            ]
+        }
+    },
+    {
+        "question": "How do I report a landlord for unsafe conditions?",
+        "question_variants": [
+            "What's the process for complaining about rental housing?",
+            "How to report unsafe apartment conditions?",
+            "Where do I file a housing code violation?",
+            "How can I report a negligent landlord?",
+            "What agency handles rental complaints?"
+        ],
+        "keywords": [
+            "landlord complaint",
+            "housing violation",
+            "rental inspection",
+            "unsafe housing",
+            "code violation",
+            "tenant rights",
+            "property standards"
+        ],
+        "category": "Housing",
+        "intent": "report_housing_violation",
+        "department": "Housing Authority",
+        "response_time": 3,
+        "annual_inspections": 850,
+        "violation_rate": 0.28,
+        "answer": "File housing complaints online at city.gov/housing or call 311. Inspections occur within 3 business days. 28% of inspected properties have violations.",
+        "complaint_process": {
+            "required_info": [
+                "address",
+                "specific_issues"
+            ],
+            "anonymous": true,
+            "follow_up": "required within 10 days"
+        }
+    },
+    {
+        "question": "What's the schedule for brush collection?",
+        "question_variants": [
+            "When does brush pickup occur in my area?",
+            "How do I find my brush collection day?",
+            "What's the timeline for yard waste pickup?",
+            "When will branches be collected?",
+            "How often does brush collection happen?"
+        ],
+        "keywords": [
+            "brush collection",
+            "yard waste",
+            "branch pickup",
+            "landscape debris",
+            "waste collection",
+            "seasonal cleanup",
+            "tree trimming disposal"
+        ],
+        "category": "Public Works",
+        "intent": "check_brush_collection",
+        "department": "Public Works",
+        "response_time": 0,
+        "timeframe": "biweekly",
+        "annual_tonnage": 1200,
+        "answer": "Brush collection occurs biweekly April-October. Check city.gov/brush for your zone schedule. Bundles must be under 4ft long and 50lbs. 1,200 tons collected annually.",
+        "collection_rules": {
+            "preparation": [
+                "bundled",
+                "under_4ft",
+                "under_50lbs"
+            ],
+            "prohibited": [
+                "root_balls",
+                "stumps_over_6in"
+            ]
+        }
+    },
+    {
+        "question": "How do I get a handicap parking permit?",
+        "question_variants": [
+            "What's needed for a disabled parking placard?",
+            "How to apply for accessible parking?",
+            "Where do I get a handicap parking tag?",
+            "What's the process for disability parking permits?",
+            "Can my doctor authorize a parking permit?"
+        ],
+        "keywords": [
+            "handicap parking",
+            "disabled permit",
+            "accessible parking",
+            "disability placard",
+            "parking privileges",
+            "mobility impairment",
+            "ADA parking"
+        ],
+        "category": "Transportation",
+        "intent": "obtain_ada_permit",
+        "department": "DMV",
+        "response_time": 7,
+        "cost": "$6",
+        "annual_permits": 4200,
+        "answer": "Apply at any DMV office with Form MV-145 (doctor-certified). Fee: $6 for 5-year permit. 4,200 permits issued annually. Temporary permits (6 months) available.",
+        "application_process": {
+            "requirements": [
+                "medical_certification"
+            ],
+            "duration": {
+                "permanent": "5 years",
+                "temporary": "6 months"
+            }
+        }
+    },
+    {
+        "question": "Where can homeless individuals find shelter?",
+        "question_variants": [
+            "What resources exist for the homeless?",
+            "How can homeless people get help?",
+            "Where are emergency shelters located?",
+            "What services are available for homeless?",
+            "How to access homeless assistance programs?"
+        ],
+        "keywords": [
+            "homeless shelter",
+            "housing assistance",
+            "emergency housing",
+            "homeless services",
+            "social services",
+            "outreach programs",
+            "transitional housing"
+        ],
+        "category": "Social Services",
+        "intent": "find_homeless_services",
+        "department": "Human Services",
+        "response_time": 0,
+        "beds_available": 250,
+        "annual_served": 1800,
+        "answer": "The City Hope Center (456 Compassion St) offers 250 beds and connects individuals to services. Open 24/7 year-round. 1,800 people served annually.",
+        "services_offered": {
+            "immediate": [
+                "shelter",
+                "meals",
+                "showers"
+            ],
+            "long_term": [
+                "case_management",
+                "job_assistance"
+            ]
+        }
+    },
+    {
+        "question": "How do I register my bicycle?",
+        "question_variants": [
+            "What's the bike registration process?",
+            "Where can I license my bicycle?",
+            "How to get a bike registered with the city?",
+            "Why should I register my bicycle?",
+            "Is bicycle registration required?"
+        ],
+        "keywords": [
+            "bike registration",
+            "bicycle license",
+            "bike theft prevention",
+            "cycling programs",
+            "bike safety",
+            "bicycle database",
+            "property registration"
+        ],
+        "category": "Transportation",
+        "intent": "register_bicycle",
+        "department": "Police",
+        "response_time": 0,
+        "cost": "$10",
+        "recovery_rate": 0.35,
+        "answer": "Register bikes online or at police precincts ($10 for 5 years). Increases theft recovery chances by 35%. Includes free anti-theft etching.",
+        "registration_benefits": {
+            "theft_recovery": "35% higher chance",
+            "included": [
+                "registration_decals",
+                "anti-theft_etching"
+            ]
+        }
+    },
+    {
+        "question": "What are the rules for food trucks in parks?",
+        "question_variants": [
+            "Can food trucks operate in city parks?",
+            "How do vendors get park permits?",
+            "What's needed to sell food in parks?",
+            "Are there restrictions on park food vendors?",
+            "How to become a park food vendor?"
+        ],
+        "keywords": [
+            "food trucks",
+            "park vendors",
+            "mobile food",
+            "park concessions",
+            "vendor permits",
+            "outdoor dining",
+            "public space usage"
+        ],
+        "category": "Parks and Recreation",
+        "intent": "check_vendor_rules",
+        "department": "Parks and Recreation",
+        "response_time": 14,
+        "cost": "$300",
+        "annual_permits": 65,
+        "answer": "Food truck park permits cost $300/season (April-October). Limited to 2 trucks per park daily. 65 permits issued annually through lottery system.",
+        "vendor_rules": {
+            "operating_hours": "10am-8pm",
+            "location_restrictions": [
+                "50ft_from_playgrounds"
+            ],
+            "waste_requirements": [
+                "recycling",
+                "grease_disposal"
+            ]
+        }
+    },
+    {
+        "question": "How do I start a community garden?",
+        "question_variants": [
+            "What's needed to create a neighborhood garden?",
+            "How to organize a communal garden space?",
+            "Where can we establish a community garden?",
+            "What's the approval process for gardens?",
+            "Are there city plots for community gardening?"
+        ],
+        "keywords": [
+            "community garden",
+            "urban gardening",
+            "garden plots",
+            "neighborhood projects",
+            "green spaces",
+            "gardening programs",
+            "sustainable food"
+        ],
+        "category": "Parks and Recreation",
+        "intent": "start_community_garden",
+        "department": "Parks and Recreation",
+        "response_time": 30,
+        "cost": "$50",
+        "existing_gardens": 28,
+        "answer": "Submit a Community Garden Proposal to Parks Dept ($50 fee). Minimum 5 committed gardeners required. City provides water access. 28 active gardens citywide.",
+        "support_provided": {
+            "city_responsibilities": [
+                "water_access",
+                "soil_testing"
+            ],
+            "gardener_responsibilities": [
+                "maintenance",
+                "insurance"
+            ]
+        }
+    },
+    {
+        "question": "What's the policy on street performers?",
+        "question_variants": [
+            "Do buskers need permits in the city?",
+            "Where are street performers allowed?",
+            "What are the rules for public performances?",
+            "How to legally perform in public spaces?",
+            "Are there restrictions on busking?"
+        ],
+        "keywords": [
+            "street performers",
+            "buskers",
+            "public performances",
+            "entertainment permits",
+            "sidewalk shows",
+            "artist regulations",
+            "first amendment rights"
+        ],
+        "category": "Cultural Affairs",
+        "intent": "check_performance_rules",
+        "department": "Cultural Affairs",
+        "response_time": 0,
+        "annual_permits": 320,
+        "complaints": 12,
+        "answer": "Street performers need free registration (no fee) but no permit required. Prohibited within 50ft of businesses during operating hours. 320 performers registered annually.",
+        "performance_guidelines": {
+            "allowed_areas": [
+                "pedestrian_zones",
+                "park_edges"
+            ],
+            "prohibited": [
+                "amplification",
+                "blocking_access"
+            ]
+        }
+    },
+    {
+        "question": "How do I get a historical plaque for my home?",
+        "question_variants": [
+            "What's the process for historical designation?",
+            "How to mark a historically significant property?",
+            "What qualifies a building for historical recognition?",
+            "Where to apply for a heritage plaque?",
+            "Can I get my house historically registered?"
+        ],
+        "keywords": [
+            "historical plaque",
+            "historic preservation",
+            "heritage designation",
+            "landmark status",
+            "historical markers",
+            "property history",
+            "architectural significance"
+        ],
+        "category": "Historic Preservation",
+        "intent": "request_historical_marker",
+        "department": "Historic Commission",
+        "response_time": 60,
+        "cost": "$200",
+        "designated_properties": 145,
+        "answer": "Submit Historical Plaque Application with $200 fee and documentation of significance (50+ years old with architectural/historical value). 145 properties currently designated.",
+        "designation_process": {
+            "criteria": [
+                "50_years_old",
+                "architectural_significance"
+            ],
+            "benefits": [
+                "tax_incentives",
+                "protection_status"
+            ]
+        }
+    },
+    {
+        "question": "Where can I find emergency preparedness information?",
+        "question_variants": [
+            "How should I prepare for natural disasters?",
+            "What's the city's emergency response plan?",
+            "Where are emergency shelters located?",
+            "How to create a family emergency plan?",
+            "What resources exist for disaster prep?"
+        ],
+        "keywords": [
+            "emergency preparedness",
+            "disaster planning",
+            "emergency kits",
+            "evacuation routes",
+            "public safety",
+            "crisis response",
+            "community resilience"
+        ],
+        "category": "Emergency Management",
+        "intent": "find_emergency_info",
+        "department": "Office of Emergency Management",
+        "response_time": 0,
+        "annual_drills": 4,
+        "preparedness_rate": 0.42,
+        "answer": "Get preparedness guides at all fire stations or city.gov/ready. Includes evacuation maps, shelter locations (12 primary sites), and kit checklists. 42% of households report being prepared.",
+        "resources_available": {
+            "printed": [
+                "family_planners",
+                "evacuation_maps"
+            ],
+            "digital": [
+                "mobile_alerts",
+                "interactive_maps"
+            ]
+        }
+    },
+        {
+            "question": "How do I enroll in a youth sports program?",
+            "question_variants": [
+                "What's the process for signing up kids for sports?",
+                "How can my child join a city sports league?",
+                "Where do I register for youth athletics?",
+                "What are the requirements for kids' sports programs?",
+                "How to get my kid into a recreational sports team?"
+            ],
+            "keywords": [
+                "youth sports",
+                "recreational sports",
+                "kids athletics",
+                "sports league",
+                "youth programs",
+                "team registration",
+                "sports activities"
+            ],
+            "category": "Parks and Recreation",
+            "intent": "enroll_youth_sports",
+            "department": "Parks and Recreation",
+            "response_time": 2,
+            "cost": "$45",
+            "timeframe": "seasonal",
+            "annual_participants": 3200,
+            "answer": "Youth sports programs are available through the Parks and Recreation Department for children ages 5-17. Registration costs $45 per season and includes uniforms and equipment. Programs include soccer, basketball, baseball, and volleyball, with practices held at city parks. Register online or at community centers, providing proof of age and residency. The department serves 3,200 kids annually with a 90% satisfaction rate. Scholarships are available for low-income families, covering up to 75% of fees.",
+            "program_details": {
+                "age_range": "5-17",
+                "sports_offered": [
+                    "soccer",
+                    "basketball",
+                    "baseball",
+                    "volleyball"
+                ],
+                "season_length": "10 weeks",
+                "scholarships": {
+                    "eligibility": "low-income families",
+                    "coverage": "up to 75%"
+                }
+            },
+            "registration_process": {
+                "methods": [
+                    "online",
+                    "in_person"
+                ],
+                "required_documents": [
+                    "proof_of_age",
+                    "proof_of_residency"
+                ],
+                "processing_time": "2 business days"
+            },
+            "statistics": {
+                "annual_participants": 3200,
+                "satisfaction_rate": 0.90,
+                "scholarship_recipients": 450,
+                "coaches_trained": 200
+            }
+        },
+        {
+            "question": "Where can I report a stray animal?",
+            "question_variants": [
+                "How do I report a loose dog in my area?",
+                "What's the process for reporting stray pets?",
+                "Who handles stray animal complaints?",
+                "How to notify the city about a stray cat?",
+                "Can I report stray animals online?"
+            ],
+            "keywords": [
+                "stray animal",
+                "animal control",
+                "loose pet",
+                "stray dog",
+                "stray cat",
+                "animal welfare",
+                "pet safety"
+            ],
+            "category": "Animal Services",
+            "intent": "report_stray_animal",
+            "department": "Animal Services",
+            "response_time": 1,
+            "cost": "$0",
+            "location": "citywide",
+            "annual_reports": 1800,
+            "answer": "Report stray animals through the Animal Services Department via the CityFix app, online portal at city.gov/strays, or by calling 311. Provide the animal's location, description, and any photos. Officers respond within 24 hours, handling 1,800 reports annually. Strays are taken to the City Animal Shelter for care and adoption processing. The department offers a 95% reunification rate for tagged pets. Anonymous reporting is available.",
+            "reporting_channels": {
+                "online_portal": {
+                    "url": "city.gov/strays",
+                    "required_fields": [
+                        "location",
+                        "description",
+                        "photos"
+                    ]
+                },
+                "mobile_app": {
+                    "name": "CityFix",
+                    "features": [
+                        "gps_location",
+                        "photo_upload"
+                    ]
+                },
+                "phone": {
+                    "number": "311",
+                    "hours": "24/7"
+                }
+            },
+            "response_process": {
+                "response_time": "24 hours",
+                "shelter_intake": true,
+                "reunification_rate": 0.95
+            },
+            "statistics": {
+                "annual_reports": 1800,
+                "animals_sheltered": 1500,
+                "adoption_rate": 0.85,
+                "cost_per_response": "$50"
+            }
+        },
+        {
+            "question": "How do I apply for a library card?",
+            "question_variants": [
+                "What's the process for getting a library card?",
+                "How can I sign up for library access?",
+                "Where do I get a public library card?",
+                "What do I need to join the library?",
+                "Can I apply for a library card online?"
+            ],
+            "keywords": [
+                "library card",
+                "public library",
+                "library access",
+                "borrowing books",
+                "library membership",
+                "library services",
+                "reading programs"
+            ],
+            "category": "Library Services",
+            "intent": "apply_library_card",
+            "department": "Public Library",
+            "response_time": 0,
+            "cost": "$0",
+            "timeframe": "lifetime",
+            "active_cards": 45000,
+            "answer": "Library cards are free for city residents and can be obtained at any library branch or online at city.gov/library. Provide proof of residency and a photo ID. Cards grant access to books, e-books, and digital resources, with 45,000 active cardholders. Children under 16 need parental consent. Cards are valid for life unless revoked for misuse. The library system circulates 1.2 million items annually with a 98% return rate.",
+            "application_process": {
+                "eligibility": "city residents",
+                "required_documents": [
+                    "proof_of_residency",
+                    "photo_id"
+                ],
+                "child_requirements": "parental consent under 16"
+            },
+            "services_accessed": {
+                "physical": [
+                    "books",
+                    "DVDs",
+                    "magazines"
+                ],
+                "digital": [
+                    "e-books",
+                    "audiobooks",
+                    "databases"
+                ]
+            },
+            "statistics": {
+                "active_cards": 45000,
+                "annual_circulation": 1200000,
+                "return_rate": 0.98,
+                "digital_usage": 0.40
+            }
+        },
+        {
+            "question": "What are the rules for keeping backyard chickens?",
+            "question_variants": [
+                "Can I have chickens in my backyard?",
+                "What are the regulations for urban chickens?",
+                "How many chickens can I keep at home?",
+                "What's the permit process for backyard hens?",
+                "Are there restrictions on raising chickens?"
+            ],
+            "keywords": [
+                "backyard chickens",
+                "urban farming",
+                "chicken permit",
+                "poultry regulations",
+                "animal husbandry",
+                "livestock rules",
+                "urban agriculture"
+            ],
+            "category": "Animal Services",
+            "intent": "check_chicken_regulations",
+            "department": "Animal Services",
+            "response_time": 7,
+            "cost": "$20",
+            "timeframe": "annual",
+            "active_permits": 320,
+            "answer": "Backyard chickens require an annual $20 permit from the Animal Services Department. Residents can keep up to 6 hens (no roosters) in a secure coop at least 10 feet from property lines. The department issues 320 permits annually with a 92% compliance rate. Inspections ensure sanitation and noise control. Permits are processed in 7 days, requiring coop plans and proof of property ownership or landlord approval.",
+            "permit_requirements": {
+                "max_hens": 6,
+                "restrictions": [
+                    "no roosters",
+                    "coop 10ft from property lines"
+                ],
+                "documentation": [
+                    "coop_plans",
+                    "proof_of_ownership"
+                ]
+            },
+            "enforcement": {
+                "inspections": "annual",
+                "violation_fine": "$50",
+                "compliance_rate": 0.92
+            },
+            "statistics": {
+                "active_permits": 320,
+                "annual_inspections": 300,
+                "violation_rate": 0.08,
+                "community_egg_production": "5000 dozen/year"
+            }
+        },
+        {
+            "question": "How do I request a tree planting on city property?",
+            "question_variants": [
+                "What's the process for getting a tree planted?",
+                "How can I request a street tree planting?",
+                "Who handles city tree planting programs?",
+                "Can I get a tree planted near my home?",
+                "How to apply for a public tree planting?"
+            ],
+            "keywords": [
+                "tree planting",
+                "street trees",
+                "urban forestry",
+                "tree program",
+                "city greenery",
+                "environmental services",
+                "public landscaping"
+            ],
+            "category": "Public Works",
+            "intent": "request_tree_planting",
+            "department": "Public Works",
+            "response_time": 30,
+            "cost": "$0",
+            "timeframe": "spring/fall",
+            "annual_plantings": 500,
+            "answer": "Request a tree planting on city property via the Public Works Department's online portal or by calling 311. The service is free, with 500 trees planted annually during spring and fall seasons. Requests are evaluated for site suitability within 30 days. Approved sites receive native species suited to the area, with maintenance provided for two years. The program has a 95% tree survival rate and enhances urban canopy coverage by 2% annually.",
+            "request_process": {
+                "methods": [
+                    "online",
+                    "phone"
+                ],
+                "evaluation_time": "30 days",
+                "site_requirements": [
+                    "adequate_space",
+                    "no_utility_conflicts"
+                ]
+            },
+            "program_details": {
+                "species": "native",
+                "maintenance_period": "2 years",
+                "survival_rate": 0.95
+            },
+            "statistics": {
+                "annual_plantings": 500,
+                "canopy_increase": "2%/year",
+                "citizen_requests": 600,
+                "cost_per_tree": "$200"
+            }
+        },
+        {
+            "question": "How can I access free Wi-Fi in public spaces?",
+            "question_variants": [
+                "Where are the city's free Wi-Fi hotspots?",
+                "How do I connect to public Wi-Fi?",
+                "What parks offer free internet access?",
+                "Can I get free Wi-Fi at city facilities?",
+                "How to use the city's Wi-Fi network?"
+            ],
+            "keywords": [
+                "free Wi-Fi",
+                "public internet",
+                "Wi-Fi hotspots",
+                "digital access",
+                "public connectivity",
+                "internet services",
+                "smart city"
+            ],
+            "category": "Information Technology",
+            "intent": "access_public_wifi",
+            "department": "Information Technology",
+            "response_time": 0,
+            "cost": "$0",
+            "timeframe": "ongoing",
+            "hotspots": 75,
+            "answer": "Free public Wi-Fi is available at 75 locations, including parks, libraries, and community centers. Connect to the 'CityConnect' network without a password. The service supports 10,000 daily users with a 99% uptime rate. Speed is capped at 10 Mbps for fair access. Locations are listed at city.gov/wifi. The program bridges the digital divide, with 60% of users from low-income areas.",
+            "network_details": {
+                "network_name": "CityConnect",
+                "speed_cap": "10 Mbps",
+                "uptime": 0.99
+            },
+            "locations": {
+                "types": [
+                    "parks",
+                    "libraries",
+                    "community_centers"
+                ],
+                "total_hotspots": 75,
+                "map_url": "city.gov/wifi"
+            },
+            "statistics": {
+                "daily_users": 10000,
+                "low_income_usage": 0.60,
+                "data_transferred": "50 TB/month",
+                "program_cost": "$250000/year"
+            }
+        },
+        {
+            "question": "What are the requirements for a food pantry permit?",
+            "question_variants": [
+                "How do I start a food pantry legally?",
+                "What's needed to operate a food distribution site?",
+                "What permits are required for a food bank?",
+                "How to get approval for a community pantry?",
+                "Are there regulations for food pantries?"
+            ],
+            "keywords": [
+                "food pantry",
+                "food distribution",
+                "community aid",
+                "food bank",
+                "charity permit",
+                "food safety",
+                "hunger relief"
+            ],
+            "category": "Health Department",
+            "intent": "obtain_food_pantry_permit",
+            "department": "Health Department",
+            "response_time": 14,
+            "cost": "$100",
+            "timeframe": "annual",
+            "active_pantries": 25,
+            "answer": "A food pantry permit costs $100 annually and is issued by the Health Department after a 14-day review. Requirements include a food safety plan, proof of nonprofit status, and facility inspection. The city has 25 active pantries serving 15,000 residents monthly. Permits ensure compliance with storage and handling standards. Training is provided for volunteers, and pantries must report quarterly distribution metrics.",
+            "permit_requirements": {
+                "documentation": [
+                    "food_safety_plan",
+                    "nonprofit_status"
+                ],
+                "inspection": "required",
+                "volunteer_training": true
+            },
+            "operations": {
+                "reporting": "quarterly",
+                "distribution_capacity": "15000 residents/month"
+            },
+            "statistics": {
+                "active_pantries": 25,
+                "annual_served": 180000,
+                "compliance_rate": 0.95,
+                "inspection_pass_rate": 0.90
+            }
+        },
+        {
+            "question": "How do I report graffiti on public property?",
+            "question_variants": [
+                "What's the process for reporting vandalism?",
+                "How can I notify the city about graffiti?",
+                "Where do I report graffiti on city buildings?",
+                "How to get graffiti removed from public spaces?",
+                "Can I report graffiti through an app?"
+            ],
+            "keywords": [
+                "graffiti",
+                "vandalism",
+                "public property",
+                "graffiti removal",
+                "city maintenance",
+                "urban cleanup",
+                "code violation"
+            ],
+            "category": "Public Works",
+            "intent": "report_graffiti",
+            "department": "Public Works",
+            "response_time": 2,
+            "cost": "$0",
+            "removal_cost": "$150",
+            "annual_reports": 600,
+            "answer": "Report graffiti on public property via the CityFix app, online at city.gov/graffiti, or by calling 311. Include location and photos. The Public Works Department responds within 48 hours, removing 600 instances annually at $150 per site. Removal uses eco-friendly methods, and surfaces are treated to prevent recurrence. The program has an 85% citizen satisfaction rate.",
+            "reporting_channels": {
+                "online": {
+                    "url": "city.gov/graffiti",
+                    "required": [
+                        "location",
+                        "photos"
+                    ]
+                },
+                "app": {
+                    "name": "CityFix",
+                    "features": [
+                        "gps",
+                        "photo_upload"
+                    ]
+                },
+                "phone": {
+                    "number": "311",
+                    "hours": "24/7"
+                }
+            },
+            "removal_process": {
+                "response_time": "48 hours",
+                "methods": "eco-friendly",
+                "preventive_treatment": true
+            },
+            "statistics": {
+                "annual_reports": 600,
+                "removal_cost": "$90000/year",
+                "satisfaction_rate": 0.85,
+                "recurrence_rate": 0.10
+            }
+        },
+        {
+            "question": "How can I join a senior citizen social club?",
+            "question_variants": [
+                "Where do seniors meet for activities?",
+                "How do I sign up for senior social events?",
+                "What programs are available for elderly residents?",
+                "Can I join a senior community group?",
+                "What's the process for senior club membership?"
+            ],
+            "keywords": [
+                "senior citizen",
+                "social club",
+                "elderly programs",
+                "senior activities",
+                "community engagement",
+                "senior services",
+                "recreation for seniors"
+            ],
+            "category": "Social Services",
+            "intent": "join_senior_club",
+            "department": "Senior Services",
+            "response_time": 1,
+            "cost": "$10",
+            "timeframe": "annual",
+            "membership": 1200,
+            "answer": "Join a senior citizen social club through the Senior Services Department for a $10 annual fee. Clubs offer activities like bingo, fitness classes, and day trips, serving 1,200 members. Register at any senior center with proof of age (60+). The program hosts 50 events monthly with a 90% participation rate. Transportation is provided for mobility-impaired members.",
+            "membership_details": {
+                "eligibility": "60+",
+                "activities": [
+                    "bingo",
+                    "fitness_classes",
+                    "day_trips"
+                ],
+                "transportation": "available"
+            },
+            "registration": {
+                "locations": "senior centers",
+                "required": [
+                    "proof_of_age"
+                ],
+                "processing_time": "1 day"
+            },
+            "statistics": {
+                "membership": 1200,
+                "monthly_events": 50,
+                "participation_rate": 0.90,
+                "program_cost": "$75000/year"
+            }
+        },
+        {
+            "question": "What are the rules for drone usage in city parks?",
+            "question_variants": [
+                "Can I fly a drone in public parks?",
+                "What are the drone regulations in the city?",
+                "Where are drones allowed in parks?",
+                "Do I need a permit to fly a drone?",
+                "What restrictions apply to drone flying?"
+            ],
+            "keywords": [
+                "drone usage",
+                "drone regulations",
+                "unmanned aircraft",
+                "park rules",
+                "drone permit",
+                "aerial devices",
+                "public safety"
+            ],
+            "category": "Parks and Recreation",
+            "intent": "check_drone_regulations",
+            "department": "Parks and Recreation",
+            "response_time": 0,
+            "cost": "$25",
+            "timeframe": "daily",
+            "annual_permits": 150,
+            "answer": "Drones in city parks require a $25 daily permit from the Parks and Recreation Department. Flying is allowed in designated areas, away from crowds and wildlife, with a maximum altitude of 400 feet. The department issues 150 permits annually, with a 98% compliance rate. Operators must follow FAA guidelines and carry liability insurance. Violations result in $100 fines.",
+            "drone_rules": {
+                "max_altitude": "400 feet",
+                "restricted_areas": [
+                    "crowds",
+                    "wildlife_zones"
+                ],
+                "insurance": "required"
+            },
+            "permit_process": {
+                "cost": "$25",
+                "duration": "daily",
+                "application": "online or in-person"
+            },
+            "statistics": {
+                "annual_permits": 150,
+                "compliance_rate": 0.98,
+                "violation_fines": "$2000/year",
+                "designated_areas": 10
+            }
+        },
+        {
+            "question": "How do I apply for a small business grant?",
+            "question_variants": [
+                "What's the process for getting business funding?",
+                "How can I access small business grants?",
+                "Where do I apply for entrepreneurial support?",
+                "What grants are available for startups?",
+                "How to get financial aid for my business?"
+            ],
+            "keywords": [
+                "small business",
+                "business grant",
+                "entrepreneurship",
+                "startup funding",
+                "economic development",
+                "business support",
+                "financial aid",
+                "grants"
+            ],
+            "category": "Economic Development",
+            "intent": "apply_business_grant",
+            "department": "Economic Development",
+            "response_time": 30,
+            "cost": "$0",
+            "timeframe": "annual",
+            "annual_grants": 50,
+            "answer": "Apply for small business grants through the Economic Development Department's online portal. Grants range from $5,000-$25,000, with 50 awarded annually. Eligibility requires a viable business plan, proof of local operation, and at least one year in business. Applications are reviewed in 30 days, with a 60% approval rate. Funds support equipment, marketing, or expansion. Recipients must report quarterly outcomes.",
+            "grant_details": {
+                "range": "$5000-$25000",
+                "eligibility": [
+                    "viable_business_plan",
+                    "local_operation",
+                    "1_year_in_business"
+                ],
+                "uses": [
+                    "equipment",
+                    "marketing",
+                    "expansion"
+                ]
+            },
+            "application_process": {
+                "method": "online",
+                "required_documents": [
+                    "business_plan",
+                    "financial_statements"
+                ],
+                "review_time": "30 days"
+            },
+            "statistics": {
+                "annual_grants": 50,
+                "approval_rate": 0.60,
+                "total_funded": "$750000",
+                "jobs_created": 200
+            }
+        },
+        {
+            "question": "Where can I get help with tax preparation?",
+            "question_variants": [
+                "Are there free tax filing services?",
+                "How can I get assistance with my taxes?",
+                "Where do I find tax preparation help?",
+                "What programs offer tax support for residents?",
+                "Can I get help filing my taxes locally?"
+            ],
+            "keywords": [
+                "tax preparation",
+                "free tax help",
+                "tax assistance",
+                "tax filing",
+                "tax support",
+                "financial services",
+                "tax season"
+            ],
+            "category": "Social Services",
+            "intent": "find_tax_assistance",
+            "department": "Social Services",
+            "response_time": 0,
+            "cost": "$0",
+            "timeframe": "tax season",
+            "clients_served": 2000,
+            "answer": "Free tax preparation is offered by the Social Services Department during tax season (February-April) at community centers. Certified volunteers assist low-income residents, serving 2,000 clients annually. Eligible households earn under $60,000/year. Appointments are required, and services include e-filing and maximizing deductions. The program secures $3 million in refunds annually.",
+            "program_details": {
+                "eligibility": "income under $60000",
+                "services": [
+                    "e-filing",
+                    "deduction_optimization"
+                ],
+                "appointment": "required"
+            },
+            "locations": {
+                "sites": "community centers",
+                "hours": "M-Sat 9am-3pm"
+            },
+            "statistics": {
+                "clients_served": 2000,
+                "refunds_secured": "$3000000",
+                "volunteers": 75,
+                "accuracy_rate": 0.98
+            }
+        },
+        {
+            "question": "How do I report a water main break?",
+            "question_variants": [
+                "What's the process for reporting a water leak?",
+                "How can I notify the city about a burst pipe?",
+                "Where do I report a water main issue?",
+                "How to alert authorities about water flooding?",
+                "Can I report water main breaks online?"
+            ],
+            "keywords": [
+                "water main",
+                "water leak",
+                "burst pipe",
+                "water emergency",
+                "utility repair",
+                "water infrastructure",
+                "public works"
+            ],
+            "category": "Utilities",
+            "intent": "report_water_issue",
+            "department": "Utilities",
+            "response_time": 0.5,
+            "cost": "$0",
+            "repair_cost": "$5000",
+            "annual_incidents": 45,
+            "answer": "Report water main breaks immediately via 311 or the CityFix app, providing the exact location and severity. The Utilities Department responds within 30 minutes, handling 45 incidents annually at $5,000 per repair. Emergency crews isolate the break and restore service within 6 hours on average. Residents may experience temporary water shutoffs, with notifications via text alerts.",
+            "reporting_methods": {
+                "phone": {
+                    "number": "311",
+                    "hours": "24/7"
+                },
+                "app": {
+                    "name": "CityFix",
+                    "features": [
+                        "gps",
+                        "photo_upload"
+                    ]
+                }
+            },
+            "response_process": {
+                "response_time": "30 minutes",
+                "repair_time": "6 hours",
+                "notifications": "text alerts"
+            },
+            "statistics": {
+                "annual_incidents": 45,
+                "total_repair_cost": "$225000",
+                "service_restoration_rate": 0.95,
+                "water_loss": "500000 gallons/incident"
+            }
+        },
+        {
+            "question": "How can I enroll in a city art class?",
+            "question_variants": [
+                "What's the process for joining art programs?",
+                "How do I sign up for painting or drawing classes?",
+                "Where are city-sponsored art courses offered?",
+                "What are the requirements for art classes?",
+                "Can I register for art workshops online?"
+            ],
+            "keywords": [
+                "art class",
+                "art program",
+                "creative workshops",
+                "art education",
+                "cultural programs",
+                "painting classes",
+                "drawing classes"
+            ],
+            "category": "Cultural Affairs",
+            "intent": "enroll_art_class",
+            "department": "Cultural Affairs",
+            "response_time": 2,
+            "cost": "$30",
+            "timeframe": "8 weeks",
+            "annual_participants": 800,
+            "answer": "Enroll in city art classes through the Cultural Affairs Department for $30 per 8-week session. Classes include painting, drawing, and ceramics, held at community centers. Open to ages 16+, with 800 participants annually. Register online or in-person, with supplies provided. Classes are taught by local artists, and exhibitions showcase student work. Scholarships cover 50% of fees for low-income residents.",
+            "class_details": {
+                "types": [
+                    "painting",
+                    "drawing",
+                    "ceramics"
+                ],
+                "age_minimum": 16,
+                "supplies": "provided"
+            },
+            "registration": {
+                "methods": [
+                    "online",
+                    "in_person"
+                ],
+                "scholarships": {
+                    "coverage": "50%",
+                    "eligibility": "low-income"
+                }
+            },
+            "statistics": {
+                "annual_participants": 800,
+                "exhibitions_held": 4,
+                "scholarship_recipients": 100,
+                "satisfaction_rate": 0.92
+            }
+        },
+        {
+            "question": "What are the rules for electric scooters on city streets?",
+            "question_variants": [
+                "Can I ride an e-scooter on city roads?",
+                "What are the regulations for electric scooters?",
+                "Where are e-scooters allowed to operate?",
+                "Do I need a permit for an electric scooter?",
+                "What restrictions apply to e-scooter use?"
+            ],
+            "keywords": [
+                "electric scooter",
+                "e-scooter",
+                "scooter regulations",
+                "micromobility",
+                "scooter permit",
+                "urban transport",
+                "public safety"
+            ],
+            "category": "Transportation",
+            "intent": "check_scooter_regulations",
+            "department": "Transportation",
+            "response_time": 0,
+            "cost": "$0",
+            "timeframe": "ongoing",
+            "scooter_trips": 250000,
+            "answer": "Electric scooters are allowed on bike lanes and streets with speed limits under 30 mph, per Transportation Department rules. Riders must be 16+, wear helmets, and yield to pedestrians. No permit is required, but scooters must not exceed 15 mph. The city sees 250,000 trips annually, with a 5% violation rate. Parking is restricted to designated zones to prevent sidewalk clutter.",
+            "scooter_rules": {
+                "age_minimum": 16,
+                "max_speed": "15 mph",
+                "required": [
+                    "helmets",
+                    "yield_to_pedestrians"
+                ]
+            },
+            "parking": {
+                "zones": "designated",
+                "restrictions": "no_sidewalks"
+            },
+            "statistics": {
+                "annual_trips": 250000,
+                "violation_rate": 0.05,
+                "designated_zones": 200,
+                "injury_rate": "0.02%"
+            }
+        },
+        {
+            "question": "How do I request a speed bump installation?",
+            "question_variants": [
+                "What's the process for getting a speed bump?",
+                "How can I request traffic calming measures?",
+                "Where do I apply for a speed bump on my street?",
+                "How to petition for a speed hump?",
+                "Can I get a speed bump installed in my neighborhood?"
+            ],
+            "keywords": [
+                "speed bump",
+                "traffic calming",
+                "speed hump",
+                "road safety",
+                "traffic management",
+                "neighborhood safety",
+                "public works"
+            ],
+            "category": "Transportation",
+            "intent": "request_speed_bump",
+            "department": "Transportation",
+            "response_time": 60,
+            "cost": "$0",
+            "installation_cost": "$2500",
+            "annual_installations": 20,
+            "answer": "Request a speed bump by submitting a petition to the Transportation Department, signed by 60% of residents on the affected street. The process takes 60 days, with 20 installations annually at $2,500 each. Requests are evaluated for traffic volume and crash history. Approved sites receive durable, reflective humps with signage. The program reduces speeding by 25% on treated streets.",
+            "petition_process": {
+                "signature_requirement": "60% of residents",
+                "evaluation_criteria": [
+                    "traffic_volume",
+                    "crash_history"
+                ],
+                "review_time": "60 days"
+            },
+            "installation_details": {
+                "cost_per_bump": "$2500",
+                "features": [
+                    "durable",
+                    "reflective",
+                    "signage"
+                ]
+            },
+            "statistics": {
+                "annual_installations": 20,
+                "speed_reduction": "25%",
+                "crash_reduction": "15%",
+                "petition_success_rate": 0.70
+            }
+        },
+        {
+            "question": "How can I access mental health services?",
+            "question_variants": [
+                "Where are mental health resources available?",
+                "How do I get counseling through the city?",
+                "What mental health programs does the city offer?",
+                "Can I access free therapy services?",
+                "How to find mental health support locally?"
+            ],
+            "keywords": [
+                "mental health",
+                "counseling",
+                "therapy services",
+                "mental wellness",
+                "crisis support",
+                "health services",
+                "emotional support"
+            ],
+            "category": "Public Health",
+            "intent": "access_mental_health",
+            "department": "Health Department",
+            "response_time": 1,
+            "cost": "$0",
+            "timeframe": "ongoing",
+            "clients_served": 3500,
+            "answer": "Free mental health services are available through the Health Department at community clinics or via telehealth. Services include counseling and crisis intervention, serving 3,500 clients annually. Residents can schedule appointments online or call the 24/7 hotline. Licensed therapists provide up to 12 sessions per year. The program has a 92% client satisfaction rate.",
+            "services_offered": {
+                "types": [
+                    "counseling",
+                    "crisis_intervention"
+                ],
+                "session_limit": "12/year",
+                "delivery": [
+                    "in_person",
+                    "telehealth"
+                ]
+            },
+            "access_methods": {
+                "online": "city.gov/mental-health",
+                "hotline": "24/7"
+            },
+            "statistics": {
+                "clients_served": 3500,
+                "satisfaction_rate": 0.92,
+                "crisis_calls": 1200,
+                "therapists": 25
+            }
+        },
+        {
+            "question": "How do I apply for a vendor stall at the farmers market?",
+            "question_variants": [
+                "What's the process for selling at the farmers market?",
+                "How can I get a booth at the weekly market?",
+                "What permits are needed for a market stall?",
+                "How to become a farmers market vendor?",
+                "Are there requirements for market vendors?"
+            ],
+            "keywords": [
+                "farmers market",
+                "vendor stall",
+                "market permit",
+                "local produce",
+                "vendor application",
+                "market booth",
+                "small business"
+            ],
+            "category": "Economic Development",
+            "intent": "apply_market_vendor",
+            "department": "Economic Development",
+            "response_time": 14,
+            "cost": "$50",
+            "timeframe": "seasonal",
+            "vendor_slots": 75,
+            "answer": "Apply for a farmers market vendor stall through the Economic Development Department for $50 per season. The process takes 14 days, with 75 slots available weekly. Requirements include a business license, health permits for food vendors, and proof of local sourcing. Vendors sell produce, crafts, or prepared foods, attracting 5,000 visitors weekly. The market generates $1.2 million in annual sales.",
+            "application_requirements": {
+                "documents": [
+                    "business_license",
+                    "health_permit",
+                    "proof_of_sourcing"
+                ],
+                "review_time": "14 days"
+            },
+            "market_details": {
+                "slots": 75,
+                "visitor_count": 5000,
+                "categories": [
+                    "produce",
+                    "crafts",
+                    "prepared_foods"
+                ]
+            },
+            "statistics": {
+                "annual_sales": "$1200000",
+                "vendor_retention": 0.85,
+                "local_sourcing_rate": 0.90,
+                "customer_satisfaction": 0.93
+            }
+        },
+        {
+            "question": "How can I request a crosswalk installation?",
+            "question_variants": [
+                "What's the process for getting a crosswalk?",
+                "How do I request a pedestrian crossing?",
+                "Where do I apply for a new crosswalk?",
+                "How to petition for a crosswalk in my area?",
+                "Can I get a crosswalk added on my street?"
+            ],
+            "keywords": [
+                "crosswalk",
+                "pedestrian crossing",
+                "traffic safety",
+                "road safety",
+                "pedestrian infrastructure",
+                "transportation planning",
+                "public safety"
+            ],
+            "category": "Transportation",
+            "intent": "request_crosswalk",
+            "department": "Transportation",
+            "response_time": 90,
+            "cost": "$0",
+            "installation_cost": "$10000",
+            "annual_installations": 15,
+            "answer": "Request a crosswalk by submitting a petition to the Transportation Department, signed by 50% of nearby residents. The process takes 90 days, with 15 installations annually at $10,000 each. Sites are evaluated for pedestrian volume and proximity to schools or transit. Approved crosswalks include high-visibility markings and signage. The program reduces pedestrian incidents by 30%.",
+            "petition_process": {
+                "signature_requirement": "50% of nearby residents",
+                "evaluation_criteria": [
+                    "pedestrian_volume",
+                    "proximity_to_schools"
+                ],
+                "review_time": "90 days"
+            },
+            "installation_details": {
+                "cost_per_crosswalk": "$10000",
+                "features": [
+                    "high-visibility_markings",
+                    "signage"
+                ]
+            },
+            "statistics": {
+                "annual_installations": 15,
+                "incident_reduction": "30%",
+                "petition_success_rate": 0.65,
+                "pedestrian_crossings": 300
+            }
+        },
+        {
+            "question": "How do I sign up for emergency alerts?",
+            "question_variants": [
+                "How can I get disaster notifications?",
+                "What's the process for emergency text alerts?",
+                "Where do I register for citywide alerts?",
+                "How to receive severe weather warnings?",
+                "Can I sign up for crisis alerts online?"
+            ],
+            "keywords": [
+                "emergency alerts",
+                "disaster notifications",
+                "text alerts",
+                "crisis warnings",
+                "public safety",
+                "severe weather",
+                "community alerts"
+            ],
+            "category": "Emergency Management",
+            "intent": "signup_emergency_alerts",
+            "department": "Office of Emergency Management",
+            "response_time": 0,
+            "cost": "$0",
+            "timeframe": "ongoing",
+            "subscribers": 65000,
+            "answer": "Sign up for emergency alerts at city.gov/alerts or by texting 'ALERT' to 311. The free service sends texts for severe weather, evacuations, and other crises to 65,000 subscribers. Alerts are issued within 5 minutes of a confirmed threat. Users can customize alerts by zip code and opt out anytime. The system delivers 50 alerts annually with a 99% delivery rate.",
+            "signup_methods": {
+                "online": "city.gov/alerts",
+                "text": {
+                    "keyword": "ALERT",
+                    "number": "311"
+                }
+            },
+            "alert_details": {
+                "types": [
+                    "severe_weather",
+                    "evacuations",
+                    "public_safety"
+                ],
+                "delivery_time": "5 minutes",
+                "customization": "by zip code"
+            },
+            "statistics": {
+                "subscribers": 65000,
+                "annual_alerts": 50,
+                "delivery_rate": 0.99,
+                "opt_out_rate": 0.03
+            }
+        }
+    
+]

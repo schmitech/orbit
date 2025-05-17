@@ -1035,7 +1035,7 @@ class InferenceServer:
         
         # Log API endpoints
         self.logger.info("API Endpoints:")
-        self.logger.info("  - MCP protocol: POST /v1/chat")
+        self.logger.info("  - MCP Completion Endpoint: POST /v1/chat")
         self.logger.info("  - Health check: GET /health")
 
     def _configure_middleware(self) -> None:
