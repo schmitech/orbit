@@ -48,7 +48,7 @@ This makes ORBIT particularly valuable for:
 ### 1. Install and configure MongoDB
 Follow MongoDB installation guide: https://www.mongodb.com/docs/manual/installation/
 
-Update MongoDB configuration in `config.yaml`:
+Update MongoDB configuration in `config.yaml`. Credentials are loaded from .env file (copy from template .env.example)
 
 ```yaml
 internal_services:
@@ -68,14 +68,19 @@ internal_services:
 git clone https://github.com/schmitech/orbit.git
 cd orbit
 
-# Install dependencies
-./bin/setup.sh
+# Install dependencies (see ./install/dependencies.ymol for installation options)
+./install/setup.sh --profile minimal # Add --download-gguf flag to pull a GGUF file if using llama-cpp
 
 # Activate virtual environment
 source venv/bin/activate
 ```
 
-### 3. Install Ollama
+### 3. Setup Inference Provider 
+
+For local development you can use either Ollama (recommended) or llama-cpp python lib.
+
+#### Ollama Instructions:
+
 https://ollama.com/download
 
 ```bash
@@ -84,11 +89,29 @@ ollama pull gemma3:1b
 ollama pull nomic-embed-text
 ```
 
+#### Llama-cpp instructions
+First install the dependencies and GGUF file (by default t downloads Gemma3:1b from Hugging Face, see ./install.stup.sh for details, you can change the download command to use your preferred model):
+
+./install/setup.sh --profile minimal --download-gguf
+
 ### 4. Configuration
-Copy and configure the main config file:
-```bash
-# The config.yaml file is located in the project root
-# Edit config.yaml to adjust settings for your environment
+Edit config.yaml with default settings:
+```yaml
+general:
+  port: 3000
+  verbose: true
+  https:
+    enabled: false
+    port: 3443
+    cert_file: "./cert.pem"
+    key_file: "./key.pem"
+  session_id:
+    header_name: "X-Session-ID"
+    required: true
+  inference_provider: "ollama" #or llama_cpp
+  language_detection: false
+  inference_only: false
+  adapter: "sqllite
 ```
 
 ### 5. Launch Server
@@ -104,14 +127,14 @@ Copy and configure the main config file:
 # Stop the server
 ./bin/orbit.sh stop
 
-# Restart the server
+# Restart the server (use flag --delete-logs if you want to remove the logs file whenever the server restarts)
 ./bin/orbit.sh restart
 ```
 
 ### 7. API Key Management
 ```bash
-# Create an API key for a collection
-./bin/orbit.sh key create --collection docs --name "My Client"
+# Create an API key for a collection. Only needed to RAG operatons, here's an example:
+./bin/orbit.sh key create --collection city --name "Ciy Assistant" --prompt-file prompts/examples/city/city-assistant-normal-prompt.txt  --prompt-name "City Assistant Prompt"
 
 # List API keys
 ./bin/orbit.sh key list

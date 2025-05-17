@@ -1,7 +1,5 @@
 # 🚀 ORBIT Server
 
-A high-performance FastAPI server that provides enterprise-grade conversational AI capabilities. Built with privacy and scalability in mind, ORBIT Server offers a comprehensive suite of features for building and deploying AI applications.
-
 ## 🌟 Core Capabilities
 
 - **🤖 Conversational AI**
@@ -29,7 +27,6 @@ A high-performance FastAPI server that provides enterprise-grade conversational 
   - Health check endpoints
 
 - **🔄 Protocol Support**
-  - Standard REST API
   - MCP Protocol compatibility
   - SSE for streaming
 
