@@ -17,9 +17,9 @@ from utils.lazy_loader import LazyLoader
 # Configure logging
 logger = logging.getLogger(__name__)
 
-class QASqliteRetriever(BaseRetriever):
+class QASSQLRetriever(BaseRetriever):
     """
-     SQLite retriever that works with the new adapter architecture.
+     SQL retriever that works with the new adapter architecture.
     This implementation is more flexible and can work with different domain adapters.
     """
 
@@ -32,9 +32,9 @@ class QASqliteRetriever(BaseRetriever):
         Initialize SQLiteRetriever.
         
         Args:
-            config: Configuration dictionary containing SQLite and general settings
+            config: Configuration dictionary containing SQL and general settings
             domain_adapter: Optional domain adapter for document handling
-            connection: Optional SQLite connection
+            connection: Optional SQL connection
             **kwargs: Additional arguments
         """
         # Get adapter config if available
@@ -100,11 +100,11 @@ class QASqliteRetriever(BaseRetriever):
                 return conn
                     
             except Exception as e:
-                logger.error(f"Failed to connect to SQLite database: {str(e)}")
+                logger.error(f"Failed to connect to SQL database: {str(e)}")
                 raise ValueError(f"Database connection error: {str(e)}")
         
         # Create a lazy loader for the SQLite connection
-        self._connection_loader = LazyLoader(create_sqlite_connection, "SQLite connection")
+        self._connection_loader = LazyLoader(create_sqlite_connection, "SQL connection")
         
         # Initialize connection if provided
         if connection:
@@ -112,7 +112,7 @@ class QASqliteRetriever(BaseRetriever):
 
     @property
     def connection(self):
-        """Lazy-loaded SQLite connection property."""
+        """Lazy-loaded SQL connection property."""
         return self._connection_loader.get_instance()
 
     def _get_datasource_name(self) -> str:
@@ -537,7 +537,7 @@ class QASqliteRetriever(BaseRetriever):
                                  collection_name: Optional[str] = None,
                                  **kwargs) -> List[Dict[str, Any]]:
         """
-        Retrieve and filter relevant context from SQLite with domain adaptation.
+        Retrieve and filter relevant context from SQL with domain adaptation.
         
         Args:
             query: The user's query
@@ -684,4 +684,4 @@ class QASqliteRetriever(BaseRetriever):
 
 
 # Register the retriever with the factory
-RetrieverFactory.register_retriever('sqlite', QASqliteRetriever)
+RetrieverFactory.register_retriever('sql', QASSQLRetriever)

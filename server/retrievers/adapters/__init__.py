@@ -10,9 +10,7 @@ logger.info("Loading adapters package - ensure domain adapters are registered")
 # Import main adapter modules
 from . import domain_adapters
 from . import registry
-
-# Import subdirectories with specialized adapters
-from . import qa 
+from . import qa
 
 """
 Adapter registration and initialization
@@ -22,21 +20,24 @@ from retrievers.adapters.registry import ADAPTER_REGISTRY
 
 def register_adapters():
     """Register all available adapters"""
-    # Register QA adapter
-    ADAPTER_REGISTRY.register(
-        adapter_type='retriever',
-        datasource='memory',
-        adapter_name='qa',
-        implementation='retrievers.adapters.domain_adapters.QADocumentAdapter'
-    )
+    # Register QA adapter for all supported datasources
+    for datasource in ['sqlite', 'chroma']:
+        ADAPTER_REGISTRY.register(
+            adapter_type='retriever',
+            datasource=datasource,
+            adapter_name='qa',
+            implementation='retrievers.adapters.domain_adapters.QADocumentAdapter'
+        )
     
-    # Register generic adapter
-    ADAPTER_REGISTRY.register(
-        adapter_type='retriever',
-        datasource='memory',
-        adapter_name='generic',
-        implementation='retrievers.adapters.domain_adapters.GenericDocumentAdapter'
-    )
+    # Register generic adapter for all supported datasources
+    for datasource in ['sqlite', 'chroma']:
+        ADAPTER_REGISTRY.register(
+            adapter_type='retriever',
+            datasource=datasource,
+            adapter_name='generic',
+            implementation='retrievers.adapters.domain_adapters.GenericDocumentAdapter'
+        )
 
 # Initialize registry
-register_adapters() 
+register_adapters()
+logger.info("Adapter registry initialized") 

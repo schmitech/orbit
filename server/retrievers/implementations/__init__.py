@@ -1,4 +1,9 @@
-from .qa_chroma_retriever import QAChromaRetriever
-from .qa_sqlite_retriever import QASqliteRetriever
+"""
+Retriever implementations package
+"""
 
-__all__ = ['QAChromaRetriever', 'QASqliteRetriever']
+from .qa_chroma_retriever import QAChromaRetriever
+from .qa_sql_retriever import QASSQLRetriever
+from .sql_retriever import SQLRetriever
+
+__all__ = ['QAChromaRetriever', 'QASSQLRetriever', 'SQLRetriever']

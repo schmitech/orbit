@@ -7,6 +7,7 @@ dependencies = [
     "ollama==0.4.8",
     "motor>=3.7.0",
     "pymongo>=4.12.0",
+    "redis>=6.1.0",
     "chromadb>=1.0.9",
     "langchain-ollama>=0.2.3",
     "langchain-community>=0.0.10",

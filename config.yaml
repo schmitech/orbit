@@ -12,7 +12,7 @@ general:
   inference_provider: "ollama"
   language_detection: false
   inference_only: true
-  adapter: "qa-sqlite"
+  adapter: "qa-sql"
 
 messages:
   no_results_response: "I'm sorry, but I don't have any specific information about that topic in my knowledge base."
@@ -62,12 +62,22 @@ internal_services:
     api_key: ${INTERNAL_SERVICES_ELASTICSEARCH_API_KEY}
 
   mongodb:
-    host: "localhost"
-    port: 27017
+    host: ${INTERNAL_SERVICES_MONGODB_HOST}
+    port: ${INTERNAL_SERVICES_MONGODB_PORT}
     database: "orbit"
     apikey_collection: "api_keys"
     username: ${INTERNAL_SERVICES_MONGODB_USERNAME}
     password: ${INTERNAL_SERVICES_MONGODB_PASSWORD}
+
+  redis:
+    enabled: false
+    host: ${INTERNAL_SERVICES_REDIS_HOST}
+    port: ${INTERNAL_SERVICES_REDIS_PORT}
+    db: 0
+    username: ${INTERNAL_SERVICES_REDIS_USERNAME}
+    password: ${INTERNAL_SERVICES_REDIS_PASSWORD}
+    use_ssl: false
+    ttl: 604800
 
 embeddings:
   llama_cpp:
@@ -112,11 +122,11 @@ embeddings:
     dimensions: 1024
 
 adapters:
-  - name: "qa-sqlite"
+  - name: "qa-sql"
     type: "retriever"
     datasource: "sqlite"
     adapter: "qa"
-    implementation: "retrievers.implementations.qa_sqlite_retriever.QASqliteRetriever"
+    implementation: "retrievers.implementations.qa_sql_retriever.QASSQLRetriever"
     config:
       confidence_threshold: 0.3
       max_results: 5
@@ -128,12 +138,12 @@ adapters:
     adapter: "qa"
     implementation: "retrievers.implementations.qa_chroma_retriever.QAChromaRetriever"
     config:
-      confidence_threshold: 0.5
+      confidence_threshold: 0.3
       distance_scaling_factor: 200.0
       embedding_provider: null
       max_results: 5
       return_results: 3
-      
+
 datasources:
   chroma:
     use_local: true

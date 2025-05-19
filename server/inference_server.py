@@ -499,7 +499,7 @@ class InferenceServer:
             # SQLite implementation
             import sqlite3
             sqlite_config = self.config['datasources']['sqlite']
-            db_path = sqlite_config.get('db_path', '../utils/sqllite/rag_database.db')
+            db_path = sqlite_config.get('db_path', 'sqlite_db.db')
             self.logger.info(f"Initializing SQLite connection to {db_path}")
             try:
                 # Return a SQLite connection
@@ -563,6 +563,7 @@ class InferenceServer:
         
         Services initialized include:
         - MongoDB service for data persistence
+        - Redis service for caching
         - API key service for authentication
         - Prompt service for system prompts
         - Retriever service for document retrieval
@@ -595,6 +596,7 @@ class InferenceServer:
             app.state.guardrail_service = None
             app.state.reranker_service = None
             app.state.mongodb_service = None
+            app.state.redis_service = None
             app.state.api_key_service = None
             app.state.prompt_service = None
         else:
@@ -608,6 +610,25 @@ class InferenceServer:
             except Exception as e:
                 self.logger.error(f"Failed to initialize shared MongoDB service: {str(e)}")
                 raise
+
+            # Lazy import and initialize Redis service if enabled
+            redis_enabled = _is_true_value(self.config.get('internal_services', {}).get('redis', {}).get('enabled', False))
+            if redis_enabled:
+                from services.redis_service import RedisService
+                app.state.redis_service = RedisService(self.config)
+                self.logger.info("Initializing Redis service...")
+                try:
+                    if await app.state.redis_service.initialize():
+                        self.logger.info("Redis service initialized successfully")
+                    else:
+                        self.logger.warning("Redis service initialization failed - service will be disabled")
+                        app.state.redis_service = None
+                except Exception as e:
+                    self.logger.error(f"Failed to initialize Redis service: {str(e)}")
+                    app.state.redis_service = None
+            else:
+                app.state.redis_service = None
+                self.logger.info("Redis service is disabled in configuration")
             
             # Lazy import and initialize API Key Service
             from services.api_key_service import ApiKeyService
@@ -910,6 +931,10 @@ class InferenceServer:
         # Close shared MongoDB service
         if hasattr(app.state, 'mongodb_service'):
             add_shutdown_task(app.state.mongodb_service, 'MongoDB Service')
+
+        # Close Redis service
+        if hasattr(app.state, 'redis_service'):
+            add_shutdown_task(app.state.redis_service, 'Redis Service')
         
         # Close all tracked aiohttp sessions
         shutdown_tasks.append(close_all_aiohttp_sessions())

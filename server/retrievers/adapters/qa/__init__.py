@@ -3,9 +3,9 @@ QA-specific retrievers and adapters for different datasources.
 """
 
 from ...implementations.qa_chroma_retriever import QAChromaRetriever
-from ...implementations.qa_sqlite_retriever import QASqliteRetriever
+from ...implementations.qa_sql_retriever import QASSQLRetriever
 from .chroma_qa_adapter import ChromaQAAdapter
-from .qa_sqlite_adapter import QASqliteAdapter
+from .qa_sql_adapter import QASQLAdapter
 
 # Export a factory function as QARetriever
 def QARetriever(datasource_type, *args, **kwargs):
@@ -13,7 +13,7 @@ def QARetriever(datasource_type, *args, **kwargs):
     Factory function to create the appropriate QA retriever based on datasource type.
     
     Args:
-        datasource_type: Type of datasource ('chroma', 'sqlite', etc.)
+        datasource_type: Type of datasource ('chroma', 'sql', etc.)
         *args, **kwargs: Arguments to pass to the retriever constructor
         
     Returns:
@@ -27,14 +27,14 @@ def QARetriever(datasource_type, *args, **kwargs):
         retriever = QAChromaRetriever(*args, **kwargs)
         retriever.domain_adapter = ChromaQAAdapter(confidence_threshold=confidence_threshold)
         return retriever
-    elif datasource_type.lower() == 'sqlite':
-        retriever = QASqliteRetriever(*args, **kwargs)
-        retriever.domain_adapter = QASqliteAdapter(confidence_threshold=confidence_threshold)
+    elif datasource_type.lower() == 'sql':
+        retriever = QASSQLRetriever(*args, **kwargs)
+        retriever.domain_adapter = QASQLAdapter(confidence_threshold=confidence_threshold)
         return retriever
     else:
         raise ValueError(f"Unsupported datasource type for QA retrieval: {datasource_type}")
 
-__all__ = ['QARetriever', 'QAChromaRetriever', 'QASqliteRetriever', 'ChromaQAAdapter', 'QASqliteAdapter']
+__all__ = ['QARetriever', 'QAChromaRetriever', 'QASSQLRetriever', 'ChromaQAAdapter', 'QASQLAdapter']
 
 """
 QA adapter package initialization.
@@ -55,8 +55,8 @@ except ImportError as e:
     logger.error(f"Failed to import ChromaQAAdapter: {str(e)}")
 
 try:
-    from .qa_sqlite_adapter import QASqliteAdapter
-    # Note: Registration is now handled in the QASqliteAdapter module itself
-    logger.info("Successfully imported QASqliteAdapter")
+    from .qa_sql_adapter import QASQLAdapter
+    # Note: Registration is now handled in the QASQLAdapter module itself
+    logger.info("Successfully imported QASQLAdapter")
 except ImportError as e:
-    logger.error(f"Failed to import QASqliteAdapter: {str(e)}")
+    logger.error(f"Failed to import QASQLAdapter: {str(e)}")
