@@ -34,34 +34,22 @@ This makes ORBIT particularly valuable for:
 - Countries implementing digital sovereignty initiatives
 - Enterprises needing to maintain control over their AI infrastructure
 
+## 🏗️ Architecture
+
+![ORBIT Architecture](docs/orbit-architecture-diagram.svg)
+
 ## 🚀 Quick Start
 
 ### System Requirements
 
+- A device (Win/Linux or Mac) with 16GB memory, GPU preferred.
 - Python 3.12+
 - MongoDB for API key management
-- Ollama for inference (other services supported, see config.yaml)
-- ChromaDB or SQLite (other engines supported)
-- Optional: GPU for accelerated inference
+- Optional: Redis for caching responses or chat history (coming soon)
+- Ollama (preferred), llama.cpp ot vLLM for inference (other services supported, see config.yaml)
 - Optional: Elasticsearch for logging
 
-### 1. Install and configure MongoDB
-Follow MongoDB installation guide: https://www.mongodb.com/docs/manual/installation/
-
-Update MongoDB configuration in `config.yaml`. Credentials are loaded from .env file (copy from template .env.example)
-
-```yaml
-internal_services:
-  mongodb:
-    host: "localhost"
-    port: 27017
-    database: "orbit"
-    apikey_collection: "api_keys"
-    username: ${INTERNAL_SERVICES_MONGODB_USERNAME}
-    password: ${INTERNAL_SERVICES_MONGODB_PASSWORD}
-```
-
-### 2. Server Setup
+### 1. Setup
 
 ```bash
 # Clone the repository
@@ -75,7 +63,7 @@ cd orbit
 source venv/bin/activate
 ```
 
-### 3. Setup Inference Provider 
+### 2. Inference Provider 
 
 For local development you can use either Ollama (recommended) or llama-cpp python lib.
 
@@ -94,7 +82,7 @@ First install the dependencies and GGUF file (by default t downloads Gemma3:1b f
 
 ./install/setup.sh --profile minimal --download-gguf
 
-### 4. Configuration
+### 3. Configuration
 Edit config.yaml with default settings:
 ```yaml
 general:
@@ -110,30 +98,23 @@ general:
     required: true
   inference_provider: "ollama" #or llama_cpp
   language_detection: false
-  inference_only: false
+  inference_only: false # Set to true for simple chat with no RAG
   adapter: "sqllite
 ```
 
-### 5. Launch Server
+### 4. Launch Server
 ```bash
-./bin/orbit.sh start
+./bin/orbit.sh start ## other option: status - stop - restart
 ```
 
-### 6. Server Management
+> **Note:** If you set `inference_only: true` in your configuration, you can skip steps 5 and 6 as they are only needed for RAG (Retrieval-Augmented Generation) functionality. Simply jump to step 7 to start interacting with the server right away (simple inference does not enforce an API Key).  
+
+### 5. API Key Management
 ```bash
-# Check server status
-./bin/orbit.sh status
+# Create an API key for a collection. Only needed to RAG operatons
+# A collection is an abstraction of an SQL database, collection (noSQL) or index (elasticearch)
+# Exampple:
 
-# Stop the server
-./bin/orbit.sh stop
-
-# Restart the server (use flag --delete-logs if you want to remove the logs file whenever the server restarts)
-./bin/orbit.sh restart
-```
-
-### 7. API Key Management
-```bash
-# Create an API key for a collection. Only needed to RAG operatons, here's an example:
 ./bin/orbit.sh key create --collection city --name "Ciy Assistant" --prompt-file prompts/examples/city/city-assistant-normal-prompt.txt  --prompt-name "City Assistant Prompt"
 
 # List API keys
@@ -143,8 +124,10 @@ general:
 ./bin/orbit.sh key test --key your-api-key
 ```
 
-### 8. Sample Database Setup
+### 6. Sample Database Setup
 ```bash
+# Use --no-api-keys flag if api keyalready available
+
 # For SQLite database
 ./install/setup-demo-db.sh sqlite
 
@@ -152,7 +135,7 @@ general:
 ./install/setup-demo-db.sh chroma
 ```
 
-### 9. Client Setup
+### 7. Client Setup
 
 #### Python Client
 
@@ -163,17 +146,9 @@ pip install schmitech-orbit-client
 orbit-chat --url http://localhost:3000 --api-key orbit-api-key
 ```
 
-### Configuration
+## 📚 Documentation
 
-The system is configurable through a YAML configuration file, allowing you to:
-
-- Select and configure inference providers
-- Choose embedding and vector database backends
-- Set up safety and reranking services
-- Configure logging and monitoring
-- Manage API authentication
-- Set up HTTPS/SSL
-- Configure system resources and threading
+For more detailed information, please refer to the following documentation in the `/docs` folder.
 
 ## 🤝 Contributing
 
