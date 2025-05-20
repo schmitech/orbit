@@ -52,11 +52,11 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 # Add server directory to path for importing embedding services
-server_path = Path(__file__).resolve().parents[3] / "server"
+server_path = Path(__file__).resolve().parents[2] / "server"
 sys.path.append(str(server_path))
 
-# Load environment variables from .env file in the server directory
-dotenv_path = server_path / ".env"
+# Load environment variables from .env file in the project root directory
+dotenv_path = Path(__file__).resolve().parents[2] / ".env"
 load_dotenv(dotenv_path=dotenv_path)
 print(f"Loading environment variables from: {dotenv_path}")
 
@@ -67,8 +67,8 @@ def load_config():
     # Get the directory of this script
     script_dir = Path(__file__).resolve().parent
     
-    # Get the project root (3 levels up: scripts -> chroma -> utils -> project_root)
-    project_root = script_dir.parents[2]
+    # Get the project root (2 levels up: scripts -> chroma -> project_root)
+    project_root = script_dir.parents[1]
     
     # Try to find config.yaml in project root first, then in config subdirectory
     config_path = project_root / "config.yaml"
@@ -192,6 +192,10 @@ async def ingest_to_chroma(
     dimensions = await embedding_service.get_dimensions()
     print(f"Dimensions: {dimensions}")
     print("-" * 50)
+    
+    # Create data directory if it doesn't exist
+    data_dir = Path(json_file_path).parent
+    os.makedirs(data_dir, exist_ok=True)
     
     # Load Q&A pairs
     with open(json_file_path, 'r', encoding='utf-8') as f:

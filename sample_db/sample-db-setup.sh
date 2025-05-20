@@ -138,7 +138,7 @@ if [ "$DATASOURCE" = "sqlite" ]; then
     fi
 
     # Create new SQLite database with sample data
-    python3 "$PROJECT_ROOT/utils/sqllite/rag_cli.py" setup --db-path "$PROJECT_ROOT/sqlite_db" --data-path "$PROJECT_ROOT/utils/sample-data/city-qa-pairs.json"
+    python3 "$PROJECT_ROOT/sample_db/sqlite/rag_cli.py" setup --db-path "$PROJECT_ROOT/sample_db/sqlite/sqlite_db" --data-path "$PROJECT_ROOT/sample_db/city-qa-pairs.json"
 else
     # Remove existing Chroma database directory if it exists
     if [ "$USE_LOCAL" = "true" ]; then
@@ -152,14 +152,14 @@ else
     echo "Creating Chroma collections..."
     LOCAL_FLAG=""
     if [ "$USE_LOCAL" = "true" ]; then
-        LOCAL_FLAG="--local --db-path $PROJECT_ROOT/chroma_db"
+        LOCAL_FLAG="--local --db-path $PROJECT_ROOT/sample_db/chroma/chroma_db"
     fi
     
-    # Create city collection
-    python3 "$PROJECT_ROOT/utils/chroma/scripts/create_qa_pairs_collection.py" city "$PROJECT_ROOT/utils/sample-data/city-qa-pairs.json" $LOCAL_FLAG
+    # Load Q&A pairs
+    python3 "$PROJECT_ROOT/sample_db/chroma/create_qa_pairs_collection.py" city "$PROJECT_ROOT/sample_db/city-qa-pairs.json" $LOCAL_FLAG
     
     # Create activity collection
-    python3 "$PROJECT_ROOT/utils/chroma/scripts/create_qa_pairs_collection.py" activity "$PROJECT_ROOT/utils/sample-data/activity_qa_pairs.json" $LOCAL_FLAG
+    python3 "$PROJECT_ROOT/sample_db/chroma/create_qa_pairs_collection.py" activity "$PROJECT_ROOT/sample_db/activity-qa-pairs.json" $LOCAL_FLAG
 fi
 
 echo "✅ Sample QA collections created."

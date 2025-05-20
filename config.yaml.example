@@ -147,12 +147,12 @@ adapters:
 datasources:
   chroma:
     use_local: true
-    db_path: "chroma_db"
+    db_path: "sample_db/chroma/chroma_db"
     host: "localhost"
     port: 8000
     embedding_provider: null 
   sqlite:
-    db_path: "sqlite_db"
+    db_path: "sample_db/sqlite/sqlite_db"
   postgres:
     host: "localhost"
     port: 5432
@@ -359,7 +359,7 @@ moderators:
 
 reranker:
   enabled: false
-  provider_override: ollama  # If null, uses general.inference_provider
+  provider_override: null  # If null, uses general.inference_provider
   model: "gemma3:1b"
   batch_size: 5
   temperature: 0.0
@@ -403,4 +403,4 @@ rerankers:
     temperature: 0.0
     max_tokens: 256
     batch_size: 8
-    credentials_path: ""  # Path to service account key file
+    credentials_path: ""

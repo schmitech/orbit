@@ -7,7 +7,7 @@ A simple SQLite for storing and retrieving city information. This project provid
 ### 1. Initialize the Database
 
 ```bash
-python scripts/rag_cli.py setup --data-path sample-data/city-qa-pairs.json
+python rag_cli.py setup --data-path sample-data/city-qa-pairs.json
 ```
 
 This will:
@@ -23,13 +23,13 @@ The project provides a command-line interface (`rag_cli.py`) with several comman
 
 ```bash
 # Basic query
-python scripts/rag_cli.py query "How do I report a pothole on my street?"
+python rag_cli.py query "How do I report a pothole on my street?"
 
 # Get more results
-python scripts/rag_cli.py query "Where can I pay my water bill?" --top-n 5
+python rag_cli.py query "Where can I pay my water bill?" --top-n 5
 
 # Format for RAG prompt
-python scripts/rag_cli.py query "What are the hours for the recycling center?" --rag-format
+python rag_cli.py query "What are the hours for the recycling center?" --rag-format
 ```
 
 ### Interactive Mode
@@ -37,7 +37,7 @@ python scripts/rag_cli.py query "What are the hours for the recycling center?" -
 For multiple queries in a session:
 
 ```bash
-python scripts/rag_cli.py interactive
+python rag_cli.py interactive
 ```
 
 This allows you to enter multiple queries without restarting the program. Type `exit`, `quit`, or `q` to exit, and `stats` to see database statistics.
@@ -46,22 +46,22 @@ This allows you to enter multiple queries without restarting the program. Type `
 
 ```bash
 # View database statistics
-python scripts/rag_cli.py stats
+python rag_cli.py stats
 
 # List QA pairs
-python scripts/rag_cli.py list --limit 10 --offset 0
+python rag_cli.py list --limit 10 --offset 0
 
 # Add a new QA pair
-python scripts/rag_cli.py add --question "How do I contact the mayor?" --answer "The mayor can be contacted via email at mayor@city.gov or by phone at 555-123-4567."
+python rag_cli.py add --question "How do I contact the mayor?" --answer "The mayor can be contacted via email at mayor@city.gov or by phone at 555-123-4567."
 
 # Delete a QA pair
-python scripts/rag_cli.py delete-qa 123
+python rag_cli.py delete-qa 123
 
 # Clear all data (while preserving structure)
-python scripts/rag_cli.py clear
+python rag_cli.py clear
 
 # Delete the entire database
-python scripts/rag_cli.py delete-db
+python rag_cli.py delete-db
 ```
 
 ## How It Works
@@ -101,12 +101,12 @@ To add more question-answer pairs:
 
 2. Load it using the CLI:
 ```bash
-python scripts/rag_cli.py setup --data-path your-data.json
+python rag_cli.py setup --data-path your-data.json
 ```
 
 Or add individual pairs:
 ```bash
-python scripts/rag_cli.py add --question "Your question?" --answer "Your answer."
+python rag_cli.py add --question "Your question?" --answer "Your answer."
 ```
 
 ## Troubleshooting
@@ -114,12 +114,12 @@ python scripts/rag_cli.py add --question "Your question?" --answer "Your answer.
 ### Common Issues
 
 1. **"No such table" error**
-   - Run the setup command: `python scripts/rag_cli.py setup`
+   - Run the setup command: `python rag_cli.py setup`
 
 2. **No results for a query**
    - Try using more generic terms
    - Reduce the relevance threshold in config.json
-   - Check if the database has relevant data with `python scripts/rag_cli.py list`
+   - Check if the database has relevant data with `python rag_cli.py list`
 
 3. **LLM integration not working**
    - Ensure you have the required packages installed (openai, anthropic, or ollama)

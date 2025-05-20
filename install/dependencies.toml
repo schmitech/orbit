@@ -2,8 +2,9 @@
 # This file defines dependency profiles for different use cases
 
 [profiles.minimal]
-description = "Core dependencies for basic Ollama operation"
+description = "Core dependencies"
 dependencies = [
+    "setuptools>=80.7.1",
     "ollama==0.4.8",
     "motor>=3.7.0",
     "pymongo>=4.12.0",

@@ -1,9 +1,10 @@
 # Environment and config files
 .env
 .api_keys
+config.yaml
 
 # Python related
-__pycache__/
+__pycache__
 *.py[cod]
 *$py.class
 *.so
@@ -16,14 +17,15 @@ ENV/
 .coverage
 htmlcov/
 .pytest_cache/
+dist/
 
 # Logs
 logs/
 *.log
 
 # Database files
-chroma_db/
-chroma_db*/
+sample_db/chroma/chroma_db/
+sample_db/sqlite/sqlite_db/
 
 # Model files
 *.gguf
@@ -49,8 +51,6 @@ Thumbs.db
 *.sublime-workspace
 *.sublime-project
 *.db
-sqlite_db
-chroma_db
 .vscode/launch.json
 gguf
 *.yaml.working
