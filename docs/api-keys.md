@@ -2,7 +2,7 @@
 
 This package provides utilities for managing API keys and interacting with the chat server API. It includes:
 
-1. `api_key_manager.py` - A command-line tool for creating and managing API keys and system prompts
+1. `orbit.py` - A command-line tool for creating and managing API keys and system prompts
 2. `api_client.py` - A client library for sending chat messages using API keys
 
 ## Installation
@@ -20,105 +20,89 @@ The API Key Manager utility allows you to create, test, and manage API keys and 
 
 ```bash
 # Create a new API key with a system prompt
-python api_key_manager.py --url http://localhost:3000 create \
+python orbit.py --url http://localhost:3000 create \
   --collection city \
   --name "City Assistant" \
   --prompt-file ../prompts/examples/city/city-assistant-normal-prompt.txt \
   --prompt-name "Municipal Assistant Prompt"
 
 # List all API keys
-python api_key_manager.py --url http://localhost:3000 list
+python orbit.py --url http://localhost:3000 list
 
 # Test an API key
-python api_key_manager.py --url http://localhost:3000 test --key YOUR_API_KEY
+python orbit.py --url http://localhost:3000 test --key YOUR_API_KEY
 
 # Deactivate an API key
-python api_key_manager.py --url http://localhost:3000 deactivate --key YOUR_API_KEY
+python orbit.py --url http://localhost:3000 deactivate --key YOUR_API_KEY
 
 # Delete an API key
-python api_key_manager.py --url http://localhost:3000 delete --key YOUR_API_KEY
+python orbit.py --url http://localhost:3000 delete --key YOUR_API_KEY
 
 # Get API key status
-python api_key_manager.py --url http://localhost:3000 status --key YOUR_API_KEY
+python orbit.py --url http://localhost:3000 status --key YOUR_API_KEY
 ```
 
 ### System Prompt Management
 
 ```bash
 # Create a new system prompt
-python api_key_manager.py --url http://localhost:3000 prompt create \
+python orbit.py --url http://localhost:3000 prompt create \
   --name "Support Assistant" \
   --file prompts/support.txt \
   --version "1.0"
 
 # List all prompts
-python api_key_manager.py --url http://localhost:3000 prompt list
+python orbit.py --url http://localhost:3000 prompt list
 
 # Get a specific prompt
-python api_key_manager.py --url http://localhost:3000 prompt get --id PROMPT_ID
+python orbit.py --url http://localhost:3000 prompt get --id PROMPT_ID
 
 # Update a prompt
-python api_key_manager.py --url http://localhost:3000 prompt update \
+python orbit.py --url http://localhost:3000 prompt update \
   --id PROMPT_ID \
   --file prompts/updated.txt \
   --version "1.1"
 
 # Delete a prompt
-python api_key_manager.py --url http://localhost:3000 prompt delete --id PROMPT_ID
+python orbit.py --url http://localhost:3000 prompt delete --id PROMPT_ID
 
 # Associate a prompt with an API key
-python api_key_manager.py --url http://localhost:3000 prompt associate \
+python orbit.py --url http://localhost:3000 prompt associate \
   --key YOUR_API_KEY \
   --prompt-id PROMPT_ID
 ```
 
 ## API Client
 
-The API Client provides a convenient interface for sending chat messages to the server using API keys.
+The API Client provides a convenient interface for sending chat messages to the server using API keys. The project is located under
+clients/python, however for your convenience there is a pre-built package available:
+```bash
+pip install schmitech-orbit-client
+orbit-chat --url http://localhost:3000 # Type 'hello' to chat with Ollama. No chat history yet, coming soon...
+```
 
 ### Usage
 
 ```python
-from api_client import ChatApiClient
-
-# Create client instance
-client = ChatApiClient(server_url="http://localhost:3001", api_key="your-api-key-here")
-
-# Send chat message
-response = client.chat("Hello, how are you?")
-print(response["response"])
-
-# Stream chat message
-for chunk in client.chat("Tell me a story", stream=True):
-    print(chunk, end="", flush=True)
-
-# Check server health
-health = client.health()
-print(health)
-```
-
-### Command-line Interface
-
-The API Client also includes a simple command-line interface for testing:
-
-```bash
-# Send a chat message
-python api_client.py --server http://localhost:3001 --key YOUR_API_KEY --message "Hello"
+from chat_client import stream_chat
 
 # Stream a chat message
-python api_client.py --server http://localhost:3001 --key YOUR_API_KEY --message "Tell me a story" --stream
+response, timing_info = stream_chat(
+    url="http://localhost:3000",
+    message="Hello, how are you?",
+    api_key="your-api-key-here",
+    session_id=None,  # Optional, will generate UUID if not provided
+    debug=False  # Optional, for debugging
+)
 
-# Check server health
-python api_client.py --server http://localhost:3001 --key YOUR_KEY --health
-```
+# Print response
+print(response)
 
-### Configuration
+# Print timing information if needed
+if timing_info:
+    print(f"Total time: {timing_info['total_time']:.3f}s")
+    print(f"Time to first token: {timing_info['time_to_first_token']:.3f}s")
 
-Like the API Key Manager, you can configure the API Client using command-line arguments, environment variables, or a `.env` file:
-
-```
-API_SERVER_URL=http://localhost:3001
-API_KEY=your-api-key-here
 ```
 
 ## Security Notes

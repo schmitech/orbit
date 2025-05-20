@@ -90,7 +90,7 @@ There are several ways to update the configuration after deployment:
 2. **Environment Variables**:
    - Create a `.env` file or set environment variables:
      ```bash
-     ORBIT_CONFIG_GENERAL_PORT=4000
+     ORBIT_CONFIG_GENERAL_PORT=3000
      ORBIT_CONFIG_LOGGING_LEVEL=DEBUG
      ```
    - Restart the container:
