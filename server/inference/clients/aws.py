@@ -83,6 +83,17 @@ class AWSBedrockClient(BaseLLMClient, LLMClientCommon):
         system_prompt = await self._get_system_prompt(system_prompt_id)
         context = self._format_context(docs)
 
+        # If no context was found, return the default no-results message
+        if context is None:
+            no_results_message = self.config.get('messages', {}).get('no_results_response', 
+                "I'm sorry, but I don't have any specific information about that topic in my knowledge base.")
+            return {
+                "response": no_results_message,
+                "sources": [],
+                "tokens": 0,
+                "processing_time": 0
+            }
+
         # Prepare and send request
         await self.initialize()
         start = time.time()
@@ -136,6 +147,18 @@ class AWSBedrockClient(BaseLLMClient, LLMClientCommon):
             docs = await self._retrieve_and_rerank_docs(message, collection_name)
             system_prompt = await self._get_system_prompt(system_prompt_id)
             context = self._format_context(docs)
+
+            # If no context was found, return the default no-results message
+            if context is None:
+                no_results_message = self.config.get('messages', {}).get('no_results_response', 
+                    "I'm sorry, but I don't have any specific information about that topic in my knowledge base.")
+                yield json.dumps({
+                    "response": no_results_message,
+                    "sources": [],
+                    "done": True
+                })
+                return
+
             sources = self._format_sources(docs)
 
             await self.initialize()

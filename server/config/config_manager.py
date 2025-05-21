@@ -316,8 +316,7 @@ def get_default_config() -> Dict[str, Any]:
         },
         "embedding": {
             "provider": "ollama",
-            "enabled": True,
-            "fail_on_error": False
+            "enabled": False,
         },
         "embeddings": {
             "ollama": {

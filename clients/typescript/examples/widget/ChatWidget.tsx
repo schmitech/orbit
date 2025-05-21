@@ -6,9 +6,6 @@ import clsx from 'clsx';
 import { getChatConfig, defaultTheme, ChatConfig } from './config/index';
 import { configureApi } from '@schmitech/chatbot-api';
 import MessagesSquareIcon from './config/messages-square.svg?react';
-import remarkGfm from 'remark-gfm';
-import rehypeSanitize from 'rehype-sanitize';
-import rehypeHighlight from 'rehype-highlight';
 
 // Custom link component for ReactMarkdown
 const MarkdownLink = (props: React.AnchorHTMLAttributes<HTMLAnchorElement>) => {
@@ -74,68 +71,6 @@ const ChatIcon = ({ iconName, size, className, style }: {
       return <MessageSquare size={size} className={className} style={style} />;
   }
 };
-
-// Custom component for rendering Markdown content
-const MarkdownRenderer = ({ content }: { content: string }) => {
-  return (
-    <div className="prose prose-slate max-w-full dark:prose-invert overflow-hidden break-words" style={{ color: 'inherit' }}>
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        rehypePlugins={[rehypeSanitize, rehypeHighlight]}
-        components={{
-          a: ({ node, ...props }) => (
-            <a
-              {...props}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-orange-500 hover:text-orange-700 underline"
-            />
-          ),
-          p: ({ node, ...props }) => (
-            <p style={{ color: 'inherit', margin: '0 0 0.5em 0' }} {...props} />
-          ),
-          pre: ({ node, ...props }) => (
-            <pre className="overflow-x-auto p-4 rounded-md bg-gray-100 dark:bg-gray-800" {...props} />
-          ),
-          code: ({ node, ...props }) => (
-            <code className="px-1 py-0.5 rounded-md bg-gray-100 dark:bg-gray-800 text-sm" {...props} />
-          ),
-          ul: ({ node, ...props }) => (
-            <ul style={{ color: 'inherit', margin: '0.5em 0', paddingLeft: '1.5em' }} {...props} />
-          ),
-          ol: ({ node, ...props }) => (
-            <ol style={{ color: 'inherit', margin: '0.5em 0', paddingLeft: '1.5em' }} {...props} />
-          ),
-          li: ({ node, ...props }) => (
-            <li style={{ color: 'inherit', marginBottom: '0.25em' }} {...props} />
-          ),
-          h1: ({ node, ...props }) => (
-            <h1 style={{ color: 'inherit', margin: '1em 0 0.5em 0' }} {...props} />
-          ),
-          h2: ({ node, ...props }) => (
-            <h2 style={{ color: 'inherit', margin: '1em 0 0.5em 0' }} {...props} />
-          ),
-          h3: ({ node, ...props }) => (
-            <h3 style={{ color: 'inherit', margin: '1em 0 0.5em 0' }} {...props} />
-          ),
-          h4: ({ node, ...props }) => (
-            <h4 style={{ color: 'inherit', margin: '1em 0 0.5em 0' }} {...props} />
-          ),
-          h5: ({ node, ...props }) => (
-            <h5 style={{ color: 'inherit', margin: '1em 0 0.5em 0' }} {...props} />
-          ),
-          h6: ({ node, ...props }) => (
-            <h6 style={{ color: 'inherit', margin: '1em 0 0.5em 0' }} {...props} />
-          ),
-        }}
-      >
-        {content}
-      </ReactMarkdown>
-    </div>
-  );
-};
-
-export default MarkdownRenderer;
 
 export interface ChatWidgetProps extends Partial<ChatConfig> {
   config?: never;
@@ -778,7 +713,45 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
                               inputRef={inputRef}
                             />
                           ) : (
-                            <MarkdownRenderer content={normalizeText(linkifyText(msg.content))} />
+                            <div className="prose prose-base max-w-full whitespace-pre-wrap" style={{ 
+                              overflowWrap: 'anywhere',
+                              wordBreak: 'break-word', 
+                              width: '100%',
+                              maxWidth: '100%',
+                              fontSize: '16px',
+                            }}>
+                              <ReactMarkdown
+                                components={{
+                                  a: (props) => <MarkdownLink {...props} />,
+                                  p: (props) => <p style={{ 
+                                    overflowWrap: 'anywhere', 
+                                    wordBreak: 'break-word',
+                                    margin: '0 0 0.5em 0'
+                                  }} {...props} />,
+                                  code: (props) => <code style={{ 
+                                    display: 'block', 
+                                    whiteSpace: 'pre-wrap', 
+                                    overflowX: 'auto', 
+                                    overflowWrap: 'anywhere' 
+                                  }} {...props} />,
+                                  ul: (props) => <ul style={{
+                                    marginTop: '0.5em',
+                                    marginBottom: '0.5em',
+                                    paddingLeft: '1.5em'
+                                  }} {...props} />,
+                                  ol: (props) => <ol style={{
+                                    marginTop: '0.5em',
+                                    marginBottom: '0.5em',
+                                    paddingLeft: '1.5em'
+                                  }} {...props} />,
+                                  li: (props) => <li style={{
+                                    marginBottom: '0.25em'
+                                  }} {...props} />
+                                }}
+                              >
+                                {normalizeText(linkifyText(msg.content))}
+                              </ReactMarkdown>
+                            </div>
                           )
                         ) : (
                           <p className="text-base" style={{ 

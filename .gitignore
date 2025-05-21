@@ -24,8 +24,8 @@ logs/
 *.log
 
 # Database files
-sample_db/chroma/chroma_db/
-sample_db/sqlite/sqlite_db/
+sample_db/chroma/chroma_db*
+sample_db/sqlite/sqlite_db* 
 
 # Model files
 *.gguf

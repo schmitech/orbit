@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chatbot Widget Demo</title>
+    <link href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism.min.css" rel="stylesheet" />
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
@@ -416,6 +417,7 @@
             
             <div style="display: flex; justify-content: center;">
                 <button onclick="applyCustomColors()" class="apply-custom-btn" style="padding: 12px 24px; font-size: 16px; background: #f1f5f9; color: #1e293b; border: 1px solid #cbd5e1; font-weight: 600;">Apply Custom Colors</button>
+                <button onclick="resetThemeColors()" class="apply-custom-btn" style="padding: 12px 24px; font-size: 16px; background: #f1f5f9; color: #1e293b; border: 1px solid #cbd5e1; font-weight: 600; margin-left: 10px;">Reset to Default</button>
             </div>
         </div>
 
@@ -455,7 +457,7 @@
         <h2>Implementation Code</h2>
         <p>Copy and paste this code into your website to add the chatbot widget:</p>
         <div class="code-block">
-            <pre><code id="implementation-code">&lt;!-- Include dependencies -->
+            <pre><code id="implementation-code" class="language-html">&lt;!-- Include dependencies -->
 &lt;script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin>&lt;/script>
 &lt;script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin>&lt;/script>
 &lt;script src="/chatbot-widget.umd.js">&lt;/script>
@@ -548,6 +550,11 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="./dist/chatbot-widget.umd.js"></script>
     <link rel="stylesheet" href="./dist/chatbot-widget.css">
+
+    <!-- Prism.js JS for syntax highlighting -->
+    <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-markup.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-javascript.min.js"></script>
 
     <script>
         // Check if ChatbotWidget is available
@@ -1088,7 +1095,7 @@
                 
                 // Convert to pretty JSON with JS-friendly formatting
                 let configStr = JSON.stringify(displayConfig, null, 4)
-                    .replace(/"([^"]+)":/g, '$1:')  // Remove quotes from property names
+                    .replace(/"([^\"]+)":/g, '$1:')  // Remove quotes from property names
                     .replace(/"/g, "'");            // Use single quotes instead of double quotes
                 
                 // Build the code example with all dependencies bundled
@@ -1120,6 +1127,7 @@
                 
                 // Update the code display
                 document.getElementById('implementation-code').textContent = codeExample;
+                if (window.Prism) Prism.highlightAll();
             } catch (error) {
                 console.error('Error updating code example:', error);
             }
@@ -1202,6 +1210,40 @@
                 const v = c === 'x' ? r : (r & 0x3 | 0x8);
                 return v.toString(16);
             });
+        }
+
+        // --- Live Theme Customizer ---
+        // Listen for color input changes for live preview
+        document.addEventListener('DOMContentLoaded', function() {
+            const colorInputs = document.querySelectorAll('.color-customizer input[type="color"]');
+            colorInputs.forEach(input => {
+                input.addEventListener('input', function() {
+                    // Update the swatch
+                    const previewEl = this.parentElement.querySelector('div:last-child');
+                    if (previewEl) previewEl.style.background = this.value;
+                    // Live update the widget
+                    applyCustomColors();
+                });
+            });
+        });
+
+        // Reset to Default button functionality
+        function resetThemeColors() {
+            const theme = themes.default;
+            document.getElementById('primary-color').value = theme.primary;
+            document.getElementById('secondary-color').value = theme.secondary;
+            document.getElementById('background-color').value = theme.background;
+            document.getElementById('text-primary-color').value = theme.text.primary;
+            document.getElementById('user-bubble-color').value = theme.message.user;
+            document.getElementById('assistant-bubble-color').value = theme.message.assistant;
+            document.getElementById('icon-color').value = theme.iconColor;
+            document.getElementById('suggested-bg-color').value = theme.suggestedQuestions.background;
+            document.getElementById('suggested-hover-color').value = theme.suggestedQuestions.hoverBackground;
+            document.getElementById('suggested-text-color').value = theme.suggestedQuestions.text;
+            // Update color previews
+            updateColorPreviews();
+            // Live update the widget
+            applyCustomColors();
         }
     </script>
 </body>

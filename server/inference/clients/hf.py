@@ -102,9 +102,26 @@ class HuggingFaceClient(BaseLLMClient, LLMClientCommon):
                 }
                 return
 
-            docs = await self._retrieve_and_rerank_docs(message, collection_name)
+            retrieved_docs = await self._retrieve_and_rerank_docs(message, collection_name)
             system_prompt = await self._get_system_prompt(system_prompt_id)
-            context = self._format_context(docs)
+            context = self._format_context(retrieved_docs)
+
+            # If no context was found, return the default no-results message
+            if context is None:
+                no_results_message = self.config.get('messages', {}).get('no_results_response', 
+                    "I'm sorry, but I don't have any specific information about that topic in my knowledge base.")
+                yield {
+                    "response": no_results_message,
+                    "sources": [],
+                    "tokens": 0,
+                    "token_usage": {
+                        "prompt_tokens": 0,
+                        "completion_tokens": 0,
+                        "total_tokens": 0
+                    },
+                    "processing_time": 0
+                }
+                return
 
             await self.initialize()
             prompt = f"{system_prompt}\n{context}\nUser: {message}\nAssistant:"
@@ -128,7 +145,7 @@ class HuggingFaceClient(BaseLLMClient, LLMClientCommon):
             generated = outputs[0][inputs["input_ids"].shape[1]:]
             text = self.tokenizer.decode(generated, skip_special_tokens=True)
 
-            sources = self._format_sources(docs)
+            sources = self._format_sources(retrieved_docs)
             if not isinstance(sources, list):
                 self.logger.warning(f"'_format_sources' returned type {type(sources).__name__} (value: {str(sources)[:100]}) for sources, defaulting to empty list.")
                 sources = []
@@ -167,6 +184,22 @@ class HuggingFaceClient(BaseLLMClient, LLMClientCommon):
     ) -> AsyncGenerator[str, None]:
         """Stream response using Hugging Face model."""
         try:
+            retrieved_docs = await self._retrieve_and_rerank_docs(message, collection_name)
+            system_prompt = await self._get_system_prompt(system_prompt_id)
+            context = self._format_context(retrieved_docs)
+
+            # If no context was found, return the default no-results message
+            if context is None:
+                no_results_message = self.config.get('messages', {}).get('no_results_response', 
+                    "I'm sorry, but I don't have any specific information about that topic in my knowledge base.")
+                yield json.dumps({
+                    "response": no_results_message,
+                    "sources": [],
+                    "done": True
+                })
+                return
+
+            await self.initialize()
             async for result in self.generate_response(message, collection_name, system_prompt_id):
                 if "error" in result:
                     yield json.dumps({

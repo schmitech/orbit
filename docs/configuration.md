@@ -122,9 +122,8 @@ internal_services:
 
 ```yaml
 embedding:
-  provider: "ollama"          # Default embedding model provider
-  enabled: false              # Enable embedding generation
-  fail_on_error: false        # Whether to fail if embedding service is unavailable
+  provider: "ollama"
+  enabled: false
 
 embeddings:
   llama_cpp:

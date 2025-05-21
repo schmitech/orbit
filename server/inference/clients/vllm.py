@@ -188,6 +188,17 @@ class QAVLLMClient(BaseLLMClient, LLMClientCommon):
             # Format the context from retrieved documents
             context = self._format_context(retrieved_docs)
             
+            # If no context was found, return the default no-results message
+            if context is None:
+                no_results_message = self.config.get('messages', {}).get('no_results_response', 
+                    "I'm sorry, but I don't have any specific information about that topic in my knowledge base.")
+                return {
+                    "response": no_results_message,
+                    "sources": [],
+                    "tokens": 0,
+                    "processing_time": 0
+                }
+            
             # Prepare the prompt with context
             prompt = await self._prepare_prompt_with_context(message, system_prompt, context)
             
@@ -333,6 +344,17 @@ class QAVLLMClient(BaseLLMClient, LLMClientCommon):
             
             # Format the context from retrieved documents
             context = self._format_context(retrieved_docs)
+            
+            # If no context was found, return the default no-results message
+            if context is None:
+                no_results_message = self.config.get('messages', {}).get('no_results_response', 
+                    "I'm sorry, but I don't have any specific information about that topic in my knowledge base.")
+                yield json.dumps({
+                    "response": no_results_message,
+                    "sources": [],
+                    "done": True
+                })
+                return
             
             # Prepare the prompt with context
             prompt = await self._prepare_prompt_with_context(message, system_prompt, context)
