@@ -1,0 +1,36 @@
+# Development files
+.git
+.gitignore
+node_modules
+*.log
+.DS_Store
+.vscode
+.idea
+
+# Source files
+src/
+scripts/
+*.ts
+*.tsx
+*.js
+*.jsx
+!dist/**/*.js
+
+# Build files
+*.map
+*.d.ts
+!dist/**/*.d.ts
+
+# Test files
+__tests__/
+*.test.*
+*.spec.*
+coverage/
+
+# Config files
+.eslintrc*
+.prettierrc*
+tsconfig.json
+vite.config.ts
+postcss.config.js
+tailwind.config.js
