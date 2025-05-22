@@ -17,6 +17,8 @@
 
 ORBIT is a modular, self-hosted toolkit that provides a unified API for open-source AI inference models. It enables you to interact AI models on your own infrastructure, maintaining complete control over your data while eliminating commercial API dependencies.
 
+Visit the official ORBIT website for more information: https://orbit.schmitech.ai/
+
 ## Sovereignty and Data Control
 
 ORBIT is designed with digital sovereignty in mind, offering several key advantages:
@@ -80,7 +82,7 @@ First, install the dependencies and download the GGUF model file (by default, it
 
 ```bash
 # Download the GGUF model file
-curl -L https://huggingface.co/schmitech/gemma3-1b/resolve/main/gemma3-1b.gguf -o gemma3-1b.gguf
+curl -L https://huggingface.co/unsloth/gemma-3-1b-it-GGUF/resolve/main/gemma-3-1b-it-Q4_0.gguf -o ./gguf/gemma3-1b.gguf
 ```
 
 ### Configuration
