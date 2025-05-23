@@ -5,10 +5,10 @@
   <h2><strong>Open Retrieval-Based Inference Toolkit</strong></h2>
   
   <p>
-    <a href="#-key-features">Features</a> •
-    <a href="#-quick-start">Quick Start</a> •
-    <a href="#-installation">Installation</a> •
-    <a href="#-usage">Usage</a> •
+    <a href="#sovereignty-and-data-control">Features</a> •
+    <a href="#quick-start">Quick Start</a> •
+    <a href="#setup">Installation</a> •
+    <a href="#starting-the-orbit-server">Usage</a> •
     <a href="#-license">License</a>
   </p>
 </div>
