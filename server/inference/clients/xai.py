@@ -105,7 +105,8 @@ class XAIClient(BaseLLMClient, LLMClientCommon):
         self,
         message: str,
         collection_name: str,
-        system_prompt_id: Optional[str] = None
+        system_prompt_id: Optional[str] = None,
+        context_messages: Optional[List[Dict[str, str]]] = None
     ) -> dict:
         """Non-streaming chat completion using x.ai Grok."""
         is_safe, refusal_message = await self._check_message_safety(message)
@@ -134,12 +135,19 @@ class XAIClient(BaseLLMClient, LLMClientCommon):
                 await self.initialize()
             start = time.time()
 
+            # Prepare messages array
+            messages = [{"role": "system", "content": system_prompt}]
+            
+            # Add context messages if provided
+            if context_messages:
+                messages.extend(context_messages)
+            
+            # Add the current message with context
+            messages.append({"role": "user", "content": f"Context:\n{context}\n\nUser: {message}"})
+
             payload = {
                 "model": self.model,
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": f"Context:\n{context}\n\nUser: {message}"}
-                ],
+                "messages": messages,
                 "max_tokens": self.max_tokens,
                 "temperature": self.temperature,
                 "top_p": self.top_p,
@@ -178,7 +186,8 @@ class XAIClient(BaseLLMClient, LLMClientCommon):
         self,
         message: str,
         collection_name: str,
-        system_prompt_id: Optional[str] = None
+        system_prompt_id: Optional[str] = None,
+        context_messages: Optional[List[Dict[str, str]]] = None
     ) -> AsyncGenerator[str, None]:
         """Streaming chat completion via Server-Sent Events."""
         is_safe, refusal_message = await self._check_message_safety(message)
@@ -205,12 +214,20 @@ class XAIClient(BaseLLMClient, LLMClientCommon):
             # Initialize session if not already initialized
             if not self.session:
                 await self.initialize()
+
+            # Prepare messages array
+            messages = [{"role": "system", "content": system_prompt}]
+            
+            # Add context messages if provided
+            if context_messages:
+                messages.extend(context_messages)
+            
+            # Add the current message with context
+            messages.append({"role": "user", "content": f"Context:\n{context}\n\nUser: {message}"})
+
             payload = {
                 "model": self.model,
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": f"Context:\n{context}\n\nUser: {message}"}
-                ],
+                "messages": messages,
                 "max_tokens": self.max_tokens,
                 "temperature": self.temperature,
                 "top_p": self.top_p,

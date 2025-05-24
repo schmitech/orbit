@@ -35,6 +35,8 @@ from retrievers.base.base_retriever import RetrieverFactory
 from retrievers.adapters.registry import ADAPTER_REGISTRY
 from utils.mongodb_utils import configure_mongodb_logging
 from services.chat_service import ChatService
+from services.chat_history_service import ChatHistoryService
+from utils.http_utils import close_all_aiohttp_sessions
 
 class InferenceServer:
     """
@@ -174,45 +176,34 @@ class InferenceServer:
         log_config = self.config.get('logging', {})
         log_level = getattr(logging, log_config.get('level', 'INFO').upper())
         
-        if 'loggers' in log_config:
-            for logger_name, logger_config in log_config['loggers'].items():
-                logger_level = getattr(logging, logger_config.get('level', 'INFO').upper())
-                logger = logging.getLogger(logger_name)
-                logger.setLevel(logger_level)
-                # Avoid duplicate log messages
-                logger.propagate = logger_config.get('propagate', False)
-                self.logger.info(f"Configured logger {logger_name} with level {logger_config.get('level')}")
-
-        # Create logs directory if it doesn't exist
-        log_dir = log_config.get('file', {}).get('directory', 'logs')
-        os.makedirs(log_dir, exist_ok=True)
-        
-        # Create formatters
-        json_formatter = jsonlogger.JsonFormatter('%(asctime)s %(levelname)s %(name)s %(message)s')
-        text_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        
-        # Configure root logger
+        # Configure root logger first
         root_logger = logging.getLogger()
         root_logger.setLevel(log_level)
+        root_logger.propagate = False  # Disable propagation immediately
         
         # Clear existing handlers to prevent duplicates
         root_logger.handlers.clear()
         
+        # Create formatters based on configuration
+        text_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        json_formatter = jsonlogger.JsonFormatter('%(asctime)s %(levelname)s %(name)s %(message)s')
+        
         # Configure console logging
         console_enabled = _is_true_value(log_config.get('console', {}).get('enabled', True))
-        file_enabled = _is_true_value(log_config.get('file', {}).get('enabled', True))
-        
         if console_enabled:
             console_handler = logging.StreamHandler()
-            console_handler.setFormatter(
-                json_formatter if log_config.get('console', {}).get('format') == 'json' else text_formatter
-            )
+            console_format = log_config.get('console', {}).get('format', 'text')
+            console_handler.setFormatter(json_formatter if console_format == 'json' else text_formatter)
             console_handler.setLevel(log_level)
             root_logger.addHandler(console_handler)
         
-        # Configure file logging only if enabled AND console is disabled OR they have different destinations
+        # Configure file logging
+        file_enabled = _is_true_value(log_config.get('file', {}).get('enabled', True))
         if file_enabled:
-            file_config = log_config['file']
+            file_config = log_config.get('file', {})
+            log_dir = file_config.get('directory', 'logs')
+            os.makedirs(log_dir, exist_ok=True)
+            
             log_file = os.path.join(log_dir, file_config.get('filename', 'orbit.log'))
             
             # Set up rotating file handler
@@ -232,18 +223,22 @@ class InferenceServer:
                     encoding='utf-8'
                 )
             
-            file_handler.setFormatter(
-                json_formatter if file_config.get('format') == 'json' else text_formatter
-            )
+            file_format = file_config.get('format', 'text')
+            file_handler.setFormatter(json_formatter if file_format == 'json' else text_formatter)
             file_handler.setLevel(log_level)
             root_logger.addHandler(file_handler)
+        
+        # Configure specific loggers
+        if 'loggers' in log_config:
+            for logger_name, logger_config in log_config['loggers'].items():
+                logger = logging.getLogger(logger_name)
+                logger_level = getattr(logging, logger_config.get('level', 'INFO').upper())
+                logger.setLevel(logger_level)
+                logger.propagate = False  # Disable propagation for all loggers
         
         # Capture warnings if configured
         if _is_true_value(log_config.get('capture_warnings', True)):
             logging.captureWarnings(True)
-        
-        # Disable propagation to prevent duplicate messages
-        root_logger.propagate = False
         
         self.logger = logging.getLogger(__name__)
         self.logger.info("Logging configuration completed")
@@ -589,47 +584,68 @@ class InferenceServer:
         # Check if inference_only is enabled
         inference_only = _is_true_value(self.config.get('general', {}).get('inference_only', False))
         
+        # Initialize MongoDB service regardless of mode
+        from services.mongodb_service import MongoDBService
+        app.state.mongodb_service = MongoDBService(self.config)
+        self.logger.info("Initializing shared MongoDB service...")
+        try:
+            await app.state.mongodb_service.initialize()
+            self.logger.info("Shared MongoDB service initialized successfully")
+        except Exception as e:
+            self.logger.error(f"Failed to initialize shared MongoDB service: {str(e)}")
+            raise
+
+        # Initialize Redis service if enabled (independent of inference_only mode)
+        redis_enabled = _is_true_value(self.config.get('internal_services', {}).get('redis', {}).get('enabled', False))
+        if redis_enabled:
+            from services.redis_service import RedisService
+            app.state.redis_service = RedisService(self.config)
+            self.logger.info("Initializing Redis service...")
+            try:
+                if await app.state.redis_service.initialize():
+                    self.logger.info("Redis service initialized successfully")
+                else:
+                    self.logger.warning("Redis service initialization failed - service will be disabled")
+                    app.state.redis_service = None
+            except Exception as e:
+                self.logger.error(f"Failed to initialize Redis service: {str(e)}")
+                app.state.redis_service = None
+        else:
+            app.state.redis_service = None
+            self.logger.info("Redis service is disabled in configuration")
+
+        # Initialize Chat History Service only in inference_only mode
+        chat_history_enabled = _is_true_value(self.config.get('chat_history', {}).get('enabled', True))
+        if chat_history_enabled and inference_only:
+            from services.chat_history_service import ChatHistoryService
+            app.state.chat_history_service = ChatHistoryService(
+                self.config, 
+                app.state.mongodb_service, 
+                app.state.redis_service
+            )
+            self.logger.info("Initializing Chat History Service...")
+            try:
+                await app.state.chat_history_service.initialize()
+                self.logger.info("Chat History Service initialized successfully")
+            except Exception as e:
+                self.logger.error(f"Failed to initialize Chat History Service: {str(e)}")
+                # Don't raise - chat history is optional
+                app.state.chat_history_service = None
+        else:
+            app.state.chat_history_service = None
+            self.logger.info("Chat history is disabled")
+
         if inference_only:
             self.logger.info("Inference-only mode enabled - skipping unnecessary service initialization")
             app.state.retriever = None
             app.state.embedding_service = None
             app.state.guardrail_service = None
             app.state.reranker_service = None
-            app.state.mongodb_service = None
-            app.state.redis_service = None
             app.state.api_key_service = None
             app.state.prompt_service = None
+            # Note: We keep MongoDB, Redis, and Chat History services only in inference-only mode
+            self.logger.info("Keeping MongoDB, Redis, and Chat History services for chat history tracking")
         else:
-            # Lazy import and initialize MongoDB service
-            from services.mongodb_service import MongoDBService
-            app.state.mongodb_service = MongoDBService(self.config)
-            self.logger.info("Initializing shared MongoDB service...")
-            try:
-                await app.state.mongodb_service.initialize()
-                self.logger.info("Shared MongoDB service initialized successfully")
-            except Exception as e:
-                self.logger.error(f"Failed to initialize shared MongoDB service: {str(e)}")
-                raise
-
-            # Lazy import and initialize Redis service if enabled
-            redis_enabled = _is_true_value(self.config.get('internal_services', {}).get('redis', {}).get('enabled', False))
-            if redis_enabled:
-                from services.redis_service import RedisService
-                app.state.redis_service = RedisService(self.config)
-                self.logger.info("Initializing Redis service...")
-                try:
-                    if await app.state.redis_service.initialize():
-                        self.logger.info("Redis service initialized successfully")
-                    else:
-                        self.logger.warning("Redis service initialization failed - service will be disabled")
-                        app.state.redis_service = None
-                except Exception as e:
-                    self.logger.error(f"Failed to initialize Redis service: {str(e)}")
-                    app.state.redis_service = None
-            else:
-                app.state.redis_service = None
-                self.logger.info("Redis service is disabled in configuration")
-            
             # Lazy import and initialize API Key Service
             from services.api_key_service import ApiKeyService
             app.state.api_key_service = ApiKeyService(self.config, app.state.mongodb_service)
@@ -855,7 +871,14 @@ class InferenceServer:
             raise Exception(f"Failed to connect to {inference_provider}")
         
         # Initialize remaining services - ChatService is always needed
-        app.state.chat_service = ChatService(self.config, app.state.llm_client, app.state.logger_service)
+        # Check if chat history service is available (only in inference_only mode)
+        chat_history_service = getattr(app.state, 'chat_history_service', None)
+        app.state.chat_service = ChatService(
+            self.config, 
+            app.state.llm_client, 
+            app.state.logger_service,
+            chat_history_service
+        )
 
         # Lazy import Health Service
         from services.health_service import HealthService
@@ -935,6 +958,10 @@ class InferenceServer:
         # Close Redis service
         if hasattr(app.state, 'redis_service'):
             add_shutdown_task(app.state.redis_service, 'Redis Service')
+        
+        # Close Chat History service
+        if hasattr(app.state, 'chat_history_service'):
+            add_shutdown_task(app.state.chat_history_service, 'Chat History Service')
         
         # Close all tracked aiohttp sessions
         shutdown_tasks.append(close_all_aiohttp_sessions())
@@ -1031,6 +1058,19 @@ class InferenceServer:
         self.logger.info(f"Session ID: {'enabled' if session_enabled else 'disabled'} (header: {session_header})")
         self.logger.info(f"API Key: {'enabled' if api_key_enabled else 'disabled'} (header: {api_key_header})")
         
+        # Only log chat history information if in inference_only mode
+        if inference_only:
+            chat_history_config = self.config.get('chat_history', {})
+            chat_history_enabled = _is_true_value(chat_history_config.get('enabled', True))
+            self.logger.info(f"Chat History: {'enabled' if chat_history_enabled else 'disabled'}")
+            if chat_history_enabled:
+                self.logger.info(f"  - Default message limit: {chat_history_config.get('default_limit', 50)}")
+                self.logger.info(f"  - Store metadata: {chat_history_config.get('store_metadata', True)}")
+                self.logger.info(f"  - Retention days: {chat_history_config.get('retention_days', 90)}")
+                self.logger.info(f"  - Session auto-generate: {chat_history_config.get('session', {}).get('auto_generate', True)}")
+                self.logger.info(f"  - Cache max messages: {chat_history_config.get('cache', {}).get('max_cached_messages', 100)}")
+                self.logger.info(f"  - Cache max sessions: {chat_history_config.get('cache', {}).get('max_cached_sessions', 1000)}")
+        
         # Log safety information
         self.logger.info(f"Safety: {'enabled' if safety_enabled else 'disabled'}")
         if safety_enabled:
@@ -1122,10 +1162,13 @@ class InferenceServer:
         async def get_chat_service(request: Request):
             if not hasattr(request.app.state, 'chat_service'):
                 from services.chat_service import ChatService
+                # Get chat history service if available
+                chat_history_service = getattr(request.app.state, 'chat_history_service', None)
                 request.app.state.chat_service = ChatService(
                     request.app.state.config, 
                     request.app.state.llm_client, 
-                    request.app.state.logger_service
+                    request.app.state.logger_service,
+                    chat_history_service
                 )
             return request.app.state.chat_service
 
@@ -1171,8 +1214,33 @@ class InferenceServer:
             session_enabled = _is_true_value(request.app.state.config.get('general', {}).get('session_id', {}).get('required', False))
             
             if not session_enabled:
-                # If session validation is disabled, return None
-                return None
+                # Check if chat history requires session ID
+                chat_history_config = request.app.state.config.get('chat_history', {})
+                chat_history_enabled = _is_true_value(chat_history_config.get('enabled', True))
+                session_required = chat_history_config.get('session', {}).get('required', True)
+                
+                if chat_history_enabled and session_required:
+                    # Get session ID header name from chat history config
+                    session_header = chat_history_config['session']['header_name']
+                    session_id = request.headers.get(session_header)
+                    
+                    if not session_id or not session_id.strip():
+                        # Check if auto-generate is enabled
+                        if chat_history_config.get('session', {}).get('auto_generate', True):
+                            # Generate a session ID
+                            import uuid
+                            session_id = str(uuid.uuid4())
+                            if request.app.state.config.get('general', {}).get('verbose', False):
+                                self.logger.info(f"Auto-generated session ID: {session_id}")
+                        else:
+                            raise HTTPException(
+                                status_code=400,
+                                detail=f"Session ID is required. Please provide a non-empty string in the {session_header} header."
+                            )
+                    
+                    return session_id.strip()
+                else:
+                    return None
             
             # Get session ID header name from config
             session_header = request.app.state.config['general']['session_id']['header_name']
@@ -1185,6 +1253,36 @@ class InferenceServer:
                 )
             
             return session_id.strip()
+
+        async def get_user_id(request: Request) -> Optional[str]:
+            """
+            Extract user ID from request headers if provided
+            
+            Args:
+                request: The incoming request
+                
+            Returns:
+                The user ID if provided, None otherwise
+            """
+            # Get user header configuration from chat history config
+            chat_history_config = request.app.state.config.get('chat_history', {})
+            user_config = chat_history_config.get('user', {})
+            
+            if not user_config:
+                return None
+            
+            user_header = user_config.get('header_name', 'X-User-ID')
+            user_required = user_config.get('required', False)
+            
+            user_id = request.headers.get(user_header)
+            
+            if user_required and not user_id:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"User ID is required. Please provide a non-empty string in the {user_header} header."
+                )
+            
+            return user_id.strip() if user_id else None
 
         async def get_api_key(request: Request) -> tuple[Optional[str], Optional[ObjectId]]:
             """
@@ -1240,7 +1338,8 @@ class InferenceServer:
             request: Request,
             chat_service = Depends(get_chat_service),
             api_key_result: tuple[str, Optional[ObjectId]] = Depends(get_api_key),
-            session_id: str = Depends(validate_session_id)
+            session_id: str = Depends(validate_session_id),
+            user_id: Optional[str] = Depends(get_user_id)
         ):
             """
             Process an MCP protocol chat request and return a response
@@ -1265,7 +1364,8 @@ class InferenceServer:
                 self.logger.debug(f"System Prompt ID: {system_prompt_id}")
                 self.logger.debug(f"API Key: {masked_api_key}")
                 self.logger.debug(f"Request Method: {request.method}")
-                self.logger.debug(f"Request URL: {request.url}")
+                if user_id:
+                    self.logger.debug(f"User ID: {user_id}")
                 self.logger.debug("Request Headers:")
                 for header, value in request.headers.items():
                     if header.lower() == "x-api-key":
@@ -1389,7 +1489,9 @@ class InferenceServer:
                                     client_ip=client_ip,
                                     collection_name=collection_name,
                                     system_prompt_id=system_prompt_id,
-                                    api_key=api_key
+                                    api_key=api_key,
+                                    session_id=session_id,
+                                    user_id=user_id
                                 ):
                                     # Process chunk data
                                     try:
@@ -1509,7 +1611,9 @@ class InferenceServer:
                             client_ip=client_ip,
                             collection_name=collection_name,
                             system_prompt_id=system_prompt_id,
-                            api_key=api_key
+                            api_key=api_key,
+                            session_id=session_id,
+                            user_id=user_id
                         )
                         
                         # Handle error responses (including moderation blocks)
@@ -1939,6 +2043,32 @@ class InferenceServer:
                 raise HTTPException(status_code=404, detail="API key not found or prompt not associated")
             
             return {"status": "success", "message": "System prompt associated with API key"}
+
+        @self.app.get("/admin/chat-history/{session_id}")
+        async def get_chat_history(
+            session_id: str,
+            request: Request,
+            limit: int = 50
+        ):
+            """Get chat history for a session"""
+            # Check if inference_only is enabled
+            inference_only = _is_true_value(request.app.state.config.get('general', {}).get('inference_only', False))
+            if not inference_only:
+                raise HTTPException(
+                    status_code=503, 
+                    detail="Chat history is only available in inference-only mode"
+                )
+            
+            if not hasattr(request.app.state, 'chat_history_service') or not request.app.state.chat_history_service:
+                raise HTTPException(status_code=503, detail="Chat history service is not available")
+            
+            history = await request.app.state.chat_history_service.get_conversation_history(
+                session_id=session_id,
+                limit=limit,
+                include_metadata=True
+            )
+            
+            return {"session_id": session_id, "messages": history, "count": len(history)}
     
     def create_ssl_context(self) -> Optional[ssl.SSLContext]:
         """

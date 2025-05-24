@@ -99,7 +99,8 @@ class OpenAIClient(BaseLLMClient, LLMClientCommon):
         self, 
         message: str, 
         collection_name: str,
-        system_prompt_id: Optional[str] = None
+        system_prompt_id: Optional[str] = None,
+        context_messages: Optional[List[Dict[str, str]]] = None
     ) -> Dict[str, Any]:
         """
         Generate a response for a chat message using OpenAI.
@@ -108,6 +109,7 @@ class OpenAIClient(BaseLLMClient, LLMClientCommon):
             message: The user's message
             collection_name: Name of the collection to query for context
             system_prompt_id: Optional ID of a system prompt to use
+            context_messages: Optional list of previous conversation messages
             
         Returns:
             Dictionary containing response and metadata
@@ -152,10 +154,17 @@ class OpenAIClient(BaseLLMClient, LLMClientCommon):
             start_time = time.time()
             
             # Prepare messages for the API call
-            messages = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"Context information:\n{context}\n\nUser Query: {message}"}
-            ]
+            messages = [{"role": "system", "content": system_prompt}]
+            
+            # Add context messages if provided
+            if context_messages:
+                messages.extend(context_messages)
+            
+            # Add the current message with context
+            messages.append({
+                "role": "user", 
+                "content": f"Context information:\n{context}\n\nUser Query: {message}"
+            })
             
             # Prepare parameters based on model
             params = {
@@ -207,7 +216,8 @@ class OpenAIClient(BaseLLMClient, LLMClientCommon):
         self, 
         message: str, 
         collection_name: str,
-        system_prompt_id: Optional[str] = None
+        system_prompt_id: Optional[str] = None,
+        context_messages: Optional[List[Dict[str, str]]] = None
     ) -> AsyncGenerator[str, None]:
         """
         Generate a streaming response for a chat message using OpenAI.
@@ -216,6 +226,7 @@ class OpenAIClient(BaseLLMClient, LLMClientCommon):
             message: The user's message
             collection_name: Name of the collection to query for context
             system_prompt_id: Optional ID of a system prompt to use
+            context_messages: Optional list of previous conversation messages
             
         Yields:
             Chunks of the response as they are generated
@@ -258,10 +269,17 @@ class OpenAIClient(BaseLLMClient, LLMClientCommon):
                 self.logger.info(f"Calling OpenAI API with streaming enabled")
                 
             # Prepare messages for the API call
-            messages = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"Context information:\n{context}\n\nUser Query: {message}"}
-            ]
+            messages = [{"role": "system", "content": system_prompt}]
+            
+            # Add context messages if provided
+            if context_messages:
+                messages.extend(context_messages)
+            
+            # Add the current message with context
+            messages.append({
+                "role": "user", 
+                "content": f"Context information:\n{context}\n\nUser Query: {message}"
+            })
             
             # Prepare parameters based on model
             params = {

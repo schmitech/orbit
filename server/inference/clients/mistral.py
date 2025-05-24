@@ -109,15 +109,17 @@ class MistralClient(BaseLLMClient, LLMClientCommon):
         self, 
         message: str, 
         collection_name: str,
-        system_prompt_id: Optional[str] = None
+        system_prompt_id: Optional[str] = None,
+        context_messages: Optional[List[Dict[str, str]]] = None
     ) -> Dict[str, Any]:
         """
-        Generate a response for a chat message using Mistral AI.
+        Generate a response for a chat message using Mistral.
         
         Args:
             message: The user's message
             collection_name: Name of the collection to query for context
             system_prompt_id: Optional ID of a system prompt to use
+            context_messages: Optional list of previous conversation messages
             
         Returns:
             Dictionary containing response and metadata
@@ -158,20 +160,21 @@ class MistralClient(BaseLLMClient, LLMClientCommon):
             if self.verbose:
                 self.logger.info(f"Calling Mistral AI API with model: {self.model}")
                 
-            # Call the Mistral AI API
+            # Call the Mistral API
             start_time = time.time()
             
             # Prepare messages for the API call
-            messages = [
-                {
-                    "role": "system", 
-                    "content": system_prompt
-                },
-                {
-                    "role": "user", 
-                    "content": f"Context information:\n{context}\n\nUser Query: {message}"
-                }
-            ]
+            messages = [{"role": "system", "content": system_prompt}]
+            
+            # Add context messages if provided
+            if context_messages:
+                messages.extend(context_messages)
+            
+            # Add the current message with context
+            messages.append({
+                "role": "user", 
+                "content": f"Context information:\n{context}\n\nUser Query: {message}"
+            })
             
             response = await self.client.chat.complete_async(
                 model=self.model,
@@ -217,15 +220,17 @@ class MistralClient(BaseLLMClient, LLMClientCommon):
         self, 
         message: str, 
         collection_name: str,
-        system_prompt_id: Optional[str] = None
+        system_prompt_id: Optional[str] = None,
+        context_messages: Optional[List[Dict[str, str]]] = None
     ) -> AsyncGenerator[str, None]:
         """
-        Generate a streaming response for a chat message using Mistral AI.
+        Generate a streaming response for a chat message using Mistral.
         
         Args:
             message: The user's message
             collection_name: Name of the collection to query for context
             system_prompt_id: Optional ID of a system prompt to use
+            context_messages: Optional list of previous conversation messages
             
         Yields:
             Chunks of the response as they are generated
@@ -268,16 +273,17 @@ class MistralClient(BaseLLMClient, LLMClientCommon):
                 self.logger.info(f"Calling Mistral AI API with streaming enabled")
                 
             # Prepare messages for the API call
-            messages = [
-                {
-                    "role": "system", 
-                    "content": system_prompt
-                },
-                {
-                    "role": "user", 
-                    "content": f"Context information:\n{context}\n\nUser Query: {message}"
-                }
-            ]
+            messages = [{"role": "system", "content": system_prompt}]
+            
+            # Add context messages if provided
+            if context_messages:
+                messages.extend(context_messages)
+            
+            # Add the current message with context
+            messages.append({
+                "role": "user", 
+                "content": f"Context information:\n{context}\n\nUser Query: {message}"
+            })
             
             # Generate streaming response
             chunk_count = 0
@@ -361,8 +367,10 @@ class MistralClient(BaseLLMClient, LLMClientCommon):
                 self.logger.info(f"Streaming complete. Received {chunk_count} chunks")
                 
             # Send final message with sources
+            sources = self._format_sources(retrieved_docs)
             yield json.dumps({
-                "sources": self._format_sources(retrieved_docs),
+                "response": "",
+                "sources": sources,
                 "done": True
             })
             

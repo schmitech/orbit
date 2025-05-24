@@ -66,9 +66,9 @@ def _log_config_summary(config: Dict[str, Any], source_path: str):
     
     # Logging settings
     log_config = config.get('logging', {})
-    logger.info(f"  Logging: level={log_config.get('level', 'INFO')}, file_enabled={_is_true_value(log_config.get('file', {}).get('enabled', True))}")
-    if _is_true_value(log_config.get('file', {}).get('enabled', True)):
-        logger.info(f"    File: rotation={log_config.get('file', {}).get('rotation', 'midnight')}, max_size_mb={log_config.get('file', {}).get('max_size_mb', 10)}")
+    logger.info(f"  Logging: level={log_config.get('level', 'INFO')}, file_enabled={_is_true_value(log_config.get('handlers', {}).get('file', {}).get('enabled', True))}")
+    if _is_true_value(log_config.get('handlers', {}).get('file', {}).get('enabled', True)):
+        logger.info(f"    File: rotation={log_config.get('handlers', {}).get('file', {}).get('rotation', 'midnight')}, max_size_mb={log_config.get('handlers', {}).get('file', {}).get('max_size_mb', 10)}")
     
     # Embedding settings
     embedding_provider = config.get('embedding', {}).get('provider', 'ollama')
@@ -298,18 +298,20 @@ def get_default_config() -> Dict[str, Any]:
         },
         "logging": {
             "level": "INFO",
-            "file": {
-                "enabled": True,
-                "directory": "logs",
-                "filename": "orbit.log",
-                "max_size_mb": 10,
-                "backup_count": 30,
-                "rotation": "midnight",
-                "format": "json"
-            },
-            "console": {
-                "enabled": True,
-                "format": "text"
+            "handlers": {
+                "file": {
+                    "enabled": True,
+                    "directory": "logs",
+                    "filename": "orbit.log",
+                    "max_size_mb": 10,
+                    "backup_count": 30,
+                    "rotation": "midnight",
+                    "format": "json"
+                },
+                "console": {
+                    "enabled": True,
+                    "format": "text"
+                }
             },
             "capture_warnings": True,
             "propagate": False

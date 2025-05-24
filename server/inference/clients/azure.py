@@ -2,7 +2,7 @@ import json
 import time
 import logging
 import os
-from typing import Any, Dict, Optional, AsyncGenerator
+from typing import Any, Dict, Optional, AsyncGenerator, List
 
 from azure.ai.inference import ChatCompletionsClient
 from azure.core.credentials import AzureKeyCredential
@@ -76,101 +76,240 @@ class AzureOpenAIClient(BaseLLMClient, LLMClientCommon):
         self,
         message: str,
         collection_name: str,
-        system_prompt_id: Optional[str] = None
+        system_prompt_id: Optional[str] = None,
+        context_messages: Optional[List[Dict[str, str]]] = None
     ) -> Dict[str, Any]:
-        """Non-streaming chat completion using Azure AI Inference."""
-        is_safe, refusal_message = await self._check_message_safety(message)
-        if not is_safe:
-            return await self._handle_unsafe_message(refusal_message)
-
-        docs = await self._retrieve_and_rerank_docs(message, collection_name)
-        system_prompt = await self._get_system_prompt(system_prompt_id)
-        context = self._format_context(docs)
-
-        # If no context was found, return the default no-results message
-        if context is None:
-            no_results_message = self.config.get('messages', {}).get('no_results_response', 
-                "I'm sorry, but I don't have any specific information about that topic in my knowledge base.")
-            return {
-                "response": no_results_message,
-                "sources": [],
-                "tokens": 0,
-                "processing_time": 0
+        """
+        Generate a response for a chat message using Azure OpenAI.
+        
+        Args:
+            message: The user's message
+            collection_name: Name of the collection to query for context
+            system_prompt_id: Optional ID of a system prompt to use
+            context_messages: Optional list of previous conversation messages
+            
+        Returns:
+            Dictionary containing response and metadata
+        """
+        try:
+            if self.verbose:
+                self.logger.info(f"Generating response for message: {message[:100]}...")
+                
+            # Check if the message is safe
+            is_safe, refusal_message = await self._check_message_safety(message)
+            if not is_safe:
+                return await self._handle_unsafe_message(refusal_message)
+            
+            # Retrieve and rerank documents
+            retrieved_docs = await self._retrieve_and_rerank_docs(message, collection_name)
+            
+            # Get the system prompt
+            system_prompt = await self._get_system_prompt(system_prompt_id)
+            
+            # Format the context from retrieved documents
+            context = self._format_context(retrieved_docs)
+            
+            # If no context was found, return the default no-results message
+            if context is None:
+                no_results_message = self.config.get('messages', {}).get('no_results_response', 
+                    "I'm sorry, but I don't have any specific information about that topic in my knowledge base.")
+                return {
+                    "response": no_results_message,
+                    "sources": [],
+                    "tokens": 0,
+                    "processing_time": 0
+                }
+            
+            # Initialize Azure client if not already initialized
+            if not self.client:
+                await self.initialize()
+            
+            if self.verbose:
+                self.logger.info(f"Calling Azure OpenAI API with model: {self.deployment}")
+                
+            # Call the Azure OpenAI API
+            start_time = time.time()
+            
+            # For Azure OpenAI, we use a structured user message with the context and query
+            user_message = f"Context information:\n{context}\n\nUser Query: {message}"
+            
+            # Prepare messages for the API call
+            messages = []
+            
+            # Add context messages if provided
+            if context_messages:
+                messages.extend(context_messages)
+            
+            # Add the current message
+            messages.append({"role": "user", "content": user_message})
+            
+            try:
+                response = await self.client.complete(
+                    messages=messages,
+                    system=system_prompt,
+                    temperature=self.temperature,
+                    top_p=self.top_p,
+                    max_tokens=self.max_tokens,
+                    stream=False
+                )
+            except Exception as api_error:
+                self.logger.error(f"Azure OpenAI API error: {str(api_error)}")
+                if self.verbose:
+                    self.logger.debug(f"Request: model={self.deployment}, system={system_prompt[:50]}..., messages={messages}")
+                raise
+            
+            processing_time = time.time() - start_time
+            
+            # Extract the response text
+            if not response.choices or not response.choices[0].message:
+                self.logger.error("Unexpected response format from Azure OpenAI API: missing content")
+                if self.verbose:
+                    self.logger.debug(f"Response: {response}")
+                return {"error": "Failed to get valid response from Azure OpenAI API"}
+                
+            response_text = response.choices[0].message.content
+            
+            if self.verbose:
+                self.logger.debug(f"Response length: {len(response_text)} characters")
+                
+            # Format the sources for citation
+            sources = self._format_sources(retrieved_docs)
+            
+            # Get token usage from the response
+            tokens = {
+                "prompt": response.usage.prompt_tokens,
+                "completion": response.usage.completion_tokens,
+                "total": response.usage.total_tokens
             }
-
-        await self.initialize()
-        start = time.time()
-
-        resp = await self.client.complete(
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"Context:\n{context}\n\nUser: {message}"}
-            ],
-            max_tokens=self.max_tokens,
-            temperature=self.temperature,
-            top_p=self.top_p,
-            stream=False
-        )
-
-        elapsed = time.time() - start
-        text = resp.choices[0].message.content
-        sources = self._format_sources(docs)
-
-        return {
-            "response": text,
-            "sources": sources,
-            "tokens": None,  # Azure AI Inference doesn't provide token counts
-            "token_usage": {},
-            "processing_time": elapsed
-        }
+            
+            if self.verbose:
+                self.logger.info(f"Token usage: {tokens}")
+            
+            return {
+                "response": response_text,
+                "sources": sources,
+                "tokens": tokens["total"],
+                "token_usage": tokens,
+                "processing_time": processing_time
+            }
+        except Exception as e:
+            self.logger.error(f"Error generating response: {str(e)}")
+            return {"error": f"Failed to generate response: {str(e)}"}
 
     async def generate_response_stream(
         self,
         message: str,
         collection_name: str,
-        system_prompt_id: Optional[str] = None
+        system_prompt_id: Optional[str] = None,
+        context_messages: Optional[List[Dict[str, str]]] = None
     ) -> AsyncGenerator[str, None]:
-        """Streaming chat completion via Azure AI Inference."""
-        is_safe, refusal_message = await self._check_message_safety(message)
-        if not is_safe:
-            yield await self._handle_unsafe_message_stream(refusal_message)
-            return
-
-        docs = await self._retrieve_and_rerank_docs(message, collection_name)
-        system_prompt = await self._get_system_prompt(system_prompt_id)
-        context = self._format_context(docs)
-
-        # If no context was found, return the default no-results message
-        if context is None:
-            no_results_message = self.config.get('messages', {}).get('no_results_response', 
-                "I'm sorry, but I don't have any specific information about that topic in my knowledge base.")
+        """
+        Generate a streaming response for a chat message using Azure OpenAI.
+        
+        Args:
+            message: The user's message
+            collection_name: Name of the collection to query for context
+            system_prompt_id: Optional ID of a system prompt to use
+            context_messages: Optional list of previous conversation messages
+            
+        Yields:
+            Chunks of the response as they are generated
+        """
+        try:
+            if self.verbose:
+                self.logger.info(f"Starting streaming response for message: {message[:100]}...")
+                
+            # Check if the message is safe
+            is_safe, refusal_message = await self._check_message_safety(message)
+            if not is_safe:
+                yield await self._handle_unsafe_message_stream(refusal_message)
+                return
+            
+            # Retrieve and rerank documents
+            retrieved_docs = await self._retrieve_and_rerank_docs(message, collection_name)
+            
+            # Get the system prompt
+            system_prompt = await self._get_system_prompt(system_prompt_id)
+            
+            # Format the context from retrieved documents
+            context = self._format_context(retrieved_docs)
+            
+            # If no context was found, return the default no-results message
+            if context is None:
+                no_results_message = self.config.get('messages', {}).get('no_results_response', 
+                    "I'm sorry, but I don't have any specific information about that topic in my knowledge base.")
+                yield json.dumps({
+                    "response": no_results_message,
+                    "sources": [],
+                    "done": True
+                })
+                return
+            
+            # Initialize Azure client if not already initialized
+            if not self.client:
+                await self.initialize()
+            
+            if self.verbose:
+                self.logger.info(f"Calling Azure OpenAI API with streaming enabled")
+                
+            # For Azure OpenAI, we use a structured user message with the context and query
+            user_message = f"Context information:\n{context}\n\nUser Query: {message}"
+            
+            # Prepare messages for the API call
+            messages = []
+            
+            # Add context messages if provided
+            if context_messages:
+                messages.extend(context_messages)
+            
+            # Add the current message
+            messages.append({"role": "user", "content": user_message})
+            
+            chunk_count = 0
+            # Generate streaming response
+            try:
+                response = await self.client.complete(
+                    messages=messages,
+                    system=system_prompt,
+                    temperature=self.temperature,
+                    top_p=self.top_p,
+                    max_tokens=self.max_tokens,
+                    stream=True
+                )
+                
+                async for chunk in response:
+                    chunk_count += 1
+                    
+                    if self.verbose and chunk_count % 10 == 0:
+                        self.logger.debug(f"Received chunk {chunk_count}")
+                        
+                    if chunk.choices and chunk.choices[0].delta.content:
+                        yield json.dumps({
+                            "response": chunk.choices[0].delta.content,
+                            "done": False
+                        })
+            except Exception as stream_error:
+                self.logger.error(f"Azure OpenAI streaming error: {str(stream_error)}")
+                if self.verbose:
+                    self.logger.debug(f"Stream request: model={self.deployment}, system={system_prompt[:50]}..., messages={messages}")
+                yield json.dumps({
+                    "error": f"Error in streaming response: {str(stream_error)}",
+                    "done": True
+                })
+                return
+            
+            if self.verbose:
+                self.logger.info(f"Streaming complete. Received {chunk_count} chunks")
+                
+            # Send final message with sources
             yield json.dumps({
-                "response": no_results_message,
-                "sources": [],
+                "sources": self._format_sources(retrieved_docs),
                 "done": True
             })
-            return
-
-        await self.initialize()
-
-        stream = await self.client.complete(
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"Context:\n{context}\n\nUser: {message}"}
-            ],
-            max_tokens=self.max_tokens,
-            temperature=self.temperature,
-            top_p=self.top_p,
-            stream=True
-        )
-
-        chunk_count = 0
-        async for chunk in stream:
-            if chunk.choices and chunk.choices[0].delta.content:
-                chunk_count += 1
-                if self.verbose and chunk_count % 10 == 0:
-                    self.logger.debug(f"Received chunk {chunk_count}")
-                yield json.dumps({"response": chunk.choices[0].delta.content, "done": False})
-
-        # final yield with sources
-        yield json.dumps({"sources": self._format_sources(docs), "done": True})
+            
+        except Exception as e:
+            self.logger.error(f"Error generating streaming response: {str(e)}")
+            yield json.dumps({
+                "error": f"Failed to generate response: {str(e)}",
+                "done": True
+            })

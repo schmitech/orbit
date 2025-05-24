@@ -93,7 +93,8 @@ class GeminiClient(BaseLLMClient, LLMClientCommon):
         self, 
         message: str, 
         collection_name: str,
-        system_prompt_id: Optional[str] = None
+        system_prompt_id: Optional[str] = None,
+        context_messages: Optional[List[Dict[str, str]]] = None
     ) -> Dict[str, Any]:
         """
         Generate a response for a chat message using Gemini.
@@ -102,6 +103,7 @@ class GeminiClient(BaseLLMClient, LLMClientCommon):
             message: The user's message
             collection_name: Name of the collection to query for context
             system_prompt_id: Optional ID of a system prompt to use
+            context_messages: Optional list of previous conversation messages
             
         Returns:
             Dictionary containing response and metadata
@@ -135,9 +137,6 @@ class GeminiClient(BaseLLMClient, LLMClientCommon):
                     "processing_time": 0
                 }
             
-            # Prepare the prompt with context
-            prompt = await self._prepare_prompt_with_context(message, system_prompt, context)
-            
             # Initialize Gemini client if not already initialized
             if not self.gemini_client:
                 await self.initialize()
@@ -147,6 +146,30 @@ class GeminiClient(BaseLLMClient, LLMClientCommon):
             
             if self.verbose:
                 self.logger.info(f"Calling Gemini API with model: {self.model}")
+            
+            # Prepare messages for the API call
+            messages = []
+            
+            # Add system prompt if provided
+            if system_prompt:
+                messages.append({
+                    "role": "user",
+                    "parts": [{"text": system_prompt}]
+                })
+            
+            # Add context messages if provided
+            if context_messages:
+                for msg in context_messages:
+                    messages.append({
+                        "role": msg.get("role", "user"),
+                        "parts": [{"text": msg["content"]}]
+                    })
+            
+            # Add the current message with context
+            messages.append({
+                "role": "user",
+                "parts": [{"text": f"Context information:\n{context}\n\nUser Query: {message}"}]
+            })
             
             model = self.gemini_client.GenerativeModel(
                 model_name=self.model,
@@ -158,7 +181,7 @@ class GeminiClient(BaseLLMClient, LLMClientCommon):
                 }
             )
             
-            response = model.generate_content(prompt)
+            response = model.generate_content(messages)
             
             processing_time = self._measure_execution_time(start_time)
             
@@ -172,7 +195,7 @@ class GeminiClient(BaseLLMClient, LLMClientCommon):
             sources = self._format_sources(retrieved_docs)
             
             # Estimate token count
-            estimated_tokens = self._estimate_tokens(prompt, response_text)
+            estimated_tokens = self._estimate_tokens(str(messages), response_text)
             
             return {
                 "response": response_text,
@@ -188,7 +211,8 @@ class GeminiClient(BaseLLMClient, LLMClientCommon):
         self, 
         message: str, 
         collection_name: str,
-        system_prompt_id: Optional[str] = None
+        system_prompt_id: Optional[str] = None,
+        context_messages: Optional[List[Dict[str, str]]] = None
     ) -> AsyncGenerator[str, None]:
         """
         Generate a streaming response for a chat message using Gemini.
@@ -197,6 +221,7 @@ class GeminiClient(BaseLLMClient, LLMClientCommon):
             message: The user's message
             collection_name: Name of the collection to query for context
             system_prompt_id: Optional ID of a system prompt to use
+            context_messages: Optional list of previous conversation messages
             
         Yields:
             Chunks of the response as they are generated
@@ -231,9 +256,6 @@ class GeminiClient(BaseLLMClient, LLMClientCommon):
                 })
                 return
             
-            # Prepare the prompt with context
-            prompt = await self._prepare_prompt_with_context(message, system_prompt, context)
-            
             # Initialize Gemini client if not already initialized
             if not self.gemini_client:
                 await self.initialize()
@@ -241,6 +263,30 @@ class GeminiClient(BaseLLMClient, LLMClientCommon):
             # Create a Gemini model with streaming configuration
             if self.verbose:
                 self.logger.info(f"Initializing streaming with model: {self.model}")
+            
+            # Prepare messages for the API call
+            messages = []
+            
+            # Add system prompt if provided
+            if system_prompt:
+                messages.append({
+                    "role": "user",
+                    "parts": [{"text": system_prompt}]
+                })
+            
+            # Add context messages if provided
+            if context_messages:
+                for msg in context_messages:
+                    messages.append({
+                        "role": msg.get("role", "user"),
+                        "parts": [{"text": msg["content"]}]
+                    })
+            
+            # Add the current message with context
+            messages.append({
+                "role": "user",
+                "parts": [{"text": f"Context information:\n{context}\n\nUser Query: {message}"}]
+            })
             
             model = self.gemini_client.GenerativeModel(
                 model_name=self.model,
@@ -256,7 +302,7 @@ class GeminiClient(BaseLLMClient, LLMClientCommon):
             if self.verbose:
                 self.logger.info("Starting streaming response")
             
-            response_stream = model.generate_content(prompt, stream=True)
+            response_stream = model.generate_content(messages, stream=True)
             
             # Process the streaming response
             try:

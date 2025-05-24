@@ -116,7 +116,8 @@ class VertexAIClient(BaseLLMClient, LLMClientCommon):
         self, 
         message: str, 
         collection_name: str,
-        system_prompt_id: Optional[str] = None
+        system_prompt_id: Optional[str] = None,
+        context_messages: Optional[List[Dict[str, str]]] = None
     ) -> Dict[str, Any]:
         """
         Generate a response for a chat message using Vertex AI.
@@ -125,6 +126,7 @@ class VertexAIClient(BaseLLMClient, LLMClientCommon):
             message: The user's message
             collection_name: Name of the collection to query for context
             system_prompt_id: Optional ID of a system prompt to use
+            context_messages: Optional list of previous conversation messages
             
         Returns:
             Dictionary containing response and metadata
@@ -176,6 +178,26 @@ class VertexAIClient(BaseLLMClient, LLMClientCommon):
                 generation_config=self.generation_config
             )
             
+            # Add context messages if provided
+            if context_messages:
+                for msg in context_messages:
+                    role = msg.get("role", "user")
+                    content = msg.get("content", "")
+                    if role == "user":
+                        await asyncio.to_thread(
+                            chat.send_message,
+                            content,
+                            generation_config=self.generation_config
+                        )
+                    elif role == "assistant":
+                        # For assistant messages, we need to simulate the response
+                        # since Vertex AI doesn't support direct assistant message injection
+                        await asyncio.to_thread(
+                            chat.send_message,
+                            f"Previous assistant response: {content}",
+                            generation_config=self.generation_config
+                        )
+            
             # Call the Vertex AI API
             start_time = time.time()
             
@@ -223,7 +245,8 @@ class VertexAIClient(BaseLLMClient, LLMClientCommon):
         self, 
         message: str, 
         collection_name: str,
-        system_prompt_id: Optional[str] = None
+        system_prompt_id: Optional[str] = None,
+        context_messages: Optional[List[Dict[str, str]]] = None
     ) -> AsyncGenerator[str, None]:
         """
         Generate a streaming response for a chat message using Vertex AI.
@@ -232,6 +255,7 @@ class VertexAIClient(BaseLLMClient, LLMClientCommon):
             message: The user's message
             collection_name: Name of the collection to query for context
             system_prompt_id: Optional ID of a system prompt to use
+            context_messages: Optional list of previous conversation messages
             
         Yields:
             Chunks of the response as they are generated
@@ -283,6 +307,26 @@ class VertexAIClient(BaseLLMClient, LLMClientCommon):
                 system_prompt,
                 generation_config=self.generation_config
             )
+            
+            # Add context messages if provided
+            if context_messages:
+                for msg in context_messages:
+                    role = msg.get("role", "user")
+                    content = msg.get("content", "")
+                    if role == "user":
+                        await asyncio.to_thread(
+                            chat.send_message,
+                            content,
+                            generation_config=self.generation_config
+                        )
+                    elif role == "assistant":
+                        # For assistant messages, we need to simulate the response
+                        # since Vertex AI doesn't support direct assistant message injection
+                        await asyncio.to_thread(
+                            chat.send_message,
+                            f"Previous assistant response: {content}",
+                            generation_config=self.generation_config
+                        )
             
             # Prepare the user message with context
             user_message = f"Context information:\n{context}\n\nUser Query: {message}"

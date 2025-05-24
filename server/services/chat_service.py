@@ -5,8 +5,10 @@ Chat service for processing chat messages
 import json
 import asyncio
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from bson import ObjectId  # Add this import for ObjectId
+import threading
+from queue import Queue
 
 from utils.text_utils import fix_text_formatting, mask_api_key
 from utils.language_detector import LanguageDetector
@@ -18,11 +20,17 @@ logger = logging.getLogger(__name__)
 class ChatService:
     """Handles chat-related functionality"""
     
-    def __init__(self, config: Dict[str, Any], llm_client, logger_service):
+    def __init__(self, config: Dict[str, Any], llm_client, logger_service, chat_history_service=None):
         self.config = config
         self.llm_client = llm_client
         self.logger_service = logger_service
+        self.chat_history_service = chat_history_service
         self.verbose = _is_true_value(config.get('general', {}).get('verbose', False))
+        
+        # Chat history configuration
+        self.chat_history_config = config.get('chat_history', {})
+        self.chat_history_enabled = _is_true_value(self.chat_history_config.get('enabled', True))
+        
         # Initialize language detector only if enabled
         self.language_detection_enabled = _is_true_value(config.get('general', {}).get('language_detection', True))
         if self.language_detection_enabled:
@@ -33,6 +41,75 @@ class ChatService:
             self.language_detector = None
             if self.verbose:
                 logger.info("Language detection disabled")
+                
+        # Thread-safe queue for streaming responses
+        self._stream_queues = {}
+        self._stream_locks = {}
+    
+    async def _get_conversation_context(self, session_id: Optional[str]) -> List[Dict[str, str]]:
+        """
+        Get conversation context from history for the current session
+        
+        Args:
+            session_id: The session identifier
+            
+        Returns:
+            List of previous messages formatted for LLM context
+        """
+        if not self.chat_history_enabled or not self.chat_history_service or not session_id:
+            return []
+            
+        try:
+            # Get context messages from chat history
+            context_messages = await self.chat_history_service.get_context_messages(session_id)
+            
+            if self.verbose and context_messages:
+                logger.info(f"Retrieved {len(context_messages)} context messages for session {session_id}")
+                
+            return context_messages
+            
+        except Exception as e:
+            logger.error(f"Error retrieving conversation context: {str(e)}")
+            return []
+    
+    async def _store_conversation_turn(
+        self,
+        session_id: Optional[str],
+        user_message: str,
+        assistant_response: str,
+        user_id: Optional[str] = None,
+        api_key: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None
+    ) -> None:
+        """
+        Store a conversation turn in chat history
+        
+        Args:
+            session_id: Session identifier
+            user_message: The user's message
+            assistant_response: The assistant's response
+            user_id: Optional user identifier
+            api_key: Optional API key
+            metadata: Optional metadata to store
+        """
+        if not self.chat_history_enabled or not self.chat_history_service or not session_id:
+            return
+            
+        try:
+            await self.chat_history_service.add_conversation_turn(
+                session_id=session_id,
+                user_message=user_message,
+                assistant_response=assistant_response,
+                user_id=user_id,
+                api_key=api_key,
+                metadata=metadata
+            )
+            
+            if self.verbose:
+                logger.info(f"Stored conversation turn for session {session_id}")
+                
+        except Exception as e:
+            logger.error(f"Error storing conversation turn: {str(e)}")
     
     async def _log_conversation(self, query: str, response: str, client_ip: str, api_key: Optional[str] = None):
         """Log conversation asynchronously without delaying the main response."""
@@ -139,7 +216,9 @@ IMPORTANT: The user's message is in {language_name}. You MUST respond in {langua
         # Return original prompt ID if no modification was made
         return system_prompt_id
     
-    async def _process_chat_base(self, message: str, client_ip: str, collection_name: str, system_prompt_id: Optional[ObjectId] = None, api_key: Optional[str] = None):
+    async def _process_chat_base(self, message: str, client_ip: str, collection_name: str, 
+                                 system_prompt_id: Optional[ObjectId] = None, api_key: Optional[str] = None,
+                                 session_id: Optional[str] = None, user_id: Optional[str] = None):
         """
         Base method for processing chat messages, handling common functionality.
         
@@ -149,9 +228,11 @@ IMPORTANT: The user's message is in {language_name}. You MUST respond in {langua
             collection_name: Collection name to use for retrieval
             system_prompt_id: Optional system prompt ID to use
             api_key: Optional API key for authentication
+            session_id: Optional session identifier for chat history
+            user_id: Optional user identifier
             
         Returns:
-            Tuple of (enhanced_prompt_id, response_data)
+            Tuple of (enhanced_prompt_id, response_data, metadata)
         """
         # Log the incoming message and parameters
         await self._log_request(message, client_ip, collection_name)
@@ -164,6 +245,8 @@ IMPORTANT: The user's message is in {language_name}. You MUST respond in {langua
             
             logger.info(f"System prompt ID: {system_prompt_id}")
             logger.info(f"API key: {masked_api_key}")
+            logger.info(f"Session ID: {session_id}")
+            logger.info(f"User ID: {user_id}")
             if system_prompt_id:
                 # Log the prompt details if we have a prompt service on the LLM client
                 if hasattr(self.llm_client, 'prompt_service') and self.llm_client.prompt_service:
@@ -174,15 +257,25 @@ IMPORTANT: The user's message is in {language_name}. You MUST respond in {langua
                     else:
                         logger.warning(f"System prompt ID {system_prompt_id} not found")
         
+        # Get conversation context if session is provided
+        context_messages = await self._get_conversation_context(session_id)
+        
         # Detect language and enhance the system prompt if needed
         enhanced_prompt_id = await self._detect_and_enhance_prompt(message, system_prompt_id)
         
-        # Generate response
+        # Prepare metadata for storage
+        metadata = {
+            "collection_name": collection_name,
+            "client_ip": client_ip
+        }
+        
+        # Generate response with context
         if enhanced_prompt_id is None:
             # If enhanced_prompt_id is None, we've set an override prompt in memory
             response_data = await self.llm_client.generate_response(
                 message=message,
-                collection_name=collection_name
+                collection_name=collection_name,
+                context_messages=context_messages
             )
             # Clear the override after use
             if hasattr(self.llm_client, 'clear_override_system_prompt'):
@@ -193,12 +286,15 @@ IMPORTANT: The user's message is in {language_name}. You MUST respond in {langua
             response_data = await self.llm_client.generate_response(
                 message=message,
                 collection_name=collection_name,
-                system_prompt_id=enhanced_prompt_id
+                system_prompt_id=enhanced_prompt_id,
+                context_messages=context_messages
             )
             
-        return enhanced_prompt_id, response_data
+        return enhanced_prompt_id, response_data, metadata
 
-    async def process_chat(self, message: str, client_ip: str, collection_name: str, system_prompt_id: Optional[ObjectId] = None, api_key: Optional[str] = None) -> Dict[str, Any]:
+    async def process_chat(self, message: str, client_ip: str, collection_name: str, 
+                          system_prompt_id: Optional[ObjectId] = None, api_key: Optional[str] = None,
+                          session_id: Optional[str] = None, user_id: Optional[str] = None) -> Dict[str, Any]:
         """
         Process a chat message and return a response
         
@@ -208,10 +304,14 @@ IMPORTANT: The user's message is in {language_name}. You MUST respond in {langua
             collection_name: Collection name to use for retrieval
             system_prompt_id: Optional system prompt ID to use
             api_key: Optional API key for authentication
+            session_id: Optional session identifier for chat history
+            user_id: Optional user identifier
         """
         try:
             # Use base processing
-            _, response_data = await self._process_chat_base(message, client_ip, collection_name, system_prompt_id, api_key)
+            _, response_data, metadata = await self._process_chat_base(
+                message, client_ip, collection_name, system_prompt_id, api_key, session_id, user_id
+            )
             
             # Check if the response was blocked by moderation
             if "error" in response_data:
@@ -221,6 +321,17 @@ IMPORTANT: The user's message is in {language_name}. You MUST respond in {langua
                 # Log conversation if API key is provided
                 if api_key:
                     await self._log_conversation(message, response_data["error"], client_ip, api_key)
+                
+                # Store blocked message in history if enabled
+                if session_id:
+                    await self._store_conversation_turn(
+                        session_id=session_id,
+                        user_message=message,
+                        assistant_response=f"[BLOCKED] {response_data['error']}",
+                        user_id=user_id,
+                        api_key=api_key,
+                        metadata={**metadata, "blocked": True}
+                    )
                 
                 # Format moderation error in MCP protocol format
                 return {
@@ -237,6 +348,17 @@ IMPORTANT: The user's message is in {language_name}. You MUST respond in {langua
             # Log the response
             await self._log_response(response, client_ip)
             
+            # Store conversation turn in history if enabled
+            if session_id:
+                await self._store_conversation_turn(
+                    session_id=session_id,
+                    user_message=message,
+                    assistant_response=response,
+                    user_id=user_id,
+                    api_key=api_key,
+                    metadata=metadata
+                )
+            
             # Log conversation if API key is provided
             if api_key:
                 await self._log_conversation(message, response, client_ip, api_key)
@@ -246,68 +368,117 @@ IMPORTANT: The user's message is in {language_name}. You MUST respond in {langua
             logger.error(f"Error processing chat: {str(e)}")
             return {"error": str(e)}
     
-    async def process_chat_stream(self, message: str, client_ip: str, collection_name: str, system_prompt_id: Optional[ObjectId] = None, api_key: Optional[str] = None):
+    async def process_chat_stream(self, message: str, client_ip: str, collection_name: str, 
+                                 system_prompt_id: Optional[ObjectId] = None, api_key: Optional[str] = None,
+                                 session_id: Optional[str] = None, user_id: Optional[str] = None):
         try:
             # Use base processing
-            enhanced_prompt_id, _ = await self._process_chat_base(message, client_ip, collection_name, system_prompt_id, api_key)
+            enhanced_prompt_id, _, metadata = await self._process_chat_base(
+                message, client_ip, collection_name, system_prompt_id, api_key, session_id, user_id
+            )
+            
+            # Get conversation context if session is provided
+            context_messages = await self._get_conversation_context(session_id)
+            
+            # Create a unique stream ID for this session
+            stream_id = f"{session_id}_{id(message)}"
+            
+            # Initialize thread-safe queue and lock for this stream
+            self._stream_queues[stream_id] = Queue()
+            self._stream_locks[stream_id] = threading.Lock()
             
             # Generate and stream response
             accumulated_text = ""
             
-            # Choose the correct call based on whether we're using an in-memory override or a prompt ID
-            if enhanced_prompt_id is None:
-                # If enhanced_prompt_id is None, we've set an override prompt in memory
-                stream_generator = self.llm_client.generate_response_stream(
-                    message=message,
-                    collection_name=collection_name
-                )
-            else:
-                stream_generator = self.llm_client.generate_response_stream(
-                    message=message,
-                    collection_name=collection_name,
-                    system_prompt_id=enhanced_prompt_id
-                )
-                
-            async for chunk in stream_generator:
-                try:
-                    chunk_data = json.loads(chunk)
+            try:
+                # Choose the correct call based on whether we're using an in-memory override or a prompt ID
+                if enhanced_prompt_id is None:
+                    # If enhanced_prompt_id is None, we've set an override prompt in memory
+                    stream_generator = self.llm_client.generate_response_stream(
+                        message=message,
+                        collection_name=collection_name,
+                        context_messages=context_messages
+                    )
+                else:
+                    stream_generator = self.llm_client.generate_response_stream(
+                        message=message,
+                        collection_name=collection_name,
+                        system_prompt_id=enhanced_prompt_id,
+                        context_messages=context_messages
+                    )
                     
-                    # If there's an error in the chunk, yield it and stop
-                    if "error" in chunk_data:
-                        yield f"data: {chunk}\n\n"
-                        break
+                async for chunk in stream_generator:
+                    try:
+                        chunk_data = json.loads(chunk)
                         
-                    # If there's a response, process it
-                    if "response" in chunk_data:
-                        # Clean and format the response
-                        cleaned_chunk = fix_text_formatting(chunk_data["response"])
-                        accumulated_text += cleaned_chunk
-                        
-                        # Send the accumulated text so far
-                        yield f"data: {json.dumps({'text': accumulated_text})}\n\n"
-                    
-                    # If we have sources or done marker, pass them through
-                    if chunk_data.get("done", False) or "sources" in chunk_data:
-                        yield f"data: {chunk}\n\n"
-                        
-                        if chunk_data.get("done", False):
-                            # Log the complete response when done
-                            await self._log_response(accumulated_text, client_ip)
+                        # If there's an error in the chunk, yield it and stop
+                        if "error" in chunk_data:
+                            yield f"data: {chunk}\n\n"
                             
-                            # Log conversation to Elasticsearch if API key is provided
-                            if api_key:
-                                await self._log_conversation(message, accumulated_text, client_ip, api_key)
+                            # Store blocked message in history if enabled
+                            if session_id:
+                                await self._store_conversation_turn(
+                                    session_id=session_id,
+                                    user_message=message,
+                                    assistant_response=f"[BLOCKED] {chunk_data['error']}",
+                                    user_id=user_id,
+                                    api_key=api_key,
+                                    metadata={**metadata, "blocked": True}
+                                )
+                            break
                             
-                            # Clear the override after use if we used in-memory override
-                            if enhanced_prompt_id is None:
-                                if hasattr(self.llm_client, 'clear_override_system_prompt'):
-                                    self.llm_client.clear_override_system_prompt()
-                                elif hasattr(self.llm_client, 'override_system_prompt'):
-                                    self.llm_client.override_system_prompt = None
+                        # If there's a response, process it
+                        if "response" in chunk_data:
+                            # Clean and format the response
+                            cleaned_chunk = fix_text_formatting(chunk_data["response"])
+                            
+                            # Thread-safe accumulation
+                            with self._stream_locks[stream_id]:
+                                accumulated_text += cleaned_chunk
+                            
+                            # Send the accumulated text so far
+                            yield f"data: {json.dumps({'text': accumulated_text})}\n\n"
+                        
+                        # If we have sources or done marker, pass them through
+                        if chunk_data.get("done", False) or "sources" in chunk_data:
+                            yield f"data: {chunk}\n\n"
+                            
+                            if chunk_data.get("done", False):
+                                # Log the complete response when done
+                                await self._log_response(accumulated_text, client_ip)
                                 
-                except json.JSONDecodeError:
-                    logger.error(f"Error parsing chunk as JSON: {chunk}")
-                    continue
+                                # Store conversation turn in history if enabled
+                                if session_id and accumulated_text:
+                                    await self._store_conversation_turn(
+                                        session_id=session_id,
+                                        user_message=message,
+                                        assistant_response=accumulated_text,
+                                        user_id=user_id,
+                                        api_key=api_key,
+                                        metadata=metadata
+                                    )
+                                
+                                # Log conversation to Elasticsearch if API key is provided
+                                if api_key:
+                                    await self._log_conversation(message, accumulated_text, client_ip, api_key)
+                                
+                                # Clear the override after use if we used in-memory override
+                                if enhanced_prompt_id is None:
+                                    if hasattr(self.llm_client, 'clear_override_system_prompt'):
+                                        self.llm_client.clear_override_system_prompt()
+                                    elif hasattr(self.llm_client, 'override_system_prompt'):
+                                        self.llm_client.override_system_prompt = None
+                                
+                    except json.JSONDecodeError:
+                        logger.error(f"Error parsing chunk as JSON: {chunk}")
+                        continue
+                        
+            finally:
+                # Clean up stream resources
+                if stream_id in self._stream_queues:
+                    del self._stream_queues[stream_id]
+                if stream_id in self._stream_locks:
+                    del self._stream_locks[stream_id]
                 
         except Exception as e:
             logger.error(f"Error processing chat stream: {str(e)}")

@@ -157,7 +157,8 @@ class QAVLLMClient(BaseLLMClient, LLMClientCommon):
         self, 
         message: str, 
         collection_name: str,
-        system_prompt_id: Optional[str] = None
+        system_prompt_id: Optional[str] = None,
+        context_messages: Optional[List[Dict[str, str]]] = None
     ) -> Dict[str, Any]:
         """
         Generate a response for a chat message using vLLM.
@@ -166,6 +167,7 @@ class QAVLLMClient(BaseLLMClient, LLMClientCommon):
             message: The user's message
             collection_name: Name of the collection to query for context
             system_prompt_id: Optional ID of a system prompt to use
+            context_messages: Optional list of previous conversation messages
             
         Returns:
             Dictionary containing response and metadata
@@ -199,21 +201,32 @@ class QAVLLMClient(BaseLLMClient, LLMClientCommon):
                     "processing_time": 0
                 }
             
-            # Prepare the prompt with context
-            prompt = await self._prepare_prompt_with_context(message, system_prompt, context)
+            # Prepare messages for the API call
+            messages = []
             
-            # Call the vLLM API
-            start_time = time.time()
+            # Add context messages if provided
+            if context_messages:
+                messages.extend(context_messages)
+            
+            # Add system message if provided
+            if system_prompt:
+                messages.append({"role": "system", "content": system_prompt})
+            
+            # Add the current message with context
+            messages.append({"role": "user", "content": f"Context information:\n{context}\n\nUser Query: {message}"})
             
             if self.verbose:
                 self.logger.info(f"Calling vLLM API for inference")
                 
+            # Call the vLLM API
+            start_time = time.time()
+            
             async with aiohttp.ClientSession() as session:
                 async with session.post(
-                    f"{self.base_url}/v1/completions",
+                    f"{self.base_url}/v1/chat/completions",
                     json={
                         "model": self.model,
-                        "prompt": prompt,
+                        "messages": messages,
                         "temperature": self.temperature,
                         "top_p": self.top_p,
                         "top_k": self.top_k,
@@ -233,7 +246,7 @@ class QAVLLMClient(BaseLLMClient, LLMClientCommon):
             
             # Extract the response and metadata
             choices = data.get("choices", [])
-            response_text = choices[0].get("text", "") if choices else ""
+            response_text = choices[0].get("message", {}).get("content", "") if choices else ""
             
             # Apply quality checks to non-streaming responses too
             if len(response_text) > self.max_response_length:
@@ -313,7 +326,8 @@ class QAVLLMClient(BaseLLMClient, LLMClientCommon):
         self, 
         message: str, 
         collection_name: str,
-        system_prompt_id: Optional[str] = None
+        system_prompt_id: Optional[str] = None,
+        context_messages: Optional[List[Dict[str, str]]] = None
     ) -> AsyncGenerator[str, None]:
         """
         Generate a streaming response for a chat message using vLLM.
@@ -322,6 +336,7 @@ class QAVLLMClient(BaseLLMClient, LLMClientCommon):
             message: The user's message
             collection_name: Name of the collection to query for context
             system_prompt_id: Optional ID of a system prompt to use
+            context_messages: Optional list of previous conversation messages
             
         Yields:
             Chunks of the response as they are generated
@@ -356,8 +371,19 @@ class QAVLLMClient(BaseLLMClient, LLMClientCommon):
                 })
                 return
             
-            # Prepare the prompt with context
-            prompt = await self._prepare_prompt_with_context(message, system_prompt, context)
+            # Prepare messages for the API call
+            messages = []
+            
+            # Add context messages if provided
+            if context_messages:
+                messages.extend(context_messages)
+            
+            # Add system message if provided
+            if system_prompt:
+                messages.append({"role": "system", "content": system_prompt})
+            
+            # Add the current message with context
+            messages.append({"role": "user", "content": f"Context information:\n{context}\n\nUser Query: {message}"})
             
             if self.verbose:
                 self.logger.info(f"Calling vLLM API with streaming enabled")
@@ -365,10 +391,10 @@ class QAVLLMClient(BaseLLMClient, LLMClientCommon):
             # Call the vLLM API
             async with aiohttp.ClientSession() as session:
                 async with session.post(
-                    f"{self.base_url}/v1/completions",
+                    f"{self.base_url}/v1/chat/completions",
                     json={
                         "model": self.model,
-                        "prompt": prompt,
+                        "messages": messages,
                         "temperature": self.temperature,
                         "top_p": self.top_p,
                         "top_k": self.top_k,
@@ -419,7 +445,7 @@ class QAVLLMClient(BaseLLMClient, LLMClientCommon):
                             choices = data.get("choices", [])
                             # Make sure we have at least one choice
                             choice = choices[0] if choices else {}
-                            text = choice.get("text", "")
+                            text = choice.get("delta", {}).get("content", "")
                             finished = choice.get("finish_reason") is not None
                             
                             # Check token usage with proper null handling
@@ -477,7 +503,7 @@ class QAVLLMClient(BaseLLMClient, LLMClientCommon):
                             continue
         except Exception as e:
             self.logger.error(f"Error generating streaming response: {str(e)}")
-            yield json.dumps({"error": f"Failed to generate response: {str(e)}", "done": True}) 
+            yield json.dumps({"error": f"Failed to generate response: {str(e)}", "done": True})
 
     def _clean_response(self, text: str) -> str:
         """

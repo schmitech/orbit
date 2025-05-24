@@ -2,7 +2,7 @@ import json
 import time
 import logging
 import os
-from typing import Any, Dict, Optional, AsyncGenerator
+from typing import Any, Dict, Optional, AsyncGenerator, List
 
 from ..base_llm_client import BaseLLMClient
 from ..llm_client_common import LLMClientCommon
@@ -85,7 +85,8 @@ class OpenRouterClient(BaseLLMClient, LLMClientCommon):
         self,
         message: str,
         collection_name: str,
-        system_prompt_id: Optional[str] = None
+        system_prompt_id: Optional[str] = None,
+        context_messages: Optional[List[Dict[str, str]]] = None
     ) -> Dict[str, Any]:
         """Non-streaming chat completion using OpenRouter.ai."""
         is_safe, refusal_message = await self._check_message_safety(message)
@@ -111,10 +112,19 @@ class OpenRouterClient(BaseLLMClient, LLMClientCommon):
             await self.initialize()
 
         start = time.time()
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": f"Context information:\n{context}\n\nUser Query: {message}"}
-        ]
+        messages = []
+        
+        # Add context messages if provided
+        if context_messages:
+            messages.extend(context_messages)
+        
+        # Add system message if provided
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        
+        # Add the current message with context
+        messages.append({"role": "user", "content": f"Context information:\n{context}\n\nUser Query: {message}"})
+        
         params = {
             "model": self.model,
             "messages": messages,
@@ -147,7 +157,8 @@ class OpenRouterClient(BaseLLMClient, LLMClientCommon):
         self,
         message: str,
         collection_name: str,
-        system_prompt_id: Optional[str] = None
+        system_prompt_id: Optional[str] = None,
+        context_messages: Optional[List[Dict[str, str]]] = None
     ) -> AsyncGenerator[str, None]:
         """Streaming chat completion using OpenRouter.ai."""
         is_safe, refusal_message = await self._check_message_safety(message)
@@ -174,10 +185,19 @@ class OpenRouterClient(BaseLLMClient, LLMClientCommon):
             await self.initialize()
 
         start = time.time()
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": f"Context information:\n{context}\n\nUser Query: {message}"}
-        ]
+        messages = []
+        
+        # Add context messages if provided
+        if context_messages:
+            messages.extend(context_messages)
+        
+        # Add system message if provided
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        
+        # Add the current message with context
+        messages.append({"role": "user", "content": f"Context information:\n{context}\n\nUser Query: {message}"})
+        
         params = {
             "model": self.model,
             "messages": messages,

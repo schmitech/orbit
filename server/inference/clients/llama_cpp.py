@@ -139,7 +139,8 @@ class QALlamaCppClient(BaseLLMClient, LLMClientCommon):
         self, 
         message: str, 
         collection_name: str,
-        system_prompt_id: Optional[str] = None
+        system_prompt_id: Optional[str] = None,
+        context_messages: Optional[List[Dict[str, str]]] = None
     ) -> Dict[str, Any]:
         """
         Generate a response for a chat message using llama.cpp.
@@ -148,6 +149,7 @@ class QALlamaCppClient(BaseLLMClient, LLMClientCommon):
             message: The user's message
             collection_name: Name of the collection to query for context
             system_prompt_id: Optional ID of a system prompt to use
+            context_messages: Optional list of previous conversation messages
             
         Returns:
             Dictionary containing response and metadata
@@ -183,6 +185,10 @@ class QALlamaCppClient(BaseLLMClient, LLMClientCommon):
             
             # Create messages for chat completion
             messages = []
+            
+            # Add context messages if provided
+            if context_messages:
+                messages.extend(context_messages)
             
             # Add system message if provided
             if system_prompt:
@@ -269,7 +275,8 @@ class QALlamaCppClient(BaseLLMClient, LLMClientCommon):
         self, 
         message: str, 
         collection_name: str,
-        system_prompt_id: Optional[str] = None
+        system_prompt_id: Optional[str] = None,
+        context_messages: Optional[List[Dict[str, str]]] = None
     ) -> AsyncGenerator[str, None]:
         """
         Generate a streaming response for a chat message using llama.cpp.
@@ -278,6 +285,7 @@ class QALlamaCppClient(BaseLLMClient, LLMClientCommon):
             message: The user's message
             collection_name: Name of the collection to query for context
             system_prompt_id: Optional ID of a system prompt to use
+            context_messages: Optional list of previous conversation messages
             
         Yields:
             Chunks of the response as they are generated
@@ -314,6 +322,10 @@ class QALlamaCppClient(BaseLLMClient, LLMClientCommon):
             
             # Create messages for chat completion
             messages = []
+            
+            # Add context messages if provided
+            if context_messages:
+                messages.extend(context_messages)
             
             # Add system message if provided
             if system_prompt:

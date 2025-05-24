@@ -2,7 +2,7 @@ import json
 import time
 import logging
 import torch
-from typing import Any, Optional, AsyncGenerator
+from typing import Any, Optional, AsyncGenerator, List, Dict
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from ..base_llm_client import BaseLLMClient
@@ -83,7 +83,8 @@ class HuggingFaceClient(BaseLLMClient, LLMClientCommon):
         self,
         message: str,
         collection_name: str,
-        system_prompt_id: Optional[str] = None
+        system_prompt_id: Optional[str] = None,
+        context_messages: Optional[List[Dict[str, str]]] = None
     ) -> AsyncGenerator[dict, None]:
         """Generate response using Hugging Face model."""
         try:
@@ -124,7 +125,34 @@ class HuggingFaceClient(BaseLLMClient, LLMClientCommon):
                 return
 
             await self.initialize()
-            prompt = f"{system_prompt}\n{context}\nUser: {message}\nAssistant:"
+
+            # Build the prompt with context messages
+            prompt_parts = []
+            
+            # Add system prompt if provided
+            if system_prompt:
+                prompt_parts.append(f"System: {system_prompt}")
+            
+            # Add context information
+            if context:
+                prompt_parts.append(f"Context information:\n{context}")
+            
+            # Add context messages if provided
+            if context_messages:
+                for msg in context_messages:
+                    role = msg.get("role", "user")
+                    content = msg.get("content", "")
+                    if role == "user":
+                        prompt_parts.append(f"User: {content}")
+                    elif role == "assistant":
+                        prompt_parts.append(f"Assistant: {content}")
+            
+            # Add the current message
+            prompt_parts.append(f"User: {message}")
+            prompt_parts.append("Assistant:")
+            
+            # Join all parts with newlines
+            prompt = "\n".join(prompt_parts)
 
             inputs = self.tokenizer(prompt, return_tensors="pt", padding=True, truncation=True).to(self.device)
             start = time.time()
@@ -180,7 +208,8 @@ class HuggingFaceClient(BaseLLMClient, LLMClientCommon):
         self,
         message: str,
         collection_name: str,
-        system_prompt_id: Optional[str] = None
+        system_prompt_id: Optional[str] = None,
+        context_messages: Optional[List[Dict[str, str]]] = None
     ) -> AsyncGenerator[str, None]:
         """Stream response using Hugging Face model."""
         try:
@@ -200,7 +229,7 @@ class HuggingFaceClient(BaseLLMClient, LLMClientCommon):
                 return
 
             await self.initialize()
-            async for result in self.generate_response(message, collection_name, system_prompt_id):
+            async for result in self.generate_response(message, collection_name, system_prompt_id, context_messages):
                 if "error" in result:
                     yield json.dumps({
                         "error": result["error"],

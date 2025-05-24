@@ -145,24 +145,54 @@ class LLMClientCommon:
             "done": True
         })
     
-    async def _prepare_prompt_with_context(self, message: str, system_prompt: str, context: str) -> str:
+    async def _prepare_prompt_with_context(
+        self, 
+        message: str, 
+        system_prompt: str, 
+        context: str,
+        context_messages: Optional[List[Dict[str, str]]] = None
+    ) -> str:
         """
-        Prepare the full prompt with system prompt, context and user message.
+        Prepare the full prompt with system prompt, context, conversation history and user message.
         
         Args:
             message: The user's message
             system_prompt: The system prompt to use
             context: The context from retrieved documents
+            context_messages: Optional list of previous conversation messages
             
         Returns:
             Formatted prompt string
         """
-        if self.inference_only:
-            # In inference_only mode, just use the system prompt and user message
-            prompt = f"{system_prompt}\n\nUser: {message}\nAssistant:"
-        else:
-            # Normal mode with RAG
-            prompt = f"{system_prompt}\n\nContext information:\n{context}\n\nUser: {message}\nAssistant:"
+        # Start with system prompt
+        prompt_parts = [system_prompt]
+        
+        # Add context if not in inference_only mode
+        if not self.inference_only and context:
+            prompt_parts.append(f"\nContext information:\n{context}")
+        
+        # Add conversation history if available
+        if context_messages:
+            conversation_history = []
+            for msg in context_messages:
+                role = msg.get('role', '').lower()
+                content = msg.get('content', '')
+                if role and content:
+                    if role == 'user':
+                        conversation_history.append(f"User: {content}")
+                    elif role == 'assistant':
+                        conversation_history.append(f"Assistant: {content}")
+            
+            if conversation_history:
+                prompt_parts.append("\nPrevious conversation:")
+                prompt_parts.extend(conversation_history)
+        
+        # Add current user message
+        prompt_parts.append(f"\nUser: {message}")
+        prompt_parts.append("Assistant:")
+        
+        # Join all parts with newlines
+        prompt = "\n".join(prompt_parts)
         
         if getattr(self, 'verbose', False):
             self.logger.debug(f"Prepared prompt length: {len(prompt)} characters")

@@ -1,15 +1,16 @@
 #!/bin/bash
 set -e
 
+# Parse command line arguments
+VERSION=${1:-"1.0.0"}  # Use first argument or default to 1.0.0
+PACKAGE_NAME="orbit-${VERSION}"
+
 # Set up logging
 LOG_FILE="build-$(date +%Y%m%d-%H%M%S).log"
 exec > >(tee -a "$LOG_FILE") 2>&1
 echo "Build started at $(date)"
 echo "Logging to $LOG_FILE"
-
-# Version information
-VERSION="1.0.0"
-PACKAGE_NAME="orbit-${VERSION}"
+echo "Building version: ${VERSION}"
 
 # Function to check Python version
 check_python_version() {

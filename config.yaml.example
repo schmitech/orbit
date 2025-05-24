@@ -1,6 +1,6 @@
 general:
   port: 3000
-  verbose: false
+  verbose: true
   https:
     enabled: false
     port: 3443
@@ -21,7 +21,6 @@ messages:
 embedding:
   provider: "ollama"
   enabled: false
-  fail_on_error: false
 
 api_keys:
   header_name: "X-API-Key"
@@ -68,6 +67,23 @@ internal_services:
     apikey_collection: "api_keys"
     username: ${INTERNAL_SERVICES_MONGODB_USERNAME}
     password: ${INTERNAL_SERVICES_MONGODB_PASSWORD}
+
+chat_history:
+  enabled: true
+  default_limit: 20
+  store_metadata: true
+  retention_days: 1
+  session:
+    auto_generate: true
+    required: true
+    header_name: "X-Session-ID"
+  user:
+    header_name: "X-User-ID"
+    required: false
+  cache:
+    max_cached_messages: 50
+    max_cached_sessions: 100
+    ttl_seconds: 3600
 
   redis:
     enabled: false
@@ -252,7 +268,7 @@ inference:
     top_p: 0.8
     top_k: 20
     max_tokens: 1024
-    credentials_path: ""  # Path to service account key file, if not using default credentials
+    credentials_path: ""
     stream: true
   aws:
     access_key: ${AWS_BEDROCK_ACCESS_KEY}
@@ -289,7 +305,7 @@ inference:
   anthropic:
     api_key: ${ANTHROPIC_API_KEY}
     api_base: "https://api.anthropic.com/v1"
-    model: "claude-3-opus-20240229"
+    model: "claude-sonnet-4-20250514"
     temperature: 0.1
     top_p: 0.8
     max_tokens: 1024
@@ -403,4 +419,4 @@ rerankers:
     temperature: 0.0
     max_tokens: 256
     batch_size: 8
-    credentials_path: ""
+    credentials_path: ""  # Path to service account key file

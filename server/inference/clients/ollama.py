@@ -104,7 +104,8 @@ class OllamaClient(BaseLLMClient, LLMClientCommon):
         self, 
         message: str, 
         collection_name: str,
-        system_prompt_id: Optional[str] = None
+        system_prompt_id: Optional[str] = None,
+        context_messages: Optional[List[Dict[str, str]]] = None
     ) -> Dict[str, Any]:
         """
         Generate a response for a chat message using Ollama.
@@ -113,6 +114,7 @@ class OllamaClient(BaseLLMClient, LLMClientCommon):
             message: The user's message
             collection_name: Name of the collection to query for context
             system_prompt_id: Optional ID of a system prompt to use
+            context_messages: Optional list of previous conversation messages
             
         Returns:
             Dictionary containing response and metadata
@@ -143,8 +145,13 @@ class OllamaClient(BaseLLMClient, LLMClientCommon):
             # Get the system prompt
             system_prompt = await self._get_system_prompt(system_prompt_id)
             
-            # Prepare the prompt with context
-            prompt = await self._prepare_prompt_with_context(message, system_prompt, context)
+            # Prepare the prompt with context and conversation history
+            prompt = await self._prepare_prompt_with_context(
+                message, 
+                system_prompt, 
+                context,
+                context_messages=context_messages
+            )
             
             # Call the Ollama API
             start_time = time.time()
@@ -192,7 +199,8 @@ class OllamaClient(BaseLLMClient, LLMClientCommon):
         self, 
         message: str, 
         collection_name: str,
-        system_prompt_id: Optional[str] = None
+        system_prompt_id: Optional[str] = None,
+        context_messages: Optional[List[Dict[str, str]]] = None
     ) -> AsyncGenerator[str, None]:
         """
         Generate a streaming response for a chat message using Ollama.
@@ -201,6 +209,7 @@ class OllamaClient(BaseLLMClient, LLMClientCommon):
             message: The user's message
             collection_name: Name of the collection to query for context
             system_prompt_id: Optional ID of a system prompt to use
+            context_messages: Optional list of previous conversation messages
             
         Yields:
             Chunks of the response as they are generated
@@ -232,8 +241,13 @@ class OllamaClient(BaseLLMClient, LLMClientCommon):
             # Get the system prompt
             system_prompt = await self._get_system_prompt(system_prompt_id)
             
-            # Prepare the prompt with context
-            prompt = await self._prepare_prompt_with_context(message, system_prompt, context)
+            # Prepare the prompt with context and conversation history
+            prompt = await self._prepare_prompt_with_context(
+                message, 
+                system_prompt, 
+                context,
+                context_messages=context_messages
+            )
             
             # Call the Ollama API
             async with aiohttp.ClientSession() as session:

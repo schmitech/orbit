@@ -107,7 +107,8 @@ class TogetherAIClient(BaseLLMClient, LLMClientCommon):
         self,
         message: str,
         collection_name: str,
-        system_prompt_id: Optional[str] = None
+        system_prompt_id: Optional[str] = None,
+        context_messages: Optional[List[Dict[str, str]]] = None
     ) -> Dict[str, Any]:
         '''Generate a response using Together.ai.'''
         is_safe, refusal_message = await self._check_message_safety(message)
@@ -132,10 +133,18 @@ class TogetherAIClient(BaseLLMClient, LLMClientCommon):
         if not self.client:
             await self.initialize()
 
-        messages = [
-            {'role': 'system', 'content': system_prompt},
-            {'role': 'user', 'content': f'Context information:\n{context}\n\nUser Query: {message}'}
-        ]
+        # Prepare messages for the API call
+        messages = [{"role": "system", "content": system_prompt}]
+        
+        # Add context messages if provided
+        if context_messages:
+            messages.extend(context_messages)
+        
+        # Add the current message with context
+        messages.append({
+            "role": "user", 
+            "content": f"Context information:\n{context}\n\nUser Query: {message}"
+        })
 
         start_time = time.time()
         try:
@@ -171,7 +180,8 @@ class TogetherAIClient(BaseLLMClient, LLMClientCommon):
         self,
         message: str,
         collection_name: str,
-        system_prompt_id: Optional[str] = None
+        system_prompt_id: Optional[str] = None,
+        context_messages: Optional[List[Dict[str, str]]] = None
     ) -> AsyncGenerator[str, None]:
         '''Generate a streaming response using Together.ai.'''
         is_safe, refusal_message = await self._check_message_safety(message)
@@ -197,10 +207,18 @@ class TogetherAIClient(BaseLLMClient, LLMClientCommon):
         if not self.client:
             await self.initialize()
 
-        messages = [
-            {'role': 'system', 'content': system_prompt},
-            {'role': 'user', 'content': f'Context information:\n{context}\n\nUser Query: {message}'}
-        ]
+        # Prepare messages for the API call
+        messages = [{"role": "system", "content": system_prompt}]
+        
+        # Add context messages if provided
+        if context_messages:
+            messages.extend(context_messages)
+        
+        # Add the current message with context
+        messages.append({
+            "role": "user", 
+            "content": f"Context information:\n{context}\n\nUser Query: {message}"
+        })
 
         try:
             params = {

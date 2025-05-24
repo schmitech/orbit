@@ -99,7 +99,8 @@ class AnthropicClient(BaseLLMClient, LLMClientCommon):
         self, 
         message: str, 
         collection_name: str,
-        system_prompt_id: Optional[str] = None
+        system_prompt_id: Optional[str] = None,
+        context_messages: Optional[List[Dict[str, str]]] = None
     ) -> Dict[str, Any]:
         """
         Generate a response for a chat message using Anthropic.
@@ -108,6 +109,7 @@ class AnthropicClient(BaseLLMClient, LLMClientCommon):
             message: The user's message
             collection_name: Name of the collection to query for context
             system_prompt_id: Optional ID of a system prompt to use
+            context_messages: Optional list of previous conversation messages
             
         Returns:
             Dictionary containing response and metadata
@@ -155,9 +157,14 @@ class AnthropicClient(BaseLLMClient, LLMClientCommon):
             user_message = f"Context information:\n{context}\n\nUser Query: {message}"
             
             # Prepare messages for the API call using the recommended format
-            messages = [
-                {"role": "user", "content": user_message}
-            ]
+            messages = []
+            
+            # Add context messages if provided
+            if context_messages:
+                messages.extend(context_messages)
+            
+            # Add the current message
+            messages.append({"role": "user", "content": user_message})
             
             try:
                 response = await self.anthropic_client.messages.create(
@@ -216,7 +223,8 @@ class AnthropicClient(BaseLLMClient, LLMClientCommon):
         self, 
         message: str, 
         collection_name: str,
-        system_prompt_id: Optional[str] = None
+        system_prompt_id: Optional[str] = None,
+        context_messages: Optional[List[Dict[str, str]]] = None
     ) -> AsyncGenerator[str, None]:
         """
         Generate a streaming response for a chat message using Anthropic.
@@ -225,6 +233,7 @@ class AnthropicClient(BaseLLMClient, LLMClientCommon):
             message: The user's message
             collection_name: Name of the collection to query for context
             system_prompt_id: Optional ID of a system prompt to use
+            context_messages: Optional list of previous conversation messages
             
         Yields:
             Chunks of the response as they are generated
@@ -270,14 +279,19 @@ class AnthropicClient(BaseLLMClient, LLMClientCommon):
             user_message = f"Context information:\n{context}\n\nUser Query: {message}"
             
             # Prepare messages for the API call using the recommended format
-            messages = [
-                {"role": "user", "content": user_message}
-            ]
+            messages = []
+            
+            # Add context messages if provided
+            if context_messages:
+                messages.extend(context_messages)
+            
+            # Add the current message
+            messages.append({"role": "user", "content": user_message})
             
             chunk_count = 0
             # Generate streaming response
             try:
-                with await self.anthropic_client.messages.stream(
+                async with self.anthropic_client.messages.stream(
                     model=self.model,
                     messages=messages,
                     system=system_prompt,
