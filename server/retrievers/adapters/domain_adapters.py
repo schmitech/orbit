@@ -252,25 +252,38 @@ class DocumentAdapterFactory:
 # Register adapters with the registry
 def register_adapters():
     """Register all built-in adapters with the registry"""
+    logger.info("Registering built-in domain adapters...")
+    
     # Register adapters for all supported datasources
     for datasource in ['sqlite', 'chroma']:
-        # Register QA document adapter
+        # Register QA document adapter with default config
         ADAPTER_REGISTRY.register(
             adapter_type="retriever",
             datasource=datasource,
             adapter_name="qa",
-            factory_func=lambda **kwargs: QADocumentAdapter(**kwargs)
+            implementation='retrievers.adapters.domain_adapters.QADocumentAdapter',
+            config={
+                'confidence_threshold': 0.7,
+                'boost_exact_matches': False,
+                'verbose': False
+            }
         )
+        logger.info(f"Registered QA adapter for {datasource}")
         
-        # Register Generic document adapter
+        # Register Generic document adapter with default config
         ADAPTER_REGISTRY.register(
             adapter_type="retriever",
             datasource=datasource,
             adapter_name="generic",
-            factory_func=lambda **kwargs: GenericDocumentAdapter(**kwargs)
+            implementation='retrievers.adapters.domain_adapters.GenericDocumentAdapter',
+            config={
+                'confidence_threshold': 0.3,
+                'verbose': False
+            }
         )
+        logger.info(f"Registered Generic adapter for {datasource}")
     
-    logger.info("Registered built-in domain adapters with the registry")
+    logger.info("Built-in domain adapters registration complete")
 
 # Register adapters when module is imported
 register_adapters()

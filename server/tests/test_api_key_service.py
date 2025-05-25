@@ -42,12 +42,12 @@ except ImportError as e:
 TEST_CONFIG = {
     'internal_services': {
         'mongodb': {
-            'host': 'orbit.yp0onu1.mongodb.net',
+            'host': 'localhost',
             'port': 27017,
             'database': 'orbit_test',
             'apikey_collection': 'api_keys_test',
             'username': 'orbit',
-            'password': 'mongodb-password'
+            'password': 'password'
         }
     },
     'general': {

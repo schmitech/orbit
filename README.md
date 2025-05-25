@@ -1,6 +1,4 @@
 <div align="center">
-  <img src="orbit.png" width="200" height="200" alt="ORBIT">
-  
   <h1>ORBIT</h1>
   <h2><strong>Open Retrieval-Based Inference Toolkit</strong></h2>
   
@@ -18,6 +16,8 @@
 ORBIT is a modular, self-hosted toolkit that provides a unified API for open-source AI inference models. It enables you to interact AI models on your own infrastructure, maintaining complete control over your data while eliminating commercial API dependencies.
 
 Visit the official ORBIT website for more information: https://orbit.schmitech.ai/
+
+![ORBIT Chat Demo](https://res.cloudinary.com/dk87ffid0/image/upload/v1748117452/orbit-chat_uiy8kd.gif)
 
 ## Sovereignty and Data Control
 

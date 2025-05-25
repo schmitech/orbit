@@ -119,8 +119,8 @@ def _log_config_summary(config: Dict[str, Any], source_path: str):
     es_config = config.get('internal_services', {}).get('elasticsearch', {})
     if _is_true_value(es_config.get('enabled', False)):
         es_node = _mask_url(es_config.get('node', ''))
-        has_api_key = bool(es_config.get('api_key'))
-        logger.info(f"  Elasticsearch: enabled=True, node={es_node}, index={es_config.get('index')}, auth='API Key'")
+        has_credentials = bool(es_config.get('username') and es_config.get('password'))
+        logger.info(f"  Elasticsearch: enabled=True, node={es_node}, index={es_config.get('index')}, auth='Basic Auth'")
     
     # MongoDB settings - mask credentials
     mongodb_config = config.get('internal_services', {}).get('mongodb', {})
@@ -514,7 +514,8 @@ def get_default_config() -> Dict[str, Any]:
                 "enabled": False,
                 "node": "http://localhost:9200",
                 "index": "orbit",
-                "api_key": ""
+                "username": "${INTERNAL_SERVICES_ELASTICSEARCH_USERNAME}",
+                "password": "${INTERNAL_SERVICES_ELASTICSEARCH_PASSWORD}"
             },
             "mongodb": {
                 "host": "localhost",
@@ -552,5 +553,26 @@ def get_default_config() -> Dict[str, Any]:
                     "return_results": 3
                 }
             }
-        ]
+        ],
+        "chat_history": {
+            "enabled": True,
+            "collection_name": "chat_history",
+            "default_limit": 20,
+            "store_metadata": True,
+            "retention_days": 1,
+            "session": {
+                "auto_generate": True,
+                "required": True,
+                "header_name": "X-Session-ID"
+            },
+            "user": {
+                "header_name": "X-User-ID",
+                "required": False
+            },
+            "cache": {
+                "max_cached_messages": 50,
+                "max_cached_sessions": 100,
+                "ttl_seconds": 3600
+            }
+        }
     }

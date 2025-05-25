@@ -83,26 +83,25 @@ class LoggerService:
             logger.info("Elasticsearch logging is disabled in configuration")
             return
 
-        # Get API key from environment variables
-        api_key = os.environ.get("INTERNAL_SERVICES_ELASTICSEARCH_API_KEY")
+        # Get credentials from environment variables
+        username = os.environ.get("INTERNAL_SERVICES_ELASTICSEARCH_USERNAME")
+        password = os.environ.get("INTERNAL_SERVICES_ELASTICSEARCH_PASSWORD")
         
-        # Validate we have a valid API key
-        if not api_key:
-            logger.warning("Elasticsearch API key not found in environment variables")
+        # Validate we have valid credentials
+        if not username or not password:
+            logger.warning("Elasticsearch credentials not found in environment variables")
             self.config["internal_services"]["elasticsearch"]["enabled"] = False
             return
 
         try:
             # Create Elasticsearch client using the minimal configuration pattern
-            headers = {'Content-Type': 'application/json', 'Accept': 'application/json'}
             client_kwargs = {
-                "api_key": api_key,
+                "basic_auth": (username, password),
                 "verify_certs": False,
                 "ssl_show_warn": False,
                 "request_timeout": 30,
                 "retry_on_timeout": True,
-                "max_retries": 3,
-                "headers": headers
+                "max_retries": 3
             }
                 
             self.es_client = AsyncElasticsearch(
@@ -112,7 +111,7 @@ class LoggerService:
             
             # Ensure connection is reachable
             await asyncio.wait_for(self.es_client.ping(), timeout=5.0)
-            logger.info("Successfully connected to Elasticsearch using API key authentication")
+            logger.info("Successfully connected to Elasticsearch using basic authentication")
             await self._setup_elasticsearch_index()
         except asyncio.TimeoutError:
             logger.error("Elasticsearch connection timeout", exc_info=True)
@@ -160,8 +159,7 @@ class LoggerService:
                                         "type": {"type": "keyword"},
                                         "isLocal": {"type": "boolean"},
                                         "source": {"type": "keyword"},
-                                        "originalValue": {"type": "keyword"},
-                                        "potentialRisk": {"type": "boolean"}
+                                        "originalValue": {"type": "keyword"}
                                     }
                                 }
                             }
@@ -240,6 +238,14 @@ class LoggerService:
     ) -> None:
         """
         Log a chat interaction to Elasticsearch only.
+        
+        Args:
+            query: The user's query
+            response: The system's response
+            ip: The IP address of the user
+            backend: The backend used for the response
+            blocked: Whether the query was blocked by the guardrail service
+            api_key: The API key used for the request
         """
         timestamp = datetime.now()
         ip_metadata = self._format_ip_address(ip)
@@ -247,15 +253,25 @@ class LoggerService:
         # Use provided backend or fall back to inference_provider from config
         backend = backend or self.inference_provider
         
+        # Check if the response indicates a blocked query
+        blocked_phrases = [
+            "i cannot assist with that type of request",
+            "i cannot assist with that request",
+            "i'm unable to help with that",
+            "i cannot help with that"
+        ]
+        
+        # If the response contains any of the blocked phrases, mark as blocked
+        is_blocked = blocked or any(phrase in response.lower() for phrase in blocked_phrases)
+        
         log_data = {
             "timestamp": timestamp.isoformat(),
             "query": query,
             "response": response,
             "backend": backend,
-            "blocked": blocked,
+            "blocked": is_blocked,
             "ip": {
                 **ip_metadata,
-                "potentialRisk": blocked and not ip_metadata["isLocal"],
                 "timestamp": timestamp.isoformat()
             },
             "elasticsearch_status": "enabled" if (self.config.get("internal_services", {}).get("elasticsearch", {}).get("enabled", False)
@@ -268,7 +284,7 @@ class LoggerService:
                 "timestamp": timestamp.isoformat()
             }
 
-        await self._log_to_elasticsearch(log_data, timestamp, query, response, backend, blocked, ip_metadata)
+        await self._log_to_elasticsearch(log_data, timestamp, query, response, backend, is_blocked, ip_metadata)
 
     async def _log_to_elasticsearch(
         self,
@@ -300,8 +316,7 @@ class LoggerService:
                     "type": ip_metadata["type"],
                     "isLocal": ip_metadata["isLocal"],
                     "source": ip_metadata["source"],
-                    "originalValue": ip_metadata["originalValue"],
-                    "potentialRisk": blocked and not ip_metadata["isLocal"]
+                    "originalValue": ip_metadata["originalValue"]
                 }
             }
             if self.verbose:

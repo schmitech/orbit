@@ -67,7 +67,7 @@ class ChatHistoryService:
         self.redis_enabled = self.redis_config.get('enabled', False)
         
         # MongoDB collection name
-        self.collection_name = "chat_history"
+        self.collection_name = self.chat_history_config.get('collection_name', 'chat_history')
         
         # In-memory cache for active sessions (fallback if Redis unavailable)
         self._memory_cache = {}

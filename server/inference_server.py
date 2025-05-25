@@ -38,6 +38,8 @@ from services.chat_service import ChatService
 from services.chat_history_service import ChatHistoryService
 from utils.http_utils import close_all_aiohttp_sessions
 
+from routes.admin_routes import admin_router
+
 class InferenceServer:
     """
     A modular inference server built with FastAPI that provides chat endpoints
@@ -179,7 +181,6 @@ class InferenceServer:
         # Configure root logger first
         root_logger = logging.getLogger()
         root_logger.setLevel(log_level)
-        root_logger.propagate = False  # Disable propagation immediately
         
         # Clear existing handlers to prevent duplicates
         root_logger.handlers.clear()
@@ -189,18 +190,19 @@ class InferenceServer:
         json_formatter = jsonlogger.JsonFormatter('%(asctime)s %(levelname)s %(name)s %(message)s')
         
         # Configure console logging
-        console_enabled = _is_true_value(log_config.get('console', {}).get('enabled', True))
+        handlers = log_config.get('handlers', {})
+        console_enabled = _is_true_value(handlers.get('console', {}).get('enabled', True))
         if console_enabled:
             console_handler = logging.StreamHandler()
-            console_format = log_config.get('console', {}).get('format', 'text')
+            console_format = handlers.get('console', {}).get('format', 'text')
             console_handler.setFormatter(json_formatter if console_format == 'json' else text_formatter)
             console_handler.setLevel(log_level)
             root_logger.addHandler(console_handler)
         
         # Configure file logging
-        file_enabled = _is_true_value(log_config.get('file', {}).get('enabled', True))
+        file_enabled = _is_true_value(handlers.get('file', {}).get('enabled', True))
         if file_enabled:
-            file_config = log_config.get('file', {})
+            file_config = handlers.get('file', {})
             log_dir = file_config.get('directory', 'logs')
             os.makedirs(log_dir, exist_ok=True)
             
@@ -234,13 +236,18 @@ class InferenceServer:
                 logger = logging.getLogger(logger_name)
                 logger_level = getattr(logging, logger_config.get('level', 'INFO').upper())
                 logger.setLevel(logger_level)
-                logger.propagate = False  # Disable propagation for all loggers
+                logger.propagate = _is_true_value(log_config.get('propagate', False))
+        
+        # Set propagation for root logger
+        root_logger.propagate = _is_true_value(log_config.get('propagate', False))
         
         # Capture warnings if configured
         if _is_true_value(log_config.get('capture_warnings', True)):
             logging.captureWarnings(True)
         
+        # Get a new logger instance for this module
         self.logger = logging.getLogger(__name__)
+        self.logger.propagate = _is_true_value(log_config.get('propagate', False))
         self.logger.info("Logging configuration completed")
         
         # Handle verbose setting consistently
@@ -1196,6 +1203,10 @@ class InferenceServer:
         async def favicon():
             return Response(status_code=204)
 
+        # Include the admin router
+        from routes.admin_routes import admin_router
+        self.app.include_router(admin_router)
+
         async def validate_session_id(request: Request) -> str:
             """
             Validate the session ID from the request header.
@@ -1665,247 +1676,6 @@ class InferenceServer:
                     id=jsonrpc_request.id
                 )
 
-        # API Key management routes
-        @self.app.post("/admin/api-keys", response_model=ApiKeyResponse)
-        async def create_api_key(
-            api_key_data: ApiKeyCreate,
-            request: Request
-        ):
-            """
-            Create a new API key for accessing the server.
-            
-            This endpoint allows administrators to create API keys with:
-            - Collection-based access control
-            - Client identification
-            - Usage notes
-            - Optional system prompt association
-            
-            Security considerations:
-            - This is an admin-only endpoint
-            - Should be protected by additional authentication
-            - API keys should be stored securely
-            - Keys should be rotated periodically
-            
-            Args:
-                api_key_data: The API key creation request data
-                request: The incoming request
-                
-            Returns:
-                ApiKeyResponse containing the created API key and metadata
-                
-            Raises:
-                HTTPException: If API key creation fails or service is unavailable
-            """
-            # Check if inference_only is enabled
-            inference_only = _is_true_value(request.app.state.config.get('general', {}).get('inference_only', False))
-            if inference_only:
-                raise HTTPException(
-                    status_code=503, 
-                    detail="API key management is not available in inference-only mode"
-                )
-            
-            # Check if API key service is available
-            if not hasattr(request.app.state, 'api_key_service') or request.app.state.api_key_service is None:
-                raise HTTPException(
-                    status_code=503, 
-                    detail="API key service is not available"
-                )
-            
-            api_key_service = request.app.state.api_key_service
-            
-            api_key_response = await api_key_service.create_api_key(
-                api_key_data.collection_name,
-                api_key_data.client_name,
-                api_key_data.notes
-            )
-            
-            # Log with masked API key
-            masked_api_key = f"***{api_key_response['api_key'][-4:]}" if api_key_response.get('api_key') else "***"
-            self.logger.info(f"Created API key for collection '{api_key_data.collection_name}': {masked_api_key}")
-            
-            return api_key_response
-
-        @self.app.get("/admin/api-keys")
-        async def list_api_keys(
-            request: Request
-        ):
-            """
-            List all API keys in the system.
-            
-            This endpoint provides a list of all API keys with:
-            - Masked key values
-            - Collection associations
-            - Client information
-            - Creation timestamps
-            - Status information
-            
-            Security considerations:
-            - This is an admin-only endpoint
-            - Should be protected by additional authentication
-            - API keys are masked in the response
-            - Limited to 100 keys per request
-            
-            Args:
-                request: The incoming request
-                
-            Returns:
-                List of API key records with masked values
-                
-            Raises:
-                HTTPException: If API key listing fails or service is unavailable
-            """
-            # Check if inference_only is enabled
-            inference_only = _is_true_value(request.app.state.config.get('general', {}).get('inference_only', False))
-            if inference_only:
-                raise HTTPException(
-                    status_code=503, 
-                    detail="API key management is not available in inference-only mode"
-                )
-            
-            # Check if API key service is available
-            if not hasattr(request.app.state, 'api_key_service') or request.app.state.api_key_service is None:
-                raise HTTPException(
-                    status_code=503, 
-                    detail="API key service is not available"
-                )
-            
-            api_key_service = request.app.state.api_key_service
-            
-            try:
-                # Ensure service is initialized
-                if not api_key_service._initialized:
-                    await api_key_service.initialize()
-                
-                # Retrieve all API keys
-                cursor = api_key_service.api_keys_collection.find({})
-                api_keys = await cursor.to_list(length=100)  # Limit to 100 keys
-                
-                # Convert MongoDB documents to JSON-serializable format
-                serialized_keys = []
-                for key in api_keys:
-                    # Convert _id to string
-                    key_dict = {
-                        "_id": str(key["_id"]),
-                        "api_key": f"***{key['api_key'][-4:]}" if key.get("api_key") else "***",
-                        "collection_name": key.get("collection_name"),
-                        "client_name": key.get("client_name"),
-                        "notes": key.get("notes"),
-                        "active": key.get("active", True),
-                        "created_at": key.get("created_at").timestamp() if key.get("created_at") else None
-                    }
-                    
-                    # Handle system_prompt_id if it exists
-                    if key.get("system_prompt_id"):
-                        key_dict["system_prompt_id"] = str(key["system_prompt_id"])
-                    
-                    serialized_keys.append(key_dict)
-                
-                return serialized_keys
-                
-            except Exception as e:
-                self.logger.error(f"Error listing API keys: {str(e)}")
-                raise HTTPException(status_code=500, detail=f"Failed to list API keys: {str(e)}")
-
-        @self.app.get("/admin/api-keys/{api_key}/status")
-        async def get_api_key_status(
-            api_key: str,
-            request: Request
-        ):
-            """
-            Get the status of a specific API key.
-            
-            This endpoint provides detailed status information for an API key:
-            - Active/inactive status
-            - Last used timestamp
-            - Associated collection
-            - System prompt association
-            - Usage statistics
-            
-            Security considerations:
-            - This is an admin-only endpoint
-            - Should be protected by additional authentication
-            - API key is masked in logs
-            
-            Args:
-                api_key: The API key to check
-                request: The incoming request
-                
-            Returns:
-                Status information for the specified API key
-                
-            Raises:
-                HTTPException: If API key status check fails or service is unavailable
-            """
-            # Check if inference_only is enabled
-            inference_only = _is_true_value(request.app.state.config.get('general', {}).get('inference_only', False))
-            if inference_only:
-                raise HTTPException(
-                    status_code=503, 
-                    detail="API key management is not available in inference-only mode"
-                )
-            
-            # Check if API key service is available
-            if not hasattr(request.app.state, 'api_key_service') or request.app.state.api_key_service is None:
-                raise HTTPException(
-                    status_code=503, 
-                    detail="API key service is not available"
-                )
-            
-            api_key_service = request.app.state.api_key_service
-            status = await api_key_service.get_api_key_status(api_key)
-            
-            # Log with masked API key
-            masked_api_key = f"***{api_key[-4:]}" if api_key else "***"
-            self.logger.info(f"Checked status for API key: {masked_api_key}")
-            
-            return status
-
-        @self.app.post("/admin/api-keys/deactivate")
-        async def deactivate_api_key(
-            data: ApiKeyDeactivate,
-            api_key_service = Depends(get_api_key_service)
-        ):
-            """
-            Deactivate an API key
-            
-            This is an admin-only endpoint and should be properly secured in production.
-            """
-            # In production, add authentication middleware to restrict access to admin endpoints
-            
-            success = await api_key_service.deactivate_api_key(data.api_key)
-            
-            if not success:
-                raise HTTPException(status_code=404, detail="API key not found")
-            
-            # Log with masked API key
-            masked_api_key = f"***{data.api_key[-4:]}" if data.api_key else "***"
-            self.logger.info(f"Deactivated API key: {masked_api_key}")
-                
-            return {"status": "success", "message": "API key deactivated"}
-
-        @self.app.delete("/admin/api-keys/{api_key}")
-        async def delete_api_key(
-            api_key: str,
-            api_key_service = Depends(get_api_key_service)
-        ):
-            """
-            Delete an API key
-            
-            This is an admin-only endpoint and should be properly secured in production.
-            """
-            # In production, add authentication middleware to restrict access to admin endpoints
-            
-            success = await api_key_service.delete_api_key(api_key)
-            
-            if not success:
-                raise HTTPException(status_code=404, detail="API key not found")
-            
-            # Log with masked API key
-            masked_api_key = f"***{api_key[-4:]}" if api_key else "***"
-            self.logger.info(f"Deleted API key: {masked_api_key}")
-                
-            return {"status": "success", "message": "API key deleted"}
-
         # Health check endpoint
         @self.app.get("/health")
         async def health_check(
@@ -1914,161 +1684,6 @@ class InferenceServer:
             """Check the health of the application and its dependencies"""
             health = await health_service.get_health_status()
             return health
-
-        # System Prompts management routes
-        @self.app.post("/admin/prompts", response_model=SystemPromptResponse)
-        async def create_prompt(
-            prompt_data: SystemPromptCreate,
-            request: Request
-        ):
-            """Create a new system prompt"""
-            # Check if inference_only is enabled
-            inference_only = _is_true_value(request.app.state.config.get('general', {}).get('inference_only', False))
-            if inference_only:
-                raise HTTPException(
-                    status_code=503, 
-                    detail="Prompt management is not available in inference-only mode"
-                )
-            
-            # Check if prompt service is available
-            if not hasattr(request.app.state, 'prompt_service') or request.app.state.prompt_service is None:
-                raise HTTPException(
-                    status_code=503, 
-                    detail="Prompt service is not available"
-                )
-            
-            prompt_service = request.app.state.prompt_service
-            prompt_id = await prompt_service.create_prompt(
-                prompt_data.name,
-                prompt_data.prompt,
-                prompt_data.version
-            )
-            
-            prompt = await prompt_service.get_prompt_by_id(prompt_id)
-            
-            if not prompt:
-                raise HTTPException(status_code=500, detail="Failed to retrieve created prompt")
-                
-            # Format the response according to the model
-            return {
-                "id": str(prompt_id),
-                "name": prompt.get("name"),
-                "prompt": prompt.get("prompt"),
-                "version": prompt.get("version"),
-                "created_at": prompt.get("created_at").timestamp() if prompt.get("created_at") else 0,
-                "updated_at": prompt.get("updated_at").timestamp() if prompt.get("updated_at") else 0
-            }
-
-        @self.app.get("/admin/prompts")
-        async def list_prompts(
-            prompt_service = Depends(get_prompt_service)
-        ):
-            """List all system prompts"""
-            return await prompt_service.list_prompts()
-
-        @self.app.get("/admin/prompts/{prompt_id}")
-        async def get_prompt(
-            prompt_id: str,
-            prompt_service = Depends(get_prompt_service)
-        ):
-            """Get a system prompt by ID"""
-            prompt = await prompt_service.get_prompt_by_id(prompt_id)
-            
-            if not prompt:
-                raise HTTPException(status_code=404, detail="Prompt not found")
-                
-            # Convert ObjectId to string and datetime to timestamp
-            prompt["_id"] = str(prompt["_id"])
-            if "created_at" in prompt:
-                prompt["created_at"] = prompt["created_at"].timestamp()
-            if "updated_at" in prompt:
-                prompt["updated_at"] = prompt["updated_at"].timestamp()
-                
-            return prompt
-
-        @self.app.put("/admin/prompts/{prompt_id}", response_model=SystemPromptResponse)
-        async def update_prompt(
-            prompt_id: str,
-            prompt_data: SystemPromptUpdate,
-            prompt_service = Depends(get_prompt_service)
-        ):
-            """Update a system prompt"""
-            success = await prompt_service.update_prompt(
-                prompt_id,
-                prompt_data.prompt,
-                prompt_data.version
-            )
-            
-            if not success:
-                raise HTTPException(status_code=404, detail="Prompt not found or not updated")
-                
-            prompt = await prompt_service.get_prompt_by_id(prompt_id)
-            
-            if not prompt:
-                raise HTTPException(status_code=404, detail="Failed to retrieve updated prompt")
-                
-            # Format the response according to the model
-            return {
-                "id": str(prompt_id),
-                "name": prompt.get("name"),
-                "prompt": prompt.get("prompt"),
-                "version": prompt.get("version"),
-                "created_at": prompt.get("created_at").timestamp() if prompt.get("created_at") else 0,
-                "updated_at": prompt.get("updated_at").timestamp() if prompt.get("updated_at") else 0
-            }
-
-        @self.app.delete("/admin/prompts/{prompt_id}")
-        async def delete_prompt(
-            prompt_id: str,
-            prompt_service = Depends(get_prompt_service)
-        ):
-            """Delete a system prompt"""
-            success = await prompt_service.delete_prompt(prompt_id)
-            
-            if not success:
-                raise HTTPException(status_code=404, detail="Prompt not found")
-                
-            return {"status": "success", "message": "Prompt deleted"}
-
-        @self.app.post("/admin/api-keys/{api_key}/prompt")
-        async def associate_prompt_with_api_key(
-            api_key: str,
-            data: ApiKeyPromptAssociate,
-            api_key_service = Depends(get_api_key_service)
-        ):
-            """Associate a system prompt with an API key"""
-            success = await api_key_service.update_api_key_system_prompt(api_key, data.prompt_id)
-            
-            if not success:
-                raise HTTPException(status_code=404, detail="API key not found or prompt not associated")
-            
-            return {"status": "success", "message": "System prompt associated with API key"}
-
-        @self.app.get("/admin/chat-history/{session_id}")
-        async def get_chat_history(
-            session_id: str,
-            request: Request,
-            limit: int = 50
-        ):
-            """Get chat history for a session"""
-            # Check if inference_only is enabled
-            inference_only = _is_true_value(request.app.state.config.get('general', {}).get('inference_only', False))
-            if not inference_only:
-                raise HTTPException(
-                    status_code=503, 
-                    detail="Chat history is only available in inference-only mode"
-                )
-            
-            if not hasattr(request.app.state, 'chat_history_service') or not request.app.state.chat_history_service:
-                raise HTTPException(status_code=503, detail="Chat history service is not available")
-            
-            history = await request.app.state.chat_history_service.get_conversation_history(
-                session_id=session_id,
-                limit=limit,
-                include_metadata=True
-            )
-            
-            return {"session_id": session_id, "messages": history, "count": len(history)}
     
     def create_ssl_context(self) -> Optional[ssl.SSLContext]:
         """
