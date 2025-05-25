@@ -313,21 +313,27 @@ IMPORTANT: The user's message is in {language_name}. You MUST respond in {langua
                 message, client_ip, collection_name, system_prompt_id, api_key, session_id, user_id
             )
             
+            # Ensure response_data is a dictionary
+            if not isinstance(response_data, dict):
+                logger.error(f"Invalid response format: {response_data}")
+                return {"error": "Invalid response format from LLM client"}
+            
             # Check if the response was blocked by moderation
-            if "error" in response_data:
+            if response_data.get("error"):
+                error_msg = response_data["error"]
                 # Log the blocked response
-                await self._log_response(response_data["error"], client_ip)
+                await self._log_response(error_msg, client_ip)
                 
                 # Log conversation if API key is provided
                 if api_key:
-                    await self._log_conversation(message, response_data["error"], client_ip, api_key)
+                    await self._log_conversation(message, error_msg, client_ip, api_key)
                 
                 # Store blocked message in history if enabled
                 if session_id:
                     await self._store_conversation_turn(
                         session_id=session_id,
                         user_message=message,
-                        assistant_response=f"[BLOCKED] {response_data['error']}",
+                        assistant_response=f"[BLOCKED] {error_msg}",
                         user_id=user_id,
                         api_key=api_key,
                         metadata={**metadata, "blocked": True}
@@ -337,11 +343,16 @@ IMPORTANT: The user's message is in {language_name}. You MUST respond in {langua
                 return {
                     "error": {
                         "code": -32603,
-                        "message": response_data["error"]
+                        "message": error_msg
                     }
                 }
             
-            response = response_data.get("response", "")
+            # Get response text and ensure it exists
+            response = response_data.get("response")
+            if not response:
+                logger.error("No response text in LLM response")
+                return {"error": "No response generated"}
+                
             # Clean and format the response
             response = fix_text_formatting(response)
             
@@ -364,6 +375,7 @@ IMPORTANT: The user's message is in {language_name}. You MUST respond in {langua
                 await self._log_conversation(message, response, client_ip, api_key)
             
             return response_data
+            
         except Exception as e:
             logger.error(f"Error processing chat: {str(e)}")
             return {"error": str(e)}

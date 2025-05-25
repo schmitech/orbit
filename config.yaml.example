@@ -9,7 +9,7 @@ general:
   session_id:
     header_name: "X-Session-ID"
     required: true
-  inference_provider: "llama_cpp"
+  inference_provider: "ollama"
   language_detection: false
   inference_only: true
   adapter: "qa-sql"
@@ -28,17 +28,18 @@ api_keys:
 
 logging:
   level: "INFO"
-  file:
-    enabled: true
-    directory: "logs"
-    filename: "orbit.log"
-    max_size_mb: 10
-    backup_count: 30
-    rotation: "midnight"
-    format: "text"
-  console:
-    enabled: false
-    format: "text"
+  handlers:
+    file:
+      enabled: true
+      directory: "logs"
+      filename: "orbit.log"
+      max_size_mb: 10
+      backup_count: 30
+      rotation: "midnight"
+      format: "text"
+    console:
+      enabled: false
+      format: "text"
   capture_warnings: true
   propagate: false
   loggers:
@@ -53,13 +54,13 @@ logging:
     metal:
       level: "ERROR"
 
-  internal_services:
-    elasticsearch:
-      enabled: false
-      node: ${INTERNAL_SERVICES_ELASTICSEARCH_NODE}
-      index: 'orbit'
-      username: ${INTERNAL_SERVICES_ELASTICSEARCH_USERNAME}
-      password: ${INTERNAL_SERVICES_ELASTICSEARCH_PASSWORD}
+internal_services:
+  elasticsearch:
+    enabled: false
+    node: ${INTERNAL_SERVICES_ELASTICSEARCH_NODE}
+    index: 'orbit'
+    username: ${INTERNAL_SERVICES_ELASTICSEARCH_USERNAME}
+    password: ${INTERNAL_SERVICES_ELASTICSEARCH_PASSWORD}
 
   mongodb:
     host: ${INTERNAL_SERVICES_MONGODB_HOST}
@@ -69,22 +70,8 @@ logging:
     username: ${INTERNAL_SERVICES_MONGODB_USERNAME}
     password: ${INTERNAL_SERVICES_MONGODB_PASSWORD}
 
-  chat_history:
-    enabled: true
-    collection_name: "chat_history"
-    default_limit: 20
-    store_metadata: true
-    retention_days: 1
-    max_tracked_sessions: 10000
-    session:
-      required: true
-      header_name: "X-Session-ID"
-    user:
-      header_name: "X-User-ID"
-      required: false
-
   redis:
-    enabled: false
+    enabled: true
     host: ${INTERNAL_SERVICES_REDIS_HOST}
     port: ${INTERNAL_SERVICES_REDIS_PORT}
     db: 0
@@ -92,6 +79,21 @@ logging:
     password: ${INTERNAL_SERVICES_REDIS_PASSWORD}
     use_ssl: false
     ttl: 604800
+
+# This feature requires a MongoDB instance
+chat_history:
+  enabled: false
+  collection_name: "chat_history"
+  default_limit: 20
+  store_metadata: true
+  retention_days: 1
+  max_tracked_sessions: 10000
+  session:
+    required: true
+    header_name: "X-Session-ID"
+  user:
+    header_name: "X-User-ID"
+    required: false
 
 embeddings:
   llama_cpp:
@@ -135,6 +137,7 @@ embeddings:
     model: "mistral-embed"
     dimensions: 1024
 
+# This feature requires a MongoDB instance
 adapters:
   - name: "qa-sql"
     type: "retriever"
@@ -234,7 +237,7 @@ inference:
     n_gpu_layers: 0  # Disable GPU/Metal support
     main_gpu: 0
     tensor_split: null
-    stop_tokens: ["<|im_start|>", "<|im_end|>", "</s>", "<|endoftext|>"]
+    stop_tokens: ["<|im_start|>", "<|im_end|>", "]", "<|endoftext|>"]
   gemini:
     api_key: ${GOOGLE_API_KEY}
     model: "gemini-2.0-flash"

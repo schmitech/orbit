@@ -31,14 +31,16 @@ from models.schema import MCPJsonRpcRequest, MCPJsonRpcResponse, MCPJsonRpcError
 from services.mongodb_service import MongoDBService
 from inference import LLMClientFactory
 from utils.text_utils import mask_api_key
-from retrievers.base.base_retriever import RetrieverFactory
-from retrievers.adapters.registry import ADAPTER_REGISTRY
 from utils.mongodb_utils import configure_mongodb_logging
 from services.chat_service import ChatService
 from services.chat_history_service import ChatHistoryService
 from utils.http_utils import close_all_aiohttp_sessions
 
 from routes.admin_routes import admin_router
+
+# Lazy imports for retrievers - only imported when needed
+RetrieverFactory = None
+ADAPTER_REGISTRY = None
 
 class InferenceServer:
     """
@@ -300,6 +302,20 @@ class InferenceServer:
                 self.logger.error(f"Error during shutdown: {str(e)}")
         
         return lifespan
+
+    def _initialize_retrievers(self):
+        """
+        Initialize retrievers package and its dependencies only if not in inference_only mode.
+        """
+        inference_only = _is_true_value(self.config.get('general', {}).get('inference_only', False))
+        
+        if not inference_only:
+            global RetrieverFactory, ADAPTER_REGISTRY
+            from retrievers.base.base_retriever import RetrieverFactory
+            from retrievers.adapters.registry import ADAPTER_REGISTRY
+            self.logger.info("Initializing retrievers package for RAG mode")
+        else:
+            self.logger.info("Skipping retrievers initialization in inference-only mode")
 
     def _resolve_datasource_embedding_provider(self, datasource_name: str) -> str:
         """
@@ -588,41 +604,69 @@ class InferenceServer:
         # Resolve provider configurations
         self._resolve_provider_configs()
         
+        # Initialize retrievers if needed
+        self._initialize_retrievers()
+        
         # Check if inference_only is enabled
         inference_only = _is_true_value(self.config.get('general', {}).get('inference_only', False))
         
-        # Initialize MongoDB service regardless of mode
-        from services.mongodb_service import MongoDBService
-        app.state.mongodb_service = MongoDBService(self.config)
-        self.logger.info("Initializing shared MongoDB service...")
-        try:
-            await app.state.mongodb_service.initialize()
-            self.logger.info("Shared MongoDB service initialized successfully")
-        except Exception as e:
-            self.logger.error(f"Failed to initialize shared MongoDB service: {str(e)}")
-            raise
+        # Check if chat history is enabled
+        chat_history_enabled = _is_true_value(self.config.get('chat_history', {}).get('enabled', True))
+        
+        # Initialize MongoDB service only if:
+        # 1. Not in inference_only mode (needed for full RAG functionality)
+        # 2. OR if in inference_only mode AND chat_history is enabled
+        if not inference_only or (inference_only and chat_history_enabled):
+            from services.mongodb_service import MongoDBService
+            app.state.mongodb_service = MongoDBService(self.config)
+            self.logger.info("Initializing shared MongoDB service...")
+            try:
+                await app.state.mongodb_service.initialize()
+                self.logger.info("Shared MongoDB service initialized successfully")
+            except Exception as e:
+                self.logger.error(f"Failed to initialize shared MongoDB service: {str(e)}")
+                raise
+        else:
+            app.state.mongodb_service = None
+            self.logger.info("Skipping MongoDB initialization - inference_only=true and chat_history disabled")
 
         # Initialize Redis service if enabled (independent of inference_only mode)
         redis_enabled = _is_true_value(self.config.get('internal_services', {}).get('redis', {}).get('enabled', False))
         if redis_enabled:
             from services.redis_service import RedisService
-            app.state.redis_service = RedisService(self.config)
-            self.logger.info("Initializing Redis service...")
-            try:
-                if await app.state.redis_service.initialize():
-                    self.logger.info("Redis service initialized successfully")
-                else:
-                    self.logger.warning("Redis service initialization failed - service will be disabled")
-                    app.state.redis_service = None
-            except Exception as e:
-                self.logger.error(f"Failed to initialize Redis service: {str(e)}")
+            
+            # Get Redis configuration
+            redis_config = self.config.get('internal_services', {}).get('redis', {})
+            
+            # Log Redis configuration details
+            self.logger.info("Redis configuration:")
+            self.logger.info(f"  Host: {redis_config.get('host', 'localhost')}")
+            self.logger.info(f"  Port: {redis_config.get('port', 6379)}")
+            self.logger.info(f"  SSL: {'enabled' if _is_true_value(redis_config.get('use_ssl', False)) else 'disabled'}")
+            self.logger.info(f"  Username: {'set' if redis_config.get('username') else 'not set'}")
+            self.logger.info(f"  Password: {'set' if redis_config.get('password') else 'not set'}")
+            
+            # Validate required Redis configuration
+            if not redis_config.get('host'):
+                self.logger.error("Redis host is not configured")
                 app.state.redis_service = None
+            else:
+                app.state.redis_service = RedisService(self.config)
+                self.logger.info("Initializing Redis service...")
+                try:
+                    if await app.state.redis_service.initialize():
+                        self.logger.info("Redis service initialized successfully")
+                    else:
+                        self.logger.warning("Redis service initialization failed - service will be disabled")
+                        app.state.redis_service = None
+                except Exception as e:
+                    self.logger.error(f"Failed to initialize Redis service: {str(e)}")
+                    app.state.redis_service = None
         else:
             app.state.redis_service = None
             self.logger.info("Redis service is disabled in configuration")
 
-        # Initialize Chat History Service only in inference_only mode
-        chat_history_enabled = _is_true_value(self.config.get('chat_history', {}).get('enabled', True))
+        # Initialize Chat History Service only in inference_only mode and if enabled
         if chat_history_enabled and inference_only:
             from services.chat_history_service import ChatHistoryService
             app.state.chat_history_service = ChatHistoryService(
@@ -684,104 +728,111 @@ class InferenceServer:
             
             # Set up lazy-loaded retriever for the configured datasource provider
             try:
-                # Get the adapter configuration
-                adapter_configs = self.config.get('adapters', [])
-                if not adapter_configs:
-                    raise ValueError("No adapter configurations found in config")
+                # Check if inference_only is enabled
+                inference_only = _is_true_value(self.config.get('general', {}).get('inference_only', False))
                 
-                # Get the configured adapter name from general settings
-                configured_adapter_name = self.config['general'].get('adapter', '')
-                if not configured_adapter_name:
-                    raise ValueError("No adapter specified in general.adapter")
-                
-                # Find the matching adapter configuration by name
-                retriever_config = next(
-                    (cfg for cfg in adapter_configs 
-                     if cfg.get('name') == configured_adapter_name),
-                    None
-                )
-                
-                if not retriever_config:
-                    raise ValueError(f"No matching adapter configuration found for {configured_adapter_name}")
-                
-                # Extract adapter details
-                implementation = retriever_config.get('implementation')
-                datasource = retriever_config.get('datasource')
-                adapter_type = retriever_config.get('adapter')
-                
-                if not implementation or not datasource or not adapter_type:
-                    raise ValueError("Missing required adapter fields (implementation, datasource, or adapter)")
-                
-                self.logger.info(f"Setting up lazy loading for {datasource} retriever with {adapter_type} adapter")
-                
-                # Register a factory function for lazy loading the specified retriever
-                def create_configured_retriever():
-                    """Factory function to create the properly configured retriever when needed"""
-                    # Import the specific retriever class
-                    try:
-                        module_path, class_name = implementation.rsplit('.', 1)
-                        module = __import__(module_path, fromlist=[class_name])
-                        retriever_class = getattr(module, class_name)
-                    except (ImportError, AttributeError) as e:
-                        self.logger.error(f"Could not load retriever class from {implementation}: {str(e)}")
-                        raise ValueError(f"Failed to load retriever implementation: {str(e)}")
+                if inference_only:
+                    self.logger.info("Inference-only mode enabled - skipping adapter initialization")
+                    app.state.retriever = None
+                else:
+                    # Get the adapter configuration
+                    adapter_configs = self.config.get('adapters', [])
+                    if not adapter_configs:
+                        raise ValueError("No adapter configurations found in config")
                     
-                    # Create the domain adapter using the registry
-                    try:
-                        # Create adapter using registry with the full config
-                        adapter_config = retriever_config.get('config', {})
-                        domain_adapter = ADAPTER_REGISTRY.create(
-                            adapter_type='retriever',
-                            datasource=datasource,
-                            adapter_name=adapter_type,
-                            **adapter_config  # Pass config values as kwargs
-                        )
-                        self.logger.info(f"Successfully created {adapter_type} domain adapter with config: {adapter_config}")
-                    except Exception as adapter_error:
-                        self.logger.error(f"Error creating domain adapter: {str(adapter_error)}")
-                        raise ValueError(f"Failed to create domain adapter: {str(adapter_error)}")
+                    # Get the configured adapter name from general settings
+                    configured_adapter_name = self.config['general'].get('adapter', '')
+                    if not configured_adapter_name:
+                        raise ValueError("No adapter specified in general.adapter")
                     
-                    # Prepare appropriate arguments based on the provider type
-                    retriever_kwargs = {
-                        'config': self.config, 
-                        'domain_adapter': domain_adapter
-                    }
+                    # Find the matching adapter configuration by name
+                    retriever_config = next(
+                        (cfg for cfg in adapter_configs 
+                         if cfg.get('name') == configured_adapter_name),
+                        None
+                    )
                     
-                    # Add appropriate client/connection based on the provider type
-                    if datasource == 'chroma':
-                        # Only add embeddings if not in inference_only mode
-                        if not inference_only and hasattr(app.state, 'embedding_service'):
-                            retriever_kwargs['embeddings'] = app.state.embedding_service
-                        if hasattr(app.state, 'chroma_client'):
-                            retriever_kwargs['collection'] = app.state.chroma_client
-                    elif datasource == 'sqlite':
-                        if hasattr(app.state, 'datasource_client'):
-                            retriever_kwargs['connection'] = app.state.datasource_client
+                    if not retriever_config:
+                        raise ValueError(f"No matching adapter configuration found for {configured_adapter_name}")
                     
-                    # Create and return the retriever instance
-                    self.logger.info(f"Creating {datasource} retriever instance")
-                    return retriever_class(**retriever_kwargs)
-                
-                # Register the factory function with the RetrieverFactory
-                RetrieverFactory.register_lazy_retriever(datasource, create_configured_retriever)
-                
-                # Create a lazy retriever accessor for the app state
-                class LazyRetrieverAccessor:
-                    def __init__(self, retriever_type):
-                        self.retriever_type = retriever_type
-                        self._retriever = None
+                    # Extract adapter details
+                    implementation = retriever_config.get('implementation')
+                    datasource = retriever_config.get('datasource')
+                    adapter_type = retriever_config.get('adapter')
                     
-                    def __getattr__(self, name):
-                        # Initialize the retriever on first access
-                        if self._retriever is None:
-                            self._retriever = RetrieverFactory.create_retriever(self.retriever_type)
-                        # Delegate attribute access to the actual retriever
-                        return getattr(self._retriever, name)
-                
-                # Set the lazy retriever accessor in app state
-                app.state.retriever = LazyRetrieverAccessor(datasource)
-                self.logger.info(f"Successfully set up lazy loading for {datasource} retriever")
-                
+                    if not implementation or not datasource or not adapter_type:
+                        raise ValueError("Missing required adapter fields (implementation, datasource, or adapter)")
+                    
+                    self.logger.info(f"Setting up lazy loading for {datasource} retriever with {adapter_type} adapter")
+                    
+                    # Register a factory function for lazy loading the specified retriever
+                    def create_configured_retriever():
+                        """Factory function to create the properly configured retriever when needed"""
+                        # Import the specific retriever class
+                        try:
+                            module_path, class_name = implementation.rsplit('.', 1)
+                            module = __import__(module_path, fromlist=[class_name])
+                            retriever_class = getattr(module, class_name)
+                        except (ImportError, AttributeError) as e:
+                            self.logger.error(f"Could not load retriever class from {implementation}: {str(e)}")
+                            raise ValueError(f"Failed to load retriever implementation: {str(e)}")
+                        
+                        # Create the domain adapter using the registry
+                        try:
+                            # Create adapter using registry with the full config
+                            adapter_config = retriever_config.get('config', {})
+                            domain_adapter = ADAPTER_REGISTRY.create(
+                                adapter_type='retriever',
+                                datasource=datasource,
+                                adapter_name=adapter_type,
+                                **adapter_config  # Pass config values as kwargs
+                            )
+                            self.logger.info(f"Successfully created {adapter_type} domain adapter with config: {adapter_config}")
+                        except Exception as adapter_error:
+                            self.logger.error(f"Error creating domain adapter: {str(adapter_error)}")
+                            raise ValueError(f"Failed to create domain adapter: {str(adapter_error)}")
+                        
+                        # Prepare appropriate arguments based on the provider type
+                        retriever_kwargs = {
+                            'config': self.config, 
+                            'domain_adapter': domain_adapter
+                        }
+                        
+                        # Add appropriate client/connection based on the provider type
+                        if datasource == 'chroma':
+                            # Only add embeddings if not in inference_only mode
+                            if not inference_only and hasattr(app.state, 'embedding_service'):
+                                retriever_kwargs['embeddings'] = app.state.embedding_service
+                            if hasattr(app.state, 'chroma_client'):
+                                retriever_kwargs['collection'] = app.state.chroma_client
+                        elif datasource == 'sqlite':
+                            if hasattr(app.state, 'datasource_client'):
+                                retriever_kwargs['connection'] = app.state.datasource_client
+                        
+                        # Create and return the retriever instance
+                        self.logger.info(f"Creating {datasource} retriever instance")
+                        return retriever_class(**retriever_kwargs)
+                    
+                    # Register the factory function with the RetrieverFactory
+                    RetrieverFactory.register_lazy_retriever(datasource, create_configured_retriever)
+                    
+                    # Create a lazy retriever accessor for the app state
+                    class LazyRetrieverAccessor:
+                        def __init__(self, retriever_type):
+                            self.retriever_type = retriever_type
+                            self._retriever = None
+                        
+                        def __getattr__(self, name):
+                            # Initialize the retriever on first access
+                            if self._retriever is None:
+                                self._retriever = RetrieverFactory.create_retriever(self.retriever_type)
+                            # Delegate attribute access to the actual retriever
+                            return getattr(self._retriever, name)
+                    
+                    # Set the lazy retriever accessor in app state
+                    app.state.retriever = LazyRetrieverAccessor(datasource)
+                    self.logger.info(f"Successfully set up lazy loading for {datasource} retriever")
+                    
             except Exception as e:
                 self.logger.error(f"Error setting up lazy loading for retriever: {str(e)}")
                 self.logger.warning("Will attempt to initialize default retriever on first request")

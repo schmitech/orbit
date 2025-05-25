@@ -62,7 +62,8 @@ def _log_config_summary(config: Dict[str, Any], source_path: str):
     logger.info(f"Configuration summary (source: {source_path}):")
     
     # Server settings
-    logger.info(f"  Server: port={config['general'].get('port')}, verbose={config['general'].get('verbose')}")
+    inference_only = _is_true_value(config.get('general', {}).get('inference_only', False))
+    logger.info(f"  Server: port={config['general'].get('port')}, verbose={config['general'].get('verbose')}, inference_only={inference_only}")
     
     # Logging settings
     log_config = config.get('logging', {})
@@ -70,69 +71,60 @@ def _log_config_summary(config: Dict[str, Any], source_path: str):
     if _is_true_value(log_config.get('handlers', {}).get('file', {}).get('enabled', True)):
         logger.info(f"    File: rotation={log_config.get('handlers', {}).get('file', {}).get('rotation', 'midnight')}, max_size_mb={log_config.get('handlers', {}).get('file', {}).get('max_size_mb', 10)}")
     
-    # Embedding settings
-    embedding_provider = config.get('embedding', {}).get('provider', 'ollama')
-    logger.info(f"  Embedding: provider={embedding_provider}, enabled={_is_true_value(config.get('embedding', {}).get('enabled', True))}")
+    # Only log embedding settings if enabled and not in inference-only mode
+    if not inference_only:
+        embedding_provider = config.get('embedding', {}).get('provider', 'ollama')
+        if _is_true_value(config.get('embedding', {}).get('enabled', True)):
+            logger.info(f"  Embedding: provider={embedding_provider}")
+            if embedding_provider == 'openai':
+                openai_config = config.get('embeddings', {}).get('openai', {})
+                logger.info(f"    OpenAI: model={openai_config.get('model', 'text-embedding-3-small')}, dimensions={openai_config.get('dimensions', 1536)}")
+            elif embedding_provider == 'ollama':
+                ollama_config = config.get('embeddings', {}).get('ollama', {})
+                logger.info(f"    Ollama: model={ollama_config.get('model', 'nomic-embed-text')}, dimensions={ollama_config.get('dimensions', 768)}")
     
-    # Log the specific embedding provider configuration
-    if embedding_provider == 'openai':
-        openai_config = config.get('embeddings', {}).get('openai', {})
-        logger.info(f"    OpenAI: model={openai_config.get('model', 'text-embedding-3-small')}, dimensions={openai_config.get('dimensions', 1536)}")
-    elif embedding_provider == 'ollama':
-        ollama_config = config.get('embeddings', {}).get('ollama', {})
-        logger.info(f"    Ollama: model={ollama_config.get('model', 'nomic-embed-text')}, dimensions={ollama_config.get('dimensions', 768)}")
-    elif embedding_provider == 'jina':
-        jina_config = config.get('embeddings', {}).get('jina', {})
-        logger.info(f"    Jina: model={jina_config.get('model')}, dimensions={jina_config.get('dimensions', 1024)}")
-    elif embedding_provider == 'cohere':
-        cohere_config = config.get('embeddings', {}).get('cohere', {})
-        logger.info(f"    Cohere: model={cohere_config.get('model')}, dimensions={cohere_config.get('dimensions', 1024)}, input_type={cohere_config.get('input_type', 'search_document')}")
-    elif embedding_provider == 'mistral':
-        mistral_config = config.get('embeddings', {}).get('mistral', {})
-        logger.info(f"    Mistral: model={mistral_config.get('model')}, dimensions={mistral_config.get('dimensions', 1024)}")
+    # Only log safety settings if enabled
+    if _is_true_value(config.get('safety', {}).get('enabled', True)):
+        safety_mode = config.get('safety', {}).get('mode', 'strict')
+        logger.info(f"  Safety: mode={safety_mode}, max_retries={config.get('safety', {}).get('max_retries', 3)}")
     
-    # Safety settings
-    safety_mode = config.get('safety', {}).get('mode', 'strict')
-    safety_enabled = config.get('safety', {}).get('enabled', True)
-    logger.info(f"  Safety: enabled={safety_enabled}, mode={safety_mode}, max_retries={config.get('safety', {}).get('max_retries', 3)}")
+    # Only log datasource settings if they are used by any adapter and not in inference-only mode
+    if not inference_only:
+        adapter_configs = config.get('adapters', [])
+        used_datasources = {adapter.get('datasource') for adapter in adapter_configs}
+        
+        if 'chroma' in used_datasources:
+            chroma_config = config.get('datasources', {}).get('chroma', {})
+            logger.info(f"  Chroma: host={chroma_config.get('host')}, port={chroma_config.get('port')}")
     
-    # Datasources settings (Chroma)
-    chroma_config = config.get('datasources', {}).get('chroma', {})
-    logger.info(f"  Chroma: host={chroma_config.get('host')}, port={chroma_config.get('port')}")
+    # Get the active inference provider
+    inference_provider = config.get('general', {}).get('inference_provider', 'ollama')
     
-    # Inference settings (Ollama)
-    ollama_config = config.get('inference', {}).get('ollama', {})
-    logger.info(f"  Ollama: base_url={_mask_url(ollama_config.get('base_url'))}, model={ollama_config.get('model')}")
-    logger.info(f"  Stream: {_is_true_value(ollama_config.get('stream', True))}")
-    
-    # Together AI settings
-    together_config = config.get('inference', {}).get('together', {})
-    if together_config:
+    # Only log the active inference provider settings
+    if inference_provider == 'ollama':
+        ollama_config = config.get('inference', {}).get('ollama', {})
+        logger.info(f"  Ollama: base_url={_mask_url(ollama_config.get('base_url'))}, model={ollama_config.get('model')}")
+        logger.info(f"  Stream: {_is_true_value(ollama_config.get('stream', True))}")
+    elif inference_provider == 'together':
+        together_config = config.get('inference', {}).get('together', {})
         logger.info(f"  Together AI: model={together_config.get('model')}, show_thinking={_is_true_value(together_config.get('show_thinking', False))}")
-    
-    # XAI settings
-    xai_config = config.get('inference', {}).get('xai', {})
-    if xai_config:
+    elif inference_provider == 'xai':
+        xai_config = config.get('inference', {}).get('xai', {})
         logger.info(f"  XAI: model={xai_config.get('model')}, show_thinking={_is_true_value(xai_config.get('show_thinking', False))}")
     
-    # Elasticsearch settings - mask credentials
-    es_config = config.get('internal_services', {}).get('elasticsearch', {})
-    if _is_true_value(es_config.get('enabled', False)):
-        es_node = _mask_url(es_config.get('node', ''))
-        has_credentials = bool(es_config.get('username') and es_config.get('password'))
-        logger.info(f"  Elasticsearch: enabled=True, node={es_node}, index={es_config.get('index')}, auth='Basic Auth'")
+    # Only log MongoDB settings if chat history is enabled
+    if _is_true_value(config.get('chat_history', {}).get('enabled', True)):
+        mongodb_config = config.get('internal_services', {}).get('mongodb', {})
+        if mongodb_config:
+            logger.info(f"  MongoDB: host={mongodb_config.get('host')}, port={mongodb_config.get('port')}, db={mongodb_config.get('database')}")
     
-    # MongoDB settings - mask credentials
-    mongodb_config = config.get('internal_services', {}).get('mongodb', {})
-    if mongodb_config:
-        logger.info(f"  MongoDB: host={mongodb_config.get('host')}, port={mongodb_config.get('port')}, db={mongodb_config.get('database')}")
-    
-    # Log adapter configuration
-    adapter_configs = config.get('adapters', [])
-    if adapter_configs:
-        logger.info("  Adapters:")
-        for adapter in adapter_configs:
-            logger.info(f"    {adapter.get('name')}: type={adapter.get('type')}, datasource={adapter.get('datasource')}, adapter={adapter.get('adapter')}")
+    # Only log adapters if not in inference-only mode
+    if not inference_only:
+        adapter_configs = config.get('adapters', [])
+        if adapter_configs:
+            logger.info("  Adapters:")
+            for adapter in adapter_configs:
+                logger.info(f"    {adapter.get('name')}: type={adapter.get('type')}, datasource={adapter.get('datasource')}, adapter={adapter.get('adapter')}")
     
     # Log if HTTPS is enabled
     https_enabled = _is_true_value(config.get('general', {}).get('https', {}).get('enabled', False))

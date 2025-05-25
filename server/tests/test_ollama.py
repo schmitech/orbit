@@ -1,105 +1,136 @@
 """
-Ollama Service Check Script
+Ollama Service Test Suite
 
-This script tests the connection and functionality of the Ollama service by sending
-a test query and verifying the response. It's useful for:
-- Verifying Ollama is running and accessible
-- Testing the model configuration
-- Checking response format and content
-- Debugging connection issues
-
-Usage:
-    python3 check_ollama.py [query]
-
-    If no query is provided, it will use a default test query.
-
-Example:
-    python3 check_ollama.py "What is the cost of the Beginner English fee for service course?"
+This module contains tests for the Ollama service functionality:
+- Connection testing
+- Model configuration verification
+- Response format validation
+- Error handling
 """
 
+import pytest
 import requests
 import yaml
 import json
-import sys
 import os
-
-# Get query from command line or use default
-query = sys.argv[1] if len(sys.argv) > 1 else "What is the cost of the Beginner English fee for service course?"
+import sys
+from typing import Dict, Any
+from requests.exceptions import ReadTimeout, ConnectionError
 
 # Get the absolute path to the server directory (parent of tests)
 server_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-# Get the absolute path to the backend directory (parent of server)
-backend_dir = os.path.dirname(server_dir)
+# Get the absolute path to the project root directory (parent of server)
+project_root = os.path.dirname(server_dir)
 
 # Add server directory to Python path
 sys.path.append(server_dir)
 
-# Load config using os.path.join for cross-platform compatibility
-config_path = os.path.join(backend_dir, 'server', 'config.yaml')
-with open(config_path, 'r') as file:
-    config = yaml.safe_load(file)
+# Constants
+DEFAULT_TIMEOUT = 120  # Increased timeout for local Ollama
+LOCAL_OLLAMA_URL = "http://localhost:11434"
 
-# Extract Ollama config from inference section
-ollama_config = config.get('inference', {}).get('ollama', {})
-if not ollama_config:
-    # Fallback to root level for backward compatibility
-    ollama_config = config.get('ollama', {})
+@pytest.fixture
+def config() -> Dict[str, Any]:
+    """Load and return the configuration"""
+    config_path = os.path.join(project_root, 'config.yaml')
+    with open(config_path, 'r') as file:
+        return yaml.safe_load(file)
 
-print("Loaded configuration:", json.dumps(ollama_config, indent=2))
-
-# Create request payload with the parameters
-payload = {
-    "model": ollama_config["model"],
-    "prompt": query,
-    "temperature": ollama_config.get("temperature", 0.1),
-    "top_p": ollama_config.get("top_p", 0.8),
-    "top_k": ollama_config.get("top_k", 20),
-    "repeat_penalty": ollama_config.get("repeat_penalty", 1.1),
-    "num_predict": ollama_config.get("num_predict", 1024),
-    "stream": False  # Force non-streaming for testing
-}
-
-try:
-    # Make request to Ollama
-    print(f"\nSending request to {ollama_config['base_url']}/api/generate")
-    print(f"Using model: {ollama_config['model']}")
-    print(f"Query: {query}")
+@pytest.fixture
+def ollama_config(config: Dict[str, Any]) -> Dict[str, Any]:
+    """Extract and return Ollama configuration"""
+    ollama_config = config.get('inference', {}).get('ollama', {})
+    if not ollama_config:
+        # Fallback to root level for backward compatibility
+        ollama_config = config.get('ollama', {})
     
-    response = requests.post(
-        f"{ollama_config['base_url']}/api/generate",
-        json=payload,
-        timeout=30  # Add timeout
-    )
-    
-    # Check if the request was successful
-    if response.status_code != 200:
-        print(f"\nError: Server returned status code {response.status_code}")
-        print("Response:", response.text)
-        sys.exit(1)
-    
-    # Try to parse the response
+    # Ensure we're using local Ollama for tests
+    ollama_config['base_url'] = LOCAL_OLLAMA_URL
+    return ollama_config
+
+@pytest.fixture
+def test_query() -> str:
+    """Return a test query"""
+    return "What is the cost of the Beginner English fee for service course?"
+
+def test_config_loading(ollama_config: Dict[str, Any]):
+    """Test that the configuration is loaded correctly"""
+    assert ollama_config, "Ollama configuration should not be empty"
+    assert "model" in ollama_config, "Model should be specified in config"
+    assert "base_url" in ollama_config, "Base URL should be specified in config"
+    assert ollama_config["base_url"] == LOCAL_OLLAMA_URL, "Tests should use local Ollama instance"
+
+def test_ollama_connection(ollama_config: Dict[str, Any]):
+    """Test that Ollama service is accessible"""
     try:
-        response_data = response.json()
-        if "response" in response_data:
-            print("\nResponse:", response_data["response"])
-        else:
-            print("\nUnexpected response format:")
-            print(json.dumps(response_data, indent=2))
-    except json.JSONDecodeError as e:
-        print("\nError parsing JSON response:")
-        print("Raw response:", response.text)
-        print("Error details:", str(e))
-        sys.exit(1)
+        response = requests.get(
+            f"{ollama_config['base_url']}/api/tags",
+            timeout=DEFAULT_TIMEOUT
+        )
+        assert response.status_code == 200, f"Ollama service returned status code {response.status_code}"
+    except ConnectionError as e:
+        pytest.fail(f"Could not connect to Ollama service at {ollama_config['base_url']}. Is Ollama running? Error: {str(e)}")
+    except ReadTimeout as e:
+        pytest.fail(f"Connection to Ollama service timed out after {DEFAULT_TIMEOUT} seconds. Is Ollama running? Error: {str(e)}")
 
-except requests.exceptions.RequestException as e:
-    print("\nError connecting to Ollama service:")
-    print("Error type:", type(e).__name__)
-    print("Error details:", str(e))
-    if isinstance(e, requests.exceptions.ConnectionError):
-        print("\nPlease check if Ollama is running and accessible at:", ollama_config['base_url'])
-    sys.exit(1)
-except Exception as e:
-    print("\nUnexpected error:")
-    print("Error type:", type(e).__name__)
-    print("Error details:", str(e))
-    sys.exit(1)
+def test_ollama_response(ollama_config: Dict[str, Any], test_query: str):
+    """Test that Ollama generates a valid response"""
+    # Create request payload
+    payload = {
+        "model": ollama_config["model"],
+        "prompt": test_query,
+        "temperature": ollama_config.get("temperature", 0.1),
+        "top_p": ollama_config.get("top_p", 0.8),
+        "top_k": ollama_config.get("top_k", 20),
+        "repeat_penalty": ollama_config.get("repeat_penalty", 1.1),
+        "num_predict": ollama_config.get("num_predict", 1024),
+        "stream": False
+    }
+    
+    try:
+        # Make request to Ollama
+        response = requests.post(
+            f"{ollama_config['base_url']}/api/generate",
+            json=payload,
+            timeout=DEFAULT_TIMEOUT
+        )
+        
+        # Check response
+        assert response.status_code == 200, f"Request failed with status code {response.status_code}"
+        
+        # Parse and validate response
+        response_data = response.json()
+        assert "response" in response_data, "Response should contain 'response' field"
+        assert isinstance(response_data["response"], str), "Response should be a string"
+        assert len(response_data["response"]) > 0, "Response should not be empty"
+        
+    except ConnectionError as e:
+        pytest.fail(f"Could not connect to Ollama service at {ollama_config['base_url']}. Is Ollama running? Error: {str(e)}")
+    except ReadTimeout as e:
+        pytest.fail(f"Request to Ollama service timed out after {DEFAULT_TIMEOUT} seconds. Is Ollama running? Error: {str(e)}")
+
+def test_ollama_error_handling(ollama_config: Dict[str, Any]):
+    """Test error handling with invalid requests"""
+    # Test with invalid model
+    payload = {
+        "model": "nonexistent_model",
+        "prompt": "test",
+        "stream": False
+    }
+    
+    try:
+        response = requests.post(
+            f"{ollama_config['base_url']}/api/generate",
+            json=payload,
+            timeout=DEFAULT_TIMEOUT
+        )
+        
+        # Should get an error response
+        assert response.status_code != 200, "Invalid model should result in an error"
+        response_data = response.json()
+        assert "error" in response_data, "Error response should contain 'error' field"
+        
+    except ConnectionError as e:
+        pytest.fail(f"Could not connect to Ollama service at {ollama_config['base_url']}. Is Ollama running? Error: {str(e)}")
+    except ReadTimeout as e:
+        pytest.fail(f"Request to Ollama service timed out after {DEFAULT_TIMEOUT} seconds. Is Ollama running? Error: {str(e)}")

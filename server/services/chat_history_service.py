@@ -103,7 +103,7 @@ class ChatHistoryService:
         # Cleanup task handle
         self._cleanup_task = None
         
-        logger.info("Chat History Service initialized (MongoDB-only mode)")
+        logger.info("Chat History Service initialized (inference-only mode)")
         
     async def initialize(self) -> None:
         """Initialize the chat history service"""

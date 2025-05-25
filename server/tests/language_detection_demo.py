@@ -53,7 +53,7 @@ class MockLLMClient:
         """Initialize the mock LLM client"""
         self.prompt_service = MockPromptService()
     
-    async def generate_response(self, message, collection_name, system_prompt_id=None):
+    async def generate_response(self, message, collection_name, system_prompt_id=None, context_messages=None):
         """Generate a mock response"""
         # In a real implementation, this would call the language model
         # For demonstration, we'll just echo back the message with language info
@@ -70,7 +70,10 @@ class MockLLMClient:
             'pt': 'Portuguese',
             'ru': 'Russian',
             'zh': 'Chinese',
-            'ja': 'Japanese'
+            'ja': 'Japanese',
+            'el': 'Greek',
+            'bg': 'Bulgarian',
+            'la': 'Latin'
         }
         language_name = language_names.get(detected_lang, f"Language code: {detected_lang}")
         
@@ -91,10 +94,35 @@ class MockLLMClient:
             response += "Eu entendo sua mensagem e estou respondendo em português."
         elif detected_lang == 'ru':
             response += "Я понимаю ваше сообщение и отвечаю на русском языке."
+        elif detected_lang == 'zh':
+            response += "我理解您的信息，我正在用中文回复。"
+        elif detected_lang == 'el':
+            response += "Καταλαβαίνω το μήνυμά σας και απαντώ στα ελληνικά."
+        elif detected_lang == 'bg':
+            response += "Разбирам съобщението ви и отговарям на български."
+        elif detected_lang == 'la':
+            response += "Intellegam nuntium tuum et respondeo Latine."
         else:
             response += f"I'm responding in the detected language: {language_name}"
         
-        return {"response": response}
+        return {
+            "response": response,
+            "error": None,
+            "language": detected_lang,
+            "language_name": language_name
+        }
+
+    async def verify_connection(self):
+        """Verify the connection to the LLM service"""
+        return True
+
+    async def initialize(self):
+        """Initialize the LLM client"""
+        pass
+
+    async def close(self):
+        """Close the LLM client"""
+        pass
 
 class MockLoggerService:
     """Mock implementation of the logger service"""
@@ -147,15 +175,28 @@ async def main():
         print(f"\n--- Example {idx+1}: {msg['lang']} ---")
         print(f"User: {msg['text']}")
         
-        response_data = await chat_service.process_chat(
-            message=msg['text'],
-            client_ip="127.0.0.1",
-            collection_name="demo_collection",
-            system_prompt_id=system_prompt_id,
-            api_key="demo_api_key"
-        )
+        try:
+            response_data = await chat_service.process_chat(
+                message=msg['text'],
+                client_ip="127.0.0.1",
+                collection_name="demo_collection",
+                system_prompt_id=system_prompt_id,
+                api_key="demo_api_key"
+            )
+            
+            if response_data and isinstance(response_data, dict):
+                if 'error' in response_data and response_data['error']:
+                    print(f"Error: {response_data['error']}")
+                elif 'response' in response_data:
+                    print(f"Assistant: {response_data['response']}")
+                else:
+                    print("Error: Unexpected response format")
+            else:
+                print("Error: Invalid response from chat service")
+                
+        except Exception as e:
+            print(f"Error processing message: {str(e)}")
         
-        print(f"Assistant: {response_data['response']}")
         print("-" * 50)
     
     print("\nDemo completed!")

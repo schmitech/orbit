@@ -58,6 +58,10 @@ class RedisService:
         """
         # Extract configuration values
         host = self.redis_config.get('host', 'localhost')
+        # Clean host if it includes port
+        if host and ':' in host:
+            host = host.split(':')[0]
+            
         port = int(self.redis_config.get('port', 6379))
         db = int(self.redis_config.get('db', 0))
         password = self.redis_config.get('password')
@@ -93,6 +97,7 @@ class RedisService:
         if use_ssl:
             connection_kwargs['ssl'] = True
             connection_kwargs['ssl_cert_reqs'] = None
+            connection_kwargs['ssl_ca_certs'] = None  # Don't verify SSL cert for Redis Cloud
         
         # Create Redis client
         try:
@@ -392,9 +397,13 @@ class RedisService:
             
     async def close(self) -> None:
         """Close the Redis connection"""
+        await self.aclose()
+
+    async def aclose(self) -> None:
+        """Close the Redis connection (async version)"""
         if self.redis_client:
             try:
-                await self.redis_client.close()
+                await self.redis_client.aclose()
                 logger.info("Redis connection closed")
             except Exception as e:
                 logger.error(f"Error closing Redis connection: {str(e)}")
