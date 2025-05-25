@@ -2,39 +2,71 @@
 Chat History Service
 ====================
 
-This service manages chat conversation history and provides caching capabilities
-for improved performance. It integrates with MongoDB for persistence and Redis
-for caching, with graceful fallback if caching is unavailable.
+This service manages chat conversation history using MongoDB for persistence.
+Simplified version without Redis caching for better maintainability.
 """
 
 import logging
 import asyncio
-from typing import Dict, Any, Optional, List, Tuple
+import hashlib
+from typing import Dict, Any, Optional, List, Tuple, Callable, TypeVar, Awaitable
 from datetime import datetime, timedelta
 from bson import ObjectId
-import json
-import hashlib
 from motor.motor_asyncio import AsyncIOMotorClient
-from pymongo.errors import ServerSelectionTimeoutError, OperationFailure
-from redis.exceptions import RedisError
+from pymongo.errors import ServerSelectionTimeoutError, OperationFailure, DuplicateKeyError
 
 logger = logging.getLogger(__name__)
 
-class ChatHistoryService:
-    """Service for managing chat history and conversation caching"""
+T = TypeVar('T')
+
+def with_retry(
+    max_attempts: int = 3,
+    base_delay: float = 1.0,
+    max_delay: float = 10.0,
+    retry_on: tuple = (ServerSelectionTimeoutError, OperationFailure)
+):
+    """
+    Decorator that adds retry logic with exponential backoff
     
-    def __init__(self, config: Dict[str, Any], mongodb_service=None, redis_service=None):
+    Args:
+        max_attempts: Maximum number of retry attempts
+        base_delay: Base delay for exponential backoff in seconds
+        max_delay: Maximum delay between retries in seconds
+        retry_on: Tuple of exceptions to retry on
+    """
+    def decorator(func: Callable[..., Awaitable[T]]) -> Callable[..., Awaitable[T]]:
+        async def wrapper(*args, **kwargs) -> T:
+            last_exception = None
+            for attempt in range(max_attempts):
+                try:
+                    return await func(*args, **kwargs)
+                except retry_on as e:
+                    last_exception = e
+                    if attempt < max_attempts - 1:
+                        # Calculate delay with exponential backoff and jitter
+                        delay = min(base_delay * (2 ** attempt) + (asyncio.get_event_loop().time() % 1), max_delay)
+                        logger.warning(f"Retry attempt {attempt + 1}/{max_attempts} for {func.__name__} after {delay:.2f}s due to {type(e).__name__}")
+                        await asyncio.sleep(delay)
+                    else:
+                        logger.error(f"All {max_attempts} retry attempts failed for {func.__name__}")
+                        raise last_exception
+            raise last_exception  # This should never be reached due to the raise in the loop
+        return wrapper
+    return decorator
+
+class ChatHistoryService:
+    """Service for managing chat history and conversations"""
+    
+    def __init__(self, config: Dict[str, Any], mongodb_service=None):
         """
         Initialize the Chat History Service
         
         Args:
             config: Application configuration
             mongodb_service: MongoDB service instance
-            redis_service: Redis service instance (optional)
         """
         self.config = config
         self.mongodb_service = mongodb_service
-        self.redis_service = redis_service
         
         # Extract chat history configuration
         self.chat_history_config = config.get('chat_history', {})
@@ -42,8 +74,10 @@ class ChatHistoryService:
         
         # Configuration parameters
         self.default_limit = self.chat_history_config.get('default_limit', 50)
+        self.max_conversation_messages = self.chat_history_config.get('max_conversation_messages', 1000)
         self.store_metadata = self.chat_history_config.get('store_metadata', True)
         self.retention_days = self.chat_history_config.get('retention_days', 90)
+        self.max_tracked_sessions = self.chat_history_config.get('max_tracked_sessions', 10000)
         
         # Session configuration
         self.session_config = self.chat_history_config.get('session', {})
@@ -56,31 +90,20 @@ class ChatHistoryService:
         self.user_header = self.user_config.get('header_name', 'X-User-ID')
         self.user_required = self.user_config.get('required', False)
         
-        # Cache configuration
-        self.cache_config = self.chat_history_config.get('cache', {})
-        self.max_cached_messages = self.cache_config.get('max_cached_messages', 100)
-        self.max_cached_sessions = self.cache_config.get('max_cached_sessions', 1000)
-        self.cache_ttl = self.cache_config.get('ttl_seconds', 3600)  # Use configured TTL
-        
-        # Redis configuration
-        self.redis_config = self.chat_history_config.get('redis', {})
-        self.redis_enabled = self.redis_config.get('enabled', False)
-        
         # MongoDB collection name
         self.collection_name = self.chat_history_config.get('collection_name', 'chat_history')
         
-        # In-memory cache for active sessions (fallback if Redis unavailable)
-        self._memory_cache = {}
-        self._cache_order = []  # Track insertion order for LRU
+        # In-memory cache for active sessions (lightweight, temporary)
+        self._active_sessions = {}  # session_id -> last_activity timestamp
+        self._session_message_counts = {}  # session_id -> message count
         
         self.verbose = config.get('general', {}).get('verbose', False)
         self._initialized = False
         
-        # Log initialization status
-        logger.info(f"Chat History Service initialized with Redis {'enabled' if self.redis_enabled else 'disabled'}")
-        if self.redis_enabled and self.redis_service:
-            logger.info(f"Redis configuration: host={self.redis_config.get('host')}, port={self.redis_config.get('port')}, db={self.redis_config.get('db')}")
-            logger.info(f"Cache settings: TTL={self.cache_ttl}s, max_messages={self.max_cached_messages}, max_sessions={self.max_cached_sessions}")
+        # Cleanup task handle
+        self._cleanup_task = None
+        
+        logger.info("Chat History Service initialized (MongoDB-only mode)")
         
     async def initialize(self) -> None:
         """Initialize the chat history service"""
@@ -99,9 +122,10 @@ class ChatHistoryService:
             # Create indexes for efficient querying
             await self._create_indexes()
             
-            # Schedule cleanup task for old conversations
+            # Schedule cleanup tasks
             if self.retention_days > 0:
-                asyncio.create_task(self._cleanup_old_conversations())
+                self._cleanup_task = asyncio.create_task(self._cleanup_old_conversations())
+                self._inactive_cleanup_task = asyncio.create_task(self._cleanup_inactive_sessions_periodic())
                 
             self._initialized = True
             logger.info("Chat history service initialized successfully")
@@ -137,13 +161,47 @@ class ChatHistoryService:
                 "api_key"
             )
             
+            # Create unique index for message deduplication
+            await self.mongodb_service.create_index(
+                self.collection_name,
+                [("session_id", 1), ("message_hash", 1)],
+                unique=True,
+                sparse=True  # Allow null values
+            )
+            
+            # Create archive collection indexes
+            archive_collection = f"{self.collection_name}_archive"
+            await self.mongodb_service.create_index(
+                archive_collection,
+                [("session_id", 1), ("timestamp", -1)]
+            )
+            
+            # Create index for archive cleanup queries
+            await self.mongodb_service.create_index(
+                archive_collection,
+                "timestamp"
+            )
+            
+            # Create index for archive user queries
+            await self.mongodb_service.create_index(
+                archive_collection,
+                [("user_id", 1), ("timestamp", -1)]
+            )
+            
             if self.verbose:
-                logger.info("Created indexes for chat history collection")
+                logger.info("Created indexes for chat history and archive collections")
                 
         except Exception as e:
             logger.error(f"Error creating indexes: {str(e)}")
             raise
     
+    def _generate_message_hash(self, session_id: str, role: str, content: str, timestamp: datetime) -> str:
+        """Generate a hash for message deduplication"""
+        # Create a unique hash based on session, role, content, and timestamp
+        hash_input = f"{session_id}:{role}:{content}:{timestamp.isoformat()}"
+        return hashlib.sha256(hash_input.encode()).hexdigest()[:16]
+    
+    @with_retry()
     async def add_message(
         self,
         session_id: str,
@@ -151,10 +209,11 @@ class ChatHistoryService:
         content: str,
         user_id: Optional[str] = None,
         api_key: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
+        idempotency_key: Optional[str] = None
     ) -> Optional[ObjectId]:
         """
-        Add a message to chat history
+        Add a message to chat history with retry logic
         
         Args:
             session_id: Session identifier
@@ -163,20 +222,25 @@ class ChatHistoryService:
             user_id: Optional user identifier
             api_key: Optional API key
             metadata: Optional metadata to store
+            idempotency_key: Optional key for deduplication
             
         Returns:
-            ObjectId of the inserted message, or None if disabled
+            ObjectId of the inserted message, or None if disabled/failed
         """
         if not self.enabled:
             return None
             
         try:
+            # Check if we've exceeded max messages for this conversation
+            await self._check_conversation_limits(session_id)
+            
             # Prepare message document
+            timestamp = datetime.utcnow()
             message_doc = {
                 "session_id": session_id,
                 "role": role,
                 "content": content,
-                "timestamp": datetime.utcnow()
+                "timestamp": timestamp
             }
             
             # Add optional fields
@@ -189,23 +253,42 @@ class ChatHistoryService:
             if metadata and self.store_metadata:
                 message_doc["metadata"] = metadata
             
-            # Insert into MongoDB
-            message_id = await self.mongodb_service.insert_one(
-                self.collection_name,
-                message_doc
-            )
+            # Add deduplication hash
+            if idempotency_key:
+                message_doc["message_hash"] = idempotency_key
+            else:
+                message_doc["message_hash"] = self._generate_message_hash(
+                    session_id, role, content, timestamp
+                )
             
-            if self.verbose:
-                logger.debug(f"Added message to history: session={session_id}, role={role}")
-            
-            # Update cache
-            await self._update_cache(session_id, message_doc)
-            
-            return message_id
+            # Insert into MongoDB with duplicate handling
+            try:
+                message_id = await self.mongodb_service.insert_one(
+                    self.collection_name,
+                    message_doc
+                )
+                
+                # Update session tracking
+                self._active_sessions[session_id] = timestamp
+                self._session_message_counts[session_id] = \
+                    self._session_message_counts.get(session_id, 0) + 1
+                
+                # Check if we need to clean up inactive sessions
+                if len(self._active_sessions) > self.max_tracked_sessions:
+                    await self._cleanup_inactive_sessions()
+                
+                if self.verbose:
+                    logger.debug(f"Added message to history: session={session_id}, role={role}")
+                
+                return message_id
+                
+            except DuplicateKeyError:
+                logger.warning(f"Duplicate message detected for session {session_id}")
+                return None
             
         except Exception as e:
             logger.error(f"Error adding message to history: {str(e)}")
-            return None
+            raise
     
     async def add_conversation_turn(
         self,
@@ -232,7 +315,12 @@ class ChatHistoryService:
         """
         if not self.enabled:
             return None, None
-            
+        
+        # Generate idempotency keys for both messages
+        timestamp = datetime.utcnow()
+        user_key = f"{session_id}:user:{timestamp.isoformat()}"
+        assistant_key = f"{session_id}:assistant:{timestamp.isoformat()}"
+        
         # Add user message
         user_msg_id = await self.add_message(
             session_id=session_id,
@@ -240,34 +328,41 @@ class ChatHistoryService:
             content=user_message,
             user_id=user_id,
             api_key=api_key,
-            metadata=metadata
+            metadata=metadata,
+            idempotency_key=user_key
         )
         
-        # Add assistant response
-        assistant_msg_id = await self.add_message(
-            session_id=session_id,
-            role="assistant",
-            content=assistant_response,
-            user_id=user_id,
-            api_key=api_key,
-            metadata=metadata
-        )
+        # Only add assistant response if user message was added successfully
+        assistant_msg_id = None
+        if user_msg_id:
+            assistant_msg_id = await self.add_message(
+                session_id=session_id,
+                role="assistant",
+                content=assistant_response,
+                user_id=user_id,
+                api_key=api_key,
+                metadata=metadata,
+                idempotency_key=assistant_key
+            )
         
         return user_msg_id, assistant_msg_id
     
+    @with_retry()
     async def get_conversation_history(
         self,
         session_id: str,
         limit: Optional[int] = None,
-        include_metadata: bool = False
+        include_metadata: bool = False,
+        before_timestamp: Optional[datetime] = None
     ) -> List[Dict[str, Any]]:
         """
-        Get conversation history for a session
+        Get conversation history for a session with retry logic
         
         Args:
             session_id: Session identifier
             limit: Maximum number of messages to return
             include_metadata: Whether to include metadata
+            before_timestamp: Only get messages before this timestamp
             
         Returns:
             List of messages in chronological order
@@ -276,37 +371,30 @@ class ChatHistoryService:
             return []
             
         try:
-            # Try to get from cache first
-            cached_messages = await self._get_from_cache(session_id)
-            if cached_messages:
-                # Apply limit if specified
-                if limit:
-                    cached_messages = cached_messages[-limit:]
-                    
-                # Remove metadata if not requested
-                if not include_metadata:
-                    for msg in cached_messages:
-                        msg.pop('metadata', None)
-                        
-                return cached_messages
-            
-            # Fallback to MongoDB
+            # Build query
             query = {"session_id": session_id}
-            try:
-                messages = await self.mongodb_service.find_many(
-                    self.collection_name,
-                    query,
-                    limit=limit or self.default_limit
-                )
-            except ServerSelectionTimeoutError:
-                logger.error("Failed to connect to MongoDB server")
-                return []
-            except OperationFailure as e:
-                logger.error(f"MongoDB operation failed: {str(e)}")
-                return []
+            if before_timestamp:
+                query["timestamp"] = {"$lt": before_timestamp}
             
-            # Sort by timestamp
-            messages.sort(key=lambda x: x.get('timestamp', datetime.min))
+            # Determine limit
+            effective_limit = limit or self.default_limit
+            
+            if self.verbose:
+                logger.info(f"Fetching chat history for session {session_id} with limit {effective_limit}")
+            
+            # Fetch messages sorted by timestamp descending to get most recent first
+            messages = await self.mongodb_service.find_many(
+                self.collection_name,
+                query,
+                sort=[("timestamp", -1)],  # Descending to get latest messages first
+                limit=effective_limit
+            )
+            
+            # Reverse to get chronological order
+            messages.reverse()
+            
+            if self.verbose:
+                logger.info(f"Retrieved {len(messages)} messages for session {session_id}")
             
             # Process messages
             processed_messages = []
@@ -322,21 +410,18 @@ class ChatHistoryService:
                     
                 processed_messages.append(processed_msg)
             
-            # Update cache with fetched messages
-            if processed_messages:
-                await self._update_cache(session_id, processed_messages, replace=True)
-            
             return processed_messages
             
         except Exception as e:
             logger.error(f"Error getting conversation history: {str(e)}")
-            return []
+            raise
     
     async def get_user_sessions(
         self,
         user_id: str,
         limit: int = 10,
-        offset: int = 0
+        offset: int = 0,
+        include_summary: bool = True
     ) -> List[Dict[str, Any]]:
         """
         Get list of sessions for a user
@@ -345,6 +430,7 @@ class ChatHistoryService:
             user_id: User identifier
             limit: Maximum number of sessions to return
             offset: Number of sessions to skip
+            include_summary: Include first/last message preview
             
         Returns:
             List of session summaries
@@ -353,14 +439,17 @@ class ChatHistoryService:
             return []
             
         try:
-            # Aggregate to get unique sessions with last activity
+            # Base aggregation pipeline
             pipeline = [
                 {"$match": {"user_id": user_id}},
                 {"$sort": {"timestamp": -1}},
                 {"$group": {
                     "_id": "$session_id",
                     "last_activity": {"$first": "$timestamp"},
-                    "message_count": {"$sum": 1}
+                    "first_activity": {"$last": "$timestamp"},
+                    "message_count": {"$sum": 1},
+                    "last_message": {"$first": "$content"},
+                    "last_role": {"$first": "$role"}
                 }},
                 {"$sort": {"last_activity": -1}},
                 {"$skip": offset},
@@ -372,14 +461,29 @@ class ChatHistoryService:
             sessions = await cursor.to_list(length=None)
             
             # Format results
-            return [
-                {
+            results = []
+            for session in sessions:
+                session_data = {
                     "session_id": session["_id"],
                     "last_activity": session["last_activity"],
-                    "message_count": session["message_count"]
+                    "first_activity": session["first_activity"],
+                    "message_count": session["message_count"],
+                    "duration_seconds": (
+                        session["last_activity"] - session["first_activity"]
+                    ).total_seconds()
                 }
-                for session in sessions
-            ]
+                
+                if include_summary:
+                    # Truncate message preview
+                    preview = session.get("last_message", "")[:100]
+                    if len(session.get("last_message", "")) > 100:
+                        preview += "..."
+                    session_data["last_message_preview"] = preview
+                    session_data["last_message_role"] = session.get("last_role")
+                
+                results.append(session_data)
+            
+            return results
             
         except Exception as e:
             logger.error(f"Error getting user sessions: {str(e)}")
@@ -403,8 +507,9 @@ class ChatHistoryService:
             collection = self.mongodb_service.get_collection(self.collection_name)
             result = await collection.delete_many({"session_id": session_id})
             
-            # Clear from cache
-            await self._clear_cache(session_id)
+            # Clear from tracking
+            self._active_sessions.pop(session_id, None)
+            self._session_message_counts.pop(session_id, None)
             
             if self.verbose:
                 logger.info(f"Cleared history for session {session_id}: {result.deleted_count} messages")
@@ -415,132 +520,148 @@ class ChatHistoryService:
             logger.error(f"Error clearing session history: {str(e)}")
             return False
     
-    async def _update_cache(
-        self,
-        session_id: str,
-        message_or_messages: Any,
-        replace: bool = False
-    ) -> None:
-        """Update cache with new message(s)"""
-        if not session_id:
-            return
+    async def get_session_stats(self, session_id: str) -> Dict[str, Any]:
+        """
+        Get statistics for a session
+        
+        Args:
+            session_id: Session identifier
+            
+        Returns:
+            Dictionary with session statistics
+        """
+        if not self.enabled:
+            return {}
             
         try:
-            # Prepare cache key
-            cache_key = f"chat_history:{session_id}"
+            collection = self.mongodb_service.get_collection(self.collection_name)
             
-            # Use Redis if available
-            if self.redis_service and self.redis_service.enabled:
-                logger.debug(f"Updating Redis cache for session {session_id}")
-                if replace:
-                    # Replace entire conversation
-                    logger.debug(f"Replacing entire conversation in Redis for session {session_id}")
-                    await self.redis_service.store_list_json(
-                        cache_key,
-                        message_or_messages,
-                        ttl=self.cache_ttl
-                    )
-                    logger.debug(f"Successfully replaced conversation in Redis for session {session_id}")
-                else:
-                    # Append single message
-                    if isinstance(message_or_messages, dict):
-                        # Convert datetime to string for JSON serialization
-                        msg_copy = message_or_messages.copy()
-                        if 'timestamp' in msg_copy and isinstance(msg_copy['timestamp'], datetime):
-                            msg_copy['timestamp'] = msg_copy['timestamp'].isoformat()
+            # Aggregation for session stats
+            pipeline = [
+                {"$match": {"session_id": session_id}},
+                {"$group": {
+                    "_id": None,
+                    "message_count": {"$sum": 1},
+                    "user_messages": {
+                        "$sum": {"$cond": [{"$eq": ["$role", "user"]}, 1, 0]}
+                    },
+                    "assistant_messages": {
+                        "$sum": {"$cond": [{"$eq": ["$role", "assistant"]}, 1, 0]}
+                    },
+                    "first_message": {"$min": "$timestamp"},
+                    "last_message": {"$max": "$timestamp"},
+                    "total_chars": {"$sum": {"$strLenCP": "$content"}}
+                }}
+            ]
+            
+            cursor = collection.aggregate(pipeline)
+            results = await cursor.to_list(length=1)
+            
+            if not results:
+                return {"session_id": session_id, "message_count": 0}
+            
+            stats = results[0]
+            return {
+                "session_id": session_id,
+                "message_count": stats["message_count"],
+                "user_messages": stats["user_messages"],
+                "assistant_messages": stats["assistant_messages"],
+                "first_message": stats["first_message"],
+                "last_message": stats["last_message"],
+                "duration_seconds": (
+                    stats["last_message"] - stats["first_message"]
+                ).total_seconds() if stats["last_message"] else 0,
+                "total_characters": stats["total_chars"],
+                "avg_message_length": stats["total_chars"] // stats["message_count"] 
+                    if stats["message_count"] > 0 else 0
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting session stats: {str(e)}")
+            return {"session_id": session_id, "error": str(e)}
+    
+    @with_retry()
+    async def _check_conversation_limits(self, session_id: str) -> None:
+        """
+        Check and handle conversation size limits atomically with retry logic
+        
+        Args:
+            session_id: Session identifier
+        """
+        try:
+            collection = self.mongodb_service.get_collection(self.collection_name)
+            
+            # Use aggregation to get count atomically
+            pipeline = [
+                {"$match": {"session_id": session_id}},
+                {"$count": "total"}
+            ]
+            result = await collection.aggregate(pipeline).to_list(1)
+            message_count = result[0]["total"] if result else 0
+            
+            # Update cache
+            self._session_message_counts[session_id] = message_count
+            
+            if message_count >= self.max_conversation_messages:
+                # Calculate how many messages to archive
+                keep_count = int(self.max_conversation_messages * 0.8)
+                archive_count = message_count - keep_count
+                
+                if archive_count > 0:
+                    # Define transaction operations
+                    async def archive_operation(session):
+                        # Use aggregation pipeline to archive directly
+                        archive_pipeline = [
+                            {"$match": {"session_id": session_id}},
+                            {"$sort": {"timestamp": 1}},
+                            {"$limit": archive_count},
+                            {"$merge": {
+                                "into": f"{self.collection_name}_archive",
+                                "whenMatched": "keepExisting"
+                            }}
+                        ]
                         
-                        json_msg = json.dumps(msg_copy)
-                        logger.debug(f"Appending message to Redis for session {session_id}")
-                        await self.redis_service.rpush(cache_key, json_msg)
-                        await self.redis_service.expire(cache_key, self.cache_ttl)
-                        logger.debug(f"Successfully appended message to Redis for session {session_id}")
-            else:
-                logger.debug(f"Redis not available, using in-memory cache for session {session_id}")
-                # Use in-memory cache as fallback
-                if replace:
-                    self._memory_cache[session_id] = message_or_messages
-                    logger.debug(f"Replaced conversation in memory cache for session {session_id}")
-                else:
-                    if session_id not in self._memory_cache:
-                        self._memory_cache[session_id] = []
+                        # Execute the archive pipeline
+                        await self.mongodb_service.aggregate_with_transaction(
+                            self.collection_name,
+                            archive_pipeline,
+                            session
+                        )
+                        
+                        # Get the IDs of messages that were archived
+                        find_pipeline = [
+                            {"$match": {"session_id": session_id}},
+                            {"$sort": {"timestamp": 1}},
+                            {"$limit": archive_count},
+                            {"$project": {"_id": 1}}
+                        ]
+                        archived_messages = await self.mongodb_service.aggregate_with_transaction(
+                            self.collection_name,
+                            find_pipeline,
+                            session
+                        )
+                        
+                        if archived_messages:
+                            # Delete the archived messages
+                            message_ids = [msg["_id"] for msg in archived_messages]
+                            await self.mongodb_service.delete_many_with_transaction(
+                                self.collection_name,
+                                {"_id": {"$in": message_ids}},
+                                session
+                            )
+                            
+                            # Update cache
+                            self._session_message_counts[session_id] = keep_count
+                            
+                            if self.verbose:
+                                logger.info(f"Archived {len(message_ids)} messages from session {session_id}")
                     
-                    if isinstance(message_or_messages, dict):
-                        self._memory_cache[session_id].append(message_or_messages)
-                        logger.debug(f"Appended message to memory cache for session {session_id}")
-                
-                # Update LRU order
-                if session_id in self._cache_order:
-                    self._cache_order.remove(session_id)
-                self._cache_order.append(session_id)
-                
-                # Enforce cache size limit
-                while len(self._cache_order) > self.max_cached_sessions:
-                    oldest_session = self._cache_order.pop(0)
-                    del self._memory_cache[oldest_session]
-                    logger.debug(f"Removed oldest session {oldest_session} from memory cache due to size limit")
-                    
-        except Exception as e:
-            logger.error(f"Error updating cache: {str(e)}", exc_info=True)
-    
-    async def _get_from_cache(self, session_id: str) -> Optional[List[Dict[str, Any]]]:
-        """Get conversation from cache"""
-        if not session_id:
-            return None
-            
-        try:
-            cache_key = f"chat_history:{session_id}"
-            
-            # Try Redis first
-            if self.redis_service and self.redis_service.enabled:
-                logger.debug(f"Attempting to get conversation from Redis for session {session_id}")
-                messages = await self.redis_service.get_list_json(cache_key)
-                if messages:
-                    logger.debug(f"Successfully retrieved {len(messages)} messages from Redis for session {session_id}")
-                    # Convert ISO strings back to datetime
-                    for msg in messages:
-                        if 'timestamp' in msg and isinstance(msg['timestamp'], str):
-                            msg['timestamp'] = datetime.fromisoformat(msg['timestamp'])
-                    return messages
-                else:
-                    logger.debug(f"No messages found in Redis for session {session_id}")
-            
-            # Fallback to in-memory cache
-            logger.debug(f"Falling back to in-memory cache for session {session_id}")
-            messages = self._memory_cache.get(session_id)
-            if messages:
-                logger.debug(f"Found {len(messages)} messages in memory cache for session {session_id}")
-            else:
-                logger.debug(f"No messages found in memory cache for session {session_id}")
-            return messages
-            
-        except Exception as e:
-            logger.error(f"Error getting from cache: {str(e)}", exc_info=True)
-            return None
-    
-    async def _clear_cache(self, session_id: str) -> None:
-        """Clear cache for a session"""
-        if not session_id:
-            return
-            
-        try:
-            cache_key = f"chat_history:{session_id}"
-            
-            # Clear from Redis
-            if self.redis_service and self.redis_service.enabled:
-                logger.debug(f"Clearing Redis cache for session {session_id}")
-                await self.redis_service.delete(cache_key)
-                logger.debug(f"Successfully cleared Redis cache for session {session_id}")
-            
-            # Clear from in-memory cache
-            if session_id in self._memory_cache:
-                logger.debug(f"Clearing memory cache for session {session_id}")
-                del self._memory_cache[session_id]
-                if session_id in self._cache_order:
-                    self._cache_order.remove(session_id)
-                logger.debug(f"Successfully cleared memory cache for session {session_id}")
+                    # Execute the transaction
+                    await self.mongodb_service.execute_transaction(archive_operation)
                     
         except Exception as e:
-            logger.error(f"Error clearing cache: {str(e)}", exc_info=True)
+            logger.error(f"Error checking conversation limits: {str(e)}")
+            raise
     
     async def _cleanup_old_conversations(self) -> None:
         """Background task to clean up old conversations"""
@@ -550,16 +671,36 @@ class ChatHistoryService:
                     cutoff_date = datetime.utcnow() - timedelta(days=self.retention_days)
                     
                     collection = self.mongodb_service.get_collection(self.collection_name)
-                    result = await collection.delete_many({
-                        "timestamp": {"$lt": cutoff_date}
-                    })
                     
-                    if result.deleted_count > 0:
-                        logger.info(f"Cleaned up {result.deleted_count} old messages")
+                    # Find sessions to clean up
+                    sessions_to_clean = await collection.distinct(
+                        "session_id",
+                        {"timestamp": {"$lt": cutoff_date}}
+                    )
+                    
+                    total_deleted = 0
+                    for session_id in sessions_to_clean:
+                        result = await collection.delete_many({
+                            "session_id": session_id,
+                            "timestamp": {"$lt": cutoff_date}
+                        })
+                        total_deleted += result.deleted_count
+                        
+                        # Clean from tracking if all messages deleted
+                        remaining = await collection.count_documents({"session_id": session_id})
+                        if remaining == 0:
+                            self._active_sessions.pop(session_id, None)
+                            self._session_message_counts.pop(session_id, None)
+                    
+                    if total_deleted > 0:
+                        logger.info(f"Cleaned up {total_deleted} old messages from {len(sessions_to_clean)} sessions")
                 
                 # Run cleanup once per day
                 await asyncio.sleep(86400)
                 
+            except asyncio.CancelledError:
+                logger.info("Cleanup task cancelled")
+                break
             except Exception as e:
                 logger.error(f"Error in cleanup task: {str(e)}")
                 await asyncio.sleep(3600)  # Retry in 1 hour on error
@@ -585,7 +726,7 @@ class ChatHistoryService:
         # Get conversation history
         messages = await self.get_conversation_history(
             session_id=session_id,
-            limit=max_messages or self.max_cached_messages,
+            limit=max_messages or self.default_limit,
             include_metadata=False
         )
         
@@ -600,9 +741,133 @@ class ChatHistoryService:
         
         return context_messages
     
+    async def health_check(self) -> Dict[str, Any]:
+        """
+        Check health of the service
+        
+        Returns:
+            Dictionary with health status
+        """
+        try:
+            # Test MongoDB connection
+            collection = self.mongodb_service.get_collection(self.collection_name)
+            await collection.find_one({})
+            
+            return {
+                "status": "healthy",
+                "mongodb": "connected",
+                "enabled": self.enabled,
+                "active_sessions": len(self._active_sessions),
+                "tracked_sessions": len(self._session_message_counts)
+            }
+        except Exception as e:
+            return {
+                "status": "unhealthy",
+                "mongodb": "disconnected",
+                "error": str(e)
+            }
+    
+    async def get_metrics(self) -> Dict[str, Any]:
+        """
+        Get service metrics for monitoring
+        
+        Returns:
+            Dictionary with service metrics including:
+            - active_sessions: Number of currently active sessions
+            - tracked_sessions: Number of sessions being tracked
+            - messages_today: Number of messages received today
+            - oldest_tracked_session: Timestamp of the oldest tracked session
+        """
+        try:
+            collection = self.mongodb_service.get_collection(self.collection_name)
+            
+            # Get today's message count
+            today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+            today_count = await collection.count_documents({"timestamp": {"$gte": today_start}})
+            
+            # Get archive collection metrics
+            archive_collection = self.mongodb_service.get_collection(f"{self.collection_name}_archive")
+            archive_count = await archive_collection.count_documents({})
+            
+            return {
+                "active_sessions": len(self._active_sessions),
+                "tracked_sessions": len(self._session_message_counts),
+                "messages_today": today_count,
+                "oldest_tracked_session": min(self._active_sessions.values()).isoformat() if self._active_sessions else None,
+                "archived_messages": archive_count,
+                "max_tracked_sessions": self.max_tracked_sessions,
+                "retention_days": self.retention_days
+            }
+        except Exception as e:
+            logger.error(f"Error getting metrics: {str(e)}")
+            return {
+                "error": str(e),
+                "active_sessions": len(self._active_sessions),
+                "tracked_sessions": len(self._session_message_counts)
+            }
+    
+    async def _cleanup_inactive_sessions(self) -> None:
+        """
+        Remove inactive sessions from memory tracking
+        
+        This method removes sessions that have been inactive for more than 24 hours
+        from the in-memory tracking caches.
+        """
+        try:
+            cutoff = datetime.utcnow() - timedelta(hours=24)
+            inactive = [
+                sid for sid, last_activity in self._active_sessions.items()
+                if last_activity < cutoff
+            ]
+            
+            for sid in inactive:
+                self._active_sessions.pop(sid, None)
+                self._session_message_counts.pop(sid, None)
+                
+            if inactive and self.verbose:
+                logger.info(f"Cleaned up {len(inactive)} inactive sessions from memory tracking")
+                
+        except Exception as e:
+            logger.error(f"Error cleaning up inactive sessions: {str(e)}")
+
+    async def _cleanup_inactive_sessions_periodic(self) -> None:
+        """
+        Periodic task to clean up inactive sessions from memory tracking
+        
+        Runs every hour to prevent memory leaks from inactive session tracking.
+        """
+        while True:
+            try:
+                await self._cleanup_inactive_sessions()
+                # Run cleanup every hour
+                await asyncio.sleep(3600)
+            except asyncio.CancelledError:
+                logger.info("Inactive sessions cleanup task cancelled")
+                break
+            except Exception as e:
+                logger.error(f"Error in inactive sessions cleanup task: {str(e)}")
+                # Retry in 5 minutes on error
+                await asyncio.sleep(300)
+
     async def close(self) -> None:
         """Clean up resources"""
-        # Clear in-memory cache
-        self._memory_cache.clear()
-        self._cache_order.clear()
+        # Cancel cleanup tasks
+        if self._cleanup_task:
+            self._cleanup_task.cancel()
+            try:
+                await self._cleanup_task
+            except asyncio.CancelledError:
+                pass
+                
+        if hasattr(self, '_inactive_cleanup_task') and self._inactive_cleanup_task:
+            self._inactive_cleanup_task.cancel()
+            try:
+                await self._inactive_cleanup_task
+            except asyncio.CancelledError:
+                pass
+        
+        # Clear tracking
+        self._active_sessions.clear()
+        self._session_message_counts.clear()
+        
         logger.info("Chat history service closed")

@@ -53,13 +53,13 @@ logging:
     metal:
       level: "ERROR"
 
-internal_services:
-  elasticsearch:
-    enabled: false
-    node: ${INTERNAL_SERVICES_ELASTICSEARCH_NODE}
-    index: 'orbit'
-    username: ${INTERNAL_SERVICES_ELASTICSEARCH_USERNAME}
-    password: ${INTERNAL_SERVICES_ELASTICSEARCH_PASSWORD}
+  internal_services:
+    elasticsearch:
+      enabled: false
+      node: ${INTERNAL_SERVICES_ELASTICSEARCH_NODE}
+      index: 'orbit'
+      username: ${INTERNAL_SERVICES_ELASTICSEARCH_USERNAME}
+      password: ${INTERNAL_SERVICES_ELASTICSEARCH_PASSWORD}
 
   mongodb:
     host: ${INTERNAL_SERVICES_MONGODB_HOST}
@@ -69,23 +69,19 @@ internal_services:
     username: ${INTERNAL_SERVICES_MONGODB_USERNAME}
     password: ${INTERNAL_SERVICES_MONGODB_PASSWORD}
 
-chat_history:
-  enabled: true
-  collection_name: "chat_history"
-  default_limit: 20
-  store_metadata: true
-  retention_days: 1
-  session:
-    auto_generate: true
-    required: true
-    header_name: "X-Session-ID"
-  user:
-    header_name: "X-User-ID"
-    required: false
-  cache:
-    max_cached_messages: 50
-    max_cached_sessions: 100
-    ttl_seconds: 3600
+  chat_history:
+    enabled: true
+    collection_name: "chat_history"
+    default_limit: 20
+    store_metadata: true
+    retention_days: 1
+    max_tracked_sessions: 10000
+    session:
+      required: true
+      header_name: "X-Session-ID"
+    user:
+      header_name: "X-User-ID"
+      required: false
 
   redis:
     enabled: false

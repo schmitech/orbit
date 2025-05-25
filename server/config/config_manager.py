@@ -560,19 +560,14 @@ def get_default_config() -> Dict[str, Any]:
             "default_limit": 20,
             "store_metadata": True,
             "retention_days": 1,
+            "max_tracked_sessions": 10000,
             "session": {
-                "auto_generate": True,
                 "required": True,
                 "header_name": "X-Session-ID"
             },
             "user": {
                 "header_name": "X-User-ID",
                 "required": False
-            },
-            "cache": {
-                "max_cached_messages": 50,
-                "max_cached_sessions": 100,
-                "ttl_seconds": 3600
             }
         }
     }

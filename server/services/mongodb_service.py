@@ -9,7 +9,7 @@ for common database operations across multiple services.
 
 import logging
 import motor.motor_asyncio
-from typing import Dict, Any, Optional, List, Union, Tuple
+from typing import Dict, Any, Optional, List, Union, Tuple, Callable, Awaitable
 from fastapi import HTTPException
 from datetime import datetime
 from bson import ObjectId
@@ -88,14 +88,15 @@ class MongoDBService:
         self._collections[collection_name] = collection
         return collection
     
-    async def create_index(self, collection_name: str, field_name: str, unique: bool = False) -> str:
+    async def create_index(self, collection_name: str, field_name: Union[str, List[Tuple[str, int]]], unique: bool = False, sparse: bool = False) -> str:
         """
         Create an index on a collection field
         
         Args:
             collection_name: Name of the collection
-            field_name: Field to index
+            field_name: Field to index (string) or list of (field, direction) tuples for compound indexes
             unique: Whether the index should enforce uniqueness
+            sparse: Whether the index should be sparse (only include documents with the field)
             
         Returns:
             Name of the created index
@@ -104,9 +105,15 @@ class MongoDBService:
             await self.initialize()
             
         collection = self.get_collection(collection_name)
-        index_name = await collection.create_index(field_name, unique=unique)
+        
+        # Handle compound indexes
+        if isinstance(field_name, list):
+            index_name = await collection.create_index(field_name, unique=unique, sparse=sparse)
+        else:
+            index_name = await collection.create_index(field_name, unique=unique, sparse=sparse)
+            
         if self.verbose:
-            logger.info(f"Created {'unique ' if unique else ''}index on {collection_name}.{field_name}")
+            logger.info(f"Created {'unique ' if unique else ''}{'sparse ' if sparse else ''}index on {collection_name}.{field_name}")
         return index_name
     
     async def find_one(self, collection_name: str, query: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -130,7 +137,14 @@ class MongoDBService:
             logger.error(f"Error finding document in {collection_name}: {str(e)}")
             return None
     
-    async def find_many(self, collection_name: str, query: Dict[str, Any], limit: int = 100) -> List[Dict[str, Any]]:
+    async def find_many(
+        self, 
+        collection_name: str, 
+        query: Dict[str, Any], 
+        limit: int = 100,
+        sort: Optional[List[Tuple[str, int]]] = None,
+        skip: int = 0
+    ) -> List[Dict[str, Any]]:
         """
         Find multiple documents in a collection
         
@@ -138,6 +152,8 @@ class MongoDBService:
             collection_name: Name of the collection
             query: MongoDB query
             limit: Maximum number of documents to return
+            sort: List of (field, direction) tuples for sorting
+            skip: Number of documents to skip
             
         Returns:
             List of matching documents
@@ -148,6 +164,14 @@ class MongoDBService:
         try:
             collection = self.get_collection(collection_name)
             cursor = collection.find(query)
+            
+            # Apply sorting if specified
+            if sort:
+                cursor = cursor.sort(sort)
+            
+            # Apply skip and limit
+            cursor = cursor.skip(skip).limit(limit)
+            
             return await cursor.to_list(length=limit)
         except Exception as e:
             logger.error(f"Error finding documents in {collection_name}: {str(e)}")
@@ -244,3 +268,74 @@ class MongoDBService:
             self.client.close()
             self._initialized = False
             self._collections = {}
+
+    async def execute_transaction(self, operations: Callable[[Any], Awaitable[Any]]) -> Any:
+        """
+        Execute operations within a MongoDB transaction
+        
+        Args:
+            operations: Async function that takes a session and performs operations
+            
+        Returns:
+            Result of the operations
+            
+        Raises:
+            Exception: If transaction fails or MongoDB is not initialized
+        """
+        if not self._initialized:
+            await self.initialize()
+            
+        if not self.client:
+            raise ValueError("MongoDB client not initialized")
+            
+        async with await self.client.start_session() as session:
+            async with session.start_transaction():
+                return await operations(session)
+
+    async def aggregate_with_transaction(
+        self,
+        collection_name: str,
+        pipeline: List[Dict[str, Any]],
+        session: Any
+    ) -> List[Dict[str, Any]]:
+        """
+        Execute an aggregation pipeline within a transaction
+        
+        Args:
+            collection_name: Name of the collection
+            pipeline: Aggregation pipeline
+            session: MongoDB session from transaction
+            
+        Returns:
+            List of documents from aggregation
+        """
+        if not self._initialized:
+            await self.initialize()
+            
+        collection = self.get_collection(collection_name)
+        cursor = collection.aggregate(pipeline, session=session)
+        return await cursor.to_list(length=None)
+
+    async def delete_many_with_transaction(
+        self,
+        collection_name: str,
+        query: Dict[str, Any],
+        session: Any
+    ) -> int:
+        """
+        Delete multiple documents within a transaction
+        
+        Args:
+            collection_name: Name of the collection
+            query: Query to match documents
+            session: MongoDB session from transaction
+            
+        Returns:
+            Number of documents deleted
+        """
+        if not self._initialized:
+            await self.initialize()
+            
+        collection = self.get_collection(collection_name)
+        result = await collection.delete_many(query, session=session)
+        return result.deleted_count

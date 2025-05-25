@@ -627,20 +627,27 @@ class InferenceServer:
             from services.chat_history_service import ChatHistoryService
             app.state.chat_history_service = ChatHistoryService(
                 self.config, 
-                app.state.mongodb_service, 
-                app.state.redis_service
+                app.state.mongodb_service
             )
             self.logger.info("Initializing Chat History Service...")
             try:
                 await app.state.chat_history_service.initialize()
                 self.logger.info("Chat History Service initialized successfully")
+                
+                # Verify chat history service is working
+                health = await app.state.chat_history_service.health_check()
+                if health["status"] != "healthy":
+                    self.logger.error(f"Chat History Service health check failed: {health}")
+                    app.state.chat_history_service = None
+                else:
+                    self.logger.info(f"Chat History Service health check passed: {health}")
             except Exception as e:
                 self.logger.error(f"Failed to initialize Chat History Service: {str(e)}")
                 # Don't raise - chat history is optional
                 app.state.chat_history_service = None
         else:
             app.state.chat_history_service = None
-            self.logger.info("Chat history is disabled")
+            self.logger.info(f"Chat history is {'disabled' if not chat_history_enabled else 'not in inference-only mode'}")
 
         if inference_only:
             self.logger.info("Inference-only mode enabled - skipping unnecessary service initialization")
