@@ -856,13 +856,12 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
               <div
                 className={clsx(
                   "flex-1 relative rounded-xl transition-all duration-200 overflow-hidden",
-                  isFocused ? "ring-2" : "ring-0"
+                  isFocused ? "ring-0" : "ring-0"
                 )}
                 style={{
-                  borderColor: theme.input.border,
+                  borderColor: isFocused ? theme.secondary : theme.input.border,
                   border: '1px solid',
-                  boxShadow: isFocused ? '0 0 0 2px rgba(236, 153, 75, 0.2)' : 'none',
-                  ['--tw-ring-color' as any]: theme.secondary,
+                  boxShadow: 'none',
                   background: theme.input.background
                 }}
               >
@@ -875,7 +874,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
                   onBlur={() => setIsFocused(false)}
                   placeholder="Type your message..."
                   maxLength={MAX_MESSAGE_LENGTH}
-                  className="w-full resize-none outline-none p-3 pr-12 text-base custom-scrollbar"
+                  className="w-full resize-none outline-none p-3 pr-12 text-base custom-scrollbar focus:ring-0 focus:outline-none"
                   style={{
                     background: 'transparent',
                     color: theme.text.primary,
@@ -958,97 +957,137 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
       </div>
 
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-        
-        body, button, input, textarea {
-          font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-        }
-        
-        @keyframes fadeInOut {
-          0% { opacity: 0; transform: translateY(4px); }
-          20% { opacity: 1; transform: translateY(0); }
-          80% { opacity: 1; transform: translateY(0); }
-          100% { opacity: 0; transform: translateY(-4px); }
-        }
-        .animate-fade-in-out {
-          animation: fadeInOut 2s ease-in-out forwards;
-        }
-        @keyframes bounce-gentle {
-          0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(-10px); }
-        }
-        .animate-bounce-gentle {
-          animation: bounce-gentle 2s ease-in-out infinite;
-          animation-delay: 1s;
-        }
-        @keyframes dotBlink {
-          0%, 50%, 100% { opacity: 0; }
-          25%, 75% { opacity: 1; }
-        }
-        .animate-dots {
-          display: inline-flex;
-          margin-left: 4px;
-        }
-        .animate-dots .dot {
-          font-size: 1.5em;
-          line-height: 0.5;
-          opacity: 0;
-          animation: dotBlink 1.4s infinite;
-        }
-        .animate-dots .dot:nth-child(1) {
-          animation-delay: 0s;
-        }
-        .animate-dots .dot:nth-child(2) {
-          animation-delay: 0.2s;
-        }
-        .animate-dots .dot:nth-child(3) {
-          animation-delay: 0.4s;
-        }
-        
-        .prose {
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+body, button, input, textarea {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* Complete focus ring removal - covers all browsers and scenarios */
+textarea,
+textarea:focus,
+textarea:focus-visible,
+input,
+input:focus,
+input:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+  border-color: inherit !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  -webkit-tap-highlight-color: transparent !important;
+}
+
+/* Alternative: Uncomment for subtle light focus ring instead of complete removal */
+/*
+textarea:focus,
+textarea:focus-visible {
+  outline: 2px solid rgba(203, 213, 225, 0.4) !important;
+  outline-offset: -1px !important;
+  box-shadow: 0 0 0 1px rgba(203, 213, 225, 0.2) !important;
+}
+*/
+
+/* Remove webkit/safari specific styling */
+textarea::-webkit-input-placeholder,
+input::-webkit-input-placeholder {
+  -webkit-appearance: none;
+}
+
+/* Ensure buttons also don't show focus rings */
+button:focus,
+button:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+@keyframes fadeInOut {
+  0% { opacity: 0; transform: translateY(4px); }
+  20% { opacity: 1; transform: translateY(0); }
+  80% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-4px); }
+}
+.animate-fade-in-out {
+  animation: fadeInOut 2s ease-in-out forwards;
+}
+
+@keyframes bounce-gentle {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+.animate-bounce-gentle {
+  animation: bounce-gentle 2s ease-in-out infinite;
+  animation-delay: 1s;
+}
+
+@keyframes dotBlink {
+  0%, 50%, 100% { opacity: 0; }
+  25%, 75% { opacity: 1; }
+}
+.animate-dots {
+  display: inline-flex;
+  margin-left: 4px;
+}
+.animate-dots .dot {
+  font-size: 1.5em;
+  line-height: 0.5;
+  opacity: 0;
+  animation: dotBlink 1.4s infinite;
+}
+.animate-dots .dot:nth-child(1) {
+  animation-delay: 0s;
+}
+.animate-dots .dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.animate-dots .dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+.prose {
   max-width: 100%;
 }
 
-      .prose > * {
-        margin-top: 0 !important;
-        margin-bottom: 0.5em !important;
-      }
+.prose > * {
+  margin-top: 0 !important;
+  margin-bottom: 0.5em !important;
+}
 
-      .prose p {
-        margin: 0 0 0.5em 0 !important;
-        padding: 0;
-        line-height: 1.5;
-      }
+.prose p {
+  margin: 0 0 0.5em 0 !important;
+  padding: 0;
+  line-height: 1.5;
+}
 
-      .prose p:last-child {
-        margin-bottom: 0 !important;
-      }
+.prose p:last-child {
+  margin-bottom: 0 !important;
+}
 
-      .prose ul,
-      .prose ol {
-        margin-top: 0.5em !important;
-        margin-bottom: 0.5em !important;
-        padding-left: 1.5em !important;
-      }
+.prose ul,
+.prose ol {
+  margin-top: 0.5em !important;
+  margin-bottom: 0.5em !important;
+  padding-left: 1.5em !important;
+}
 
-      .prose li {
-        margin-bottom: 0.25em !important;
-        padding-left: 0.25em !important;
-        line-height: 1.4;
-      }
+.prose li {
+  margin-bottom: 0.25em !important;
+  padding-left: 0.25em !important;
+  line-height: 1.4;
+}
 
-      .prose li p {
-        margin: 0 !important;
-      }
+.prose li p {
+  margin: 0 !important;
+}
 
-      .prose li + li {
-        margin-top: 0.1em !important;
-      }
+.prose li + li {
+  margin-top: 0.1em !important;
+}
 
-      .prose h1, .prose h2, .prose h3, .prose h4, .prose h5, .prose h6 {
-        margin-top: 1em !important;
-        margin-bottom: 0.5em !important;
-      }
+.prose h1, .prose h2, .prose h3, .prose h4, .prose h5, .prose h6 {
+  margin-top: 1em !important;
+  margin-bottom: 0.5em !important;
+}
       `}</style>
     </div>
   );

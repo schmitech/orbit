@@ -11,7 +11,7 @@
     "generate-mock-data": "node scripts/generateMockData.js"
   },
   "dependencies": {
-    "@schmitech/chatbot-widget": "^0.3.6",
+    "@schmitech/chatbot-widget": "^0.3.7",
     "@faker-js/faker": "^8.4.1",
     "@types/react-router-dom": "^5.3.3",
     "clsx": "^2.1.0",

@@ -9,7 +9,7 @@ import { useRef } from 'react';
 
 // Function to generate a UUID v4
 function generateUUID(): string {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
     const r = Math.random() * 16 | 0;
     const v = c === 'x' ? r : (r & 0x3 | 0x8);
     return v.toString(16);
@@ -20,12 +20,12 @@ function generateUUID(): string {
 function getSessionId(): string {
   const storageKey = 'orbit_session_id';
   let sessionId = sessionStorage.getItem(storageKey);
-  
+
   if (!sessionId) {
     sessionId = generateUUID();
     sessionStorage.setItem(storageKey, sessionId);
   }
-  
+
   return sessionId;
 }
 
@@ -104,17 +104,17 @@ function App() {
   useEffect(() => {
     if (typeof window !== 'undefined' && window.initChatbotWidget && !widgetInitialized.current) {
       console.log('Initializing chatbot widget...');
-      
+
       try {
         const apiUrl = import.meta.env.VITE_API_ENDPOINT || 'http://localhost:3000';
         const apiKey = import.meta.env.VITE_API_KEY || 'your-api-key-here';
-        
+
         // Configure the API first
         if (window.ChatbotWidget) {
           window.ChatbotWidget.setApiUrl(apiUrl);
           window.ChatbotWidget.setApiKey(apiKey);
         }
-        
+
         window.initChatbotWidget({
           apiUrl: apiUrl,
           apiKey: apiKey,
@@ -122,11 +122,11 @@ function App() {
           containerSelector: '#chatbot-container',
           widgetConfig: {
             header: {
-              title: "Community Services Help Center"
+              title: "Recreation Programs Help Center"
             },
             welcome: {
-              title: "Welcome to Our Community Services!",
-              description: "I can help you with information about youth programs, senior services, adult education, family services, and more."
+              title: "Welcome to Recreation Programs!",
+              description: "I can help you find information about the programs and activities we offer."
             },
             suggestedQuestions: [
               {
@@ -155,36 +155,31 @@ function App() {
               }
             ],
             theme: {
-              primary: '#0369a1',  // Deep blue - brand anchor
-              secondary: '#c026d3',  // Accent purple - use sparingly
+              primary: '#0c4a6e',
+              secondary: '#15adf4',
               background: '#ffffff',
-            
               text: {
-                primary: '#0f172a',   // Navy text
-                secondary: '#64748b', // Muted gray-blue
-                inverse: '#ffffff'
+                  primary: '#1e293b',
+                  secondary: '#666666',
+                  inverse: '#ffffff'
               },
-            
               input: {
-                background: '#f8fafc', // Softer than f1f5f9, adds modern subtlety
-                border: '#cbd5e1'
+                  background: '#f9fafb',
+                  border: '#ffffff'
               },
-            
               message: {
-                user: '#0369a1',
-                assistant: '#f9fafb',   // Very light gray instead of plain white
-                userText: '#ffffff'
+                  user: '#3081b0',
+                  assistant: '#f0f9ff',
+                  userText: '#ffffff'
               },
-            
               suggestedQuestions: {
-                background: '#e0f2fe',        // Soft sky blue (light, friendly)
-                hoverBackground: '#bae6fd',   // Slightly stronger on hover
-                text: '#0f172a'               // Maintain contrast
+                  background: '#f0f9ff',
+                  hoverBackground: '#e0f2fe',
+                  text: '#0c4a6e'
               },
-            
-              iconColor: '#0369a1'  // Amber for CTA-friendly icons (can tone down if too bright)
-            },
-            icon: "message-square"            
+              iconColor: '#0ea5e9'
+          },
+            icon: "message-square"
           }
         });
         widgetInitialized.current = true;
@@ -210,7 +205,7 @@ function App() {
     if (activities.length === 0) return;
 
     setLoading(true);
-    
+
     // Simulate filtering delay
     const timer = setTimeout(() => {
       const filtered = activities.filter(activity => {
@@ -218,44 +213,44 @@ function App() {
         if (filters.keyword && !matchesKeyword(activity, filters.keyword)) {
           return false;
         }
-        
+
         // Category filter
         if (filters.categories.length > 0 && !filters.categories.includes(activity.category)) {
           return false;
         }
-        
+
         // Location filter
         if (filters.locations.length > 0 && !filters.locations.includes(activity.location)) {
           return false;
         }
-        
+
         // Age group filter
         if (filters.ageGroups.length > 0 && !filters.ageGroups.includes(activity.ageGroup)) {
           return false;
         }
-        
+
         // Days of week filter
         if (filters.daysOfWeek.length > 0 && !activity.daysOfWeek.some(day => filters.daysOfWeek.includes(day))) {
           return false;
         }
-        
+
         // Availability filter
         if (filters.availability.length > 0 && !filters.availability.includes(activity.status)) {
           return false;
         }
-        
+
         // Language filter
         if (filters.language.length > 0 && !activity.language.some(lang => filters.language.includes(lang))) {
           return false;
         }
-        
+
         return true;
       });
-      
+
       setFilteredActivities(filtered);
       setLoading(false);
     }, 300);
-    
+
     return () => clearTimeout(timer);
   }, [activities, filters]);
 
@@ -283,7 +278,7 @@ function App() {
                   <h1 className="text-3xl font-bold font-heading">Recreation Programs</h1>
                 </div>
                 <p className="text-primary-100 max-w-2xl">Discover and register for exciting programs and activities for all ages and interests</p>
-                
+
                 <div className="mt-6 flex flex-wrap gap-4">
                   <div className="flex items-center text-white/80">
                     <MapPin size={18} className="mr-1 text-accent-300" />
@@ -300,7 +295,7 @@ function App() {
                 </div>
               </div>
             </header>
-            
+
             <div className="container mx-auto px-4 py-8">
               <div className="bg-accent-50 border-l-4 border-accent-400 p-4 mb-8 rounded-r-lg shadow-soft">
                 <div className="flex">
@@ -309,26 +304,26 @@ function App() {
                   </div>
                   <div className="ml-3">
                     <p className="text-sm text-accent-800">
-                        All data has been synthetically generated for demonstration purposes only.
+                      All data has been synthetically generated for demonstration purposes only.
                     </p>
                   </div>
                 </div>
               </div>
-              
+
               <div className="flex flex-col lg:flex-row gap-8">
                 <div className="lg:w-1/4">
                   <FilterPanel filters={filters} setFilters={setFilters} />
                 </div>
-                
+
                 <div className="lg:w-3/4">
-                  <ActivityList 
-                    activities={filteredActivities} 
-                    loading={loading} 
+                  <ActivityList
+                    activities={filteredActivities}
+                    loading={loading}
                   />
                 </div>
               </div>
             </div>
-            
+
             <footer className="bg-gradient-to-r from-neutral-900 to-neutral-800 text-white mt-16 py-12">
               <div className="container mx-auto px-4">
                 <div className="flex flex-col md:flex-row justify-between">
@@ -340,7 +335,7 @@ function App() {
                     <p className="text-neutral-400 text-sm max-w-md">
                       Enriching lives through quality recreation programs and facilities for all members of our community.
                     </p>
-                    
+
                     <div className="mt-6 flex space-x-4">
                       <a href="#" className="text-neutral-400 hover:text-white transition-colors" aria-label="Facebook">
                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
@@ -364,7 +359,7 @@ function App() {
                       </a>
                     </div>
                   </div>
-                  
+
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-8">
                     <div>
                       <h4 className="text-base font-semibold mb-4 text-white font-heading">Programs</h4>
@@ -375,7 +370,7 @@ function App() {
                         <li><a href="#" className="hover:text-accent-300 transition-colors">Arts & Crafts</a></li>
                       </ul>
                     </div>
-                    
+
                     <div>
                       <h4 className="text-base font-semibold mb-4 text-white font-heading">Locations</h4>
                       <ul className="space-y-3 text-sm text-neutral-400">
@@ -385,7 +380,7 @@ function App() {
                         <li><a href="#" className="hover:text-accent-300 transition-colors">Arenas</a></li>
                       </ul>
                     </div>
-                    
+
                     <div>
                       <h4 className="text-base font-semibold mb-4 text-white font-heading">Help</h4>
                       <ul className="space-y-3 text-sm text-neutral-400">
@@ -397,7 +392,7 @@ function App() {
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="mt-12 pt-8 border-t border-neutral-700 text-sm text-neutral-500">
                   <div className="flex flex-col md:flex-row justify-between items-center">
                     <p>© 2025 City of Municipal. All rights reserved. This is a demo recreation.</p>
