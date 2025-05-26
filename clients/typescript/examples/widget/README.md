@@ -25,20 +25,11 @@ Add this code to your website:
 
 ```html
 <script>
-  // Generate a unique session ID for this user
-  function generateUUID() {
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-      const r = Math.random() * 16 | 0;
-      const v = c === 'x' ? r : (r & 0x3 | 0x8);
-      return v.toString(16);
-    });
-  }
-
   window.addEventListener('load', function() {
     window.initChatbotWidget({
       apiUrl: 'https://your-api-url.com',  // Your chatbot API endpoint
       apiKey: 'your-api-key',             // Your API key
-      sessionId: generateUUID(),          // Unique session ID
+      sessionId: 'optional-session-id',    // Optional: Provide a custom session ID
       widgetConfig: {
         header: {
           title: "Chat Assistant"
@@ -89,6 +80,27 @@ Add this code to your website:
 </script>
 ```
 
+## Session Management
+
+The widget now includes improved session management:
+
+1. **Server-Provided Session ID**: If your server provides a session ID through `window.CHATBOT_SESSION_ID`, the widget will use it automatically.
+
+2. **Custom Session ID**: You can provide your own session ID during initialization:
+   ```javascript
+   window.initChatbotWidget({
+     apiUrl: 'https://your-api-url.com',
+     apiKey: 'your-api-key',
+     sessionId: 'your-custom-session-id',
+     // ... other config
+   });
+   ```
+
+3. **Automatic Session ID**: If no session ID is provided, the widget will:
+   - First check for an existing session ID in `sessionStorage`
+   - If none exists, generate a new UUID
+   - Store the session ID in both `sessionStorage` and `window.CHATBOT_SESSION_ID`
+
 ## Advanced Usage
 
 ### Custom Container
@@ -123,7 +135,7 @@ function App() {
       window.initChatbotWidget({
         apiUrl: process.env.REACT_APP_API_ENDPOINT,
         apiKey: process.env.REACT_APP_API_KEY,
-        sessionId: generateUUID(),
+        sessionId: process.env.REACT_APP_SESSION_ID, // Optional: Provide custom session ID
         widgetConfig: {
           // ... your config here
         }
@@ -150,7 +162,7 @@ function App() {
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `sessionId` | string | Unique identifier for the chat session |
+| `sessionId` | string | Unique identifier for the chat session. If not provided, one will be generated automatically |
 | `containerSelector` | string | CSS selector for custom container |
 | `widgetConfig` | object | Widget appearance and behavior settings |
 
@@ -229,13 +241,20 @@ To adjust the widget height, add this CSS to your website:
    - Check browser console for errors
    - Verify API URL and key are correct
    - Ensure all required scripts are loaded
+   - Check if the container element exists
 
-2. **API connection issues?**
+2. **Session ID issues?**
+   - Verify that `window.CHATBOT_SESSION_ID` is set if using server-provided sessions
+   - Check browser console for session-related errors
+   - Ensure `sessionStorage` is available and not blocked
+
+3. **API connection issues?**
    - Verify your API endpoint is accessible
    - Check API key is valid
    - Ensure CORS is properly configured on your API
+   - Verify session ID is being sent with requests
 
-3. **Styling conflicts?**
+4. **Styling conflicts?**
    - The widget uses scoped CSS to prevent conflicts
    - If you see styling issues, check for conflicting CSS rules
 

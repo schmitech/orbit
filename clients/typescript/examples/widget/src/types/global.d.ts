@@ -10,6 +10,7 @@ interface Window {
   }) => void;
   CHATBOT_API_URL: string;
   CHATBOT_API_KEY: string;
+  CHATBOT_SESSION_ID: string;
   ChatbotWidget: {
     ChatWidget: React.FC<any>;
     useChatStore: any;

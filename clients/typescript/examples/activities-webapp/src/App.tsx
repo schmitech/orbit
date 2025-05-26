@@ -119,6 +119,7 @@ function App() {
           apiUrl: apiUrl,
           apiKey: apiKey,
           sessionId: getSessionId(),
+          containerSelector: '#chatbot-container',
           widgetConfig: {
             header: {
               title: "Community Services Help Center"
@@ -129,16 +130,28 @@ function App() {
             },
             suggestedQuestions: [
               {
-                text: "What youth programs are available?",
-                query: "Tell me about the youth programs"
+                text: "What swimming programs are available? 🏊‍♂️",
+                query: "Tell me about the swimming programs and lessons"
               },
               {
-                text: "Senior services information",
-                query: "What services are available for seniors?"
+                text: "Show me activities for seniors 👴",
+                query: "What activities are available for older adults (55+)?"
               },
               {
-                text: "Adult education courses",
-                query: "What adult education courses do you offer?"
+                text: "What sports programs do you offer? ⚽",
+                query: "Tell me about the sports and fitness activities"
+              },
+              {
+                text: "Are there any arts & crafts programs? 🎨",
+                query: "What arts, crafts, and creative activities are available?"
+              },
+              {
+                text: "What programs are available for kids? 👶",
+                query: "Tell me about activities for children and youth"
+              },
+              {
+                text: "Do you offer music lessons? 🎵",
+                query: "What music and instrument lessons are available?"
               }
             ],
             theme: {
@@ -169,7 +182,7 @@ function App() {
                 text: '#0f172a'               // Maintain contrast
               },
             
-              iconColor: '#f59e0b'  // Amber for CTA-friendly icons (can tone down if too bright)
+              iconColor: '#0369a1'  // Amber for CTA-friendly icons (can tone down if too bright)
             },
             icon: "message-square"            
           }
@@ -259,6 +272,7 @@ function App() {
 
   return (
     <Router>
+      <div id="chatbot-container"></div>
       <Routes>
         <Route path="/" element={
           <div className="min-h-screen bg-neutral-50">

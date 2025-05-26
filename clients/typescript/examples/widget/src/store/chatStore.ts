@@ -1,6 +1,7 @@
 import { create } from 'zustand';
-import { streamChat, configureApi } from '../../../../api/api';
+import { streamChat, configureApi } from '@schmitech/chatbot-api';
 import { getApiUrl, getApiKey } from '../index';
+import { getOrCreateSessionId, setSessionId } from '../utils/sessionManager';
 
 export type MessageRole = 'user' | 'assistant' | 'system';
 
@@ -14,18 +15,54 @@ interface ChatState {
   isLoading: boolean;
   error: string | null;
   voiceEnabled: boolean;
+  sessionId: string;
   toggleVoice: () => void;
   sendMessage: (content: string) => Promise<void>;
   appendToLastMessage: (content: string) => void;
   clearMessages: () => void;
+  getSessionId: () => string;
 }
 
-// Ensure the API is configured whenever the store is imported
-function ensureApiConfigured() {
+// Initialize API configuration
+let apiConfigured = false;
+
+function ensureApiConfigured(): boolean {
+  if (apiConfigured) {
+    return true;
+  }
+
   try {
-    if (typeof window !== 'undefined' && window.CHATBOT_API_URL && window.CHATBOT_API_KEY) {
-      const sessionId = generateUUID();
-      configureApi(window.CHATBOT_API_URL, window.CHATBOT_API_KEY, sessionId);
+    if (typeof window !== 'undefined') {
+      let apiUrl: string | undefined;
+      let apiKey: string | undefined;
+      let sessionId: string;
+
+      // Try to get API URL and key from various sources
+      if (window.CHATBOT_API_URL && window.CHATBOT_API_KEY) {
+        apiUrl = window.CHATBOT_API_URL;
+        apiKey = window.CHATBOT_API_KEY;
+      } else if (getApiUrl && getApiKey) {
+        apiUrl = getApiUrl();
+        apiKey = getApiKey();
+      }
+
+      if (!apiUrl || !apiKey) {
+        console.warn('API URL or API Key not configured');
+        return false;
+      }
+
+      // Handle session ID
+      if (window.CHATBOT_SESSION_ID) {
+        // If server provided a session ID, use it and persist it
+        sessionId = window.CHATBOT_SESSION_ID;
+        setSessionId(sessionId);
+      } else {
+        // Otherwise, get or create a persistent session ID
+        sessionId = getOrCreateSessionId();
+      }
+
+      configureApi(apiUrl, apiKey, sessionId);
+      apiConfigured = true;
       return true;
     }
   } catch (err) {
@@ -34,31 +71,24 @@ function ensureApiConfigured() {
   return false;
 }
 
-// Function to generate a UUID v4
-function generateUUID(): string {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-    const r = Math.random() * 16 | 0;
-    const v = c === 'x' ? r : (r & 0x3 | 0x8);
-    return v.toString(16);
-  });
-}
-
-// Try to configure the API
-ensureApiConfigured();
-
 export const useChatStore = create<ChatState>((set, get) => ({
   messages: [],
   isLoading: false,
   error: null,
   voiceEnabled: false,
+  sessionId: getOrCreateSessionId(),
   
   toggleVoice: () => set(state => ({ voiceEnabled: !state.voiceEnabled })),
+  
+  getSessionId: () => {
+    return get().sessionId;
+  },
   
   sendMessage: async (content: string) => {
     try {
       // Ensure API is configured before sending message
       if (!ensureApiConfigured()) {
-        throw new Error('API URL not configured');
+        throw new Error('API not properly configured');
       }
       
       // Add user message
@@ -127,5 +157,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
   
   clearMessages: () => {
     set({ messages: [] });
+    // Note: We're NOT clearing the session here, just the messages
+    // If you want to start a completely new session, you would also call:
+    // clearSession();
+    // apiConfigured = false;
+    // ensureApiConfigured();
   }
 }));
+
+// Don't try to configure the API immediately on load
+// Instead, wait for the first message to be sent
+// This prevents circular dependencies and initialization issues

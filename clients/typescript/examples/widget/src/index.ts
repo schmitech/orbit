@@ -5,6 +5,7 @@ import { useChatStore } from './store/chatStore';
 import './index.css';
 import { configureApi } from '@schmitech/chatbot-api';
 import { getChatConfig, ChatConfig } from './config/index';
+import { getOrCreateSessionId, setSessionId } from './utils/sessionManager';
 
 export { ChatWidget, useChatStore, getChatConfig };
 export type { ChatWidgetProps, ChatConfig };
@@ -12,32 +13,9 @@ export type { ChatWidgetProps, ChatConfig };
 // Also export as default for backward compatibility
 export default ChatWidget;
 
-// Function to generate a UUID v4
-function generateUUID(): string {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-    const r = Math.random() * 16 | 0;
-    const v = c === 'x' ? r : (r & 0x3 | 0x8);
-    return v.toString(16);
-  });
-}
-
-// Function to get or create session ID
-function getSessionId(): string {
-  const storageKey = 'orbit_session_id';
-  let sessionId = sessionStorage.getItem(storageKey);
-  
-  if (!sessionId) {
-    sessionId = generateUUID();
-    sessionStorage.setItem(storageKey, sessionId);
-  }
-  
-  return sessionId;
-}
-
 // This will be the global API URL that components can import
 let apiUrl: string | null = null;
 let apiKey: string | null = null;
-let sessionId: string | null = null;
 let currentConfig: ChatConfig | null = null;
 
 export function getApiUrl(): string {
@@ -67,7 +45,8 @@ export function setApiUrl(url: string): void {
   if (typeof window !== 'undefined') {
     window.CHATBOT_API_URL = url;
     // Configure the API with both URL and key
-    if (apiKey && sessionId) {
+    if (apiKey) {
+      const sessionId = getOrCreateSessionId();
       configureApi(url, apiKey, sessionId);
     }
   }
@@ -78,7 +57,8 @@ export function setApiKey(key: string): void {
   if (typeof window !== 'undefined') {
     window.CHATBOT_API_KEY = key;
     // Configure the API with both URL and key
-    if (apiUrl && sessionId) {
+    if (apiUrl) {
+      const sessionId = getOrCreateSessionId();
       configureApi(apiUrl, key, sessionId);
     }
   }
@@ -118,78 +98,76 @@ export function updateWidgetConfig(config: Partial<ChatConfig>): void {
 }
 
 // Function to inject the widget into any website
-export function injectChatWidget(config: { 
-  apiUrl: string,
-  apiKey: string,
-  sessionId?: string, // Make sessionId optional
-  containerSelector?: string,
-  widgetConfig?: Partial<ChatConfig>
-}): void {
-  // Ensure we're in a browser environment
-  if (typeof window === 'undefined') return;
-
-  apiUrl = config.apiUrl;
-  apiKey = config.apiKey;
-  // Use provided sessionId or generate/get one
-  sessionId = config.sessionId || getSessionId();
-  
-  // Configure API with all required parameters
-  configureApi(config.apiUrl, config.apiKey, sessionId);
-  
-  // Store initial config if provided
-  if (config.widgetConfig) {
-    currentConfig = {
-      ...getChatConfig(),  // Start with default config
-      ...config.widgetConfig  // Override with provided config
-    };
-  }
-  
-  // We need to ensure this function is called only after React and ReactDOM are fully loaded
-  function tryInitialize() {
-    // Use a try-catch to handle any initialization errors
-    try {
-      if (!window.React || !window.ReactDOM) {
-        console.log('React or ReactDOM not available yet, retrying in 100ms...');
-        setTimeout(tryInitialize, 100);
-        return;
-      }
-      
-      // Get container
-      const container = config.containerSelector
-        ? document.querySelector(config.containerSelector)
-        : document.createElement('div');
-      
-      if (!container) {
-        console.error(`Container with selector "${config.containerSelector}" not found`);
-        return;
-      }
-      
-      // If no selector provided, append to body
-      if (!config.containerSelector) {
-        container.id = 'chatbot-widget-container';
-        document.body.appendChild(container);
-      }
-
-      // Create root and render the widget with the window's React version and pass the config
-      const root = window.ReactDOM.createRoot(container as HTMLElement);
-      root.render(window.React.createElement(ChatWidget, currentConfig));
-      
-      console.log('Chatbot widget initialized successfully!');
-    } catch (err) {
-      console.error('Error initializing chatbot widget:', err);
+export function injectChatWidget(config: {
+  apiUrl: string;
+  apiKey: string;
+  sessionId?: string;
+  containerSelector?: string;
+  widgetConfig?: Partial<ChatConfig>;
+}) {
+  try {
+    // Handle session ID
+    let sessionId: string;
+    if (config.sessionId) {
+      // If a session ID is provided, use it and persist it
+      sessionId = config.sessionId;
+      setSessionId(sessionId);
+    } else {
+      // Otherwise, get or create a persistent session ID
+      sessionId = getOrCreateSessionId();
     }
-  }
 
-  // Start the initialization process with a short delay
-  setTimeout(tryInitialize, 100);
+    // Set global variables first
+    window.CHATBOT_API_URL = config.apiUrl;
+    window.CHATBOT_API_KEY = config.apiKey;
+    window.CHATBOT_SESSION_ID = sessionId;
+
+    // Update widget config if provided
+    if (config.widgetConfig) {
+      updateWidgetConfig(config.widgetConfig);
+    }
+
+    // Configure the API with the consistent session ID
+    configureApi(config.apiUrl, config.apiKey, sessionId);
+
+    const container = document.querySelector(config.containerSelector || '#chatbot-widget');
+    if (!container) {
+      console.error('Chatbot container not found');
+      return;
+    }
+
+    const root = ReactDOM.createRoot(container);
+    root.render(
+      React.createElement(ChatWidget, {
+        sessionId: sessionId,
+        apiUrl: config.apiUrl,
+        apiKey: config.apiKey,
+        ...config.widgetConfig
+      })
+    );
+  } catch (error) {
+    console.error('Failed to inject chatbot widget:', error);
+  }
 }
 
 // Make sure to set it on window for UMD builds
 if (typeof window !== 'undefined') {
-  // Explicitly make these available globally
-  window.initChatbotWidget = injectChatWidget;
-  
-  // Also expose the widget component directly
+  // Initialize the widget when the page loads
+  window.initChatbotWidget = (config: {
+    apiUrl: string;
+    apiKey: string;
+    sessionId?: string;
+    containerSelector?: string;
+    widgetConfig?: Partial<ChatConfig>;
+  }) => {
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => injectChatWidget(config));
+    } else {
+      injectChatWidget(config);
+    }
+  };
+
+  // Expose additional utilities
   window.ChatbotWidget = {
     ChatWidget,
     useChatStore,
@@ -199,8 +177,12 @@ if (typeof window !== 'undefined') {
     setApiKey,
     getApiKey,
     updateWidgetConfig,
-    configureApi
+    configureApi: (apiUrl: string, apiKey: string, sessionId?: string) => {
+      const finalSessionId = sessionId || getOrCreateSessionId();
+      if (sessionId) {
+        setSessionId(sessionId);
+      }
+      configureApi(apiUrl, apiKey, finalSessionId);
+    }
   };
-  
-  console.log('Chatbot widget loaded.');
 } 

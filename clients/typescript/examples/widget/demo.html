@@ -447,6 +447,9 @@
             </div>
         </div>
 
+        <!-- Add the main chatbot container -->
+        <div id="chatbot-widget"></div>
+
         <h2>Custom Container Demo</h2>
         <p>You can render the widget in a custom container instead of the bottom-right corner:</p>
         <button onclick="initInCustomContainer()">Initialize in Custom Container</button>
@@ -583,6 +586,23 @@
         function initializeDemo() {
             // All initialization code goes here
             console.log('Initializing demo...');
+            
+            // Ensure containers exist
+            if (!document.getElementById('chatbot-widget')) {
+                const container = document.createElement('div');
+                container.id = 'chatbot-widget';
+                document.body.appendChild(container);
+            }
+            
+            if (!document.getElementById('custom-container')) {
+                const customContainer = document.createElement('div');
+                customContainer.id = 'custom-container';
+                customContainer.className = 'custom-container';
+                customContainer.innerHTML = '<p>Widget will appear here when you click the button above</p>';
+                document.body.appendChild(customContainer);
+            }
+            
+            // Initialize the widget
             initWidget();
         }
 
@@ -604,11 +624,11 @@
                     query: "How can you help me?"
                 },
                 {
-                    text: "I need to change the theme",
+                    text: "Change theme",
                     query: "How do I customize the appearance?"
                 },
                 {
-                    text: "Assistance with API Integration",
+                    text: "API integration",
                     query: "How do I connect to my own API?"
                 }
             ],
@@ -637,7 +657,7 @@
                 },
                 iconColor: '#f97316'
             },
-            icon: 'message-square' // Default icon
+            icon: "message-square"
         };
 
         // Theme presets
@@ -857,11 +877,19 @@
             if (!widgetInitialized) {
                 const apiUrl = document.getElementById('api-url').value || 'http://localhost:3000';
                 const apiKey = document.getElementById('api-key').value || 'demo-api-key';
-                const sessionId = generateUUID();
                 
                 if (!apiKey) {
                     alert('API key is required. Using default demo key.');
                     document.getElementById('api-key').value = 'demo-api-key';
+                }
+
+                // Ensure the container exists
+                const container = document.getElementById('chatbot-widget');
+                if (!container) {
+                    console.error('Chatbot container not found. Creating container...');
+                    const newContainer = document.createElement('div');
+                    newContainer.id = 'chatbot-widget';
+                    document.body.appendChild(newContainer);
                 }
                 
                 // Configure the API first
@@ -873,7 +901,6 @@
                 window.initChatbotWidget({
                     apiUrl: apiUrl,
                     apiKey: apiKey,
-                    sessionId: sessionId,
                     widgetConfig: defaultConfig
                 });
                 
@@ -892,11 +919,15 @@
         function initInCustomContainer() {
             if (!customWidgetInitialized) {
                 const customContainer = document.getElementById('custom-container');
-                customContainer.innerHTML = ''; // Clear placeholder text
+                if (!customContainer) {
+                    console.error('Custom container not found. Creating container...');
+                    const newContainer = document.createElement('div');
+                    newContainer.id = 'custom-container';
+                    document.body.appendChild(newContainer);
+                }
                 
                 const apiUrl = document.getElementById('api-url').value || 'http://localhost:3000';
                 const apiKey = document.getElementById('api-key').value || 'demo-api-key';
-                const sessionId = generateUUID();
                 
                 if (!apiKey) {
                     alert('API key is required. Using default demo key.');
@@ -912,7 +943,6 @@
                 window.initChatbotWidget({
                     apiUrl: apiUrl,
                     apiKey: apiKey,
-                    sessionId: sessionId,
                     containerSelector: '#custom-container',
                     widgetConfig: {
                         ...defaultConfig,
@@ -1105,20 +1135,10 @@
                     '<link rel="stylesheet" href="/style.css">',
                     '',
                     '<script>',
-                    '  // Generate a unique session ID for this user',
-                    '  function generateUUID() {',
-                    '    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function(c) {',
-                    '      const r = Math.random() * 16 | 0;',
-                    '      const v = c === "x" ? r : (r & 0x3 | 0x8);',
-                    '      return v.toString(16);',
-                    '    });',
-                    '  }',
-                    '',
                     '  window.addEventListener("load", function() {',
                     '    window.initChatbotWidget({',
                     '      apiUrl: "' + apiUrl + '",',
                     '      apiKey: "' + apiKey + '",',
-                    '      sessionId: generateUUID(), // Required for proper functionality',
                     '      widgetConfig: ' + configStr,
                     '    });',
                     '  });',

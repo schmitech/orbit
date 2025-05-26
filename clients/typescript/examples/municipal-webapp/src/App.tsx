@@ -117,6 +117,7 @@ function App() {
           apiUrl: apiUrl,
           apiKey: apiKey,
           sessionId: getSessionId(),
+          containerSelector: '#chatbot-container',
           widgetConfig: {
             header: {
               title: "City of Maple Assistant"
@@ -188,6 +189,7 @@ function App() {
   
   return (
     <Router>
+      <div id="chatbot-container"></div>
       <Routes>
         <Route path="/" element={<Layout />}>
           <Route index element={<Home />} />
