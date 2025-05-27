@@ -8,25 +8,29 @@ from bson import ObjectId
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 import logging
+from pathlib import Path
 from dotenv import load_dotenv
+
+# Get the directory of this script
+SCRIPT_DIR = Path(__file__).parent.absolute()
+
+# Get the project root (parent of server directory)
+PROJECT_ROOT = SCRIPT_DIR.parent.parent
+
+# Add server directory to Python path
+SERVER_DIR = SCRIPT_DIR.parent
+sys.path.append(str(SERVER_DIR))
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Load environment variables from .env file in project root
-env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), '.env')
-if os.path.exists(env_path):
-    logger.info(f"Loading environment variables from: {env_path}")
-    load_dotenv(env_path)
-else:
-    logger.warning(f".env file not found at expected path: {env_path}")
+env_path = PROJECT_ROOT / '.env'
+if not env_path.exists():
+    raise FileNotFoundError(f".env file not found at {env_path}")
 
-# Add parent directory to Python path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-# Configure pytest-asyncio
-pytestmark = pytest.mark.asyncio
+load_dotenv(env_path)
 
 # Import services (with error handling)
 try:
@@ -42,18 +46,25 @@ except ImportError as e:
 TEST_CONFIG = {
     'internal_services': {
         'mongodb': {
-            'host': 'localhost',
-            'port': 27017,
-            'database': 'orbit_test',
+            'host': os.getenv("INTERNAL_SERVICES_MONGODB_HOST"),
+            'port': int(os.getenv("INTERNAL_SERVICES_MONGODB_PORT", 27017)),
+            'database': os.getenv("INTERNAL_SERVICES_MONGODB_DATABASE", "orbit_test"),
             'apikey_collection': 'api_keys_test',
-            'username': 'orbit',
-            'password': 'password'
+            'username': os.getenv("INTERNAL_SERVICES_MONGODB_USERNAME"),
+            'password': os.getenv("INTERNAL_SERVICES_MONGODB_PASSWORD")
         }
     },
     'general': {
         'verbose': True
     }
 }
+
+# Validate required environment variables
+required_vars = ["INTERNAL_SERVICES_MONGODB_HOST", "INTERNAL_SERVICES_MONGODB_USERNAME", 
+                 "INTERNAL_SERVICES_MONGODB_PASSWORD"]
+missing_vars = [var for var in required_vars if not os.getenv(var)]
+if missing_vars:
+    pytest.skip(f"Missing required environment variables: {', '.join(missing_vars)}")
 
 # Helper function to check MongoDB connection
 async def check_mongodb_connection(config):
