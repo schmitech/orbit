@@ -13,10 +13,9 @@ from datetime import datetime
 
 import uvicorn
 from fastapi import FastAPI, Request, Depends, HTTPException, Response
-from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 import chromadb
-from langchain_ollama import OllamaEmbeddings
 from dotenv import load_dotenv
 from pythonjsonlogger import jsonlogger
 from bson import ObjectId
@@ -27,12 +26,10 @@ load_dotenv()
 # Import local modules (ensure these exist in your project structure)
 from config.config_manager import load_config, _is_true_value
 from config.resolver import ConfigResolver
-from models.schema import ChatMessage, ApiKeyCreate, ApiKeyResponse, ApiKeyDeactivate, SystemPromptCreate, SystemPromptUpdate, SystemPromptResponse, ApiKeyPromptAssociate
+from config.logging_configurator import LoggingConfigurator
 from models.schema import MCPJsonRpcRequest, MCPJsonRpcResponse, MCPJsonRpcError
 from services.mongodb_service import MongoDBService
 from inference import LLMClientFactory
-from utils.text_utils import mask_api_key
-from utils.mongodb_utils import configure_mongodb_logging
 from services.chat_service import ChatService
 from services.chat_history_service import ChatHistoryService
 from utils.http_utils import close_all_aiohttp_sessions
@@ -101,13 +98,13 @@ class InferenceServer:
             ValueError: If the configuration is invalid
         """
         # Initialize basic logging until proper configuration is loaded
-        self._setup_initial_logging()
+        self.logger = LoggingConfigurator.setup_initial_logging()
         
         # Load configuration
         self.config = load_config(config_path)
         
         # Configure proper logging with loaded configuration
-        self._setup_logging()
+        self.logger = LoggingConfigurator.setup_full_logging(self.config)
         
         # Now create the config resolver with the proper logger
         self.config_resolver = ConfigResolver(self.config, self.logger)
@@ -132,134 +129,6 @@ class InferenceServer:
         self._configure_routes()
         
         self.logger.info("InferenceServer initialized")
-
-    def _setup_initial_logging(self) -> None:
-        """
-        Set up basic logging configuration before loading the full config.
-        
-        This method initializes a basic logging configuration that will be used
-        until the full configuration is loaded. It ensures that critical startup
-        messages are properly logged.
-        
-        The basic configuration includes:
-        - Console output
-        - Timestamp formatting
-        - Log level set to INFO
-        - Basic log format
-        
-        This is a temporary setup that will be replaced by the full logging
-        configuration once the config is loaded.
-        """
-        logging.basicConfig(
-            level=logging.INFO,
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        )
-        self.logger = logging.getLogger(__name__)
-        
-        # Set specific logger levels for more detailed debugging
-        logging.getLogger('clients.ollama_client').setLevel(logging.DEBUG)
-
-    def _setup_logging(self) -> None:
-        """
-        Configure logging based on the application configuration.
-        
-        This method sets up the full logging configuration based on the loaded
-        configuration file. It supports:
-        - Console and file logging
-        - JSON and text formats
-        - Log rotation
-        - Custom log levels
-        - Warning capture
-        
-        Configuration options include:
-        - Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
-        - Log format (JSON or text)
-        - Log file settings (path, rotation, size limits)
-        - Console output settings
-        - Warning capture settings
-        
-        The configuration is applied to the root logger and can be overridden
-        for specific loggers if needed.
-        """
-        log_config = self.config.get('logging', {})
-        log_level = getattr(logging, log_config.get('level', 'INFO').upper())
-        
-        # Configure root logger first
-        root_logger = logging.getLogger()
-        root_logger.setLevel(log_level)
-        
-        # Clear existing handlers to prevent duplicates
-        root_logger.handlers.clear()
-        
-        # Create formatters based on configuration
-        text_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        json_formatter = jsonlogger.JsonFormatter('%(asctime)s %(levelname)s %(name)s %(message)s')
-        
-        # Configure console logging
-        handlers = log_config.get('handlers', {})
-        console_enabled = _is_true_value(handlers.get('console', {}).get('enabled', True))
-        if console_enabled:
-            console_handler = logging.StreamHandler()
-            console_format = handlers.get('console', {}).get('format', 'text')
-            console_handler.setFormatter(json_formatter if console_format == 'json' else text_formatter)
-            console_handler.setLevel(log_level)
-            root_logger.addHandler(console_handler)
-        
-        # Configure file logging
-        file_enabled = _is_true_value(handlers.get('file', {}).get('enabled', True))
-        if file_enabled:
-            file_config = handlers.get('file', {})
-            log_dir = file_config.get('directory', 'logs')
-            os.makedirs(log_dir, exist_ok=True)
-            
-            log_file = os.path.join(log_dir, file_config.get('filename', 'orbit.log'))
-            
-            # Set up rotating file handler
-            if file_config.get('rotation') == 'midnight':
-                file_handler = logging.handlers.TimedRotatingFileHandler(
-                    filename=log_file,
-                    when='midnight',
-                    interval=1,
-                    backupCount=file_config.get('backup_count', 30),
-                    encoding='utf-8'
-                )
-            else:
-                file_handler = logging.handlers.RotatingFileHandler(
-                    filename=log_file,
-                    maxBytes=file_config.get('max_size_mb', 10) * 1024 * 1024,
-                    backupCount=file_config.get('backup_count', 30),
-                    encoding='utf-8'
-                )
-            
-            file_format = file_config.get('format', 'text')
-            file_handler.setFormatter(json_formatter if file_format == 'json' else text_formatter)
-            file_handler.setLevel(log_level)
-            root_logger.addHandler(file_handler)
-        
-        # Configure specific loggers
-        if 'loggers' in log_config:
-            for logger_name, logger_config in log_config['loggers'].items():
-                logger = logging.getLogger(logger_name)
-                logger_level = getattr(logging, logger_config.get('level', 'INFO').upper())
-                logger.setLevel(logger_level)
-                logger.propagate = _is_true_value(log_config.get('propagate', False))
-        
-        # Set propagation for root logger
-        root_logger.propagate = _is_true_value(log_config.get('propagate', False))
-        
-        # Capture warnings if configured
-        if _is_true_value(log_config.get('capture_warnings', True)):
-            logging.captureWarnings(True)
-        
-        # Get a new logger instance for this module
-        self.logger = logging.getLogger(__name__)
-        self.logger.propagate = _is_true_value(log_config.get('propagate', False))
-        self.logger.info("Logging configuration completed")
-        
-        # Handle verbose setting consistently
-        verbose_value = self.config.get('general', {}).get('verbose', False)
-        if _is_true_value(verbose_value):
-            self.logger.debug("Verbose logging enabled")
 
     def _create_lifespan_manager(self):
         """
