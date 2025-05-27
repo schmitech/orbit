@@ -27,6 +27,7 @@ load_dotenv()
 from config.config_manager import load_config, _is_true_value
 from config.resolver import ConfigResolver
 from config.logging_configurator import LoggingConfigurator
+from config.middleware_configurator import MiddlewareConfigurator
 from models.schema import MCPJsonRpcRequest, MCPJsonRpcResponse, MCPJsonRpcError
 from services.mongodb_service import MongoDBService
 from inference import LLMClientFactory
@@ -125,7 +126,7 @@ class InferenceServer:
         self.clients = {}
         
         # Configure middleware and routes
-        self._configure_middleware()
+        MiddlewareConfigurator.configure_middleware(self.app, self.config, self.logger)
         self._configure_routes()
         
         self.logger.info("InferenceServer initialized")
@@ -854,35 +855,6 @@ class InferenceServer:
         self.logger.info("API Endpoints:")
         self.logger.info("  - MCP Completion Endpoint: POST /v1/chat")
         self.logger.info("  - Health check: GET /health")
-
-    def _configure_middleware(self) -> None:
-        """
-        Configure middleware for the FastAPI application.
-        
-        This method sets up:
-        - CORS middleware for cross-origin requests
-        - Custom logging middleware for request/response tracking
-        
-        The CORS middleware is configured to allow all origins, methods, and headers
-        for development. In production, this should be restricted to specific origins.
-        """
-        # Add CORS middleware with permissive settings for development
-        self.app.add_middleware(
-            CORSMiddleware,
-            allow_origins=["*"],  # TODO: Restrict in production
-            allow_credentials=True,
-            allow_methods=["*"],
-            allow_headers=["*"],
-        )
-
-        # Add request logging middleware
-        @self.app.middleware("http")
-        async def log_requests(request: Request, call_next):
-            start_time = time.time()
-            response = await call_next(request)
-            process_time = time.time() - start_time
-            self.logger.info(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S,%f')[:-3]} - {request.client.host} - {request.method} {request.url.path} - {response.status_code} - {process_time:.3f}s")
-            return response
 
     def _configure_routes(self) -> None:
         """
