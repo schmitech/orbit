@@ -33,6 +33,7 @@ dependencies = [
     "pycountry>=24.6.1",
     "llama-cpp-python==0.3.9",
     "elasticsearch==9.0.0",
+    "schmitech-orbit-client==0.2.2"
 ]
 
 [profiles.huggingface]

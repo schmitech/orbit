@@ -1,5 +1,30 @@
 # Changelog
 
+## [1.1.0] - 2025-05-26
+
+### Config
+
+- Updated default settings in config example. Now uses llama_cpp by default instead of Ollama.
+- Disabled redis cache
+- Update default model name for llama_cpp inference
+
+### Core Services
+- Introduced conversation history only for inference service (RAG mode not yet supported).
+- Migrated admin endpoints from inference_server.py into its own route module as part to promote maintainability.
+- Fixed Redis cache service, added redis and mongdb services unit tests.
+- Fixed issues with config files. Disable loading RAG adapters if inference_only is true.
+- Fixed language and ollama unit tests. Fixed redis config issues.
+
+### Documentation & Configuration
+- Updated documentation, improved code for the adapters, removed redundancy.
+- Fixed issues with Elasticsearch logger.
+- Added more config settings and env variables.
+- Modified build-tarball to accept version as argument.
+
+### Chat Widget Improvements
+- Chatbot Widget v0.3.6. Made changes to chatbot widget to better handle session management so it works well with chat history on the backend. Updated client examples.
+- Chat Widget v0.3.7. Fixed issues with input box focus ring. Now it matches global theme. Changed theme for activities example.
+
 ## [1.0.1] - 2025-05-23
 
 ### Documentation

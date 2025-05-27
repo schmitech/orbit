@@ -9,7 +9,7 @@ general:
   session_id:
     header_name: "X-Session-ID"
     required: true
-  inference_provider: "ollama"
+  inference_provider: "llama_cpp"
   language_detection: false
   inference_only: true
   adapter: "qa-sql"
@@ -71,7 +71,7 @@ internal_services:
     password: ${INTERNAL_SERVICES_MONGODB_PASSWORD}
 
   redis:
-    enabled: true
+    enabled: false
     host: ${INTERNAL_SERVICES_REDIS_HOST}
     port: ${INTERNAL_SERVICES_REDIS_PORT}
     db: 0
@@ -223,7 +223,7 @@ inference:
     model: "Qwen2.5-14B"
     stream: true
   llama_cpp:
-    model_path: "gguf/gemma-3-1b-it-Q4_0.gguf"
+    model_path: "gguf/gemma3-1b.gguf"
     chat_format: "chatml"  # Chat format to use (chatml, llama-2, gemma, etc.)
     verbose: false
     temperature: 0.1
