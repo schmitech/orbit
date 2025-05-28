@@ -379,53 +379,16 @@ def get_default_config() -> Dict[str, Any]:
             }
         },
         "reranker": {
-            "enabled": False,
-            "provider_override": None,
-            "model": "gemma3:1b",
-            "batch_size": 5,
-            "temperature": 0.0,
-            "top_n": 3
+            "provider": "ollama",
+            "enabled": True
         },
         "rerankers": {
-            "cohere": {
-                "api_key": "${COHERE_API_KEY}",
-                "model": "rerank-english-v3.0",
-                "top_n": 5,
-                "batch_size": 32
-            },
-            "openai": {
-                "api_key": "${OPENAI_API_KEY}",
-                "model": "gpt-4o",
-                "temperature": 0.0,
-                "max_tokens": 512,
-                "batch_size": 20
-            },
-            "anthropic": {
-                "api_key": "${ANTHROPIC_API_KEY}",
-                "model": "claude-3-haiku-20240307",
-                "temperature": 0.0,
-                "max_tokens": 512,
-                "batch_size": 10
-            },
             "ollama": {
                 "base_url": "http://localhost:11434",
-                "model": "gemma3:1b",
+                "model": "xitao/bge-reranker-v2-m3:latest",
                 "temperature": 0.0,
-                "batch_size": 5
-            },
-            "jina": {
-                "api_key": "${JINA_API_KEY}",
-                "model": "jina-reranker-v2-base-en",
-                "batch_size": 20
-            },
-            "vertex": {
-                "project_id": "${GOOGLE_CLOUD_PROJECT}",
-                "location": "us-central1",
-                "model": "text-bison@002",
-                "temperature": 0.0,
-                "max_tokens": 256,
-                "batch_size": 8,
-                "credentials_path": ""
+                "batch_size": 5,
+                "top_n": 3
             }
         },
         "datasources": {
@@ -532,7 +495,7 @@ def get_default_config() -> Dict[str, Any]:
                 }
             },
             {
-                "name": "qa-chroma",
+                "name": "qa-vector",
                 "type": "retriever",
                 "datasource": "chroma",
                 "adapter": "qa",

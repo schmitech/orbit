@@ -467,8 +467,23 @@ class ServiceFactory:
             self.logger.info("Safety is disabled, skipping GuardrailService initialization")
     
     async def _initialize_reranker_service(self, app: FastAPI) -> None:
-        """Initialize Reranker Service."""
-        from services.reranker_service import RerankerService
-        app.state.reranker_service = RerankerService(self.config)
-        await app.state.reranker_service.initialize()
-        self.logger.info("Reranker Service initialized successfully")
+        """Initialize Reranker Service if enabled."""
+        if _is_true_value(self.config.get('reranker', {}).get('enabled', False)):
+            from rerankers import RerankerFactory
+            app.state.reranker_service = RerankerFactory.create(self.config)
+            if app.state.reranker_service:
+                try:
+                    if await app.state.reranker_service.initialize():
+                        self.logger.info("Reranker Service initialized successfully")
+                    else:
+                        self.logger.error("Failed to initialize Reranker Service")
+                        app.state.reranker_service = None
+                except Exception as e:
+                    self.logger.error(f"Failed to initialize Reranker Service: {str(e)}")
+                    app.state.reranker_service = None
+            else:
+                self.logger.warning("No reranker provider configured or provider not supported")
+                app.state.reranker_service = None
+        else:
+            app.state.reranker_service = None
+            self.logger.info("Reranker is disabled, skipping initialization")

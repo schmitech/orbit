@@ -27,7 +27,6 @@ sys.path.append(server_dir)
 
 # Constants
 DEFAULT_TIMEOUT = 120  # Increased timeout for local Ollama
-LOCAL_OLLAMA_URL = "http://localhost:11434"
 
 @pytest.fixture
 def config() -> Dict[str, Any]:
@@ -44,8 +43,7 @@ def ollama_config(config: Dict[str, Any]) -> Dict[str, Any]:
         # Fallback to root level for backward compatibility
         ollama_config = config.get('ollama', {})
     
-    # Ensure we're using local Ollama for tests
-    ollama_config['base_url'] = LOCAL_OLLAMA_URL
+    assert ollama_config.get('base_url'), "Ollama base_url must be specified in config"
     return ollama_config
 
 @pytest.fixture
@@ -58,7 +56,7 @@ def test_config_loading(ollama_config: Dict[str, Any]):
     assert ollama_config, "Ollama configuration should not be empty"
     assert "model" in ollama_config, "Model should be specified in config"
     assert "base_url" in ollama_config, "Base URL should be specified in config"
-    assert ollama_config["base_url"] == LOCAL_OLLAMA_URL, "Tests should use local Ollama instance"
+    assert ollama_config["base_url"], "Base URL should not be empty"
 
 def test_ollama_connection(ollama_config: Dict[str, Any]):
     """Test that Ollama service is accessible"""

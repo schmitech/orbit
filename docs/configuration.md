@@ -182,7 +182,7 @@ adapters:
       max_results: 5
       return_results: 3
 
-  - name: "qa-chroma"
+  - name: "qa-vector"
     type: "retriever"
     datasource: "chroma"
     adapter: "qa"
