@@ -7,7 +7,6 @@ from contextlib import asynccontextmanager
 
 import uvicorn
 from fastapi import FastAPI
-import chromadb
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -22,6 +21,7 @@ from services.service_factory import ServiceFactory
 from utils.http_utils import close_all_aiohttp_sessions
 from routes.routes_configurator import RouteConfigurator
 from config.configuration_summary_logger import ConfigurationSummaryLogger
+from datasources import DatasourceFactory
 
 # Lazy imports for retrievers - only imported when needed
 RetrieverFactory = None
@@ -99,6 +99,7 @@ class InferenceServer:
         self.service_factory = ServiceFactory(self.config, self.logger)
         self.route_configurator = RouteConfigurator(self.config, self.logger)
         self.configuration_summary_logger = ConfigurationSummaryLogger(self.config, self.logger)
+        self.datasource_factory = DatasourceFactory(self.config, self.logger)
         
         # Thread pool for blocking I/O operations
         self.thread_pool = ThreadPoolExecutor(max_workers=10)
@@ -191,57 +192,8 @@ class InferenceServer:
         Returns:
             An initialized datasource client
         """
-        if provider == 'sqlite':
-            # SQLite implementation
-            import sqlite3
-            sqlite_config = self.config['datasources']['sqlite']
-            db_path = sqlite_config.get('db_path', 'sqlite_db.db')
-            self.logger.info(f"Initializing SQLite connection to {db_path}")
-            try:
-                # Return a SQLite connection
-                return sqlite3.connect(db_path)
-            except Exception as e:
-                self.logger.error(f"Failed to connect to SQLite database: {str(e)}")
-                return None
-        elif provider == 'postgres':
-            # Example implementation for PostgreSQL
-            postgres_conf = self.config['datasources']['postgres']
-            # Return a PostgreSQL client implementation
-            self.logger.info(f"PostgreSQL datasource not yet implemented")
-            return None
-        elif provider == 'milvus':
-            # Example implementation for Milvus
-            milvus_conf = self.config['datasources']['milvus']
-            # Return a Milvus client implementation
-            self.logger.info(f"Milvus datasource not yet implemented")
-            return None
-        else:
-            self.logger.warning(f"Unknown datasource provider: {provider}, falling back to ChromaDB")
-            # Default to ChromaDB
-            chroma_conf = self.config['datasources']['chroma']
-            use_local = chroma_conf.get('use_local', False)
-            
-            if use_local:
-                # Use PersistentClient for local filesystem access
-                import os
-                from pathlib import Path
-                
-                db_path = chroma_conf.get('db_path', '../localdb_db')
-                db_path = Path(db_path).resolve()
-                
-                # Ensure the directory exists
-                os.makedirs(db_path, exist_ok=True)
-                
-                self.logger.info(f"Using local ChromaDB at path: {db_path}")
-                return chromadb.PersistentClient(path=str(db_path))
-            else:
-                # Use HttpClient for remote server access
-                self.logger.info(f"Connecting to ChromaDB at {chroma_conf['host']}:{chroma_conf['port']}...")
-                return chromadb.HttpClient(
-                    host=chroma_conf['host'],
-                    port=int(chroma_conf['port'])
-                )
-    
+        return self.datasource_factory.initialize_datasource_client(provider)
+
     async def _initialize_services(self, app: FastAPI) -> None:
         """
         Initialize all services and clients required by the application.
