@@ -1,19 +1,14 @@
 import ssl
-import json
 import asyncio
 import atexit
 from typing import Any, Optional
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
-from datetime import datetime
 
 import uvicorn
-from fastapi import FastAPI, Request, Depends, HTTPException, Response
-from fastapi.responses import StreamingResponse
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI
 import chromadb
 from dotenv import load_dotenv
-from bson import ObjectId
 
 # Load environment variables
 load_dotenv()
@@ -24,11 +19,9 @@ from config.resolver import ConfigResolver
 from config.logging_configurator import LoggingConfigurator
 from config.middleware_configurator import MiddlewareConfigurator
 from services.service_factory import ServiceFactory
-from models.schema import MCPJsonRpcRequest, MCPJsonRpcResponse, MCPJsonRpcError
 from utils.http_utils import close_all_aiohttp_sessions
-
-from routes.admin_routes import admin_router
 from routes.routes_configurator import RouteConfigurator
+from config.configuration_summary_logger import ConfigurationSummaryLogger
 
 # Lazy imports for retrievers - only imported when needed
 RetrieverFactory = None
@@ -105,6 +98,7 @@ class InferenceServer:
 
         self.service_factory = ServiceFactory(self.config, self.logger)
         self.route_configurator = RouteConfigurator(self.config, self.logger)
+        self.configuration_summary_logger = ConfigurationSummaryLogger(self.config, self.logger)
         
         # Thread pool for blocking I/O operations
         self.thread_pool = ThreadPoolExecutor(max_workers=10)
@@ -155,7 +149,7 @@ class InferenceServer:
             # Initialize services and clients
             try:
                 await self._initialize_services(app)
-                self._log_configuration_summary()
+                self.configuration_summary_logger.log_configuration_summary(app)
                 self.logger.info("Startup complete")
             except Exception as e:
                 self.logger.error(f"Failed to initialize services: {str(e)}")
@@ -385,130 +379,6 @@ class InferenceServer:
         else:
             self.logger.info("No services to shut down")
 
-    def _log_configuration_summary(self) -> None:
-        """
-        Log a summary of the server configuration.
-        
-        This method provides a comprehensive overview of the server's configuration
-        by logging key settings and their values. It includes:
-        - Server mode (Full/Inference-only)
-        - Provider configurations
-        - Service settings
-        - API settings
-        - Model information
-        - Endpoint information
-        
-        The summary is formatted for easy reading and includes:
-        - Clear section headers
-        - Grouped related settings
-        - Enabled/disabled status
-        - Provider and model details
-        
-        This summary is logged at server startup to help with:
-        - Configuration verification
-        - Debugging
-        - System monitoring
-        - Documentation
-        """
-        self.logger.info("=" * 50)
-        self.logger.info("Server Configuration Summary")
-        self.logger.info("=" * 50)
-        
-        # Check if inference_only is enabled
-        inference_only = _is_true_value(self.config.get('general', {}).get('inference_only', False))
-        
-        # Log mode first and prominently
-        self.logger.info(f"Mode: {'INFERENCE-ONLY' if inference_only else 'FULL'} (RAG {'disabled' if inference_only else 'enabled'})")
-        self.logger.info("-" * 50)
-        
-        # Get selected providers
-        inference_provider = self.config['general'].get('inference_provider', 'ollama')
-        
-        # Get embedding configuration
-        embedding_config = self.config.get('embedding', {})
-        embedding_enabled = _is_true_value(embedding_config.get('enabled', True))
-        embedding_provider = embedding_config.get('provider', 'ollama')
-        
-        # Get safety configuration
-        safety_config = self.config.get('safety', {})
-        safety_enabled = _is_true_value(safety_config.get('enabled', True))
-        safety_moderator = safety_config.get('moderator', 'ollama')
-        safety_mode = safety_config.get('mode', 'strict')
-        
-        # Get language detection configuration
-        language_detection_enabled = _is_true_value(self.config.get('general', {}).get('language_detection', True))
-        
-        # Get session ID configuration
-        session_config = self.config.get('general', {}).get('session_id', {})
-        session_enabled = _is_true_value(session_config.get('required', False))
-        session_header = session_config.get('header_name', 'X-Session-ID')
-        
-        # Get API key configuration
-        api_key_config = self.config.get('api_keys', {})
-        api_key_enabled = _is_true_value(api_key_config.get('enabled', True))
-        api_key_header = api_key_config.get('header_name', 'X-API-Key')
-        require_for_health = _is_true_value(api_key_config.get('require_for_health', False))
-        
-        self.logger.info(f"Inference provider: {inference_provider}")
-        
-        # Only log embedding info if not in inference_only mode
-        if not inference_only:
-            self.logger.info(f"Embedding: {'enabled' if embedding_enabled else 'disabled'}")
-            if embedding_enabled:
-                self.logger.info(f"Embedding provider: {embedding_provider}")
-                if embedding_provider in self.config.get('embeddings', {}):
-                    embed_model = self.config['embeddings'][embedding_provider].get('model', 'unknown')
-                    self.logger.info(f"Embedding model: {embed_model}")
-        
-        self.logger.info(f"Language Detection: {'enabled' if language_detection_enabled else 'disabled'}")
-        self.logger.info(f"Session ID: {'enabled' if session_enabled else 'disabled'} (header: {session_header})")
-        self.logger.info(f"API Key: {'enabled' if api_key_enabled else 'disabled'} (header: {api_key_header})")
-        
-        # Only log chat history information if in inference_only mode
-        if inference_only:
-            chat_history_config = self.config.get('chat_history', {})
-            chat_history_enabled = _is_true_value(chat_history_config.get('enabled', True))
-            self.logger.info(f"Chat History: {'enabled' if chat_history_enabled else 'disabled'}")
-            if chat_history_enabled:
-                self.logger.info(f"  - Default message limit: {chat_history_config.get('default_limit', 50)}")
-                self.logger.info(f"  - Store metadata: {chat_history_config.get('store_metadata', True)}")
-                self.logger.info(f"  - Retention days: {chat_history_config.get('retention_days', 90)}")
-                self.logger.info(f"  - Session auto-generate: {chat_history_config.get('session', {}).get('auto_generate', True)}")
-                self.logger.info(f"  - Cache max messages: {chat_history_config.get('cache', {}).get('max_cached_messages', 100)}")
-                self.logger.info(f"  - Cache max sessions: {chat_history_config.get('cache', {}).get('max_cached_sessions', 1000)}")
-        
-        # Log safety information
-        self.logger.info(f"Safety: {'enabled' if safety_enabled else 'disabled'}")
-        if safety_enabled:
-            self.logger.info(f"Safety moderator: {safety_moderator}")
-            self.logger.info(f"Safety mode: {safety_mode}")
-            
-            # Log moderator-specific information if available
-            if safety_moderator in self.config.get('moderators', {}):
-                moderator_config = self.config['moderators'][safety_moderator]
-                model = moderator_config.get('model', 'unknown')
-                self.logger.info(f"Moderation model: {model}")
-        
-        # Log model information based on the selected inference provider
-        if inference_provider in self.config.get('inference', {}):
-            model_name = self.config['inference'][inference_provider].get('model', 'unknown')
-            self.logger.info(f"Server running with {model_name} model")
-        
-        # Log retriever information only if not in inference_only mode and retriever exists
-        if not inference_only and hasattr(self.app.state, 'retriever') and self.app.state.retriever is not None:
-            try:
-                self.logger.info(f"Confidence threshold: {self.app.state.retriever.confidence_threshold}")
-            except AttributeError:
-                # Skip logging if retriever is not fully initialized
-                pass
-        
-        self.logger.info(f"Verbose mode: {_is_true_value(self.config['general'].get('verbose', False))}")
-        
-        # Log API endpoints
-        self.logger.info("API Endpoints:")
-        self.logger.info("  - MCP Completion Endpoint: POST /v1/chat")
-        self.logger.info("  - Health check: GET /health")
-    
     def create_ssl_context(self) -> Optional[ssl.SSLContext]:
         """
         Create an SSL context from certificate and key files.

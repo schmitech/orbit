@@ -9,13 +9,30 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 import logging
 from dotenv import load_dotenv
+from pathlib import Path
+
+# Get the directory of this script
+SCRIPT_DIR = Path(__file__).parent.absolute()
+
+# Get the project root (parent of server directory)
+PROJECT_ROOT = SCRIPT_DIR.parent.parent
+
+# Add server directory to Python path
+SERVER_DIR = SCRIPT_DIR.parent
+sys.path.append(str(SERVER_DIR))
+
+from services.mongodb_service import MongoDBService
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Add parent directory to Python path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Load environment variables from .env file in project root
+env_path = PROJECT_ROOT / '.env'
+if not env_path.exists():
+    raise FileNotFoundError(f".env file not found at {env_path}")
+
+load_dotenv(env_path)
 
 # Configure pytest-asyncio
 pytestmark = pytest.mark.asyncio
@@ -31,19 +48,24 @@ except ImportError as e:
 TEST_CONFIG = {
     'general': {
         'verbose': True,
-        'inference_only': False
+        'inference_only': False  # Explicitly set to False to enable API key and prompt management
     },
-    'internal_services': {
-        'mongodb': {
-            'host': 'localhost',
-            'port': 27017, 
-            'database': 'orbit_test_endpoints',
-            'apikey_collection': 'api_keys_test',
-            'username': 'orbit',
-            'password': 'mongodb-password'
-        }
+    'mongodb': {  # Changed from internal_services.mongodb to match config manager structure
+        'host': os.getenv("INTERNAL_SERVICES_MONGODB_HOST"),
+        'port': int(os.getenv("INTERNAL_SERVICES_MONGODB_PORT", 27017)),
+        'db': os.getenv("INTERNAL_SERVICES_MONGODB_DATABASE", "orbit_test_endpoints"),  # Changed from database to db
+        'apikey_collection': 'api_keys_test',
+        'username': os.getenv("INTERNAL_SERVICES_MONGODB_USERNAME"),
+        'password': os.getenv("INTERNAL_SERVICES_MONGODB_PASSWORD")
     }
 }
+
+# Validate required environment variables
+required_vars = ["INTERNAL_SERVICES_MONGODB_HOST", "INTERNAL_SERVICES_MONGODB_USERNAME", 
+                 "INTERNAL_SERVICES_MONGODB_PASSWORD"]
+missing_vars = [var for var in required_vars if not os.getenv(var)]
+if missing_vars:
+    pytest.skip(f"Missing required environment variables: {', '.join(missing_vars)}")
 
 # Use a session-scoped event loop policy fixture to avoid deprecation warning
 @pytest.fixture(scope="session")
@@ -55,6 +77,17 @@ async def app():
     """Create a test application with test configuration."""
     # Set environment variable for test configuration
     os.environ['TEST_CONFIG'] = json.dumps(TEST_CONFIG)
+    # Force use of test configuration
+    os.environ['OIS_CONFIG_PATH'] = 'none'  # Prevent loading default config
+
+    # Log MongoDB configuration values before creating app
+    mongodb_config = TEST_CONFIG['mongodb']  # Updated path
+    logger.info("MongoDB Configuration in test_orbit_endpoints.py:")
+    logger.info(f"Host: {mongodb_config['host']}")
+    logger.info(f"Port: {mongodb_config['port']}")
+    logger.info(f"Database: {mongodb_config['db']}")  # Updated key
+    logger.info(f"Username: {mongodb_config['username']}")
+    logger.info(f"Password: {'*' * len(mongodb_config['password']) if mongodb_config['password'] else 'None'}")
 
     # Import the create_app function and create an app for testing
     from main import create_app
@@ -62,10 +95,41 @@ async def app():
     
     # Force configuration to use test values
     app.state.config = TEST_CONFIG
+    
+    # Verify inference_only is False
+    if app.state.config['general']['inference_only']:
+        raise ValueError("Test configuration must have inference_only set to False")
 
-    # Initialize the app's services
+    # Initialize MongoDB service first
+    if hasattr(app.state, 'mongodb_service'):
+        try:
+            # Log MongoDB configuration values
+            mongodb_config = TEST_CONFIG['mongodb']  # Updated path
+            logger.info(f"MongoDB test configuration: host={mongodb_config['host']}, port={mongodb_config['port']}, database={mongodb_config['db']}")  # Updated key
+            
+            # Create a new MongoDB service instance with the test config
+            mongodb_service = MongoDBService(TEST_CONFIG)
+            await mongodb_service.initialize()
+            
+            # Replace the app's MongoDB service with our initialized one
+            app.state.mongodb_service = mongodb_service
+            
+            # Initialize the database
+            app.state.mongodb_service.database = app.state.mongodb_service.client[mongodb_config['db']]  # Updated key
+            
+            logger.info("MongoDB service initialized successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize MongoDB service: {str(e)}")
+            pytest.skip(f"Failed to connect to MongoDB: {e}")
+
+    # Initialize other services
     if hasattr(app.state, 'api_key_service'):
-        await app.state.api_key_service.initialize()
+        try:
+            await app.state.api_key_service.initialize()
+            logger.info("API key service initialized successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize API key service: {str(e)}")
+            raise
     
     yield app
     
@@ -73,6 +137,7 @@ async def app():
     try:
         if hasattr(app.state, 'mongodb_service'):
             await app.state.mongodb_service.client.drop_database(TEST_CONFIG['internal_services']['mongodb']['database'])
+            logger.info("Test database cleaned up successfully")
     except Exception as e:
         logger.error(f"Failed to clean up test database: {str(e)}")
 

@@ -18,6 +18,17 @@ from retrievers.base.base_retriever import BaseRetriever, RetrieverFactory
 class TestRetriever(BaseRetriever):
     """Test implementation of BaseRetriever for testing"""
     
+    def __init__(self, config: Dict[str, Any]):
+        """Initialize the test retriever with configuration"""
+        super().__init__(config)
+        # Get configuration values
+        test_config = config.get('datasources', {}).get('test', {})
+        self.confidence_threshold = test_config.get('confidence_threshold', 0.8)
+        self.relevance_threshold = test_config.get('relevance_threshold', 0.6)
+        self.max_results = test_config.get('max_results', 5)
+        self.return_results = test_config.get('return_results', 2)
+        self.collection = test_config.get('collection', 'default_collection')
+    
     def _get_datasource_name(self) -> str:
         return "test"
         
@@ -49,6 +60,21 @@ class TestRetriever(BaseRetriever):
                 "content": "Test content"
             }
         ]
+
+    def get_direct_answer(self, context: List[Dict[str, Any]]) -> Optional[str]:
+        """Override to properly check confidence threshold"""
+        if not context:
+            return None
+            
+        # Get the first result
+        result = context[0]
+        
+        # Check if confidence meets threshold
+        if result.get("confidence", 0) < self.confidence_threshold:
+            return None
+            
+        # Format the answer
+        return f"Question: {result['question']}\nAnswer: {result['answer']}"
 
 # Register the test retriever
 RetrieverFactory.register_retriever("test", TestRetriever)
@@ -96,7 +122,8 @@ def mock_api_key_service():
 @pytest.mark.asyncio
 async def test_factory_creates_retriever(test_config):
     """Test that the factory creates the right retriever"""
-    retriever = RetrieverFactory.create_retriever("test", test_config)
+    # Create retriever with config
+    retriever = RetrieverFactory.create_retriever("test", config=test_config)
     
     assert isinstance(retriever, TestRetriever)
     assert retriever.config == test_config
@@ -130,7 +157,7 @@ async def test_collection_resolution(test_config, mock_api_key_service):
     # Collection from API key
     collection = await retriever._resolve_collection(api_key="valid_key")
     assert collection == "api_collection"
-    assert mock_api_key_service.validate_api_key.called_with("valid_key")
+    mock_api_key_service.validate_api_key.assert_called_once_with("valid_key")
     
     # Collection from parameter
     collection = await retriever._resolve_collection(collection_name="param_collection")
