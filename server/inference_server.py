@@ -1,6 +1,7 @@
 import ssl
 import asyncio
 import atexit
+import aiohttp
 from typing import Any, Optional
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
@@ -18,7 +19,7 @@ from config.resolver import ConfigResolver
 from config.logging_configurator import LoggingConfigurator
 from config.middleware_configurator import MiddlewareConfigurator
 from services.service_factory import ServiceFactory
-from utils.http_utils import close_all_aiohttp_sessions
+from utils.http_utils import close_all_aiohttp_sessions, setup_aiohttp_session_tracking
 from routes.routes_configurator import RouteConfigurator
 from config.configuration_summary_logger import ConfigurationSummaryLogger
 from datasources import DatasourceFactory
@@ -75,6 +76,7 @@ class InferenceServer:
         - Thread pool for I/O operations
         - FastAPI application initialization
         - Middleware and route configuration
+        - aiohttp session tracking for proper cleanup
         
         Args:
             config_path: Optional path to a custom configuration file.
@@ -86,6 +88,9 @@ class InferenceServer:
         """
         # Initialize basic logging until proper configuration is loaded
         self.logger = LoggingConfigurator.setup_initial_logging()
+        
+        # Set up aiohttp session tracking for proper cleanup
+        setup_aiohttp_session_tracking()
         
         # Load configuration
         self.config = load_config(config_path)
@@ -414,9 +419,6 @@ class InferenceServer:
         server = uvicorn.Server(config)
         
         try:
-            # Register a shutdown function to ensure all aiohttp sessions are closed
-            atexit.register(lambda: asyncio.run(close_all_aiohttp_sessions()))
-            
             # Start the server
             if https_enabled:
                 self.logger.info(f"Starting HTTPS server on {host}:{port_to_use}")

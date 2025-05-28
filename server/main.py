@@ -20,74 +20,12 @@ Usage:
 
 import os
 import argparse
-import asyncio
-import aiohttp
-import logging
 from fastapi import FastAPI
 from inference_server import InferenceServer
 
 # Configure MongoDB logging
 from utils.mongodb_utils import configure_mongodb_logging
 configure_mongodb_logging()
-
-# Global registry to track aiohttp client sessions
-_AIOHTTP_SESSIONS = set()
-
-def register_aiohttp_session(session):
-    """
-    Register an aiohttp ClientSession for tracking and cleanup.
-    
-    This function is used to keep track of all aiohttp client sessions
-    created by the application to ensure proper cleanup during shutdown.
-    
-    Args:
-        session: The aiohttp ClientSession to register
-        
-    Returns:
-        The registered session
-    """
-    global _AIOHTTP_SESSIONS
-    _AIOHTTP_SESSIONS.add(session)
-    return session
-
-async def close_all_aiohttp_sessions():
-    """
-    Close all tracked aiohttp ClientSessions.
-    
-    This function is called during server shutdown to ensure all
-    aiohttp client sessions are properly closed to prevent resource leaks.
-    """
-    global _AIOHTTP_SESSIONS
-    if not _AIOHTTP_SESSIONS:
-        return
-    
-    logger = logging.getLogger(__name__)
-    logger.info(f"Closing {len(_AIOHTTP_SESSIONS)} aiohttp sessions")
-    
-    close_tasks = []
-    for session in list(_AIOHTTP_SESSIONS):
-        if not session.closed:
-            close_tasks.append(session.close())
-    
-    if close_tasks:
-        await asyncio.gather(*close_tasks, return_exceptions=True)
-    
-    _AIOHTTP_SESSIONS.clear()
-    logger.info("All aiohttp sessions closed")
-
-# Monkey patch aiohttp.ClientSession to track all created sessions
-original_init = aiohttp.ClientSession.__init__
-
-def patched_init(self, *args, **kwargs):
-    """
-    Patched initialization for aiohttp.ClientSession to automatically register sessions.
-    
-    This patch ensures all aiohttp client sessions are tracked for proper cleanup.
-    """
-    original_init(self, *args, **kwargs)
-    register_aiohttp_session(self)
-
-aiohttp.ClientSession.__init__ = patched_init
 
 # Create a global app instance for direct use by uvicorn in development mode
 app = FastAPI(
@@ -96,7 +34,6 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Factory function for creating app instances in multi-worker mode
 def create_app() -> FastAPI:
     """
     Factory function to create a FastAPI application instance.

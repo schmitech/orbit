@@ -1,0 +1,29 @@
+[tool.pytest.ini_options]
+# Pytest configuration for the ORBIT server tests
+
+# Test discovery patterns
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+# Asyncio configuration
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+
+# Output options
+addopts = [
+    "-v",
+    "--tb=short",
+    "--strict-markers",
+]
+
+# Test directories
+testpaths = ["tests"]
+
+# Markers for test categorization
+markers = [
+    "asyncio: marks tests as async (handled by pytest-asyncio)",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+    "slow: marks tests as slow running",
+] 

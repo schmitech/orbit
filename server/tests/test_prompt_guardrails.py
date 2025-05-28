@@ -145,7 +145,7 @@ async def test_multilingual_query(guardrail_service, test_config):
 @pytest.mark.asyncio
 async def test_cases_from_file(guardrail_service, test_config):
     """Test cases loaded from a JSON file"""
-    test_file = SCRIPT_DIR / 'test_cases.json'
+    test_file = SCRIPT_DIR / 'safetytest_cases.json'
     if not test_file.exists():
         pytest.skip(f"Test file not found: {test_file}")
     

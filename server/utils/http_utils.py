@@ -25,6 +25,31 @@ def track_aiohttp_session(session: aiohttp.ClientSession) -> None:
     """
     _aiohttp_sessions.add(session)
 
+def setup_aiohttp_session_tracking() -> None:
+    """
+    Set up automatic tracking of aiohttp ClientSession instances.
+    
+    This function monkey patches aiohttp.ClientSession to automatically
+    track all created sessions for proper cleanup during shutdown.
+    
+    Should be called once during application initialization.
+    """
+    # Store original __init__ method
+    original_init = aiohttp.ClientSession.__init__
+    
+    def patched_init(session_self, *args, **kwargs):
+        """
+        Patched initialization for aiohttp.ClientSession to automatically track sessions.
+        
+        This patch ensures all aiohttp client sessions are tracked for proper cleanup.
+        """
+        original_init(session_self, *args, **kwargs)
+        track_aiohttp_session(session_self)
+    
+    # Apply the monkey patch
+    aiohttp.ClientSession.__init__ = patched_init
+    logger.debug("aiohttp session tracking enabled")
+
 async def close_all_aiohttp_sessions() -> None:
     """
     Close all tracked aiohttp sessions.
