@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 from retrievers.base.base_retriever import BaseRetriever, RetrieverFactory
 
 # Sample minimal retriever implementation for testing
-class TestRetriever(BaseRetriever):
+class MockRetriever(BaseRetriever):
     """Test implementation of BaseRetriever for testing"""
     
     def __init__(self, config: Dict[str, Any]):
@@ -77,7 +77,7 @@ class TestRetriever(BaseRetriever):
         return f"Question: {result['question']}\nAnswer: {result['answer']}"
 
 # Register the test retriever
-RetrieverFactory.register_retriever("test", TestRetriever)
+RetrieverFactory.register_retriever("test", MockRetriever)
 
 # Sample config for testing
 @pytest.fixture
@@ -125,7 +125,7 @@ async def test_factory_creates_retriever(test_config):
     # Create retriever with config
     retriever = RetrieverFactory.create_retriever("test", config=test_config)
     
-    assert isinstance(retriever, TestRetriever)
+    assert isinstance(retriever, MockRetriever)
     assert retriever.config == test_config
     assert retriever.confidence_threshold == 0.8
     assert retriever.relevance_threshold == 0.6
@@ -137,7 +137,7 @@ async def test_factory_creates_retriever(test_config):
 @pytest.mark.asyncio
 async def test_retriever_initialization(test_config, mock_api_key_service):
     """Test retriever initialization"""
-    retriever = TestRetriever(config=test_config)
+    retriever = MockRetriever(config=test_config)
     
     await retriever.initialize()
     assert retriever.initialized
@@ -151,7 +151,7 @@ async def test_retriever_initialization(test_config, mock_api_key_service):
 @pytest.mark.asyncio
 async def test_collection_resolution(test_config, mock_api_key_service):
     """Test that the retriever resolves collections correctly"""
-    retriever = TestRetriever(config=test_config)
+    retriever = MockRetriever(config=test_config)
     await retriever.initialize()
     
     # Collection from API key
@@ -171,7 +171,7 @@ async def test_collection_resolution(test_config, mock_api_key_service):
 @pytest.mark.asyncio
 async def test_direct_answer(test_config):
     """Test that direct answers are extracted correctly"""
-    retriever = TestRetriever(config=test_config)
+    retriever = MockRetriever(config=test_config)
     
     # No context
     assert retriever.get_direct_answer([]) is None
@@ -197,7 +197,7 @@ async def test_direct_answer(test_config):
 @pytest.mark.asyncio
 async def test_get_relevant_context(test_config, mock_api_key_service):
     """Test retrieving relevant context"""
-    retriever = TestRetriever(config=test_config)
+    retriever = MockRetriever(config=test_config)
     await retriever.initialize()
     
     # Test with valid API key

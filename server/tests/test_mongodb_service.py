@@ -6,7 +6,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from pytest_asyncio import fixture
 from bson import ObjectId
-from datetime import datetime
+from datetime import datetime, UTC
 
 # Get the directory of this script
 SCRIPT_DIR = Path(__file__).parent.absolute()
@@ -94,7 +94,7 @@ async def test_insert_and_find_one(mongodb_service: MongoDBService):
         "name": "Test User",
         "email": "test@example.com",
         "age": 30,
-        "created_at": datetime.utcnow()
+        "created_at": datetime.now(UTC)
     }
     
     # Insert document
@@ -292,7 +292,7 @@ async def test_transaction(mongodb_service: MongoDBService):
         log_doc = {
             "user_id": user_result.inserted_id,
             "action": "account_created",
-            "timestamp": datetime.utcnow()
+            "timestamp": datetime.now(UTC)
         }
         await mongodb_service.database[TEST_COLLECTION_POSTS].insert_one(
             log_doc, session=session
