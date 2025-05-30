@@ -112,7 +112,7 @@ INTERNAL_SERVICES_MONGODB_USERNAME=mongo-user
 INTERNAL_SERVICES_MONGODB_PASSWORD=mongo-password
 ```
 
-### Starting the ORBIT server add --help for options):
+### Starting the ORBIT server (add --help for options):
 ```bash
 ./bin/orbit.sh start
 ```
@@ -124,7 +124,7 @@ orbit-chat --url http://localhost:3000
 ```
 
 <div align="left">
-  <img src="https://res.cloudinary.com/dk87ffid0/image/upload/v1748117452/orbit-chat_uiy8kd.gif" width="70%" alt="ORBIT Chat Demo">
+  <img src="https://res.cloudinary.com/dk87ffid0/image/upload/v1748380714/local-chatbot-gif_rvlyzv.gif" width="70%" alt="ORBIT Chat Demo">
 </div>
 
 > **Note:** Set `inference_only: false` to enable RAG mode (run `./bin/orbit.sh restart --delete-logs` for the changes to take effect Here a sample DB you use for testing the SQL RAG Adapter:
