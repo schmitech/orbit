@@ -15,9 +15,7 @@
 
 ORBIT is a modular, self-hosted toolkit that provides a unified API for open-source AI inference models. It enables you to interact AI models on your own infrastructure, maintaining complete control over your data while eliminating commercial API dependencies.
 
-Visit the official ORBIT website for more information: https://orbit.schmitech.ai/
-
-![ORBIT Chat Demo](https://res.cloudinary.com/dk87ffid0/image/upload/v1748117452/orbit-chat_uiy8kd.gif)
+Visit the ORBIT website for more information: https://orbit.schmitech.ai/
 
 ## Sovereignty and Data Control
 
@@ -37,8 +35,9 @@ This makes ORBIT particularly valuable for:
 - Enterprises needing to maintain control over their AI infrastructure
 
 ## Architecture
-
-![ORBIT Architecture](docs/orbit-architecture-diagram.svg)
+<div align="left">
+  <img src="docs/orbit-architecture-diagram.svg" width="800" alt="ORBIT Architecture">
+</div>
 
 ## Quick Start
 
@@ -55,7 +54,7 @@ This makes ORBIT particularly valuable for:
 
 ```bash
 # Download and extract the latest release
-curl -L https://github.com/schmitech/orbit/releases/download/v1.0.0/orbit-1.0.0.tar.gz -o orbit.tar.gz
+curl -L https://github.com/schmitech/orbit/releases/download/v1.0.0/orbit-1.1.0.tar.gz -o orbit.tar.gz
 tar -xzf orbit.tar.gz
 cd orbit-1.0.0
 
@@ -90,7 +89,7 @@ Edit config.yaml with default settings:
 ```yaml
 general:
   port: 3000
-  verbose: true
+  verbose: false
   https:
     enabled: false
     port: 3443
@@ -100,46 +99,46 @@ general:
     header_name: "X-Session-ID"
     required: true
   inference_provider: "ollama"
-  language_detection: false
-  inference_only: false # Set to true to enable RAG mode
-  adapter: "sqllite
+  language_detection: true
+  inference_only: false
+  adapter: "qa-sql"
 ```
 
 ```bash
 # Update .env with your MongoDB credentials:
-INTERNAL_SERVICES_MONGODB_HOST=locahost # change to your MongoDB host
+INTERNAL_SERVICES_MONGODB_HOST=localhost
 INTERNAL_SERVICES_MONGODB_PORT=27017
-INTERNAL_SERVICES_MONGODB_USERNAME=orbit
-INTERNAL_SERVICES_MONGODB_PASSWORD=your-mongodb-password
+INTERNAL_SERVICES_MONGODB_USERNAME=mongo-user
+INTERNAL_SERVICES_MONGODB_PASSWORD=mongo-password
 ```
 
-### Starting the ORBIT server:
+### Starting the ORBIT server add --help for options):
 ```bash
-./bin/orbit.sh start ## other option: status - stop - restart. Add '--delete-logs' flag is you want to clear the logs everytime.
+./bin/orbit.sh start
 ```
 
 ### ORBIT client setup:
 ```bash
 pip install schmitech-orbit-client
-orbit-chat --url http://localhost:3000 # Type 'hello' to chat with Ollama. No chat history yet, coming soon...
+orbit-chat --url http://localhost:3000
 ```
+
+<div align="left">
+  <img src="https://res.cloudinary.com/dk87ffid0/image/upload/v1748117452/orbit-chat_uiy8kd.gif" width="70%" alt="ORBIT Chat Demo">
+</div>
 
 > **Note:** Set `inference_only: false` to enable RAG mode (run `./bin/orbit.sh restart --delete-logs` for the changes to take effect Here a sample DB you use for testing the SQL RAG Adapter:
 
+### Simple SQL RAG Example:
+
 ```bash
-# This script will create new api keys in MongoDB 'orbit' collection. You will need them to use the RAG functionality with
-# the sample data in the SQLite database.
-#
-# Use --no-api-keys flag to skip api key creation if keys already exists.
-# An API key is mapped to a collection, which is an abstraction of an SQL DB, 
-# a NoSQL collection or index (i.e. elasticsearch). Each API key corresponds to exactly one collection.
 ./sample_db/setup-demo-db.sh sqlite
 
-# Test with the orbit-chat client using the api key after creating the sample SQLLite DB.
-# i.e. "What is the fee for a commercial sign permit?".
-# You can find the training QA pairs in /sample_db/city-qa-pairs.json
+# Use the key genrerated from previous commnand
 orbit-chat --url http://localhost:3000 --api-key orbit_1234567ABCDE
 ```
+
+Refer to [SQL Retriever Architecture](docs/sql-retriever-architecture.md) for details on the database-agnostic SQL retriever implementation and supported database types.
 
 ## 📚 Documentation
 
