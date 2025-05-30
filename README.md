@@ -13,50 +13,61 @@
 
 ## Overview
 
-ORBIT is a modular, self-hosted toolkit that provides a unified API for open-source AI inference models. It enables you to interact AI models on your own infrastructure, maintaining complete control over your data while eliminating commercial API dependencies.
-
-Visit the ORBIT website for more information: https://orbit.schmitech.ai/
-
-## Sovereignty and Data Control
-
-ORBIT is designed with digital sovereignty in mind, offering several key advantages:
-
-1. **Complete Data Control**: All data processing happens on your infrastructure, ensuring sensitive information never leaves your environment
-2. **No External Dependencies**: By eliminating reliance on commercial AI APIs, you maintain full control over your AI capabilities
-3. **Compliance Ready**: Self-hosted deployment makes it easier to comply with data residency requirements and privacy regulations
-4. **Transparency**: Open-source nature allows full visibility into the system's operations and data handling
-5. **Customization**: Ability to modify and adapt the system to meet specific organizational or national requirements
-
-This makes ORBIT particularly valuable for:
+ORBIT is a modular, self-hosted toolkit that provides a unified API for open-source AI inference models. It enables you to interact AI models on your own infrastructure, maintaining complete control over your data while eliminating commercial API dependencies. This makes ORBIT particularly valuable for:
 
 - Government agencies requiring sovereign AI capabilities
 - Organizations with strict data privacy requirements
 - Countries implementing digital sovereignty initiatives
-- Enterprises needing to maintain control over their AI infrastructure
+- Companies wanting to maintain control over their AI infrastructure
 
 ## Architecture
-<div align="left">
-  <img src="docs/orbit-architecture-diagram.svg" width="800" alt="ORBIT Architecture">
+<div align="center">
+  <img src="docs/diagrams/orbit-architecture-diagram.svg" width="800" alt="ORBIT Architecture">
 </div>
 
-## Quick Start
+## How ORBIT Works
 
-### System Requirements
+ORBIT offers two main ways to interact with AI while keeping your data secure in your private infrastercuture and avoiding the need to pay for expensive API calls.
+
+### Simple Chat Mode (Inference-Only)
+Think of this as having a direct conversation with an AI. When you send a message:
+1. Your message goes directly to the AI model
+2. The AI processes your question and responds
+3. The AI maintains memory of your chat session, making interactions more coherent
+
+This mode is perfect for:
+- Casual conversations
+- General questions
+- Creative writing
+- Simple tasks
+
+### Smart Assistant (RAG - Retrieval Augmented Generation)
+An AI assistant that is aware of your organization's knowledge. When you ask a question:
+1. ORBIT searches through your private knowledge base (documents, databases, internal resources)
+2. It finds the most relevant information from your organization's data
+3. Then it uses that information to give you a precise, informed answer while keeping everything private
+
+This mode is ideal for:
+- Getting answers from your organization's knowledge base or datasources
+- Securely accessing sensitive data while maintaining complete data sovereignty
+- Making decisions based on internal knowledge
+- Getting context-aware responses without exposing data externally
+
+## Minimum Requirements
 
 - A device (Win/Linux or Mac) with 16GB memory, GPU preferred.
 - Python 3.12+
-- MongoDB
-- Redis (optional)
-- Ollama (optional but preferred)
-- Elasticsearch (optional)
+- MongoDB (required for RAG mode and chat history)
+- Redis (optional for caching)
+- Elasticsearch (optional for logging)
 
-### Setup
+## How to Use
 
 ```bash
 # Download and extract the latest release
-curl -L https://github.com/schmitech/orbit/releases/download/v1.0.0/orbit-1.1.0.tar.gz -o orbit.tar.gz
+curl -L https://github.com/schmitech/orbit/releases/download/v1.1.0/orbit-1.1.0.tar.gz -o orbit.tar.gz
 tar -xzf orbit.tar.gz
-cd orbit-1.0.0
+cd orbit-1.1.0
 
 # Activate virtual environment
 source venv/bin/activate
@@ -65,72 +76,113 @@ source venv/bin/activate
 ./install.sh
 ```
 
-#### Install Ollama:
-
-https://ollama.com/download
+#### Download HuggingFace GGUF Model:
 
 ```bash
-# Download the models
-ollama pull gemma3:1b
-ollama pull nomic-embed-text
+python ./utils/scripts/download_hf_gguf_model.py --repo-id "TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF" --filename "*q4_0.gguf" --output-dir "./gguf"
 ```
 
-#### Using llama.cpp instead of Ollama
-If you prefer not to use Ollama or open any additional ports, you may use the llama_cpp inference option in config.yaml.
-First, install the dependencies and download the GGUF model file (by default, it downloads Gemma3:1b from Hugging Face - you can modify the download command to use your preferred model):
-
-```bash
-# Download the GGUF model file
-curl -L https://huggingface.co/unsloth/gemma-3-1b-it-GGUF/resolve/main/gemma-3-1b-it-Q4_0.gguf -o ./gguf/gemma3-1b.gguf
-```
-
-### Configuration
-Edit config.yaml with default settings:
+Edit config.yaml for inference-only mode, specify `llama_cpp` as inference provider:
 ```yaml
 general:
   port: 3000
   verbose: false
-  https:
-    enabled: false
-    port: 3443
-    cert_file: "./cert.pem"
-    key_file: "./key.pem"
-  session_id:
-    header_name: "X-Session-ID"
-    required: true
-  inference_provider: "ollama"
-  language_detection: true
-  inference_only: false
-  adapter: "qa-sql"
+  inference_provider: "llama_cpp"
+  inference_only: true
 ```
 
+Specify the model and change the settings based on your requirements and model type. Pay attention to stop_tokens as these may vary bsed on the model (i.e. gemma3 or MS Phi may require differen stop tokens):
+```yaml
+inference:
+  llama_cpp:
+    model_path: "gguf/tinyllama-1.1b-chat-v1.0.Q4_0.gguf"
+    chat_format: "chatml"  # Chat format to use (chatml, llama-2, gemma, etc.)
+    verbose: false
+    temperature: 0.1
+    top_p: 0.8
+    top_k: 20
+    max_tokens: 512  # Reduced from 1024 to get shorter responses
+    repeat_penalty: 1.1
+    n_ctx: 1024
+    n_threads: 4
+    stream: true
+    n_gpu_layers: 0  # Disable GPU/Metal support
+    main_gpu: 0
+    tensor_split: null
+    stop_tokens: [ # Model-specific
+      "<|im_start|>", 
+      "<|im_end|>",
+      "<|endoftext|>"
+    ]
+```
+
+### Enabling Chat History (Optional)
+For conversation history you need a MongoDB instance. ORBIT uses collection `orbit` by default as backend. This is configurable in under `internal_services` section in config.yaml.
+
 ```bash
-# Update .env with your MongoDB credentials:
+# Copy .env.example to .env and add your MongoDB conection parameters:
 INTERNAL_SERVICES_MONGODB_HOST=localhost
 INTERNAL_SERVICES_MONGODB_PORT=27017
 INTERNAL_SERVICES_MONGODB_USERNAME=mongo-user
 INTERNAL_SERVICES_MONGODB_PASSWORD=mongo-password
 ```
 
-### Starting the ORBIT server (add --help for options):
-```bash
-./bin/orbit.sh start
+Enable chat history in config.yaml. Specify other parameters like default_limit to control context size, dependending on hardware or infrastrcuture constraints:
+```yaml
+chat_history:
+  enabled: true
+  collection_name: "chat_history"
+  default_limit: 20
+  store_metadata: true
+  retention_days: 1
+  max_tracked_sessions: 10000
 ```
 
-### ORBIT client setup:
+### Starting the ORBIT server (add --help for options):
 ```bash
-pip install schmitech-orbit-client
+# Logs under ./logs/obit.log
+./bin/orbit.sh start
+
+# Run ORBIT client:
 orbit-chat --url http://localhost:3000
 ```
 
-<div align="left">
-  <img src="https://res.cloudinary.com/dk87ffid0/image/upload/v1748380714/local-chatbot-gif_rvlyzv.gif" width="70%" alt="ORBIT Chat Demo">
-</div>
-
-> **Note:** Set `inference_only: false` to enable RAG mode (run `./bin/orbit.sh restart --delete-logs` for the changes to take effect Here a sample DB you use for testing the SQL RAG Adapter:
+![ORBIT Chat Demo](https://res.cloudinary.com/dk87ffid0/image/upload/v1748380714/local-chatbot-gif_rvlyzv.gif)
 
 ### Simple SQL RAG Example:
+RAG (Retrieval-Augmented Generation) mode enhances the model's responses by integrating your knowledge base into the context. This enriches the pre-trained foundation model with your specific data. To use RAG mode:
 
+1. Set `inference_only: false` in config.yaml to enable RAG functionality
+2. Set `adapter: "qa-sql"` for the SQLite demo, or `adapter: "qa-vector"` for vector-based retrieval
+3. Optionally enable `language_detection: true` to make the model respond in the same language as the input prompt
+
+ORBIT comes with a sample QA SQL adapter (`qa-sql`),  a specialized retriever for question-answering scenarios. It provides:
+
+- **QA-Specific Search**: Prioritizes searching in question/answer fields and uses enhanced similarity matching
+- **Smart Token Matching**: Uses token-based search optimization when available
+- **Confidence Scoring**: Combines token matching and semantic similarity for better relevance
+- **Default Schema**: Creates a QA-optimized table structure with question/answer fields
+- **Field Prioritization**: Automatically detects and prioritizes QA-relevant fields in your database
+
+The adapter is particularly effective for:
+- FAQ systems
+- Knowledge base queries
+- Question-answering applications
+- Document-based Q&A
+
+
+To test this adapter, specify `qa-sql` in general settings:
+
+```yaml
+general:
+  port: 3000
+  inference_provider: "llama_cpp"
+  language_detection: true
+  inference_only: false
+  adapter: "qa-sql"
+```
+
+Create demo database (you can find this example under `./utils/simple_db/sqlite`). RAG mode requires MongoDB enabled. Use same settings described in previous section to set up MongoDB service.
 ```bash
 ./sample_db/setup-demo-db.sh sqlite
 
