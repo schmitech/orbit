@@ -79,7 +79,7 @@ source venv/bin/activate
 #### Download HuggingFace GGUF Model:
 
 ```bash
-python ./utils/scripts/download_hf_gguf_model.py --repo-id "TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF" --filename "*q4_0.gguf" --output-dir "./gguf"
+python ./bin/download_hf_gguf_model.py --repo-id "TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF" --filename "*q4_0.gguf" --output-dir "./gguf"
 ```
 
 Edit config.yaml for inference-only mode, specify `llama_cpp` as inference provider:
@@ -91,7 +91,7 @@ general:
   inference_only: true
 ```
 
-Specify the model and change the settings based on your requirements and model type. Pay attention to stop_tokens as these may vary bsed on the model (i.e. gemma3 or MS Phi may require differen stop tokens):
+Specify the model and change the settings based on your requirements and model type. Pay attention to stop_tokens as these may vary bsed on the model (i.e. gemma3 or MS Phi may require different settings):
 ```yaml
 inference:
   llama_cpp:
@@ -117,7 +117,7 @@ inference:
 ```
 
 ### Enabling Chat History (Optional)
-For conversation history you need a MongoDB instance. ORBIT uses collection `orbit` by default as backend. This is configurable in under `internal_services` section in config.yaml.
+For conversation history you need a MongoDB instance. ORBIT uses collection `orbit` by default as backend. This is configurable under `internal_services` section in config.yaml.
 
 ```bash
 # Copy .env.example to .env and add your MongoDB conection parameters:
@@ -127,7 +127,7 @@ INTERNAL_SERVICES_MONGODB_USERNAME=mongo-user
 INTERNAL_SERVICES_MONGODB_PASSWORD=mongo-password
 ```
 
-Enable chat history in config.yaml. Specify other parameters like default_limit to control context size, dependending on hardware or infrastrcuture constraints:
+Enable chat history in config.yaml. Specify other parameters like default_limit to control context size, dependending on hardware or infrastructure constraints:
 ```yaml
 chat_history:
   enabled: true
