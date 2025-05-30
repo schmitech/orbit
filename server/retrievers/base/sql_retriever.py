@@ -16,8 +16,13 @@ from .base_retriever import RetrieverFactory
 # Configure logging
 logger = logging.getLogger(__name__)
 
-class SQLRetriever(BaseRetriever):
-    """Enhanced abstract base class for SQL-based retrievers"""
+class AbstractSQLRetriever(BaseRetriever):
+    """
+    Abstract base class for SQL-based retrievers.
+    
+    This class provides common SQL functionality while leaving database-specific
+    implementation details to concrete subclasses.
+    """
     
     def __init__(self, 
                 config: Dict[str, Any],
@@ -25,7 +30,7 @@ class SQLRetriever(BaseRetriever):
                 domain_adapter=None,
                 **kwargs):
         """
-        Initialize SQLRetriever with common SQL DB configuration.
+        Initialize SQL retriever with common configuration.
         
         Args:
             config: Configuration dictionary
@@ -34,8 +39,10 @@ class SQLRetriever(BaseRetriever):
         """
         super().__init__(config=config, domain_adapter=domain_adapter, **kwargs)
         
-        # SQL DB specific settings
+        # SQL-specific settings with sensible defaults
         self.relevance_threshold = self.datasource_config.get('relevance_threshold', 0.5)
+        self.max_results = self.datasource_config.get('max_results', 10)
+        self.return_results = self.datasource_config.get('return_results', 3)
         self.connection = connection
         
         # Define standard stopwords for tokenization
@@ -49,6 +56,8 @@ class SQLRetriever(BaseRetriever):
         
         # Default fields to search
         self.default_search_fields = ['id', 'content']
+        
+        logger.info(f"AbstractSQLRetriever initialized with relevance_threshold={self.relevance_threshold}")
         
     def _tokenize_text(self, text: str) -> List[str]:
         """
@@ -93,10 +102,43 @@ class SQLRetriever(BaseRetriever):
         """
         # Use SequenceMatcher for similarity calculation
         return SequenceMatcher(None, query.lower(), text.lower()).ratio()
+
+    # Abstract methods that concrete implementations must provide
+    @abstractmethod
+    async def execute_query(self, sql: str, params: List[Any] = None) -> List[Dict[str, Any]]:
+        """
+        Execute SQL query and return results.
+        This method must be implemented by specific SQL database providers.
+        
+        Args:
+            sql: SQL query string
+            params: Query parameters
+            
+        Returns:
+            List of rows as dictionaries
+        """
+        raise NotImplementedError("Subclasses must implement execute_query()")
+    
+    @abstractmethod
+    async def initialize(self) -> None:
+        """
+        Initialize required services and verify database structure.
+        This method must be implemented by specific SQL providers.
+        """
+        raise NotImplementedError("Subclasses must implement initialize()")
+    
+    @abstractmethod
+    async def close(self) -> None:
+        """
+        Close any open services and connections.
+        This method must be implemented by specific SQL providers.
+        """
+        raise NotImplementedError("Subclasses must implement close()")
     
     def _get_search_query(self, query: str, collection_name: str) -> Dict[str, Any]:
         """
         Get domain-specific SQL search query.
+        Can be overridden by subclasses for database-specific optimization.
         
         Args:
             query: User query
@@ -115,21 +157,6 @@ class SQLRetriever(BaseRetriever):
             "params": [self.max_results],
             "fields": self.default_search_fields
         }
-    
-    async def execute_query(self, sql: str, params: List[Any] = None) -> List[Dict[str, Any]]:
-        """
-        Execute SQL query and return results.
-        
-        Args:
-            sql: SQL query string
-            params: Query parameters
-            
-        Returns:
-            List of rows as dictionaries
-        """
-        # This is an abstract method that must be implemented by subclasses
-        # based on their specific database connection type
-        raise NotImplementedError("Subclasses must implement execute_query method")
     
     async def get_relevant_context(self, 
                            query: str, 
@@ -252,3 +279,7 @@ class SQLRetriever(BaseRetriever):
             logger.error(f"Error retrieving context: {str(e)}")
             logger.error(traceback.format_exc())
             return []
+
+
+# For backward compatibility, keep the old class name as an alias
+SQLRetriever = AbstractSQLRetriever
