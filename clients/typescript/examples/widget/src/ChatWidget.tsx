@@ -215,45 +215,68 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
       {/* Chat Window */}
       {isOpen && (
         <div
-          className="mb-4 w-full sm:w-[480px] md:w-[600px] lg:w-[700px] rounded-xl shadow-xl flex flex-col overflow-hidden border border-gray-200 transition-all duration-300 ease-in-out"
+          className="mb-4 w-full rounded-2xl shadow-elegant flex flex-col overflow-hidden border-0 transition-all duration-300 ease-in-out animate-slide-in-up backdrop-blur-lg"
           style={{
-            background: theme.background,
+            background: `linear-gradient(145deg, ${theme.background}, ${theme.background}f0)`,
             height: CHAT_CONSTANTS.WINDOW_DIMENSIONS.HEIGHT,
             maxHeight: CHAT_CONSTANTS.WINDOW_DIMENSIONS.MAX_HEIGHT,
             width: getResponsiveWidth(windowWidth),
             minWidth: getResponsiveMinWidth(windowWidth),
+            backdropFilter: 'blur(20px)',
+            WebkitBackdropFilter: 'blur(20px)',
+            border: '1px solid rgba(255, 255, 255, 0.2)',
+            boxShadow: `
+              0 25px 50px -12px rgba(0, 0, 0, 0.15),
+              0 0 0 1px rgba(255, 255, 255, 0.1),
+              inset 0 1px 0 rgba(255, 255, 255, 0.1)
+            `
           }}
         >
           {/* Header */}
           <div
-            className="p-4 flex justify-between items-center shrink-0"
-            style={{ background: theme.primary, color: theme.text.inverse }}
+            className="p-2.5 flex justify-between items-center shrink-0 relative overflow-hidden"
+            style={{ 
+              background: `linear-gradient(135deg, ${theme.primary}, ${theme.primary}e6)`,
+              color: theme.text.inverse
+            }}
           >
-            <div className="flex items-center">
-              <ChatIcon iconName={currentConfig.icon} size={CHAT_CONSTANTS.BUTTON_SIZES.ICON_SIZES.HEADER} className="mr-3" style={{ color: theme.secondary }} />
-              <h3 className="text-xl font-medium">{currentConfig.header.title}</h3>
+            {/* Subtle gradient overlay for depth */}
+            <div 
+              className="absolute inset-0 opacity-20"
+              style={{
+                background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0))'
+              }}
+            />
+            
+            <div className="flex items-center relative z-10">
+              <ChatIcon 
+                iconName={currentConfig.icon} 
+                size={CHAT_CONSTANTS.BUTTON_SIZES.ICON_SIZES.HEADER} 
+                className="mr-2.5 transition-transform duration-300 hover:scale-110" 
+                style={{ color: theme.secondary, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))' }} 
+              />
+              <h3 className="text-lg font-semibold tracking-tight">{currentConfig.header.title}</h3>
             </div>
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-2 relative z-10">
               <button
                 onClick={() => {
                   clearMessages();
-                  // Clearing animated messages tracker on clear
                   clearAnimationTrackers();
                 }}
-                className="transition-colors p-2 rounded-full hover:bg-opacity-20 hover:bg-black"
+                className="btn-modern transition-all duration-200 p-2 rounded-xl hover:bg-white hover:bg-opacity-20 animate-button-hover"
                 style={{ color: theme.text.inverse }}
                 aria-label="Clear conversation"
                 title="Clear conversation"
               >
-                <Trash2 size={CHAT_CONSTANTS.BUTTON_SIZES.ICON_SIZES.BUTTON} />
+                <Trash2 size={CHAT_CONSTANTS.BUTTON_SIZES.ICON_SIZES.SEND} className="drop-shadow-sm" />
               </button>
               <button
                 onClick={toggleChat}
-                className="transition-colors p-2 rounded-full hover:bg-opacity-20 hover:bg-black"
+                className="btn-modern transition-all duration-200 p-2 rounded-xl hover:bg-white hover:bg-opacity-20 animate-button-hover"
                 style={{ color: theme.text.inverse }}
                 aria-label="Minimize chat"
               >
-                <Minimize2 size={CHAT_CONSTANTS.BUTTON_SIZES.ICON_SIZES.MINIMIZE} className="text-white" style={{ opacity: 0.9 }} />
+                <Minimize2 size={CHAT_CONSTANTS.BUTTON_SIZES.ICON_SIZES.MINIMIZE} className="text-white opacity-90 drop-shadow-sm" />
               </button>
             </div>
           </div>
@@ -306,31 +329,57 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
       {/* Chat Button */}
       <div className="relative">
         {hasNewMessage && !isOpen && (
-          <span className="absolute -top-1 -right-1 h-4 w-4 bg-orange-500 rounded-full animate-pulse z-10"></span>
+          <span className="absolute -top-2 -right-2 h-5 w-5 bg-gradient-to-r from-orange-500 to-red-500 rounded-full animate-pulse-glow z-10 shadow-lg">
+            <span className="absolute inset-0 rounded-full bg-white opacity-30"></span>
+          </span>
         )}
         <button
           onClick={toggleChat}
           onMouseEnter={() => setIsButtonHovered(true)}
           onMouseLeave={() => setIsButtonHovered(false)}
           className={clsx(
-            "rounded-full shadow-lg flex items-center justify-center transition-all duration-300",
-            isButtonHovered && !isOpen && "animate-pulse",
-            !isOpen && "animate-bounce-gentle"
+            "btn-modern rounded-2xl shadow-floating flex items-center justify-center transition-all duration-500 relative overflow-hidden group",
+            isButtonHovered && !isOpen && "animate-pulse-glow",
+            !isOpen && "animate-float"
           )}
           style={{
-            background: isOpen ? theme.primary : 'transparent',
+            background: isOpen 
+              ? `linear-gradient(135deg, ${theme.primary}, ${theme.primary}e6)` 
+              : `linear-gradient(135deg, ${theme.chatButton?.background || '#ffffff'}, ${theme.chatButton?.hoverBackground || '#f8fafc'})`,
             color: !isOpen ? theme.iconColor : undefined,
-            border: 'none',
-            boxShadow: 'none',
+            border: isOpen ? 'none' : '1px solid rgba(0, 0, 0, 0.1)',
             width: CHAT_CONSTANTS.BUTTON_SIZES.CHAT_BUTTON.width,
             height: CHAT_CONSTANTS.BUTTON_SIZES.CHAT_BUTTON.height,
+            transform: isButtonHovered ? 'translateY(-2px) scale(1.05)' : 'translateY(0) scale(1)',
+            boxShadow: isOpen 
+              ? `0 20px 25px -5px rgba(0, 0, 0, 0.15), 0 10px 10px -5px rgba(0, 0, 0, 0.04)`
+              : `0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)`
           }}
           aria-label={isOpen ? "Close chat" : "Open chat"}
         >
+          {/* Animated background gradient */}
+          <div 
+            className={clsx(
+              "absolute inset-0 opacity-0 transition-opacity duration-300",
+              isButtonHovered && "opacity-100"
+            )}
+            style={{
+              background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0))'
+            }}
+          />
+          
           {isOpen ? (
-            <Minimize2 size={CHAT_CONSTANTS.BUTTON_SIZES.ICON_SIZES.MINIMIZE} className="text-white" style={{ opacity: 0.9 }} />
+            <Minimize2 
+              size={CHAT_CONSTANTS.BUTTON_SIZES.ICON_SIZES.MINIMIZE} 
+              className="text-white opacity-90 drop-shadow-sm relative z-10 transition-transform duration-300 group-hover:rotate-180" 
+            />
           ) : (
-            <MessagesSquareIcon width={48} height={48} />
+            <MessagesSquareIcon 
+              width={48} 
+              height={48} 
+              className="relative z-10 transition-transform duration-300 group-hover:scale-110 drop-shadow-sm" 
+              style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))' }}
+            />
           )}
         </button>
       </div>

@@ -24,6 +24,10 @@ export interface ChatConfig {
       text: string;
       hoverBackground: string;
     };
+    chatButton: {
+      background: string;
+      hoverBackground?: string;
+    };
     iconColor?: string;
   };
   welcome: {
@@ -58,6 +62,10 @@ export const defaultTheme = {
     background: '#F3F4F6',
     text: '#1F2937',
     hoverBackground: '#E5E7EB'
+  },
+  chatButton: {
+    background: '#ffffff',
+    hoverBackground: '#f8fafc'
   },
   iconColor: '#EC994B'
 };

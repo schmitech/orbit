@@ -27,79 +27,81 @@ Add this code to your website:
 <script>
   window.addEventListener('load', function() {
     window.initChatbotWidget({
-      apiUrl: 'https://your-api-url.com',  // Your chatbot API endpoint
+      apiUrl: 'https://your-api-url.com',  // Your chatbot API endpoint  
       apiKey: 'your-api-key',             // Your API key
-      sessionId: 'optional-session-id',    // Optional: Provide a custom session ID
-      widgetConfig: {
-        header: {
-          title: "Chat Assistant"
+      sessionId: 'optional-session-id',    // Required: Provide a session ID
+      // Optional widget configuration
+      header: {
+        title: "Chat Assistant"
+      },
+      welcome: {
+        title: "Welcome!",
+        description: "How can I help you today?"
+      },
+      suggestedQuestions: [
+        {
+          text: "How can you help me?",
+          query: "What can you do?"
         },
-        welcome: {
-          title: "Welcome!",
-          description: "How can I help you today?"
+        {
+          text: "Contact support", 
+          query: "How do I contact support?"
+        }
+      ],
+      theme: {
+        primary: '#4f46e5',
+        secondary: '#7c3aed',
+        background: '#ffffff',
+        text: {
+          primary: '#111827',
+          inverse: '#ffffff'
         },
-        suggestedQuestions: [
-          {
-            text: "How can you help me?",
-            query: "What can you do?"
-          },
-          {
-            text: "Contact support",
-            query: "How do I contact support?"
-          }
-        ],
-        theme: {
-          primary: '#2C3E50',
-          secondary: '#f97316',
+        input: {
+          background: '#f9fafb',
+          border: '#e5e7eb'
+        },
+        message: {
+          user: '#4f46e5',
+          assistant: '#f8fafc',
+          userText: '#ffffff'
+        },
+        suggestedQuestions: {
+          background: '#eef2ff',
+          hoverBackground: '#e0e7ff',
+          text: '#4338ca'
+        },
+        chatButton: {
           background: '#ffffff',
-          text: {
-            primary: '#1a1a1a',
-            secondary: '#666666',
-            inverse: '#ffffff'
-          },
-          input: {
-            background: '#f9fafb',
-            border: '#e5e7eb'
-          },
-          message: {
-            user: '#2C3E50',
-            assistant: '#ffffff',
-            userText: '#ffffff'
-          },
-          suggestedQuestions: {
-            background: '#fff7ed',
-            hoverBackground: '#ffedd5',
-            text: '#2C3E50'
-          },
-          iconColor: '#f97316'
+          hoverBackground: '#f8fafc'
         },
-        icon: "message-square"
-      }
+        iconColor: '#7c3aed'
+      },
+      icon: "message-square"
     });
   });
 </script>
 ```
 
-## Session Management
+## Configuration Options
 
-The widget now includes improved session management:
+### Required Parameters
 
-1. **Server-Provided Session ID**: If your server provides a session ID through `window.CHATBOT_SESSION_ID`, the widget will use it automatically.
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `apiUrl` | string | Your chatbot API endpoint URL |
+| `apiKey` | string | Your API authentication key |
+| `sessionId` | string | Unique identifier for the chat session |
 
-2. **Custom Session ID**: You can provide your own session ID during initialization:
-   ```javascript
-   window.initChatbotWidget({
-     apiUrl: 'https://your-api-url.com',
-     apiKey: 'your-api-key',
-     sessionId: 'your-custom-session-id',
-     // ... other config
-   });
-   ```
+### Optional Parameters
 
-3. **Automatic Session ID**: If no session ID is provided, the widget will:
-   - First check for an existing session ID in `sessionStorage`
-   - If none exists, generate a new UUID
-   - Store the session ID in both `sessionStorage` and `window.CHATBOT_SESSION_ID`
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `containerSelector` | string | CSS selector for custom container (defaults to bottom-right corner) |
+| `header` | object | Widget header configuration |
+| `welcome` | object | Welcome message configuration |
+| `suggestedQuestions` | array | Array of suggested question buttons |
+| `theme` | object | Theme customization options |
+| `icon` | string | Widget icon type |
 
 ## Advanced Usage
 
@@ -114,10 +116,9 @@ To place the widget in a specific container instead of the bottom-right corner:
   window.initChatbotWidget({
     apiUrl: 'https://your-api-url.com',
     apiKey: 'your-api-key',
+    sessionId: 'your-session-id',
     containerSelector: '#my-chat-container',
-    widgetConfig: {
-      // ... your config here
-    }
+    // ... other config options
   });
 </script>
 ```
@@ -135,10 +136,11 @@ function App() {
       window.initChatbotWidget({
         apiUrl: process.env.REACT_APP_API_ENDPOINT,
         apiKey: process.env.REACT_APP_API_KEY,
-        sessionId: process.env.REACT_APP_SESSION_ID, // Optional: Provide custom session ID
-        widgetConfig: {
-          // ... your config here
-        }
+        sessionId: process.env.REACT_APP_SESSION_ID,
+        header: {
+          title: "AI Assistant"
+        },
+        // ... other config options
       });
     }
   }, []);
@@ -149,26 +151,66 @@ function App() {
 }
 ```
 
-## Configuration Options
+## Theme Configuration
 
-### Required Parameters
+The widget supports extensive theme customization:
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `apiUrl` | string | Your chatbot API endpoint URL |
-| `apiKey` | string | Your API authentication key |
+```typescript
+theme: {
+  primary: string;           // Primary color (headers, user messages)
+  secondary: string;         // Secondary/accent color  
+  background: string;        // Widget background color
+  text: {
+    primary: string;         // Primary text color
+    inverse: string;         // Text color on colored backgrounds
+  },
+  input: {
+    background: string;      // Input field background
+    border: string;          // Input field border color
+  },
+  message: {
+    user: string;           // User message bubble color
+    assistant: string;      // Assistant message bubble color
+    userText: string;       // User message text color
+  },
+  suggestedQuestions: {
+    background: string;      // Suggested questions background
+    hoverBackground: string; // Suggested questions hover background
+    text: string;           // Suggested questions text color
+  },
+  chatButton: {
+    background: string;      // Chat button background
+    hoverBackground: string; // Chat button hover background
+  },
+  iconColor: string;        // Widget icon color
+}
+```
 
-### Optional Parameters
+### Built-in Themes
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `sessionId` | string | Unique identifier for the chat session. If not provided, one will be generated automatically |
-| `containerSelector` | string | CSS selector for custom container |
-| `widgetConfig` | object | Widget appearance and behavior settings |
+The demo includes several professional themes:
+- **Modern** - Vibrant indigo/purple gradient
+- **Minimal** - Clean gray palette  
+- **Corporate** - Professional blue theme
+- **Dark** - Sleek dark theme with cyan accents
+- **Emerald** - Fresh green theme
+- **Sunset** - Warm orange-red gradient
+- **Lavender** - Elegant purple theme
+- **Monochrome** - Sophisticated grayscale
 
-### Widget Configuration
+## Available Icons
 
-The `widgetConfig` object supports these properties:
+Choose from these built-in icons:
+- `heart` - Heart icon
+- `message-square` - Square message bubble (default)
+- `message-circle` - Round message bubble  
+- `message-dots` - Message bubble with dots
+- `help-circle` - Question mark in circle
+- `info` - Information icon
+- `bot` - Robot icon
+- `sparkles` - Sparkles icon
+
+## Widget Configuration Structure
 
 ```typescript
 {
@@ -182,58 +224,39 @@ The `widgetConfig` object supports these properties:
   suggestedQuestions: [     // Array of suggested questions
     {
       text: string;        // Button text
-      query: string;       // Question to send
+      query: string;       // Question to send when clicked
     }
   ],
-  theme: {                 // Theme customization
-    primary: string;       // Primary color
-    secondary: string;     // Secondary/accent color
-    background: string;    // Background color
-    text: {
-      primary: string;     // Primary text color
-      secondary: string;   // Secondary text color
-      inverse: string;     // Inverse text color
-    },
-    input: {
-      background: string;  // Input background
-      border: string;      // Input border color
-    },
-    message: {
-      user: string;        // User message bubble color
-      assistant: string;   // Assistant message bubble color
-      userText: string;    // User message text color
-    },
-    suggestedQuestions: {
-      background: string;      // Suggested questions background
-      hoverBackground: string; // Suggested questions hover background
-      text: string;           // Suggested questions text color
-    },
-    iconColor: string;     // Widget icon color
-  },
+  theme: { /* theme object */ },
   icon: string;            // Widget icon type
 }
 ```
 
-## Available Icons
+## Session Management
 
-Choose from these built-in icons:
-- `heart` ❤️
-- `message-square` 💬
-- `message-circle` 🗨️
-- `help-circle` ❓
-- `info` ℹ️
-- `bot` 🤖
-- `sparkles` ✨
+The widget requires a `sessionId` parameter for proper conversation management:
 
-## Customizing Height
+1. **Generate a unique session ID** for each user conversation
+2. **Maintain the session ID** throughout the user's visit
+3. **Use UUIDs or similar** for session identification
 
-To adjust the widget height, add this CSS to your website:
-
-```css
-:root {
-  --chat-container-height: 600px; /* Default is 500px */
+Example session ID generation:
+```javascript
+function generateSessionId() {
+  return 'session-' + Math.random().toString(36).substr(2, 9) + '-' + Date.now();
 }
+
+window.initChatbotWidget({
+  apiUrl: 'https://your-api-url.com',
+  apiKey: 'your-api-key', 
+  sessionId: generateSessionId(),
+  // ... other config
+});
 ```
+
+## Typography
+
+The widget uses **Mona Sans** font by default, with fallbacks to system fonts for optimal performance and consistency.
 
 ## Troubleshooting
 
@@ -244,9 +267,9 @@ To adjust the widget height, add this CSS to your website:
    - Check if the container element exists
 
 2. **Session ID issues?**
-   - Verify that `window.CHATBOT_SESSION_ID` is set if using server-provided sessions
-   - Check browser console for session-related errors
-   - Ensure `sessionStorage` is available and not blocked
+   - Ensure `sessionId` parameter is provided
+   - Verify the session ID is unique per conversation
+   - Check that your API supports session-based conversations
 
 3. **API connection issues?**
    - Verify your API endpoint is accessible
@@ -257,9 +280,11 @@ To adjust the widget height, add this CSS to your website:
 4. **Styling conflicts?**
    - The widget uses scoped CSS to prevent conflicts
    - If you see styling issues, check for conflicting CSS rules
+   - Dark themes require proper text color configuration
 
 ## Support
 
 For more help:
 - Visit our [GitHub repository](https://github.com/schmitech/orbit)
+- Check the demo at `/demo.html` for live examples
 - Open an issue on GitHub for bug reports

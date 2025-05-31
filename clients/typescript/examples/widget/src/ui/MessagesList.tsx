@@ -69,7 +69,7 @@ export const MessagesList: React.FC<MessagesListProps> = ({
   return (
     <div
       ref={messagesContainerRef}
-      className="flex-1 p-4 overflow-y-auto scroll-smooth relative messages-container"
+      className="flex-1 p-3 overflow-y-auto scroll-smooth relative messages-container"
       style={{
         background: theme.input.background,
         overflowY: 'auto'
@@ -110,15 +110,15 @@ export const MessagesList: React.FC<MessagesListProps> = ({
 
       {/* Empty State - Welcome Screen */}
       {messages.length === 0 ? (
-        <div className="text-center py-16">
+        <div className="text-center py-6">
           <ChatIcon
             iconName={currentConfig.icon}
             size={CHAT_CONSTANTS.BUTTON_SIZES.ICON_SIZES.WELCOME}
-            className="mx-auto mb-4"
+            className="mx-auto mb-3"
             style={{ color: theme.iconColor }}
           />
-          <h4 className="font-medium text-xl text-[#2C3E50] mb-2">{currentConfig.welcome.title}</h4>
-          <p className="text-lg text-gray-600 mb-6">
+          <h4 className="font-medium text-xl mb-2" style={{ color: theme.text.primary }}>{currentConfig.welcome.title}</h4>
+          <p className="text-lg mb-4" style={{ color: theme.text.secondary }}>
             {currentConfig.welcome.description}
           </p>
           <div className="w-full px-4">

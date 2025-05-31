@@ -28,14 +28,14 @@ export const CHAT_CONSTANTS = {
       VISIBILITY_SKIP_THRESHOLD: 1000,
     },
     BUTTON_SIZES: {
-      CHAT_BUTTON: { width: '64px', height: '64px' },
-      SEND_BUTTON: { width: '48px', height: '48px' },
+      CHAT_BUTTON: { width: '68px', height: '68px' },
+      SEND_BUTTON: { width: '52px', height: '52px' },
       ICON_SIZES: {
-        HEADER: 32,
+        HEADER: 28,
         WELCOME: 56,
         BUTTON: 20,
         SEND: 24,
-        MINIMIZE: 40,
+        MINIMIZE: 28,
       },
     },
   } as const;
@@ -44,10 +44,10 @@ export const CHAT_CONSTANTS = {
    * Global CSS styles for the ChatWidget component
    */
   export const CHAT_WIDGET_STYLES = `
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Mona+Sans:ital,wght@0,200..900;1,200..900&display=swap');
   
   body, button, input, textarea {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-family: 'Mona Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   }
   
   /* Complete focus ring removal - covers all browsers and scenarios */
@@ -87,6 +87,74 @@ export const CHAT_CONSTANTS = {
     outline: none !important;
     box-shadow: none !important;
   }
+
+  /* Enhanced animations for modern feel */
+  @keyframes slideInUp {
+    0% { 
+      opacity: 0; 
+      transform: translateY(20px) scale(0.95); 
+    }
+    100% { 
+      opacity: 1; 
+      transform: translateY(0) scale(1); 
+    }
+  }
+
+  @keyframes slideOutDown {
+    0% { 
+      opacity: 1; 
+      transform: translateY(0) scale(1); 
+    }
+    100% { 
+      opacity: 0; 
+      transform: translateY(20px) scale(0.95); 
+    }
+  }
+
+  .animate-slide-in-up {
+    animation: slideInUp 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  }
+
+  .animate-slide-out-down {
+    animation: slideOutDown 0.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  }
+
+  @keyframes pulseGlow {
+    0%, 100% { 
+      box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4);
+    }
+    50% { 
+      box-shadow: 0 0 0 8px rgba(59, 130, 246, 0);
+    }
+  }
+
+  .animate-pulse-glow {
+    animation: pulseGlow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  @keyframes messageEntry {
+    0% { 
+      opacity: 0; 
+      transform: translateY(10px) scale(0.98);
+    }
+    100% { 
+      opacity: 1; 
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  .animate-message-entry {
+    animation: messageEntry 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  }
+
+  @keyframes buttonHover {
+    0% { transform: translateY(0) scale(1); }
+    100% { transform: translateY(-2px) scale(1.05); }
+  }
+
+  .animate-button-hover:hover {
+    animation: buttonHover 0.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  }
   
   @keyframes fadeInOut {
     0% { opacity: 0; transform: translateY(4px); }
@@ -100,15 +168,24 @@ export const CHAT_CONSTANTS = {
   
   @keyframes bounce-gentle {
     0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-10px); }
+    50% { transform: translateY(-8px); }
   }
   .animate-bounce-gentle {
-    animation: bounce-gentle 2s ease-in-out infinite;
-    animation-delay: 1s;
+    animation: bounce-gentle 3s ease-in-out infinite;
+    animation-delay: 2s;
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0px) rotate(0deg); }
+    33% { transform: translateY(-3px) rotate(1deg); }
+    66% { transform: translateY(2px) rotate(-1deg); }
+  }
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
   }
   
   @keyframes dotBlink {
-    0%, 50%, 100% { opacity: 0; }
+    0%, 50%, 100% { opacity: 0.3; }
     25%, 75% { opacity: 1; }
   }
   .animate-dots {
@@ -116,19 +193,75 @@ export const CHAT_CONSTANTS = {
     margin-left: 4px;
   }
   .animate-dots .dot {
-    font-size: 1.5em;
+    font-size: 1.2em;
     line-height: 0.5;
-    opacity: 0;
-    animation: dotBlink 1.4s infinite;
+    opacity: 0.3;
+    animation: dotBlink 1.6s infinite;
+    color: #6b7280;
   }
   .animate-dots .dot:nth-child(1) {
     animation-delay: 0s;
   }
   .animate-dots .dot:nth-child(2) {
-    animation-delay: 0.2s;
+    animation-delay: 0.3s;
   }
   .animate-dots .dot:nth-child(3) {
-    animation-delay: 0.4s;
+    animation-delay: 0.6s;
+  }
+
+  /* Glassmorphism effects */
+  .glass-effect {
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    background: rgba(255, 255, 255, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+  }
+
+  .glass-effect-dark {
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    background: rgba(30, 41, 59, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  /* Custom scrollbar */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.05);
+    border-radius: 3px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 3px;
+    transition: background 0.2s ease;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.3);
+  }
+
+  /* Enhanced shadows */
+  .shadow-elegant {
+    box-shadow: 
+      0 10px 25px -5px rgba(0, 0, 0, 0.1),
+      0 8px 10px -6px rgba(0, 0, 0, 0.1),
+      0 0 0 1px rgba(255, 255, 255, 0.05);
+  }
+
+  .shadow-soft {
+    box-shadow: 
+      0 4px 6px -1px rgba(0, 0, 0, 0.1),
+      0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  }
+
+  .shadow-floating {
+    box-shadow: 
+      0 20px 25px -5px rgba(0, 0, 0, 0.1),
+      0 10px 10px -5px rgba(0, 0, 0, 0.04);
   }
   
   .prose {
@@ -143,7 +276,7 @@ export const CHAT_CONSTANTS = {
   .prose p {
     margin: 0 0 0.5em 0 !important;
     padding: 0;
-    line-height: 1.5;
+    line-height: 1.6;
   }
   
   .prose p:last-child {
@@ -160,7 +293,7 @@ export const CHAT_CONSTANTS = {
   .prose li {
     margin-bottom: 0.25em !important;
     padding-left: 0.25em !important;
-    line-height: 1.4;
+    line-height: 1.5;
   }
   
   .prose li p {
@@ -174,6 +307,39 @@ export const CHAT_CONSTANTS = {
   .prose h1, .prose h2, .prose h3, .prose h4, .prose h5, .prose h6 {
     margin-top: 1em !important;
     margin-bottom: 0.5em !important;
+    font-weight: 600;
+  }
+
+  /* Button enhancements */
+  .btn-modern {
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .btn-modern::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0));
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+
+  .btn-modern:hover::before {
+    opacity: 1;
+  }
+
+  /* Input enhancements */
+  .input-modern {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .input-modern:focus {
+    transform: translateY(-1px);
   }
   `;
   
@@ -198,7 +364,7 @@ export const CHAT_CONSTANTS = {
   /**
    * Font family constant for consistent typography
    */
-  export const FONT_FAMILY = 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
+  export const FONT_FAMILY = 'Mona Sans, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
   
   /**
    * Character count styling helper

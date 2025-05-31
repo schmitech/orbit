@@ -60,11 +60,16 @@
             cursor: pointer;
             font-weight: 500;
             transition: all 0.2s ease;
+            -webkit-tap-highlight-color: transparent;
         }
         button:hover {
             background: #1a202c;
             transform: translateY(-2px);
             box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        button:active {
+            background: #2C3E50;
+            transform: translateY(0);
         }
         button.secondary {
             background: #f97316;
@@ -77,6 +82,12 @@
         }
         button.tertiary:hover {
             background: #475569;
+        }
+        button:disabled {
+            background: #e5e7eb !important;
+            color: #9ca3af !important;
+            cursor: not-allowed;
+            opacity: 0.7;
         }
         .code-block {
             background: #1a202c;
@@ -219,6 +230,9 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.05);
             color: #0f172a;
         }
+        #chatbot-widget, #chatbot-widget * {
+            font-family: 'Mona Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif !important;
+        }
     </style>
 </head>
 <body>
@@ -234,83 +248,83 @@
 
         <h2>Built-in Themes</h2>
         <div class="theme-cards">
-            <div class="theme-card active" onclick="updateTheme('default')">
-                <div class="theme-card-header" style="background: #2C3E50;">
+            <div class="theme-card active" onclick="updateTheme('modern')">
+                <div class="theme-card-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
                     Demo Chat
                 </div>
-                <div class="theme-accent" style="background: #f97316;"></div>
+                <div class="theme-accent" style="background: linear-gradient(90deg, #4f46e5, #7c3aed);"></div>
                 <div class="theme-card-body">
-                    <div class="theme-card-name">Default Theme</div>
+                    <div class="theme-card-name">Modern</div>
+                </div>
+            </div>
+
+            <div class="theme-card" onclick="updateTheme('minimal')">
+                <div class="theme-card-header" style="background: #fafafa; color: #1a1a1a; border-bottom: 1px solid #e5e7eb;">
+                    Demo Chat
+                </div>
+                <div class="theme-accent" style="background: linear-gradient(90deg, #374151, #6b7280);"></div>
+                <div class="theme-card-body">
+                    <div class="theme-card-name">Minimal</div>
+                </div>
+            </div>
+
+            <div class="theme-card" onclick="updateTheme('corporate')">
+                <div class="theme-card-header" style="background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%); color: white;">
+                    Demo Chat
+                </div>
+                <div class="theme-accent" style="background: linear-gradient(90deg, #3b82f6, #1d4ed8);"></div>
+                <div class="theme-card-body">
+                    <div class="theme-card-name">Corporate</div>
                 </div>
             </div>
 
             <div class="theme-card" onclick="updateTheme('dark')">
-                <div class="theme-card-header" style="background: #111827;">
+                <div class="theme-card-header" style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: white;">
                     Demo Chat
                 </div>
-                <div class="theme-accent" style="background: #6366f1;"></div>
+                <div class="theme-accent" style="background: linear-gradient(90deg, #06b6d4, #0891b2);"></div>
                 <div class="theme-card-body" style="background: #1f2937; color: #f3f4f6;">
-                    <div class="theme-card-name">Dark Theme</div>
+                    <div class="theme-card-name">Dark</div>
                 </div>
             </div>
 
-            <div class="theme-card" onclick="updateTheme('light')">
-                <div class="theme-card-header" style="background: #e2e8f0; color: #1e293b;">
+            <div class="theme-card" onclick="updateTheme('emerald')">
+                <div class="theme-card-header" style="background: linear-gradient(135deg, #064e3b 0%, #065f46 100%); color: white;">
                     Demo Chat
                 </div>
-                <div class="theme-accent" style="background: #3b82f6;"></div>
+                <div class="theme-accent" style="background: linear-gradient(90deg, #10b981, #059669);"></div>
                 <div class="theme-card-body">
-                    <div class="theme-card-name">Light Theme</div>
-                </div>
-            </div>
-
-            <div class="theme-card" onclick="updateTheme('nature')">
-                <div class="theme-card-header" style="background: #065f46;">
-                    Demo Chat
-                </div>
-                <div class="theme-accent" style="background: #10b981;"></div>
-                <div class="theme-card-body">
-                    <div class="theme-card-name">Nature Theme</div>
+                    <div class="theme-card-name">Emerald</div>
                 </div>
             </div>
 
             <div class="theme-card" onclick="updateTheme('sunset')">
-                <div class="theme-card-header" style="background: #7c2d12;">
+                <div class="theme-card-header" style="background: linear-gradient(135deg, #ea580c 0%, #dc2626 100%); color: white;">
                     Demo Chat
                 </div>
-                <div class="theme-accent" style="background: #f59e0b;"></div>
+                <div class="theme-accent" style="background: linear-gradient(90deg, #f59e0b, #ef4444);"></div>
                 <div class="theme-card-body">
-                    <div class="theme-card-name">Sunset Theme</div>
+                    <div class="theme-card-name">Sunset</div>
                 </div>
             </div>
 
-            <div class="theme-card" onclick="updateTheme('ocean')">
-                <div class="theme-card-header" style="background: #0c4a6e;">
+            <div class="theme-card" onclick="updateTheme('lavender')">
+                <div class="theme-card-header" style="background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%); color: white;">
                     Demo Chat
                 </div>
-                <div class="theme-accent" style="background: #0ea5e9;"></div>
+                <div class="theme-accent" style="background: linear-gradient(90deg, #8b5cf6, #a855f7);"></div>
                 <div class="theme-card-body">
-                    <div class="theme-card-name">Ocean Theme</div>
+                    <div class="theme-card-name">Lavender</div>
                 </div>
             </div>
 
-            <div class="theme-card" onclick="updateTheme('berry')">
-                <div class="theme-card-header" style="background: #701a75;">
+            <div class="theme-card" onclick="updateTheme('monochrome')">
+                <div class="theme-card-header" style="background: linear-gradient(135deg, #1f2937 0%, #374151 100%); color: white;">
                     Demo Chat
                 </div>
-                <div class="theme-accent" style="background: #ec4899;"></div>
+                <div class="theme-accent" style="background: linear-gradient(90deg, #6b7280, #4b5563);"></div>
                 <div class="theme-card-body">
-                    <div class="theme-card-name">Berry Theme</div>
-                </div>
-            </div>
-
-            <div class="theme-card" onclick="updateTheme('royal')">
-                <div class="theme-card-header" style="background: #312e81;">
-                    Demo Chat
-                </div>
-                <div class="theme-accent" style="background: #8b5cf6;"></div>
-                <div class="theme-card-body">
-                    <div class="theme-card-name">Royal Theme</div>
+                    <div class="theme-card-name">Monochrome</div>
                 </div>
             </div>
         </div>
@@ -410,6 +424,26 @@
                         <div style="display: flex; align-items: center;">
                             <input type="color" id="icon-color" value="#f97316">
                             <div style="margin-left: 10px; height: 24px; width: 100px; background: #f97316; border-radius: 4px; border: 1px solid #e5e7eb;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chat Button Section -->
+                <div style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 15px; background: #fafafa;">
+                    <h3 style="margin-top: 0; margin-bottom: 15px; font-size: 16px; color: #2C3E50; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px;">Chat Button</h3>
+                    
+                    <div class="color-field" style="margin-bottom: 12px;">
+                        <label for="chat-button-bg-color">Background:</label>
+                        <div style="display: flex; align-items: center;">
+                            <input type="color" id="chat-button-bg-color" value="#ffffff">
+                            <div style="margin-left: 10px; height: 24px; width: 100px; background: #ffffff; border-radius: 4px; border: 1px solid #e5e7eb;"></div>
+                        </div>
+                    </div>
+                    <div class="color-field">
+                        <label for="chat-button-hover-color">Hover Background:</label>
+                        <div style="display: flex; align-items: center;">
+                            <input type="color" id="chat-button-hover-color" value="#f8fafc">
+                            <div style="margin-left: 10px; height: 24px; width: 100px; background: #f8fafc; border-radius: 4px; border: 1px solid #e5e7eb;"></div>
                         </div>
                     </div>
                 </div>
@@ -513,6 +547,10 @@
             hoverBackground: '#ffedd5',
             text: '#2C3E50'
           },
+          chatButton: {
+            background: '#ffffff',
+            hoverBackground: '#f8fafc'
+          },
           iconColor: '#f97316'
         },
         icon: "message-square"
@@ -609,6 +647,242 @@
         let widgetInitialized = false;
         let customWidgetInitialized = false;
         
+        // Theme presets
+        const themes = {
+            modern: {
+                primary: '#4f46e5',
+                secondary: '#7c3aed',
+                background: '#ffffff',
+                text: {
+                    primary: '#111827',
+                    secondary: '#6b7280',
+                    inverse: '#ffffff'
+                },
+                input: {
+                    background: '#f9fafb',
+                    border: '#e5e7eb'
+                },
+                message: {
+                    user: '#4f46e5',
+                    assistant: '#f8fafc',
+                    userText: '#ffffff'
+                },
+                suggestedQuestions: {
+                    background: '#eef2ff',
+                    hoverBackground: '#e0e7ff',
+                    text: '#4338ca'
+                },
+                chatButton: {
+                    background: '#ffffff',
+                    hoverBackground: '#f8fafc'
+                },
+                iconColor: '#7c3aed'
+            },
+            minimal: {
+                primary: '#374151',
+                secondary: '#6b7280',
+                background: '#ffffff',
+                text: {
+                    primary: '#111827',
+                    secondary: '#6b7280',
+                    inverse: '#ffffff'
+                },
+                input: {
+                    background: '#f9fafb',
+                    border: '#d1d5db'
+                },
+                message: {
+                    user: '#374151',
+                    assistant: '#f9fafb',
+                    userText: '#ffffff'
+                },
+                suggestedQuestions: {
+                    background: '#f3f4f6',
+                    hoverBackground: '#e5e7eb',
+                    text: '#374151'
+                },
+                chatButton: {
+                    background: '#ffffff',
+                    hoverBackground: '#f9fafb'
+                },
+                iconColor: '#6b7280'
+            },
+            corporate: {
+                primary: '#1e40af',
+                secondary: '#3b82f6',
+                background: '#ffffff',
+                text: {
+                    primary: '#1e293b',
+                    secondary: '#64748b',
+                    inverse: '#ffffff'
+                },
+                input: {
+                    background: '#f8fafc',
+                    border: '#e2e8f0'
+                },
+                message: {
+                    user: '#1e40af',
+                    assistant: '#f1f5f9',
+                    userText: '#ffffff'
+                },
+                suggestedQuestions: {
+                    background: '#eff6ff',
+                    hoverBackground: '#dbeafe',
+                    text: '#1d4ed8'
+                },
+                chatButton: {
+                    background: '#ffffff',
+                    hoverBackground: '#f8fafc'
+                },
+                iconColor: '#3b82f6'
+            },
+            dark: {
+                primary: '#0f172a',
+                secondary: '#06b6d4',
+                background: '#1e293b',
+                text: {
+                    primary: '#f1f5f9',
+                    secondary: '#cbd5e1',
+                    inverse: '#ffffff'
+                },
+                input: {
+                    background: '#334155',
+                    border: '#475569'
+                },
+                message: {
+                    user: '#06b6d4',
+                    assistant: '#0f172a',
+                    userText: '#ffffff'
+                },
+                suggestedQuestions: {
+                    background: '#1e293b',
+                    hoverBackground: '#334155',
+                    text: '#67e8f9'
+                },
+                chatButton: {
+                    background: '#334155',
+                    hoverBackground: '#475569'
+                },
+                iconColor: '#06b6d4'
+            },
+            emerald: {
+                primary: '#065f46',
+                secondary: '#10b981',
+                background: '#ffffff',
+                text: {
+                    primary: '#1f2937',
+                    secondary: '#6b7280',
+                    inverse: '#ffffff'
+                },
+                input: {
+                    background: '#f0fdf4',
+                    border: '#d1fae5'
+                },
+                message: {
+                    user: '#065f46',
+                    assistant: '#ecfdf5',
+                    userText: '#ffffff'
+                },
+                suggestedQuestions: {
+                    background: '#ecfdf5',
+                    hoverBackground: '#d1fae5',
+                    text: '#047857'
+                },
+                chatButton: {
+                    background: '#ffffff',
+                    hoverBackground: '#f0fdf4'
+                },
+                iconColor: '#10b981'
+            },
+            sunset: {
+                primary: '#dc2626',
+                secondary: '#f59e0b',
+                background: '#ffffff',
+                text: {
+                    primary: '#1f2937',
+                    secondary: '#6b7280',
+                    inverse: '#ffffff'
+                },
+                input: {
+                    background: '#fffbeb',
+                    border: '#fed7aa'
+                },
+                message: {
+                    user: '#dc2626',
+                    assistant: '#fff7ed',
+                    userText: '#ffffff'
+                },
+                suggestedQuestions: {
+                    background: '#fff7ed',
+                    hoverBackground: '#ffedd5',
+                    text: '#c2410c'
+                },
+                chatButton: {
+                    background: '#ffffff',
+                    hoverBackground: '#fffbeb'
+                },
+                iconColor: '#f59e0b'
+            },
+            lavender: {
+                primary: '#7c3aed',
+                secondary: '#a855f7',
+                background: '#ffffff',
+                text: {
+                    primary: '#1f2937',
+                    secondary: '#6b7280',
+                    inverse: '#ffffff'
+                },
+                input: {
+                    background: '#faf5ff',
+                    border: '#e9d5ff'
+                },
+                message: {
+                    user: '#7c3aed',
+                    assistant: '#f5f3ff',
+                    userText: '#ffffff'
+                },
+                suggestedQuestions: {
+                    background: '#f5f3ff',
+                    hoverBackground: '#ede9fe',
+                    text: '#6d28d9'
+                },
+                chatButton: {
+                    background: '#ffffff',
+                    hoverBackground: '#faf5ff'
+                },
+                iconColor: '#a855f7'
+            },
+            monochrome: {
+                primary: '#1f2937',
+                secondary: '#6b7280',
+                background: '#ffffff',
+                text: {
+                    primary: '#111827',
+                    secondary: '#6b7280',
+                    inverse: '#ffffff'
+                },
+                input: {
+                    background: '#f9fafb',
+                    border: '#d1d5db'
+                },
+                message: {
+                    user: '#1f2937',
+                    assistant: '#f3f4f6',
+                    userText: '#ffffff'
+                },
+                suggestedQuestions: {
+                    background: '#f3f4f6',
+                    hoverBackground: '#e5e7eb',
+                    text: '#374151'
+                },
+                chatButton: {
+                    background: '#ffffff',
+                    hoverBackground: '#f9fafb'
+                },
+                iconColor: '#6b7280'
+            }
+        };
+        
         // Store initial configurations for reset
         const defaultConfig = {
             header: {
@@ -632,212 +906,8 @@
                     query: "How do I connect to my own API?"
                 }
             ],
-            theme: {
-                primary: '#2C3E50',
-                secondary: '#f97316',
-                background: '#ffffff',
-                text: {
-                    primary: '#1a1a1a',
-                    secondary: '#666666',
-                    inverse: '#ffffff'
-                },
-                input: {
-                    background: '#f9fafb',
-                    border: '#e5e7eb'
-                },
-                message: {
-                    user: '#2C3E50',
-                    assistant: '#ffffff',
-                    userText: '#ffffff'
-                },
-                suggestedQuestions: {
-                    background: '#fff7ed',
-                    hoverBackground: '#ffedd5',
-                    text: '#2C3E50'
-                },
-                iconColor: '#f97316'
-            },
+            theme: themes.modern,
             icon: "message-square"
-        };
-
-        // Theme presets
-        const themes = {
-            default: defaultConfig.theme,
-            dark: {
-                primary: '#111827',
-                secondary: '#6366f1',
-                background: '#1f2937',
-                text: {
-                    primary: '#f3f4f6',
-                    secondary: '#d1d5db',
-                    inverse: '#ffffff'
-                },
-                input: {
-                    background: '#374151',
-                    border: '#4b5563'
-                },
-                message: {
-                    user: '#6366f1',
-                    assistant: '#1f2937',
-                    userText: '#ffffff'
-                },
-                suggestedQuestions: {
-                    background: '#1f2937',
-                    hoverBackground: '#374151',
-                    text: '#f3f4f6'
-                },
-                iconColor: '#6366f1'
-            },
-            light: {
-                primary: '#e2e8f0',
-                secondary: '#3b82f6',
-                background: '#ffffff',
-                text: {
-                    primary: '#1e293b',
-                    secondary: '#64748b',
-                    inverse: '#1e293b'
-                },
-                input: {
-                    background: '#f8fafc',
-                    border: '#cbd5e1'
-                },
-                message: {
-                    user: '#3b82f6',
-                    assistant: '#f1f5f9',
-                    userText: '#ffffff'
-                },
-                suggestedQuestions: {
-                    background: '#f0f9ff',
-                    hoverBackground: '#e0f2fe',
-                    text: '#1e293b'
-                },
-                iconColor: '#3b82f6'
-            },
-            nature: {
-                primary: '#065f46',
-                secondary: '#10b981',
-                background: '#ffffff',
-                text: {
-                    primary: '#1e293b',
-                    secondary: '#4b5563',
-                    inverse: '#ffffff'
-                },
-                input: {
-                    background: '#f0fdf4',
-                    border: '#d1fae5'
-                },
-                message: {
-                    user: '#065f46',
-                    assistant: '#ecfdf5',
-                    userText: '#ffffff'
-                },
-                suggestedQuestions: {
-                    background: '#ecfdf5',
-                    hoverBackground: '#d1fae5',
-                    text: '#065f46'
-                },
-                iconColor: '#10b981'
-            },
-            sunset: {
-                primary: '#7c2d12',
-                secondary: '#f59e0b',
-                background: '#ffffff',
-                text: {
-                    primary: '#1e293b',
-                    secondary: '#4b5563',
-                    inverse: '#ffffff'
-                },
-                input: {
-                    background: '#fff7ed',
-                    border: '#ffedd5'
-                },
-                message: {
-                    user: '#7c2d12',
-                    assistant: '#fff7ed',
-                    userText: '#ffffff'
-                },
-                suggestedQuestions: {
-                    background: '#fff7ed',
-                    hoverBackground: '#ffedd5',
-                    text: '#7c2d12'
-                },
-                iconColor: '#f59e0b'
-            },
-            ocean: {
-                primary: '#0c4a6e',
-                secondary: '#0ea5e9',
-                background: '#ffffff',
-                text: {
-                    primary: '#1e293b',
-                    secondary: '#4b5563',
-                    inverse: '#ffffff'
-                },
-                input: {
-                    background: '#f0f9ff',
-                    border: '#e0f2fe'
-                },
-                message: {
-                    user: '#0c4a6e',
-                    assistant: '#f0f9ff',
-                    userText: '#ffffff'
-                },
-                suggestedQuestions: {
-                    background: '#f0f9ff',
-                    hoverBackground: '#e0f2fe',
-                    text: '#0c4a6e'
-                },
-                iconColor: '#0ea5e9'
-            },
-            berry: {
-                primary: '#701a75',
-                secondary: '#ec4899',
-                background: '#ffffff',
-                text: {
-                    primary: '#1e293b',
-                    secondary: '#4b5563',
-                    inverse: '#ffffff'
-                },
-                input: {
-                    background: '#fdf2f8',
-                    border: '#fce7f3'
-                },
-                message: {
-                    user: '#701a75',
-                    assistant: '#fdf2f8',
-                    userText: '#ffffff'
-                },
-                suggestedQuestions: {
-                    background: '#fdf2f8',
-                    hoverBackground: '#fce7f3',
-                    text: '#701a75'
-                },
-                iconColor: '#ec4899'
-            },
-            royal: {
-                primary: '#312e81',
-                secondary: '#8b5cf6',
-                background: '#ffffff',
-                text: {
-                    primary: '#1e293b',
-                    secondary: '#4b5563',
-                    inverse: '#ffffff'
-                },
-                input: {
-                    background: '#eef2ff',
-                    border: '#e0e7ff'
-                },
-                message: {
-                    user: '#312e81',
-                    assistant: '#eef2ff',
-                    userText: '#ffffff'
-                },
-                suggestedQuestions: {
-                    background: '#eef2ff',
-                    hoverBackground: '#e0e7ff',
-                    text: '#312e81'
-                },
-                iconColor: '#8b5cf6'
-            }
         };
 
         // Content presets
@@ -994,6 +1064,8 @@
                 document.getElementById('suggested-bg-color').value = theme.suggestedQuestions.background;
                 document.getElementById('suggested-hover-color').value = theme.suggestedQuestions.hoverBackground;
                 document.getElementById('suggested-text-color').value = theme.suggestedQuestions.text;
+                document.getElementById('chat-button-bg-color').value = theme.chatButton.background;
+                document.getElementById('chat-button-hover-color').value = theme.chatButton.hoverBackground;
                 
                 // Update color previews
                 updateColorPreviews();
@@ -1027,6 +1099,10 @@
                     background: document.getElementById('suggested-bg-color').value,
                     hoverBackground: document.getElementById('suggested-hover-color').value,
                     text: document.getElementById('suggested-text-color').value
+                },
+                chatButton: {
+                    background: document.getElementById('chat-button-bg-color').value,
+                    hoverBackground: document.getElementById('chat-button-hover-color').value
                 },
                 iconColor: document.getElementById('icon-color').value
             };
@@ -1066,7 +1142,7 @@
                 // Highlight the active icon button
                 document.querySelectorAll('.icon-btn').forEach(btn => {
                     if (btn.textContent.toLowerCase().includes(iconName)) {
-                        btn.style.backgroundColor = themes.default.secondary;
+                        btn.style.backgroundColor = themes.modern.secondary;
                     } else {
                         btn.style.backgroundColor = '';
                     }
@@ -1249,7 +1325,7 @@
 
         // Reset to Default button functionality
         function resetThemeColors() {
-            const theme = themes.default;
+            const theme = themes.modern;
             document.getElementById('primary-color').value = theme.primary;
             document.getElementById('secondary-color').value = theme.secondary;
             document.getElementById('background-color').value = theme.background;
@@ -1260,6 +1336,8 @@
             document.getElementById('suggested-bg-color').value = theme.suggestedQuestions.background;
             document.getElementById('suggested-hover-color').value = theme.suggestedQuestions.hoverBackground;
             document.getElementById('suggested-text-color').value = theme.suggestedQuestions.text;
+            document.getElementById('chat-button-bg-color').value = theme.chatButton.background;
+            document.getElementById('chat-button-hover-color').value = theme.chatButton.hoverBackground;
             // Update color previews
             updateColorPreviews();
             // Live update the widget
