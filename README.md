@@ -13,21 +13,39 @@
 
 ## Overview
 
-ORBIT is a modular, self-hosted toolkit that provides a unified API for open-source AI inference models. It enables you to interact AI models on your own infrastructure, maintaining complete control over your data while eliminating commercial API dependencies. This makes ORBIT particularly valuable for:
+ORBIT is a modular, self-hosted toolkit that provides a unified API for open-source AI inference models. It enables you to run AI models on your own infrastructure, maintaining complete control over your data while eliminating commercial API dependencies.
 
-- Government agencies requiring sovereign AI capabilities
-- Organizations with strict data privacy requirements
-- Countries implementing digital sovereignty initiatives
-- Companies wanting to maintain control over their AI infrastructure
+ORBIT is particularly useful for:
 
-## Architecture
+* **Organizations requiring sovereign AI capabilities** - *Security depends on controlling where and how your AI processes sensitive information*
+* **Organizations with strict data privacy requirements** - *External AI providers can access, store, and potentially use your proprietary data to train their models*
+* **Companies wanting to maintain control over their AI infrastructure** - *Avoid vendor lock-in, unpredictable pricing escalations, and sudden service terminations that can cripple your operations*
+
+## Critical Risks ORBIT Mitigate
+
+**Data Exposure:** Your prompts, user interactions, and business logic are transmitted to external servers, often across international borders, increasing exposure to surveillance and regulatory violations.
+
+**Financial Vulnerability:** Commercial AI providers can change pricing overnight, throttle your access during peak demand, or discontinue services without notice, leaving your business operations stranded.
+
+**Strategic Risk:** Your competitive advantage becomes dependent on systems controlled by entities with their own agendas, potentially including your competitors.
+
+**Compliance Liability:** Using external AI services may violate data residency requirements, industry regulations, or government mandates in your jurisdiction.
+
+## What ORBIT Delivers
+
+**Complete AI Sovereignty** - Your AI inference happens entirely within your infrastructure  
+**Predictable Costs** - No surprise billing, rate limits, or service interruptions  
+**Data Privacy** - Your information never leaves your environment  
+**Future-Proof Strategy** - Maintain control as AI capabilities rapidly evolve
+
+## High-Level Architecture
 <div align="center">
   <img src="docs/diagrams/orbit-architecture-diagram.svg" width="800" alt="ORBIT Architecture">
 </div>
 
 ## How ORBIT Works
 
-ORBIT offers two main ways to interact with AI while keeping your data secure in your private infrastercuture and avoiding the need to pay for expensive API calls.
+ORBIT offers two main ways to interact with AI while keeping your data secure in your private infrastructure and avoiding the need to pay for expensive API calls.
 
 ### Simple Chat Mode (Inference-Only)
 Think of this as having a direct conversation with an AI. When you send a message:
@@ -55,7 +73,7 @@ This mode is ideal for:
 
 ## Minimum Requirements
 
-- A device (Win/Linux or Mac) with 16GB memory, GPU preferred.
+- A device (Windows/Linux or Mac) with 16GB memory, GPU preferred
 - Python 3.12+
 - MongoDB (required for RAG mode and chat history)
 - Redis (optional for caching)
@@ -72,7 +90,7 @@ cd orbit-1.1.0
 # Activate virtual environment
 source venv/bin/activate
 
-# Add --help for comand options
+# Add --help for command options
 ./install.sh
 ```
 
@@ -91,7 +109,7 @@ general:
   inference_only: true
 ```
 
-Specify the model and change the settings based on your requirements and model type. Pay attention to stop_tokens as these may vary bsed on the model (i.e. gemma3 or MS Phi may require different settings):
+Specify the model and change the settings based on your requirements and model type. Pay attention to stop_tokens as these may vary based on the model (i.e., Gemma3 or MS Phi may require different settings):
 ```yaml
 inference:
   llama_cpp:
@@ -117,17 +135,17 @@ inference:
 ```
 
 ### Enabling Chat History (Optional)
-For conversation history you need a MongoDB instance. ORBIT uses collection `orbit` by default as backend. This is configurable under `internal_services` section in config.yaml.
+For conversation history, you need a MongoDB instance. ORBIT uses collection `orbit` by default as backend. This is configurable under the `internal_services` section in config.yaml.
 
 ```bash
-# Copy .env.example to .env and add your MongoDB conection parameters:
+# Copy .env.example to .env and add your MongoDB connection parameters:
 INTERNAL_SERVICES_MONGODB_HOST=localhost
 INTERNAL_SERVICES_MONGODB_PORT=27017
 INTERNAL_SERVICES_MONGODB_USERNAME=mongo-user
 INTERNAL_SERVICES_MONGODB_PASSWORD=mongo-password
 ```
 
-Enable chat history in config.yaml. Specify other parameters like default_limit to control context size, dependending on hardware or infrastructure constraints:
+Enable chat history in config.yaml. Specify other parameters like default_limit to control context size, depending on hardware or infrastructure constraints:
 ```yaml
 chat_history:
   enabled: true
@@ -140,7 +158,7 @@ chat_history:
 
 ### Starting the ORBIT server (add --help for options):
 ```bash
-# Logs under ./logs/obit.log
+# Logs under ./logs/orbit.log
 ./bin/orbit.sh start
 
 # Run ORBIT client:
@@ -156,7 +174,7 @@ RAG (Retrieval-Augmented Generation) mode enhances the model's responses by inte
 2. Set `adapter: "qa-sql"` for the SQLite demo, or `adapter: "qa-vector"` for vector-based retrieval
 3. Optionally enable `language_detection: true` to make the model respond in the same language as the input prompt
 
-ORBIT comes with a sample QA SQL adapter (`qa-sql`),  a specialized retriever for question-answering scenarios. It provides:
+ORBIT comes with a sample QA SQL adapter (`qa-sql`), a specialized retriever for question-answering scenarios. It provides:
 
 - **QA-Specific Search**: Prioritizes searching in question/answer fields and uses enhanced similarity matching
 - **Smart Token Matching**: Uses token-based search optimization when available
@@ -170,7 +188,6 @@ The adapter is particularly effective for:
 - Question-answering applications
 - Document-based Q&A
 
-
 To test this adapter, specify `qa-sql` in general settings:
 
 ```yaml
@@ -182,11 +199,11 @@ general:
   adapter: "qa-sql"
 ```
 
-Create demo database (you can find this example under `./utils/simple_db/sqlite`). RAG mode requires MongoDB enabled. Use same settings described in previous section to set up MongoDB service.
+Create demo database (you can find this example under `./utils/simple_db/sqlite`). RAG mode requires MongoDB enabled. Use the same settings described in the previous section to set up the MongoDB service.
 ```bash
 ./sample_db/setup-demo-db.sh sqlite
 
-# Use the key genrerated from previous commnand
+# Use the key generated from the previous command
 orbit-chat --url http://localhost:3000 --api-key orbit_1234567ABCDE
 ```
 
