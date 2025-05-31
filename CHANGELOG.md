@@ -1,5 +1,55 @@
 # Changelog
 
+## [1.1.1] - 2025-05-30
+
+### Server Architecture & Refactoring
+- Further reduce size of inference server
+- Move logging-related code from inference server into logging_configuration.py
+- Extract middleware initialization code into middleware_configurator.py
+- Extract service factory function into service_factory module
+- Add routes_configurator.py module
+- Extract datasource initialization into datasource_factory.py
+- Consolidate code between inference server and main modules
+- Move HTTP session tracking function to HTTP utils
+
+### Testing & Quality Assurance
+- Fix issues with unit tests
+- Improve test coverage
+- Add TOML project under tests
+- Fix issues with test_prompt_guardrails.py
+- Remove warnings from unit tests
+- Fix run_tests.py for proper test execution
+- Remove test_retriever_types.py for rework
+
+### SQL Retrievers
+- Update SQL adapter architecture for better inheritance
+- Add basic Postgres and MySQL implementations
+- Further updates to SQL retriever design pattern
+
+### Chatbot Widget
+- Break chatbot widget into smaller components
+- Remove simple GUI example
+- Remove misplaced CharWidget.tsx file under widget directory
+
+### Documentation
+- Update README file
+- Add SQL retriever technical details under docs
+- Add more diagrams
+- Improve instructions on README.md
+- Add excalidraw diagram sources
+- Improve script and add better usage documentation
+- Update sql-retriever-architecture.md
+
+### Reranking
+- Re-organize rerankers, leaving ollama only while implementing the rest
+- Add unit tests
+- Update config file
+
+### Other Changes
+- Move HF GGUF download script to ./utils/scripts
+- Udpate release tarball creation script
+- Fixed minor config_manager.py warning
+
 ## [1.1.0] - 2025-05-26
 
 ### Config

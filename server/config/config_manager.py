@@ -387,8 +387,7 @@ def get_default_config() -> Dict[str, Any]:
                 "base_url": "http://localhost:11434",
                 "model": "xitao/bge-reranker-v2-m3:latest",
                 "temperature": 0.0,
-                "batch_size": 5,
-                "top_n": 3
+                "batch_size": 5
             }
         },
         "datasources": {

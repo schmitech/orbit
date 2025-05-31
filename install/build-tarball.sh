@@ -106,7 +106,12 @@ find bin -type f -not -path "*/\.*" -not -path "*/__pycache__/*" -not -name "*.p
     cp "$file" "dist/build/${PACKAGE_NAME}/$file"
 done
 
-# Copy utils directory (sample data and tools)
+# Copy download_hf_gguf_model.py to bin directory
+echo "Copying download_hf_gguf_model.py to bin directory..."
+cp "utils/scripts/download_hf_gguf_model.py" "dist/build/${PACKAGE_NAME}/bin/"
+chmod +x "dist/build/${PACKAGE_NAME}/bin/download_hf_gguf_model.py"
+
+# Sample data and scripts
 echo "Copying sample databases and scripts..."
 find sample_db -type f -not -path "*/\.*" -not -path "*/__pycache__/*" -not -name "*.pyc" -not -name "*.pyo" -not -name "*.pyd" | while read file; do
     mkdir -p "dist/build/${PACKAGE_NAME}/$(dirname "$file")"
@@ -126,7 +131,6 @@ cp install/dependencies.toml dist/build/${PACKAGE_NAME}/ 2>/dev/null || echo "Wa
 cp README.md dist/build/${PACKAGE_NAME}/ 2>/dev/null || echo "Warning: README.md not found"
 chmod +x install/setup.sh
 cp install/setup.sh dist/build/${PACKAGE_NAME}/ 2>/dev/null || echo "Warning: setup.sh not found"
-
 
 # Create example configuration
 echo "Creating example configuration yaml file..."
