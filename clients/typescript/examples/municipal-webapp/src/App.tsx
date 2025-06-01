@@ -81,6 +81,10 @@ declare global {
             hoverBackground: string,
             text: string
           },
+          chatButton: {
+            background: string,
+            hoverBackground: string
+          },
           iconColor: string
         },
         icon?: string
@@ -153,27 +157,31 @@ function App() {
               }
             ],
             theme: {
-              primary: '#1e40af',
+              primary: '#1e3a8a',
               secondary: '#2563eb',
               background: '#ffffff',
               text: {
                 primary: '#1f2937',
-                secondary: '#4b5563',
+                secondary: '#6b7280',
                 inverse: '#ffffff'
               },
               input: {
                 background: '#f9fafb',
-                border: '#e5e7eb'
+                border: '#d1d5db'
               },
               message: {
-                user: '#1e40af',
-                assistant: '#f3f4f6',
+                user: '#1e3a8a',
+                assistant: '#f8fafc',
                 userText: '#ffffff'
               },
               suggestedQuestions: {
                 background: '#eff6ff',
                 hoverBackground: '#dbeafe',
-                text: '#1e40af'
+                text: '#1e3a8a'
+              },
+              chatButton: {
+                background: '#ffffff',
+                hoverBackground: '#f3f4f6'
               },
               iconColor: '#2563eb'
             },

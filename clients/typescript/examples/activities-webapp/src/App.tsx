@@ -177,6 +177,10 @@ function App() {
                   hoverBackground: '#e0f2fe',
                   text: '#0c4a6e'
               },
+              chatButton: {
+                background: '#ffffff',
+                hoverBackground: '#f8fafc'
+              },
               iconColor: '#0ea5e9'
           },
             icon: "message-square"
