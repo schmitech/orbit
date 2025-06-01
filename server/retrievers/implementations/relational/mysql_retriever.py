@@ -4,8 +4,8 @@ MySQL implementation of AbstractSQLRetriever
 
 import logging
 from typing import Dict, Any, List, Optional
-from ..base.sql_retriever import AbstractSQLRetriever
-from ..base.base_retriever import RetrieverFactory
+from ...base.sql_retriever import AbstractSQLRetriever
+from ...base.base_retriever import RetrieverFactory
 
 logger = logging.getLogger(__name__)
 

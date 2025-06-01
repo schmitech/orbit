@@ -6,27 +6,28 @@ Usage:
 1. Copy this file to {your_retriever_name}_retriever.py
 2. Replace VectorTemplateRetriever with your retriever class name
 3. Replace 'vector_template' with your datasource name in _get_datasource_name()
-4. Implement the required methods
+4. Implement the required abstract methods
 5. Register your retriever with the factory at the end of the file
 """
 
 import logging
 import traceback
-from typing import Dict, Any, List, Optional, Union
+from typing import Dict, Any, List, Optional
 from fastapi import HTTPException
 
-from ..base.vector_retriever import VectorDBRetriever
+from ..base.abstract_vector_retriever import AbstractVectorRetriever
 from ..base.base_retriever import RetrieverFactory
 
 # Configure logging
 logger = logging.getLogger(__name__)
 
-class VectorTemplateRetriever(VectorDBRetriever):
-    """Vector DB Template implementation of the VectorDBRetriever interface"""
+class VectorTemplateRetriever(AbstractVectorRetriever):
+    """Vector DB Template implementation of the AbstractVectorRetriever interface"""
 
     def __init__(self, 
                 config: Dict[str, Any],
                 embeddings: Optional[Any] = None,
+                domain_adapter=None,
                 **kwargs):
         """
         Initialize VectorTemplateRetriever.
@@ -34,31 +35,31 @@ class VectorTemplateRetriever(VectorDBRetriever):
         Args:
             config: Configuration dictionary
             embeddings: Optional embeddings service or model
+            domain_adapter: Optional domain adapter for document handling
             **kwargs: Additional arguments
         """
         # Call the parent constructor first
-        super().__init__(config=config, embeddings=embeddings, **kwargs)
+        super().__init__(config=config, embeddings=embeddings, domain_adapter=domain_adapter, **kwargs)
         
         # Initialize vector DB client
         self.client = None
         
         # Example: extract connection parameters
-        db_config = self.datasource_config
-        self.host = db_config.get('host', 'localhost')
-        self.port = int(db_config.get('port', 8000))
+        self.host = self.datasource_config.get('host', 'localhost')
+        self.port = int(self.datasource_config.get('port', 8000))
+        
+        # Store collection
+        self.collection = None
 
     def _get_datasource_name(self) -> str:
         """Return the name of this datasource for config lookup"""
         return 'vector_template'  # Change this to your datasource name
 
-    async def initialize(self) -> None:
-        """Initialize required services and connections."""
-        # Call parent initialize to set up API key service and embeddings
-        await super().initialize()
-        
-        # Initialize vector database client
+    async def initialize_client(self) -> None:
+        """Initialize the vector database client."""
         try:
             # Example client initialization:
+            # from your_vector_db import YourVectorDBClient
             # self.client = YourVectorDBClient(
             #     host=self.host,
             #     port=self.port
@@ -66,21 +67,20 @@ class VectorTemplateRetriever(VectorDBRetriever):
             
             # Optional: Verify connection
             # await self.client.ping()
-            pass
+            
+            logger.info(f"Connected to VectorTemplate at {self.host}:{self.port}")
+            
         except Exception as e:
             logger.error(f"Failed to initialize vector database client: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Vector DB connection error: {str(e)}")
 
-    async def close(self) -> None:
-        """Close any open services and connections."""
-        # Close parent services (including embedding service)
-        await super().close()
-        
-        # Close vector database client
+    async def close_client(self) -> None:
+        """Close the vector database client."""
         try:
             if self.client:
                 # await self.client.close()
                 pass
+            logger.info("VectorTemplate client closed")
         except Exception as e:
             logger.error(f"Error closing vector DB connection: {str(e)}")
 
@@ -97,7 +97,10 @@ class VectorTemplateRetriever(VectorDBRetriever):
         # Set the collection and validate that it exists
         try:
             # Example:
-            # self.collection = self.client.get_collection(collection_name)
+            # self.collection = await self.client.get_collection(collection_name)
+            # if not self.collection:
+            #     raise Exception(f"Collection '{collection_name}' not found")
+            
             self.collection = collection_name
             
             if self.verbose:
@@ -105,109 +108,76 @@ class VectorTemplateRetriever(VectorDBRetriever):
         except Exception as e:
             error_msg = f"Failed to switch collection: {str(e)}"
             logger.error(error_msg)
-            raise HTTPException(status_code=500, detail=error_msg)
+            custom_msg = self.config.get('messages', {}).get('collection_not_found', 
+                        "Collection not found. Please ensure the collection exists before querying.")
+            raise HTTPException(status_code=404, detail=custom_msg)
 
-    def _format_metadata(self, doc: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
+    async def vector_search(self, query_embedding: List[float], top_k: int) -> List[Dict[str, Any]]:
         """
-        Format and create a context item from a document and its metadata.
+        Perform vector similarity search.
         
         Args:
-            doc: The document text
-            metadata: The document metadata
+            query_embedding: The query embedding vector
+            top_k: Number of results to return
             
         Returns:
-            A formatted context item
+            List of search results with documents, metadata, and distances/scores
         """
-        # Create the base item 
-        item = {
-            "raw_document": doc,
-            "metadata": metadata.copy(),  # Include full metadata
-        }
+        if not self.collection:
+            logger.error("Collection is not properly initialized")
+            return []
         
-        # Set the content field based on document type
-        if "question" in metadata and "answer" in metadata:
-            # If it's a QA pair, set content to the question and answer together
-            item["content"] = f"Question: {metadata['question']}\nAnswer: {metadata['answer']}"
-            item["question"] = metadata["question"]
-            item["answer"] = metadata["answer"]
-        else:
-            # Otherwise, use the document content
-            item["content"] = doc
-            
-        return item
-
-    async def get_relevant_context(self, 
-                           query: str, 
-                           api_key: Optional[str] = None, 
-                           collection_name: Optional[str] = None,
-                           **kwargs) -> List[Dict[str, Any]]:
-        """
-        Retrieve and filter relevant context from the vector database.
-        
-        Args:
-            query: The user's query
-            api_key: Optional API key for accessing the collection
-            collection_name: Optional explicit collection name
-            **kwargs: Additional parameters
-            
-        Returns:
-            A list of context items filtered by relevance
-        """
         try:
-            # Call the parent implementation which resolves collection
-            # and handles common logging/error handling
-            await super().get_relevant_context(query, api_key, collection_name, **kwargs)
-            
-            debug_mode = self.verbose
-            
-            # Check for embeddings
-            if not self.embeddings:
-                logger.warning("Embeddings are disabled, no vector search can be performed")
-                return []
-            
-            # 1. Generate embedding for query
-            query_embedding = await self.embed_query(query)
-            
-            if not query_embedding or len(query_embedding) == 0:
-                logger.error("Received empty embedding, cannot perform vector search")
-                return []
-            
-            # 2. Query vector database
-            # Example:
-            # results = await self.client.query(
-            #     collection_name=self.collection,
-            #     query_embeddings=[query_embedding],
-            #     n_results=self.max_results
+            # Example search implementation:
+            # results = await self.client.search(
+            #     collection=self.collection,
+            #     query_vector=query_embedding,
+            #     limit=top_k,
+            #     include_metadata=True
             # )
             
-            # 3. Process results
-            context_items = []
+            # Convert to standard format
+            # search_results = []
+            # for result in results:
+            #     search_results.append({
+            #         'document': result.get('content', ''),
+            #         'metadata': result.get('metadata', {}),
+            #         'distance': result.get('distance', 0.0)
+            #         # or 'score': result.get('score', 0.0) if your DB returns similarity scores
+            #     })
             
-            # Example processing:
-            # for doc, metadata, distance in results:
-            #     # Calculate similarity score
-            #     similarity = 1 - distance  # Adjust based on distance metric
-            #     
-            #     # Only include results that meet threshold
-            #     if similarity >= self.relevance_threshold:
-            #         item = self._format_metadata(doc, metadata)
-            #         item["confidence"] = similarity
-            #         context_items.append(item)
+            # For template, return empty results
+            search_results = []
             
-            # 4. Sort and limit results
-            if context_items:
-                context_items.sort(key=lambda x: x.get("confidence", 0), reverse=True)
-                context_items = context_items[:self.return_results]
+            return search_results
             
-            if debug_mode:
-                logger.info(f"Retrieved {len(context_items)} relevant context items")
-                
-            return context_items
-                
         except Exception as e:
-            logger.error(f"Error retrieving context: {str(e)}")
-            logger.error(traceback.format_exc())
+            logger.error(f"Error querying vector database: {str(e)}")
             return []
 
+    def calculate_similarity_from_distance(self, distance: float) -> float:
+        """
+        Convert your vector database's distance/score to similarity score.
+        Override this method based on your database's distance metric.
+        
+        Args:
+            distance: Distance or score from your vector database
+            
+        Returns:
+            Similarity score between 0 and 1
+        """
+        # Example for L2 distance (lower is better):
+        # return 1.0 / (1.0 + (distance / self.distance_scaling_factor))
+        
+        # Example for cosine distance (lower is better):
+        # return max(0.0, 1.0 - distance)
+        
+        # Example for similarity score (higher is better):
+        # return float(distance)
+        
+        # Default implementation
+        return 1.0 / (1.0 + (distance / self.distance_scaling_factor))
+
 # Uncomment to register your retriever with the factory
+# Change 'vector_template' to your actual datasource name
 # RetrieverFactory.register_retriever('vector_template', VectorTemplateRetriever) 

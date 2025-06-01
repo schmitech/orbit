@@ -5,8 +5,8 @@ QA-specialized SQLite retriever that extends SQLiteRetriever
 import logging
 import traceback
 from typing import Dict, Any, List, Optional
-from .sqlite_retriever import SQLiteRetriever
-from ..base.base_retriever import RetrieverFactory
+from ..relational.sqlite_retriever import SQLiteRetriever
+from ...base.base_retriever import RetrieverFactory
 
 # Configure logging
 logger = logging.getLogger(__name__)

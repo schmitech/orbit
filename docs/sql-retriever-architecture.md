@@ -7,10 +7,12 @@ The `AbstractSQLRetriever` architecture is designed to be **database-agnostic** 
 ```
 BaseRetriever (abstract base for all retrievers)
 └── AbstractSQLRetriever (database-agnostic SQL functionality)
-    ├── SQLiteRetriever (SQLite-specific implementation)
-    │   └── QASSQLRetriever (QA domain specialization of SQLite)
-    ├── PostgreSQLRetriever (PostgreSQL-specific implementation)
-    └── MySQLRetriever (MySQL-specific implementation)
+    ├── relational/
+    │   ├── SQLiteRetriever (SQLite-specific implementation)
+    │   ├── PostgreSQLRetriever (PostgreSQL-specific implementation)
+    │   └── MySQLRetriever (MySQL-specific implementation)
+    └── qa/
+        └── QASSQLRetriever (QA domain specialization of SQLite)
 ```
 
 ## Supported Databases
@@ -19,9 +21,9 @@ BaseRetriever (abstract base for all retrievers)
 
 | Database | Implementation | Status | Special Features | Domain Specializations |
 |----------|----------------|---------|------------------|------------------------|
-| **SQLite** | `SQLiteRetriever` | ✅ Complete | File-based, FTS5 support | `QASSQLRetriever` (Q&A) |
-| **PostgreSQL** | `PostgreSQLRetriever` | ✅ Complete | Full-text search, JSON ops | *Easy to add* |
-| **MySQL** | `MySQLRetriever` | ✅ Complete | FULLTEXT indexes, optimized LIKE | *Easy to add* |
+| **SQLite** | `relational.SQLiteRetriever` | ✅ Complete | File-based, FTS5 support | `qa.QASSQLRetriever` (Q&A) |
+| **PostgreSQL** | `relational.PostgreSQLRetriever` | ✅ Complete | Full-text search, JSON ops | *Easy to add* |
+| **MySQL** | `relational.MySQLRetriever` | ✅ Complete | FULLTEXT indexes, optimized LIKE | *Easy to add* |
 
 
 ## 🔄 Details
@@ -35,26 +37,28 @@ BaseRetriever (core functionality for all retrievers)
     │   • Domain adapter integration
     │   • Abstract methods for DB-specific implementation
     │
-    ├── SQLiteRetriever (SQLite-specific implementation)
+    ├── relational/
+    │   ├── SQLiteRetriever (SQLite-specific implementation)
     │   │   • SQLite connection management
     │   │   • SQLite query execution
     │   │   • SQLite schema verification
     │   │
-    │   └── QASSQLRetriever (QA domain specialization)
-    │       • Question/Answer field prioritization
-    │       • QA-optimized similarity scoring
-    │       • Token-based search for FAQ scenarios
-    │       • QA-specific result formatting
+    │   ├── PostgreSQLRetriever (PostgreSQL-specific)
+    │   │   • Full-text search with ts_vector
+    │   │   • PostgreSQL connection via psycopg2
+    │   │   • Advanced query optimizations
+    │   │
+    │   └── MySQLRetriever (MySQL-specific)
+    │       • FULLTEXT indexes with MATCH() AGAINST()
+    │       • MySQL connection via mysql-connector
+    │       • Optimized LIKE search fallback
     │
-    ├── PostgreSQLRetriever (PostgreSQL-specific)
-    │   • Full-text search with ts_vector
-    │   • PostgreSQL connection via psycopg2
-    │   • Advanced query optimizations
-    │
-    └── MySQLRetriever (MySQL-specific)
-        • FULLTEXT indexes with MATCH() AGAINST()
-        • MySQL connection via mysql-connector
-        • Optimized LIKE search fallback
+    └── qa/
+        └── QASSQLRetriever (QA domain specialization)
+            • Question/Answer field prioritization
+            • QA-optimized similarity scoring
+            • Token-based search for FAQ scenarios
+            • QA-specific result formatting
 ```
 
 ### Code Reuse

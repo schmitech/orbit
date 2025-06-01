@@ -6,8 +6,8 @@ import logging
 import sqlite3
 import os
 from typing import Dict, Any, List, Optional
-from ..base.sql_retriever import AbstractSQLRetriever
-from ..base.base_retriever import RetrieverFactory
+from ...base.sql_retriever import AbstractSQLRetriever
+from ...base.base_retriever import RetrieverFactory
 from utils.lazy_loader import LazyLoader
 
 logger = logging.getLogger(__name__)

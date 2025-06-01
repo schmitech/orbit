@@ -9,17 +9,63 @@ logger = logging.getLogger(__name__)
 logger.info("Initializing retrievers package")
 
 from .base.base_retriever import BaseRetriever, RetrieverFactory
-from .base.vector_retriever import VectorDBRetriever
-from .base.sql_retriever import SQLRetriever
+from .base.abstract_vector_retriever import AbstractVectorRetriever
+from .base.sql_retriever import AbstractSQLRetriever
 from .adapters.domain_adapters import DocumentAdapterFactory
+
+# Import implementations to register them
+try:
+    # Import vector database implementations
+    from .implementations.vector import (
+        ChromaRetriever,
+        MilvusRetriever,
+        PineconeRetriever,
+        ElasticsearchRetriever,
+        RedisRetriever
+    )
+    
+    # Import QA specializations
+    from .implementations.qa import (
+        QAChromaRetriever,
+        QASSQLRetriever
+    )
+    
+    logger.info("Successfully imported vector retriever implementations")
+except ImportError as e:
+    logger.warning(f"Some vector retrievers could not be imported: {e}")
+
+# Import SQL implementations
+try:
+    from .implementations.relational import (
+        SQLiteRetriever,
+        PostgreSQLRetriever,
+        MySQLRetriever
+    )
+    
+    logger.info("Successfully imported SQL retriever implementations")
+except ImportError as e:
+    logger.warning(f"Some SQL retrievers could not be imported: {e}")
 
 # Expose main interfaces
 __all__ = [
     'BaseRetriever',
     'RetrieverFactory',
-    'VectorDBRetriever',
-    'SQLRetriever',
-    'DocumentAdapterFactory'
+    'AbstractVectorRetriever',
+    'AbstractSQLRetriever',
+    'DocumentAdapterFactory',
+    # Vector implementations
+    'ChromaRetriever',
+    'MilvusRetriever', 
+    'PineconeRetriever',
+    'ElasticsearchRetriever',
+    'RedisRetriever',
+    # Relational implementations
+    'SQLiteRetriever',
+    'PostgreSQLRetriever',
+    'MySQLRetriever',
+    # QA specializations
+    'QAChromaRetriever',
+    'QASSQLRetriever'
 ]
 
 # Import implementations to register them

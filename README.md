@@ -15,6 +15,8 @@
 
 ORBIT is a modular, self-hosted toolkit that provides a unified API for open-source AI inference models. It enables you to run AI models on your own infrastructure, maintaining complete control over your data while eliminating commercial API dependencies.
 
+[Official Website](https://orbit.schmitech.ai/)
+
 ORBIT is particularly useful for:
 
 * **Organizations requiring sovereign AI capabilities** - *Security depends on controlling where and how your AI processes sensitive information*

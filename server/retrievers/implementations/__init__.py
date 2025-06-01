@@ -2,16 +2,40 @@
 Retriever implementations package
 """
 
-from .qa_chroma_retriever import QAChromaRetriever
-from .qa_sql_retriever import QASSQLRetriever
-from .sqlite_retriever import SQLiteRetriever
-from .postgresql_retriever import PostgreSQLRetriever
-from .mysql_retriever import MySQLRetriever
+# Import vector database implementations
+from .vector import (
+    ChromaRetriever,
+    MilvusRetriever,
+    PineconeRetriever,
+    ElasticsearchRetriever,
+    RedisRetriever
+)
+
+# Import relational database implementations
+from .relational import (
+    SQLiteRetriever,
+    PostgreSQLRetriever,
+    MySQLRetriever
+)
+
+# Import QA-specialized implementations
+from .qa import (
+    QAChromaRetriever,
+    QASSQLRetriever
+)
 
 __all__ = [
-    'QAChromaRetriever', 
-    'QASSQLRetriever',
+    # Vector implementations
+    'ChromaRetriever',
+    'MilvusRetriever',
+    'PineconeRetriever', 
+    'ElasticsearchRetriever',
+    'RedisRetriever',
+    # Relational implementations
     'SQLiteRetriever',
-    'PostgreSQLRetriever', 
-    'MySQLRetriever'
+    'PostgreSQLRetriever',
+    'MySQLRetriever',
+    # QA specializations
+    'QAChromaRetriever', 
+    'QASSQLRetriever'
 ]

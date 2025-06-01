@@ -1,5 +1,5 @@
 """
-ChromaDB implementation of the BaseRetriever interface with QA enhancement
+QA-specialized ChromaDB retriever that extends ChromaRetriever
 """
 
 import logging
@@ -11,38 +11,42 @@ from langchain_ollama import OllamaEmbeddings
 from fastapi import HTTPException
 from pathlib import Path
 
-from ..base.vector_retriever import VectorDBRetriever
-from ..base.base_retriever import RetrieverFactory
+from ...base.abstract_vector_retriever import AbstractVectorRetriever
+from ...base.base_retriever import RetrieverFactory
 from services.api_key_service import ApiKeyService
 from embeddings.base import EmbeddingService, EmbeddingServiceFactory
-from ..adapters.registry import ADAPTER_REGISTRY
+from ...adapters.registry import ADAPTER_REGISTRY
 from utils.lazy_loader import LazyLoader
+from ..vector.chroma_retriever import ChromaRetriever
 
 # Configure logging
 logger = logging.getLogger(__name__)
 
-class QAChromaRetriever(VectorDBRetriever):
-    """Chroma implementation of the VectorDBRetriever interface with QA support"""
+class QAChromaRetriever(ChromaRetriever):
+    """
+    QA-specialized ChromaDB retriever that extends ChromaRetriever.
+    
+    This implementation adds QA-specific functionality on top of the 
+    database-agnostic ChromaDB retriever foundation.
+    """
 
     def __init__(self, 
                 config: Dict[str, Any],
-                embeddings: Optional[EmbeddingService] = None,
+                embeddings: Optional[Any] = None,
                 domain_adapter=None,
                 collection: Any = None,
                 **kwargs):
         """
-        Initialize QAChromaRetriever.
+        Initialize QA ChromaDB retriever.
         
         Args:
             config: Configuration dictionary containing Chroma and general settings
             embeddings: Optional EmbeddingService instance
             domain_adapter: Optional domain adapter for specific document types
             collection: Optional ChromaDB collection
+            **kwargs: Additional arguments
         """
-        # Get ChromaDB configuration from datasources section
-        datasource_config = config.get('datasources', {}).get('chroma', {})
-        
-        # Get adapter config if available
+        # Get QA-specific adapter config if available
         adapter_config = None
         for adapter in config.get('adapters', []):
             if (adapter.get('type') == 'retriever' and 
@@ -51,101 +55,40 @@ class QAChromaRetriever(VectorDBRetriever):
                 adapter_config = adapter.get('config', {})
                 break
         
-        # Merge configs with adapter config taking precedence
-        merged_config = {**datasource_config}
+        # Merge adapter config into datasource config
+        merged_datasource_config = config.get('datasources', {}).get('chroma', {}).copy()
         if adapter_config:
-            merged_config.update(adapter_config)
+            merged_datasource_config.update(adapter_config)
             
         # Override max_results and return_results in config before parent initialization
-        if 'max_results' in merged_config:
-            config['max_results'] = merged_config['max_results']
-        if 'return_results' in merged_config:
-            config['return_results'] = merged_config['return_results']
+        if 'max_results' in merged_datasource_config:
+            config['max_results'] = merged_datasource_config['max_results']
+        if 'return_results' in merged_datasource_config:
+            config['return_results'] = merged_datasource_config['return_results']
             
-        # Call the parent constructor with the merged config
-        super().__init__(config=config, embeddings=embeddings, domain_adapter=domain_adapter, datasource_config=merged_config)
+        # Call parent constructor (ChromaRetriever)
+        super().__init__(config=config, embeddings=embeddings, domain_adapter=domain_adapter, **kwargs)
         
-        # Store collection
-        self.collection = collection
+        # Override datasource_config with merged config
+        self.datasource_config = merged_datasource_config
         
-        # Store datasource config for later use
-        self.datasource_config = merged_config
+        # Store collection if provided
+        if collection is not None:
+            self.collection = collection
         
-        # Get confidence threshold from adapter config
+        # QA-specific settings from adapter config
         self.confidence_threshold = adapter_config.get('confidence_threshold', 0.3) if adapter_config else 0.3
-        
-        # Get distance scaling factor from adapter config
         self.distance_scaling_factor = adapter_config.get('distance_scaling_factor', 200.0) if adapter_config else 200.0
         
-        # Create a lazy loader for the ChromaDB client
-        def create_chroma_client():
-            use_local = self.datasource_config.get('use_local', False)
-            
-            if use_local:
-                # Use PersistentClient for local filesystem access
-                db_path = self.datasource_config.get('db_path', '../utils/chroma/chroma_db')
-                db_path = Path(db_path).resolve()
-                
-                # Ensure the directory exists
-                os.makedirs(db_path, exist_ok=True)
-                
-                logger.info(f"Using local ChromaDB at path: {db_path}")
-                return PersistentClient(path=str(db_path))
-            else:
-                # Use HttpClient for remote server access
-                logger.info(f"Connecting to ChromaDB at {self.datasource_config.get('host')}:{self.datasource_config.get('port')}...")
-                return HttpClient(
-                    host=self.datasource_config.get('host', 'localhost'),
-                    port=int(self.datasource_config.get('port', 8000))
-                )
-        
-        # Create a lazy loader for the ChromaDB client
-        self._chroma_client_loader = LazyLoader(create_chroma_client, "ChromaDB client")
-        
-        # Configure ChromaDB and related HTTP client logging based on verbose setting
-        if not self.verbose:
-            # Only show warnings and errors when not in verbose mode
-            for logger_name in ["httpx", "chromadb"]:
-                client_logger = logging.getLogger(logger_name)
-                client_logger.setLevel(logging.WARNING)
-
-    @property
-    def chroma_client(self):
-        """Lazy-loaded ChromaDB client property."""
-        return self._chroma_client_loader.get_instance()
-
-    def _get_datasource_name(self) -> str:
-        """Return the name of this datasource for config lookup"""
-        return 'chroma'
+        logger.info(f"QAChromaRetriever initialized with confidence_threshold={self.confidence_threshold}")
 
     async def initialize(self) -> None:
         """Initialize required services."""
-        # Call parent initialize to set up API key service
+        # Call parent initialize to set up basic services
         await super().initialize()
         
-        # Check if embedding is enabled
-        embedding_enabled = self.config.get('embedding', {}).get('enabled', True)
-        
-        # Skip initialization if embeddings are disabled
-        if not embedding_enabled:
-            logger.info("Embedding services are disabled, retriever will operate in limited mode")
-            self.embeddings = None
-            return
-        
-        # Initialize embeddings if not provided in constructor
-        if self.embeddings is None:
-            embedding_provider = self.config.get('embedding', {}).get('provider')
-            
-            if embedding_provider:
-                self.embeddings = EmbeddingServiceFactory.create_embedding_service(
-                    self.config, 
-                    embedding_provider
-                )
-                await self.embeddings.initialize()
-                logger.info(f"Initialized embedding service: {type(self.embeddings).__name__}")
-            else:
-                logger.warning("No embedding provider specified in config")
-                self.embeddings = None
+        # Initialize client
+        await self.initialize_client()
         
         # Initialize domain adapter if not provided
         if self.domain_adapter is None:
@@ -432,5 +375,5 @@ class QAChromaRetriever(VectorDBRetriever):
             logger.error(traceback.format_exc())
             return []
 
-# Register the retriever with the factory
-RetrieverFactory.register_retriever('chroma', QAChromaRetriever)
+# Register the QA-specialized retriever with the factory
+RetrieverFactory.register_retriever('qa_chroma', QAChromaRetriever)
