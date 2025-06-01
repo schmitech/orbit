@@ -80,7 +80,6 @@ internal_services:
     use_ssl: false
     ttl: 604800
 
-# This feature requires a MongoDB instance
 chat_history:
   enabled: false
   collection_name: "chat_history"
@@ -137,13 +136,12 @@ embeddings:
     model: "mistral-embed"
     dimensions: 1024
 
-# This feature requires a MongoDB instance
 adapters:
   - name: "qa-sql"
     type: "retriever"
     datasource: "sqlite"
     adapter: "qa"
-    implementation: "retrievers.implementations.qa_sql_retriever.QASSQLRetriever"
+    implementation: "retrievers.implementations.qa.QASSQLRetriever"
     config:
       confidence_threshold: 0.3
       max_results: 5
@@ -153,7 +151,7 @@ adapters:
     type: "retriever"
     datasource: "chroma"
     adapter: "qa"
-    implementation: "retrievers.implementations.qa_chroma_retriever.QAChromaRetriever"
+    implementation: "retrievers.implementations.qa.QAChromaRetriever"
     config:
       confidence_threshold: 0.3
       distance_scaling_factor: 200.0
@@ -184,15 +182,27 @@ datasources:
     embedding_provider: null
   pinecone:
     api_key: ${DATASOURCE_PINECONE_API_KEY}
-    environment: ${DATASOURCE_PINECONE_ENVIRONMENT}
-    index_name: ${DATASOURCE_PINECONE_INDEX_NAME}
+    host: ${DATASOURCE_PINECONE_HOST}
+    namespace: "default"
     embedding_provider: null
   elasticsearch:
     node: 'https://localhost:9200'
     auth:
       username: ${DATASOURCE_ELASTICSEARCH_USERNAME}
       password: ${DATASOURCE_ELASTICSEARCH_PASSWORD}
-    embedding_provider: null
+      vector_field: "embedding"
+      text_field: "content"
+      verify_certs: true
+      embedding_provider: null
+  redis:
+    host: "localhost"
+    port: 6379
+    password: ${DATASOURCE_REDIS_PASSWORD}
+    db: 0
+    use_ssl: false
+    vector_field: "embedding"
+    text_field: "content"
+    distance_metric: "COSINE"  # Options: L2, IP, COSINE
   mongodb:
     host: "localhost"
     port: 27017
