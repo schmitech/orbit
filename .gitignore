@@ -57,3 +57,4 @@ gguf
 *.pid
 *.pickle
 *.sqlite3
+uploads/

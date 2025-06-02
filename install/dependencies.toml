@@ -33,6 +33,10 @@ dependencies = [
     "pycountry>=24.6.1",
     "llama-cpp-python==0.3.9",
     "elasticsearch==9.0.0",
+    "pypdf==5.6.0",
+    "docx2python==3.5.0",
+    "openpyxl>=3.1.5",
+    "python-magic>=0.4.27",
     "schmitech-orbit-client==0.2.2"
 ]
 

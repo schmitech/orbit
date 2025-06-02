@@ -320,9 +320,11 @@ class RouteConfigurator:
             return health
     
     def _include_admin_routes(self, app: FastAPI) -> None:
-        """Include admin routes."""
+        """Include admin routes and file upload routes."""
         from routes.admin_routes import admin_router
+        from routes.file_routes import file_router
         app.include_router(admin_router)
+        app.include_router(file_router)
     
     async def _process_mcp_request(
         self, 

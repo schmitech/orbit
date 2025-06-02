@@ -417,8 +417,8 @@ def get_default_config() -> Dict[str, Any]:
             },
             "pinecone": {
                 "api_key": "${DATASOURCE_PINECONE_API_KEY}",
-                "environment": "${DATASOURCE_PINECONE_ENVIRONMENT}",
-                "index_name": "${DATASOURCE_PINECONE_INDEX_NAME}",
+                "host": "${DATASOURCE_PINECONE_HOST}",
+                "namespace": "default",
                 "embedding_provider": None
             }
         },
@@ -523,5 +523,26 @@ def get_default_config() -> Dict[str, Any]:
                 "header_name": "X-User-ID",
                 "required": False
             }
+        },
+        "file_upload": {
+            "enabled": True,
+            "max_size_mb": 10,
+            "max_files_per_batch": 10,
+            "allowed_extensions": [
+                ".txt",
+                ".pdf",
+                ".docx",
+                ".doc",
+                ".xlsx",
+                ".xls",
+                ".csv",
+                ".md",
+                ".json"
+            ],
+            "upload_directory": "uploads",
+            "save_to_disk": True,
+            "auto_store_in_vector_db": True,
+            "chunk_size": 1000,
+            "chunk_overlap": 200
         }
     }

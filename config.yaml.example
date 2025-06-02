@@ -94,6 +94,26 @@ chat_history:
     header_name: "X-User-ID"
     required: false
 
+file_upload:
+  enabled: true
+  max_size_mb: 10
+  max_files_per_batch: 10
+  allowed_extensions:
+    - ".txt"
+    - ".pdf"
+    - ".docx"
+    - ".doc"
+    - ".xlsx"
+    - ".xls"
+    - ".csv"
+    - ".md"
+    - ".json"
+  upload_directory: "uploads"
+  save_to_disk: true
+  auto_store_in_vector_db: true
+  chunk_size: 1000
+  chunk_overlap: 200
+
 embeddings:
   llama_cpp:
     model_path: "gguf/nomic-embed-text-v1.5-Q4_0.gguf"
@@ -158,6 +178,23 @@ adapters:
       embedding_provider: null
       max_results: 5
       return_results: 3
+
+  - name: "file-vector"
+    type: "retriever"
+    datasource: "chroma"
+    adapter: "file"
+    implementation: "retrievers.implementations.file.FileChromaRetriever"
+    config:
+      confidence_threshold: 0.1
+      distance_scaling_factor: 150.0
+      embedding_provider: null
+      max_results: 10
+      return_results: 5
+      # File-specific settings
+      include_file_metadata: true
+      boost_file_uploads: true
+      file_content_weight: 1.5
+      metadata_weight: 0.8
 
 datasources:
   chroma:
