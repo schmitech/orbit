@@ -41,13 +41,11 @@ ORBIT is particularly useful for:
 
 **Data Exposure:** Your prompts, user interactions, and business logic are transmitted to external servers, often across international borders, increasing exposure to surveillance and regulatory violations.
 
+**Compliance Liability:** Using external AI services may violate data residency requirements, industry regulations, or government mandates in your jurisdiction.
+
 **Financial Vulnerability:** Commercial AI providers can change pricing overnight, throttle your access during peak demand, or discontinue services without notice, leaving your business operations stranded.
 
 **Transparency & Explainability Gap:** Proprietary AI models operate as black boxes with no visibility into training data sources, embedded biases, model weights, or decision-making processes, making it impossible to audit, explain, or validate AI-driven business decisions for regulatory compliance or ethical standards.
-
-**Strategic Risk:** Your competitive advantage becomes dependent on systems controlled by entities with their own agendas, potentially including your competitors.
-
-**Compliance Liability:** Using external AI services may violate data residency requirements, industry regulations, or government mandates in your jurisdiction.
 
 ## Documentation
 
