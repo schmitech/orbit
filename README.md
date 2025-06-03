@@ -28,8 +28,18 @@ ORBIT is a modular, self-hosted toolkit that provides a unified API for open-sou
 ORBIT is particularly useful for:
 
 * **Organizations requiring sovereign AI capabilities** - *Security depends on controlling where and how your AI processes sensitive information*
+
 * **Organizations with strict data privacy requirements** - *External AI providers can access, store, and potentially use your proprietary data to train their models*
+
 * **Companies wanting to maintain control over their AI infrastructure** - *Avoid vendor lock-in, unpredictable pricing escalations, and sudden service terminations that can cripple your operations*
+
+* **Regulated industries & compliance-driven organizations** - *Meet strict regulatory, audit, and data residency requirements (GDPR, HIPAA, SOC2, etc.) by keeping all AI processing and data storage within your own infrastructure*
+
+* **Teams needing on-premise or air-gapped deployments** - *Deploy in secure, isolated, or air-gapped environments where external connectivity is restricted or prohibited*
+
+* **Enterprises demanding advanced security & access control** - *Implement fine-grained authentication, authorization, and RBAC to ensure only authorized users and systems can access sensitive AI capabilities and data*
+
+* **Highly customizable AI workflows** - *Design, orchestrate, and extend AI pipelines to fit your unique business logic, data sources, and operational requirements without being limited by vendor APIs or closed platforms*
 
 ## Critical Risks ORBIT Mitigate
 
