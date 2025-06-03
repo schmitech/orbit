@@ -4,23 +4,6 @@
 
 This roadmap outlines the strategic direction and planned enhancements for ORBIT (Open Retrieval-Based Inference Toolkit). Our goal is to transform ORBIT into a comprehensive enterprise-grade AI platform while maintaining its core principles of data sovereignty and open-source accessibility.
 
-## Core Pillars
-
-1. **Data Sovereignty**
-   - Complete control over data processing
-   - No external API dependencies
-   - Private infrastructure support
-
-2. **Enterprise Integration**
-   - Enterprise-grade security
-   - Compliance and governance
-   - Scalable architecture
-
-3. **Developer Experience**
-   - Intuitive APIs
-   - Comprehensive documentation
-   - Robust tooling
-
 ## Feature Roadmaps
 
 ### 1. [Prompt Service Enhancement](prompt-service.md)
