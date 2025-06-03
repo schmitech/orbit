@@ -511,11 +511,11 @@ def get_default_config() -> Dict[str, Any]:
         "chat_history": {
             "enabled": True,
             "collection_name": "chat_history",
-            "default_limit": 20,
             "store_metadata": True,
-            "retention_days": 1,
+            "retention_days": 90,
             "max_tracked_sessions": 10000,
             "session": {
+                "auto_generate": True,
                 "required": True,
                 "header_name": "X-Session-ID"
             },

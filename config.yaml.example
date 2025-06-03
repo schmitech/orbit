@@ -1,6 +1,6 @@
 general:
   port: 3000
-  verbose: true
+  verbose: false
   https:
     enabled: false
     port: 3443
@@ -83,11 +83,11 @@ internal_services:
 chat_history:
   enabled: false
   collection_name: "chat_history"
-  default_limit: 20
   store_metadata: true
-  retention_days: 1
+  retention_days: 90
   max_tracked_sessions: 10000
   session:
+    auto_generate: false
     required: true
     header_name: "X-Session-ID"
   user:

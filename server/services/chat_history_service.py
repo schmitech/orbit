@@ -10,7 +10,7 @@ import logging
 import asyncio
 import hashlib
 from typing import Dict, Any, Optional, List, Tuple, Callable, TypeVar, Awaitable
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo.errors import ServerSelectionTimeoutError, OperationFailure, DuplicateKeyError
@@ -68,13 +68,17 @@ class ChatHistoryService:
         self.config = config
         self.mongodb_service = mongodb_service
         
+        # Initialize verbose first since it's used in calculation methods
+        self.verbose = config.get('general', {}).get('verbose', False)
+        
         # Extract chat history configuration
         self.chat_history_config = config.get('chat_history', {})
         self.enabled = self.chat_history_config.get('enabled', True)
         
         # Configuration parameters
         self.default_limit = self.chat_history_config.get('default_limit', 50)
-        self.max_conversation_messages = self.chat_history_config.get('max_conversation_messages', 1000)
+        # Dynamic max_conversation_messages - will be calculated based on inference provider
+        self.max_conversation_messages = self._calculate_max_conversation_messages()
         self.store_metadata = self.chat_history_config.get('store_metadata', True)
         self.retention_days = self.chat_history_config.get('retention_days', 90)
         self.max_tracked_sessions = self.chat_history_config.get('max_tracked_sessions', 10000)
@@ -97,13 +101,162 @@ class ChatHistoryService:
         self._active_sessions = {}  # session_id -> last_activity timestamp
         self._session_message_counts = {}  # session_id -> message count
         
-        self.verbose = config.get('general', {}).get('verbose', False)
         self._initialized = False
         
         # Cleanup task handle
         self._cleanup_task = None
         
-        logger.info("Chat History Service initialized (inference-only mode)")
+        logger.info(f"Chat History Service initialized with max_conversation_messages={self.max_conversation_messages} (inference-only mode)")
+        
+    def _calculate_max_conversation_messages(self) -> int:
+        """
+        Calculate the maximum conversation messages based on the active inference provider's context window.
+        
+        This method dynamically determines the conversation limit by:
+        1. Getting the active inference provider configuration
+        2. Extracting the context window size
+        3. Estimating average message length in tokens
+        4. Reserving space for system prompts and current query
+        5. Converting available context to message count
+        
+        Returns:
+            Maximum number of conversation messages to store
+        """
+        try:
+            # Get the active inference provider
+            inference_provider = self.config.get('general', {}).get('inference_provider', 'ollama')
+            inference_config = self.config.get('inference', {}).get(inference_provider, {})
+            
+            # Extract context window size based on provider
+            context_window = self._get_context_window_size(inference_provider, inference_config)
+            
+            # Estimate average tokens per message (including role labels and formatting)
+            # This is a conservative estimate: typical message ~50-100 tokens + overhead
+            avg_tokens_per_message = 100
+            
+            # Reserve space for system prompts, current query, and response generation
+            # System prompt: ~200 tokens, current query: ~50 tokens, response buffer: ~100 tokens
+            reserved_tokens = 350
+            
+            # Calculate available tokens for conversation history
+            available_tokens = max(0, context_window - reserved_tokens)
+            
+            # Convert to message count (minimum 10, maximum 1000 for safety)
+            max_messages = max(10, min(1000, available_tokens // avg_tokens_per_message))
+            
+            if self.verbose:
+                logger.info(f"Context window calculation: provider={inference_provider}, "
+                          f"context_window={context_window}, available_tokens={available_tokens}, "
+                          f"max_messages={max_messages}")
+            
+            return max_messages
+            
+        except Exception as e:
+            logger.warning(f"Error calculating max conversation messages: {str(e)}. Using fallback value.")
+            # Fallback to a reasonable default if calculation fails
+            return 100
+
+    def _get_context_window_size(self, provider: str, provider_config: Dict[str, Any]) -> int:
+        """
+        Extract context window size from provider configuration.
+        
+        This method reads the actual configuration parameters used by each provider
+        to determine context window size, falling back to reasonable defaults only
+        when the parameter isn't configured.
+        
+        Args:
+            provider: The inference provider name
+            provider_config: The provider-specific configuration
+            
+        Returns:
+            Context window size in tokens
+        """
+        # Provider-specific context window parameter names
+        # These map to the actual config parameters each provider uses
+        context_params = {
+            'ollama': 'num_ctx',           # Ollama context window size
+            'llama_cpp': 'n_ctx',          # llama.cpp context window size
+            'openai': 'context_window',    # User-configurable context window override
+            'anthropic': 'context_window', # User-configurable context window override
+            'gemini': 'context_window',    # User-configurable context window override
+            'groq': 'context_window',      # User-configurable context window override
+            'deepseek': 'context_window',  # User-configurable context window override
+            'together': 'context_window',  # User-configurable context window override
+            'xai': 'context_window',       # User-configurable context window override
+            'vllm': 'context_window',      # User-configurable context window override
+            'azure': 'context_window',     # User-configurable context window override
+            'vertex': 'context_window',    # User-configurable context window override
+            'aws': 'context_window',       # User-configurable context window override
+            'huggingface': 'max_length',   # HuggingFace uses max_length for context
+            'mistral': 'context_window',   # User-configurable context window override
+            'openrouter': 'context_window' # User-configurable context window override
+        }
+        
+        # Alternative parameter names that might indicate context window size
+        # These are fallback parameters if the primary one isn't found
+        alternative_params = {
+            'openai': ['max_context_length', 'context_length'],
+            'anthropic': ['max_context_length', 'context_length'], 
+            'gemini': ['max_context_length', 'context_length'],
+            'groq': ['max_context_length', 'context_length'],
+            'deepseek': ['max_context_length', 'context_length'],
+            'together': ['max_context_length', 'context_length'],
+            'xai': ['max_context_length', 'context_length'],
+            'vllm': ['max_context_length', 'context_length'],
+            'azure': ['max_context_length', 'context_length'],
+            'vertex': ['max_context_length', 'context_length'],
+            'aws': ['max_context_length', 'context_length'],
+            'mistral': ['max_context_length', 'context_length'],
+            'openrouter': ['max_context_length', 'context_length']
+        }
+        
+        # Default context window sizes for providers (conservative estimates)
+        # Used only when no configuration parameter is found
+        default_context_windows = {
+            'ollama': 8192,      # Typical Ollama default
+            'llama_cpp': 4096,   # Typical llama.cpp default
+            'openai': 32768,     # GPT-4 range (varies by model)
+            'anthropic': 200000, # Claude 3 range (varies by model)
+            'gemini': 32768,     # Gemini Pro range (varies by model)
+            'groq': 8192,        # Typical Llama models on Groq
+            'deepseek': 32768,   # DeepSeek models range
+            'together': 8192,    # Varies by model, conservative estimate
+            'xai': 8192,         # Grok models range
+            'vllm': 8192,        # Varies by model, conservative estimate
+            'azure': 32768,      # Azure OpenAI GPT-4 range
+            'vertex': 32768,     # Google Vertex AI Gemini range
+            'aws': 8192,         # AWS Bedrock varies by model
+            'huggingface': 2048, # Conservative for local HF models
+            'mistral': 8192,     # Mistral models range
+            'openrouter': 8192   # Varies by routed model
+        }
+        
+        # First, try to read the primary context window parameter
+        param_name = context_params.get(provider)
+        if param_name and param_name in provider_config:
+            context_window = provider_config[param_name]
+            if isinstance(context_window, int) and context_window > 0:
+                if self.verbose:
+                    logger.info(f"Using configured {param_name}={context_window} for provider {provider}")
+                return context_window
+        
+        # Second, try alternative parameter names
+        alternatives = alternative_params.get(provider, [])
+        for alt_param in alternatives:
+            if alt_param in provider_config:
+                context_window = provider_config[alt_param]
+                if isinstance(context_window, int) and context_window > 0:
+                    if self.verbose:
+                        logger.info(f"Using configured {alt_param}={context_window} for provider {provider}")
+                    return context_window
+        
+        # Finally, fall back to provider-specific defaults
+        default_window = default_context_windows.get(provider, 4096)
+        
+        if self.verbose:
+            logger.info(f"No context window configured for {provider}, using default: {default_window} tokens")
+            
+        return default_window
         
     async def initialize(self) -> None:
         """Initialize the chat history service"""
@@ -231,11 +384,8 @@ class ChatHistoryService:
             return None
             
         try:
-            # Check if we've exceeded max messages for this conversation
-            await self._check_conversation_limits(session_id)
-            
             # Prepare message document
-            timestamp = datetime.utcnow()
+            timestamp = datetime.now(UTC)
             message_doc = {
                 "session_id": session_id,
                 "role": role,
@@ -273,12 +423,14 @@ class ChatHistoryService:
                 self._session_message_counts[session_id] = \
                     self._session_message_counts.get(session_id, 0) + 1
                 
+                # Add useful progress logging
+                if self.verbose:
+                    current_count = self._session_message_counts[session_id]
+                    logger.info(f"Session {session_id}: {current_count}/{self.max_conversation_messages} messages used ({role})")
+                
                 # Check if we need to clean up inactive sessions
                 if len(self._active_sessions) > self.max_tracked_sessions:
                     await self._cleanup_inactive_sessions()
-                
-                if self.verbose:
-                    logger.debug(f"Added message to history: session={session_id}, role={role}")
                 
                 return message_id
                 
@@ -317,7 +469,7 @@ class ChatHistoryService:
             return None, None
         
         # Generate idempotency keys for both messages
-        timestamp = datetime.utcnow()
+        timestamp = datetime.now(UTC)
         user_key = f"{session_id}:user:{timestamp.isoformat()}"
         assistant_key = f"{session_id}:assistant:{timestamp.isoformat()}"
         
@@ -379,8 +531,9 @@ class ChatHistoryService:
             # Determine limit
             effective_limit = limit or self.default_limit
             
+            # Remove noisy fetch logging - only debug level
             if self.verbose:
-                logger.info(f"Fetching chat history for session {session_id} with limit {effective_limit}")
+                logger.debug(f"Fetching chat history for session {session_id} with limit {effective_limit}")
             
             # Fetch messages sorted by timestamp descending to get most recent first
             messages = await self.mongodb_service.find_many(
@@ -393,8 +546,9 @@ class ChatHistoryService:
             # Reverse to get chronological order
             messages.reverse()
             
+            # Remove noisy retrieval logging - only debug level  
             if self.verbose:
-                logger.info(f"Retrieved {len(messages)} messages for session {session_id}")
+                logger.debug(f"Retrieved {len(messages)} messages for session {session_id}")
             
             # Process messages
             processed_messages = []
@@ -602,63 +756,70 @@ class ChatHistoryService:
             # Update cache
             self._session_message_counts[session_id] = message_count
             
+            if self.verbose:
+                logger.info(f"Session {session_id}: Current message count = {message_count}, Limit = {self.max_conversation_messages}")
+            
             if message_count >= self.max_conversation_messages:
-                # Calculate how many messages to archive
-                keep_count = int(self.max_conversation_messages * 0.8)
+                # Calculate how many messages to archive (keep 90% instead of 80%)
+                keep_count = int(self.max_conversation_messages * 0.9)
                 archive_count = message_count - keep_count
                 
+                if self.verbose:
+                    logger.info(f"Session {session_id}: ARCHIVING TRIGGERED - Need to archive {archive_count} messages, keeping {keep_count} most recent")
+                
                 if archive_count > 0:
-                    # Define transaction operations
-                    async def archive_operation(session):
-                        # Use aggregation pipeline to archive directly
-                        archive_pipeline = [
-                            {"$match": {"session_id": session_id}},
-                            {"$sort": {"timestamp": 1}},
-                            {"$limit": archive_count},
-                            {"$merge": {
-                                "into": f"{self.collection_name}_archive",
-                                "whenMatched": "keepExisting"
-                            }}
-                        ]
+                    # Simplified archive operation without transactions
+                    # since $merge cannot be used in transactions
+                    try:
+                        collection = self.mongodb_service.get_collection(self.collection_name)
+                        archive_collection = self.mongodb_service.get_collection(f"{self.collection_name}_archive")
                         
-                        # Execute the archive pipeline
-                        await self.mongodb_service.aggregate_with_transaction(
-                            self.collection_name,
-                            archive_pipeline,
-                            session
-                        )
+                        # Find oldest messages to archive
+                        messages_to_archive = await collection.find(
+                            {"session_id": session_id}
+                        ).sort("timestamp", 1).limit(archive_count).to_list(length=None)
                         
-                        # Get the IDs of messages that were archived
-                        find_pipeline = [
-                            {"$match": {"session_id": session_id}},
-                            {"$sort": {"timestamp": 1}},
-                            {"$limit": archive_count},
-                            {"$project": {"_id": 1}}
-                        ]
-                        archived_messages = await self.mongodb_service.aggregate_with_transaction(
-                            self.collection_name,
-                            find_pipeline,
-                            session
-                        )
-                        
-                        if archived_messages:
-                            # Delete the archived messages
-                            message_ids = [msg["_id"] for msg in archived_messages]
-                            await self.mongodb_service.delete_many_with_transaction(
-                                self.collection_name,
-                                {"_id": {"$in": message_ids}},
-                                session
-                            )
+                        if messages_to_archive:
+                            if self.verbose:
+                                # Show details of messages being archived
+                                logger.info(f"Session {session_id}: Found {len(messages_to_archive)} messages to archive:")
+                                for i, msg in enumerate(messages_to_archive):
+                                    timestamp_str = msg.get('timestamp', 'unknown').strftime('%Y-%m-%d %H:%M:%S') if msg.get('timestamp') else 'unknown'
+                                    role = msg.get('role', 'unknown')
+                                    content_preview = msg.get('content', '')[:50] + "..." if len(msg.get('content', '')) > 50 else msg.get('content', '')
+                                    logger.info(f"  [{i+1}] {timestamp_str} - {role}: {content_preview}")
+                            
+                            # Insert into archive collection
+                            await archive_collection.insert_many(messages_to_archive)
+                            
+                            if self.verbose:
+                                logger.info(f"Session {session_id}: Successfully moved {len(messages_to_archive)} messages to archive collection")
+                            
+                            # Delete from main collection
+                            message_ids = [msg["_id"] for msg in messages_to_archive]
+                            delete_result = await collection.delete_many({"_id": {"$in": message_ids}})
+                            
+                            if self.verbose:
+                                logger.info(f"Session {session_id}: Deleted {delete_result.deleted_count} messages from main collection")
                             
                             # Update cache
                             self._session_message_counts[session_id] = keep_count
                             
+                            # Verify final state
                             if self.verbose:
-                                logger.info(f"Archived {len(message_ids)} messages from session {session_id}")
-                    
-                    # Execute the transaction
-                    await self.mongodb_service.execute_transaction(archive_operation)
-                    
+                                final_count = await collection.count_documents({"session_id": session_id})
+                                logger.info(f"Session {session_id}: ARCHIVING COMPLETE - Final message count: {final_count}/{self.max_conversation_messages}")
+                                logger.info(f"Session {session_id}: Sliding window now contains most recent {final_count} messages")
+                                
+                    except Exception as e:
+                        logger.error(f"Session {session_id}: Error during archive operation: {str(e)}")
+                        # Continue without archiving to prevent blocking new messages
+                        pass
+            else:
+                if self.verbose:
+                    remaining_capacity = self.max_conversation_messages - message_count
+                    logger.debug(f"Session {session_id}: No archiving needed - {remaining_capacity} messages remaining before limit")
+                
         except Exception as e:
             logger.error(f"Error checking conversation limits: {str(e)}")
             raise
@@ -668,7 +829,7 @@ class ChatHistoryService:
         while True:
             try:
                 if self.retention_days > 0:
-                    cutoff_date = datetime.utcnow() - timedelta(days=self.retention_days)
+                    cutoff_date = datetime.now(UTC) - timedelta(days=self.retention_days)
                     
                     collection = self.mongodb_service.get_collection(self.collection_name)
                     
@@ -723,10 +884,14 @@ class ChatHistoryService:
         if not self.enabled:
             return []
             
+        # Use the actual conversation limit, not default_limit (which is for API pagination)
+        # This ensures we get all available conversation messages after archiving
+        effective_limit = max_messages or self.max_conversation_messages
+        
         # Get conversation history
         messages = await self.get_conversation_history(
             session_id=session_id,
-            limit=max_messages or self.default_limit,
+            limit=effective_limit,
             include_metadata=False
         )
         
@@ -782,7 +947,7 @@ class ChatHistoryService:
             collection = self.mongodb_service.get_collection(self.collection_name)
             
             # Get today's message count
-            today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+            today_start = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
             today_count = await collection.count_documents({"timestamp": {"$gte": today_start}})
             
             # Get archive collection metrics
@@ -814,7 +979,7 @@ class ChatHistoryService:
         from the in-memory tracking caches.
         """
         try:
-            cutoff = datetime.utcnow() - timedelta(hours=24)
+            cutoff = datetime.now(UTC) - timedelta(hours=24)
             inactive = [
                 sid for sid, last_activity in self._active_sessions.items()
                 if last_activity < cutoff

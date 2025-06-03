@@ -174,8 +174,7 @@ class ConfigurationSummaryLogger:
                 self.logger.info(f"  - Store metadata: {chat_history_config.get('store_metadata', True)}")
                 self.logger.info(f"  - Retention days: {chat_history_config.get('retention_days', 90)}")
                 self.logger.info(f"  - Session auto-generate: {chat_history_config.get('session', {}).get('auto_generate', True)}")
-                self.logger.info(f"  - Cache max messages: {chat_history_config.get('cache', {}).get('max_cached_messages', 100)}")
-                self.logger.info(f"  - Cache max sessions: {chat_history_config.get('cache', {}).get('max_cached_sessions', 1000)}")
+                self.logger.info(f"  - Max conversation messages: dynamically calculated based on inference provider context window")
         except Exception as e:
             self.logger.error(f"Error logging chat history configuration: {str(e)}")
     

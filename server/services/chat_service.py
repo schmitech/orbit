@@ -60,7 +60,11 @@ class ChatService:
             return []
             
         try:
-            # Get context messages from chat history
+            # IMPORTANT: Check conversation limits BEFORE retrieving context
+            # This ensures archiving happens before we get the history for this request
+            await self.chat_history_service._check_conversation_limits(session_id)
+            
+            # Get context messages from chat history (now after any archiving)
             context_messages = await self.chat_history_service.get_context_messages(session_id)
             
             if self.verbose and context_messages:
@@ -356,6 +360,18 @@ IMPORTANT: The user's message is in {language_name}. You MUST respond in {langua
             # Clean and format the response
             response = fix_text_formatting(response)
             
+            # Check for conversation limit warning BEFORE storing conversation
+            # This ensures we catch the warning before the count changes
+            warning = await self._check_conversation_limit_warning(session_id)
+            if warning:
+                # Append warning to the response
+                response = f"{response}\n\n---\n{warning}"
+                # Update the response in response_data
+                response_data["response"] = response
+                
+                if self.verbose:
+                    logger.info(f"Added conversation limit warning for session {session_id}")
+            
             # Log the response
             await self._log_response(response, client_ip)
             
@@ -459,6 +475,23 @@ IMPORTANT: The user's message is in {language_name}. You MUST respond in {langua
                                 # Log the complete response when done
                                 await self._log_response(accumulated_text, client_ip)
                                 
+                                # Check for conversation limit warning BEFORE storing conversation
+                                # This ensures we catch the warning before the count changes
+                                warning = await self._check_conversation_limit_warning(session_id)
+                                if warning:
+                                    # Send the warning as a separate chunk in the correct format
+                                    warning_text = f"\n\n---\n{warning}"
+                                    accumulated_text += warning_text
+                                    # Use the correct format the client expects
+                                    warning_chunk = json.dumps({
+                                        "response": warning_text,
+                                        "done": False
+                                    })
+                                    yield f"data: {warning_chunk}\n\n"
+                                    
+                                    if self.verbose:
+                                        logger.info(f"Added conversation limit warning to stream for session {session_id}")
+                                
                                 # Store conversation turn in history if enabled
                                 if session_id and accumulated_text:
                                     await self._store_conversation_turn(
@@ -496,3 +529,40 @@ IMPORTANT: The user's message is in {language_name}. You MUST respond in {langua
             logger.error(f"Error processing chat stream: {str(e)}")
             error_json = json.dumps({"error": str(e)})
             yield f"data: {error_json}\n\n"
+
+    async def _check_conversation_limit_warning(self, session_id: Optional[str]) -> Optional[str]:
+        """
+        Check if the conversation is approaching the limit and return a warning if needed
+        
+        Args:
+            session_id: The session identifier
+            
+        Returns:
+            Warning message if approaching limit, None otherwise
+        """
+        if not self.chat_history_enabled or not self.chat_history_service or not session_id:
+            return None
+            
+        try:
+            # Use in-memory session message counts for accurate current count
+            # This reflects the count after any archiving that may have occurred
+            current_count = self.chat_history_service._session_message_counts.get(session_id, 0)
+            
+            # Get the maximum allowed messages for this session
+            max_messages = self.chat_history_service.max_conversation_messages
+            
+            # Only warn when we're about to hit the limit for the FIRST time
+            # After archiving, we should have room again and not keep warning
+            # The warning should trigger when: current + 2 (next exchange) = max_messages
+            if current_count + 2 == max_messages:
+                return (
+                    f"⚠️ **Memory Notice**: This conversation will reach {max_messages} messages after this response. "
+                    f"The next exchange will automatically archive older messages to maintain optimal performance. "
+                    f"Consider starting a new conversation if you want to preserve the full context."
+                )
+                
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error checking conversation limit: {str(e)}")
+            return None
