@@ -13,44 +13,56 @@ Transforming prompt management into a comprehensive orchestration platform:
 - Template versioning
 - Example-based management
 
-### 2. [Workflow Adapter System](workflow-adapter.md)
+### 2. [Workflow Adapter System](workflow-adapter-architecture.md)
 Building a flexible workflow orchestration system:
 - API integration
 - Webhook support
 - Event-driven architecture
 - Workflow versioning
 
-### 3. [Security & Access Control](security-access.md)
+### 3. [Concurrency & Performance Optimization](concurrency-performance.md)
+Scaling ORBIT to handle thousands of concurrent requests:
+- Enhanced thread pool management
+- Multi-worker uvicorn configuration
+- Intelligent load balancing
+- Auto-scaling and circuit breaker patterns
+- Real-time performance monitoring
+
+### 4. [LLM Guard Security Integration](llm-guard-integration.md)
+Enterprise-grade AI security and threat protection:
+- Dedicated FastAPI security microservice
+- Advanced prompt injection and jailbreak detection
+- Comprehensive content sanitization
+- Real-time threat intelligence
+- Compliance-ready audit trails
+
+### 5. [Asynchronous Messaging & Multi-Modal Processing](async-messaging-integration.md)
+Scalable async processing with message queue protocols:
+- Multi-platform message queue support (RabbitMQ, Kafka, Pub/Sub)
+- Multi-modal content processing (text, image, audio, video, documents)
+- Real-time job progress tracking via WebSocket/SSE
+- Event-driven workflow orchestration
+- Dynamic worker scaling and resource optimization
+
+### 6. [Notification Service Integration](notification-service-integration.md)
+Comprehensive multi-channel communication system:
+- Email, webhook, SMS, push notification support
+- Team collaboration integration (Slack, Teams, Discord)
+- Event-driven notifications for jobs, security, workflows
+- User preference management and quiet hours
+- Enterprise compliance and audit trails
+
+### 7. [Security & Access Control](security-access.md)
 Implementing enterprise-grade security:
 - Role-Based Access Control (RBAC)
 - OAuth2.0 and SSO integration
 - API key management
 - Audit logging and compliance
 
-### 4. [Enterprise Features](enterprise-features.md)
+### 8. [Enterprise Features](enterprise-features.md)
 Adding enterprise capabilities:
 - Analytics and monitoring
 - A/B testing framework
 - Compliance tracking
 - Performance optimization
-
-## Release Strategy
-
-### Phase 1: Foundation (Q2 2024)
-- Basic prompt service enhancement
-- Initial workflow adapter support
-- Core security features
-- Basic enterprise capabilities
-
-### Phase 2: Enhancement (Q3 2024)
-- Advanced prompt orchestration
-- Extended workflow capabilities
-- Enhanced security features
-- Advanced enterprise features
-
-### Phase 3: Enterprise (Q4 2024)
-- Full prompt platform
-- Comprehensive workflow system
-- Enterprise security
-- Complete enterprise suite
 

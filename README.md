@@ -21,6 +21,10 @@
 
 ORBIT is a modular, self-hosted toolkit that provides a unified API for open-source AI inference models. It enables you to run AI models on your own infrastructure, maintaining complete control over your data while eliminating commercial API dependencies.
 
+<div align="center">
+  <img src="docs/images/orbit-vs-external.png" width="800" alt="ORBIT vs External AI Services">
+</div>
+
 ORBIT is particularly useful for:
 
 * **Organizations requiring sovereign AI capabilities** - *Security depends on controlling where and how your AI processes sensitive information*
@@ -33,13 +37,11 @@ ORBIT is particularly useful for:
 
 **Financial Vulnerability:** Commercial AI providers can change pricing overnight, throttle your access during peak demand, or discontinue services without notice, leaving your business operations stranded.
 
+**Transparency & Explainability Gap:** Proprietary AI models operate as black boxes with no visibility into training data sources, embedded biases, model weights, or decision-making processes, making it impossible to audit, explain, or validate AI-driven business decisions for regulatory compliance or ethical standards.
+
 **Strategic Risk:** Your competitive advantage becomes dependent on systems controlled by entities with their own agendas, potentially including your competitors.
 
 **Compliance Liability:** Using external AI services may violate data residency requirements, industry regulations, or government mandates in your jurisdiction.
-
-## Development Roadmap
-
-See the [Roadmap](docs/roadmap/README.md) for upcoming development activities. Your feedback is valuable! Please open an issue or discussion to share your thoughts on the roadmap and help shape ORBIT's future. 
 
 ## Documentation
 
@@ -49,6 +51,8 @@ For more detailed information, please refer to the following documentation in th
 - [Server Configuration](docs/server.md) - Server setup and configuration guide
 - [Configuration Reference](docs/configuration.md) - Complete configuration options and settings
 - [API Keys Management](docs/api-keys.md) - Authentication and API key setup
+- [Docker Deployment](docs/docker-deployment.md) - Containerized deployment guide
+- [Chroma Setup](docs/chroma-setup.md) - Vector database configuration
 
 ### Retrieval & Adapters  
 - [Adapters Overview](docs/adapters.md) - Understanding ORBIT's adapter system
@@ -61,9 +65,12 @@ For more detailed information, please refer to the following documentation in th
 - [Language Detection](docs/language_detection.md) - Multi-language support and detection
 - [MCP Protocol](docs/mcp_protocol.md) - Model Context Protocol implementation
 
-### Deployment & Setup
-- [Docker Deployment](docs/docker-deployment.md) - Containerized deployment guide
-- [Chroma Setup](docs/chroma-setup.md) - Vector database configuration
+### Roadmap & Future Development
+- [Development Roadmap](docs/roadmap/README.md) - Strategic direction and planned enhancements
+- [Concurrency & Performance](docs/roadmap/concurrency-performance.md) - Scaling to handle thousands of concurrent requests
+- [LLM Guard Security](docs/roadmap/llm-guard-integration.md) - Enterprise-grade AI security and threat protection
+- [Async Messaging & Multi-Modal](docs/roadmap/async-messaging-integration.md) - Message queues and multi-modal processing
+- [Notification Service](docs/roadmap/notification-service-integration.md) - Multi-channel communication system
 
 ## How ORBIT Works
 
