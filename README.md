@@ -1,5 +1,7 @@
 <div align="center">
-  <h1>ORBIT</h1>
+  <img src="docs/images/orbit_white_bg.png" width="300" alt="ORBIT">
+</div>
+<div align="center">
   <h2><strong>Open Retrieval-Based Inference Toolkit</strong></h2>
   
   <p>
@@ -14,8 +16,6 @@
 ## Overview
 
 ORBIT is a modular, self-hosted toolkit that provides a unified API for open-source AI inference models. It enables you to run AI models on your own infrastructure, maintaining complete control over your data while eliminating commercial API dependencies.
-
-[Official Website](https://orbit.schmitech.ai/)
 
 ORBIT is particularly useful for:
 
@@ -40,10 +40,9 @@ ORBIT is particularly useful for:
 **Data Privacy** - Your information never leaves your environment  
 **Future-Proof Strategy** - Maintain control as AI capabilities rapidly evolve
 
-## High-Level Architecture
-<div align="center">
-  <img src="docs/diagrams/orbit-architecture-diagram.svg" width="800" alt="ORBIT Architecture">
-</div>
+## Development Roadmap
+
+See the [Roadmap](docs/roadmap/README.md) for upcoming development activities. Your feedback is valuable! Please open an issue or discussion to share your thoughts on the roadmap and help shape ORBIT's future. 
 
 ## How ORBIT Works
 
@@ -147,27 +146,35 @@ INTERNAL_SERVICES_MONGODB_USERNAME=mongo-user
 INTERNAL_SERVICES_MONGODB_PASSWORD=mongo-password
 ```
 
-Enable chat history in config.yaml. Specify other parameters like default_limit to control context size, depending on hardware or infrastructure constraints:
+Enable chat history in config.yaml. The system automatically calculates optimal message limits based on your AI model's context window:
 ```yaml
 chat_history:
   enabled: true
   collection_name: "chat_history"
-  default_limit: 20
   store_metadata: true
-  retention_days: 1
+  retention_days: 90
   max_tracked_sessions: 10000
+  session:
+    auto_generate: false  # Set to true for development, false for production
+    required: true
+    header_name: "X-Session-ID"
+  user:
+    header_name: "X-User-ID"
+    required: false
 ```
+
+For more details about conversation history configuration and usage, see [Conversation History Documentation](docs/conversation_history.md)
 
 ### Starting the ORBIT server (add --help for options):
 ```bash
 # Logs under ./logs/orbit.log
 ./bin/orbit.sh start
 
-# Run ORBIT client:
-orbit-chat --url http://localhost:3000
+# Run ORBIT client (default url is http://localhost:3000, use --help for options):
+orbit-chat 
 ```
 
-![ORBIT Chat Demo](https://res.cloudinary.com/dk87ffid0/image/upload/v1748380714/local-chatbot-gif_rvlyzv.gif)
+![ORBIT Chat Demo](docs/images/orbit-chat.gif)
 
 ### Simple SQL RAG Example:
 RAG (Retrieval-Augmented Generation) mode enhances the model's responses by integrating your knowledge base into the context. This enriches the pre-trained foundation model with your specific data. To use RAG mode:
