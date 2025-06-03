@@ -1,24 +1,18 @@
 # MCP Protocol Support
 
-The Open Inference Server now includes support for the Message Content Protocol (MCP), allowing for compatibility with a wide range of clients and tools that use this protocol format.
+ORBIT includes support for the Model Context Protocol (MCP) using JSON-RPC 2.0 format. This enables compatibility with MCP-compatible clients and tools.
 
 ## Overview
 
-MCP (Message Content Protocol) is a standardized format for communication between LLM clients and servers. It follows the format used by many popular LLM providers, making it easy to integrate with existing tools and SDKs that already support this protocol.
+The MCP (Model Context Protocol) implementation in ORBIT follows JSON-RPC 2.0 specifications and uses a `tools/call` method with a `chat` tool for message handling. This protocol provides a standardized way to interact with the AI server.
 
 ## Configuration
 
-To enable MCP protocol support, add the following setting to your `config.yaml` file:
-
-```yaml
-general:
-  # Other general settings...
-  mcp_protocol: true  # Set to true to enable MCP protocol
-```
+The MCP protocol is **always enabled** on the `/v1/chat` endpoint. No additional configuration is required.
 
 ## Endpoint
 
-When enabled, the MCP endpoint is available at:
+The MCP endpoint is available at:
 
 ```
 POST /v1/chat
@@ -26,84 +20,108 @@ POST /v1/chat
 
 ## Request Format
 
-MCP requests follow this structure:
+MCP requests use JSON-RPC 2.0 format with the following structure:
 
 ```json
 {
-  "messages": [
-    {
-      "id": "msg_1234567890",
-      "object": "thread.message",
-      "role": "user",
-      "content": [
+  "jsonrpc": "2.0",
+  "method": "tools/call",
+  "params": {
+    "name": "chat",
+    "arguments": {
+      "messages": [
         {
-          "type": "text",
-          "text": "Your message here"
+          "role": "user",
+          "content": "Your message here"
         }
       ],
-      "created_at": 1683753347
+      "stream": true
     }
-  ],
-  "stream": true
+  },
+  "id": "unique-request-id"
 }
 ```
 
 ### Fields
 
-- `messages`: Array of message objects in the conversation
-  - `id`: Unique identifier for the message
-  - `object`: Object type (always "thread.message")
-  - `role`: Either "user" or "assistant"
-  - `content`: Array of content objects
-    - `type`: Content type (currently only "text" is supported)
-    - `text`: The actual message text
-  - `created_at`: Unix timestamp
-- `stream`: Boolean indicating whether to stream the response
+- `jsonrpc`: Always "2.0" (JSON-RPC version)
+- `method`: Always "tools/call" for chat requests
+- `params`: Parameters object containing:
+  - `name`: Always "chat" for chat tool
+  - `arguments`: Chat arguments containing:
+    - `messages`: Array of message objects with `role` and `content`
+    - `stream`: Boolean indicating whether to stream the response
+- `id`: Unique identifier for the request (string)
+
+### Message Format
+
+Messages in the conversation history use this simple format:
+```json
+{
+  "role": "user|assistant",
+  "content": "Message text"
+}
+```
 
 ## Response Format
 
 ### Non-Streaming Response
 
-For non-streaming requests (`stream: false`), the response structure is:
+For non-streaming requests (`stream: false`), the response follows JSON-RPC 2.0 format:
 
 ```json
 {
-  "id": "resp_1234567890",
-  "object": "thread.message",
-  "created_at": 1683753348,
-  "role": "assistant",
-  "content": [
-    {
-      "type": "text",
-      "text": "The complete response text"
-    }
-  ]
+  "jsonrpc": "2.0",
+  "result": {
+    "output": {
+      "messages": [
+        {
+          "role": "assistant",
+          "content": "The AI's response text"
+        }
+      ]
+    },
+    "sources": [
+      "Optional array of sources if using RAG"
+    ]
+  },
+  "id": "unique-request-id"
 }
 ```
 
 ### Streaming Response
 
-For streaming requests (`stream: true`), the response is sent as a series of Server-Sent Events (SSE) chunks:
+For streaming requests (`stream: true`), the response is sent as Server-Sent Events (SSE) with JSON-RPC format chunks:
 
 ```
-data: {"id":"resp_1234567890","object":"thread.message.delta","created_at":1683753348,"delta":{"role":"assistant","content":[{"type":"text","text":"The"}]}}
+data: {"jsonrpc":"2.0","result":{"chunk":"First"},"id":"unique-request-id"}
 
-data: {"id":"resp_1234567890","object":"thread.message.delta","created_at":1683753348,"delta":{"content":[{"type":"text","text":" complete"}]}}
+data: {"jsonrpc":"2.0","result":{"chunk":" part"},"id":"unique-request-id"}
 
-data: {"id":"resp_1234567890","object":"thread.message.delta","created_at":1683753348,"delta":{"content":[{"type":"text","text":" response"}]}}
-
-data: {"id":"resp_1234567890","object":"thread.message.delta","created_at":1683753348,"delta":{"content":[{"type":"text","text":" text"}]}}
+data: {"jsonrpc":"2.0","result":{"chunk":" of response"},"id":"unique-request-id"}
 
 data: [DONE]
 ```
 
-Each chunk includes:
-- `id`: The same ID throughout the stream
-- `object`: Always "thread.message.delta" for streaming chunks
-- `created_at`: Unix timestamp
-- `delta`: Contains the changes to apply to the response
-  - `role`: Only in the first chunk
-  - `content`: Array of content objects with the text deltas
+### Error Response
+
+When an error occurs, the response follows JSON-RPC 2.0 error format:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "error": {
+    "code": -32601,
+    "message": "Method not found: invalid_method"
+  },
+  "id": "unique-request-id"
+}
+```
+
+Common error codes:
+- `-32601`: Method not found (unsupported method or tool)
+- `-32602`: Invalid params (missing or invalid parameters)
+- `-32603`: Internal error (server-side error)
 
 ## Example Usage
 
@@ -113,22 +131,23 @@ Each chunk includes:
 curl -X POST "http://localhost:3000/v1/chat" \
   -H "Content-Type: application/json" \
   -H "X-API-Key: your_api_key" \
+  -H "X-Session-ID: session_123" \
   -d '{
-    "messages": [
-      {
-        "id": "msg_1234567890",
-        "object": "thread.message",
-        "role": "user",
-        "content": [
+    "jsonrpc": "2.0",
+    "method": "tools/call",
+    "params": {
+      "name": "chat",
+      "arguments": {
+        "messages": [
           {
-            "type": "text",
-            "text": "What is the capital of France?"
+            "role": "user",
+            "content": "What is the capital of France?"
           }
         ],
-        "created_at": 1683753347
+        "stream": false
       }
-    ],
-    "stream": false
+    },
+    "id": "req_123"
   }'
 ```
 
@@ -137,7 +156,6 @@ curl -X POST "http://localhost:3000/v1/chat" \
 ```python
 import requests
 import json
-import time
 import uuid
 
 # API endpoint
@@ -145,27 +163,28 @@ url = "http://localhost:3000/v1/chat"
 
 # Request data
 request_data = {
-    "messages": [
-        {
-            "id": str(uuid.uuid4()),
-            "object": "thread.message",
-            "role": "user",
-            "content": [
+    "jsonrpc": "2.0",
+    "method": "tools/call",
+    "params": {
+        "name": "chat",
+        "arguments": {
+            "messages": [
                 {
-                    "type": "text",
-                    "text": "What is the capital of France?"
+                    "role": "user",
+                    "content": "What is the capital of France?"
                 }
             ],
-            "created_at": int(time.time())
+            "stream": False
         }
-    ],
-    "stream": False
+    },
+    "id": str(uuid.uuid4())
 }
 
 # Headers
 headers = {
     "Content-Type": "application/json",
-    "X-API-Key": "your_api_key"
+    "X-API-Key": "your_api_key",
+    "X-Session-ID": "session_123"
 }
 
 # Send request
@@ -180,7 +199,6 @@ print(json.dumps(response.json(), indent=2))
 ```python
 import requests
 import json
-import time
 import uuid
 import sseclient
 
@@ -189,27 +207,28 @@ url = "http://localhost:3000/v1/chat"
 
 # Request data
 request_data = {
-    "messages": [
-        {
-            "id": str(uuid.uuid4()),
-            "object": "thread.message",
-            "role": "user",
-            "content": [
+    "jsonrpc": "2.0",
+    "method": "tools/call",
+    "params": {
+        "name": "chat",
+        "arguments": {
+            "messages": [
                 {
-                    "type": "text",
-                    "text": "What is the capital of France?"
+                    "role": "user",
+                    "content": "What is the capital of France?"
                 }
             ],
-            "created_at": int(time.time())
+            "stream": True
         }
-    ],
-    "stream": True
+    },
+    "id": str(uuid.uuid4())
 }
 
 # Headers
 headers = {
     "Content-Type": "application/json",
-    "X-API-Key": "your_api_key"
+    "X-API-Key": "your_api_key",
+    "X-Session-ID": "session_123"
 }
 
 # Send request with streaming
@@ -222,36 +241,34 @@ for event in client.events():
         break
     try:
         chunk = json.loads(event.data)
-        # Process the chunk
-        if "delta" in chunk and "content" in chunk["delta"]:
-            for content in chunk["delta"]["content"]:
-                if content["type"] == "text":
-                    print(content["text"], end="", flush=True)
+        if "result" in chunk and "chunk" in chunk["result"]:
+            print(chunk["result"]["chunk"], end="", flush=True)
     except json.JSONDecodeError:
         pass
 
 print()  # Add final newline
 ```
 
+## Required Headers
+
+- `Content-Type: application/json` - Required for JSON requests
+- `X-API-Key: your_api_key` - Required for authentication
+- `X-Session-ID: session_id` - Required for conversation tracking
+
 ## Client Libraries
 
-Since the MCP protocol follows a standard format, you can use client libraries that support similar APIs:
-
-- Python libraries like `openai`, `anthropic`, or `litellm` can be adapted to work with this endpoint
-- JavaScript libraries like `@langchain/openai` can also be adapted
+Since this implementation uses JSON-RPC 2.0, you can adapt existing JSON-RPC clients or create simple HTTP clients as shown in the examples above.
 
 ## Testing
 
-The MCP protocol implementation includes comprehensive unit tests that verify:
-
-1. Non-streaming requests and responses
-2. Streaming requests and responses
-3. Error handling and validation
-4. Configuration-based enabling/disabling
-
-Run the tests with:
+Test the MCP protocol implementation using the provided test script:
 
 ```bash
 cd server
-python ./tests/test_mcp_client.py --api-key=orbit_api_key --url="http://localhost:3000/v1/chat"
+python ./tests/test_mcp_client.py --api-key=your_api_key --session-id=session_123 --url="http://localhost:3000/v1/chat"
 ```
+
+Available test options:
+- `--stream`: Test streaming responses
+- `--tools`: Test tool calling (if implemented)
+- `--session-id`: Specify session ID (auto-generated if not provided)

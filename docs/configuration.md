@@ -50,6 +50,14 @@ messages:
   collection_not_found: "I couldn't find the requested collection. Please make sure the collection exists before querying it."
 ```
 
+### Embedding Configuration
+
+```yaml
+embedding:
+  provider: "ollama"            # Default embedding provider
+  enabled: false                # Enable embedding functionality
+```
+
 ### API Key Management
 
 ```yaml
@@ -63,17 +71,18 @@ api_keys:
 ```yaml
 logging:
   level: "INFO"                # Logging level (DEBUG, INFO, WARNING, ERROR)
-  file:
-    enabled: true              # Enable logging to file
-    directory: "logs"          # Directory for log files
-    filename: "orbit.log"     # Name of the log file
-    max_size_mb: 10           # Maximum size of each log file in megabytes
-    backup_count: 30          # Number of backup log files to keep
-    rotation: "midnight"      # When to rotate logs (midnight, hourly, daily)
-    format: "text"            # Log format (json for machine parsing, text for human reading)
-  console:
-    enabled: false            # Enable logging to console
-    format: "text"            # Console log format
+  handlers:                    # Note: structure is different from documentation
+    file:
+      enabled: true              # Enable logging to file
+      directory: "logs"          # Directory for log files
+      filename: "orbit.log"     # Name of the log file
+      max_size_mb: 10           # Maximum size of each log file in megabytes
+      backup_count: 30          # Number of backup log files to keep
+      rotation: "midnight"      # When to rotate logs (midnight, hourly, daily)
+      format: "text"            # Log format (json for machine parsing, text for human reading)
+    console:
+      enabled: false            # Enable logging to console
+      format: "text"            # Console log format
   capture_warnings: true      # Capture Python warnings in logs
   propagate: false            # Prevent log propagation to parent loggers
   loggers:                    # Specific logger configurations
@@ -89,15 +98,58 @@ logging:
       level: "ERROR"
 ```
 
+### Chat History Configuration
+
+```yaml
+chat_history:
+  enabled: true                     # Enable chat history functionality
+  collection_name: "chat_history"   # MongoDB collection name for chat history
+  store_metadata: true              # Store additional metadata with messages
+  retention_days: 90                # How long to keep chat history (days)
+  max_tracked_sessions: 10000       # Maximum number of sessions to track
+  session:
+    auto_generate: false            # Auto-generate session IDs if not provided
+    required: true                  # Whether session is required
+    header_name: "X-Session-ID"     # HTTP header name for session ID
+  user:
+    header_name: "X-User-ID"        # HTTP header name for user ID
+    required: false                 # Whether user ID is required
+```
+
+### File Upload Configuration
+
+```yaml
+file_upload:
+  enabled: true                     # Enable file upload functionality
+  max_size_mb: 10                   # Maximum file size in megabytes
+  max_files_per_batch: 10           # Maximum files per upload batch
+  allowed_extensions:               # List of allowed file extensions
+    - ".txt"
+    - ".pdf"
+    - ".docx"
+    - ".doc"
+    - ".xlsx"
+    - ".xls"
+    - ".csv"
+    - ".md"
+    - ".json"
+  upload_directory: "uploads"       # Directory to store uploaded files
+  save_to_disk: true                # Save files to disk
+  auto_store_in_vector_db: true     # Automatically add to vector database
+  chunk_size: 1000                  # Text chunk size for processing
+  chunk_overlap: 200                # Overlap between text chunks
+```
+
 ### Internal Services Configuration
 
 ```yaml
 internal_services:
   elasticsearch:
     enabled: false
-    node: 'http://localhost:9200'
+    node: ${INTERNAL_SERVICES_ELASTICSEARCH_NODE}      # Note: different from docs
     index: 'orbit'
-    api_key: ${INTERNAL_SERVICES_ELASTICSEARCH_API_KEY}
+    username: ${INTERNAL_SERVICES_ELASTICSEARCH_USERNAME}  # Note: different from docs
+    password: ${INTERNAL_SERVICES_ELASTICSEARCH_PASSWORD}  # Note: different from docs
 
   mongodb:
     host: ${INTERNAL_SERVICES_MONGODB_HOST}
@@ -118,18 +170,14 @@ internal_services:
     ttl: 604800
 ```
 
-### Embedding Configuration
+### Embeddings Configuration
 
 ```yaml
-embedding:
-  provider: "ollama"
-  enabled: false
-
 embeddings:
   llama_cpp:
     model_path: "gguf/nomic-embed-text-v1.5-Q4_0.gguf"
     model: "nomic-embed-text-v1.5-Q4_0"
-    n_ctx: 1024 
+    n_ctx: 512                    # Note: different default value
     n_threads: 4
     n_gpu_layers: 0
     main_gpu: 0 
@@ -176,7 +224,7 @@ adapters:
     type: "retriever"
     datasource: "sqlite"
     adapter: "qa"
-    implementation: "retrievers.implementations.qa_sql_retriever.QASSQLRetriever"
+    implementation: "retrievers.implementations.qa.QASSQLRetriever"    # Note: different path
     config:
       confidence_threshold: 0.3
       max_results: 5
@@ -186,13 +234,30 @@ adapters:
     type: "retriever"
     datasource: "chroma"
     adapter: "qa"
-    implementation: "retrievers.implementations.qa_chroma_retriever.QAChromaRetriever"
+    implementation: "retrievers.implementations.qa.QAChromaRetriever"  # Note: different path
     config:
       confidence_threshold: 0.3
       distance_scaling_factor: 200.0
       embedding_provider: null
       max_results: 5
       return_results: 3
+
+  - name: "file-vector"                                                # Note: new adapter
+    type: "retriever"
+    datasource: "chroma"
+    adapter: "file"
+    implementation: "retrievers.implementations.file.FileChromaRetriever"
+    config:
+      confidence_threshold: 0.1
+      distance_scaling_factor: 150.0
+      embedding_provider: null
+      max_results: 10
+      return_results: 5
+      # File-specific settings
+      include_file_metadata: true
+      boost_file_uploads: true
+      file_content_weight: 1.5
+      metadata_weight: 0.8
 ```
 
 ### Data Sources Configuration
@@ -221,15 +286,27 @@ datasources:
     embedding_provider: null
   pinecone:
     api_key: ${DATASOURCE_PINECONE_API_KEY}
-    environment: ${DATASOURCE_PINECONE_ENVIRONMENT}
-    index_name: ${DATASOURCE_PINECONE_INDEX_NAME}
+    host: ${DATASOURCE_PINECONE_HOST}                   # Note: different from docs
+    namespace: "default"                                # Note: new field
     embedding_provider: null
   elasticsearch:
     node: 'https://localhost:9200'
     auth:
       username: ${DATASOURCE_ELASTICSEARCH_USERNAME}
       password: ${DATASOURCE_ELASTICSEARCH_PASSWORD}
-    embedding_provider: null
+      vector_field: "embedding"                         # Note: new field
+      text_field: "content"                             # Note: new field
+      verify_certs: true                                # Note: new field
+      embedding_provider: null                          # Note: new field
+  redis:                                                # Note: new datasource
+    host: "localhost"
+    port: 6379
+    password: ${DATASOURCE_REDIS_PASSWORD}
+    db: 0
+    use_ssl: false
+    vector_field: "embedding"
+    text_field: "content"
+    distance_metric: "COSINE"  # Options: L2, IP, COSINE
   mongodb:
     host: "localhost"
     port: 27017
@@ -250,7 +327,7 @@ inference:
     top_k: 20
     repeat_penalty: 1.1
     num_predict: 1024
-    num_ctx: 8192
+    num_ctx: 128                    # Note: different default value
     num_threads: 8
     model: "gemma3:1b"
     stream: true
@@ -264,21 +341,25 @@ inference:
     model: "Qwen2.5-14B"
     stream: true
   llama_cpp:
-    model_path: "gguf/gemma-3-1b-it-Q4_0.gguf"
-    chat_format: "chatml"
+    model_path: "gguf/tinyllama-1.1b-chat-v1.0.Q4_0.gguf"   # Note: different default model
+    chat_format: "chatml"  # Chat format to use (chatml, llama-2, gemma, etc.)
     verbose: false
     temperature: 0.1
     top_p: 0.8
     top_k: 20
     max_tokens: 1024
     repeat_penalty: 1.1
-    n_ctx: 1024
+    n_ctx: 256                      # Note: different default value
     n_threads: 4
     stream: true
-    n_gpu_layers: 0
+    n_gpu_layers: 0  # Disable GPU/Metal support
     main_gpu: 0
     tensor_split: null
-    stop_tokens: ["<|im_start|>", "<|im_end|>", "</s>", "<|endoftext|>"]
+    stop_tokens: [                  # Note: different default tokens
+      "<|im_start|>", 
+      "<|im_end|>",
+      "<|endoftext|>"
+    ]
   gemini:
     api_key: ${GOOGLE_API_KEY}
     model: "gemini-2.0-flash"
@@ -347,7 +428,7 @@ inference:
   anthropic:
     api_key: ${ANTHROPIC_API_KEY}
     api_base: "https://api.anthropic.com/v1"
-    model: "claude-3-opus-20240229"
+    model: "claude-sonnet-4-20250514"    # Note: different default model
     temperature: 0.1
     top_p: 0.8
     max_tokens: 1024
@@ -388,7 +469,7 @@ inference:
     verbose: false
 ```
 
-### Moderation
+### Safety/Moderation Configuration
 
 ```yaml
 safety:
@@ -413,7 +494,7 @@ moderators:
     batch_size: 5
   ollama:
     base_url: "http://localhost:11434"
-    model: "granite3.3:2b"
+    model: "granite3.3:2b"              # Note: different default model
     temperature: 0.0
     top_p: 1.0
     max_tokens: 50
@@ -424,52 +505,15 @@ moderators:
 
 ```yaml
 reranker:
+  provider: "ollama"                    # Note: simplified structure
   enabled: false
-  provider_override: null  # If null, uses general.inference_provider
-  model: "gemma3:1b"
-  batch_size: 5
-  temperature: 0.0
-  top_n: 3
 
 rerankers:
-  cohere:
-    api_key: ${COHERE_API_KEY}
-    model: "rerank-english-v3.0"
-    top_n: 5
-    batch_size: 32
-  openai:
-    api_key: ${OPENAI_API_KEY}
-    model: "gpt-4o"
-    temperature: 0.0
-    max_tokens: 512
-    batch_size: 20
-  anthropic:
-    api_key: ${ANTHROPIC_API_KEY}
-    model: "claude-3-haiku-20240307"
-    temperature: 0.0
-    max_tokens: 512
-    batch_size: 10
   ollama:
     base_url: "http://localhost:11434"
-    model: "gemma3:1b"
+    model: "xitao/bge-reranker-v2-m3:latest"    # Note: different default model
     temperature: 0.0
     batch_size: 5
-  huggingface:
-    model: "BAAI/bge-reranker-large"
-    device: "cpu"  # Options: cpu, cuda
-    batch_size: 16
-  jina:
-    api_key: ${JINA_API_KEY}
-    model: "jina-reranker-v2-base-en"
-    batch_size: 20
-  vertex:
-    project_id: ${GOOGLE_CLOUD_PROJECT}
-    location: "us-central1"
-    model: "text-bison@002"
-    temperature: 0.0
-    max_tokens: 256
-    batch_size: 8
-    credentials_path: ""
 ```
 
 ## Environment Variables
@@ -491,7 +535,9 @@ The configuration system supports environment variable substitution using the `$
 - `${AWS_BEDROCK_ACCESS_KEY}`: AWS Bedrock access key
 - `${AWS_SECRET_ACCESS_KEY}`: AWS secret access key
 - `${AZURE_ACCESS_KEY}`: Azure API key
-- `${INTERNAL_SERVICES_ELASTICSEARCH_API_KEY}`: Elasticsearch API key
+- `${INTERNAL_SERVICES_ELASTICSEARCH_NODE}`: Elasticsearch node URL
+- `${INTERNAL_SERVICES_ELASTICSEARCH_USERNAME}`: Elasticsearch username
+- `${INTERNAL_SERVICES_ELASTICSEARCH_PASSWORD}`: Elasticsearch password
 - `${INTERNAL_SERVICES_MONGODB_HOST}`: MongoDB host
 - `${INTERNAL_SERVICES_MONGODB_PORT}`: MongoDB port
 - `${INTERNAL_SERVICES_MONGODB_USERNAME}`: MongoDB username
@@ -503,12 +549,12 @@ The configuration system supports environment variable substitution using the `$
 - `${DATASOURCE_POSTGRES_USERNAME}`: PostgreSQL username
 - `${DATASOURCE_POSTGRES_PASSWORD}`: PostgreSQL password
 - `${DATASOURCE_PINECONE_API_KEY}`: Pinecone API key
-- `${DATASOURCE_PINECONE_ENVIRONMENT}`: Pinecone environment
-- `${DATASOURCE_PINECONE_INDEX_NAME}`: Pinecone index name
+- `${DATASOURCE_PINECONE_HOST}`: Pinecone host URL
 - `${DATASOURCE_ELASTICSEARCH_USERNAME}`: Elasticsearch username
 - `${DATASOURCE_ELASTICSEARCH_PASSWORD}`: Elasticsearch password
-- `${DATASOURCE_MONGODB_USERNAME}`: MongoDB username
-- `${DATASOURCE_MONGODB_PASSWORD}`: MongoDB password
+- `${DATASOURCE_REDIS_PASSWORD}`: Redis password for datasource
+- `${DATASOURCE_MONGODB_USERNAME}`: MongoDB username for datasource
+- `${DATASOURCE_MONGODB_PASSWORD}`: MongoDB password for datasource
 
 ## Configuration Management
 

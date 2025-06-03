@@ -5,11 +5,15 @@
   <h2><strong>Open Retrieval-Based Inference Toolkit</strong></h2>
   
   <p>
-    <a href="#sovereignty-and-data-control">Features</a> •
-    <a href="#quick-start">Quick Start</a> •
-    <a href="#setup">Installation</a> •
-    <a href="#starting-the-orbit-server">Usage</a> •
-    <a href="#-license">License</a>
+    <a href="#overview">Overview</a> •
+    <a href="#critical-risks-orbit-mitigate">Why ORBIT?</a> •
+    <a href="#how-orbit-works">How It Works</a> •
+    <a href="#minimum-requirements">Requirements</a> •
+    <a href="#how-to-use">Quick Start</a> •
+    <a href="#simple-sql-rag-example">Examples</a> •
+    <a href="#documentation">Docs</a> •
+    <a href="#contributing">Contributing</a> •
+    <a href="#license">License</a>
   </p>
 </div>
 
@@ -33,16 +37,33 @@ ORBIT is particularly useful for:
 
 **Compliance Liability:** Using external AI services may violate data residency requirements, industry regulations, or government mandates in your jurisdiction.
 
-## What ORBIT Delivers
-
-**Complete AI Sovereignty** - Your AI inference happens entirely within your infrastructure  
-**Predictable Costs** - No surprise billing, rate limits, or service interruptions  
-**Data Privacy** - Your information never leaves your environment  
-**Future-Proof Strategy** - Maintain control as AI capabilities rapidly evolve
-
 ## Development Roadmap
 
 See the [Roadmap](docs/roadmap/README.md) for upcoming development activities. Your feedback is valuable! Please open an issue or discussion to share your thoughts on the roadmap and help shape ORBIT's future. 
+
+## Documentation
+
+For more detailed information, please refer to the following documentation in the `/docs` folder.
+
+### Getting Started & Configuration
+- [Server Configuration](docs/server.md) - Server setup and configuration guide
+- [Configuration Reference](docs/configuration.md) - Complete configuration options and settings
+- [API Keys Management](docs/api-keys.md) - Authentication and API key setup
+
+### Retrieval & Adapters  
+- [Adapters Overview](docs/adapters.md) - Understanding ORBIT's adapter system
+- [SQL Retriever Architecture](docs/sql-retriever-architecture.md) - Database-agnostic SQL retrieval system
+- [Vector Retriever Architecture](docs/vector-retriever-architecture.md) - Vector-based semantic search
+- [File Adapter Architecture](docs/file-adapter-architecture.md) - File-based knowledge integration
+
+### Features & Capabilities
+- [Conversation History](docs/conversation_history.md) - Chat history and session management
+- [Language Detection](docs/language_detection.md) - Multi-language support and detection
+- [MCP Protocol](docs/mcp_protocol.md) - Model Context Protocol implementation
+
+### Deployment & Setup
+- [Docker Deployment](docs/docker-deployment.md) - Containerized deployment guide
+- [Chroma Setup](docs/chroma-setup.md) - Vector database configuration
 
 ## How ORBIT Works
 
@@ -218,14 +239,10 @@ orbit-chat --url http://localhost:3000 --api-key orbit_1234567ABCDE
 
 Refer to [SQL Retriever Architecture](docs/sql-retriever-architecture.md) for details on the database-agnostic SQL retriever implementation and supported database types.
 
-## 📚 Documentation
-
-For more detailed information, please refer to the following documentation in the `/docs` folder.
-
-## 🤝 Contributing
+## Contributing
 
 Contributions are welcome! Please read our [Code of Conduct](CODE_OF_CONDUCT.md) for details the process for submitting pull requests.
 
-## 📃 License
+## License
 
 This project is licensed under the Apache 2.0 License - see the [LICENSE](LICENSE) file for details.

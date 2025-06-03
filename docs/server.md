@@ -14,60 +14,176 @@
   - Configurable retrieval strategies
   - Support for multiple vector stores
 
-- **🛡️ Enterprise Security**
+- **🛡️ Security**
   - API key authentication
   - MongoDB-based key management
   - Configurable safety guardrails
   - HTTPS/TLS support
 
-- **📊 Advanced Monitoring**
+- **📊 Monitoring**
   - Elasticsearch integration
   - Detailed request logging
   - Performance metrics
   - Health check endpoints
 
-- **🔄 Protocol Support**
-  - MCP Protocol compatibility
-  - SSE for streaming
-
 ---
 
 ## 🛠️ Installation
 
-```bash
-git clone https://github.com/schmitech/orbit.git
-cd /server
-```
-
-Create and activate your Python environment:
+Follow the main installation guide in the project root:
 
 ```bash
-setup.sh
+# Download and extract the latest release
+curl -L https://github.com/schmitech/orbit/releases/download/v1.1.0/orbit-1.1.0.tar.gz -o orbit.tar.gz
+tar -xzf orbit.tar.gz
+cd orbit-1.1.0
+
+# Activate virtual environment
 source venv/bin/activate
-```
 
+# Install ORBIT
+./install.sh
+```
 
 ---
 
-## ▶️ Running the Server
+## ▶️ Server Management
 
-Use the provided script to start the server:
+ORBIT uses a unified CLI tool for all server management operations. The `orbit` command provides server control, API key management, and system prompt management.
+
+### Starting the Server
 
 ```bash
-./start.sh [--host=HOST] [--port=PORT] [--workers=N] [--reload]
+# Basic start (uses default config.yaml)
+./bin/orbit.sh start
+
+# Start with specific configuration
+./bin/orbit.sh start --config config.yaml
+
+# Start with custom host and port
+./bin/orbit.sh start --host 0.0.0.0 --port 8000
+
+# Development mode with auto-reload
+./bin/orbit.sh start --reload
+
+# Start and clear previous logs
+./bin/orbit.sh start --delete-logs
 ```
 
-Examples:
-- Development mode with auto-reload:
+### Stopping the Server
+
 ```bash
-./start.sh --reload
-```
-- Production mode:
-```bash
-./start.sh --workers=4
+# Graceful stop
+./bin/orbit.sh stop
+
+# Stop with custom timeout
+./bin/orbit.sh stop --timeout 60
+
+# Stop and delete logs
+./bin/orbit.sh stop --delete-logs
 ```
 
-Server available at `http://localhost:3000`
+### Restarting the Server
+
+```bash
+# Basic restart
+./bin/orbit.sh restart
+
+# Restart with new configuration
+./bin/orbit.sh restart --config new-config.yaml
+
+# Restart and clear logs
+./bin/orbit.sh restart --delete-logs
+```
+
+### Checking Server Status
+
+```bash
+# Get detailed server status
+./bin/orbit.sh status
+```
+
+Example status output:
+```json
+{
+  "status": "running",
+  "pid": 12345,
+  "uptime": 3600.5,
+  "memory_mb": 245.8,
+  "cpu_percent": 2.1,
+  "message": "Server is running with PID 12345"
+}
+```
+
+---
+
+## 🔑 API Key Management
+
+The orbit CLI provides comprehensive API key management:
+
+### Creating API Keys
+
+```bash
+# Basic API key creation
+./bin/orbit.sh key create --collection docs --name "Customer Support"
+
+# Create with notes
+./bin/orbit.sh key create --collection legal --name "Legal Team" --notes "Internal legal document access"
+
+# Create with system prompt from file
+./bin/orbit.sh key create --collection support --name "Support Bot" \
+  --prompt-file prompts/support.txt --prompt-name "Support Assistant"
+
+# Create with existing prompt
+./bin/orbit.sh key create --collection sales --name "Sales Team" --prompt-id 612a4b3c78e9f25d3e1f42a7
+```
+
+### Managing API Keys
+
+```bash
+# List all API keys
+./bin/orbit.sh key list
+
+# Check API key status
+./bin/orbit.sh key status --key orbit_abcd1234
+
+# Test an API key
+./bin/orbit.sh key test --key orbit_abcd1234
+
+# Deactivate an API key
+./bin/orbit.sh key deactivate --key orbit_abcd1234
+
+# Delete an API key
+./bin/orbit.sh key delete --key orbit_abcd1234
+```
+
+---
+
+## 📝 System Prompt Management
+
+Manage system prompts that define AI behavior:
+
+### Creating and Managing Prompts
+
+```bash
+# Create a new system prompt
+./bin/orbit.sh prompt create --name "Customer Support" --file prompts/support.txt --version "1.0"
+
+# List all prompts
+./bin/orbit.sh prompt list
+
+# Get specific prompt details
+./bin/orbit.sh prompt get --id 612a4b3c78e9f25d3e1f42a7
+
+# Update an existing prompt
+./bin/orbit.sh prompt update --id 612a4b3c78e9f25d3e1f42a7 --file prompts/updated_support.txt --version "1.1"
+
+# Delete a prompt
+./bin/orbit.sh prompt delete --id 612a4b3c78e9f25d3e1f42a7
+
+# Associate a prompt with an API key
+./bin/orbit.sh prompt associate --key orbit_abcd1234 --prompt-id 612a4b3c78e9f25d3e1f42a7
+```
 
 ---
 
@@ -138,7 +254,7 @@ Server available at `http://localhost:3000`
   ]
 }
 ```
-- **See documentation**: [MCP Protocol](docs/mcp_protocol.md)
+- **See documentation**: [MCP Protocol](mcp_protocol.md)
 
 ### Health Check
 - **Endpoint**: `GET /health`
@@ -307,39 +423,39 @@ The server now provides the following API endpoints:
 
 ## Command-Line Usage
 
-The `api_key_manager.py` script has been enhanced to support system prompts:
+The ORBIT CLI provides comprehensive system prompt management:
 
 ### Managing Prompts
 
 ```bash
 # Create a new prompt
-python api_key_manager.py --url http://localhost:3001 prompt create --name "Customer Support" --file prompts/customer_support.txt --version "1.0"
+./bin/orbit.sh prompt create --name "Customer Support" --file prompts/customer_support.txt --version "1.0"
 
 # List all prompts
-python api_key_manager.py --url http://localhost:3001 prompt list
+./bin/orbit.sh prompt list
 
 # Get a specific prompt
-python api_key_manager.py --url http://localhost:3001 prompt get --id 65a4f21cbdf84a789c056e23
+./bin/orbit.sh prompt get --id 65a4f21cbdf84a789c056e23
 
 # Update a prompt
-python api_key_manager.py --url http://localhost:3001 prompt update --id 65a4f21cbdf84a789c056e23 --file prompts/updated_support.txt --version "1.1"
+./bin/orbit.sh prompt update --id 65a4f21cbdf84a789c056e23 --file prompts/updated_support.txt --version "1.1"
 
 # Delete a prompt
-python api_key_manager.py --url http://localhost:3001 prompt delete --id 65a4f21cbdf84a789c056e23
+./bin/orbit.sh prompt delete --id 65a4f21cbdf84a789c056e23
 ```
 
 ### Creating API Keys with Prompts
 
 ```bash
 # Create API key with a new prompt
-python api_key_manager.py --url http://localhost:3001 create \
+./bin/orbit.sh key create \
   --collection support_docs \
   --name "Support Team" \
   --prompt-file prompts/support_prompt.txt \
   --prompt-name "Support Assistant"
 
 # Create API key with an existing prompt
-python api_key_manager.py --url http://localhost:3001 create \
+./bin/orbit.sh key create \
   --collection legal_docs \
   --name "Legal Team" \
   --prompt-id 65a4f21cbdf84a789c056e23
@@ -349,8 +465,8 @@ python api_key_manager.py --url http://localhost:3001 create \
 
 ```bash
 # Associate a prompt with an existing API key
-python api_key_manager.py --url http://localhost:3001 prompt associate \
-  --key api_abcd1234efgh5678ijkl9012 \
+./bin/orbit.sh prompt associate \
+  --key orbit_abcd1234efgh5678ijkl9012 \
   --prompt-id 65a4f21cbdf84a789c056e23
 ```
 
@@ -370,7 +486,7 @@ You are a helpful support assistant. When answering questions:
 5. Use simple, clear language without technical jargon unless necessary
 EOF
 
-python api_key_manager.py --url http://localhost:3001 prompt create \
+./bin/orbit.sh prompt create \
   --name "Support Assistant" \
   --file prompts/support_prompt.txt \
   --version "1.0"
@@ -379,7 +495,7 @@ python api_key_manager.py --url http://localhost:3001 prompt create \
 2. Create an API key with this prompt:
 
 ```bash
-python api_key_manager.py --url http://localhost:3001 create \
+./bin/orbit.sh key create \
   --collection support_docs \
   --name "Support Team" \
   --prompt-id 65a4f21cbdf84a789c056e23
@@ -420,81 +536,78 @@ Note: The `logs` directory is automatically created when needed and should be ad
 
 ---
 
-## 🔧 Running as a Systemd Service
+## 🔧 Production Deployment
+
+For production environments, you can use the orbit CLI with process management tools:
+
+### Using systemd
+
+Create a systemd service file:
 
 ```bash
-sudo vim /etc/systemd/system/qa-chatbot.service
+sudo vim /etc/systemd/system/orbit-server.service
 ```
 
 Add this content:
 
-```bash
+```ini
 [Unit]
-Description=QA Chatbot Node.js Server
+Description=ORBIT AI Server
 After=network.target
 
 [Service]
-Type=simple
+Type=forking
 User=YOUR_USERNAME
-WorkingDirectory=/path/to/your/project
-ExecStart=/usr/bin/npm run server -- ollama
+WorkingDirectory=/path/to/orbit
+ExecStart=/path/to/orbit/bin/orbit.sh start --config config.yaml
+ExecStop=/path/to/orbit/bin/orbit.sh stop
+ExecReload=/path/to/orbit/bin/orbit.sh restart
 Restart=always
 RestartSec=3
-StandardOutput=append:/var/log/qa-chatbot.log
-StandardError=append:/var/log/qa-chatbot.error.log
+StandardOutput=append:/var/log/orbit.log
+StandardError=append:/var/log/orbit.error.log
 
 [Install]
 WantedBy=multi-user.target
 ```
 
 Replace:
-- `YOUR_USERNAME` with your actual username (run `whoami` to get it)
-- `/path/to/your/project` with the full path to your project directory
-- Update the ExecStart path if npm is installed elsewhere (use `which npm` to check)
+- `YOUR_USERNAME` with your actual username
+- `/path/to/orbit` with the full path to your ORBIT installation
 
 Manage the service:
 ```bash
-# Reload systemd to recognize the new service
+# Reload systemd configuration
 sudo systemctl daemon-reload
 
-# Enable the service to start on boot
-sudo systemctl enable qa-chatbot
+# Enable service to start on boot
+sudo systemctl enable orbit-server
 
 # Start the service
-sudo systemctl start qa-chatbot
+sudo systemctl start orbit-server
 
-# Check the status
-sudo systemctl status qa-chatbot
+# Check status
+sudo systemctl status orbit-server
 
-# View logs in real-time
-sudo journalctl -u qa-chatbot -f
+# View logs
+sudo journalctl -u orbit-server -f
 ```
 
-To remove the service:
-```bash
-sudo systemctl stop qa-chatbot
-sudo systemctl disable qa-chatbot
-sudo rm /etc/systemd/system/qa-chatbot.service
-sudo systemctl daemon-reload
-sudo systemctl reset-failed
-```
+### Using Docker
 
-### 2. Using Background Process
+See [Docker Deployment](docker-deployment.md) for containerized deployment options.
 
-Simple background process with output handling:
+### Background Process
+
+For simple background deployment:
 
 ```bash
-# Save output to a file
-npm run server -- ollama > output.log 2>&1 &
+# Start in background with output logging
+nohup ./bin/orbit.sh start > orbit.log 2>&1 &
 
-# Discard all output
-npm run server -- ollama > /dev/null 2>&1 &
-
-# Save stdout and stderr to separate files
-npm run server -- ollama > output.log 2> error.log &
+# Check if running
+./bin/orbit.sh status
 ```
-
-Note: Using just `&` is less robust than systemd as the process might terminate when closing the terminal session. For production environments, the systemd service approach is recommended.
 
 ---
 
