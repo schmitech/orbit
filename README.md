@@ -96,7 +96,7 @@ This mode is perfect for:
 
 ### Smart Assistant (RAG - Retrieval Augmented Generation)
 
-![ORBIT RAG Mode](docs/images/municipal-bot.gif){width=600}
+<img src="docs/images/municipal-bot.gif" width="600" alt="ORBIT RAG Mode">
 
 An AI assistant that is aware of your organization's knowledge. When you ask a question:
 1. ORBIT searches through your private knowledge base (documents, databases, internal resources)
