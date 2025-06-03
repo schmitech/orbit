@@ -95,6 +95,9 @@ This mode is perfect for:
 - Simple tasks
 
 ### Smart Assistant (RAG - Retrieval Augmented Generation)
+
+![ORBIT RAG Mode](docs/images/municipal-bot.gif){width=600}
+
 An AI assistant that is aware of your organization's knowledge. When you ask a question:
 1. ORBIT searches through your private knowledge base (documents, databases, internal resources)
 2. It finds the most relevant information from your organization's data
@@ -251,6 +254,63 @@ orbit-chat --url http://localhost:3000 --api-key orbit_1234567ABCDE
 ```
 
 Refer to [SQL Retriever Architecture](docs/sql-retriever-architecture.md) for details on the database-agnostic SQL retriever implementation and supported database types.
+
+## Web Widget
+
+ORBIT provides a customizable chatbot widget that can be easily integrated into any website. The widget offers a modern, responsive interface with extensive theming options and features. The widget is available as an npm package at [@schmitech/chatbot-widget](https://www.npmjs.com/package/@schmitech/chatbot-widget).
+
+![ORBIT Chat Demo](docs/images/widget.gif)
+
+### How to use
+
+Add the widget to your website with just a few lines of code. You can install it via npm:
+
+```bash
+npm install @schmitech/chatbot-widget
+```
+
+Or include it directly in your HTML:
+
+```html
+<script src="https://unpkg.com/@schmitech/chatbot-widget@latest/dist/chatbot-widget.bundle.js"></script>
+```
+
+Then initialize the widget:
+
+```html
+<script>
+  window.addEventListener('load', function() {
+    window.initChatbotWidget({
+      apiUrl: 'https://your-api-url.com',  // Your ORBIT API endpoint
+      apiKey: 'your-api-key',             // Your API key
+      sessionId: 'unique-session-id',      // Unique session identifier
+      header: {
+        title: "AI Assistant"
+      },
+      welcome: {
+        title: "Welcome!",
+        description: "How can I help you today?"
+      }
+    });
+  });
+</script>
+```
+
+### Customization
+
+Try out the widget and explore its customization options in the [live demo](https://github.com/schmitech/orbit/blob/main/clients/typescript/examples/widget/demo.html). The demo includes:
+
+- **Theme Customization**: Choose from 8 built-in themes or create your own custom theme
+- **Color Picker**: Fine-tune every aspect of the widget's appearance
+- **Icon Selection**: Choose from multiple built-in icons
+- **Content Customization**: Modify header, welcome message, and suggested questions
+- **Container Options**: Test different container placements
+- **Live Preview**: See your changes in real-time
+- **Code Generation**: Get the implementation code for your custom configuration
+
+For detailed configuration options and advanced usage, see the [Widget Documentation](https://github.com/schmitech/orbit/blob/main/clients/typescript/examples/widget/README.md).
+
+There are two examples showcasing the use of the widget: [Recreation Programs Web App](https://github.com/schmitech/orbit/tree/main/clients/typescript/examples/activities-webapp) and [Municipal Web App](https://github.com/schmitech/orbit/tree/main/clients/typescript/examples/municipal-webapp).
 
 ## Contributing
 
