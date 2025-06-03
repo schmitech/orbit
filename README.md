@@ -81,6 +81,9 @@ For more detailed information, please refer to the following documentation in th
 ORBIT offers two main ways to interact with AI while keeping your data secure in your private infrastructure and avoiding the need to pay for expensive API calls.
 
 ### Simple Chat Mode (Inference-Only)
+
+<img src="docs/images/orbit-chat-gui.gif" width="800" alt="ORBIT RAG Mode">
+
 Think of this as having a direct conversation with an AI. When you send a message:
 1. Your message goes directly to the AI model
 2. The AI processes your question and responds

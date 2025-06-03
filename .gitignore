@@ -58,3 +58,4 @@ gguf
 *.pickle
 *.sqlite3
 uploads/
+.next/
