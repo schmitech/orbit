@@ -1,5 +1,9 @@
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import remarkGfm from 'remark-gfm';
+import 'katex/dist/katex.min.css';
 
 /**
  * Preprocesses markdown content to handle common formatting issues
@@ -11,52 +15,62 @@ export const preprocessMarkdown = (content: string): string => {
 
   let processed = content;
 
-  // Normalize line endings
-  processed = processed.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  try {
+    // Normalize line endings
+    processed = processed.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 
-  // Convert LaTeX-style math delimiters to markdown math syntax FIRST
-  // Handle display math: \[ ... \] → $$ ... $$
-  processed = processed.replace(/\\\[\s*([\s\S]*?)\s*\\\]/g, (match, mathContent) => {
-    return '\n$$' + mathContent.trim() + '$$\n';
-  });
-  
-  // Handle inline math: \( ... \) → $ ... $
-  processed = processed.replace(/\\\(\s*([\s\S]*?)\s*\\\)/g, (match, mathContent) => {
-    return '$' + mathContent.trim() + '$';
-  });
+    // Convert LaTeX-style math delimiters to markdown math syntax
+    // Handle display math: \[ ... \] → $$ ... $$
+    processed = processed.replace(/\\\[\s*([\s\S]*?)\s*\\\]/g, (match, mathContent) => {
+      const cleanContent = mathContent.trim();
+      return cleanContent ? `\n$$${cleanContent}$$\n` : match;
+    });
+    
+    // Handle inline math: \( ... \) → $ ... $
+    processed = processed.replace(/\\\(\s*([\s\S]*?)\s*\\\)/g, (match, mathContent) => {
+      const cleanContent = mathContent.trim();
+      return cleanContent ? `$${cleanContent}$` : match;
+    });
 
-  // Fix excessive whitespace and normalize paragraph breaks
-  processed = processed.replace(/\n{3,}/g, '\n\n');
-  
-  // Handle list items with proper spacing
-  processed = processed.replace(/\n(\s*[-*+])\s*/g, '\n$1 ');
-  processed = processed.replace(/\n(\s*\d+\.)\s*/g, '\n$1 ');
-  
-  // Fix spacing around headers
-  processed = processed.replace(/\n(#{1,6})\s*([^\n]+)\n/g, '\n\n$1 $2\n\n');
-  
-  // Ensure code blocks have proper spacing
-  processed = processed.replace(/\n```/g, '\n\n```');
-  processed = processed.replace(/```\n/g, '```\n\n');
-  
-  // Clean up trailing whitespace on lines
-  processed = processed.replace(/[ \t]+$/gm, '');
-  
-  // Fix multiple spaces within lines (but preserve code formatting and math)
-  // Don't modify content inside math blocks or code blocks
-  processed = processed.replace(/(?<!`|\$)  +(?!`|\$)/g, ' ');
-  
-  // Auto-linkify URLs that aren't already markdown links (but not inside math blocks)
-  const urlRegex = /(?<!\]\()(?<!\$)(https?:\/\/[^\s)$]+)(?!\))(?!\$)/g;
-  processed = processed.replace(urlRegex, '[$1]($1)');
-  
-  // Ensure display math has proper spacing around it
-  processed = processed.replace(/([^\n])\$\$([\s\S]*?)\$\$([^\n])/g, '$1\n\n$$$$2$$\n\n$3');
-  
-  // Trim and ensure single trailing newline
-  processed = processed.trim();
-  if (processed && !processed.endsWith('\n')) {
-    processed += '\n';
+    // Fix any malformed math delimiters that might exist
+    // Clean up any double dollars that got concatenated incorrectly
+    processed = processed.replace(/\$\$\$+/g, '$$');
+    processed = processed.replace(/\$+([^$\n]+)\$+/g, '$$$1$$');
+    
+    // Ensure proper spacing around display math blocks
+    processed = processed.replace(/([^\n])\$\$([^$\n])/g, '$1\n$$$$2');
+    processed = processed.replace(/([^$\n])\$\$([^\n])/g, '$$1$$\n$2');
+
+    // Fix excessive whitespace and normalize paragraph breaks
+    processed = processed.replace(/\n{3,}/g, '\n\n');
+    
+    // Handle list items with proper spacing
+    processed = processed.replace(/\n(\s*[-*+])\s*/g, '\n$1 ');
+    processed = processed.replace(/\n(\s*\d+\.)\s*/g, '\n$1 ');
+    
+    // Fix spacing around headers
+    processed = processed.replace(/\n(#{1,6})\s*([^\n]+)\n/g, '\n\n$1 $2\n\n');
+    
+    // Ensure code blocks have proper spacing
+    processed = processed.replace(/\n```/g, '\n\n```');
+    processed = processed.replace(/```\n/g, '```\n\n');
+    
+    // Clean up trailing whitespace on lines
+    processed = processed.replace(/[ \t]+$/gm, '');
+    
+    // Auto-linkify URLs that aren't already markdown links (but not inside math blocks)
+    const urlRegex = /(?<!\]\()(?<!\$)(https?:\/\/[^\s)$]+)(?!\))(?!\$)/g;
+    processed = processed.replace(urlRegex, '[$1]($1)');
+    
+    // Final cleanup: ensure single trailing newline
+    processed = processed.trim();
+    if (processed && !processed.endsWith('\n')) {
+      processed += '\n';
+    }
+
+  } catch (error) {
+    console.warn('Error preprocessing markdown:', error);
+    return content; // Return original content if preprocessing fails
   }
 
   return processed;
@@ -92,46 +106,6 @@ export interface MarkdownRendererProps {
   className?: string;
 }
 
-// Custom sanitize schema that allows KaTeX math
-const mathSanitizeSchema = {
-  tagNames: [
-    'a', 'abbr', 'b', 'blockquote', 'br', 'code', 'dd', 'del', 'div', 'dl', 'dt', 'em', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'i', 'img', 'ins', 'kbd', 'li', 'ol', 'p', 'pre', 'q', 's', 'samp', 'span', 'strong', 'sub', 'sup', 'table', 'tbody', 'td', 'tfoot', 'th', 'thead', 'tr', 'u', 'ul',
-    // KaTeX math elements
-    'math', 'semantics', 'mrow', 'mi', 'mo', 'mn', 'mfrac', 'msup', 'msub', 'msubsup', 'munder', 'mover', 'munderover', 'mtext', 'mspace', 'menclose', 'mpadded', 'mphantom', 'mtable', 'mtr', 'mtd', 'mlabeledtr', 'annotation'
-  ],
-  attributes: {
-    '*': ['className', 'style'],
-    'a': ['href', 'title'],
-    'img': ['src', 'alt', 'width', 'height'],
-    'td': ['align', 'colspan', 'rowspan'],
-    'th': ['align', 'colspan', 'rowspan', 'scope'],
-    // KaTeX specific attributes
-    'math': ['xmlns', 'display'],
-    'semantics': [],
-    'mrow': [],
-    'mi': ['mathvariant'],
-    'mo': ['fence', 'separator', 'stretchy', 'symmetric', 'largeop', 'movablelimits', 'accent', 'rspace', 'lspace'],
-    'mn': [],
-    'mfrac': ['linethickness'],
-    'msup': [],
-    'msub': [],
-    'msubsup': [],
-    'munder': [],
-    'mover': [],
-    'munderover': [],
-    'mtext': [],
-    'mspace': ['width'],
-    'menclose': ['notation'],
-    'mpadded': ['width', 'height', 'depth', 'lspace', 'voffset'],
-    'mphantom': [],
-    'mtable': ['columnalign', 'rowalign'],
-    'mtr': [],
-    'mtd': ['columnalign', 'rowalign'],
-    'mlabeledtr': [],
-    'annotation': ['encoding']
-  }
-};
-
 /**
  * Enhanced Markdown renderer with better formatting and spacing control
  */
@@ -158,6 +132,8 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
       }}
     >
       <ReactMarkdown
+        remarkPlugins={[remarkMath, remarkGfm]}
+        rehypePlugins={[rehypeKatex]}
         components={{
           // Links
           a: MarkdownLink,
@@ -417,46 +393,6 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
           // Line breaks
           br: ({ ...props }) => <br {...props} />,
 
-          // Mathematical notation elements
-          span: ({ children, className, ...props }) => {
-            // Handle KaTeX math spans
-            if (className && className.includes('katex')) {
-              return (
-                <span 
-                  {...props}
-                  className={className}
-                  style={{
-                    fontSize: 'inherit',
-                    color: 'inherit'
-                  }}
-                >
-                  {children}
-                </span>
-              );
-            }
-            return <span {...props}>{children}</span>;
-          },
-
-          // Math display elements
-          div: ({ children, className, ...props }) => {
-            // Handle KaTeX display math
-            if (className && className.includes('katex-display')) {
-              return (
-                <div 
-                  {...props}
-                  className={className}
-                  style={{
-                    margin: '16px 0',
-                    textAlign: 'center',
-                    overflow: 'auto'
-                  }}
-                >
-                  {children}
-                </div>
-              );
-            }
-            return <div {...props}>{children}</div>;
-          },
         }}
       >
         {processedContent}
