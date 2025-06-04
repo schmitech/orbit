@@ -21,15 +21,13 @@ export interface MessageProps {
   typingProgressRef: React.MutableRefObject<Map<number, number>>;
   isTypingRef: React.MutableRefObject<boolean>;
   setIsAnimating: (value: boolean) => void;
-  normalizeText: (text: string) => string;
-  linkifyText: (text: string) => string;
   formatTime: (date: Date) => string;
-  lastMessageRef?: React.RefObject<HTMLDivElement>;
+  lastMessageRef: React.RefObject<HTMLDivElement>;
 }
 
 /**
- * Message component renders individual chat messages
- * Handles both user and assistant messages with different styling and features
+ * Message component handles individual message rendering
+ * Supports both user and assistant messages with different styling
  */
 export const Message: React.FC<MessageProps> = ({
   message,
@@ -47,8 +45,6 @@ export const Message: React.FC<MessageProps> = ({
   typingProgressRef,
   isTypingRef,
   setIsAnimating,
-  normalizeText,
-  linkifyText,
   formatTime,
   lastMessageRef,
 }) => {
@@ -81,7 +77,7 @@ export const Message: React.FC<MessageProps> = ({
       >
         {/* Message Content */}
         {message.role === 'assistant' ? (
-          showTypingAnimation ? (
+          !message.content ? (
             <div className="text-gray-500">
               <span className="font-medium">Thinking</span>
               <span className="animate-dots ml-1">
@@ -91,8 +87,8 @@ export const Message: React.FC<MessageProps> = ({
               </span>
             </div>
           ) : !hasBeenAnimated(index) && isLatestAssistantMessage ? (
-            <TypingEffect 
-              content={message.content} 
+            <TypingEffect
+              content={message.content}
               onComplete={() => onMarkMessageAnimated(index, messagesLength, scrollToBottom)}
               messageIndex={index}
               inputRef={inputRef}
@@ -101,11 +97,9 @@ export const Message: React.FC<MessageProps> = ({
               isTypingRef={isTypingRef}
               setIsAnimating={setIsAnimating}
               scrollToBottom={scrollToBottom}
-              normalizeText={normalizeText}
-              linkifyText={linkifyText}
             />
           ) : (
-            <MarkdownRenderer content={normalizeText(linkifyText(message.content))} />
+            <MarkdownRenderer content={message.content} />
           )
         ) : (
           <p className="text-base" style={{ 

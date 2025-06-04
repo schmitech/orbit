@@ -28,8 +28,6 @@ export interface MessagesListProps {
   typingProgressRef: React.MutableRefObject<Map<number, number>>;
   isTypingRef: React.MutableRefObject<boolean>;
   setIsAnimating: (value: boolean) => void;
-  normalizeText: (text: string) => string;
-  linkifyText: (text: string) => string;
   formatTime: (date: Date) => string;
   lastMessageRef: React.RefObject<HTMLDivElement>;
 }
@@ -61,8 +59,6 @@ export const MessagesList: React.FC<MessagesListProps> = ({
   typingProgressRef,
   isTypingRef,
   setIsAnimating,
-  normalizeText,
-  linkifyText,
   formatTime,
   lastMessageRef,
 }) => {
@@ -175,8 +171,6 @@ export const MessagesList: React.FC<MessagesListProps> = ({
                 typingProgressRef={typingProgressRef}
                 isTypingRef={isTypingRef}
                 setIsAnimating={setIsAnimating}
-                normalizeText={normalizeText}
-                linkifyText={linkifyText}
                 formatTime={formatTime}
                 lastMessageRef={lastMessageRef}
               />

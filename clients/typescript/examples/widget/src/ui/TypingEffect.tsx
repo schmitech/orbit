@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import ReactMarkdown from 'react-markdown';
-import { MarkdownLink } from '../shared/MarkdownComponents';
+import { MarkdownRenderer } from '../shared/MarkdownComponents';
 import { CHAT_CONSTANTS } from '../shared/styles';
 
 export interface TypingEffectProps {
@@ -13,8 +12,6 @@ export interface TypingEffectProps {
   isTypingRef: React.MutableRefObject<boolean>;
   setIsAnimating: (value: boolean) => void;
   scrollToBottom: () => void;
-  normalizeText: (text: string) => string;
-  linkifyText: (text: string) => string;
 }
 
 /**
@@ -31,8 +28,6 @@ export const TypingEffect: React.FC<TypingEffectProps> = ({
   isTypingRef,
   setIsAnimating,
   scrollToBottom,
-  normalizeText,
-  linkifyText,
 }) => {
   // Use a ref to store the current animation progress
   const [displayedContent, setDisplayedContent] = useState(() => {
@@ -60,6 +55,12 @@ export const TypingEffect: React.FC<TypingEffectProps> = ({
       return;
     }
 
+    // Update content if it changed but don't restart animation
+    if (hasInitializedRef.current && content !== fullContentRef.current) {
+      fullContentRef.current = content;
+      return;
+    }
+
     // Skip if we've already initialized
     if (hasInitializedRef.current) {
       return;
@@ -69,19 +70,27 @@ export const TypingEffect: React.FC<TypingEffectProps> = ({
     hasInitializedRef.current = true;
     fullContentRef.current = content;
 
-    // Start the animation
-    startTypingAnimation();
+    // Start the animation with a small delay to ensure component is ready
+    setTimeout(() => {
+      startTypingAnimation();
+    }, 10);
 
     return () => {
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [messageIndex, content]); // Removed hasBeenAnimated and onComplete from deps
+  }, [messageIndex, content, hasBeenAnimated, onComplete]);
 
   // Function to handle animation
   const startTypingAnimation = () => {
-    if (isAnimatingRef.current) return;
+    if (isAnimatingRef.current) {
+      return;
+    }
+
+    if (!hasInitializedRef.current) {
+      return;
+    }
 
     isAnimatingRef.current = true;
     isTypingRef.current = true;
@@ -90,6 +99,8 @@ export const TypingEffect: React.FC<TypingEffectProps> = ({
     // Start from current position (important for resuming after tab switching)
     let currentIndex = currentIndexRef.current;
     let lastScrollTime = 0;
+    let lastTypingTime = 0;
+    const typingSpeed = 15; // milliseconds between characters (faster speed)
 
     // Show thinking state only at the beginning
     if (currentIndex === 0) {
@@ -99,6 +110,19 @@ export const TypingEffect: React.FC<TypingEffectProps> = ({
     }
 
     const animateText = (timestamp: number) => {
+      // Check if animation was canceled or component unmounted
+      if (!isAnimatingRef.current || !hasInitializedRef.current) {
+        return;
+      }
+      
+      // Check if enough time has passed for the next character
+      if (timestamp - lastTypingTime < typingSpeed) {
+        animationFrameRef.current = requestAnimationFrame(animateText);
+        return;
+      }
+      
+      lastTypingTime = timestamp;
+      
       if (currentIndex < fullContentRef.current.length) {
         const newContent = fullContentRef.current.slice(0, currentIndex + 1);
         setDisplayedContent(newContent);
@@ -126,7 +150,12 @@ export const TypingEffect: React.FC<TypingEffectProps> = ({
       }
     };
 
-    animationFrameRef.current = requestAnimationFrame(animateText);
+    // Use setTimeout to ensure the first frame is scheduled properly
+    setTimeout(() => {
+      if (isAnimatingRef.current && hasInitializedRef.current) {
+        animationFrameRef.current = requestAnimationFrame(animateText);
+      }
+    }, 0);
   };
 
   // Handle animation completion
@@ -163,7 +192,7 @@ export const TypingEffect: React.FC<TypingEffectProps> = ({
         textarea.removeEventListener('input', handleUserInput);
       }
     };
-  }, []); // Removed inputRef and onComplete from deps
+  }, [inputRef]);
 
   // This is the key handler for document visibility changes
   useEffect(() => {
@@ -200,41 +229,22 @@ export const TypingEffect: React.FC<TypingEffectProps> = ({
     };
   }, []);
 
+  if (isThinking && currentIndexRef.current === 0) {
+    return (
+      <div className="text-gray-500">
+        <span className="font-medium">Thinking</span>
+        <span className="animate-dots ml-1">
+          <span className="dot">.</span>
+          <span className="dot">.</span>
+          <span className="dot">.</span>
+        </span>
+      </div>
+    );
+  }
+
   return (
-    <>
-      {displayedContent && (
-        <div className="prose prose-base max-w-full whitespace-pre-wrap" style={{ 
-          overflowWrap: 'anywhere',
-          wordBreak: 'break-word', 
-          width: '100%',
-          maxWidth: '100%',
-          fontSize: '16px',
-        }}>
-          <ReactMarkdown
-            components={{
-              a: (props) => <MarkdownLink {...props} />,
-              p: (props) => <p style={{ 
-                overflowWrap: 'anywhere', 
-                wordBreak: 'break-word',
-                margin: '0 0 0.2em 0'
-              }} {...props} />,
-              code: (props) => <code style={{ display: 'block', whiteSpace: 'pre-wrap', overflowX: 'auto', overflowWrap: 'anywhere' }} {...props} />
-            }}
-          >
-            {normalizeText(linkifyText(displayedContent))}
-          </ReactMarkdown>
-        </div>
-      )}
-      {isThinking && (
-        <div className="text-gray-500">
-          <span className="font-medium">Thinking</span>
-          <span className="animate-dots ml-1">
-            <span className="dot">.</span>
-            <span className="dot">.</span>
-            <span className="dot">.</span>
-          </span>
-        </div>
-      )}
-    </>
+    <div>
+      <MarkdownRenderer content={displayedContent} />
+    </div>
   );
 };

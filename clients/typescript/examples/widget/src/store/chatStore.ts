@@ -42,8 +42,12 @@ function ensureApiConfigured(): boolean {
         apiUrl = window.CHATBOT_API_URL;
         apiKey = window.CHATBOT_API_KEY;
       } else if (getApiUrl && getApiKey) {
-        apiUrl = getApiUrl();
-        apiKey = getApiKey();
+        try {
+          apiUrl = getApiUrl();
+          apiKey = getApiKey();
+        } catch (err) {
+          // Silently fail and continue
+        }
       }
 
       if (!apiUrl || !apiKey) {

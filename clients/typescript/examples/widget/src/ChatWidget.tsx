@@ -163,32 +163,6 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
     }
   };
 
-  // Helper function to convert URLs to markdown links in plain text and preserve line breaks
-  const linkifyText = useCallback((text: string): string => {
-    const urlRegex = /(https?:\/\/[^\s]+?)([.,;:!?)]*)(?=\s|$)/g;
-    const linkedText = text.replace(urlRegex, (match, url, punctuation) =>
-      `[${url}](${url})${punctuation}`
-    );
-    
-    // Only add the two spaces to lines that aren't already part of a paragraph break
-    // This preserves intentional single line breaks without adding extra spacing
-    return linkedText;
-  }, []);
-
-  // Normalize text for consistent paragraph spacing
-  const normalizeText = useCallback((text: string): string => {
-    // Replace 3+ newlines with just 2 (Markdown paragraph)
-    let normalized = text.replace(/\n{3,}/g, '\n\n');
-    
-    // Fix spacing between list items 
-    normalized = normalized.replace(/\n(\s*[-*+]|\s*\d+\.)\s*/g, '\n$1 ');
-    
-    // Ensure paragraphs have consistent spacing
-    normalized = normalized.replace(/\n\n\n+/g, '\n\n');
-    
-    return normalized.trim();
-  }, []);
-
   // Format timestamp (note: uses a relative offset since messages lack explicit timestamps)
   const formatTime = (date: Date): string => {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -305,8 +279,6 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
             typingProgressRef={typingProgressRef}
             isTypingRef={isTypingRef}
             setIsAnimating={setIsAnimating}
-            normalizeText={normalizeText}
-            linkifyText={linkifyText}
             formatTime={formatTime}
             lastMessageRef={lastMessageRef}
           />
@@ -371,7 +343,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
           {isOpen ? (
             <Minimize2 
               size={CHAT_CONSTANTS.BUTTON_SIZES.ICON_SIZES.MINIMIZE} 
-              className="text-white opacity-90 drop-shadow-sm relative z-10 transition-transform duration-300 group-hover:rotate-180" 
+              className="text-white opacity-90 drop-shadow-sm relative z-10" 
             />
           ) : (
             <MessagesSquareIcon 
