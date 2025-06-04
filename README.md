@@ -21,6 +21,10 @@
 
 ORBIT is a modular, self-hosted toolkit that provides a unified API for open-source AI inference models. ORBIT enables you to run AI models on your own infrastructure, maintaining full control over your data while reducing dependency on external AI services.
 
+<p align="center">
+  <img src="docs/images/orbit-diagram.png" alt="ORBIT Architecture" />
+</p>
+
 ORBIT is particularly useful for:
 
 * **Organizations requiring sovereign AI capabilities** - *Security depends on controlling where and how your AI processes sensitive information*
@@ -49,7 +53,7 @@ ORBIT is particularly useful for:
 
 ## Documentation
 
-For more detailed information, please refer to the following documentation in the `/docs` folder.
+For more detailed information, please refer to the following documentation in the [Docs](docs/) folder.
 
 ### Getting Started & Configuration
 - [Server Configuration](docs/server.md) - Server setup and configuration guide
@@ -122,9 +126,9 @@ This mode is ideal for:
 
 ```bash
 # Download and extract the latest release
-curl -L https://github.com/schmitech/orbit/releases/download/v1.1.0/orbit-1.1.0.tar.gz -o orbit.tar.gz
+curl -L https://github.com/schmitech/orbit/releases/download/v1.1.1/orbit-1.1.0.tar.gz -o orbit.tar.gz
 tar -xzf orbit.tar.gz
-cd orbit-1.1.0
+cd orbit-1.1.1
 
 # Activate virtual environment
 source venv/bin/activate
@@ -299,7 +303,7 @@ Then initialize the widget:
 
 ### Customization
 
-Try out the widget and explore its customization options in the [live demo](https://github.com/schmitech/orbit/blob/main/clients/typescript/examples/widget/demo.html). The demo includes:
+Try out the widget and explore its customization options using this [tool](https://github.com/schmitech/orbit/blob/main/clients/typescript/examples/widget/demo.html). The demo includes:
 
 - **Theme Customization**: Choose from 8 built-in themes or create your own custom theme
 - **Color Picker**: Fine-tune every aspect of the widget's appearance
@@ -309,7 +313,9 @@ Try out the widget and explore its customization options in the [live demo](http
 - **Live Preview**: See your changes in real-time
 - **Code Generation**: Get the implementation code for your custom configuration
 
-For detailed configuration options and advanced usage, see the [Widget Documentation](https://github.com/schmitech/orbit/blob/main/clients/typescript/examples/widget/README.md).
+For instructions on how to build and test, see the [build instructions](https://github.com/schmitech/orbit/blob/main/clients/typescript/examples/widget/build-instructions.md).
+
+For detailed configuration options and advanced usage, see the [widget how to use document](https://github.com/schmitech/orbit/blob/main/clients/typescript/examples/widget/README.md).
 
 There are two examples showcasing the use of the widget: [Recreation Programs Web App](https://github.com/schmitech/orbit/tree/main/clients/typescript/examples/activities-webapp) and [Municipal Web App](https://github.com/schmitech/orbit/tree/main/clients/typescript/examples/municipal-webapp).
 
