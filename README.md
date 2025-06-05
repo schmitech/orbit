@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="docs/images/orbit.png" width="300" alt="ORBIT">
+  <img src="docs/images/orbit.png" width="400" alt="ORBIT">
 </div>
 <div align="center">
   <h2><strong>Open Retrieval-Based Inference Toolkit</strong></h2>
