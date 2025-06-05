@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="docs/images/orbit_white_bg.png" width="300" alt="ORBIT">
+  <img src="docs/images/orbit.png" width="300" alt="ORBIT">
 </div>
 <div align="center">
   <h2><strong>Open Retrieval-Based Inference Toolkit</strong></h2>
@@ -20,10 +20,6 @@
 ## Overview
 
 ORBIT is a modular, self-hosted toolkit that provides a unified API for open-source AI inference models. ORBIT enables you to run AI models on your own infrastructure, maintaining full control over your data while reducing dependency on external AI services. The project is actively maintained by [Schmitech](https://schmitech.ai/), an AI solutions consulting company based in Ottawa, Ontario, Canada.
-
-<p align="center">
-  <img src="docs/images/orbit-diagram.png" alt="ORBIT Architecture" />
-</p>
 
 ORBIT is particularly useful for:
 
@@ -50,6 +46,10 @@ ORBIT is particularly useful for:
 **Financial Vulnerability:** Commercial AI providers can change pricing overnight, throttle your access during peak demand, or discontinue services without notice, leaving your business operations stranded.
 
 **Transparency & Explainability Gap:** Proprietary AI models operate as black boxes with no visibility into training data sources, embedded biases, model weights, or decision-making processes, making it impossible to audit, explain, or validate AI-driven business decisions for regulatory compliance or ethical standards.
+
+<p align="center">
+  <img src="docs/images/orbit-diagram.png" alt="ORBIT Architecture" />
+</p>
 
 ## Documentation
 
@@ -303,7 +303,7 @@ Then initialize the widget:
 
 ### Customization
 
-Try out the widget and explore its customization options using this [tool](https://github.com/schmitech/orbit/blob/main/clients/typescript/examples/widget/demo.html). The demo includes:
+Try out the widget and explore its customization options using this [tool](https://github.com/schmitech/chat-widget/blob/main/demo.html). The demo includes:
 
 - **Theme Customization**: Choose from 8 built-in themes or create your own custom theme
 - **Color Picker**: Fine-tune every aspect of the widget's appearance
@@ -313,9 +313,9 @@ Try out the widget and explore its customization options using this [tool](https
 - **Live Preview**: See your changes in real-time
 - **Code Generation**: Get the implementation code for your custom configuration
 
-For instructions on how to build and test, see the [build instructions](https://github.com/schmitech/orbit/blob/main/clients/typescript/examples/widget/build-instructions.md).
+For instructions on how to build and test, see the [build instructions](https://github.com/schmitech/chat-widget/blob/main/build-instructions.md).
 
-For detailed configuration options and advanced usage, see the [widget how to use document](https://github.com/schmitech/orbit/blob/main/clients/typescript/examples/widget/README.md).
+For detailed configuration options and advanced usage, see the [widget how to use document](https://github.com/schmitech/chat-widget/blob/main/README.md).
 
 There are two examples showcasing the use of the widget: [Recreation Programs Web App](https://github.com/schmitech/orbit/tree/main/clients/typescript/examples/activities-webapp) and [Municipal Web App](https://github.com/schmitech/orbit/tree/main/clients/typescript/examples/municipal-webapp).
 
