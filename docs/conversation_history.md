@@ -638,7 +638,7 @@ to maintain performance.
 ```
 ⚠️ Memory Warning: This conversation has 35/37 messages. The next few 
 messages will trigger automatic memory management - older messages will 
-be archived to maintain optimal performance. Consider starting a new 
+be archived. Consider starting a new 
 conversation if you want to preserve the full context.
 ```
 

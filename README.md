@@ -48,7 +48,7 @@ ORBIT is particularly useful for:
 **Transparency & Explainability Gap:** Proprietary AI models operate as black boxes with no visibility into training data sources, embedded biases, model weights, or decision-making processes, making it impossible to audit, explain, or validate AI-driven business decisions for regulatory compliance or ethical standards.
 
 <p align="center">
-  <img src="docs/images/orbit-diagram.png" alt="ORBIT Architecture" />
+  <img src="docs/images/orbit-diagram.png" width="800" alt="ORBIT Architecture" />
 </p>
 
 ## Documentation
@@ -86,7 +86,7 @@ ORBIT offers two main ways to interact with AI while keeping your data secure in
 
 ### Simple Chat Mode (Inference-Only)
 
-<img src="docs/images/orbit-chat-gui.gif" width="800" alt="ORBIT RAG Mode">
+<img src="docs/images/simple-inference.gif" width="800" alt="ORBIT RAG Mode">
 
 Think of this as having a direct conversation with an AI. When you send a message:
 1. Your message goes directly to the AI model
@@ -101,7 +101,7 @@ This mode is perfect for:
 
 ### Smart Assistant (RAG - Retrieval Augmented Generation)
 
-<img src="docs/images/municipal-bot.gif" width="600" alt="ORBIT RAG Mode">
+<img src="docs/images/rag-inference.gif" width="600" alt="ORBIT RAG Mode">
 
 An AI assistant that is aware of your organization's knowledge. When you ask a question:
 1. ORBIT searches through your private knowledge base (documents, databases, internal resources)
@@ -316,8 +316,6 @@ Try out the widget and explore its customization options using this [tool](https
 For instructions on how to build and test, see the [build instructions](https://github.com/schmitech/chat-widget/blob/main/build-instructions.md).
 
 For detailed configuration options and advanced usage, see the [widget how to use document](https://github.com/schmitech/chat-widget/blob/main/README.md).
-
-There are two examples showcasing the use of the widget: [Recreation Programs Web App](https://github.com/schmitech/orbit/tree/main/clients/typescript/examples/activities-webapp) and [Municipal Web App](https://github.com/schmitech/orbit/tree/main/clients/typescript/examples/municipal-webapp).
 
 ## Contributing
 

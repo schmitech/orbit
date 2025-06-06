@@ -31,6 +31,9 @@ class ChatService:
         self.chat_history_config = config.get('chat_history', {})
         self.chat_history_enabled = _is_true_value(self.chat_history_config.get('enabled', True))
         
+        # Messages configuration
+        self.messages_config = config.get('messages', {})
+        
         # Initialize language detector only if enabled
         self.language_detection_enabled = _is_true_value(config.get('general', {}).get('language_detection', True))
         if self.language_detection_enabled:
@@ -555,11 +558,14 @@ IMPORTANT: The user's message is in {language_name}. You MUST respond in {langua
             # After archiving, we should have room again and not keep warning
             # The warning should trigger when: current + 2 (next exchange) = max_messages
             if current_count + 2 == max_messages:
-                return (
-                    f"⚠️ **Memory Notice**: This conversation will reach {max_messages} messages after this response. "
-                    f"The next exchange will automatically archive older messages to maintain optimal performance. "
-                    f"Consider starting a new conversation if you want to preserve the full context."
+                # Get the warning message from config with fallback
+                warning_template = self.messages_config.get(
+                    'conversation_limit_warning',
+                    "⚠️ **WARNING**: This conversation will reach {max_messages} messages after this response. "
+                    "The next exchange will automatically archive older messages. "
+                    "Consider starting a new conversation if you want to preserve the full context."
                 )
+                return warning_template.format(max_messages=max_messages)
                 
             return None
             
