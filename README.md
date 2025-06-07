@@ -5,20 +5,18 @@
   <h2><strong>Open Retrieval-Based Inference Toolkit</strong></h2>
   
   <p>
-    <a href="#overview">Overview</a> •
-    <a href="#minimum-requirements">Requirements</a> •
     <a href="#quick-start">Quick Start</a> •
+    <a href="#architecture">Architecture</a> •
+    <a href="#web-chatbot-widget">Widget</a> • 
     <a href="#documentation">Docs</a> •
   </p>
 </div>
 
-## Overview
 
 ORBIT is a modular, self-hosted toolkit that provides a unified API for open-source AI inference models. ORBIT enables you to run AI models on your own infrastructure, maintaining full control over your data while reducing dependency on external AI services. The project is actively maintained by [Schmitech](https://schmitech.ai/), an AI solutions consulting company based in Ottawa, Ontario, Canada.
 
-<p align="left">
-  <img src="docs/images/orbit-diagram.png" width="800" alt="ORBIT Architecture" />
-</p>
+![ORBIT Chat Demo](docs/images/orbit-chat-gui.gif)
+
 
 ## Minimum Requirements
 
@@ -27,7 +25,6 @@ ORBIT is a modular, self-hosted toolkit that provides a unified API for open-sou
 - MongoDB (required for RAG mode and chat history)
 - Redis (optional for caching)
 - Elasticsearch (optional for logging)
-
 
 ## Quick Start
 
@@ -87,6 +84,12 @@ orbit-chat
 ```
 
 ![ORBIT Chat Demo](docs/images/orbit-chat.gif)
+
+
+## Architecture
+<p align="left">
+  <img src="docs/images/orbit-diagram.png" width="800" alt="ORBIT Architecture" />
+</p>
 
 ### SQL Adapter
 
