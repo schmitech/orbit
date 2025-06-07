@@ -8,7 +8,6 @@
     <a href="#overview">Overview</a> •
     <a href="#minimum-requirements">Requirements</a> •
     <a href="#quick-start">Quick Start</a> •
-    <a href="#how-orbit-works">How It Works</a> •
     <a href="#documentation">Docs</a> •
   </p>
 </div>
