@@ -67,7 +67,7 @@ export default function ChatPage({ chatId, setChatId }: ChatPageProps) {
         setChatOptions(mergedOptions);
       }
     }
-  }, [chatOptions.apiUrl, chatOptions.apiKey]); // Include current values as dependencies
+  }, []); // Empty dependency array - only run once on mount
 
   // Convert messages for compatibility with existing components
   const messages = chatStoreMessages.map(convertMessage);

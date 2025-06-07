@@ -92,6 +92,19 @@ class TestLanguageDetectorRobust(unittest.TestCase):
         self.assertEqual(self.detector.detect(
             "مرحبا كيف حالك؟"), "ar")
 
+    def test_mongolian_cyrillic(self):
+        """Test detection of Mongolian text written in Cyrillic script"""
+        # These should be detected as Mongolian, not Russian
+        mongolian_texts = [
+            "Бэрлэнгийн зогсоолын зөвшөөрлийн хураамж хэд вэ?",
+            "Та хэд настай вэ?",
+            "Энэ юу вэ?",
+        ]
+        for text in mongolian_texts:
+            with self.subTest(text=text):
+                result = self.detector.detect(text)
+                self.assertEqual(result, "mn", f"Expected 'mn' for Mongolian text: '{text}', got '{result}'")
+
     def test_chinese_and_japanese(self):
         # langdetect may return zh, zh‑cn, or even ko for Chinese/Japanese
         cases = [

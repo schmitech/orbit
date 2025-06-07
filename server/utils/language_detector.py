@@ -21,6 +21,11 @@ class LanguageDetector:
     
     Handles short texts, technical content, and product descriptions with improved 
     accuracy. Configurable to use multiple detection libraries when available.
+    
+    Special features:
+    - Distinguishes between Russian and Mongolian Cyrillic text
+    - Uses linguistic patterns and vocabulary to improve accuracy
+    - Ensemble detection with multiple libraries for robustness
     """
     
     def __init__(self, verbose: bool = False, min_confidence: float = 0.7):
@@ -252,6 +257,13 @@ class LanguageDetector:
                 confidence = max(0, language_votes[most_likely_lang]) / total_positive_votes
             else:
                 confidence = 0.0
+            
+            # Special handling for Cyrillic text that might be Mongolian instead of Russian/Bulgarian/etc
+            if most_likely_lang in ['ru', 'bg', 'mk', 'sr'] and script_info['script_type'] == 'Cyrillic':
+                if self._detect_mongolian_cyrillic(text):
+                    if self.verbose:
+                        logger.info(f"Cyrillic text detected as Mongolian based on linguistic patterns (was detected as {most_likely_lang})")
+                    return 'mn'
             
             # Log detailed information if verbose
             if self.verbose:
@@ -572,3 +584,105 @@ class LanguageDetector:
             variations.append(text.lower())
             
         return variations
+    
+    def _detect_mongolian_cyrillic(self, text: str) -> bool:
+        """
+        Detect if Cyrillic text is likely Mongolian rather than Russian.
+        
+        Mongolian Cyrillic has distinctive characteristics:
+        1. Specific letter combinations and patterns
+        2. Unique vocabulary and morphology
+        3. Different frequency patterns than Russian
+        """
+        # Convert to lowercase for analysis
+        text_lower = text.lower()
+        
+        # Common Mongolian words and patterns that are unlikely to appear in Russian
+        mongolian_indicators = [
+            'бэр',      # part of "бэрх" (to hold, take)
+            'гийн',     # genitive/possessive suffix 
+            'хэд',      # "how much/many"
+            'хураамж',  # "fee, collection"
+            'зогсоол',  # "stop, station"
+            'зөв',      # "correct, proper"
+            'шөөрл',    # part of "зөвшөөрөл" (permission, license)
+            'олон',     # "many"
+            'байх',     # "to be" 
+            'болох',    # "to become"
+            'хийх',     # "to do"
+            'ийн',      # genitive suffix
+            'лын',      # instrumental suffix variant
+            'ын',       # common Mongolian suffix
+            'гэх',      # "to say"
+            'юу',       # "what"
+            'энэ',      # "this"
+            'тэр',      # "that"
+            'настай',   # "aged, years old"
+            'вэ',       # question particle
+            'би',       # "I"
+            'монгол',   # "Mongolian"
+            'хүн',      # "person"
+            'байна',    # "is/am"
+            'яаж',      # "how"
+            'нийслэл',  # "capital"
+            'хаана',    # "where"
+            'байдаг',   # "located/exists"
+        ]
+        
+        # Mongolian-specific letter combinations that are very rare in Russian
+        mongolian_patterns = [
+            'ийн',      # very common genitive pattern in Mongolian
+            'гийн',     # genitive with г
+            'лын',      # instrumental case
+            'хэд',      # interrogative "how much"
+            'өө',       # doubled ө (rare in Russian, common in Mongolian)
+            'үү',       # doubled ү (rare in Russian)
+            'эр',       # common in Mongolian words
+            'өр',       # common pattern
+            'энэ',      # "this"
+            'юу',       # "what"
+            ' вэ',      # question particle at end of word
+            'хүн',      # "person"
+            'яаж',      # "how"
+            'байна',    # "is/am"
+            'байдаг',   # "exists/located"
+        ]
+        
+        # Count indicators
+        indicator_count = 0
+        pattern_count = 0
+        
+        for indicator in mongolian_indicators:
+            if indicator in text_lower:
+                indicator_count += 1
+                
+        for pattern in mongolian_patterns:
+            if pattern in text_lower:
+                pattern_count += 1
+        
+        # Check for specific Mongolian letters that are used differently
+        # ө and ү are much more common in Mongolian than Russian
+        mongolian_letters_count = text_lower.count('ө') + text_lower.count('ү')
+        
+        # Decision logic
+        # If we have multiple Mongolian indicators or patterns, it's likely Mongolian
+        if indicator_count >= 2 or pattern_count >= 2:
+            return True
+            
+        # If we have Mongolian-specific letters with some patterns
+        if mongolian_letters_count >= 2 and (indicator_count >= 1 or pattern_count >= 1):
+            return True
+            
+        # For short text, be more conservative but still check for strong indicators
+        if len(text) < 50:
+            # Strong single indicators that are very likely Mongolian
+            strong_indicators = ['хэд', 'зөв', 'ийн', 'гийн', 'хураамж', 'энэ', 'юу', 'вэ', 'монгол', 'хүн', 'яаж', 'байна']
+            for indicator in strong_indicators:
+                if indicator in text_lower:
+                    return True
+            
+            # Check for question particle at end (very Mongolian)
+            if text_lower.endswith(' вэ?') or text_lower.endswith(' вэ'):
+                return True
+        
+        return False

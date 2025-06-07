@@ -220,11 +220,14 @@ export async function* streamChat(
     const decoder = new TextDecoder();
     let buffer = '';
     let currentFullText = '';
+    let hasReceivedContent = false;
 
     try {
       while (true) {
         const { done, value } = await reader.read();
-        if (done) break;
+        if (done) {
+          break;
+        }
 
         const chunk = decoder.decode(value, { stream: true });
         buffer += chunk;
@@ -240,70 +243,118 @@ export async function* streamChat(
           if (line && line.startsWith('data: ')) {
             try {
               const jsonText = line.slice(6).trim();
+              
+              // Check for [DONE] message (legacy format)
               if (jsonText === '[DONE]') {
                 yield { text: '', done: true };
-                break;
+                return;
+              }
+
+              // Skip empty data lines
+              if (!jsonText) {
+                continue;
               }
 
               const data = JSON.parse(jsonText) as MCPResponse;
               
+              // Handle errors
+              if (data.error) {
+                throw new Error(`MCP Error: ${data.error.message}`);
+              }
+              
+              let content = '';
+              let isDone = false;
+              
+              // Handle MCP protocol format
               if (data.result) {
-                let content = '';
-                
                 if (data.result.type === 'start') {
                   continue;
                 } else if (data.result.type === 'chunk' && data.result.chunk) {
                   content = data.result.chunk.content;
                 } else if (data.result.type === 'complete' && data.result.output?.messages?.[0]) {
                   content = data.result.output.messages[0].content;
-                }
-
-                if (content) {
-                  const newText = extractNewText(content, currentFullText);
-                  if (newText) {
-                    currentFullText += newText;
-                    yield {
-                      text: newText,
-                      done: data.result.type === 'complete'
-                    };
-                  } else if (data.result.type === 'complete') {
-                    yield { text: '', done: true };
-                  }
+                  isDone = true;
                 }
               }
-            } catch (error) {
-              console.warn('Error parsing JSON chunk:', line, 'Error:', error);
+              
+              // Handle direct server response format (from LLM clients)
+              // This is what the server actually sends: { "response": "...", "done": false/true }
+              if (!content && 'response' in data && typeof data.response === 'string') {
+                content = data.response;
+              }
+              
+              // Check for done signal in the data
+              if ('done' in data && data.done === true) {
+                isDone = true;
+              }
+
+              if (content) {
+                const newText = extractNewText(content, currentFullText);
+                if (newText) {
+                  currentFullText += newText;
+                  hasReceivedContent = true;
+                  yield {
+                    text: newText,
+                    done: isDone
+                  };
+                }
+              }
+              
+              // If we received a done signal, exit
+              if (isDone) {
+                if (!hasReceivedContent) {
+                  // Yield empty response to indicate completion
+                  yield { text: '', done: true };
+                }
+                return;
+              }
+            } catch (parseError) {
+              // Don't throw, just continue processing
+              console.warn('Error parsing JSON chunk:', parseError);
             }
           }
         }
         
         // Keep remaining incomplete line in buffer
         buffer = buffer.slice(lineStartIndex);
+        
+        // Prevent buffer from growing too large
+        if (buffer.length > 1000000) { // 1MB limit
+          console.warn('Buffer too large, truncating...');
+          buffer = buffer.slice(-500000); // Keep last 500KB
+        }
       }
+      
+      // If we exit the while loop naturally, ensure we send a done signal
+      if (hasReceivedContent) {
+        yield { text: '', done: true };
+      }
+      
     } finally {
       reader.releaseLock();
     }
 
-    // Handle any remaining buffer
+    // Handle any remaining buffer (fallback)
     if (buffer && buffer.startsWith('data: ')) {
       try {
         const jsonText = buffer.slice(6).trim();
-        if (jsonText !== '[DONE]') {
+        if (jsonText && jsonText !== '[DONE]') {
           const data = JSON.parse(jsonText) as MCPResponse;
           if (data.result?.chunk?.content) {
             const newText = extractNewText(data.result.chunk.content, currentFullText);
             if (newText) {
               yield {
                 text: newText,
-                done: data.result.type === 'complete'
+                done: true
               };
             }
           }
         }
       } catch (error) {
-        console.warn('Error parsing final JSON buffer:', buffer, 'Error:', error);
+        console.warn('Error parsing final JSON buffer:', error);
       }
     }
+    
   } catch (error: any) {
     if (error.name === 'AbortError') {
       yield { 

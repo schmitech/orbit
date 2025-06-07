@@ -62,17 +62,67 @@ try {
     console.log(`🔍 Testing question ${index + 1}/${totalQueries}: "${query}"`);
     
     try {
-      let fullResponse = '';
-      console.log('🤖 Assistant:');
+      let buffer = '';
+      let hasReceivedData = false;
+      let currentFullText = '';
+      let lastChunk = '';
+      console.log('🤖 Assistant: ');
       
-      // Use streamChat with streaming enabled
-      for await (const response of streamChat(query, false, true)) {
+      // Use streamChat with correct parameters (message, stream)
+      for await (const response of streamChat(query, true)) {
         if (response.text) {
-          // Append new text to the full response
-          fullResponse += response.text;
-          
-          // Write just the new text portion
-          process.stdout.write(response.text);
+          // Only write new text that hasn't been seen before
+          const newText = response.text.slice(currentFullText.length);
+          if (newText) {
+            // Clean the text by removing extra spaces and newlines
+            const cleanText = newText
+              .replace(/\n/g, ' ')
+              .replace(/\s+/g, ' ')
+              .trim();
+            
+            if (cleanText) {
+              // Add a space if needed between existing and new text
+              if (buffer && !buffer.endsWith(' ') && !cleanText.startsWith(' ')) {
+                process.stdout.write(' ');
+                buffer += ' ';
+              }
+              
+              // Handle partial words
+              if (lastChunk && !lastChunk.endsWith(' ')) {
+                const words = lastChunk.split(' ');
+                const lastWord = words[words.length - 1];
+                
+                // If the new text starts with the last word, skip it
+                if (cleanText.startsWith(lastWord)) {
+                  const nonOverlappingText = cleanText.slice(lastWord.length);
+                  if (nonOverlappingText) {
+                    process.stdout.write(nonOverlappingText);
+                    buffer += nonOverlappingText;
+                  }
+                } else {
+                  // Check if we have a partial word at the end
+                  const lastChar = lastChunk[lastChunk.length - 1];
+                  if (cleanText.startsWith(lastChar)) {
+                    const nonOverlappingText = cleanText.slice(1);
+                    if (nonOverlappingText) {
+                      process.stdout.write(nonOverlappingText);
+                      buffer += nonOverlappingText;
+                    }
+                  } else {
+                    process.stdout.write(cleanText);
+                    buffer += cleanText;
+                  }
+                }
+              } else {
+                process.stdout.write(cleanText);
+                buffer += cleanText;
+              }
+              
+              lastChunk = cleanText;
+              currentFullText = response.text;
+              hasReceivedData = true;
+            }
+          }
         }
         
         if (response.done) {
@@ -85,12 +135,23 @@ try {
             console.log(qa.answer);
           }
           console.log(`-------------------------------------\n`);
+          return true; // Exit the function when done
         }
       }
       
-      return true;
+      // If we exit the loop without getting a done signal, that's an issue
+      if (!hasReceivedData) {
+        console.log('\n\n❌ No response received from server');
+      } else {
+        console.log('\n\n⚠️  Stream ended without done signal');
+      }
+      return false;
+      
     } catch (error) {
       console.error(`\n❌ Error during test for question ${index + 1}:`, error);
+      if (process.env.DEBUG === '1') {
+        console.error('Error details:', JSON.stringify(error, null, 2));
+      }
       return false;
     }
   }

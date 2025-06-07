@@ -40,10 +40,11 @@ configureApi(apiUrl, apiKey, sessionId);
 async function runQuery() {
   try {
     let buffer = '';
+    let hasReceivedData = false;
     process.stdout.write('🤖 Assistant: ');
 
-    // Use streamChat with streaming enabled
-    for await (const response of streamChat(query, false, true)) {
+    // Use streamChat with correct parameters (message, stream)
+    for await (const response of streamChat(query, true)) {
       if (debug) {
         console.log('\n📦 Response payload:', JSON.stringify(response, null, 2));
       }
@@ -52,14 +53,26 @@ async function runQuery() {
         // Write the text directly
         process.stdout.write(response.text);
         buffer += response.text;
+        hasReceivedData = true;
       }
       
       if (response.done) {
         // Add a newline at the end for clean output
         console.log('\n\n✅ Query test completed successfully');
-        buffer = ''; // Clear the buffer after the query is complete
+        if (debug) {
+          console.log(`📝 Total response length: ${buffer.length} characters`);
+        }
+        return; // Exit the function when done
       }
     }
+    
+    // If we exit the loop without getting a done signal, that's an error
+    if (!hasReceivedData) {
+      console.log('\n\n❌ No response received from server');
+    } else {
+      console.log('\n\n⚠️  Stream ended without done signal');
+    }
+    
   } catch (error) {
     console.error('\n❌ Error during test:', error);
     if (debug) {

@@ -197,7 +197,8 @@ class ChatService:
                     language_names = {
                         'en': 'English', 'es': 'Spanish', 'fr': 'French', 'de': 'German',
                         'it': 'Italian', 'pt': 'Portuguese', 'ru': 'Russian', 'zh': 'Chinese',
-                        'ja': 'Japanese', 'ko': 'Korean', 'ar': 'Arabic', 'hi': 'Hindi'
+                        'ja': 'Japanese', 'ko': 'Korean', 'ar': 'Arabic', 'hi': 'Hindi',
+                        'mn': 'Mongolian'
                     }
                     language_name = language_names.get(detected_lang, f"the language with code '{detected_lang}'")
                 
@@ -449,14 +450,14 @@ class ChatService:
             final_message = message
             if language_instruction and self.config.get('general', {}).get('inference_only', False):
                 if self.verbose:
-                    logger.info(f"STREAMING - Original user message: '{message}'")
-                    logger.info(f"STREAMING - Language instruction to append: '{language_instruction[:100]}...'")
+                    logger.info(f"Original user message: '{message}'")
+                    logger.info(f"Language instruction to append: '{language_instruction[:100]}...'")
                 final_message = message + language_instruction
                 if self.verbose:
-                    logger.info(f"STREAMING - Final combined message: '{final_message[:200]}...'")
+                    logger.info(f"Final combined message: '{final_message[:200]}...'")
             else:
                 if self.verbose:
-                    logger.info(f"STREAMING - No language instruction needed - using original message: '{message}'")
+                    logger.info(f"No language instruction needed - using original message: '{message}'")
             
             # Prepare metadata for storage
             metadata = {
@@ -478,8 +479,6 @@ class ChatService:
                 # Generate the streaming response
                 if enhanced_prompt_id is None:
                     # Using override system prompt (full mode with language enhancement) or no system prompt (inference-only)
-                    if self.verbose:
-                        logger.info(f"STREAMING - Calling generate_response_stream with enhanced_prompt_id=None")
                     stream_generator = self.llm_client.generate_response_stream(
                         message=final_message,
                         collection_name=collection_name,
@@ -487,32 +486,19 @@ class ChatService:
                     )
                 else:
                     # Using stored system prompt
-                    if self.verbose:
-                        logger.info(f"STREAMING - Calling generate_response_stream with system_prompt_id={enhanced_prompt_id}")
                     stream_generator = self.llm_client.generate_response_stream(
                         message=final_message,
                         collection_name=collection_name,
                         system_prompt_id=enhanced_prompt_id,
                         context_messages=context_messages
                     )
-                
-                if self.verbose:
-                    logger.info(f"STREAMING - Stream generator created, starting to iterate")
                     
                 async for chunk in stream_generator:
                     try:
-                        if self.verbose:
-                            logger.info(f"STREAMING - Received chunk: {chunk[:200]}...")
-                        
                         chunk_data = json.loads(chunk)
-                        
-                        if self.verbose:
-                            logger.info(f"STREAMING - Parsed chunk data keys: {list(chunk_data.keys())}")
                         
                         # If there's an error in the chunk, yield it and stop
                         if "error" in chunk_data:
-                            if self.verbose:
-                                logger.info(f"STREAMING - Error in chunk: {chunk_data['error']}")
                             yield f"data: {chunk}\n\n"
                             
                             # Store blocked message in history if enabled
@@ -532,9 +518,6 @@ class ChatService:
                         
                         # If there's a response, process it
                         if "response" in chunk_data:
-                            if self.verbose:
-                                logger.info(f"STREAMING - Processing response chunk: '{chunk_data['response'][:100]}...'")
-                            
                             # Clean and format the response
                             cleaned_chunk = fix_text_formatting(chunk_data["response"])
                             
@@ -552,9 +535,6 @@ class ChatService:
                         
                         # Handle done marker and sources - but avoid duplicating response content
                         if chunk_data.get("done", False):
-                            if self.verbose:
-                                logger.info(f"STREAMING - Received done marker, response_processed: {response_processed}")
-                            
                             if not response_processed:
                                 # Only yield the original chunk if we haven't already processed its response
                                 yield f"data: {chunk}\n\n"
@@ -581,9 +561,6 @@ class ChatService:
                                     "done": False
                                 })
                                 yield f"data: {warning_chunk}\n\n"
-                                
-                                if self.verbose:
-                                    logger.info(f"Added conversation limit warning to stream for session {session_id}")
                             
                             # Store conversation turn in history if enabled
                             if session_id and accumulated_text:
@@ -607,15 +584,11 @@ class ChatService:
                                 else:
                                     self.llm_client.override_system_prompt = None
                             
-                            if self.verbose:
-                                logger.info(f"STREAMING - Breaking out of loop after done=True")
                             # Break out of the loop when done=True
                             break
                                     
                         elif "sources" in chunk_data and not response_processed:
                             # Only yield sources if we haven't processed a response in this chunk
-                            if self.verbose:
-                                logger.info(f"STREAMING - Yielding sources chunk")
                             yield f"data: {chunk}\n\n"
                                 
                     except json.JSONDecodeError:
