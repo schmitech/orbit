@@ -56,10 +56,9 @@ class LLMClientCommon:
                 self.logger.info("Using in-memory system prompt override")
             return self.override_system_prompt
             
-        system_prompt = "You are a helpful assistant that provides accurate information."
-        
+        # If no system_prompt_id or prompt_service, return empty string (inference-only mode)
         if not system_prompt_id or not self.prompt_service:
-            return system_prompt
+            return ""
             
         # Log if verbose mode is enabled
         if getattr(self, 'verbose', False):

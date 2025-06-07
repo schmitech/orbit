@@ -228,11 +228,16 @@ export async function* streamChat(
 
         const chunk = decoder.decode(value, { stream: true });
         buffer += chunk;
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          if (line.trim() && line.startsWith('data: ')) {
+        
+        // Process complete lines immediately as they arrive
+        let lineStartIndex = 0;
+        let newlineIndex;
+        
+        while ((newlineIndex = buffer.indexOf('\n', lineStartIndex)) !== -1) {
+          const line = buffer.slice(lineStartIndex, newlineIndex).trim();
+          lineStartIndex = newlineIndex + 1;
+          
+          if (line && line.startsWith('data: ')) {
             try {
               const jsonText = line.slice(6).trim();
               if (jsonText === '[DONE]') {
@@ -271,6 +276,9 @@ export async function* streamChat(
             }
           }
         }
+        
+        // Keep remaining incomplete line in buffer
+        buffer = buffer.slice(lineStartIndex);
       }
     } finally {
       reader.releaseLock();
@@ -318,25 +326,15 @@ export async function* streamChat(
 
 // Helper function to extract only new text from incoming chunks
 function extractNewText(incomingText: string, currentText: string): string {
+  // Simplified version - just check if we have new content at the end
   if (!currentText) return incomingText;
-  if (currentText.endsWith(incomingText)) return '';
   
-  if (incomingText.length > currentText.length) {
-    if (incomingText.startsWith(currentText)) {
-      return incomingText.slice(currentText.length);
-    }
-    
-    let i = 0;
-    const minLength = Math.min(currentText.length, incomingText.length);
-    while (i < minLength && currentText[i] === incomingText[i]) {
-      i++;
-    }
-    
-    if (i > currentText.length / 2) {
-      return incomingText.slice(i);
-    }
+  // If incoming text is longer and starts with current text, return the new part
+  if (incomingText.length > currentText.length && incomingText.startsWith(currentText)) {
+    return incomingText.slice(currentText.length);
   }
   
+  // Otherwise return the full incoming text (fallback)
   return incomingText;
 }
 

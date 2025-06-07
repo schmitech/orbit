@@ -215,8 +215,11 @@ class LanguageDetector:
                     else:
                         lang, confidence = detect_func(text)
                         if lang:
-                            # Apply detector weight and confidence
+                            # Apply detector weight and confidence, but cap negative votes
+                            # to prevent one detector from overwhelming positive evidence
                             weighted_vote = detector_weight * confidence
+                            if weighted_vote < 0:
+                                weighted_vote = max(weighted_vote, -2.0)  # Cap negative votes
                             language_votes[lang] = language_votes.get(lang, 0) + weighted_vote
                             
                             # Store details for debugging
@@ -243,9 +246,12 @@ class LanguageDetector:
             sorted_votes = sorted(language_votes.items(), key=lambda x: x[1], reverse=True)
             most_likely_lang = sorted_votes[0][0]
             
-            # Calculate confidence
-            total_votes = sum(language_votes.values())
-            confidence = language_votes[most_likely_lang] / total_votes
+            # Calculate confidence - handle negative votes better
+            total_positive_votes = sum(max(0, vote) for vote in language_votes.values())
+            if total_positive_votes > 0:
+                confidence = max(0, language_votes[most_likely_lang]) / total_positive_votes
+            else:
+                confidence = 0.0
             
             # Log detailed information if verbose
             if self.verbose:
@@ -267,11 +273,20 @@ class LanguageDetector:
                             logger.debug(f"Using Latin character analysis for short text, detected: {latin_result}")
                         return latin_result
             
-            # If confidence is below threshold and English is a possibility, use English
-            if confidence < self.min_confidence and 'en' in language_votes:
-                if self.verbose:
-                    logger.debug(f"Low confidence detection ({confidence:.2f}), defaulting to English")
-                return 'en'
+            # If confidence is below threshold, be smarter about fallbacks
+            if confidence < self.min_confidence:
+                # Check for clear French indicators before defaulting to English
+                french_indicators = ["c'est", "qu'est", "qu'il", "qu'elle", "n'est", "n'a", "j'ai", "j'aime", "ça", "où"]
+                has_french_indicators = any(indicator in text.lower() for indicator in french_indicators)
+                
+                if has_french_indicators and 'fr' in language_votes:
+                    if self.verbose:
+                        logger.debug(f"Low confidence ({confidence:.2f}) but found French indicators, using French")
+                    return 'fr'
+                elif 'en' in language_votes:
+                    if self.verbose:
+                        logger.debug(f"Low confidence detection ({confidence:.2f}), defaulting to English")
+                    return 'en'
             
             # Special case for short texts that might be confused between similar languages
             if len(text) < 20:

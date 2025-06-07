@@ -37,9 +37,14 @@ class ChatService:
         # Initialize language detector only if enabled
         self.language_detection_enabled = _is_true_value(config.get('general', {}).get('language_detection', True))
         if self.language_detection_enabled:
-            self.language_detector = LanguageDetector(verbose=self.verbose)
-            if self.verbose:
-                logger.info("Language detection enabled")
+            try:
+                self.language_detector = LanguageDetector(verbose=self.verbose)
+                if self.verbose:
+                    logger.info("Language detection enabled")
+            except Exception as e:
+                logger.warning(f"Failed to initialize language detector: {str(e)}, disabling language detection")
+                self.language_detection_enabled = False
+                self.language_detector = None
         else:
             self.language_detector = None
             if self.verbose:
@@ -144,84 +149,103 @@ class ChatService:
             logger.info(f"Generated response for {client_ip}")
             logger.info(f"Response: {response[:100]}...")  # Log just the beginning to avoid huge logs
     
-    async def _detect_and_enhance_prompt(self, message: str, system_prompt_id: Optional[ObjectId] = None) -> Optional[ObjectId]:
+    async def _detect_and_enhance_prompt(self, message: str, system_prompt_id: Optional[ObjectId] = None) -> tuple[Optional[ObjectId], Optional[str]]:
         """
-        Detect message language and enhance the system prompt if needed
+        Detect message language and prepare language enhancement
         
         Args:
             message: The chat message to detect language from
             system_prompt_id: Optional ID of the original system prompt
             
         Returns:
-            The original system_prompt_id (if no language detection enhancements needed)
-            or None if the prompt was enhanced in-place and doesn't need to be fetched again
+            Tuple of (system_prompt_id, language_instruction):
+            - system_prompt_id: Original or None if enhanced in-place
+            - language_instruction: Language instruction to add, or None if not needed
         """
-        # Skip language detection if disabled
-        if not self.language_detection_enabled:
-            return system_prompt_id
-            
-        # Don't modify anything if there's no prompt service
-        if not hasattr(self.llm_client, 'prompt_service') or not self.llm_client.prompt_service:
-            return system_prompt_id
-            
-        # Detect the language of the message
-        detected_lang = self.language_detector.detect(message)
-        
-        if self.verbose:
-            logger.info(f"Detected language: {detected_lang}")
-            
-        # Only proceed if we have a system prompt ID and a detected language
-        if system_prompt_id and detected_lang:
-            # Get the original prompt
-            prompt_doc = await self.llm_client.prompt_service.get_prompt_by_id(system_prompt_id)
-            if prompt_doc and 'prompt' in prompt_doc:
-                original_prompt = prompt_doc['prompt']
+        try:
+            # Skip language detection if disabled
+            if not self.language_detection_enabled:
+                return system_prompt_id, None
                 
-                # Add language instruction if it's not English
-                if detected_lang != 'en':
-                    # Get language name from ISO code in a more dynamic way
-                    try:
-                        # Try to use the pycountry library if available
-                        import pycountry
-                        try:
-                            language = pycountry.languages.get(alpha_2=detected_lang)
-                            language_name = language.name if language else f"the language with code '{detected_lang}'"
-                        except (AttributeError, KeyError):
-                            # Fallback if the language code is not found
-                            language_name = f"the language with code '{detected_lang}'"
-                    except ImportError:
-                        # Fallback to common languages if pycountry is not available
-                        language_names = {
-                            'en': 'English',
-                            'es': 'Spanish',
-                            'fr': 'French',
-                            'de': 'German',
-                            'it': 'Italian',
-                            'pt': 'Portuguese',
-                            'ru': 'Russian',
-                            'zh': 'Chinese',
-                            'ja': 'Japanese',
-                            'ko': 'Korean',
-                            'ar': 'Arabic',
-                            'hi': 'Hindi'
-                        }
-                        language_name = language_names.get(detected_lang, f"the language with code '{detected_lang}'")
-                    
-                    # Create enhanced prompt with language instruction
-                    enhanced_prompt = f"""{original_prompt}
-
-IMPORTANT: The user's message is in {language_name}. You MUST respond in {language_name} only."""
-                    
-                    if self.verbose:
-                        logger.info(f"Enhanced prompt with language instruction for: {language_name}")
-                        logger.info(f"Full enhanced prompt:\n{enhanced_prompt}")
-                    
-                    # Set the enhanced prompt directly on the LLM client
-                    self.llm_client.override_system_prompt = enhanced_prompt
-                    return None
+            # Don't modify anything if the language detector is not available
+            if not self.language_detector:
+                if self.verbose:
+                    logger.warning("Language detector not available, skipping language enhancement")
+                return system_prompt_id, None
+                
+            # Detect the language of the message
+            try:
+                detected_lang = self.language_detector.detect(message)
+            except Exception as lang_error:
+                logger.warning(f"Language detection failed: {str(lang_error)}, defaulting to English")
+                detected_lang = "en"
             
-        # Return original prompt ID if no modification was made
-        return system_prompt_id
+            if self.verbose:
+                logger.info(f"Language detection result: '{detected_lang}' for message: '{message[:50]}...'")
+                
+            # Only enhance if language is not English
+            if detected_lang != 'en':
+                # Get language name from ISO code
+                try:
+                    import pycountry
+                    try:
+                        language = pycountry.languages.get(alpha_2=detected_lang)
+                        language_name = language.name if language else f"the language with code '{detected_lang}'"
+                    except (AttributeError, KeyError):
+                        language_name = f"the language with code '{detected_lang}'"
+                except ImportError:
+                    language_names = {
+                        'en': 'English', 'es': 'Spanish', 'fr': 'French', 'de': 'German',
+                        'it': 'Italian', 'pt': 'Portuguese', 'ru': 'Russian', 'zh': 'Chinese',
+                        'ja': 'Japanese', 'ko': 'Korean', 'ar': 'Arabic', 'hi': 'Hindi'
+                    }
+                    language_name = language_names.get(detected_lang, f"the language with code '{detected_lang}'")
+                
+                # Create language instruction
+                language_instruction = f"\n\nIMPORTANT: The user's message is in {language_name}. You MUST respond in {language_name} only."
+                
+                # Check if we're in inference-only mode
+                inference_only = self.config.get('general', {}).get('inference_only', False)
+                
+                if inference_only:
+                    # Inference-only mode: language instruction goes to user message
+                    if self.verbose:
+                        logger.info(f"Inference-only mode: Will append language instruction for {language_name}")
+                        logger.info(f"Language instruction content: '{language_instruction[:100]}...'")
+                    return None, language_instruction
+                    
+                else:
+                    # Full mode: language instruction goes to system prompt
+                    if self.verbose:
+                        logger.info(f"Full mode: Language instruction will be added to system prompt for: {language_name}")
+                    
+                    # If we have a stored prompt, enhance it
+                    if (hasattr(self.llm_client, 'prompt_service') and 
+                        self.llm_client.prompt_service and 
+                        system_prompt_id):
+                        
+                        try:
+                            prompt_doc = await self.llm_client.prompt_service.get_prompt_by_id(system_prompt_id)
+                            if prompt_doc and 'prompt' in prompt_doc:
+                                enhanced_prompt = prompt_doc['prompt'] + language_instruction
+                                self.llm_client.override_system_prompt = enhanced_prompt
+                                
+                                if self.verbose:
+                                    logger.info(f"Enhanced stored system prompt with language instruction")
+                                return None, None
+                        except Exception as prompt_error:
+                            logger.warning(f"Failed to retrieve/enhance system prompt: {str(prompt_error)}")
+                    
+                    # If no stored prompt available, just return the language instruction
+                    # The LLM client will use its default empty system prompt
+                    return system_prompt_id, language_instruction
+                
+            # No language enhancement needed
+            return system_prompt_id, None
+            
+        except Exception as e:
+            logger.error(f"Unexpected error in language detection: {str(e)}")
+            return system_prompt_id, None
     
     async def _process_chat_base(self, message: str, client_ip: str, collection_name: str, 
                                  system_prompt_id: Optional[ObjectId] = None, api_key: Optional[str] = None,
@@ -267,8 +291,21 @@ IMPORTANT: The user's message is in {language_name}. You MUST respond in {langua
         # Get conversation context if session is provided
         context_messages = await self._get_conversation_context(session_id)
         
-        # Detect language and enhance the system prompt if needed
-        enhanced_prompt_id = await self._detect_and_enhance_prompt(message, system_prompt_id)
+        # Detect language and get enhancement instructions
+        enhanced_prompt_id, language_instruction = await self._detect_and_enhance_prompt(message, system_prompt_id)
+        
+        # Prepare the message (add language instruction if for inference-only mode)
+        final_message = message
+        if language_instruction and self.config.get('general', {}).get('inference_only', False):
+            if self.verbose:
+                logger.info(f"Original user message: '{message}'")
+                logger.info(f"Language instruction to append: '{language_instruction[:100]}...'")
+            final_message = message + language_instruction
+            if self.verbose:
+                logger.info(f"Final combined message: '{final_message[:200]}...'")
+        else:
+            if self.verbose:
+                logger.info(f"No language instruction needed - using original message: '{message}'")
         
         # Prepare metadata for storage
         metadata = {
@@ -278,20 +315,21 @@ IMPORTANT: The user's message is in {language_name}. You MUST respond in {langua
         
         # Generate response with context
         if enhanced_prompt_id is None:
-            # If enhanced_prompt_id is None, we've set an override prompt in memory
+            # Using override system prompt (full mode with language enhancement) or no system prompt (inference-only)
             response_data = await self.llm_client.generate_response(
-                message=message,
+                message=final_message,
                 collection_name=collection_name,
                 context_messages=context_messages
             )
-            # Clear the override after use
+            # Clear any overrides after use
             if hasattr(self.llm_client, 'clear_override_system_prompt'):
                 self.llm_client.clear_override_system_prompt()
             elif hasattr(self.llm_client, 'override_system_prompt'):
                 self.llm_client.override_system_prompt = None
         else:
+            # Using stored system prompt
             response_data = await self.llm_client.generate_response(
-                message=message,
+                message=final_message,
                 collection_name=collection_name,
                 system_prompt_id=enhanced_prompt_id,
                 context_messages=context_messages
@@ -403,13 +441,28 @@ IMPORTANT: The user's message is in {language_name}. You MUST respond in {langua
                                  system_prompt_id: Optional[ObjectId] = None, api_key: Optional[str] = None,
                                  session_id: Optional[str] = None, user_id: Optional[str] = None):
         try:
-            # Use base processing
-            enhanced_prompt_id, _, metadata = await self._process_chat_base(
-                message, client_ip, collection_name, system_prompt_id, api_key, session_id, user_id
-            )
-            
-            # Get conversation context if session is provided
+            # Get conversation context and language detection
             context_messages = await self._get_conversation_context(session_id)
+            enhanced_prompt_id, language_instruction = await self._detect_and_enhance_prompt(message, system_prompt_id)
+            
+            # Prepare the message (add language instruction if for inference-only mode)
+            final_message = message
+            if language_instruction and self.config.get('general', {}).get('inference_only', False):
+                if self.verbose:
+                    logger.info(f"STREAMING - Original user message: '{message}'")
+                    logger.info(f"STREAMING - Language instruction to append: '{language_instruction[:100]}...'")
+                final_message = message + language_instruction
+                if self.verbose:
+                    logger.info(f"STREAMING - Final combined message: '{final_message[:200]}...'")
+            else:
+                if self.verbose:
+                    logger.info(f"STREAMING - No language instruction needed - using original message: '{message}'")
+            
+            # Prepare metadata for storage
+            metadata = {
+                "collection_name": collection_name,
+                "client_ip": client_ip
+            }
             
             # Create a unique stream ID for this session
             stream_id = f"{session_id}_{id(message)}"
@@ -422,28 +475,44 @@ IMPORTANT: The user's message is in {language_name}. You MUST respond in {langua
             accumulated_text = ""
             
             try:
-                # Choose the correct call based on whether we're using an in-memory override or a prompt ID
+                # Generate the streaming response
                 if enhanced_prompt_id is None:
-                    # If enhanced_prompt_id is None, we've set an override prompt in memory
+                    # Using override system prompt (full mode with language enhancement) or no system prompt (inference-only)
+                    if self.verbose:
+                        logger.info(f"STREAMING - Calling generate_response_stream with enhanced_prompt_id=None")
                     stream_generator = self.llm_client.generate_response_stream(
-                        message=message,
+                        message=final_message,
                         collection_name=collection_name,
                         context_messages=context_messages
                     )
                 else:
+                    # Using stored system prompt
+                    if self.verbose:
+                        logger.info(f"STREAMING - Calling generate_response_stream with system_prompt_id={enhanced_prompt_id}")
                     stream_generator = self.llm_client.generate_response_stream(
-                        message=message,
+                        message=final_message,
                         collection_name=collection_name,
                         system_prompt_id=enhanced_prompt_id,
                         context_messages=context_messages
                     )
+                
+                if self.verbose:
+                    logger.info(f"STREAMING - Stream generator created, starting to iterate")
                     
                 async for chunk in stream_generator:
                     try:
+                        if self.verbose:
+                            logger.info(f"STREAMING - Received chunk: {chunk[:200]}...")
+                        
                         chunk_data = json.loads(chunk)
+                        
+                        if self.verbose:
+                            logger.info(f"STREAMING - Parsed chunk data keys: {list(chunk_data.keys())}")
                         
                         # If there's an error in the chunk, yield it and stop
                         if "error" in chunk_data:
+                            if self.verbose:
+                                logger.info(f"STREAMING - Error in chunk: {chunk_data['error']}")
                             yield f"data: {chunk}\n\n"
                             
                             # Store blocked message in history if enabled
@@ -458,8 +527,14 @@ IMPORTANT: The user's message is in {language_name}. You MUST respond in {langua
                                 )
                             break
                             
+                        # Track if we've processed a response in this chunk
+                        response_processed = False
+                        
                         # If there's a response, process it
                         if "response" in chunk_data:
+                            if self.verbose:
+                                logger.info(f"STREAMING - Processing response chunk: '{chunk_data['response'][:100]}...'")
+                            
                             # Clean and format the response
                             cleaned_chunk = fix_text_formatting(chunk_data["response"])
                             
@@ -467,59 +542,94 @@ IMPORTANT: The user's message is in {language_name}. You MUST respond in {langua
                             with self._stream_locks[stream_id]:
                                 accumulated_text += cleaned_chunk
                             
-                            # Send the accumulated text so far
-                            yield f"data: {json.dumps({'text': accumulated_text})}\n\n"
+                            # Create a proper chunk response for MCP protocol compatibility
+                            chunk_response = {
+                                "response": cleaned_chunk,
+                                "done": False
+                            }
+                            yield f"data: {json.dumps(chunk_response)}\n\n"
+                            response_processed = True
                         
-                        # If we have sources or done marker, pass them through
-                        if chunk_data.get("done", False) or "sources" in chunk_data:
-                            yield f"data: {chunk}\n\n"
+                        # Handle done marker and sources - but avoid duplicating response content
+                        if chunk_data.get("done", False):
+                            if self.verbose:
+                                logger.info(f"STREAMING - Received done marker, response_processed: {response_processed}")
                             
-                            if chunk_data.get("done", False):
-                                # Log the complete response when done
-                                await self._log_response(accumulated_text, client_ip)
+                            if not response_processed:
+                                # Only yield the original chunk if we haven't already processed its response
+                                yield f"data: {chunk}\n\n"
+                            else:
+                                # Send a clean done marker without duplicating the response
+                                done_chunk = {"done": True}
+                                if "sources" in chunk_data:
+                                    done_chunk["sources"] = chunk_data["sources"]
+                                yield f"data: {json.dumps(done_chunk)}\n\n"
+                            
+                            # Log the complete response when done
+                            await self._log_response(accumulated_text, client_ip)
+                            
+                            # Check for conversation limit warning BEFORE storing conversation
+                            # This ensures we catch the warning before the count changes
+                            warning = await self._check_conversation_limit_warning(session_id)
+                            if warning:
+                                # Send the warning as a separate chunk in the correct format
+                                warning_text = f"\n\n---\n{warning}"
+                                accumulated_text += warning_text
+                                # Use the correct format the client expects
+                                warning_chunk = json.dumps({
+                                    "response": warning_text,
+                                    "done": False
+                                })
+                                yield f"data: {warning_chunk}\n\n"
                                 
-                                # Check for conversation limit warning BEFORE storing conversation
-                                # This ensures we catch the warning before the count changes
-                                warning = await self._check_conversation_limit_warning(session_id)
-                                if warning:
-                                    # Send the warning as a separate chunk in the correct format
-                                    warning_text = f"\n\n---\n{warning}"
-                                    accumulated_text += warning_text
-                                    # Use the correct format the client expects
-                                    warning_chunk = json.dumps({
-                                        "response": warning_text,
-                                        "done": False
-                                    })
-                                    yield f"data: {warning_chunk}\n\n"
+                                if self.verbose:
+                                    logger.info(f"Added conversation limit warning to stream for session {session_id}")
+                            
+                            # Store conversation turn in history if enabled
+                            if session_id and accumulated_text:
+                                await self._store_conversation_turn(
+                                    session_id=session_id,
+                                    user_message=message,
+                                    assistant_response=accumulated_text,
+                                    user_id=user_id,
+                                    api_key=api_key,
+                                    metadata=metadata
+                                )
+                            
+                            # Log conversation to Elasticsearch if API key is provided
+                            if api_key:
+                                await self._log_conversation(message, accumulated_text, client_ip, api_key)
+                            
+                            # Clear the override after use if we used in-memory override
+                            if enhanced_prompt_id is None and hasattr(self.llm_client, 'override_system_prompt'):
+                                if hasattr(self.llm_client, 'clear_override_system_prompt'):
+                                    self.llm_client.clear_override_system_prompt()
+                                else:
+                                    self.llm_client.override_system_prompt = None
+                            
+                            if self.verbose:
+                                logger.info(f"STREAMING - Breaking out of loop after done=True")
+                            # Break out of the loop when done=True
+                            break
                                     
-                                    if self.verbose:
-                                        logger.info(f"Added conversation limit warning to stream for session {session_id}")
-                                
-                                # Store conversation turn in history if enabled
-                                if session_id and accumulated_text:
-                                    await self._store_conversation_turn(
-                                        session_id=session_id,
-                                        user_message=message,
-                                        assistant_response=accumulated_text,
-                                        user_id=user_id,
-                                        api_key=api_key,
-                                        metadata=metadata
-                                    )
-                                
-                                # Log conversation to Elasticsearch if API key is provided
-                                if api_key:
-                                    await self._log_conversation(message, accumulated_text, client_ip, api_key)
-                                
-                                # Clear the override after use if we used in-memory override
-                                if enhanced_prompt_id is None:
-                                    if hasattr(self.llm_client, 'clear_override_system_prompt'):
-                                        self.llm_client.clear_override_system_prompt()
-                                    elif hasattr(self.llm_client, 'override_system_prompt'):
-                                        self.llm_client.override_system_prompt = None
+                        elif "sources" in chunk_data and not response_processed:
+                            # Only yield sources if we haven't processed a response in this chunk
+                            if self.verbose:
+                                logger.info(f"STREAMING - Yielding sources chunk")
+                            yield f"data: {chunk}\n\n"
                                 
                     except json.JSONDecodeError:
                         logger.error(f"Error parsing chunk as JSON: {chunk}")
                         continue
+                        
+            except Exception as stream_error:
+                logger.error(f"Error in stream generation: {str(stream_error)}")
+                # Send error as a proper JSON chunk
+                error_chunk = json.dumps({
+                    "error": f"Stream generation failed: {str(stream_error)}",
+                    "done": True
+                })
+                yield f"data: {error_chunk}\n\n"
                         
             finally:
                 # Clean up stream resources
@@ -530,7 +640,7 @@ IMPORTANT: The user's message is in {language_name}. You MUST respond in {langua
                 
         except Exception as e:
             logger.error(f"Error processing chat stream: {str(e)}")
-            error_json = json.dumps({"error": str(e)})
+            error_json = json.dumps({"error": str(e), "done": True})
             yield f"data: {error_json}\n\n"
 
     async def _check_conversation_limit_warning(self, session_id: Optional[str]) -> Optional[str]:
