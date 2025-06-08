@@ -11,47 +11,86 @@ import logging
 import string
 import unicodedata
 from typing import Dict, List, Optional, Tuple, Any, Set
+from dataclasses import dataclass
+from collections import defaultdict
 
 # Initialize logger
 logger = logging.getLogger(__name__)
 
-class LanguageDetector:
-    """
-    Robust language detection class suitable for multilingual applications.
+@dataclass
+class ScriptInfo:
+    """Information about the script used in text"""
+    script_type: str
+    latin_ratio: float
+    cyrillic_ratio: float
+    chinese_ratio: float
+    korean_ratio: float
+    japanese_ratio: float
+    cjk_ratio: float
+    arabic_ratio: float
+
+@dataclass
+class CharStats:
+    """Character statistics for text analysis"""
+    alpha_ratio: float
+    digit_ratio: float
+    punct_ratio: float
+    space_ratio: float
+
+class LanguagePatterns:
+    """Language-specific patterns and indicators"""
     
-    Handles short texts, technical content, and product descriptions with improved 
-    accuracy. Configurable to use multiple detection libraries when available.
+    ENGLISH_STARTERS = {
+        "who", "what", "when", "where", "why", "how", "which",
+        "can", "could", "will", "would", "should", "shall", "may", "might", "must",
+        "do", "does", "did", "don't", "doesn't", "didn't", "won't", "wouldn't", 
+        "shouldn't", "can't", "couldn't", "isn't", "aren't", "wasn't", "weren't",
+        "have", "has", "had", "haven't", "hasn't", "hadn't"
+    }
     
-    Special features:
-    - Distinguishes between Russian and Mongolian Cyrillic text
-    - Uses linguistic patterns and vocabulary to improve accuracy
-    - Ensemble detection with multiple libraries for robustness
-    """
+    ENGLISH_PHRASES = {
+        "can you", "could you", "will you", "would you", "do you", "did you",
+        "are you", "is it", "was it", "were you", "have you", "has it"
+    }
     
-    def __init__(self, verbose: bool = False, min_confidence: float = 0.7):
-        """
-        Initialize the language detector.
+    FRENCH_INDICATORS = ["c'est", "qu'est", "qu'il", "qu'elle", "n'est", "n'a", "j'ai", "j'aime", "ça", "où"]
+    
+    LANGUAGE_ACCENTS = {
+        'fr': ['é', 'è', 'ê', 'à', 'ù', 'ç', 'ô', 'î', 'ï', 'û'],
+        'es': ['á', 'é', 'í', 'ó', 'ú', 'ñ', 'ü'],
+        'de': ['ä', 'ö', 'ü', 'ß'],
+        'it': ['à', 'è', 'é', 'ì', 'ò', 'ù']
+    }
+    
+    MONGOLIAN_INDICATORS = [
+        'бэр', 'гийн', 'хэд', 'хураамж', 'зогсоол', 'зөв', 'шөөрл', 'олон',
+        'байх', 'болох', 'хийх', 'ийн', 'лын', 'ын', 'гэх', 'юу', 'энэ',
+        'тэр', 'настай', 'вэ', 'би', 'монгол', 'хүн', 'байна', 'яаж',
+        'нийслэл', 'хаана', 'байдаг'
+    ]
+    
+    MONGOLIAN_PATTERNS = [
+        'ийн', 'гийн', 'лын', 'хэд', 'өө', 'үү', 'эр', 'өр', 'энэ',
+        'юу', ' вэ', 'хүн', 'яаж', 'байна', 'байдаг'
+    ]
+
+class DetectorLoader:
+    """Handles loading and configuring language detection libraries"""
+    
+    @staticmethod
+    def load_detectors(verbose: bool = False) -> Dict[str, Dict[str, Any]]:
+        """Load available language detection libraries"""
+        detectors = {}
         
-        Args:
-            verbose: Whether to log detailed information about detections
-            min_confidence: Minimum confidence threshold for language detection
-        """
-        self.verbose = verbose
-        self.min_confidence = min_confidence
-        self.detectors = {}
-        
-        # Try to load langdetect (primary detector)
+        # Load langdetect
         try:
-            from langdetect import detect as langdetect_detect
-            from langdetect import DetectorFactory
+            from langdetect import detect_langs, DetectorFactory
             from langdetect.lang_detect_exception import LangDetectException
             
-            # Make langdetect results deterministic
             DetectorFactory.seed = 0
             
             def langdetect_with_confidence(text):
                 try:
-                    from langdetect import detect_langs
                     results = detect_langs(text)
                     if results:
                         return results[0].lang, results[0].prob
@@ -59,40 +98,34 @@ class LanguageDetector:
                 except:
                     return None, 0.0
             
-            self.detectors['langdetect'] = {
+            detectors['langdetect'] = {
                 'detect': langdetect_with_confidence,
                 'exception': LangDetectException,
-                'weight': 1.0  # Base weight
+                'weight': 1.0
             }
             
-            if self.verbose:
+            if verbose:
                 logger.info("Loaded langdetect for language detection")
-                
         except ImportError:
             logger.warning("langdetect not available - this is the primary detector")
         
-        # Try to import langid if available
+        # Load langid
         try:
             import langid
             
-            def langid_detect(text):
-                lang, score = langid.classify(text)
-                return lang, score
-                
-            self.detectors['langid'] = {
-                'detect': langid_detect,
+            detectors['langid'] = {
+                'detect': lambda text: langid.classify(text),
                 'exception': Exception,
-                'weight': 1.2  # Slightly higher weight for technical text
+                'weight': 1.2
             }
             
-            if self.verbose:
+            if verbose:
                 logger.info("Loaded langid for language detection")
-                
         except ImportError:
-            if self.verbose:
+            if verbose:
                 logger.debug("langid not available for language detection")
         
-        # Try to import pycld2 if available
+        # Load pycld2
         try:
             import pycld2
             
@@ -100,451 +133,113 @@ class LanguageDetector:
                 try:
                     isReliable, textBytesFound, details = pycld2.detect(text)
                     if isReliable and details:
-                        # Calculate confidence based on reliability and bytes found
                         confidence = min(1.0, textBytesFound / len(text))
                         return details[0][1], confidence
                     return None, 0.0
                 except:
                     return None, 0.0
-                
-            self.detectors['pycld2'] = {
+            
+            detectors['pycld2'] = {
                 'detect': pycld2_detect,
                 'exception': Exception,
-                'weight': 1.5  # Higher weight for technical content
+                'weight': 1.5
             }
             
-            if self.verbose:
+            if verbose:
                 logger.info("Loaded pycld2 for language detection")
-                
         except ImportError:
-            if self.verbose:
+            if verbose:
                 logger.debug("pycld2 not available for language detection")
         
-        # Count how many detectors we have
-        if len(self.detectors) == 0:
-            logger.error("No language detectors available! Defaulting to English for all text.")
-        else:
-            logger.info(f"Using {len(self.detectors)} language detectors: {', '.join(self.detectors.keys())}")
+        return detectors
+
+class TextAnalyzer:
+    """Handles text analysis operations"""
     
-    def detect(self, text: str) -> str:
-        """
-        Detect the language of the input text.
-        
-        Args:
-            text: The text to detect the language of
-            
-        Returns:
-            ISO 639-1 language code (e.g., 'en' for English, 'fr' for French)
-            Defaults to 'en' if detection fails or confidence is low
-        """
-        try:
-            # Clean the text - remove excess whitespace but preserve content
-            text = text.strip()
-            
-            # For very short texts (fewer than 5 characters), default to 'en'
-            if not text or len(text) < 5:
-                if self.verbose:
-                    logger.debug(f"Text too short for detection: '{text}', defaulting to English")
-                return "en"
-            
-            # Quick check for English wh-words at the start
-            words = text.split()
-            if words and words[0].lower() in {"who", "what", "when", "where", "why", "how", "which"}:
-                if self.verbose:
-                    logger.debug(f"Detected English wh-question: '{words[0]}', returning English")
-                return "en"
-            
-            # Calculate character statistics
-            stats = self._calculate_char_stats(text)
-            script_info = self._analyze_script(text)
-            
-            # If text contains mostly numeric and symbols, default to English
-            if stats['alpha_ratio'] < 0.5 and stats['digit_ratio'] + stats['punct_ratio'] > 0.4:
-                if self.verbose:
-                    logger.debug(f"Text contains mostly non-alphabetic characters, defaulting to English")
-                return "en"
-            
-            # For CJK text, use script analysis to determine language
-            if script_info['script_type'] in ('Chinese', 'Korean', 'Japanese'):
-                if script_info['script_type'] == 'Chinese':
-                    return 'zh'
-                elif script_info['script_type'] == 'Korean':
-                    return 'ko'
-                elif script_info['script_type'] == 'Japanese':
-                    return 'ja'
-            
-            # For short product names (single words with capitalization)
-            if len(text.split()) == 1 and len(text) < 15 and text[0].isupper():
-                # This is likely a product name or proper noun
-                # Check if it uses primarily Latin script (common for English and romance languages)
-                if script_info['script_type'] == 'Latin' and script_info['latin_ratio'] > 0.8:
-                    # For single Latin-script words, try to get a robust detection
-                    return self._robust_detect_short_latin_text(text)
-            
-            # Generate text variations for more robust detection
-            variations = self._generate_text_variations(text)
-            
-            # If we have no detectors available, default to English
-            if not self.detectors:
-                return "en"
-                
-            # Run ensemble detection with voting
-            language_votes = {}
-            detection_details = {}
-            
-            # Test with each available detector
-            for detector_name, detector in self.detectors.items():
-                detect_func = detector['detect']
-                exception_type = detector.get('exception', Exception)
-                detector_weight = detector.get('weight', 1.0)
-                
-                try:
-                    # For langdetect, try all variations for robust results
-                    if detector_name == 'langdetect':
-                        for variant in variations:
-                            try:
-                                lang, confidence = detect_func(variant)
-                                if lang:
-                                    # Apply detector weight and confidence
-                                    weighted_vote = detector_weight * confidence
-                                    language_votes[lang] = language_votes.get(lang, 0) + weighted_vote
-                                    
-                                    # Store details for debugging
-                                    if lang not in detection_details:
-                                        detection_details[lang] = []
-                                    detection_details[lang].append(f"{detector_name}:{confidence:.2f}:'{variant}'")
-                                
-                            except exception_type:
-                                continue
-                    # For other detectors, just use the original text
-                    else:
-                        lang, confidence = detect_func(text)
-                        if lang:
-                            # Apply detector weight and confidence, but cap negative votes
-                            # to prevent one detector from overwhelming positive evidence
-                            weighted_vote = detector_weight * confidence
-                            if weighted_vote < 0:
-                                weighted_vote = max(weighted_vote, -2.0)  # Cap negative votes
-                            language_votes[lang] = language_votes.get(lang, 0) + weighted_vote
-                            
-                            # Store details for debugging
-                            if lang not in detection_details:
-                                detection_details[lang] = []
-                            detection_details[lang].append(f"{detector_name}:{confidence:.2f}:original")
-                            
-                except Exception as e:
-                    if self.verbose:
-                        logger.debug(f"Error with {detector_name}: {str(e)}")
-                    continue
-            
-            # If no votes, fallback to original method with langdetect
-            if not language_votes and 'langdetect' in self.detectors:
-                try:
-                    lang, confidence = self.detectors['langdetect']['detect'](text)
-                    return lang if lang else "en"
-                except:
-                    return "en"
-            elif not language_votes:
-                return "en"
-                
-            # Find the language with the most votes
-            sorted_votes = sorted(language_votes.items(), key=lambda x: x[1], reverse=True)
-            most_likely_lang = sorted_votes[0][0]
-            
-            # Calculate confidence - handle negative votes better
-            total_positive_votes = sum(max(0, vote) for vote in language_votes.values())
-            if total_positive_votes > 0:
-                confidence = max(0, language_votes[most_likely_lang]) / total_positive_votes
-            else:
-                confidence = 0.0
-            
-            # Special handling for Cyrillic text that might be Mongolian instead of Russian/Bulgarian/etc
-            if most_likely_lang in ['ru', 'bg', 'mk', 'sr'] and script_info['script_type'] == 'Cyrillic':
-                if self._detect_mongolian_cyrillic(text):
-                    if self.verbose:
-                        logger.info(f"Cyrillic text detected as Mongolian based on linguistic patterns (was detected as {most_likely_lang})")
-                    return 'mn'
-            
-            # Log detailed information if verbose
-            if self.verbose:
-                vote_info = ", ".join([f"{lang}: {votes:.2f}" for lang, votes in sorted_votes])
-                logger.debug(f"Language votes: {vote_info}, confidence: {confidence:.2f}")
-                
-                for lang, details in detection_details.items():
-                    detail_str = ", ".join(details)
-                    logger.debug(f"Detection details for {lang}: {detail_str}")
-            
-            # For short texts with low confidence, try a structural approach
-            if len(text) < 20 and confidence < 0.7:
-                # Script analysis can provide better clues for short texts
-                if script_info['script_type'] == 'Latin':
-                    # For Latin script short texts with low confidence, check character frequencies
-                    latin_result = self._analyze_latin_characters(text)
-                    if latin_result and latin_result in language_votes:
-                        if self.verbose:
-                            logger.debug(f"Using Latin character analysis for short text, detected: {latin_result}")
-                        return latin_result
-            
-            # If confidence is below threshold, be smarter about fallbacks
-            if confidence < self.min_confidence:
-                # Check for clear French indicators before defaulting to English
-                french_indicators = ["c'est", "qu'est", "qu'il", "qu'elle", "n'est", "n'a", "j'ai", "j'aime", "ça", "où"]
-                has_french_indicators = any(indicator in text.lower() for indicator in french_indicators)
-                
-                if has_french_indicators and 'fr' in language_votes:
-                    if self.verbose:
-                        logger.debug(f"Low confidence ({confidence:.2f}) but found French indicators, using French")
-                    return 'fr'
-                elif 'en' in language_votes:
-                    if self.verbose:
-                        logger.debug(f"Low confidence detection ({confidence:.2f}), defaulting to English")
-                    return 'en'
-            
-            # Special case for short texts that might be confused between similar languages
-            if len(text) < 20:
-                # For product listings and prices, prefer English detection
-                if (re.search(r'\$|\€|\£|\¥', text) or 
-                    re.search(r'\d+\s*(oz|lb|g|kg|ml|L)', text)):
-                    if 'en' in language_votes:
-                        if self.verbose:
-                            logger.debug(f"Detected product listing or price, preferring English")
-                        return 'en'
-            
-            return most_likely_lang
-            
-        except Exception as e:
-            logger.warning(f"Language detection failed completely: {str(e)}")
-            return "en"
-    
-    def _analyze_script(self, text: str) -> Dict[str, Any]:
-        """
-        Analyze the script used in the text.
-        
-        This helps identify the general writing system (Latin, Cyrillic, etc.)
-        which can provide clues about possible languages.
-        """
+    @staticmethod
+    def calculate_char_stats(text: str) -> CharStats:
+        """Calculate character statistics for a text"""
         if not text:
-            return {"script_type": "Unknown", "latin_ratio": 0, "cyrillic_ratio": 0, "cjk_ratio": 0, "arabic_ratio": 0}
+            return CharStats(0, 0, 0, 0)
         
+        total_len = len(text)
+        return CharStats(
+            alpha_ratio=sum(c.isalpha() for c in text) / total_len,
+            digit_ratio=sum(c.isdigit() for c in text) / total_len,
+            punct_ratio=sum(c in string.punctuation for c in text) / total_len,
+            space_ratio=sum(c.isspace() for c in text) / total_len
+        )
+    
+    @staticmethod
+    def analyze_script(text: str) -> ScriptInfo:
+        """Analyze the script used in the text"""
+        if not text:
+            return ScriptInfo("Unknown", 0, 0, 0, 0, 0, 0, 0)
+        
+        char_counts = defaultdict(int)
         total_chars = 0
-        latin_chars = 0
-        cyrillic_chars = 0
-        chinese_chars = 0
-        korean_chars = 0
-        japanese_chars = 0
-        arabic_chars = 0
         
         for char in text:
             if not char.isalpha():
                 continue
-                
+            
             total_chars += 1
             category = unicodedata.name(char, "UNKNOWN").split()[0]
             
             if category in ("LATIN", "BASIC", "ASCII"):
-                latin_chars += 1
+                char_counts['latin'] += 1
             elif category == "CYRILLIC":
-                cyrillic_chars += 1
+                char_counts['cyrillic'] += 1
+            elif '\uAC00' <= char <= '\uD7A3':  # Korean Hangul
+                char_counts['korean'] += 1
+            elif '\u3040' <= char <= '\u309F' or '\u30A0' <= char <= '\u30FF':  # Japanese
+                char_counts['japanese'] += 1
             elif category == "CJK":
-                # Check for Korean Hangul
-                if '\uAC00' <= char <= '\uD7A3':  # Hangul Syllables
-                    korean_chars += 1
-                # Check for Japanese Hiragana and Katakana
-                elif '\u3040' <= char <= '\u309F' or '\u30A0' <= char <= '\u30FF':  # Hiragana and Katakana
-                    japanese_chars += 1
-                else:
-                    # Most likely Chinese
-                    chinese_chars += 1
+                char_counts['chinese'] += 1
             elif category in ("HIRAGANA", "KATAKANA"):
-                japanese_chars += 1
+                char_counts['japanese'] += 1
             elif category == "HANGUL":
-                korean_chars += 1
+                char_counts['korean'] += 1
             elif category == "ARABIC":
-                arabic_chars += 1
+                char_counts['arabic'] += 1
+        
+        if total_chars == 0:
+            return ScriptInfo("Unknown", 0, 0, 0, 0, 0, 0, 0)
+        
+        # Calculate ratios
+        ratios = {k: v / total_chars for k, v in char_counts.items()}
         
         # Determine primary script
+        max_ratio = max(ratios.values()) if ratios else 0
         script_type = "Unknown"
-        if total_chars > 0:
-            latin_ratio = latin_chars / total_chars
-            cyrillic_ratio = cyrillic_chars / total_chars
-            chinese_ratio = chinese_chars / total_chars
-            korean_ratio = korean_chars / total_chars
-            japanese_ratio = japanese_chars / total_chars
-            arabic_ratio = arabic_chars / total_chars
-            
-            # Calculate total CJK ratio for backward compatibility
-            cjk_ratio = chinese_ratio + korean_ratio + japanese_ratio
-            
-            max_ratio = max(latin_ratio, cyrillic_ratio, chinese_ratio, korean_ratio, japanese_ratio, arabic_ratio)
-            
-            if max_ratio > 0.5:  # If more than 50% of chars are of one script type
-                if latin_ratio == max_ratio:
-                    script_type = "Latin"
-                elif cyrillic_ratio == max_ratio:
-                    script_type = "Cyrillic"
-                elif chinese_ratio == max_ratio:
-                    script_type = "Chinese"
-                elif korean_ratio == max_ratio:
-                    script_type = "Korean"
-                elif japanese_ratio == max_ratio:
-                    script_type = "Japanese"
-                elif arabic_ratio == max_ratio:
-                    script_type = "Arabic"
         
-        return {
-            "script_type": script_type,
-            "latin_ratio": latin_chars / total_chars if total_chars > 0 else 0,
-            "cyrillic_ratio": cyrillic_chars / total_chars if total_chars > 0 else 0,
-            "chinese_ratio": chinese_chars / total_chars if total_chars > 0 else 0,
-            "korean_ratio": korean_chars / total_chars if total_chars > 0 else 0,
-            "japanese_ratio": japanese_chars / total_chars if total_chars > 0 else 0,
-            "cjk_ratio": (chinese_chars + korean_chars + japanese_chars) / total_chars if total_chars > 0 else 0,
-            "arabic_ratio": arabic_chars / total_chars if total_chars > 0 else 0
-        }
+        if max_ratio > 0.5:
+            script_map = {
+                'latin': "Latin", 'cyrillic': "Cyrillic", 'chinese': "Chinese",
+                'korean': "Korean", 'japanese': "Japanese", 'arabic': "Arabic"
+            }
+            for script, name in script_map.items():
+                if ratios.get(script, 0) == max_ratio:
+                    script_type = name
+                    break
+        
+        cjk_ratio = ratios.get('chinese', 0) + ratios.get('korean', 0) + ratios.get('japanese', 0)
+        
+        return ScriptInfo(
+            script_type=script_type,
+            latin_ratio=ratios.get('latin', 0),
+            cyrillic_ratio=ratios.get('cyrillic', 0),
+            chinese_ratio=ratios.get('chinese', 0),
+            korean_ratio=ratios.get('korean', 0),
+            japanese_ratio=ratios.get('japanese', 0),
+            cjk_ratio=cjk_ratio,
+            arabic_ratio=ratios.get('arabic', 0)
+        )
     
-    def _analyze_latin_characters(self, text: str) -> Optional[str]:
-        """
-        Use character frequency analysis to distinguish between Latin-script languages.
-        
-        This is especially useful for short texts where statistical methods struggle.
-        Based on character frequency patterns specific to different languages.
-        """
-        # Only count alphabetic characters
-        text = ''.join(c.lower() for c in text if c.isalpha())
-        if not text:
-            return None
-            
-        # Count character frequencies
-        char_counts = {}
-        for char in text:
-            char_counts[char] = char_counts.get(char, 0) + 1
-            
-        total_chars = len(text)
-        
-        # Calculate frequency percentages
-        char_freqs = {char: count / total_chars * 100 for char, count in char_counts.items()}
-        
-        # Check for characteristic patterns in different languages
-        
-        # English: high frequency of 'e', 't', 'a' and relatively low 'é', 'à', 'ñ', etc.
-        english_chars = {'e', 't', 'a', 'o', 'i', 'n', 's'}
-        english_score = sum(char_freqs.get(c, 0) for c in english_chars)
-        
-        # French: high frequency of 'e', 'a', 's', 'i' and accented chars like 'é', 'è', 'à'
-        french_chars = {'e', 'a', 's', 'i', 'é', 'è', 'à', 'ù', 'ç'}
-        french_score = sum(char_freqs.get(c, 0) for c in french_chars)
-        
-        # Spanish: high frequency of 'e', 'a', 'o' and 'ñ', accented vowels
-        spanish_chars = {'e', 'a', 'o', 's', 'n', 'r', 'ñ', 'á', 'é', 'í', 'ó', 'ú'}
-        spanish_score = sum(char_freqs.get(c, 0) for c in spanish_chars)
-        
-        # German: high frequency of 'e', 'n', 'i', 's' and umlauts
-        german_chars = {'e', 'n', 'i', 's', 'r', 'a', 'ä', 'ö', 'ü', 'ß'}
-        german_score = sum(char_freqs.get(c, 0) for c in german_chars)
-        
-        # For very short texts, if no special characters, default to English
-        if len(text) < 10 and not any(c for c in text if ord(c) > 127):
-            return "en"
-        
-        # Find language with highest score
-        scores = {
-            "en": english_score,
-            "fr": french_score, 
-            "es": spanish_score,
-            "de": german_score
-        }
-        
-        # Apply bias for common language detection issues:
-        # Bias slightly toward English for short product names
-        if len(text) < 10 and text[0].isupper():
-            scores["en"] *= 1.1
-        
-        # If the text contains only ASCII characters and is short, favor English
-        if all(ord(c) < 128 for c in text) and len(text) < 15:
-            scores["en"] *= 1.05
-        
-        return max(scores, key=scores.get)
-    
-    def _robust_detect_short_latin_text(self, text: str) -> str:
-        """
-        Specialized detection for short Latin-script texts.
-        
-        This combines multiple approaches for better accuracy with product names,
-        single words, and other short texts.
-        """
-        # For single words that look like product names, try multiple approaches
-        
-        # 1. First, try standard detection with all detectors
-        language_votes = {}
-        
-        for detector_name, detector in self.detectors.items():
-            try:
-                lang, confidence = detector['detect'](text)
-                language_votes[lang] = language_votes.get(lang, 0) + 1
-            except:
-                continue
-        
-        # 2. Apply character analysis
-        latin_result = self._analyze_latin_characters(text)
-        if latin_result:
-            language_votes[latin_result] = language_votes.get(latin_result, 0) + 2  # Give extra weight
-        
-        # 3. For single capitalized words like product names, bias slightly toward English
-        if text.istitle() and len(text.split()) == 1:
-            language_votes["en"] = language_votes.get("en", 0) + 1
-        
-        # 4. Check for language-specific characters
-        accents = {
-            'fr': ['é', 'è', 'ê', 'à', 'ù', 'ç', 'ô', 'î', 'ï', 'û'],
-            'es': ['á', 'é', 'í', 'ó', 'ú', 'ñ', 'ü'],
-            'de': ['ä', 'ö', 'ü', 'ß'],
-            'it': ['à', 'è', 'é', 'ì', 'ò', 'ù']
-        }
-        
-        for lang, chars in accents.items():
-            if any(c in text for c in chars):
-                language_votes[lang] = language_votes.get(lang, 0) + 2
-        
-        # Get the language with the most votes
-        if language_votes:
-            most_likely = max(language_votes.items(), key=lambda x: x[1])[0]
-            return most_likely
-        
-        # Fallback to English for Latin-script text with no clear signal
-        return "en"
-    
-    def _calculate_char_stats(self, text: str) -> Dict[str, float]:
-        """Calculate character statistics for a text"""
-        if not text:
-            return {"alpha_ratio": 0, "digit_ratio": 0, "punct_ratio": 0, "space_ratio": 0}
-        
-        total_len = len(text)
-        alpha_count = sum(c.isalpha() for c in text)
-        digit_count = sum(c.isdigit() for c in text)
-        punct_count = sum(c in string.punctuation for c in text)
-        space_count = sum(c.isspace() for c in text)
-        
-        return {
-            "alpha_ratio": alpha_count / total_len,
-            "digit_ratio": digit_count / total_len,
-            "punct_ratio": punct_count / total_len,
-            "space_ratio": space_count / total_len
-        }
-    
-    def _generate_text_variations(self, text: str) -> List[str]:
-        """
-        Generate variations of the input text to improve detection reliability.
-        
-        For short texts, language detection can be unreliable. By creating
-        multiple variations and testing each one, we get more robust results.
-        
-        Strategy:
-        - Very short texts (<20 chars): Duplicate the entire text
-        - Short texts (20-60 chars): Duplicate with slight modifications
-        - Medium texts (60-120 chars): Add context variations
-        - Long texts (>120 chars): Use original only
-        """
-        variations = [text]  # Original text
+    @staticmethod
+    def generate_text_variations(text: str) -> List[str]:
+        """Generate variations of the input text to improve detection reliability"""
+        variations = [text]
         
         # Remove punctuation
         text_no_punct = re.sub(r'[^\w\s]', '', text)
@@ -553,135 +248,419 @@ class LanguageDetector:
         
         text_len = len(text)
         
-        # For very short texts (<20 chars), duplicate as is
         if text_len < 20:
-            variations.append(text + " " + text)
-            
-        # For short texts (20-60 chars), try different duplication strategies
+            # Check if it's obvious English
+            words = text.lower().split()
+            english_words = {"can", "you", "the", "a", "an", "is", "are", "was", "were", 
+                           "do", "does", "did", "have", "has", "had", "will", "would", 
+                           "could", "should", "plot", "it"}
+            if not any(word in english_words for word in words):
+                variations.append(text + " " + text)
         elif text_len < 60:
-            # Simple duplication
             variations.append(text + " " + text)
-            
-            # Duplicate with slight modifications for technical content
             if any(c in text for c in '{}[]()<>'):
-                # For code-like content, add a space between duplicates
                 variations.append(text + " " + text)
             else:
-                # For regular text, try with a period
                 variations.append(text + ". " + text)
-                
-        # For medium texts (60-120 chars), try context variations
         elif text_len < 120:
-            # For technical content, try adding common context
             if any(c in text for c in '{}[]()<>'):
                 variations.append("Code example: " + text)
-            # For documentation-like content
-            elif text.endswith('.') or text.endswith('?') or text.endswith('!'):
+            elif text.endswith(('.', '?', '!')):
                 variations.append("Note: " + text)
         
-        # Add capitalization variations for very short texts
         if text_len < 10:
             variations.append(text.lower())
-            
-        return variations
-    
-    def _detect_mongolian_cyrillic(self, text: str) -> bool:
-        """
-        Detect if Cyrillic text is likely Mongolian rather than Russian.
         
-        Mongolian Cyrillic has distinctive characteristics:
-        1. Specific letter combinations and patterns
-        2. Unique vocabulary and morphology
-        3. Different frequency patterns than Russian
-        """
-        # Convert to lowercase for analysis
+        return variations
+
+class LanguageDetector:
+    """
+    Robust language detection class suitable for multilingual applications.
+    
+    Handles short texts, technical content, and product descriptions with improved 
+    accuracy. Configurable to use multiple detection libraries when available.
+    """
+    
+    def __init__(self, verbose: bool = False, min_confidence: float = 0.7):
+        """Initialize the language detector"""
+        self.verbose = verbose
+        self.min_confidence = min_confidence
+        self.detectors = DetectorLoader.load_detectors(verbose)
+        self.analyzer = TextAnalyzer()
+        self.patterns = LanguagePatterns()
+        
+        if len(self.detectors) == 0:
+            logger.error("No language detectors available! Defaulting to English for all text.")
+        else:
+            logger.info(f"Using {len(self.detectors)} language detectors: {', '.join(self.detectors.keys())}")
+    
+    def detect(self, text: str) -> str:
+        """Detect the language of the input text"""
+        try:
+            text = text.strip()
+            
+            # Quick checks for very short or empty text
+            if not text or len(text) < 5:
+                if self.verbose:
+                    logger.debug(f"Text too short for detection: '{text}', defaulting to English")
+                return "en"
+            
+            # Quick English detection
+            if self._is_likely_english(text):
+                return "en"
+            
+            # Analyze text characteristics
+            stats = self.analyzer.calculate_char_stats(text)
+            script_info = self.analyzer.analyze_script(text)
+            
+            # Handle mostly non-alphabetic text
+            if stats.alpha_ratio < 0.5 and stats.digit_ratio + stats.punct_ratio > 0.4:
+                if self.verbose:
+                    logger.debug("Text contains mostly non-alphabetic characters, defaulting to English")
+                return "en"
+            
+            # Handle CJK languages
+            cjk_result = self._handle_cjk_languages(script_info)
+            if cjk_result:
+                return cjk_result
+            
+            # Handle short Latin text
+            if self._is_short_latin_text(text, script_info):
+                return self._detect_short_latin_text(text, script_info)
+            
+            # Perform ensemble detection
+            result = self._ensemble_detect(text, script_info, stats)
+            
+            # Handle Cyrillic text that might be Mongolian
+            if result in ['ru', 'bg', 'mk', 'sr'] and script_info.script_type == 'Cyrillic':
+                if self._is_mongolian_cyrillic(text):
+                    if self.verbose:
+                        logger.info(f"Cyrillic text detected as Mongolian (was {result})")
+                    return 'mn'
+            
+            return result
+            
+        except Exception as e:
+            logger.warning(f"Language detection failed: {str(e)}")
+            return "en"
+    
+    def _is_likely_english(self, text: str) -> bool:
+        """Quick check for likely English text"""
+        words = text.split()
+        if not words:
+            return False
+        
+        # Only apply English detection to Latin script text
+        script_info = self.analyzer.analyze_script(text)
+        if script_info.script_type != 'Latin':
+            return False
+        
+        first_word = words[0].lower()
+        
+        # Check for English question words
+        if first_word in {"who", "what", "when", "where", "why", "how", "which"}:
+            if self.verbose:
+                logger.debug(f"Detected English wh-question: '{first_word}'")
+            return True
+        
+        # Check for English starters (only for obvious cases)
+        obvious_english_starters = {
+            "can", "could", "will", "would", "should", "shall", "may", "might", "must",
+            "don't", "doesn't", "didn't", "won't", "wouldn't", 
+            "shouldn't", "can't", "couldn't", "isn't", "aren't", "wasn't", "weren't",
+            "haven't", "hasn't", "hadn't"
+        }
+        if first_word in obvious_english_starters:
+            if self.verbose:
+                logger.debug(f"Detected English starter word: '{first_word}'")
+            return True
+        
+        # Check for English phrases
+        if len(words) >= 2:
+            two_word_start = f"{words[0].lower()} {words[1].lower()}"
+            if two_word_start in self.patterns.ENGLISH_PHRASES:
+                if self.verbose:
+                    logger.debug(f"Detected English phrase: '{two_word_start}'")
+                return True
+        
+        return False
+    
+    def _handle_cjk_languages(self, script_info: ScriptInfo) -> Optional[str]:
+        """Handle CJK language detection"""
+        if script_info.script_type == 'Chinese':
+            return 'zh'
+        elif script_info.script_type == 'Korean':
+            return 'ko'
+        elif script_info.script_type == 'Japanese':
+            return 'ja'
+        return None
+    
+    def _is_short_latin_text(self, text: str, script_info: ScriptInfo) -> bool:
+        """Check if text is short Latin text needing special handling"""
+        return (len(text.split()) == 1 and 
+                len(text) < 15 and 
+                text[0].isupper() and
+                script_info.script_type == 'Latin' and 
+                script_info.latin_ratio > 0.8)
+    
+    def _detect_short_latin_text(self, text: str, script_info: ScriptInfo) -> str:
+        """Specialized detection for short Latin-script texts"""
+        language_votes = defaultdict(int)
+        
+        # Try all detectors
+        for detector_name, detector in self.detectors.items():
+            try:
+                lang, confidence = detector['detect'](text)
+                if lang:
+                    language_votes[lang] += 1
+            except:
+                continue
+        
+        # Apply character analysis
+        latin_result = self._analyze_latin_characters(text)
+        if latin_result:
+            language_votes[latin_result] += 2
+        
+        # Bias toward English for capitalized product names
+        if text.istitle() and len(text.split()) == 1:
+            language_votes["en"] += 1
+        
+        # Check for language-specific accents
+        for lang, chars in self.patterns.LANGUAGE_ACCENTS.items():
+            if any(c in text for c in chars):
+                language_votes[lang] += 2
+        
+        if language_votes:
+            return max(language_votes.items(), key=lambda x: x[1])[0]
+        
+        return "en"
+    
+    def _ensemble_detect(self, text: str, script_info: ScriptInfo, stats: CharStats) -> str:
+        """Perform ensemble detection using multiple detectors"""
+        variations = self.analyzer.generate_text_variations(text)
+        language_votes = defaultdict(float)
+        detection_details = defaultdict(list)
+        
+        # No detectors available
+        if not self.detectors:
+            return "en"
+        
+        # Run detection with each detector
+        for detector_name, detector in self.detectors.items():
+            self._run_detector(detector_name, detector, text, variations, 
+                             language_votes, detection_details)
+        
+        # Handle no votes
+        if not language_votes:
+            return self._fallback_detect(text)
+        
+        # Calculate result
+        sorted_votes = sorted(language_votes.items(), key=lambda x: x[1], reverse=True)
+        most_likely_lang = sorted_votes[0][0]
+        confidence = self._calculate_confidence(language_votes, most_likely_lang)
+        
+        if self.verbose:
+            self._log_detection_details(sorted_votes, confidence, detection_details)
+        
+        # Handle low confidence
+        if confidence < self.min_confidence:
+            return self._handle_low_confidence(text, most_likely_lang, language_votes, 
+                                             script_info, confidence)
+        
+        # Special handling for short texts
+        if len(text) < 20:
+            return self._handle_short_text_special_cases(text, most_likely_lang, language_votes)
+        
+        return most_likely_lang
+    
+    def _run_detector(self, detector_name: str, detector: Dict[str, Any], 
+                     text: str, variations: List[str],
+                     language_votes: Dict[str, float], 
+                     detection_details: Dict[str, List[str]]) -> None:
+        """Run a single detector on text and variations"""
+        detect_func = detector['detect']
+        exception_type = detector.get('exception', Exception)
+        detector_weight = detector.get('weight', 1.0)
+        
+        try:
+            if detector_name == 'langdetect':
+                # Try variations for langdetect
+                for variant in variations:
+                    try:
+                        lang, confidence = detect_func(variant)
+                        if lang:
+                            weighted_vote = detector_weight * confidence
+                            language_votes[lang] += weighted_vote
+                            detection_details[lang].append(
+                                f"{detector_name}:{confidence:.2f}:'{variant}'"
+                            )
+                    except exception_type:
+                        continue
+            else:
+                # Other detectors use original text only
+                lang, confidence = detect_func(text)
+                if lang:
+                    weighted_vote = detector_weight * confidence
+                    if weighted_vote < 0:
+                        weighted_vote = max(weighted_vote, -2.0)
+                    language_votes[lang] += weighted_vote
+                    detection_details[lang].append(
+                        f"{detector_name}:{confidence:.2f}:original"
+                    )
+        except Exception as e:
+            if self.verbose:
+                logger.debug(f"Error with {detector_name}: {str(e)}")
+    
+    def _fallback_detect(self, text: str) -> str:
+        """Fallback detection when no votes"""
+        if 'langdetect' in self.detectors:
+            try:
+                lang, _ = self.detectors['langdetect']['detect'](text)
+                return lang if lang else "en"
+            except:
+                pass
+        return "en"
+    
+    def _calculate_confidence(self, language_votes: Dict[str, float], 
+                            most_likely_lang: str) -> float:
+        """Calculate confidence score"""
+        total_positive_votes = sum(max(0, vote) for vote in language_votes.values())
+        if total_positive_votes > 0:
+            return max(0, language_votes[most_likely_lang]) / total_positive_votes
+        return 0.0
+    
+    def _log_detection_details(self, sorted_votes: List[Tuple[str, float]], 
+                             confidence: float, 
+                             detection_details: Dict[str, List[str]]) -> None:
+        """Log detailed detection information"""
+        vote_info = ", ".join([f"{lang}: {votes:.2f}" for lang, votes in sorted_votes])
+        logger.debug(f"Language votes: {vote_info}, confidence: {confidence:.2f}")
+        
+        for lang, details in detection_details.items():
+            detail_str = ", ".join(details)
+            logger.debug(f"Detection details for {lang}: {detail_str}")
+    
+    def _handle_low_confidence(self, text: str, most_likely_lang: str,
+                             language_votes: Dict[str, float],
+                             script_info: ScriptInfo, confidence: float) -> str:
+        """Handle low confidence detection results"""
+        # Check for French indicators
+        has_french = any(indicator in text.lower() for indicator in self.patterns.FRENCH_INDICATORS)
+        
+        # Only default to English for Latin script text
+        if (len(text) < 30 and not has_french and 
+            script_info.script_type == 'Latin'):
+            has_accents = any(c in text for c in 'àáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿ')
+            if not has_accents:
+                if self.verbose:
+                    logger.debug(f"Short Latin text with low confidence and no accents, defaulting to English")
+                return 'en'
+        
+        if has_french and 'fr' in language_votes:
+            if self.verbose:
+                logger.debug(f"Low confidence but found French indicators, using French")
+            return 'fr'
+        
+        # Try character analysis for Latin text
+        if len(text) < 20 and confidence < 0.7 and script_info.script_type == 'Latin':
+            latin_result = self._analyze_latin_characters(text)
+            if latin_result and latin_result in language_votes:
+                if self.verbose:
+                    logger.debug(f"Using Latin character analysis, detected: {latin_result}")
+                return latin_result
+        
+        # For non-Latin scripts or when we have a reasonable detection, trust it
+        if most_likely_lang and most_likely_lang != 'en':
+            if self.verbose:
+                logger.debug(f"Low confidence but non-Latin script or reasonable detection, using: {most_likely_lang}")
+            return most_likely_lang
+        
+        # Final fallback: prefer English only if we have votes for it
+        if 'en' in language_votes:
+            if self.verbose:
+                logger.debug(f"Low confidence detection, defaulting to English")
+            return 'en'
+            
+        return most_likely_lang
+    
+    def _handle_short_text_special_cases(self, text: str, most_likely_lang: str,
+                                       language_votes: Dict[str, float]) -> str:
+        """Handle special cases for short texts"""
+        # Check for product listings and prices
+        if (re.search(r'\$|\€|\£|\¥', text) or 
+            re.search(r'\d+\s*(oz|lb|g|kg|ml|L)', text)):
+            if 'en' in language_votes:
+                if self.verbose:
+                    logger.debug("Detected product listing or price, preferring English")
+                return 'en'
+        
+        return most_likely_lang
+    
+    def _analyze_latin_characters(self, text: str) -> Optional[str]:
+        """Use character frequency analysis to distinguish between Latin-script languages"""
+        text = ''.join(c.lower() for c in text if c.isalpha())
+        if not text:
+            return None
+        
+        # Count character frequencies
+        char_counts = defaultdict(int)
+        for char in text:
+            char_counts[char] += 1
+        
+        total_chars = len(text)
+        char_freqs = {char: count / total_chars * 100 for char, count in char_counts.items()}
+        
+        # Language characteristic patterns
+        patterns = {
+            'en': {'e', 't', 'a', 'o', 'i', 'n', 's'},
+            'fr': {'e', 'a', 's', 'i', 'é', 'è', 'à', 'ù', 'ç'},
+            'es': {'e', 'a', 'o', 's', 'n', 'r', 'ñ', 'á', 'é', 'í', 'ó', 'ú'},
+            'de': {'e', 'n', 'i', 's', 'r', 'a', 'ä', 'ö', 'ü', 'ß'}
+        }
+        
+        scores = {}
+        for lang, chars in patterns.items():
+            scores[lang] = sum(char_freqs.get(c, 0) for c in chars)
+        
+        # Apply biases
+        if len(text) < 10 and not any(ord(c) > 127 for c in text):
+            return "en"
+        
+        if len(text) < 10 and text[0].isupper():
+            scores["en"] *= 1.1
+        
+        if all(ord(c) < 128 for c in text) and len(text) < 15:
+            scores["en"] *= 1.05
+        
+        return max(scores, key=scores.get) if scores else None
+    
+    def _is_mongolian_cyrillic(self, text: str) -> bool:
+        """Detect if Cyrillic text is likely Mongolian rather than Russian"""
         text_lower = text.lower()
         
-        # Common Mongolian words and patterns that are unlikely to appear in Russian
-        mongolian_indicators = [
-            'бэр',      # part of "бэрх" (to hold, take)
-            'гийн',     # genitive/possessive suffix 
-            'хэд',      # "how much/many"
-            'хураамж',  # "fee, collection"
-            'зогсоол',  # "stop, station"
-            'зөв',      # "correct, proper"
-            'шөөрл',    # part of "зөвшөөрөл" (permission, license)
-            'олон',     # "many"
-            'байх',     # "to be" 
-            'болох',    # "to become"
-            'хийх',     # "to do"
-            'ийн',      # genitive suffix
-            'лын',      # instrumental suffix variant
-            'ын',       # common Mongolian suffix
-            'гэх',      # "to say"
-            'юу',       # "what"
-            'энэ',      # "this"
-            'тэр',      # "that"
-            'настай',   # "aged, years old"
-            'вэ',       # question particle
-            'би',       # "I"
-            'монгол',   # "Mongolian"
-            'хүн',      # "person"
-            'байна',    # "is/am"
-            'яаж',      # "how"
-            'нийслэл',  # "capital"
-            'хаана',    # "where"
-            'байдаг',   # "located/exists"
-        ]
-        
-        # Mongolian-specific letter combinations that are very rare in Russian
-        mongolian_patterns = [
-            'ийн',      # very common genitive pattern in Mongolian
-            'гийн',     # genitive with г
-            'лын',      # instrumental case
-            'хэд',      # interrogative "how much"
-            'өө',       # doubled ө (rare in Russian, common in Mongolian)
-            'үү',       # doubled ү (rare in Russian)
-            'эр',       # common in Mongolian words
-            'өр',       # common pattern
-            'энэ',      # "this"
-            'юу',       # "what"
-            ' вэ',      # question particle at end of word
-            'хүн',      # "person"
-            'яаж',      # "how"
-            'байна',    # "is/am"
-            'байдаг',   # "exists/located"
-        ]
-        
         # Count indicators
-        indicator_count = 0
-        pattern_count = 0
+        indicator_count = sum(1 for indicator in self.patterns.MONGOLIAN_INDICATORS 
+                            if indicator in text_lower)
+        pattern_count = sum(1 for pattern in self.patterns.MONGOLIAN_PATTERNS 
+                          if pattern in text_lower)
         
-        for indicator in mongolian_indicators:
-            if indicator in text_lower:
-                indicator_count += 1
-                
-        for pattern in mongolian_patterns:
-            if pattern in text_lower:
-                pattern_count += 1
-        
-        # Check for specific Mongolian letters that are used differently
-        # ө and ү are much more common in Mongolian than Russian
+        # Count Mongolian-specific letters
         mongolian_letters_count = text_lower.count('ө') + text_lower.count('ү')
         
         # Decision logic
-        # If we have multiple Mongolian indicators or patterns, it's likely Mongolian
         if indicator_count >= 2 or pattern_count >= 2:
             return True
-            
-        # If we have Mongolian-specific letters with some patterns
+        
         if mongolian_letters_count >= 2 and (indicator_count >= 1 or pattern_count >= 1):
             return True
-            
-        # For short text, be more conservative but still check for strong indicators
+        
+        # For short text, check strong indicators
         if len(text) < 50:
-            # Strong single indicators that are very likely Mongolian
-            strong_indicators = ['хэд', 'зөв', 'ийн', 'гийн', 'хураамж', 'энэ', 'юу', 'вэ', 'монгол', 'хүн', 'яаж', 'байна']
-            for indicator in strong_indicators:
-                if indicator in text_lower:
-                    return True
+            strong_indicators = ['хэд', 'зөв', 'ийн', 'гийн', 'хураамж', 'энэ', 
+                               'юу', 'вэ', 'монгол', 'хүн', 'яаж', 'байна']
+            if any(indicator in text_lower for indicator in strong_indicators):
+                return True
             
-            # Check for question particle at end (very Mongolian)
             if text_lower.endswith(' вэ?') or text_lower.endswith(' вэ'):
                 return True
         

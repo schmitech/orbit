@@ -1,35 +1,115 @@
-# 🤖 Chatbot API Client
+# 🤖 ORBIT Chatbot API Client
 
-A JavaScript/TypeScript client for seamless interaction with the Chatbot server, now supporting API key authentication and session tracking.
-
----
+A TypeScript/JavaScript client for seamless interaction with the ORBIT server, supporting API key authentication and session tracking.
 
 ## 📥 Installation
 
-### 📍 Local Development (npm link)
-
-Use during local development:
-
 ```bash
-npm run build
-npm link
-
-# In your project directory
-npm link @schmitech/chatbot-api
+npm install @schmitech/chatbot-api
 ```
 
-### 📂 Local Directory Install
+## ⚙️ Basic Usage
 
-Direct local installation:
+### Configuration
 
-```bash
-npm run build
-npm install /path/to/qa-chatbot-server/api
+First, configure the API client with your server details:
+
+```typescript
+import { configureApi, streamChat } from '@schmitech/chatbot-api';
+
+configureApi({
+  apiUrl: 'https://your-api-server.com',
+  apiKey: 'your-api-key',
+  sessionId: 'optional-session-id' // Optional, for conversation tracking
+});
 ```
 
-### 🌐 CDN Integration
+### Streaming Chat Example
 
-Integrate directly into websites via CDN:
+```typescript
+async function chat() {
+  for await (const response of streamChat('Hello, how can I help?', true)) {
+    console.log(response.text);
+    if (response.done) {
+      console.log('Chat complete!');
+    }
+  }
+}
+```
+
+## ⚛️ React Integration
+
+Here's how to use the API in a React component:
+
+```tsx
+import React, { useState } from 'react';
+import { configureApi, streamChat } from '@schmitech/chatbot-api';
+
+// Configure once at app startup
+configureApi({
+  apiUrl: 'https://your-api-server.com',
+  apiKey: 'your-api-key',
+  sessionId: 'user_123_session_456' // Optional
+});
+
+function ChatComponent() {
+  const [messages, setMessages] = useState<Array<{ text: string; isUser: boolean }>>([]);
+  const [input, setInput] = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setMessages(prev => [...prev, { text: input, isUser: true }]);
+
+    let responseText = '';
+    for await (const response of streamChat(input, true)) {
+      responseText += response.text;
+      setMessages(prev => [...prev, { text: responseText, isUser: false }]);
+      if (response.done) break;
+    }
+    setInput('');
+  };
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <input 
+        value={input} 
+        onChange={(e) => setInput(e.target.value)} 
+        placeholder="Type your message..."
+      />
+      <button type="submit">Send</button>
+    </form>
+  );
+}
+```
+
+## 📱 Mobile Usage
+
+### React Native Example
+
+```typescript
+import { configureApi, streamChat } from '@schmitech/chatbot-api';
+
+// Configure once at app startup
+configureApi({
+  apiUrl: 'https://your-api-server.com',
+  apiKey: 'your-api-key',
+  sessionId: 'user_123_session_456' // Optional
+});
+
+async function handleChat(message: string) {
+  for await (const response of streamChat(message, true)) {
+    // Handle streaming response
+    console.log(response.text);
+    if (response.done) {
+      console.log('Chat complete!');
+    }
+  }
+}
+```
+
+## 🌐 CDN Integration
+
+You can also use the API directly in the browser via CDN:
 
 ```html
 <script type="module">
@@ -42,193 +122,45 @@ Integrate directly into websites via CDN:
   });
 
   async function handleChat() {
-    for await (const response of streamChat('Hello', false)) {
+    for await (const response of streamChat('Hello', true)) {
       console.log(response.text);
     }
   }
 </script>
 ```
 
----
-
-## ⚙️ Usage
-
-### 🚨 Configuration (Required)
-
-You must configure the API client before usage:
-
-```javascript
-import { configureApi, streamChat } from '@schmitech/chatbot-api';
-
-configureApi({
-  apiUrl: 'https://your-api-server.com',
-  apiKey: 'your-api-key',
-  sessionId: 'your-session-id' // Optional
-});
-```
-
-### 📖 Basic Example
-
-```javascript
-async function chat() {
-  configureApi({ 
-    apiUrl: 'https://your-api-server.com', 
-    apiKey: 'your-api-key',
-    sessionId: 'user_123_session_456' // Optional
-  });
-
-  for await (const response of streamChat('Hello, how can I help?', false)) {
-    console.log(response.text);
-    if (response.done) console.log('Chat complete!');
-  }
-}
-
-chat();
-```
-
-### 🎙️ Voice-enabled Example
-
-```javascript
-async function chatWithVoice() {
-  configureApi({ 
-    apiUrl: 'https://your-api-server.com', 
-    apiKey: 'your-api-key',
-    sessionId: 'user_123_session_456' // Optional
-  });
-
-  for await (const response of streamChat('Tell me a joke', true)) {
-    if (response.type === 'audio') {
-      console.log('Received audio content');
-    } else {
-      console.log(response.text);
-    }
-    if (response.done) console.log('Chat complete!');
-  }
-}
-
-chatWithVoice();
-```
-
----
-
-## ⚛️ React Integration
-
-Configure once globally:
-
-```jsx
-import React, { useState } from 'react';
-import { configureApi, streamChat } from '@schmitech/chatbot-api';
-
-configureApi({
-  apiUrl: 'https://your-api-server.com',
-  apiKey: 'your-api-key',
-  sessionId: 'user_123_session_456' // Optional
-});
-
-function ChatComponent() {
-  const [messages, setMessages] = useState([]);
-  const [input, setInput] = useState('');
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setMessages(prev => [...prev, { text: input, isUser: true }]);
-
-    let responseText = '';
-    for await (const response of streamChat(input, false)) {
-      responseText += response.text;
-      setMessages(prev => [...prev, { text: responseText, isUser: false }]);
-      if (response.done) break;
-    }
-    setInput('');
-  };
-
-  return (
-    <form onSubmit={handleSubmit}>
-      <input value={input} onChange={(e) => setInput(e.target.value)} />
-      <button type="submit">Send</button>
-    </form>
-  );
-}
-
-export default ChatComponent;
-```
-
----
-
-## 📱 Mobile Usage
-
-### 📲 React Native
-
-```javascript
-configureApi({ 
-  apiUrl: 'https://your-api-server.com', 
-  apiKey: 'your-api-key',
-  sessionId: 'user_123_session_456' // Optional
-});
-
-async function handleChat(message) {
-  for await (const response of streamChat(message, false)) {
-    // Handle response
-  }
-}
-```
-
----
-
 ## 📚 API Reference
 
 ### `configureApi(config)`
 
-| Parameter | Description | Required |
-|-----------|-------------|----------|
-| `apiUrl`  | Chatbot API URL | ✅ Yes |
-| `apiKey`  | API key for authentication | ✅ Yes |
-| `sessionId` | Session ID for tracking conversations | ❌ No |
+Configure the API client with server details.
 
----
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `apiUrl` | string | Yes | Chatbot API server URL |
+| `apiKey` | string | Yes | API key for authentication |
+| `sessionId` | string | No | Session ID for conversation tracking |
 
-## 📤 Publish to npm
+### `streamChat(message: string, stream: boolean = true)`
 
-**Build package:**
+Stream chat responses from the server.
 
-```bash
-npm run build
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `message` | string | - | The message to send to the chat |
+| `stream` | boolean | true | Whether to stream the response |
+
+Returns an AsyncGenerator that yields `StreamResponse` objects:
+
+```typescript
+interface StreamResponse {
+  text: string;    // The text content of the response
+  done: boolean;   // Whether this is the final response
+}
 ```
 
-**Test locally (optional):**
+## 🔒 Security
 
-```bash
-npm pack --dry-run
-```
-
-**Update version:**
-
-```bash
-npm version [patch|minor|major]
-```
-
-**Publish:**
-
-```bash
-npm publish --access public
-```
-
----
-
-## 🛠️ Development
-
-### 🧪 Testing
-
-```bash
-# Test single query
-npm run test-query "your query" "http://your-api-server.com" "your-api-key" ["your-session-id"]
-
-# Test multiple queries from JSON file
-npm run test-query-from-pairs questions.json "http://your-api-server.com" "your-api-key" [number_of_questions] ["your-session-id"]
-```
-
----
-
-## 📃 License
-
-MIT License - See [LICENSE](LICENSE).
+- Always use HTTPS for your API URL
+- Keep your API key secure and never expose it in client-side code
+- Consider using environment variables for sensitive configuration
