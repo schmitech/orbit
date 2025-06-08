@@ -14,7 +14,7 @@ show_help() {
     echo "  -p, --profile PROFILE    Specify dependency profile (default: minimal)"
     echo "                           Available profiles:"
     echo "                           - minimal: Core dependencies only"
-    echo "                           - huggingface: Adds Hugging Face model support"
+    echo "                           - torch: Adds Torch-based infrence support"
     echo "                           - commercial: Adds commercial cloud providers"
     echo "                           - all: Includes everything"
     echo "                           - development: Adds development tools"
@@ -53,12 +53,12 @@ done
 
 # Validate profile
 case "$PROFILE" in
-    minimal|huggingface|commercial|all|development)
+    minimal|torch|commercial|all|development)
         # Valid profile
         ;;
     *)
         echo "Error: Invalid profile '$PROFILE'"
-        echo "Available profiles: minimal, huggingface, commercial, all, development"
+        echo "Available profiles: minimal, torch, commercial, all, development"
         exit 1
         ;;
 esac

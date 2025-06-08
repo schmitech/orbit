@@ -18,12 +18,12 @@
 #
 #   Install specific profile:
 #     ./setup.sh --profile minimal
-#     ./setup.sh --profile huggingface
+#     ./setup.sh --profile torch
 #     ./setup.sh --profile commercial
 #     ./setup.sh --profile all
 #
 #   Install multiple profiles:
-#     ./setup.sh --profile huggingface --profile commercial
+#     ./setup.sh --profile torch --profile commercial
 #
 #   With GGUF model:
 #     ./setup.sh --profile minimal --download-gguf
@@ -312,7 +312,7 @@ while [[ $# -gt 0 ]]; do
             echo "Examples:"
             echo "  $0 --list-profiles"
             echo "  $0 --profile minimal"
-            echo "  $0 --profile huggingface --profile commercial"
+            echo "  $0 --profile torch --profile commercial"
             echo "  $0 --profile all --download-gguf"
             exit 0
             ;;

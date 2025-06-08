@@ -40,14 +40,17 @@ dependencies = [
     "schmitech-orbit-client==0.2.2"
 ]
 
-[profiles.huggingface]
-description = "Dependencies for Hugging Face model support"
+[profiles.torch]
+description = "Torch-related dependencies. Best suited for GPU with CUDA support."
 extends = "minimal"
 dependencies = [
-    "huggingface-hub==0.30.2",
-    "safetensors==0.5.3",
-    "torch==2.1.0",  # Note: pytorch package name in pip is 'torch'
-    "transformers==4.35.0",
+    "torch==2.7.1",
+    "vllm>=0.9.0.1",
+    "llm-guard>=0.3.16",
+    "transformers>=4.52.4",
+    "accelerate>=0.27.2",
+    "sentencepiece>=0.2.0",
+    "protobuf>=4.25.2"
 ]
 
 [profiles.commercial]
@@ -68,7 +71,7 @@ dependencies = [
 
 [profiles.all]
 description = "All available dependencies"
-extends = ["minimal", "huggingface", "commercial"]
+extends = ["minimal", "torch", "commercial"]
 dependencies = []
 
 [profiles.development]
