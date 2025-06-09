@@ -30,9 +30,9 @@ ORBIT is a modular, self-hosted toolkit that provides a unified API for open-sou
 
 ```bash
 # Download and extract the latest release
-curl -L https://github.com/schmitech/orbit/releases/download/v1.1.1/orbit-1.1.1.tar.gz
-tar -xzf orbit-1.1.1.tar.gz
-cd orbit-1.1.1
+curl -L https://github.com/schmitech/orbit/releases/download/v1.1.2/orbit-1.1.2.tar.gz
+tar -xzf orbit-1.1.2.tar.gz
+cd orbit-1.1.2
 
 # Add --help for command options
 ./install.sh
