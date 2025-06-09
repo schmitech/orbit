@@ -56,7 +56,7 @@ inference:
     chat_format: "chatml"
 ```
 
-If you want to keep coconversation history, you will need a MongoDB instance. This is configurable under the `internal_services` section in config.yaml.
+If you want to keep conversation history, you will need a MongoDB instance. This is configurable under the `internal_services` section in config.yaml.
 
 ```bash
 # Copy .env.example to .env and add your MongoDB connection parameters:
