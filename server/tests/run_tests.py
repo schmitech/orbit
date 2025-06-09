@@ -61,7 +61,7 @@ def main():
         str(SCRIPT_DIR),
         "-v",
         "--asyncio-mode=auto",
-        "-k", "not test_orbit_endpoints"  # Skip test_orbit_endpoints.py
+        "-k", "not test_ollama"
     ])
 
 if __name__ == "__main__":

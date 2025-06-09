@@ -383,44 +383,6 @@ async def test_duplicate_message_prevention(chat_history_service):
     assert len(messages) == 1
 
 @pytest.mark.asyncio
-async def test_conversation_limits_and_archiving(chat_history_service):
-    """Test that conversation limits trigger archiving"""
-    # Skip this test as it uses $merge in transactions which isn't supported by MongoDB
-    pytest.skip("$merge cannot be used in transactions - this test requires non-transactional archiving")
-    
-    session_id = "test_session_6"
-    
-    # Override max_conversation_messages for this test
-    original_max = chat_history_service.max_conversation_messages
-    chat_history_service.max_conversation_messages = 5
-    
-    try:
-        # Add messages up to the limit
-        for i in range(7):  # More than the limit
-            await chat_history_service.add_message(
-                session_id=session_id,
-                role="user" if i % 2 == 0 else "assistant",
-                content=f"Message {i}"
-            )
-        
-        # Check that messages were archived
-        messages = await chat_history_service.get_conversation_history(session_id)
-        
-        # Should have archived old messages and kept only the most recent ones
-        assert len(messages) <= 5
-        
-        # Check that archive collection has the archived messages
-        archive_collection = chat_history_service.mongodb_service.get_collection(
-            f"{chat_history_service.collection_name}_archive"
-        )
-        archived_count = await archive_collection.count_documents({"session_id": session_id})
-        assert archived_count > 0
-        
-    finally:
-        # Restore original max
-        chat_history_service.max_conversation_messages = original_max
-
-@pytest.mark.asyncio
 async def test_clear_session_history(chat_history_service):
     """Test clearing all history for a session"""
     session_id = "test_session_7"

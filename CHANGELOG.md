@@ -1,5 +1,46 @@
 # Changelog
 
+## [1.1.2] - 2025-06-09
+
+### UI/Widget Improvements
+- Significant UI/UX enhancements to the widget (v0.5.0)
+- Updated chat examples to use latest release chat widget 0.4.0
+- Removed widget project as it's been moved into its own repo
+- Updated ORBIT logo
+- Updated links in README.md to point to new chatbot widget project
+- Updated orbit diagram and orbit chat GUI example
+
+### Architecture & Code Structure
+- Refactored SQL and vector retrievers modules to promote inheritance
+- Added new settings based on recent additions of vector retrievers
+- Added new endpoints for file upload with corresponding retrieval adapter (early stage)
+- Use parameter num_ctx from inference provider for conversation history management
+- Replace HF with Torch libraries for GPU/CUDA backend support
+
+### Documentation & Content
+- Added logo, roadmap section, plus other content improvements
+- Fix navigation links
+- Added links to MD files under docs
+- Updated documentation to reflect recent changes
+- Updated readme, added new diagram
+- Added more items under roadmap
+- Added more items under why orbit
+- Added additional llama.cpp usage guide
+
+### Bug Fixes & Technical Improvements
+- Fix issues with API streaming logic
+- Improved language detection module
+- Fixed streaming issues in api.ts
+- Further improved language detection and unit tests
+- Updated API version to fix streaming issues
+- Improved language_detector.py and unit tests
+- Load conversation history warning from config.yaml
+
+### Testing
+- Added corresponding unit tests for new file upload endpoints
+- Added unit tests for conversation history management
+- Added unit tests for language detection improvements
+
 ## [1.1.1] - 2025-05-30
 
 ### Server Architecture & Refactoring
