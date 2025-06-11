@@ -9,10 +9,10 @@ It can be used by multiple services to avoid duplicating Redis connection logic.
 import logging
 from typing import Dict, Any, Optional, Union, List, Tuple
 import json
+import redis.asyncio as redis
 
 # Optional Redis imports - service will gracefully handle missing dependency
 try:
-    import redis
     from redis.asyncio import Redis
     REDIS_AVAILABLE = True
 except ImportError:
@@ -36,7 +36,8 @@ class RedisService:
         # Redis configuration
         self.redis_config = config.get('internal_services', {}).get('redis', {})
         self.enabled = self.redis_config.get('enabled', False) and REDIS_AVAILABLE
-        self.redis_client = None
+        self.client: Optional[redis.Redis] = None
+        self.initialized = False
         
         # Default TTL (7 days)
         self.default_ttl = 60 * 60 * 24 * 7
@@ -99,9 +100,13 @@ class RedisService:
             connection_kwargs['ssl_cert_reqs'] = None
             connection_kwargs['ssl_ca_certs'] = None  # Don't verify SSL cert for Redis Cloud
         
+        # Add timeout parameters for better connection handling
+        connection_kwargs['socket_connect_timeout'] = 10
+        connection_kwargs['socket_timeout'] = 10
+        
         # Create Redis client
         try:
-            self.redis_client = Redis(**connection_kwargs)
+            self.client = redis.Redis(**connection_kwargs)
             
             if self.verbose:
                 logger.info(f"Redis client initialized: {host}:{port}/db{db}, SSL: {'enabled' if use_ssl else 'disabled'}, Username: {'set' if username else 'not set'}")
@@ -111,25 +116,25 @@ class RedisService:
             raise
     
     async def initialize(self) -> bool:
-        """
-        Initialize the service and verify Redis connection
-        
-        Returns:
-            True if Redis is available and connected, False otherwise
-        """
-        if not self.enabled or not self.redis_client:
-            logger.info("Redis service is disabled or client not available")
-            return False
-            
-        try:
-            # Test Redis connection with ping
-            await self.redis_client.ping()
-            logger.info("Redis connection successful")
+        """Initialize Redis connection"""
+        if self.initialized:
             return True
+
+        try:
+            redis_config = self.config["internal_services"]["redis"]
+            if not redis_config.get("enabled", False):
+                logger.warning("Redis is not enabled in configuration")
+                return False
+
+            # Test connection
+            await self.client.ping()
+            logger.info("Successfully connected to Redis")
+            self.initialized = True
+            return True
+
         except Exception as e:
-            logger.error(f"Redis connection failed: {str(e)}")
-            self.enabled = False
-            return False
+            logger.error(f"Failed to initialize Redis: {str(e)}")
+            raise
     
     async def get(self, key: str) -> Optional[str]:
         """
@@ -141,11 +146,11 @@ class RedisService:
         Returns:
             The value or None if not found or Redis is disabled
         """
-        if not self.enabled or not self.redis_client:
+        if not self.enabled or not self.client:
             return None
             
         try:
-            return await self.redis_client.get(key)
+            return await self.client.get(key)
         except Exception as e:
             logger.error(f"Error getting key {key} from Redis: {str(e)}")
             return None
@@ -162,34 +167,26 @@ class RedisService:
         Returns:
             True if successful, False otherwise
         """
-        if not self.enabled or not self.redis_client:
+        if not self.enabled or not self.client:
             return False
             
         try:
             ttl_to_use = ttl if ttl is not None else self.default_ttl
-            await self.redis_client.set(key, value, ex=ttl_to_use)
+            await self.client.set(key, value, ex=ttl_to_use)
             return True
         except Exception as e:
             logger.error(f"Error setting key {key} in Redis: {str(e)}")
             return False
     
     async def delete(self, *keys: str) -> int:
-        """
-        Delete one or more keys from Redis
-        
-        Args:
-            *keys: Keys to delete
-            
-        Returns:
-            Number of keys deleted, or 0 if Redis is disabled
-        """
-        if not self.enabled or not self.redis_client or not keys:
+        """Delete one or more keys"""
+        if not self.enabled or not self.client:
             return 0
             
         try:
-            return await self.redis_client.delete(*keys)
+            return await self.client.delete(*keys)
         except Exception as e:
-            logger.error(f"Error deleting keys from Redis: {str(e)}")
+            logger.error(f"Error deleting keys {keys} from Redis: {str(e)}")
             return 0
     
     async def exists(self, key: str) -> bool:
@@ -202,33 +199,35 @@ class RedisService:
         Returns:
             True if key exists, False otherwise
         """
-        if not self.enabled or not self.redis_client:
+        if not self.enabled or not self.client:
             return False
             
         try:
-            return bool(await self.redis_client.exists(key))
+            return bool(await self.client.exists(key))
         except Exception as e:
             logger.error(f"Error checking if key {key} exists in Redis: {str(e)}")
             return False
     
-    async def expire(self, key: str, ttl: int) -> bool:
-        """
-        Set expiration time on a key
-        
-        Args:
-            key: The key to set expiration on
-            ttl: Time-to-live in seconds
+    async def ttl(self, key: str) -> int:
+        """Get remaining TTL for a key"""
+        if not self.enabled or not self.client:
+            return -2
             
-        Returns:
-            True if successful, False otherwise
-        """
-        if not self.enabled or not self.redis_client:
+        try:
+            return await self.client.ttl(key)
+        except Exception as e:
+            logger.error(f"Error getting TTL for key {key} in Redis: {str(e)}")
+            return -2
+    
+    async def expire(self, key: str, seconds: int) -> bool:
+        """Set expiration time for a key"""
+        if not self.enabled or not self.client:
             return False
             
         try:
-            return bool(await self.redis_client.expire(key, ttl))
+            return await self.client.expire(key, seconds)
         except Exception as e:
-            logger.error(f"Error setting expiration on key {key} in Redis: {str(e)}")
+            logger.error(f"Error setting expiration for key {key} in Redis: {str(e)}")
             return False
     
     async def lpush(self, key: str, *values: str) -> int:
@@ -242,16 +241,16 @@ class RedisService:
         Returns:
             Length of the list after push, or 0 if Redis is disabled
         """
-        if not self.enabled or not self.redis_client:
+        if not self.enabled or not self.client:
             return 0
             
         try:
-            return await self.redis_client.lpush(key, *values)
+            return await self.client.lpush(key, *values)
         except Exception as e:
             logger.error(f"Error pushing values to list {key} in Redis: {str(e)}")
             return 0
     
-    async def rpush(self, key: str, *values: str) -> int:
+    async def rpush(self, key: str, *values: str) -> bool:
         """
         Push values onto the tail of a list
         
@@ -260,16 +259,17 @@ class RedisService:
             *values: Values to push
             
         Returns:
-            Length of the list after push, or 0 if Redis is disabled
+            True if successful, False otherwise
         """
-        if not self.enabled or not self.redis_client:
-            return 0
+        if not self.enabled or not self.client:
+            return False
             
         try:
-            return await self.redis_client.rpush(key, *values)
+            await self.client.rpush(key, *values)
+            return True
         except Exception as e:
             logger.error(f"Error pushing values to list {key} in Redis: {str(e)}")
-            return 0
+            return False
     
     async def lrange(self, key: str, start: int, end: int) -> List[str]:
         """
@@ -283,11 +283,11 @@ class RedisService:
         Returns:
             List of elements, or empty list if Redis is disabled
         """
-        if not self.enabled or not self.redis_client:
+        if not self.enabled or not self.client:
             return []
             
         try:
-            return await self.redis_client.lrange(key, start, end)
+            return await self.client.lrange(key, start, end)
         except Exception as e:
             logger.error(f"Error getting range from list {key} in Redis: {str(e)}")
             return []
@@ -304,7 +304,7 @@ class RedisService:
         Returns:
             True if successful, False otherwise
         """
-        if not self.enabled or not self.redis_client:
+        if not self.enabled or not self.client:
             return False
             
         try:
@@ -324,7 +324,7 @@ class RedisService:
         Returns:
             The parsed JSON data, or None if not found or Redis is disabled
         """
-        if not self.enabled or not self.redis_client:
+        if not self.enabled or not self.client:
             return None
             
         try:
@@ -348,7 +348,7 @@ class RedisService:
         Returns:
             True if successful, False otherwise
         """
-        if not self.enabled or not self.redis_client:
+        if not self.enabled or not self.client:
             return False
             
         try:
@@ -364,9 +364,9 @@ class RedisService:
                 
                 # Set expiration if needed
                 if ttl is not None:
-                    await self.expire(key, ttl)
+                    await self.ttl(key)
                 else:
-                    await self.expire(key, self.default_ttl)
+                    await self.ttl(key)
                     
             return True
         except Exception as e:
@@ -385,7 +385,7 @@ class RedisService:
         Returns:
             List of parsed JSON data, or empty list if not found or Redis is disabled
         """
-        if not self.enabled or not self.redis_client:
+        if not self.enabled or not self.client:
             return []
             
         try:
@@ -396,14 +396,12 @@ class RedisService:
             return []
             
     async def close(self) -> None:
-        """Close the Redis connection"""
-        await self.aclose()
-
+        """Close Redis connection"""
+        if self.client:
+            await self.client.aclose()
+            self.client = None
+            self.initialized = False
+    
     async def aclose(self) -> None:
-        """Close the Redis connection (async version)"""
-        if self.redis_client:
-            try:
-                await self.redis_client.aclose()
-                logger.info("Redis connection closed")
-            except Exception as e:
-                logger.error(f"Error closing Redis connection: {str(e)}")
+        """Alias for close() to maintain compatibility"""
+        await self.close()

@@ -202,21 +202,31 @@ class ChatService:
                     }
                     language_name = language_names.get(detected_lang, f"the language with code '{detected_lang}'")
                 
-                # Create language instruction
-                language_instruction = f"\n\nIMPORTANT: The user's message is in {language_name}. You MUST respond in {language_name} only."
-                
                 # Check if we're in inference-only mode
                 inference_only = self.config.get('general', {}).get('inference_only', False)
                 
                 if inference_only:
-                    # Inference-only mode: language instruction goes to user message
+                    # Inference-only mode: Create a very strong language instruction
+                    # This needs to be strong enough to override conversation history patterns
+                    language_instruction = (
+                        f"\n\n=== CRITICAL LANGUAGE OVERRIDE ===\n"
+                        f"ATTENTION: The user has switched to {language_name}.\n"
+                        f"MANDATORY INSTRUCTION: You MUST respond ONLY in {language_name}.\n"
+                        f"IGNORE any previous conversation language patterns.\n"
+                        f"The user expects and requires a response in {language_name}.\n"
+                        f"Do NOT respond in English or any other language.\n"
+                        f"=== END LANGUAGE OVERRIDE ===\n"
+                    )
+                    
                     if self.verbose:
-                        logger.info(f"Inference-only mode: Will append language instruction for {language_name}")
-                        logger.info(f"Language instruction content: '{language_instruction[:100]}...'")
+                        logger.info(f"Inference-only mode: Will append STRONG language instruction for {language_name}")
+                        logger.info(f"Language instruction content: '{language_instruction[:150]}...'")
                     return None, language_instruction
                     
                 else:
-                    # Full mode: language instruction goes to system prompt
+                    # Full mode: language instruction goes to system prompt (original logic)
+                    language_instruction = f"\n\nIMPORTANT: The user's message is in {language_name}. You MUST respond in {language_name} only."
+                    
                     if self.verbose:
                         logger.info(f"Full mode: Language instruction will be added to system prompt for: {language_name}")
                     
@@ -295,13 +305,43 @@ class ChatService:
         # Detect language and get enhancement instructions
         enhanced_prompt_id, language_instruction = await self._detect_and_enhance_prompt(message, system_prompt_id)
         
-        # Prepare the message (add language instruction if for inference-only mode)
+        # Prepare the message and context for inference-only mode with language override
         final_message = message
+        final_context_messages = context_messages
+        
         if language_instruction and self.config.get('general', {}).get('inference_only', False):
             if self.verbose:
                 logger.info(f"Original user message: '{message}'")
                 logger.info(f"Language instruction to append: '{language_instruction[:100]}...'")
-            final_message = message + language_instruction
+            
+            # In inference-only mode, we need to be strategic about language instruction placement
+            # Strategy 1: Prepend the language instruction to the user message for immediate impact
+            final_message = language_instruction + "\n\n" + message
+            
+            # Strategy 2: If we have conversation context, inject a language override message
+            # This helps override the established language pattern from history
+            if context_messages and len(context_messages) > 0:
+                # Create a copy of context messages to avoid modifying the original
+                final_context_messages = context_messages.copy()
+                
+                # Add a strategic language override message as the most recent context
+                # This appears right before the current user message, making it highly prominent
+                language_override_msg = {
+                    "role": "user",
+                    "content": f"Please note: I am now switching to a different language for my next question. Please respond in the same language I use in my next message, regardless of the language used in our previous conversation."
+                }
+                final_context_messages.append(language_override_msg)
+                
+                # Add assistant acknowledgment to reinforce the instruction
+                ack_msg = {
+                    "role": "assistant", 
+                    "content": "Understood. I will respond in whatever language you use in your next message."
+                }
+                final_context_messages.append(ack_msg)
+                
+                if self.verbose:
+                    logger.info(f"Added language override context messages to conversation history")
+            
             if self.verbose:
                 logger.info(f"Final combined message: '{final_message[:200]}...'")
         else:
@@ -320,7 +360,7 @@ class ChatService:
             response_data = await self.llm_client.generate_response(
                 message=final_message,
                 collection_name=collection_name,
-                context_messages=context_messages
+                context_messages=final_context_messages
             )
             # Clear any overrides after use
             if hasattr(self.llm_client, 'clear_override_system_prompt'):
@@ -333,7 +373,7 @@ class ChatService:
                 message=final_message,
                 collection_name=collection_name,
                 system_prompt_id=enhanced_prompt_id,
-                context_messages=context_messages
+                context_messages=final_context_messages
             )
             
         return enhanced_prompt_id, response_data, metadata
@@ -446,13 +486,43 @@ class ChatService:
             context_messages = await self._get_conversation_context(session_id)
             enhanced_prompt_id, language_instruction = await self._detect_and_enhance_prompt(message, system_prompt_id)
             
-            # Prepare the message (add language instruction if for inference-only mode)
+            # Prepare the message and context for inference-only mode with language override
             final_message = message
+            final_context_messages = context_messages
+            
             if language_instruction and self.config.get('general', {}).get('inference_only', False):
                 if self.verbose:
                     logger.info(f"Original user message: '{message}'")
                     logger.info(f"Language instruction to append: '{language_instruction[:100]}...'")
-                final_message = message + language_instruction
+                
+                # In inference-only mode, we need to be strategic about language instruction placement
+                # Strategy 1: Prepend the language instruction to the user message for immediate impact
+                final_message = language_instruction + "\n\n" + message
+                
+                # Strategy 2: If we have conversation context, inject a language override message
+                # This helps override the established language pattern from history
+                if context_messages and len(context_messages) > 0:
+                    # Create a copy of context messages to avoid modifying the original
+                    final_context_messages = context_messages.copy()
+                    
+                    # Add a strategic language override message as the most recent context
+                    # This appears right before the current user message, making it highly prominent
+                    language_override_msg = {
+                        "role": "user",
+                        "content": f"Please note: I am now switching to a different language for my next question. Please respond in the same language I use in my next message, regardless of the language used in our previous conversation."
+                    }
+                    final_context_messages.append(language_override_msg)
+                    
+                    # Add assistant acknowledgment to reinforce the instruction
+                    ack_msg = {
+                        "role": "assistant", 
+                        "content": "Understood. I will respond in whatever language you use in your next message."
+                    }
+                    final_context_messages.append(ack_msg)
+                    
+                    if self.verbose:
+                        logger.info(f"Added language override context messages to conversation history")
+                
                 if self.verbose:
                     logger.info(f"Final combined message: '{final_message[:200]}...'")
             else:
@@ -482,7 +552,7 @@ class ChatService:
                     stream_generator = self.llm_client.generate_response_stream(
                         message=final_message,
                         collection_name=collection_name,
-                        context_messages=context_messages
+                        context_messages=final_context_messages
                     )
                 else:
                     # Using stored system prompt
@@ -490,7 +560,7 @@ class ChatService:
                         message=final_message,
                         collection_name=collection_name,
                         system_prompt_id=enhanced_prompt_id,
-                        context_messages=context_messages
+                        context_messages=final_context_messages
                     )
                     
                 async for chunk in stream_generator:

@@ -13,7 +13,7 @@
 </div>
 
 
-ORBIT is a modular, self-hosted toolkit that provides a unified API for open-source AI inference models. ORBIT enables you to run AI models on your own infrastructure, maintaining full control over your data while reducing dependency on external AI services. The project is actively maintained by [Schmitech](https://schmitech.ai/), an AI solutions consulting company based in Ottawa, Ontario, Canada.
+ORBIT is a modular, self-hosted toolkit that provides a unified API for open-source AI inference models. ORBIT enables you to run AI models on your own infrastructure, maintaining full control over your data while reducing dependency on external AI services. The project is actively maintained by [Remsy Schmilinsky](https://www.linkedin.com/in/remsy/).
 
 ![ORBIT Chat Demo](docs/images/orbit-chat-gui.gif)
 

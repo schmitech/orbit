@@ -4,184 +4,179 @@ This document explains the multilingual chat support functionality that automati
 
 ## Overview
 
-The chat service includes language detection capability that:
+The chat service includes an advanced language detection capability that:
 
-1. Detects the language of the user's input query
-2. Modifies the system prompt to include instructions for the LLM to respond in the same language
-3. Creates a temporary system prompt with these language instructions
-4. Uses this enhanced prompt for generating the response
+* Detects the language of the user's input query with high accuracy
+* Analyzes the script type (Latin, Cyrillic, CJK, Arabic, etc.)
+* Provides confidence scores and detailed detection results
+* Modifies the system prompt to include language-specific instructions
+* Ensures the LLM responds in the detected language
 
 This functionality can be enabled/disabled through configuration and requires no additional setup when enabled.
 
 ## Configuration
 
-Language detection can be configured in the `config.yaml` file:
-
-```yaml
-general:
-  language_detection: true  # Enable/disable language detection
-  verbose: false           # Enable detailed logging for debugging
-```
+Language detection can be configured in the `config.yaml` file.
 
 ## Architecture
 
-The language detection system consists of two main components:
+The enhanced language detection system consists of a modular architecture with specialized components.
 
-1. `LanguageDetector` class in `server/utils/language_detector.py`
-2. Language detection integration in `ChatService` class in `server/services/chat_service.py`
+### Core Components
 
-### LanguageDetector
+1.  **`LanguageDetector`** - Main orchestrator class
+2.  **`LanguagePatternRepository`** - Centralized pattern storage
+3.  **`ScriptAnalyzer`** - Script type detection
+4.  **`TextAnalyzer`** - Text preprocessing and analysis
+5.  **`ConfidenceCalculator`** - Sophisticated confidence scoring
+6.  **Specialized Detectors** - Language-specific detection logic
+7.  **Detection Backends** - Interfaces to detection libraries
 
-The `LanguageDetector` class provides robust language detection using an ensemble approach:
+### Component Details
 
-1. **Multiple Detection Libraries**:
-   - Primary: `langdetect` (with confidence scores)
-   - Secondary: `langid` (better for technical text)
-   - Tertiary: `pycld2` (good for short texts)
+#### 1. LanguagePatternRepository
+Centralizes all language-specific patterns:
+* **Starters**: Common beginning words (e.g., "what", "when", "how")
+* **Phrases**: Multi-word patterns (e.g., "can you", "how to")
+* **Accents**: Language-specific characters
+* **Indicators**: Unique language markers
+* **Character frequencies**: Statistical patterns
 
-2. **Detection Strategies**:
-   - Ensemble voting with weighted confidence
-   - Character frequency analysis for Latin-script languages
-   - Script analysis for CJK and other writing systems
-   - Special handling for short texts and product names
+#### 2. ScriptAnalyzer
+Advanced script detection using:
+* **Unicode ranges**: Precise character classification
+* **Script ratios**: Handles mixed-script texts
+* **Supported scripts**: Latin, Cyrillic, CJK, Arabic, Hebrew, Greek, Devanagari
 
-3. **Key Features**:
-   - Handles short texts (as few as 5 characters)
-   - Supports technical content and product descriptions
-   - Provides confidence scores for detections
-   - Fallback mechanisms for edge cases
+#### 3. TextAnalyzer
+Comprehensive text analysis:
+* **Character statistics**: Alpha, digit, punctuation ratios
+* **Text variations**: Generates alternatives for better detection
+* **N-gram extraction**: Pattern analysis
+* **Entropy calculation**: Text complexity metrics
+* **Code detection**: Identifies technical content
+
+#### 4. Specialized Detectors
+Language-specific detection logic:
+* **EnglishDetector**: Quick English identification
+* **CyrillicLanguageDetector**: Distinguishes Russian, Mongolian, etc.
+* **CJK handlers**: Separate Chinese, Japanese, Korean
+
+#### 5. Detection Backends
+Clean interfaces for multiple libraries:
+* **LangDetectBackend**: Primary detector with probabilistic approach
+* **LangIdBackend**: Secondary detector, good for technical text
+* **PyCLD2Backend**: Tertiary detector, excellent for short texts
 
 ### ChatService Integration
 
-The `ChatService` integrates language detection into the chat flow:
+The `ChatService` seamlessly integrates the enhanced language detection.
 
-1. **Initialization**:
-   ```python
-   self.language_detection_enabled = _is_true_value(config.get('general', {}).get('language_detection', True))
-   if self.language_detection_enabled:
-       self.language_detector = LanguageDetector(verbose=self.verbose)
-   ```
+1.  **Initialization**: The service initializes the `LanguageDetector` based on configuration settings.
+    ```python
+    self.language_detection_enabled = config.get('general', {}).get('language_detection', True)
+    if self.language_detection_enabled:
+        self.language_detector = LanguageDetector(
+            verbose=self.verbose,
+            min_confidence=config.get('general', {}).get('min_confidence', 0.7)
+        )
+    ```
+2.  **Detection with Details**: Before generating a response, the service calls the detector.
+    ```python
+    result = self.language_detector.detect_with_details(message)
+    if result.confidence >= self.min_confidence:
+        # Use detected language
+        language_code = result.language
+    else:
+        # Fallback to English
+        language_code = 'en'
+    ```
+3.  **Enhanced Prompt Generation**: The system prompt is modified to instruct the LLM to respond in the detected language, with graceful handling for low-confidence scenarios.
 
-2. **Prompt Enhancement**:
-   - Detects language using `LanguageDetector`
-   - Enhances system prompt with language-specific instructions
-   - Uses language names from `pycountry` or fallback mapping
-   - Creates temporary prompt override for non-English responses
+## Enhanced Features
+
+### 1. Detection Results
+The `DetectionResult` class provides a detailed output for every detection.
+```python
+@dataclass
+class DetectionResult:
+    language: str           # ISO 639-1 code
+    confidence: float       # 0.0 to 1.0
+    script: ScriptType      # Detected script type
+    method: str            # Detection method used
+    details: Dict[str, Any] # Additional information
+```
+
+### 2. Confidence Scoring
+The system uses a multi-factor confidence calculation for higher accuracy:
+* **Ensemble voting**: It combines weighted votes from the `LangDetect`, `LangId`, and `PyCLD2` backends.
+* **Pattern matching**: The score is significantly boosted by the presence of language-specific indicators and patterns.
+* **Vote margin**: The difference between the top two language candidates is used to adjust confidence.
+* **Text features**: Final score adjustments are made based on text length, script purity, and content type.
+
+### 3. Script Detection
+Advanced Unicode-based script analysis provides deep insight into the text's composition:
+* **Primary script identification**: Determines the dominant writing system.
+* **Mixed script handling**: Calculates the percentage of each script in the text.
+* **CJK disambiguation**: Precisely separates Chinese, Japanese, and Korean based on unique characters and particles.
+* **Special scripts**: Full support for Arabic, Hebrew, Devanagari, and more.
+
+### 4. Pattern-Based Enhancement
+The detector's accuracy is enhanced by a sophisticated pattern-matching engine that uses precise, word-boundary-aware checks to avoid false positives.
+* **Quick detection**: Fast paths are used for common, unambiguous English patterns.
+* **Accent analysis**: The presence of language-specific accented characters provides a strong signal.
+* **Phrase matching**: Common multi-word patterns are identified for higher accuracy.
+* **Statistical analysis**: Character frequency patterns are used as a secondary signal.
 
 ## Implementation Details
 
-### Language Detection Process
+### Detection Process Flow
 
-1. **Text Preprocessing**:
-   - Removes excess whitespace
-   - Handles very short texts (< 5 characters)
-   - Detects English wh-questions
-   - Analyzes character statistics
-
-2. **Script Analysis**:
-   - Identifies writing system (Latin, Cyrillic, CJK, Arabic)
-   - Calculates script ratios for mixed-script text
-   - Special handling for CJK languages
-
-3. **Ensemble Detection**:
-   - Uses multiple detection libraries
-   - Applies weighted voting based on confidence
-   - Generates text variations for short texts
-   - Handles technical content and product names
-
-4. **Confidence Handling**:
-   - Minimum confidence threshold (default: 0.7)
-   - Fallback to English for low confidence
-   - Special rules for short texts and product listings
-
-### Prompt Enhancement Process
-
-1. **Language Detection**:
-   ```python
-   detected_lang = self.language_detector.detect(message)
-   ```
-
-2. **Language Name Resolution**:
-   - Uses `pycountry` for ISO code to language name conversion
-   - Fallback to common language mapping
-   - Handles unknown language codes gracefully
-
-3. **Prompt Modification**:
-   ```python
-   enhanced_prompt = f"""{original_prompt}
-
-IMPORTANT: The user's message is in {language_name}. You MUST respond in {language_name} only."""
-   ```
-
-4. **Temporary Override**:
-   - Sets enhanced prompt on LLM client
-   - Clears override after response generation
-   - Preserves original prompt for future use
+1.  **Pre-processing**: Input text is cleaned and validated. Texts shorter than 3 characters use a default result.
+2.  **Quick Checks**: The text is first run through a high-speed English detector to identify common cases immediately.
+3.  **Script Analysis**: The writing system is analyzed. If the script is CJK, Arabic, or another non-Latin script, specialized handlers are used to make a determination.
+4.  **Ensemble Detection**: For Latin-based scripts, a vote is taken from all enabled backends. The votes are weighted and heavily adjusted based on pattern-matching results.
+5.  **Confidence Calculation**: A final, sophisticated confidence score is calculated based on the voting consensus, pattern boosts, and overall text features.
 
 ## Supported Languages
 
-The language detector can identify many languages, with particularly good support for:
+The detector provides excellent support across three tiers of accuracy.
 
-- English (en)
-- Spanish (es)
-- French (fr)
-- German (de)
-- Italian (it)
-- Portuguese (pt)
-- Russian (ru)
-- Chinese (zh)
-- Japanese (ja)
-- Korean (ko)
-- Arabic (ar)
-- Hindi (hi)
+### Tier 1 (Highest Accuracy)
+* English (en)
+* Spanish (es)
+* French (fr)
+* German (de)
+* Chinese (zh)
+* Japanese (ja)
+* Korean (ko)
 
-## Performance Considerations
+### Tier 2 (Very Good)
+* Italian (it)
+* Portuguese (pt)
+* Russian (ru)
+* Arabic (ar)
 
-1. **Detection Accuracy**:
-   - High accuracy for texts > 20 characters
-   - Special handling for short texts
-   - Confidence-based fallbacks
-
-2. **Resource Usage**:
-   - Minimal memory footprint
-   - Efficient character analysis
-   - Lazy loading of detection libraries
-
-3. **Edge Cases**:
-   - Product names and technical terms
-   - Mixed-language content
-   - Short queries and commands
+### Tier 3 (Good)
+* Dutch (nl)
+* Polish (pl)
+* Swedish (sv)
+* Turkish (tr)
+* Mongolian (mn)
+* Greek (el)
+* Hebrew (he)
 
 ## Testing and Debugging
 
-1. **Verbose Mode**:
-   - Enable detailed logging with `verbose: true`
-   - Logs detection steps and confidence scores
-   - Shows prompt enhancement details
+### Verbose Mode
+Enable `verbose: true` in `config.yaml` to see detailed logs, including backend voting, pattern matches, and confidence calculations.
 
-2. **Demo Script**:
-   - Located in `server/test/language_detection_demo.py`
-   - Demonstrates detection with various inputs
-   - Shows confidence scores and fallbacks
+### Test Suite
+The system includes a comprehensive and robust test suite to ensure accuracy and reliability. The tests have been enhanced to be stricter, cover more languages and edge cases, and verify high confidence scores for unambiguous detections.
+* **Unit tests**: `pytest server/tests/test_language_detector.py`
+* **Integration tests**: `pytest server/tests/test_chat_service_multilingual.py`
+* **Performance tests**: `python server/tests/benchmark_language_detection.py`
 
-3. **Test Suite**:
-   - Located in `server/tests/test_language_detector.py`
-   - Covers various edge cases
-   - Tests ensemble detection accuracy
-
-## Best Practices
-
-1. **Configuration**:
-   - Enable language detection in production
-   - Use verbose mode for debugging
-   - Monitor detection accuracy
-
-2. **Error Handling**:
-   - Graceful fallback to English
-   - Logging of detection failures
-   - Clear error messages
-
-3. **Performance**:
-   - Monitor detection latency
-   - Watch for memory usage
-   - Profile ensemble detection
+### Demo Script
+An interactive demo script is available for real-time testing and visualization of detection results.
+* Run with: `python server/test/language_detection_demo.py`
