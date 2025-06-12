@@ -4,7 +4,7 @@
 [profiles.minimal]
 description = "Core dependencies"
 dependencies = [
-    "setuptools>=80.9.0",
+    "setuptools>=77.0.3,<80",
     "ollama==0.5.1",
     "motor>=3.7.1",
     "pymongo>=4.13.0",
@@ -45,10 +45,10 @@ dependencies = [
 description = "Torch-related dependencies. Best suited for GPU with CUDA support."
 extends = "minimal"
 dependencies = [
-    "torch==2.7.1",
+    "torch==2.7.0",
     "vllm>=0.9.0.1",
     "llm-guard>=0.3.16",
-    "transformers>=4.52.4",
+    "transformers==4.51.3",
     "accelerate>=0.27.2",
     "sentencepiece>=0.2.0",
     "protobuf>=4.25.2"
@@ -103,3 +103,6 @@ dependencies = [
     "anthropic==0.50.0",
     # Add only the providers you need
 ]
+[profiles.dev]
+description= "For studying and development"
+extends = ["minimal","torch"]
