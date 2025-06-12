@@ -262,12 +262,11 @@ inference:
     stream: true
   vllm:
     host: "localhost"
-    port: 5000
+    port: 8000
     temperature: 0.1
     top_p: 0.8
     top_k: 20
     max_tokens: 1024
-    model: "Qwen2.5-14B"
     stream: true
   llama_cpp:
     model_path: "gguf/tinyllama-1.1b-chat-v1.0.Q4_0.gguf"

@@ -29,7 +29,6 @@ class QAVLLMClient(BaseLLMClient, LLMClientCommon):
         self.host = vllm_config.get('host', 'localhost')
         self.port = vllm_config.get('port', 8000)
         self.base_url = f"http://{self.host}:{self.port}"
-        self.model = vllm_config.get('model', 'llama3:8b')
         self.temperature = vllm_config.get('temperature', 0.1)
         self.top_p = vllm_config.get('top_p', 0.8)
         self.top_k = vllm_config.get('top_k', 20)
@@ -41,7 +40,7 @@ class QAVLLMClient(BaseLLMClient, LLMClientCommon):
         self.max_response_length = vllm_config.get('max_response_length', 2000)
         self.repetition_threshold = vllm_config.get('repetition_threshold', 3)
         
-        self.logger.info(f"Initialized vLLM client with model {self.model}")
+        self.logger.info(f"Initialized vLLM client with base URL {self.base_url}")
     
     async def initialize(self) -> None:
         """Initialize the vLLM client."""
@@ -64,7 +63,6 @@ class QAVLLMClient(BaseLLMClient, LLMClientCommon):
         """
         # Log detailed connection information
         self.logger.info(f"Attempting to connect to vLLM at: {self.base_url}")
-        self.logger.info(f"Using model: {self.model}")
         
         try:
             # First try a simple TCP socket connection to check basic connectivity
@@ -91,66 +89,34 @@ class QAVLLMClient(BaseLLMClient, LLMClientCommon):
             
             # If TCP connection works, try the API endpoints
             async with aiohttp.ClientSession() as session:
-                # Try the completions endpoint first (more likely to work)
+                # Try the chat endpoint first (OpenAI API format)
                 try:
-                    self.logger.info(f"Testing API connection to {self.base_url}/v1/completions")
+                    self.logger.info(f"Testing API connection to {self.base_url}/v1/chat/completions")
                     
                     async with session.post(
-                        f"{self.base_url}/v1/completions",
+                        f"{self.base_url}/v1/chat/completions",
                         json={
-                            "model": self.model,
-                            "prompt": "Hello",
+                            "messages": [{"role": "user", "content": "Hello"}],
                             "max_tokens": 1
                         },
                         timeout=aiohttp.ClientTimeout(total=10)
                     ) as response:
                         status = response.status
-                        self.logger.info(f"Completions endpoint returned status: {status}")
+                        self.logger.info(f"Chat completions endpoint returned status: {status}")
                         
                         if status == 200:
                             self.logger.info("Successfully connected to vLLM server")
                             return True
                         else:
                             error_text = await response.text()
-                            self.logger.error(f"Failed response from completions endpoint: {error_text}")
-                            
-                            # Try chat endpoint if completions fails
-                            return await self._try_chat_endpoint()
+                            self.logger.error(f"Failed response from chat endpoint: {error_text}")
+                            return False
                 except Exception as e:
-                    self.logger.error(f"Error testing completions endpoint: {str(e)}")
-                    return await self._try_chat_endpoint()
+                    self.logger.error(f"Error testing chat endpoint: {str(e)}")
+                    return False
                 
         except Exception as e:
             self.logger.error(f"Connection verification failed: {str(e)}")
-            return False
-    
-    async def _try_chat_endpoint(self) -> bool:
-        """Try the chat completions endpoint as a fallback"""
-        try:
-            self.logger.info(f"Testing API connection to {self.base_url}/v1/chat/completions")
-            
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    f"{self.base_url}/v1/chat/completions",
-                    json={
-                        "model": self.model,
-                        "messages": [{"role": "user", "content": "Hello"}],
-                        "max_tokens": 1
-                    },
-                    timeout=aiohttp.ClientTimeout(total=10)
-                ) as response:
-                    status = response.status
-                    self.logger.info(f"Chat completions endpoint returned status: {status}")
-                    
-                    if status == 200:
-                        self.logger.info("Successfully connected to vLLM server via chat endpoint")
-                        return True
-                    else:
-                        error_text = await response.text()
-                        self.logger.error(f"Failed response from chat endpoint: {error_text}")
-                        return False
-        except Exception as e:
-            self.logger.error(f"Error testing chat endpoint: {str(e)}")
             return False
     
     async def generate_response(
@@ -225,7 +191,6 @@ class QAVLLMClient(BaseLLMClient, LLMClientCommon):
                 async with session.post(
                     f"{self.base_url}/v1/chat/completions",
                     json={
-                        "model": self.model,
                         "messages": messages,
                         "temperature": self.temperature,
                         "top_p": self.top_p,
@@ -393,7 +358,6 @@ class QAVLLMClient(BaseLLMClient, LLMClientCommon):
                 async with session.post(
                     f"{self.base_url}/v1/chat/completions",
                     json={
-                        "model": self.model,
                         "messages": messages,
                         "temperature": self.temperature,
                         "top_p": self.top_p,
