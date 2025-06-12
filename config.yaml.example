@@ -1,6 +1,6 @@
 general:
   port: 3000
-  verbose: false
+  verbose: true
   https:
     enabled: false
     port: 3443
@@ -71,14 +71,14 @@ internal_services:
     password: ${INTERNAL_SERVICES_MONGODB_PASSWORD}
 
   redis:
-    enabled: false
+    enabled: true
     host: ${INTERNAL_SERVICES_REDIS_HOST}
     port: ${INTERNAL_SERVICES_REDIS_PORT}
     db: 0
     username: ${INTERNAL_SERVICES_REDIS_USERNAME}
     password: ${INTERNAL_SERVICES_REDIS_PASSWORD}
     use_ssl: false
-    ttl: 604800
+    ttl: 3600  # 1 hour, matching temp_key_expiry
 
 chat_history:
   enabled: false
@@ -167,7 +167,7 @@ adapters:
       max_results: 5
       return_results: 3
 
-  - name: "qa-vector"
+  - name: "qa-vector-chroma"
     type: "retriever"
     datasource: "chroma"
     adapter: "qa"
@@ -195,7 +195,7 @@ adapters:
       boost_file_uploads: true
       file_content_weight: 1.5
       metadata_weight: 0.8
-
+      
 datasources:
   chroma:
     use_local: true
@@ -203,6 +203,10 @@ datasources:
     host: "localhost"
     port: 8000
     embedding_provider: null 
+  qdrant:
+    host: ${DATASOURCE_QDRANT_HOST}
+    port: ${DATASOURCE_QDRANT_PORT}
+    embedding_provider: null
   sqlite:
     db_path: "sample_db/sqlite/sqlite_db"
   postgres:
@@ -433,4 +437,4 @@ rerankers:
     base_url: "http://localhost:11434"
     model: "xitao/bge-reranker-v2-m3:latest"
     temperature: 0.0
-    batch_size: 5
+    batch_size: 5 
