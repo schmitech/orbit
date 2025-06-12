@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.1.3] - 2025-06-12
+
+### Language Support
+
+- Improve language detection module for more accurate language detection.
+- Updated language detection unit test for better coverage.
+- Improve language detection flow in chat_service.
+
+### vLLM
+
+- Fixed problem with vLLM inference. Updated vllm settings in config.
+
+### UI/Widget Improvements
+
 ## [1.1.2] - 2025-06-09
 
 ### UI/Widget Improvements
