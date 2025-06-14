@@ -48,7 +48,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       />
       
       {/* Aligned container for input and button */}
-      <div className="flex items-end gap-3">
+      <div className="flex items-center gap-3">
         {/* Input Container */}
         <div
           className={clsx(
@@ -127,8 +127,6 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             width: '52px', // Square button for perfect alignment
             height: '54px', // Match input height + border (52px + 2px border)
             minHeight: '54px',
-            // Slight upward adjustment for perfect visual centering
-            transform: 'translateY(-2px)',
             padding: '0',
             border: 'none',
             boxShadow: message.trim() && !isLoading
@@ -151,30 +149,14 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             }}
           />
           
-          {/* Perfectly centered send icon */}
-          <div 
-            className="absolute inset-0 flex items-center justify-center"
+          {/* Send icon - using button's flexbox centering */}
+          <Send 
+            size={CHAT_CONSTANTS.BUTTON_SIZES.ICON_SIZES.SEND} 
+            className="transition-transform duration-200 drop-shadow-sm" 
             style={{
-              // Extra centering container to ensure perfect alignment
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: '100%',
-              height: '100%'
+              strokeWidth: 2
             }}
-          >
-            <Send 
-              size={CHAT_CONSTANTS.BUTTON_SIZES.ICON_SIZES.SEND} 
-              className="transition-transform duration-200 group-hover:translate-x-0.5 drop-shadow-sm" 
-              style={{
-                // Ensure icon is perfectly centered
-                display: 'block',
-                strokeWidth: 2, // Enterprise-grade icon weight
-                // Fine-tune positioning for perfect visual centering
-                transform: 'translate(0.5px, -0.5px)'
-              }}
-            />
-          </div>
+          />
         </button>
       </div>
     </div>

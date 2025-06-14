@@ -60,3 +60,4 @@ gguf
 uploads/
 .next/
 yarn.lock
+package-lock.json
