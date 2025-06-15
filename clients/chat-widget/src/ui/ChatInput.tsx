@@ -47,73 +47,56 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         }}
       />
       
-      {/* Aligned container for input and button */}
-      <div className="flex items-center gap-3">
-        {/* Input Container */}
-        <div
-          className={clsx(
-            "flex-1 relative rounded-2xl transition-all duration-300 overflow-hidden input-modern shadow-soft",
-            isFocused ? "ring-2 ring-opacity-50" : "ring-0"
-          )}
+      {/* Input Container with integrated send button */}
+      <div
+        className={clsx(
+          "relative rounded-2xl transition-all duration-300 overflow-hidden input-modern shadow-soft",
+          isFocused ? "ring-2 ring-opacity-50" : "ring-0"
+        )}
+        style={{
+          borderColor: isFocused ? theme.secondary : 'rgba(0, 0, 0, 0.1)',
+          border: '1px solid',
+          background: `linear-gradient(145deg, ${theme.input.background}, ${theme.input.background}f8)`,
+          backdropFilter: 'blur(10px)',
+          WebkitBackdropFilter: 'blur(10px)',
+          boxShadow: isFocused 
+            ? `0 8px 25px -8px rgba(0, 0, 0, 0.1), 0 0 0 1px ${theme.secondary}40`
+            : '0 2px 10px -3px rgba(0, 0, 0, 0.1)'
+        }}
+      >
+        {/* Textarea */}
+        <textarea
+          ref={inputRef}
+          value={message}
+          onChange={handleMessageChange}
+          onKeyDown={handleKeyDown}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
+          placeholder="Type your message..."
+          maxLength={CHAT_CONSTANTS.MAX_MESSAGE_LENGTH}
+          id="chat-message-input"
+          name="chat-message-input"
+          className="w-full resize-none outline-none pl-6 pr-14 py-4 text-base custom-scrollbar focus:ring-0 focus:outline-none placeholder-gray-400 transition-all duration-200"
           style={{
-            borderColor: isFocused ? theme.secondary : 'rgba(0, 0, 0, 0.1)',
-            border: '1px solid',
-            background: `linear-gradient(145deg, ${theme.input.background}, ${theme.input.background}f8)`,
-            backdropFilter: 'blur(10px)',
-            WebkitBackdropFilter: 'blur(10px)',
-            boxShadow: isFocused 
-              ? `0 8px 25px -8px rgba(0, 0, 0, 0.1), 0 0 0 1px ${theme.secondary}40`
-              : '0 2px 10px -3px rgba(0, 0, 0, 0.1)'
+            background: 'transparent',
+            color: theme.text.primary,
+            height: '52px',
+            minHeight: '52px',
+            maxHeight: '120px',
+            overflow: 'auto',
+            lineHeight: '1.5',
+            boxSizing: 'border-box',
+            fontWeight: '400',
+            textAlign: message.length === 0 ? 'center' : 'left'
           }}
-        >
-          {/* Textarea */}
-          <textarea
-            ref={inputRef}
-            value={message}
-            onChange={handleMessageChange}
-            onKeyDown={handleKeyDown}
-            onFocus={() => setIsFocused(true)}
-            onBlur={() => setIsFocused(false)}
-            placeholder="Type your message..."
-            maxLength={CHAT_CONSTANTS.MAX_MESSAGE_LENGTH}
-            id="chat-message-input"
-            name="chat-message-input"
-            className="w-full resize-none outline-none p-4 pr-12 text-base custom-scrollbar focus:ring-0 focus:outline-none placeholder-gray-400 transition-all duration-200"
-            style={{
-              background: 'transparent',
-              color: theme.text.primary,
-              height: '52px',
-              minHeight: '52px',
-              maxHeight: '120px',
-              overflow: 'auto',
-              lineHeight: '1.5',
-              boxSizing: 'border-box',
-              fontWeight: '400'
-            }}
-          />
-          
-          {/* Character Counter */}
-          {message.length > 0 && (
-            <div
-              className="absolute bottom-2 right-3 text-xs px-2.5 py-1 rounded-full transition-all duration-200 backdrop-blur-sm"
-              style={{
-                ...getCharacterCountStyle(message.length, CHAT_CONSTANTS.MAX_MESSAGE_LENGTH),
-                backdropFilter: 'blur(8px)',
-                WebkitBackdropFilter: 'blur(8px)',
-                fontWeight: '500'
-              }}
-            >
-              {message.length}/{CHAT_CONSTANTS.MAX_MESSAGE_LENGTH}
-            </div>
-          )}
-        </div>
+        />
         
-        {/* Send Button - Perfectly aligned and centered */}
+        {/* Send Button - Positioned inside input on the right */}
         <button
           onClick={handleSendMessage}
           disabled={!message.trim() || isLoading}
           className={clsx(
-            "btn-modern rounded-2xl transition-all duration-300 flex items-center justify-center shrink-0 shadow-soft relative overflow-hidden group",
+            "absolute right-3 top-1/2 transform -translate-y-1/2 btn-modern rounded-lg transition-all duration-300 flex items-center justify-center shrink-0 overflow-hidden group",
             message.trim() && !isLoading
               ? "animate-button-hover"
               : "cursor-not-allowed opacity-50"
@@ -123,21 +106,20 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               ? `linear-gradient(135deg, ${theme.secondary}, ${theme.secondary}e6)` 
               : 'linear-gradient(135deg, #e5e7eb, #f3f4f6)',
             color: message.trim() && !isLoading ? 'white' : '#9ca3af',
-            // Make button height match input container exactly
-            width: '52px', // Square button for perfect alignment
-            height: '54px', // Match input height + border (52px + 2px border)
-            minHeight: '54px',
+            width: '36px',
+            height: '36px',
+            minHeight: '36px',
             padding: '0',
             border: 'none',
             boxShadow: message.trim() && !isLoading
-              ? `0 4px 12px -2px ${theme.secondary}40`
-              : '0 2px 4px -1px rgba(0, 0, 0, 0.1)',
-            // Perfect alignment properties
+              ? `0 2px 8px -2px ${theme.secondary}40`
+              : '0 1px 3px -1px rgba(0, 0, 0, 0.1)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             flexShrink: 0,
-            position: 'relative'
+            position: 'absolute',
+            zIndex: 10
           }}
           aria-label="Send message"
         >
@@ -149,7 +131,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             }}
           />
           
-          {/* Send icon - using button's flexbox centering */}
+          {/* Send icon */}
           <Send 
             size={CHAT_CONSTANTS.BUTTON_SIZES.ICON_SIZES.SEND} 
             className="transition-transform duration-200 drop-shadow-sm" 
@@ -158,6 +140,21 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             }}
           />
         </button>
+        
+        {/* Character Counter */}
+        {message.length > 0 && (
+          <div
+            className="absolute bottom-2 right-12 text-xs px-2.5 py-1 rounded-full transition-all duration-200 backdrop-blur-sm"
+            style={{
+              ...getCharacterCountStyle(message.length, CHAT_CONSTANTS.MAX_MESSAGE_LENGTH),
+              backdropFilter: 'blur(8px)',
+              WebkitBackdropFilter: 'blur(8px)',
+              fontWeight: '500'
+            }}
+          >
+            {message.length}/{CHAT_CONSTANTS.MAX_MESSAGE_LENGTH}
+          </div>
+        )}
       </div>
     </div>
   );
