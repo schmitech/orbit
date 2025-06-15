@@ -1,15 +1,16 @@
 import React from 'react';
-import { ChevronUp, ChevronDown, MessageCircle } from 'lucide-react';
+import { ChevronUp, ChevronDown } from 'lucide-react';
 import { Message as MessageType } from '../store/chatStore';
 import { ChatIcon } from '../shared/ChatIcon';
 import { Message } from './Message';
 import { CHAT_CONSTANTS } from '../shared/styles';
+import { ThemeConfig, ChatConfig } from '../config';
 
 export interface MessagesListProps {
   messages: MessageType[];
   isLoading: boolean;
-  theme: any; // TODO: Type this properly
-  currentConfig: any; // TODO: Type this properly
+  theme: ThemeConfig;
+  currentConfig: ChatConfig;
   showScrollTop: boolean;
   showScrollBottom: boolean;
   isAnimating: boolean;
@@ -160,7 +161,6 @@ export const MessagesList: React.FC<MessagesListProps> = ({
                     }}
                     title={question.text}
                   >
-                    <MessageCircle size={CHAT_CONSTANTS.BUTTON_SIZES.ICON_SIZES.BUTTON} className="mr-3 flex-shrink-0 opacity-70" />
                     <span className="flex-1 truncate">{displayText}</span>
                   </button>
                 );

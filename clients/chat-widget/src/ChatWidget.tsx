@@ -202,7 +202,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
         <div
           className="mb-4 w-full rounded-2xl shadow-elegant flex flex-col overflow-hidden border-0 transition-all duration-300 ease-in-out animate-slide-in-up backdrop-blur-lg"
           style={{
-            background: `linear-gradient(145deg, ${theme.background}, ${theme.background}f0)`,
+            background: theme.input.background,
             height: CHAT_CONSTANTS.WINDOW_DIMENSIONS.HEIGHT,
             maxHeight: CHAT_CONSTANTS.WINDOW_DIMENSIONS.MAX_HEIGHT,
             width: getResponsiveWidth(windowWidth),

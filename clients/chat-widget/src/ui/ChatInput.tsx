@@ -34,9 +34,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     <div
       className="p-4 border-t-0 shrink-0 relative"
       style={{
-        background: `linear-gradient(180deg, transparent, ${theme.background}f8)`,
-        backdropFilter: 'blur(10px)',
-        WebkitBackdropFilter: 'blur(10px)',
+        background: `${theme.input.background} !important`,
+        backgroundColor: `${theme.input.background} !important`,
       }}
     >
       {/* Subtle top border gradient */}
@@ -54,14 +53,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           isFocused ? "ring-2 ring-opacity-50" : "ring-0"
         )}
         style={{
-          borderColor: isFocused ? theme.secondary : 'rgba(0, 0, 0, 0.1)',
+          borderColor: isFocused ? theme.secondary : theme.input.border,
           border: '1px solid',
-          background: `linear-gradient(145deg, ${theme.input.background}, ${theme.input.background}f8)`,
-          backdropFilter: 'blur(10px)',
-          WebkitBackdropFilter: 'blur(10px)',
-          boxShadow: isFocused 
-            ? `0 8px 25px -8px rgba(0, 0, 0, 0.1), 0 0 0 1px ${theme.secondary}40`
-            : '0 2px 10px -3px rgba(0, 0, 0, 0.1)'
+          background: `${theme.input.background} !important`,
+          backgroundColor: `${theme.input.background} !important`,
+          boxShadow: 'none'
         }}
       >
         {/* Textarea */}
@@ -76,9 +72,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           maxLength={CHAT_CONSTANTS.MAX_MESSAGE_LENGTH}
           id="chat-message-input"
           name="chat-message-input"
-          className="w-full resize-none outline-none pl-6 pr-14 py-4 text-base custom-scrollbar focus:ring-0 focus:outline-none placeholder-gray-400 transition-all duration-200"
+          className="w-full resize-none"
           style={{
-            background: 'transparent',
+            background: `${theme.input.background} !important`,
+            backgroundColor: `${theme.input.background} !important`,
             color: theme.text.primary,
             height: '52px',
             minHeight: '52px',
@@ -87,7 +84,16 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             lineHeight: '1.5',
             boxSizing: 'border-box',
             fontWeight: '400',
-            textAlign: message.length === 0 ? 'center' : 'left'
+            textAlign: 'left',
+            border: 'none !important',
+            boxShadow: 'none !important',
+            outline: 'none !important',
+            paddingLeft: '24px',
+            paddingRight: '56px',
+            paddingTop: '16px',
+            paddingBottom: '16px',
+            fontSize: '16px',
+            fontFamily: 'inherit'
           }}
         />
         

@@ -62,8 +62,7 @@ export const Message: React.FC<MessageProps> = ({
     >
       <div 
         className={clsx(
-          "max-w-[85%] rounded-xl p-4 shadow-sm",
-          message.role === 'user' ? "rounded-tr-none" : "rounded-tl-none"
+          "max-w-[85%] rounded-xl p-4 shadow-sm"
         )}
         style={{
           background: message.role === 'user' ? theme.message.user : theme.message.assistant,
@@ -72,7 +71,8 @@ export const Message: React.FC<MessageProps> = ({
           width: '100%',
           maxWidth: '85%',
           wordWrap: 'break-word',
-          overflowWrap: 'anywhere'
+          overflowWrap: 'anywhere',
+          borderRadius: message.role === 'assistant' ? '0.75rem' : undefined
         }}
       >
         {/* Message Content */}
