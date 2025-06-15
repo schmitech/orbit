@@ -127,14 +127,8 @@ export const MessagesList: React.FC<MessagesListProps> = ({
             </div>
           </div>
           <div className="w-full px-2">
-            <div
-              className="grid gap-3 max-w-3xl mx-auto"
-              style={{
-                gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-                alignItems: 'stretch',
-              }}
-            >
-              {currentConfig.suggestedQuestions.slice(0, 6).map((question: any, index: number) => {
+            <div className="flex flex-col gap-2 max-w-4xl">
+              {currentConfig.suggestedQuestions.slice(0, 3).map((question: any, index: number) => {
                 const maxQueryLen = maxSuggestedQuestionQueryLength ?? CHAT_CONSTANTS.MAX_SUGGESTED_QUESTION_QUERY_LENGTH;
                 const maxDisplayLen = maxSuggestedQuestionLength ?? CHAT_CONSTANTS.MAX_SUGGESTED_QUESTION_LENGTH;
                 const safeQuery = question.query?.length > maxQueryLen
@@ -153,11 +147,19 @@ export const MessagesList: React.FC<MessagesListProps> = ({
                         focusInput();
                       }, CHAT_CONSTANTS.ANIMATIONS.TOGGLE_DELAY);
                     }}
-                    className="flex items-center w-full cursor-pointer px-4 py-3 text-left text-base rounded-xl transition-all duration-200 ease-in-out bg-transparent border border-transparent hover:bg-black/5 hover:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    className="flex items-center w-full cursor-pointer px-4 py-3 text-left text-lg rounded-xl transition-all duration-200 ease-in-out bg-transparent border border-transparent hover:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/30"
                     style={{
                       color: theme.suggestedQuestions.text,
                       minHeight: '48px',
                       fontWeight: 500,
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.setProperty('background', 'transparent', 'important');
+                      e.currentTarget.style.setProperty('backgroundColor', 'transparent', 'important');
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.setProperty('background', 'transparent', 'important');
+                      e.currentTarget.style.setProperty('backgroundColor', 'transparent', 'important');
                     }}
                     title={question.text}
                   >

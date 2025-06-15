@@ -446,7 +446,7 @@
             <div class="color-row">
                 <div class="color-field">
                     <label for="max-suggested-question-length">Max Question Length:</label>
-                    <input type="number" id="max-suggested-question-length" min="10" max="200" value="50" style="width: 80px;">
+                    <input type="number" id="max-suggested-question-length" min="10" max="200" value="120" style="width: 80px;">
                 </div>
                 <div class="color-field">
                     <label for="max-suggested-question-query-length">Max Query Length:</label>
@@ -887,7 +887,7 @@
             },
             suggestedQuestions: [
                 {
-                    text: "Tell me about yourself",
+                    text: "Tell me about yourself?",
                     query: "What are your capabilities and how can you help me?"
                 },
                 {
@@ -1391,14 +1391,14 @@
         // Add this function to handle custom limits
         function getCustomLimits() {
             return {
-                maxSuggestedQuestionLength: Number(document.getElementById('max-suggested-question-length').value) || 50,
+                maxSuggestedQuestionLength: Number(document.getElementById('max-suggested-question-length').value) || 120,
                 maxSuggestedQuestionQueryLength: Number(document.getElementById('max-suggested-question-query-length').value) || 200
             };
         }
         // Track which content is currently active and previous limits
         let currentContentType = 'default';
         let previousLimits = {
-            maxSuggestedQuestionLength: 50,
+            maxSuggestedQuestionLength: 120,
             maxSuggestedQuestionQueryLength: 200
         };
         

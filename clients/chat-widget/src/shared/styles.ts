@@ -1,5 +1,5 @@
 // Style constants and CSS for the ChatWidget
-export const DEFAULT_MAX_SUGGESTED_QUESTION_LENGTH = 50;
+export const DEFAULT_MAX_SUGGESTED_QUESTION_LENGTH = 120;
 export const DEFAULT_MAX_SUGGESTED_QUESTION_QUERY_LENGTH = 200;
 
 export let CHAT_CONSTANTS = {
