@@ -111,24 +111,18 @@ export const MessagesList: React.FC<MessagesListProps> = ({
 
       {/* Empty State - Welcome Screen */}
       {messages.length === 0 ? (
-        <div className="text-center py-4">
-          <ChatIcon
-            iconName={currentConfig.icon}
-            size={CHAT_CONSTANTS.BUTTON_SIZES.ICON_SIZES.WELCOME}
-            className="mx-auto mb-2"
-            style={{ color: theme.iconColor }}
-          />
-          <h4 className="font-medium text-xl mb-3" style={{ color: theme.text.primary }}>{currentConfig.welcome.title}</h4>
+        <div className="py-4">
           <div className="w-full px-3 mb-4">
             <div className="max-w-lg mx-auto sm:max-w-2xl">
+              <h4 className="font-medium text-xl mb-2 text-left px-1" style={{ color: theme.text.primary }}>{currentConfig.welcome.title}</h4>
               <p className="text-lg text-left px-1 py-2" style={{ color: theme.text.secondary }}>
                 {currentConfig.welcome.description}
               </p>
             </div>
           </div>
-          <div className="w-full px-2">
-            <div className="flex flex-col gap-2 max-w-4xl">
-              {currentConfig.suggestedQuestions.slice(0, 3).map((question: any, index: number) => {
+          <div className="w-full px-3">
+            <div className="flex flex-col gap-1 max-w-lg mx-auto sm:max-w-2xl">
+              {currentConfig.suggestedQuestions.slice(0, 5).map((question: any, index: number) => {
                 const maxQueryLen = maxSuggestedQuestionQueryLength ?? CHAT_CONSTANTS.MAX_SUGGESTED_QUESTION_QUERY_LENGTH;
                 const maxDisplayLen = maxSuggestedQuestionLength ?? CHAT_CONSTANTS.MAX_SUGGESTED_QUESTION_LENGTH;
                 const safeQuery = question.query?.length > maxQueryLen
@@ -147,7 +141,7 @@ export const MessagesList: React.FC<MessagesListProps> = ({
                         focusInput();
                       }, CHAT_CONSTANTS.ANIMATIONS.TOGGLE_DELAY);
                     }}
-                    className="flex items-center w-full cursor-pointer px-4 py-3 text-left text-lg rounded-xl transition-all duration-200 ease-in-out bg-transparent border border-transparent hover:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    className="flex items-center w-full cursor-pointer px-1 py-3 text-left text-lg rounded-xl transition-all duration-200 ease-in-out bg-transparent border border-transparent hover:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/30"
                     style={{
                       color: theme.suggestedQuestions.text,
                       minHeight: '48px',
