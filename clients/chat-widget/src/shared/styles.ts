@@ -49,10 +49,8 @@ export let CHAT_CONSTANTS = {
    * Global CSS styles for the ChatWidget component
    */
   export const CHAT_WIDGET_STYLES = `
-  @import url('https://fonts.googleapis.com/css2?family=Mona+Sans:ital,wght@0,200..900;1,200..900&display=swap');
-  
   body, button, input, textarea {
-    font-family: 'Mona Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
   }
   
   /* Complete focus ring removal - covers all browsers and scenarios */
@@ -369,7 +367,7 @@ export let CHAT_CONSTANTS = {
   /**
    * Font family constant for consistent typography
    */
-  export const FONT_FAMILY = 'Mona Sans, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
+  export const FONT_FAMILY = '-apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif';
   
   /**
    * Character count styling helper

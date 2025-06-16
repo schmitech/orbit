@@ -235,7 +235,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
             
             <div className="flex items-center relative z-10 w-full px-3">
               <div className="max-w-lg mx-auto sm:max-w-2xl w-full">
-                <h3 className="text-lg font-semibold tracking-tight text-left px-1">{currentConfig.header.title}</h3>
+                <h3 className="text-xl font-semibold tracking-tight text-left px-1">{currentConfig.header.title}</h3>
               </div>
             </div>
             <div className="flex items-center space-x-2 relative z-10">

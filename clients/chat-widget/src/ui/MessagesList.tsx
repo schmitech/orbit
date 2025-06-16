@@ -112,16 +112,16 @@ export const MessagesList: React.FC<MessagesListProps> = ({
       {/* Empty State - Welcome Screen */}
       {messages.length === 0 ? (
         <div className="py-4">
-          <div className="w-full px-3 mb-4">
+          <div className="w-full px-3 mb-6 text-center">
             <div className="max-w-lg mx-auto sm:max-w-2xl">
-              <h4 className="font-medium text-lg mb-2 text-left px-1" style={{ color: theme.text.primary }}>{currentConfig.welcome.title}</h4>
-              <p className="text-base text-left px-1 py-2" style={{ color: theme.text.secondary }}>
+              <h4 className="font-bold text-2xl mb-2 text-center px-1" style={{ color: theme.text.primary }}>{currentConfig.welcome.title}</h4>
+              <p className="text-xl text-center px-1 py-2" style={{ color: theme.text.secondary }}>
                 {currentConfig.welcome.description}
               </p>
             </div>
           </div>
           <div className="w-full px-3">
-            <div className="flex flex-col gap-1 max-w-lg mx-auto sm:max-w-2xl">
+            <div className="flex flex-col gap-2 max-w-lg mx-auto sm:max-w-2xl pl-2 items-center">
               {currentConfig.suggestedQuestions.slice(0, 6).map((question: any, index: number) => {
                 const maxQueryLen = maxSuggestedQuestionQueryLength ?? CHAT_CONSTANTS.MAX_SUGGESTED_QUESTION_QUERY_LENGTH;
                 const maxDisplayLen = maxSuggestedQuestionLength ?? CHAT_CONSTANTS.MAX_SUGGESTED_QUESTION_LENGTH;
@@ -133,32 +133,31 @@ export const MessagesList: React.FC<MessagesListProps> = ({
                   : question.text;
 
                 return (
-                  <button
+                  <div
                     key={index}
-                    onClick={() => {
-                      sendMessage(safeQuery);
-                      setTimeout(() => {
-                        focusInput();
-                      }, CHAT_CONSTANTS.ANIMATIONS.TOGGLE_DELAY);
-                    }}
-                    className="flex items-center w-full cursor-pointer px-1 py-3 text-left text-base rounded-xl transition-all duration-200 ease-in-out bg-transparent border border-transparent hover:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    className="flex items-center w-full px-1 py-1.5 text-base rounded-xl justify-center"
                     style={{
-                      color: theme.suggestedQuestions.text,
-                      minHeight: '48px',
-                      fontWeight: 500,
+                      minHeight: '36px',
+                      background: 'transparent',
                     }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.setProperty('background', 'transparent', 'important');
-                      e.currentTarget.style.setProperty('backgroundColor', 'transparent', 'important');
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.setProperty('background', 'transparent', 'important');
-                      e.currentTarget.style.setProperty('backgroundColor', 'transparent', 'important');
-                    }}
-                    title={safeQuery}
                   >
-                    <span className="flex-1 truncate">{displayText}</span>
-                  </button>
+                    <span
+                      onClick={() => {
+                        sendMessage(safeQuery);
+                        setTimeout(() => {
+                          focusInput();
+                        }, CHAT_CONSTANTS.ANIMATIONS.TOGGLE_DELAY);
+                      }}
+                      className="truncate hover:text-primary transition-colors duration-200 cursor-pointer text-center w-full text-base"
+                      style={{
+                        color: theme.suggestedQuestions.text,
+                        fontWeight: 500,
+                      }}
+                      title={safeQuery}
+                    >
+                      {displayText}
+                    </span>
+                  </div>
                 );
               })}
             </div>
