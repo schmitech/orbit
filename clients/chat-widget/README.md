@@ -27,57 +27,84 @@ Add this code to your website:
 <script>
   window.addEventListener('load', function() {
     window.initChatbotWidget({
+      // Required parameters
       apiUrl: 'https://your-api-url.com',  // Your chatbot API endpoint  
       apiKey: 'your-api-key',             // Your API key
       sessionId: 'optional-session-id',    // Required: Provide a session ID
-      // Optional widget configuration
-      header: {
-        title: "Chat Assistant"
-      },
-      welcome: {
-        title: "Welcome!",
-        description: "How can I help you today?"
-      },
-      suggestedQuestions: [
-        {
-          text: "How can you help me?",  // Display text (truncated based on maxSuggestedQuestionLength)
-          query: "What can you do?"      // Query sent to API (truncated based on maxSuggestedQuestionQueryLength)
+      
+      // Optional: Custom container selector
+      containerSelector: '#my-chat-container', // Place widget in specific container
+      
+      // Widget configuration
+      widgetConfig: {
+        // Header configuration
+        header: {
+          title: "Chat Assistant"  // Title shown in the chat header
         },
-        {
-          text: "Contact support",       // Display text
-          query: "How do I contact support?" // Query sent to API
+        
+        // Welcome message configuration
+        welcome: {
+          title: "Welcome!",       // Welcome message title
+          description: "How can I help you today?"  // Welcome message description
+        },
+        
+        // Suggested questions configuration
+        suggestedQuestions: [
+          {
+            text: "How can you help me?",  // Display text (truncated based on maxSuggestedQuestionLength)
+            query: "What can you do?"      // Query sent to API (truncated based on maxSuggestedQuestionQueryLength)
+          },
+          {
+            text: "Contact support",       // Display text
+            query: "How do I contact support?" // Query sent to API
+          }
+        ],
+        
+        // Optional: Customize length limits for suggested questions
+        maxSuggestedQuestionLength: 60,      // Display length limit (default: 50)
+        maxSuggestedQuestionQueryLength: 300, // Query length limit (default: 200)
+        
+        // Theme configuration
+        theme: {
+          // Main colors
+          primary: '#4f46e5',    // Header and minimized button color
+          secondary: '#7c3aed',  // Send button and header title color
+          background: '#ffffff', // Widget background color
+          
+          // Text colors
+          text: {
+            primary: '#111827',   // Main text color
+            secondary: '#6b7280', // Secondary text color
+            inverse: '#ffffff'    // Text color on colored backgrounds
+          },
+          
+          // Input field styling
+          input: {
+            background: '#f9fafb', // Input field background
+            border: '#e5e7eb'     // Input field border color
+          },
+          
+          // Message bubble styling
+          message: {
+            user: '#4f46e5',      // User message bubble color
+            userText: '#ffffff',  // User message text color
+            assistant: '#f8fafc'  // Assistant message bubble color
+          },
+          
+          // Suggested questions styling
+          suggestedQuestions: {
+            background: '#fff7ed',    // Background color
+            hoverBackground: '#ffedd5', // Hover background color
+            text: '#4338ca'          // Text color
+          },
+          
+          // Chat button styling
+          chatButton: {
+            background: '#ffffff',     // Button background
+            hoverBackground: '#f8fafc' // Button hover background
+          }
         }
-      ],
-      // Optional: Customize length limits for suggested questions
-      maxSuggestedQuestionLength: 60,      // Display length limit (default: 50)
-      maxSuggestedQuestionQueryLength: 300, // Query length limit (default: 200)
-      theme: {
-        primary: '#4f46e5',
-        secondary: '#7c3aed',
-        background: '#ffffff',
-        text: {
-          primary: '#111827',
-          inverse: '#ffffff'
-        },
-        input: {
-          background: '#f9fafb',
-          border: '#e5e7eb'
-        },
-        message: {
-          user: '#4f46e5',
-          assistant: '#f8fafc',
-          userText: '#ffffff'
-        },
-        suggestedQuestions: {
-        text: '#4338ca'
-      },
-        chatButton: {
-          background: '#ffffff',
-          hoverBackground: '#f8fafc'
-        },
-        iconColor: '#7c3aed'
-      },
-      icon: "message-square"
+      }
     });
   });
 </script>

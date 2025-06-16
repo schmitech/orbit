@@ -1,5 +1,3 @@
-export type IconType = 'heart' | 'message-square' | 'message-circle' | 'help-circle' | 'info' | 'bot' | 'sparkles';
-
 export interface ChatConfig {
   header: {
     title: string;
@@ -31,7 +29,6 @@ export interface ChatConfig {
       background: string;
       hoverBackground?: string;
     };
-    iconColor: string;
   };
   welcome: {
     title: string;
@@ -41,7 +38,7 @@ export interface ChatConfig {
     text: string;
     query: string;
   }>;
-  icon?: IconType;
+
 }
 
 export const defaultTheme = {
@@ -70,8 +67,7 @@ export const defaultTheme = {
   chatButton: {
     background: '#ffffff',
     hoverBackground: '#f8fafc'
-  },
-  iconColor: '#EC994B'
+  }
 };
 
 export const getChatConfig = (): ChatConfig => ({
@@ -87,6 +83,5 @@ export const getChatConfig = (): ChatConfig => ({
     { text: "What can you help me with?", query: "What can you help me with?" },
     { text: "Tell me about your features", query: "Tell me about your features" },
     { text: "How do I get started?", query: "How do I get started?" }
-  ],
-  icon: "sparkles"
+  ]
 });

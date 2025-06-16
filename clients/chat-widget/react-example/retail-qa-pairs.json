@@ -1,0 +1,202 @@
+[
+    {
+      "question": "How do I process a customer return without a receipt?",
+      "answer": "Open POS ▸ Returns ▸ 'No-Receipt' tab, enter the item’s SKU, and issue a store credit voucher."
+    },
+    {
+      "question": "Where can I find today's sales report by department?",
+      "answer": "Go to Analytics Dashboard ▸ Reports ▸ Daily Sales ▸ Filter by Department."
+    },
+    {
+      "question": "How do I issue a digital gift card at the POS?",
+      "answer": "Select Gift Card ▸ eGift ▸ Enter amount ▸ Email address ▸ Tap 'Send'."
+    },
+    {
+      "question": "How can I update product descriptions on the e-commerce site?",
+      "answer": "In Product Manager, search SKU ▸ Edit ▸ Description field ▸ Save & Publish."
+    },
+    {
+      "question": "What is the procedure for receiving a shipment in the back-office system?",
+      "answer": "Back Office ▸ Inbound Shipments ▸ Scan ASN barcode ▸ 'Receive All' ▶ Confirm quantities."
+    },
+    {
+      "question": "How do I check the delivery status of an online order?",
+      "answer": "Order Tracker ▸ Enter order # ▸ Status pane shows real-time carrier updates."
+    },
+    {
+      "question": "How can I view employee shift schedules for next week?",
+      "answer": "Scheduler ▸ Calendar ▸ Toggle to 'Next Week' ▸ Filter by Role if needed."
+    },
+    {
+      "question": "What steps do I follow to perform an end-of-day cash reconciliation?",
+      "answer": "POS ▸ Cash Drawer ▸ 'End-of-Day' ▶ Count cash ▶ Enter totals ▶ Print reconciliation slip."
+    },
+    {
+      "question": "How do I create a new promotion in the POS?",
+      "answer": "Promotions Portal ▸ New Promo ▸ Choose type ▸ Set dates/SKUs ▸ Activate."
+    },
+    {
+      "question": "Where can I find the latest visual merchandising guidelines for the front window?",
+      "answer": "Intranet ▸ Merchandising ▸ 'Window Standards' PDF (updated monthly)."
+    },
+    {
+      "question": "How do I submit a maintenance request for a broken refrigeration unit?",
+      "answer": "Facilities App ▸ New Ticket ▸ Select 'Refrigeration' ▸ Add photo ▸ Submit."
+    },
+    {
+      "question": "What is the process for flagging damaged inventory?",
+      "answer": "Inventory App ▸ Scan item ▸ Choose 'Damage' reason ▸ Quantity ▸ Save."
+    },
+    {
+      "question": "How do I adjust reorder points for seasonal items?",
+      "answer": "Inventory Settings ▸ Reorder Rules ▸ Filter by Season ▸ Edit PAR levels ▸ Save."
+    },
+    {
+      "question": "Where can I access training materials for seasonal staff?",
+      "answer": "LMS ▸ Courses ▸ 'Seasonal Onboarding' bundle ▸ Assign to staff."
+    },
+    {
+      "question": "How do I set up a BOPIS order?",
+      "answer": "E-com Admin ▸ Orders ▸ Create ▸ Select 'Pick Up In Store' ▸ Assign store ▸ Submit."
+    },
+    {
+      "question": "How can I track customer loyalty points for a shopper?",
+      "answer": "CRM ▸ Search customer email/phone ▸ Loyalty tab shows current points and tier."
+    },
+    {
+      "question": "Where do I update tax rates for a new region?",
+      "answer": "Finance Portal ▸ Tax Settings ▸ Add Region ▸ Enter rate ▸ Save."
+    },
+    {
+      "question": "How do I process split payment methods at checkout?",
+      "answer": "POS payment screen ▸ Tap 'Split' ▸ Select payment types ▸ Enter amounts ▸ Complete."
+    },
+    {
+      "question": "How can I generate a foot-traffic heatmap for the last quarter?",
+      "answer": "Analytics Dashboard ▸ Store Traffic ▸ Heatmap ▸ Date range 'Last Quarter'."
+    },
+    {
+      "question": "Where can I log an incident for an in-store injury?",
+      "answer": "Safety Portal ▸ New Incident ▸ Fill form ▸ Attach witness statements ▸ Submit."
+    },
+    {
+      "question": "How do I configure email receipts for customers?",
+      "answer": "POS Settings ▸ Receipts ▸ Toggle 'Email by default' ▸ Save."
+    },
+    {
+      "question": "What is the workflow for transferring stock between stores?",
+      "answer": "Inventory ▸ Transfers ▸ New Transfer ▸ Source & Destination stores ▸ Add SKUs ▸ Ship."
+    },
+    {
+      "question": "How do I check warranty information for an electronic item?",
+      "answer": "Product Lookup ▸ Enter SKU ▸ Warranty tab lists coverage and expiry."
+    },
+    {
+      "question": "Where can I find guidelines for age-restricted sales?",
+      "answer": "Compliance Center ▸ Policies ▸ 'Age-Restricted Items' PDF."
+    },
+    {
+      "question": "How do I export data for monthly inventory audits?",
+      "answer": "Inventory ▸ Reports ▸ Monthly Audit ▸ Export ▸ Choose CSV or XLSX."
+    },
+    {
+      "question": "How can I escalate a customer complaint to corporate support?",
+      "answer": "CRM ▸ Case ▶ 'Escalate' button ▸ Select 'Corporate Support' queue."
+    },
+    {
+      "question": "Where do I download the latest price list from headquarters?",
+      "answer": "Intranet ▸ Pricing ▸ 'Master Price List' (timestamped PDF/CSV)."
+    },
+    {
+      "question": "How do I bulk upload new SKUs into the system?",
+      "answer": "Product Manager ▸ Bulk Import ▸ Download template ▸ Fill ▸ Upload ▸ Validate."
+    },
+    {
+      "question": "How do I pause online orders during a store inventory count?",
+      "answer": "Store Settings ▸ Fulfillment ▸ Toggle 'Suspend Online Orders' ▸ Confirm."
+    },
+    {
+      "question": "Where can I view last year's holiday staffing plan?",
+      "answer": "HR Portal ▸ Staffing Plans ▸ Archive ▸ 'Holiday Season 2024'."
+    },
+    {
+      "question": "How do I enable contactless payments on the POS terminal?",
+      "answer": "POS Settings ▸ Payments ▸ Enable 'NFC/Contactless' ▸ Restart terminal."
+    },
+    {
+      "question": "How can I schedule a push notification for a flash sale?",
+      "answer": "Marketing Hub ▸ Push Notifications ▸ New Campaign ▸ Compose ▸ Schedule time."
+    },
+    {
+      "question": "Where do I find instructions for recycling packaging materials?",
+      "answer": "Intranet ▸ Sustainability ▸ 'Packaging Recycling Guide' PDF."
+    },
+    {
+      "question": "How do I initiate a vendor return for defective products?",
+      "answer": "Vendor Portal ▸ Returns ▸ Create RMA ▸ Select SKU & qty ▸ Submit."
+    },
+    {
+      "question": "How can I verify a gift card balance?",
+      "answer": "POS ▸ Gift Card ▸ 'Check Balance' ▸ Swipe or key in number."
+    },
+    {
+      "question": "Where can I find KPI dashboards for store managers?",
+      "answer": "Analytics Dashboard ▸ KPI ▸ 'Store Manager View'."
+    },
+    {
+      "question": "How do I update store hours for a public holiday?",
+      "answer": "Store Settings ▸ Hours ▸ Add exception date ▸ Save."
+    },
+    {
+      "question": "What is the procedure for cash pickup from the safe?",
+      "answer": "Safe Log ▸ Schedule Pickup ▸ Enter amount ▸ Two-manager verification ▸ Seal bag."
+    },
+    {
+      "question": "How do I create a purchase order for consumables?",
+      "answer": "Procurement ▸ New PO ▸ Select vendor 'Store Supplies' ▸ Add items ▸ Submit."
+    },
+    {
+      "question": "How can I track marketing ROI for a social media campaign?",
+      "answer": "Marketing Hub ▸ Campaigns ▸ Select campaign ▸ ROI tab shows spend vs sales uplift."
+    },
+    {
+      "question": "Where do I access the PCI compliance checklist?",
+      "answer": "Compliance Center ▸ Payment Security ▸ 'PCI Checklist' (interactive)."
+    },
+    {
+      "question": "How do I register a new handheld scanner?",
+      "answer": "Devices ▸ Add Device ▸ Scan QR on scanner ▸ Assign to store ▸ Done."
+    },
+    {
+      "question": "How can I monitor real-time queue lengths at checkout?",
+      "answer": "Operations Dashboard ▸ Live Store View ▸ Queue Monitoring widget."
+    },
+    {
+      "question": "Where can I find the planogram for the electronics aisle?",
+      "answer": "Merchandising ▸ Planograms ▸ Electronics ▸ Download latest PDF."
+    },
+    {
+      "question": "How do I override a price at checkout with manager approval?",
+      "answer": "POS ▸ Price Override ▸ Scan item ▸ Enter new price ▸ Manager PIN ▸ Confirm."
+    },
+    {
+      "question": "How can I print shelf labels for new items?",
+      "answer": "Label Printer App ▸ New Labels ▸ Upload SKU list ▸ Print."
+    },
+    {
+      "question": "Where do I see the status of current vendor promotions?",
+      "answer": "Vendor Portal ▸ Promotions ▸ Active tab lists start/end dates and SKUs."
+    },
+    {
+      "question": "How do I resolve barcode scanning errors?",
+      "answer": "Scanner Troubleshooter ▸ Diagnostics ▸ Clean lens ▶ Re-scan ▸ If issue persists, reset device."
+    },
+    {
+      "question": "How can I enable curbside pickup in the store app?",
+      "answer": "E-com Settings ▸ Fulfillment Options ▸ Toggle 'Curbside Pickup' ▸ Save."
+    },
+    {
+      "question": "Where can I access historical sales data for trend analysis?",
+      "answer": "Analytics ▸ Data Warehouse ▸ Sales ▸ Export 'Historical' dataset."
+    }
+  ]  

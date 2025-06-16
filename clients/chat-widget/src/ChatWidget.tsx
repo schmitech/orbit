@@ -4,7 +4,7 @@ import { useChatStore, Message } from './store/chatStore';
 import { getChatConfig, defaultTheme, ChatConfig } from './config/index';
 import { configureApi } from '@schmitech/chatbot-api';
 import MessagesSquareIcon from './config/messages-square.svg?react';
-import { ChatIcon } from './shared/ChatIcon';
+
 import { 
   CHAT_CONSTANTS, 
   CHAT_WIDGET_STYLES, 
@@ -233,14 +233,10 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
               }}
             />
             
-            <div className="flex items-center relative z-10">
-              <ChatIcon 
-                iconName={currentConfig.icon} 
-                size={CHAT_CONSTANTS.BUTTON_SIZES.ICON_SIZES.HEADER} 
-                className="mr-2.5 transition-transform duration-300 hover:scale-110" 
-                style={{ color: theme.secondary, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))' }} 
-              />
-              <h3 className="text-lg font-semibold tracking-tight">{currentConfig.header.title}</h3>
+            <div className="flex items-center relative z-10 w-full px-3">
+              <div className="max-w-lg mx-auto sm:max-w-2xl w-full">
+                <h3 className="text-lg font-semibold tracking-tight text-left px-1">{currentConfig.header.title}</h3>
+              </div>
             </div>
             <div className="flex items-center space-x-2 relative z-10">
               <button
@@ -331,7 +327,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
             background: isOpen 
               ? `linear-gradient(135deg, ${theme.primary}, ${theme.primary}e6)` 
               : `linear-gradient(135deg, ${theme.chatButton?.background || '#ffffff'}, ${theme.chatButton?.hoverBackground || '#f8fafc'})`,
-            color: !isOpen ? theme.iconColor : undefined,
+            color: !isOpen ? theme.text.primary : undefined,
             border: isOpen ? 'none' : '1px solid rgba(0, 0, 0, 0.1)',
             width: CHAT_CONSTANTS.BUTTON_SIZES.CHAT_BUTTON.width,
             height: CHAT_CONSTANTS.BUTTON_SIZES.CHAT_BUTTON.height,

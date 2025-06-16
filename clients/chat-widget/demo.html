@@ -248,13 +248,13 @@
 
         <h2>Built-in Themes</h2>
         <div class="theme-cards">
-            <div class="theme-card active" onclick="updateTheme('modern')">
-                <div class="theme-card-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
-                    Demo Chat
+            <div class="theme-card active" onclick="updateTheme('default')">
+                <div class="theme-card-header" style="background: linear-gradient(135deg, #EC994B 0%, #1E3A8A 100%); color: white;">
+                    AI Assistant
                 </div>
-                <div class="theme-accent" style="background: linear-gradient(90deg, #4f46e5, #7c3aed);"></div>
+                <div class="theme-accent" style="background: linear-gradient(90deg, #EC994B, #1E3A8A);"></div>
                 <div class="theme-card-body">
-                    <div class="theme-card-name">Modern</div>
+                    <div class="theme-card-name">Default</div>
                 </div>
             </div>
 
@@ -339,17 +339,17 @@
                     <h3 style="margin-top: 0; margin-bottom: 15px; font-size: 16px; color: #2C3E50; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px;">Main Colors</h3>
                     
                     <div class="color-field" style="margin-bottom: 12px;">
-                        <label for="primary-color">Primary Color:</label>
+                        <label for="primary-color">Header and Minimized Button:</label>
                         <div style="display: flex; align-items: center;">
-                            <input type="color" id="primary-color" value="#2C3E50">
-                            <div style="margin-left: 10px; height: 24px; width: 100px; background: #2C3E50; border-radius: 4px; border: 1px solid #e5e7eb;"></div>
+                            <input type="color" id="primary-color" value="#EC994B">
+                            <div style="margin-left: 10px; height: 24px; width: 100px; background: #EC994B; border-radius: 4px; border: 1px solid #e5e7eb;"></div>
                         </div>
                     </div>
                     <div class="color-field" style="margin-bottom: 12px;">
-                        <label for="secondary-color">Accent Color:</label>
+                        <label for="secondary-color">Send Button Color:</label>
                         <div style="display: flex; align-items: center;">
-                            <input type="color" id="secondary-color" value="#f97316">
-                            <div style="margin-left: 10px; height: 24px; width: 100px; background: #f97316; border-radius: 4px; border: 1px solid #e5e7eb;"></div>
+                            <input type="color" id="secondary-color" value="#1E3A8A">
+                            <div style="margin-left: 10px; height: 24px; width: 100px; background: #1E3A8A; border-radius: 4px; border: 1px solid #e5e7eb;"></div>
                         </div>
                     </div>
                     <div class="color-field" style="margin-bottom: 12px;">
@@ -359,11 +359,31 @@
                             <div style="margin-left: 10px; height: 24px; width: 100px; background: #ffffff; border-radius: 4px; border: 1px solid #e5e7eb;"></div>
                         </div>
                     </div>
-                    <div class="color-field">
+                </div>
+                
+                <!-- Text Colors Section -->
+                <div style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 15px; background: #fafafa;">
+                    <h3 style="margin-top: 0; margin-bottom: 15px; font-size: 16px; color: #2C3E50; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px;">Text Colors</h3>
+                    
+                    <div class="color-field" style="margin-bottom: 12px;">
                         <label for="text-primary-color">Primary Text:</label>
                         <div style="display: flex; align-items: center;">
                             <input type="color" id="text-primary-color" value="#1a1a1a">
                             <div style="margin-left: 10px; height: 24px; width: 100px; background: #1a1a1a; border-radius: 4px; border: 1px solid #e5e7eb;"></div>
+                        </div>
+                    </div>
+                    <div class="color-field" style="margin-bottom: 12px;">
+                        <label for="text-secondary-color">Secondary Text:</label>
+                        <div style="display: flex; align-items: center;">
+                            <input type="color" id="text-secondary-color" value="#666666">
+                            <div style="margin-left: 10px; height: 24px; width: 100px; background: #666666; border-radius: 4px; border: 1px solid #e5e7eb;"></div>
+                        </div>
+                    </div>
+                    <div class="color-field">
+                        <label for="text-inverse-color">Inverse Text:</label>
+                        <div style="display: flex; align-items: center;">
+                            <input type="color" id="text-inverse-color" value="#ffffff">
+                            <div style="margin-left: 10px; height: 24px; width: 100px; background: #ffffff; border-radius: 4px; border: 1px solid #e5e7eb;"></div>
                         </div>
                     </div>
                 </div>
@@ -379,6 +399,13 @@
                             <div style="margin-left: 10px; height: 24px; width: 100px; background: #2C3E50; border-radius: 4px; border: 1px solid #e5e7eb;"></div>
                         </div>
                     </div>
+                    <div class="color-field" style="margin-bottom: 12px;">
+                        <label for="user-text-color">User Text:</label>
+                        <div style="display: flex; align-items: center;">
+                            <input type="color" id="user-text-color" value="#ffffff">
+                            <div style="margin-left: 10px; height: 24px; width: 100px; background: #ffffff; border-radius: 4px; border: 1px solid #e5e7eb;"></div>
+                        </div>
+                    </div>
                     <div class="color-field">
                         <label for="assistant-bubble-color">Assistant Bubble:</label>
                         <div style="display: flex; align-items: center;">
@@ -388,10 +415,44 @@
                     </div>
                 </div>
                 
+                <!-- Input Field Section -->
+                <div style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 15px; background: #fafafa;">
+                    <h3 style="margin-top: 0; margin-bottom: 15px; font-size: 16px; color: #2C3E50; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px;">Input Field</h3>
+                    
+                    <div class="color-field" style="margin-bottom: 12px;">
+                        <label for="input-bg-color">Background:</label>
+                        <div style="display: flex; align-items: center;">
+                            <input type="color" id="input-bg-color" value="#f9fafb">
+                            <div style="margin-left: 10px; height: 24px; width: 100px; background: #f9fafb; border-radius: 4px; border: 1px solid #e5e7eb;"></div>
+                        </div>
+                    </div>
+                    <div class="color-field">
+                        <label for="input-border-color">Border:</label>
+                        <div style="display: flex; align-items: center;">
+                            <input type="color" id="input-border-color" value="#e5e7eb">
+                            <div style="margin-left: 10px; height: 24px; width: 100px; background: #e5e7eb; border-radius: 4px; border: 1px solid #e5e7eb;"></div>
+                        </div>
+                    </div>
+                </div>
+                
                 <!-- Suggested Questions Section -->
                 <div style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 15px; background: #fafafa;">
                     <h3 style="margin-top: 0; margin-bottom: 15px; font-size: 16px; color: #2C3E50; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px;">Suggested Questions</h3>
                     
+                    <div class="color-field" style="margin-bottom: 12px;">
+                        <label for="suggested-bg-color">Background:</label>
+                        <div style="display: flex; align-items: center;">
+                            <input type="color" id="suggested-bg-color" value="#fff7ed">
+                            <div style="margin-left: 10px; height: 24px; width: 100px; background: #fff7ed; border-radius: 4px; border: 1px solid #e5e7eb;"></div>
+                        </div>
+                    </div>
+                    <div class="color-field" style="margin-bottom: 12px;">
+                        <label for="suggested-hover-bg-color">Hover Background:</label>
+                        <div style="display: flex; align-items: center;">
+                            <input type="color" id="suggested-hover-bg-color" value="#ffedd5">
+                            <div style="margin-left: 10px; height: 24px; width: 100px; background: #ffedd5; border-radius: 4px; border: 1px solid #e5e7eb;"></div>
+                        </div>
+                    </div>
                     <div class="color-field">
                         <label for="suggested-text-color">Text Color:</label>
                         <div style="display: flex; align-items: center;">
@@ -401,19 +462,6 @@
                     </div>
                 </div>
                 
-                <!-- Icon Color Section -->
-                <div style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 15px; background: #fafafa;">
-                    <h3 style="margin-top: 0; margin-bottom: 15px; font-size: 16px; color: #2C3E50; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px;">Icon</h3>
-                    
-                    <div class="color-field">
-                        <label for="icon-color">Icon Color:</label>
-                        <div style="display: flex; align-items: center;">
-                            <input type="color" id="icon-color" value="#f97316">
-                            <div style="margin-left: 10px; height: 24px; width: 100px; background: #f97316; border-radius: 4px; border: 1px solid #e5e7eb;"></div>
-                        </div>
-                    </div>
-                </div>
-
                 <!-- Chat Button Section -->
                 <div style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 15px; background: #fafafa;">
                     <h3 style="margin-top: 0; margin-bottom: 15px; font-size: 16px; color: #2C3E50; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px;">Chat Button</h3>
@@ -425,11 +473,18 @@
                             <div style="margin-left: 10px; height: 24px; width: 100px; background: #ffffff; border-radius: 4px; border: 1px solid #e5e7eb;"></div>
                         </div>
                     </div>
-                    <div class="color-field">
+                    <div class="color-field" style="margin-bottom: 12px;">
                         <label for="chat-button-hover-color">Hover Background:</label>
                         <div style="display: flex; align-items: center;">
                             <input type="color" id="chat-button-hover-color" value="#f8fafc">
                             <div style="margin-left: 10px; height: 24px; width: 100px; background: #f8fafc; border-radius: 4px; border: 1px solid #e5e7eb;"></div>
+                        </div>
+                    </div>
+                    <div class="color-field">
+                        <label for="icon-color">Icon Color:</label>
+                        <div style="display: flex; align-items: center;">
+                            <input type="color" id="icon-color" value="#f97316">
+                            <div style="margin-left: 10px; height: 24px; width: 100px; background: #f97316; border-radius: 4px; border: 1px solid #e5e7eb;"></div>
                         </div>
                     </div>
                 </div>
@@ -446,7 +501,7 @@
             <div class="color-row">
                 <div class="color-field">
                     <label for="max-suggested-question-length">Max Question Length:</label>
-                    <input type="number" id="max-suggested-question-length" min="10" max="200" value="120" style="width: 80px;">
+                    <input type="number" id="max-suggested-question-length" min="10" max="200" value="50" style="width: 80px;">
                 </div>
                 <div class="color-field">
                     <label for="max-suggested-question-query-length">Max Query Length:</label>
@@ -456,19 +511,7 @@
             <button onclick="applyCustomLimits()" class="apply-custom-btn" style="padding: 8px 18px; font-size: 15px; margin-top: 10px;">Apply Custom Limits</button>
         </div>
 
-        <h2>Icon Selection</h2>
-        <div class="demo-controls">
-            <p>Choose an icon for your chatbot widget:</p>
-            <div class="button-group">
-                <button onclick="updateIcon('heart')" class="icon-btn">❤️ Heart</button>
-                <button onclick="updateIcon('message-square')" class="icon-btn">💬 Message Square</button>
-                <button onclick="updateIcon('message-circle')" class="icon-btn">🗨️ Message Circle</button>
-                <button onclick="updateIcon('help-circle')" class="icon-btn">❓ Help Circle</button>
-                <button onclick="updateIcon('info')" class="icon-btn">ℹ️ Info</button>
-                <button onclick="updateIcon('bot')" class="icon-btn">🤖 Bot</button>
-                <button onclick="updateIcon('sparkles')" class="icon-btn">✨ Sparkles</button>
-            </div>
-        </div>
+
 
         <h2>Widget Controls</h2>
         <div class="demo-controls">
@@ -479,6 +522,205 @@
             <div class="button-group">
                 <button onclick="toggleChat()">Toggle Chat</button>
                 <button onclick="resetWidget()" class="tertiary">Reset Widget</button>
+            </div>
+        </div>
+
+        <h2>Content Configuration</h2>
+        <div class="demo-controls">
+            <div class="color-row">
+                <div class="color-field">
+                    <label for="header-title">Header Title:</label>
+                    <input type="text" id="header-title" value="AI Assistant" style="width: 200px;">
+                </div>
+                <button onclick="updateHeaderTitle()" class="secondary">Update Header</button>
+            </div>
+            
+            <div class="color-row" style="margin-top: 15px;">
+                <div class="color-field">
+                    <label for="welcome-title">Welcome Title:</label>
+                    <input type="text" id="welcome-title" value="Hello! How can I help you today?" style="width: 200px;">
+                </div>
+                <div class="color-field">
+                    <label for="welcome-description">Welcome Description:</label>
+                    <input type="text" id="welcome-description" value="I'm your AI assistant, ready to help with any questions you might have." style="width: 400px;">
+                </div>
+                <button onclick="updateWelcomeMessage()" class="secondary">Update Welcome</button>
+            </div>
+        </div>
+
+        <h2>Suggested Questions</h2>
+        <div class="demo-controls">
+            <div id="suggested-questions-container">
+                <!-- Questions will be added here dynamically -->
+            </div>
+            <div class="button-group" style="margin-top: 15px;">
+                <button onclick="addSuggestedQuestion()" class="secondary">Add Question</button>
+                <button onclick="clearSuggestedQuestions()" class="tertiary">Clear All</button>
+            </div>
+        </div>
+
+        <h2>Theme Configuration</h2>
+        <div class="color-customizer">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin-bottom: 20px;">
+                <!-- Main Colors Section -->
+                <div style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 15px; background: #fafafa;">
+                    <h3 style="margin-top: 0; margin-bottom: 15px; font-size: 16px; color: #2C3E50; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px;">Main Colors</h3>
+                    
+                    <div class="color-field" style="margin-bottom: 12px;">
+                        <label for="primary-color">Header and Minimized Button:</label>
+                        <div style="display: flex; align-items: center;">
+                            <input type="color" id="primary-color" value="#2C3E50">
+                            <div style="margin-left: 10px; height: 24px; width: 100px; background: #2C3E50; border-radius: 4px; border: 1px solid #e5e7eb;"></div>
+                        </div>
+                    </div>
+                    <div class="color-field" style="margin-bottom: 12px;">
+                        <label for="secondary-color">Send Button and Header Icon:</label>
+                        <div style="display: flex; align-items: center;">
+                            <input type="color" id="secondary-color" value="#f97316">
+                            <div style="margin-left: 10px; height: 24px; width: 100px; background: #f97316; border-radius: 4px; border: 1px solid #e5e7eb;"></div>
+                        </div>
+                    </div>
+                    <div class="color-field" style="margin-bottom: 12px;">
+                        <label for="background-color">Background:</label>
+                        <div style="display: flex; align-items: center;">
+                            <input type="color" id="background-color" value="#ffffff">
+                            <div style="margin-left: 10px; height: 24px; width: 100px; background: #ffffff; border-radius: 4px; border: 1px solid #e5e7eb;"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Text Colors Section -->
+                <div style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 15px; background: #fafafa;">
+                    <h3 style="margin-top: 0; margin-bottom: 15px; font-size: 16px; color: #2C3E50; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px;">Text Colors</h3>
+                    
+                    <div class="color-field" style="margin-bottom: 12px;">
+                        <label for="text-primary-color">Primary Text:</label>
+                        <div style="display: flex; align-items: center;">
+                            <input type="color" id="text-primary-color" value="#1a1a1a">
+                            <div style="margin-left: 10px; height: 24px; width: 100px; background: #1a1a1a; border-radius: 4px; border: 1px solid #e5e7eb;"></div>
+                        </div>
+                    </div>
+                    <div class="color-field" style="margin-bottom: 12px;">
+                        <label for="text-secondary-color">Secondary Text:</label>
+                        <div style="display: flex; align-items: center;">
+                            <input type="color" id="text-secondary-color" value="#666666">
+                            <div style="margin-left: 10px; height: 24px; width: 100px; background: #666666; border-radius: 4px; border: 1px solid #e5e7eb;"></div>
+                        </div>
+                    </div>
+                    <div class="color-field">
+                        <label for="text-inverse-color">Inverse Text:</label>
+                        <div style="display: flex; align-items: center;">
+                            <input type="color" id="text-inverse-color" value="#ffffff">
+                            <div style="margin-left: 10px; height: 24px; width: 100px; background: #ffffff; border-radius: 4px; border: 1px solid #e5e7eb;"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Message Bubbles Section -->
+                <div style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 15px; background: #fafafa;">
+                    <h3 style="margin-top: 0; margin-bottom: 15px; font-size: 16px; color: #2C3E50; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px;">Message Bubbles</h3>
+                    
+                    <div class="color-field" style="margin-bottom: 12px;">
+                        <label for="user-bubble-color">User Bubble:</label>
+                        <div style="display: flex; align-items: center;">
+                            <input type="color" id="user-bubble-color" value="#2C3E50">
+                            <div style="margin-left: 10px; height: 24px; width: 100px; background: #2C3E50; border-radius: 4px; border: 1px solid #e5e7eb;"></div>
+                        </div>
+                    </div>
+                    <div class="color-field" style="margin-bottom: 12px;">
+                        <label for="user-text-color">User Text:</label>
+                        <div style="display: flex; align-items: center;">
+                            <input type="color" id="user-text-color" value="#ffffff">
+                            <div style="margin-left: 10px; height: 24px; width: 100px; background: #ffffff; border-radius: 4px; border: 1px solid #e5e7eb;"></div>
+                        </div>
+                    </div>
+                    <div class="color-field">
+                        <label for="assistant-bubble-color">Assistant Bubble:</label>
+                        <div style="display: flex; align-items: center;">
+                            <input type="color" id="assistant-bubble-color" value="#ffffff">
+                            <div style="margin-left: 10px; height: 24px; width: 100px; background: #ffffff; border-radius: 4px; border: 1px solid #e5e7eb;"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Input Field Section -->
+                <div style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 15px; background: #fafafa;">
+                    <h3 style="margin-top: 0; margin-bottom: 15px; font-size: 16px; color: #2C3E50; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px;">Input Field</h3>
+                    
+                    <div class="color-field" style="margin-bottom: 12px;">
+                        <label for="input-bg-color">Background:</label>
+                        <div style="display: flex; align-items: center;">
+                            <input type="color" id="input-bg-color" value="#f9fafb">
+                            <div style="margin-left: 10px; height: 24px; width: 100px; background: #f9fafb; border-radius: 4px; border: 1px solid #e5e7eb;"></div>
+                        </div>
+                    </div>
+                    <div class="color-field">
+                        <label for="input-border-color">Border:</label>
+                        <div style="display: flex; align-items: center;">
+                            <input type="color" id="input-border-color" value="#e5e7eb">
+                            <div style="margin-left: 10px; height: 24px; width: 100px; background: #e5e7eb; border-radius: 4px; border: 1px solid #e5e7eb;"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Suggested Questions Section -->
+                <div style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 15px; background: #fafafa;">
+                    <h3 style="margin-top: 0; margin-bottom: 15px; font-size: 16px; color: #2C3E50; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px;">Suggested Questions</h3>
+                    
+                    <div class="color-field" style="margin-bottom: 12px;">
+                        <label for="suggested-bg-color">Background:</label>
+                        <div style="display: flex; align-items: center;">
+                            <input type="color" id="suggested-bg-color" value="#fff7ed">
+                            <div style="margin-left: 10px; height: 24px; width: 100px; background: #fff7ed; border-radius: 4px; border: 1px solid #e5e7eb;"></div>
+                        </div>
+                    </div>
+                    <div class="color-field" style="margin-bottom: 12px;">
+                        <label for="suggested-hover-bg-color">Hover Background:</label>
+                        <div style="display: flex; align-items: center;">
+                            <input type="color" id="suggested-hover-bg-color" value="#ffedd5">
+                            <div style="margin-left: 10px; height: 24px; width: 100px; background: #ffedd5; border-radius: 4px; border: 1px solid #e5e7eb;"></div>
+                        </div>
+                    </div>
+                    <div class="color-field">
+                        <label for="suggested-text-color">Text Color:</label>
+                        <div style="display: flex; align-items: center;">
+                            <input type="color" id="suggested-text-color" value="#2C3E50">
+                            <div style="margin-left: 10px; height: 24px; width: 100px; background: #2C3E50; border-radius: 4px; border: 1px solid #e5e7eb;"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Chat Button Section -->
+                <div style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 15px; background: #fafafa;">
+                    <h3 style="margin-top: 0; margin-bottom: 15px; font-size: 16px; color: #2C3E50; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px;">Chat Button</h3>
+                    
+                    <div class="color-field" style="margin-bottom: 12px;">
+                        <label for="chat-button-bg-color">Background:</label>
+                        <div style="display: flex; align-items: center;">
+                            <input type="color" id="chat-button-bg-color" value="#ffffff">
+                            <div style="margin-left: 10px; height: 24px; width: 100px; background: #ffffff; border-radius: 4px; border: 1px solid #e5e7eb;"></div>
+                        </div>
+                    </div>
+                    <div class="color-field" style="margin-bottom: 12px;">
+                        <label for="chat-button-hover-color">Hover Background:</label>
+                        <div style="display: flex; align-items: center;">
+                            <input type="color" id="chat-button-hover-color" value="#f8fafc">
+                            <div style="margin-left: 10px; height: 24px; width: 100px; background: #f8fafc; border-radius: 4px; border: 1px solid #e5e7eb;"></div>
+                        </div>
+                    </div>
+                    <div class="color-field">
+                        <label for="icon-color">Icon Color:</label>
+                        <div style="display: flex; align-items: center;">
+                            <input type="color" id="icon-color" value="#f97316">
+                            <div style="margin-left: 10px; height: 24px; width: 100px; background: #f97316; border-radius: 4px; border: 1px solid #e5e7eb;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div style="display: flex; justify-content: center;">
+                <button onclick="applyCustomColors()" class="apply-custom-btn" style="padding: 12px 24px; font-size: 16px; background: #f1f5f9; color: #1e293b; border: 1px solid #cbd5e1; font-weight: 600;">Apply Custom Colors</button>
+                <button onclick="resetThemeColors()" class="apply-custom-btn" style="padding: 12px 24px; font-size: 16px; background: #f1f5f9; color: #1e293b; border: 1px solid #cbd5e1; font-weight: 600; margin-left: 10px;">Reset to Default</button>
             </div>
         </div>
 
@@ -559,10 +801,8 @@
           chatButton: {
             background: '#ffffff',
             hoverBackground: '#f8fafc'
-          },
-          iconColor: '#f97316'
-        },
-        icon: "message-square"
+                                                     }
+          }
       }
     });
   });
@@ -656,8 +896,58 @@
         let widgetInitialized = false;
         let customWidgetInitialized = false;
         
+        // Store initial configurations for reset (matches actual widget defaults)
+        const defaultConfig = {
+            header: {
+                title: "AI Assistant"
+            },
+            welcome: {
+                title: "Hello! How can I help you today?",
+                description: "I'm your AI assistant, ready to help with any questions you might have."
+            },
+            suggestedQuestions: [
+                {
+                    text: "What can you help me with?",
+                    query: "What can you help me with today?"
+                },
+                {
+                    text: "Tell me about your features",
+                    query: "Tell me about your features"
+                }
+            ],
+            theme: {
+                primary: '#EC994B',
+                secondary: '#1E3A8A',
+                background: '#FFFFFF',
+                text: {
+                    primary: '#1F2937',
+                    secondary: '#6B7280',
+                    inverse: '#FFFFFF'
+                },
+                input: {
+                    background: '#FFFFFF',
+                    border: '#D1D5DB'
+                },
+                message: {
+                    user: '#1E3A8A',
+                    userText: '#FFFFFF',
+                    assistant: '#FFFFFF'
+                },
+                suggestedQuestions: {
+                    background: '#F3F4F6',
+                    text: '#1F2937',
+                    hoverBackground: '#E5E7EB'
+                },
+                chatButton: {
+                    background: '#ffffff',
+                    hoverBackground: '#f8fafc'
+                }
+            }
+        };
+
         // Theme presets
         const themes = {
+            default: defaultConfig.theme,
             modern: {
                 primary: '#4f46e5',
                 secondary: '#7c3aed',
@@ -673,17 +963,18 @@
                 },
                 message: {
                     user: '#4f46e5',
-                    assistant: '#f8fafc',
-                    userText: '#ffffff'
+                    userText: '#ffffff',
+                    assistant: '#f8fafc'
                 },
                 suggestedQuestions: {
+                    background: '#fff7ed',
+                    hoverBackground: '#ffedd5',
                     text: '#4338ca'
                 },
                 chatButton: {
                     background: '#ffffff',
                     hoverBackground: '#f8fafc'
-                },
-                iconColor: '#7c3aed'
+                }
             },
             minimal: {
                 primary: '#374151',
@@ -700,17 +991,18 @@
                 },
                 message: {
                     user: '#374151',
-                    assistant: '#f9fafb',
-                    userText: '#ffffff'
+                    userText: '#ffffff',
+                    assistant: '#f9fafb'
                 },
                 suggestedQuestions: {
+                    background: '#f3f4f6',
+                    hoverBackground: '#e5e7eb',
                     text: '#374151'
                 },
                 chatButton: {
                     background: '#ffffff',
                     hoverBackground: '#f9fafb'
-                },
-                iconColor: '#6b7280'
+                }
             },
             corporate: {
                 primary: '#1e40af',
@@ -727,17 +1019,18 @@
                 },
                 message: {
                     user: '#1e40af',
-                    assistant: '#f1f5f9',
-                    userText: '#ffffff'
+                    userText: '#ffffff',
+                    assistant: '#f1f5f9'
                 },
                 suggestedQuestions: {
+                    background: '#eff6ff',
+                    hoverBackground: '#dbeafe',
                     text: '#1d4ed8'
                 },
                 chatButton: {
                     background: '#ffffff',
                     hoverBackground: '#f8fafc'
-                },
-                iconColor: '#3b82f6'
+                }
             },
             dark: {
                 primary: '#0f172a',
@@ -754,17 +1047,18 @@
                 },
                 message: {
                     user: '#06b6d4',
-                    assistant: '#0f172a',
-                    userText: '#ffffff'
+                    userText: '#ffffff',
+                    assistant: '#0f172a'
                 },
                 suggestedQuestions: {
+                    background: '#164e63',
+                    hoverBackground: '#0e7490',
                     text: '#67e8f9'
                 },
                 chatButton: {
                     background: '#334155',
                     hoverBackground: '#475569'
-                },
-                iconColor: '#06b6d4'
+                }
             },
             emerald: {
                 primary: '#065f46',
@@ -781,17 +1075,18 @@
                 },
                 message: {
                     user: '#065f46',
-                    assistant: '#ecfdf5',
-                    userText: '#ffffff'
+                    userText: '#ffffff',
+                    assistant: '#ecfdf5'
                 },
                 suggestedQuestions: {
+                    background: '#ecfdf5',
+                    hoverBackground: '#d1fae5',
                     text: '#047857'
                 },
                 chatButton: {
                     background: '#ffffff',
                     hoverBackground: '#f0fdf4'
-                },
-                iconColor: '#10b981'
+                }
             },
             sunset: {
                 primary: '#dc2626',
@@ -808,17 +1103,18 @@
                 },
                 message: {
                     user: '#dc2626',
-                    assistant: '#fff7ed',
-                    userText: '#ffffff'
+                    userText: '#ffffff',
+                    assistant: '#fff7ed'
                 },
                 suggestedQuestions: {
+                    background: '#fff7ed',
+                    hoverBackground: '#ffedd5',
                     text: '#c2410c'
                 },
                 chatButton: {
                     background: '#ffffff',
                     hoverBackground: '#fffbeb'
-                },
-                iconColor: '#f59e0b'
+                }
             },
             lavender: {
                 primary: '#7c3aed',
@@ -835,17 +1131,18 @@
                 },
                 message: {
                     user: '#7c3aed',
-                    assistant: '#f5f3ff',
-                    userText: '#ffffff'
+                    userText: '#ffffff',
+                    assistant: '#f5f3ff'
                 },
                 suggestedQuestions: {
+                    background: '#f5f3ff',
+                    hoverBackground: '#ede9fe',
                     text: '#6d28d9'
                 },
                 chatButton: {
                     background: '#ffffff',
                     hoverBackground: '#faf5ff'
-                },
-                iconColor: '#a855f7'
+                }
             },
             monochrome: {
                 primary: '#1f2937',
@@ -862,63 +1159,19 @@
                 },
                 message: {
                     user: '#1f2937',
-                    assistant: '#f3f4f6',
-                    userText: '#ffffff'
+                    userText: '#ffffff',
+                    assistant: '#f3f4f6'
                 },
                 suggestedQuestions: {
+                    background: '#f3f4f6',
+                    hoverBackground: '#e5e7eb',
                     text: '#374151'
                 },
                 chatButton: {
                     background: '#ffffff',
                     hoverBackground: '#f9fafb'
-                },
-                iconColor: '#6b7280'
-            }
-        };
-        
-        // Store initial configurations for reset
-        const defaultConfig = {
-            header: {
-                title: "Demo Chat"
-            },
-            welcome: {
-                title: "Welcome to the Demo!",
-                description: "This is a test of the chatbot widget. Try asking about the features or customization options."
-            },
-            suggestedQuestions: [
-                {
-                    text: "Tell me about yourself?",
-                    query: "What are your capabilities and how can you help me?"
-                },
-                {
-                    text: "How do you work?",
-                    query: "Can you explain how you process and respond to questions?"
-                },
-                {
-                    text: "What are your limitations?",
-                    query: "What are some things you cannot do or might struggle with?"
-                },
-                {
-                    text: "Give me an example",
-                    query: "Can you provide an example of how you can help me with a task?"
-                },
-                {
-                    text: "How accurate are you?",
-                    query: "How reliable and accurate are your responses?"
-                },
-                ,
-                {
-                    text: "How accurate are you?",
-                    query: "How reliable and accurate are your responses?"
-                },
-                ,
-                {
-                    text: "How accurate are you?",
-                    query: "How reliable and accurate are your responses?"
                 }
-            ],
-            theme: themes.modern,
-            icon: "message-square"
+            }
         };
 
         // Content presets
@@ -930,24 +1183,28 @@
             },
             custom: {
                 header: {
-                    title: "Custom Demo Chat"
+                    title: "Demo Chat"
                 },
                 welcome: {
-                    title: "Hello there!",
-                    description: "This is a customized welcome message. You can adjust this to fit your needs."
+                    title: "Welcome to the Demo!",
+                    description: "This is a test of the chatbot widget. Try asking about the features or customization options."
                 },
                 suggestedQuestions: [
                     {
-                        text: "Tell me a joke",
-                        query: "Tell me a joke"
+                        text: "Tell me about yourself",
+                        query: "What are your capabilities and how can you help me?"
                     },
                     {
-                        text: "Help with installation",
-                        query: "How do I install this widget?"
+                        text: "How do you work?",
+                        query: "Can you explain how you process and respond to questions?"
                     },
                     {
-                        text: "Documentation",
-                        query: "Where can I find the documentation?"
+                        text: "What are your limitations?",
+                        query: "What are some things you cannot do or might struggle with?"
+                    },
+                    {
+                        text: "Give me an example",
+                        query: "Can you provide an example of how you can help me with a task?"
                     }
                 ]
             }
@@ -1088,8 +1345,11 @@
                 document.getElementById('text-primary-color').value = theme.text.primary;
                 document.getElementById('user-bubble-color').value = theme.message.user;
                 document.getElementById('assistant-bubble-color').value = theme.message.assistant;
-                document.getElementById('icon-color').value = theme.iconColor;
-
+                if (theme.iconColor) {
+                  document.getElementById('icon-color').value = theme.iconColor;
+                } else {
+                  document.getElementById('icon-color').value = '#f97316'; // fallback to a valid color
+                }
                 document.getElementById('suggested-text-color').value = theme.suggestedQuestions.text;
                 document.getElementById('chat-button-bg-color').value = theme.chatButton.background;
                 document.getElementById('chat-button-hover-color').value = theme.chatButton.hoverBackground;
@@ -1110,28 +1370,27 @@
                 background: document.getElementById('background-color').value,
                 text: {
                     primary: document.getElementById('text-primary-color').value,
-                    secondary: '#666666',
-                    inverse: '#ffffff'
+                    secondary: document.getElementById('text-secondary-color').value,
+                    inverse: document.getElementById('text-inverse-color').value
                 },
                 input: {
-                    background: '#f9fafb',
-                    border: '#e5e7eb'
+                    background: document.getElementById('input-bg-color').value,
+                    border: document.getElementById('input-border-color').value
                 },
                 message: {
                     user: document.getElementById('user-bubble-color').value,
-                    assistant: document.getElementById('assistant-bubble-color').value,
-                    userText: '#ffffff'
+                    userText: document.getElementById('user-text-color').value,
+                    assistant: document.getElementById('assistant-bubble-color').value
                 },
                 suggestedQuestions: {
-                    background: 'transparent',
-                    hoverBackground: 'transparent',
+                    background: document.getElementById('suggested-bg-color').value,
+                    hoverBackground: document.getElementById('suggested-hover-bg-color').value,
                     text: document.getElementById('suggested-text-color').value
                 },
                 chatButton: {
                     background: document.getElementById('chat-button-bg-color').value,
                     hoverBackground: document.getElementById('chat-button-hover-color').value
-                },
-                iconColor: document.getElementById('icon-color').value
+                }
             };
             
             if (window.ChatbotWidget) {
@@ -1174,26 +1433,7 @@
             }
         }
 
-        // Update icon
-        function updateIcon(iconName) {
-            if (window.ChatbotWidget) {
-                window.ChatbotWidget.updateWidgetConfig({
-                    icon: iconName
-                });
-                
-                // Highlight the active icon button
-                document.querySelectorAll('.icon-btn').forEach(btn => {
-                    if (btn.textContent.toLowerCase().includes(iconName)) {
-                        btn.style.backgroundColor = themes.modern.secondary;
-                    } else {
-                        btn.style.backgroundColor = '';
-                    }
-                });
-                
-                // Update implementation code
-                updateCodeExample();
-            }
-        }
+
 
         // Toggle chat open/close
         function toggleChat() {
@@ -1237,8 +1477,7 @@
                     header: config.header,
                     welcome: config.welcome,
                     suggestedQuestions: config.suggestedQuestions,
-                    theme: config.theme,
-                    icon: config.icon
+                    theme: config.theme
                 };
                 
                 // Convert to pretty JSON with JS-friendly formatting
@@ -1380,18 +1619,29 @@
 
         // Reset to Default button functionality
         function resetThemeColors() {
-            const theme = themes.modern;
+            const theme = defaultConfig.theme;
             document.getElementById('primary-color').value = theme.primary;
             document.getElementById('secondary-color').value = theme.secondary;
             document.getElementById('background-color').value = theme.background;
             document.getElementById('text-primary-color').value = theme.text.primary;
+            document.getElementById('text-secondary-color').value = theme.text.secondary;
+            document.getElementById('text-inverse-color').value = theme.text.inverse;
+            document.getElementById('input-bg-color').value = theme.input.background;
+            document.getElementById('input-border-color').value = theme.input.border;
             document.getElementById('user-bubble-color').value = theme.message.user;
+            document.getElementById('user-text-color').value = theme.message.userText;
             document.getElementById('assistant-bubble-color').value = theme.message.assistant;
-            document.getElementById('icon-color').value = theme.iconColor;
-
+            document.getElementById('suggested-bg-color').value = theme.suggestedQuestions.background;
+            document.getElementById('suggested-hover-bg-color').value = theme.suggestedQuestions.hoverBackground;
             document.getElementById('suggested-text-color').value = theme.suggestedQuestions.text;
             document.getElementById('chat-button-bg-color').value = theme.chatButton.background;
             document.getElementById('chat-button-hover-color').value = theme.chatButton.hoverBackground;
+            if (theme.iconColor) {
+              document.getElementById('icon-color').value = theme.iconColor;
+            } else {
+              document.getElementById('icon-color').value = '#f97316'; // fallback to a valid color
+            }
+            
             // Update color previews
             updateColorPreviews();
             // Live update the widget
@@ -1401,14 +1651,14 @@
         // Add this function to handle custom limits
         function getCustomLimits() {
             return {
-                maxSuggestedQuestionLength: Number(document.getElementById('max-suggested-question-length').value) || 120,
+                maxSuggestedQuestionLength: Number(document.getElementById('max-suggested-question-length').value) || 50,
                 maxSuggestedQuestionQueryLength: Number(document.getElementById('max-suggested-question-query-length').value) || 200
             };
         }
         // Track which content is currently active and previous limits
         let currentContentType = 'default';
         let previousLimits = {
-            maxSuggestedQuestionLength: 120,
+            maxSuggestedQuestionLength: 50,
             maxSuggestedQuestionQueryLength: 200
         };
         
@@ -1461,6 +1711,91 @@
                 
                 // Update previous limits for next comparison
                 previousLimits = { ...newLimits };
+            }
+        }
+
+        // Function to update header title
+        function updateHeaderTitle() {
+            const title = document.getElementById('header-title').value;
+            if (window.ChatbotWidget) {
+                window.ChatbotWidget.updateWidgetConfig({
+                    header: { title }
+                });
+                updateCodeExample();
+            }
+        }
+
+        // Function to update welcome message
+        function updateWelcomeMessage() {
+            const title = document.getElementById('welcome-title').value;
+            const description = document.getElementById('welcome-description').value;
+            if (window.ChatbotWidget) {
+                window.ChatbotWidget.updateWidgetConfig({
+                    welcome: { title, description }
+                });
+                updateCodeExample();
+            }
+        }
+
+        // Function to add a new suggested question
+        function addSuggestedQuestion() {
+            const container = document.getElementById('suggested-questions-container');
+            const questionId = Date.now();
+            
+            const questionDiv = document.createElement('div');
+            questionDiv.className = 'color-row';
+            questionDiv.style.marginBottom = '10px';
+            questionDiv.innerHTML = `
+                <div class="color-field" style="flex: 1;">
+                    <label for="question-text-${questionId}">Question Text:</label>
+                    <input type="text" id="question-text-${questionId}" placeholder="Display text" style="width: 200px;">
+                </div>
+                <div class="color-field" style="flex: 1;">
+                    <label for="question-query-${questionId}">Query:</label>
+                    <input type="text" id="question-query-${questionId}" placeholder="Actual query" style="width: 300px;">
+                </div>
+                <button onclick="removeSuggestedQuestion(${questionId})" class="tertiary" style="margin-left: 10px;">Remove</button>
+            `;
+            
+            container.appendChild(questionDiv);
+        }
+
+        // Function to remove a suggested question
+        function removeSuggestedQuestion(id) {
+            const questionDiv = document.querySelector(`[id^="question-text-${id}"]`).parentElement.parentElement;
+            questionDiv.remove();
+            updateSuggestedQuestions();
+        }
+
+        // Function to clear all suggested questions
+        function clearSuggestedQuestions() {
+            const container = document.getElementById('suggested-questions-container');
+            container.innerHTML = '';
+            updateSuggestedQuestions();
+        }
+
+        // Function to update suggested questions
+        function updateSuggestedQuestions() {
+            const container = document.getElementById('suggested-questions-container');
+            const questions = [];
+            
+            container.querySelectorAll('.color-row').forEach(row => {
+                const textInput = row.querySelector('input[id^="question-text-"]');
+                const queryInput = row.querySelector('input[id^="question-query-"]');
+                
+                if (textInput && queryInput && textInput.value && queryInput.value) {
+                    questions.push({
+                        text: textInput.value,
+                        query: queryInput.value
+                    });
+                }
+            });
+            
+            if (window.ChatbotWidget) {
+                window.ChatbotWidget.updateWidgetConfig({
+                    suggestedQuestions: questions
+                });
+                updateCodeExample();
             }
         }
     </script>
