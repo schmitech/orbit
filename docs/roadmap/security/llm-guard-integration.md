@@ -2,7 +2,7 @@
 
 ## Overview
 
-This roadmap outlines the strategic implementation of [LLM Guard](https://pypi.org/project/llm-guard/) as a dedicated FastAPI microservice to replace ORBIT's current `guardrail_service.py` with enterprise-grade AI security capabilities. LLM Guard provides comprehensive protection against prompt injection, jailbreak attacks, data leakage, and harmful content while offering advanced sanitization and detection features.
+This roadmap outlines the implementation of [LLM Guard](https://pypi.org/project/llm-guard/) as a dedicated FastAPI microservice to expand ORBIT's current guardrail's module with aditional AI security capabilities. LLM Guard provides protection against prompt injection, jailbreak attacks, data leakage, and harmful content while offering advanced sanitization and detection features.
 
 ## Current State Analysis
 
