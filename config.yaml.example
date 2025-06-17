@@ -399,6 +399,14 @@ inference:
     max_tokens: 1024
     stream: true
     verbose: false
+  cohere:
+    api_key: ${COHERE_API_KEY}
+    api_base: "https://api.cohere.ai/v1"
+    model: "command-r-plus"
+    temperature: 0.1
+    top_p: 0.8
+    max_tokens: 1024
+    stream: true
 
 safety:
   enabled: false
