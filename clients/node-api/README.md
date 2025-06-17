@@ -36,6 +36,53 @@ async function chat() {
   }
 }
 ```
+### Local test in Node.js environment
+
+First, verify you have `Node.js` and its package manager, `npm`, installed. Then create a new folder.
+
+```bash
+node -v
+npm -v
+```
+
+Initialize a `Node.js` Project
+
+```bash
+npm init -y
+```
+
+Modify `package.json`
+
+```json
+{
+  "name": "orbit-node",
+  "version": "1.0.0",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@schmitech/chatbot-api": "^0.5.0"
+  }
+}
+```
+
+Install chatbot api
+
+```bash
+npm install @schmitech/chatbot-api
+```
+
+Run this test
+
+```bash
+node test/test-npm-package.js "how many r are in a strawberry?" "http://localhost:3000" "my-session-123"
+```
 
 ## ⚛️ React Integration
 
