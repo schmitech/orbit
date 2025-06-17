@@ -89,7 +89,7 @@ Based on the [LLM Guard toolkit](https://pypi.org/project/llm-guard/0.1.1/):
 
 ## Implementation Roadmap
 
-### Phase 1: Foundation Setup (2-3 weeks)
+### Phase 1: Foundation Setup
 
 #### 1.1 LLM Guard Microservice Architecture
 **Objective**: Create dedicated FastAPI security service
@@ -263,7 +263,7 @@ output_scanners:
     redact: true
 ```
 
-### Phase 2: Integration & Migration (3-4 weeks)
+### Phase 2: Integration & Migration
 
 #### 2.1 ORBIT Gateway Integration
 **Objective**: Integrate security service into ORBIT request flow
@@ -442,7 +442,7 @@ security_service:
 # safety: # DEPRECATED - replaced by security_service
 ```
 
-### Phase 3: Advanced Features (4-6 weeks)
+### Phase 3: Advanced Features
 
 #### 3.1 Real-Time Threat Intelligence
 **Objective**: Dynamic threat detection and pattern learning
@@ -540,7 +540,7 @@ class AdaptiveSecurityService:
             return self.get_default_policy()
 ```
 
-### Phase 4: Enterprise Integration (6-8 weeks)
+### Phase 4: Enterprise Integration
 
 #### 4.1 Enterprise Security Integration
 ```yaml
@@ -780,25 +780,25 @@ async def get_performance_metrics():
 
 ## Migration Timeline
 
-### Phase 1: Foundation (Weeks 1-3)
+### Phase 1: Foundation
 - ✅ LLM Guard microservice setup
 - ✅ Basic FastAPI implementation
 - ✅ Core scanner integration
 - ✅ Docker containerization
 
-### Phase 2: Integration (Weeks 4-7)
+### Phase 2: Integration
 - ✅ ORBIT gateway integration
 - ✅ Security middleware implementation
 - ✅ Legacy service migration
 - ✅ Configuration management
 
-### Phase 3: Advanced Features (Weeks 8-13)
+### Phase 3: Advanced Features
 - ✅ Real-time threat intelligence
 - ✅ Analytics dashboard
 - ✅ Multi-language support
 - ✅ Adaptive security policies
 
-### Phase 4: Enterprise (Weeks 14-21)
+### Phase 4: Enterprise
 - ✅ Enterprise security integration
 - ✅ Advanced threat detection
 - ✅ Compliance features
