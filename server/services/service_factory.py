@@ -129,6 +129,9 @@ class ServiceFactory:
         # Initialize Guardrail Service if enabled
         await self._initialize_guardrail_service(app)
         
+        # Initialize LLM Guard Service if enabled
+        await self._initialize_llm_guard_service(app)
+        
         # Initialize Reranker Service if enabled and not in inference-only mode
         if not self.inference_only and _is_true_value(self.config.get('reranker', {}).get('enabled', False)):
             await self._initialize_reranker_service(app)
@@ -465,6 +468,24 @@ class ServiceFactory:
         else:
             app.state.guardrail_service = None
             self.logger.info("Safety is disabled, skipping GuardrailService initialization")
+    
+    async def _initialize_llm_guard_service(self, app: FastAPI) -> None:
+        """Initialize LLM Guard Service if enabled."""
+        if _is_true_value(self.config.get('llm_guard', {}).get('enabled', False)):
+            from services.llm_guard_service import LLMGuardService
+            app.state.llm_guard_service = LLMGuardService(self.config)
+            self.logger.info("Initializing LLM Guard Service...")
+            try:
+                await app.state.llm_guard_service.initialize()
+                self.logger.info("LLM Guard Service initialized successfully")
+            except Exception as e:
+                self.logger.error(f"Failed to initialize LLM Guard Service: {str(e)}")
+                # Don't raise here - allow server to continue without LLM Guard
+                app.state.llm_guard_service = None
+                self.logger.warning("Continuing without LLM Guard Service")
+        else:
+            app.state.llm_guard_service = None
+            self.logger.info("LLM Guard is disabled, skipping LLM Guard Service initialization")
     
     async def _initialize_reranker_service(self, app: FastAPI) -> None:
         """Initialize Reranker Service if enabled."""

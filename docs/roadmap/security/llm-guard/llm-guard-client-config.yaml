@@ -1,0 +1,203 @@
+# LLM Guard Service Client Configuration
+# This configuration file is used by client applications to consume the LLM Guard API
+
+# Service Connection Settings
+service:
+  # Base URL of the LLM Guard Service
+  base_url: "http://localhost:8000"
+  
+  # API version prefix
+  api_version: "v1"
+  
+  # Connection timeout settings (in seconds)
+  timeout:
+    connect: 10
+    read: 30
+    total: 60
+  
+  # Retry configuration
+  retry:
+    max_attempts: 3
+    backoff_factor: 0.3
+    status_forcelist: [500, 502, 503, 504]
+  
+  # Health check settings
+  health_check:
+    endpoint: "/health"
+    interval: 30  # seconds
+    timeout: 5
+
+# Authentication (if required)
+auth:
+  # Uncomment and configure if your service requires authentication
+  # type: "bearer"  # bearer, api_key, basic
+  # token: "your-api-token"
+  # api_key_header: "X-API-Key"
+  # username: "your-username"
+  # password: "your-password"
+
+# Default Security Check Parameters
+security_check:
+  # Default risk threshold (0.0 - 1.0)
+  default_risk_threshold: 0.5
+  
+  # Default scanners to use (empty list means use all available)
+  default_scanners: []
+  
+  # Available input scanners
+  available_input_scanners:
+    - "anonymize"
+    - "ban_substrings"
+    - "ban_topics"
+    - "code"
+    - "prompt_injection"
+    - "secrets"
+    - "toxicity"
+  
+  # Available output scanners
+  available_output_scanners:
+    - "bias"
+    - "no_refusal"
+    - "relevance"
+    - "sensitive"
+  
+  # Content type mappings
+  content_types:
+    - "prompt"
+    - "response"
+  
+  # Risk threshold presets
+  risk_thresholds:
+    strict: 0.3
+    moderate: 0.5
+    lenient: 0.7
+    permissive: 0.9
+
+# Client Request Defaults
+defaults:
+  # Always include these metadata fields
+  metadata:
+    client_name: "your-app-name"
+    client_version: "1.0.0"
+    
+  # Default user identification
+  user_id: null  # Set to null to not include user_id by default
+  
+  # Include timestamp in requests
+  include_timestamp: true
+
+# Logging Configuration for Client
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  format: "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+  
+  # Log API requests/responses
+  log_requests: true
+  log_responses: false  # Set to true for debugging (may contain sensitive data)
+  
+  # Log performance metrics
+  log_performance: true
+
+# Cache Configuration (client-side caching)
+cache:
+  enabled: false
+  ttl: 300  # 5 minutes
+  max_size: 1000  # Maximum number of cached responses
+  
+# Rate Limiting (client-side)
+rate_limit:
+  enabled: false
+  requests_per_second: 10
+  burst_size: 20
+
+# Environment-specific overrides
+environments:
+  development:
+    service:
+      base_url: "http://localhost:8000"
+    logging:
+      level: "DEBUG"
+      log_requests: true
+      log_responses: true
+    cache:
+      enabled: false
+      
+  staging:
+    service:
+      base_url: "https://staging-llm-guard.your-domain.com"
+    logging:
+      level: "INFO"
+    cache:
+      enabled: true
+      
+  production:
+    service:
+      base_url: "https://llm-guard.your-domain.com"
+    logging:
+      level: "WARNING"
+      log_responses: false
+    cache:
+      enabled: true
+    rate_limit:
+      enabled: true
+
+# Error Handling Configuration  
+error_handling:
+  # Retry on these HTTP status codes
+  retry_status_codes: [500, 502, 503, 504, 429]
+  
+  # Fallback behavior when service is unavailable
+  fallback:
+    # What to do when service is down
+    on_service_unavailable: "allow"  # allow, block, cache_last_known
+    
+    # Default response when service is down and fallback is "allow"
+    default_safe_response:
+      is_safe: true
+      risk_score: 0.0
+      sanitized_content: null
+      flagged_scanners: []
+      recommendations: ["Service temporarily unavailable - content not scanned"]
+      
+  # Circuit breaker configuration
+  circuit_breaker:
+    enabled: true
+    failure_threshold: 5
+    recovery_timeout: 30
+    expected_exception: "requests.exceptions.RequestException"
+
+# Monitoring and Metrics
+monitoring:
+  enabled: true
+  
+  # Metrics to track
+  metrics:
+    - "request_count"
+    - "response_time"
+    - "error_rate"
+    - "cache_hit_rate"
+    - "risk_score_distribution"
+  
+  # Export metrics (if using Prometheus/etc)
+  export:
+    enabled: false
+    endpoint: "/metrics"
+    port: 9090
+
+# Validation Rules
+validation:
+  # Maximum content length to send
+  max_content_length: 10000
+  
+  # Required fields validation
+  required_fields:
+    - "content"
+    - "content_type"
+  
+  # Content type validation
+  valid_content_types: ["prompt", "response"]
+  
+  # Risk threshold validation
+  risk_threshold_range:
+    min: 0.0
+    max: 1.0

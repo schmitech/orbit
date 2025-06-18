@@ -408,6 +408,58 @@ inference:
     max_tokens: 1024
     stream: true
 
+llm_guard:
+  enabled: true
+  service:
+    base_url: "http://localhost:8000"
+    api_version: "v1"
+    timeout:
+      connect: 10
+      read: 30
+      total: 60
+    retry:
+      max_attempts: 3
+      backoff_factor: 0.3
+      status_forcelist: [500, 502, 503, 504]
+    health_check:
+      endpoint: "/health"
+      interval: 30
+      timeout: 5
+  security_check:
+    default_risk_threshold: 0.5
+    default_scanners: []
+    available_input_scanners:
+      - "anonymize"
+      - "ban_substrings"
+      - "ban_topics"
+      - "code"
+      - "prompt_injection"
+      - "secrets"
+      - "toxicity"
+    available_output_scanners:
+      - "bias"
+      - "no_refusal"
+      - "relevance"
+      - "sensitive"
+  defaults:
+    metadata:
+      client_name: "orbit-server"
+      client_version: "1.0.0"
+    user_id: null
+    include_timestamp: true
+  validation:
+    max_content_length: 10000
+    valid_content_types: ["prompt", "response"]
+  error_handling:
+    fallback:
+      on_service_unavailable: "allow"
+      default_safe_response:
+        is_safe: true
+        risk_score: 0.0
+        sanitized_content: null
+        flagged_scanners: []
+        recommendations: ["Service temporarily unavailable - content not scanned"]
+
 safety:
   enabled: false
   mode: "fuzzy"

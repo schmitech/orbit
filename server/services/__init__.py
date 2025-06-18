@@ -13,5 +13,6 @@ __all__ = [
     'RerankerService',
     'ApiKeyService',
     'PromptService',
-    'HealthService'
+    'HealthService',
+    'LLMGuardService'
 ]

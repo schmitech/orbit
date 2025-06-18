@@ -168,6 +168,7 @@ For more detailed information, please refer to the following documentation in th
 ### Features & Capabilities
 - [Conversation History](docs/conversation_history.md) - Chat history and session management
 - [Language Detection](docs/language_detection.md) - Multi-language support and detection
+- [LLM Guard Service](docs/llm-guard-service.md) - Advanced security scanning and content sanitization
 - [MCP Protocol](docs/mcp_protocol.md) - Model Context Protocol implementation
 
 ### Roadmap & Future Development

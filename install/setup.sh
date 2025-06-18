@@ -383,7 +383,7 @@ if [ $? -ne 0 ]; then
 fi
 
 # Create temporary requirements file
-TEMP_REQUIREMENTS=$(mktemp /tmp/orbit_requirements.XXXXXX.txt)
+TEMP_REQUIREMENTS="/tmp/orbit_requirements_$(date +%s)_$$.txt"
 echo "$DEPENDENCIES" | python3 -c "import json, sys; deps = json.load(sys.stdin); print('\n'.join(deps))" > "$TEMP_REQUIREMENTS"
 
 # Show what will be installed
