@@ -11,8 +11,32 @@ general:
     required: true
   inference_provider: "llama_cpp"
   language_detection: false
-  inference_only: true
+  inference_only: false
   adapter: "qa-sql"
+
+# LLM Guard Deployment instructions: https://github.com/schmitech/llm-guard-service
+llm_guard:
+  enabled: false
+  service:
+    base_url: "http://localhost:8000"
+    timeout: 30
+  security:
+    risk_threshold: 0.6
+    # Scanner configurations for different content types
+    scanners:
+      prompt:  # Scanners for user input (prompts)
+        - "ban_substrings"
+        - "ban_topics" 
+        - "prompt_injection"
+        - "toxicity"
+        - "secrets"
+      response:  # Scanners for AI output (responses)
+        - "no_refusal"
+        - "sensitive"
+        - "bias"
+        - "relevance"
+  fallback:
+    on_error: "allow"
 
 messages:
   no_results_response: "I'm sorry, but I don't have any specific information about that topic in my knowledge base."
@@ -179,6 +203,18 @@ adapters:
       max_results: 5
       return_results: 3
 
+  - name: "qa-vector-qdrant"
+    type: "retriever"
+    datasource: "qdrant"
+    adapter: "qa"
+    implementation: "retrievers.implementations.qa.QAQdrantRetriever"
+    config:
+      confidence_threshold: 0.3
+      score_scaling_factor: 200.0
+      embedding_provider: null
+      max_results: 5
+      return_results: 3     
+
   - name: "file-vector"
     type: "retriever"
     datasource: "chroma"
@@ -195,7 +231,24 @@ adapters:
       boost_file_uploads: true
       file_content_weight: 1.5
       metadata_weight: 0.8
-      
+
+  - name: "file-vector-qdrant"
+    type: "retriever"
+    datasource: "qdrant"
+    adapter: "file"
+    implementation: "retrievers.implementations.file.FileQdrantRetriever"
+    config:
+      confidence_threshold: 0.1
+      score_scaling_factor: 150.0
+      embedding_provider: null
+      max_results: 10
+      return_results: 5
+      # File-specific settings
+      include_file_metadata: true
+      boost_file_uploads: true
+      file_content_weight: 1.5
+      metadata_weight: 0.8      
+
 datasources:
   chroma:
     use_local: true
@@ -207,6 +260,7 @@ datasources:
     host: ${DATASOURCE_QDRANT_HOST}
     port: ${DATASOURCE_QDRANT_PORT}
     embedding_provider: null
+    collection_name: "orbit"
   sqlite:
     db_path: "sample_db/sqlite/sqlite_db"
   postgres:
@@ -265,7 +319,7 @@ inference:
     model: "gemma3:1b"
     stream: true
   vllm:
-    host: "localhost"
+    host: "3.98.125.143"
     port: 8000
     temperature: 0.1
     top_p: 0.8
@@ -344,7 +398,7 @@ inference:
     verbose: true
   openai:
     api_key: ${OPENAI_API_KEY}
-    model: "gpt-4.1"
+    model: "gpt-4.1-nano"
     temperature: 0.1
     top_p: 0.8
     max_tokens: 1024
@@ -407,86 +461,6 @@ inference:
     top_p: 0.8
     max_tokens: 1024
     stream: true
-
-llm_guard:
-  enabled: true
-  service:
-    base_url: "http://localhost:8000"
-    api_version: "v1"
-    timeout:
-      connect: 10
-      read: 30
-      total: 60
-    retry:
-      max_attempts: 3
-      backoff_factor: 0.3
-      status_forcelist: [500, 502, 503, 504]
-    health_check:
-      endpoint: "/health"
-      interval: 30
-      timeout: 5
-  security_check:
-    default_risk_threshold: 0.5
-    default_scanners: []
-    available_input_scanners:
-      - "anonymize"
-      - "ban_substrings"
-      - "ban_topics"
-      - "code"
-      - "prompt_injection"
-      - "secrets"
-      - "toxicity"
-    available_output_scanners:
-      - "bias"
-      - "no_refusal"
-      - "relevance"
-      - "sensitive"
-  defaults:
-    metadata:
-      client_name: "orbit-server"
-      client_version: "1.0.0"
-    user_id: null
-    include_timestamp: true
-  validation:
-    max_content_length: 10000
-    valid_content_types: ["prompt", "response"]
-  error_handling:
-    fallback:
-      on_service_unavailable: "allow"
-      default_safe_response:
-        is_safe: true
-        risk_score: 0.0
-        sanitized_content: null
-        flagged_scanners: []
-        recommendations: ["Service temporarily unavailable - content not scanned"]
-
-safety:
-  enabled: false
-  mode: "fuzzy"
-  moderator: "ollama"
-  max_retries: 3
-  retry_delay: 1.0
-  request_timeout: 10
-  allow_on_timeout: false
-  safety_prompt_path: "prompts/safety_prompt.txt"
-
-moderators:
-  openai:
-    api_key: ${OPENAI_API_KEY}
-    model: "omni-moderation-latest"
-  anthropic:
-    api_key: ${ANTHROPIC_API_KEY}
-    model: "claude-3-haiku-20240307"
-    temperature: 0.0
-    max_tokens: 10
-    batch_size: 5
-  ollama:
-    base_url: "http://localhost:11434"
-    model: "granite3.3:2b"
-    temperature: 0.0
-    top_p: 1.0
-    max_tokens: 50
-    batch_size: 1
 
 reranker:
   provider: "ollama"

@@ -11,16 +11,9 @@ from ..llm_client_common import LLMClientCommon
 class HuggingFaceClient(BaseLLMClient, LLMClientCommon):
     """LLM client implementation using Hugging Face Transformers."""
 
-    def __init__(
-        self,
-        config: dict,
-        retriever: Any,
-        guardrail_service: Any = None,
-        reranker_service: Any = None,
-        prompt_service: Any = None,
-        no_results_message: str = ""
-    ):
-        super().__init__(config, retriever, guardrail_service, reranker_service, prompt_service, no_results_message)
+    def __init__(self, config: Dict[str, Any], retriever: Any = None,
+                 reranker_service: Any = None, prompt_service: Any = None, no_results_message: str = ""):
+        super().__init__(config, retriever, reranker_service, prompt_service, no_results_message)
 
         hf_cfg = config.get("inference", {}).get("huggingface", {})
         self.model_name = hf_cfg.get("model_name", "gpt2")
@@ -88,21 +81,6 @@ class HuggingFaceClient(BaseLLMClient, LLMClientCommon):
     ) -> AsyncGenerator[dict, None]:
         """Generate response using Hugging Face model."""
         try:
-            is_safe, refusal_message = await self._check_message_safety(message)
-            if not is_safe:
-                yield {
-                    "response": refusal_message,
-                    "sources": [],
-                    "tokens": 0,
-                    "token_usage": {
-                        "prompt_tokens": 0,
-                        "completion_tokens": 0,
-                        "total_tokens": 0
-                    },
-                    "processing_time": 0
-                }
-                return
-
             retrieved_docs = await self._retrieve_and_rerank_docs(message, collection_name)
             system_prompt = await self._get_system_prompt(system_prompt_id)
             context = self._format_context(retrieved_docs)

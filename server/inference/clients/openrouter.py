@@ -13,13 +13,12 @@ class OpenRouterClient(BaseLLMClient, LLMClientCommon):
     def __init__(
         self,
         config: Dict[str, Any],
-        retriever: Any,
-        guardrail_service: Any = None,
+        retriever: Any = None,
         reranker_service: Any = None,
         prompt_service: Any = None,
         no_results_message: str = ""
     ):
-        super().__init__(config, retriever, guardrail_service, reranker_service, prompt_service, no_results_message)
+        super().__init__(config, retriever, reranker_service, prompt_service, no_results_message)
 
         or_cfg = config.get('inference', {}).get('openrouter', {})
         self.base_url = or_cfg.get('base_url', os.getenv('OPENROUTER_API_BASE', 'https://openrouter.ai/api/v1'))
@@ -89,10 +88,6 @@ class OpenRouterClient(BaseLLMClient, LLMClientCommon):
         context_messages: Optional[List[Dict[str, str]]] = None
     ) -> Dict[str, Any]:
         """Non-streaming chat completion using OpenRouter.ai."""
-        is_safe, refusal_message = await self._check_message_safety(message)
-        if not is_safe:
-            return await self._handle_unsafe_message(refusal_message)
-
         docs = await self._retrieve_and_rerank_docs(message, collection_name)
         system_prompt = await self._get_system_prompt(system_prompt_id)
         context = self._format_context(docs)
@@ -161,11 +156,6 @@ class OpenRouterClient(BaseLLMClient, LLMClientCommon):
         context_messages: Optional[List[Dict[str, str]]] = None
     ) -> AsyncGenerator[str, None]:
         """Streaming chat completion using OpenRouter.ai."""
-        is_safe, refusal_message = await self._check_message_safety(message)
-        if not is_safe:
-            yield await self._handle_unsafe_message_stream(refusal_message)
-            return
-
         docs = await self._retrieve_and_rerank_docs(message, collection_name)
         system_prompt = await self._get_system_prompt(system_prompt_id)
         context = self._format_context(docs)

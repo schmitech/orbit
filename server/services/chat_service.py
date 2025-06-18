@@ -18,13 +18,71 @@ from config.config_manager import _is_true_value
 logger = logging.getLogger(__name__)
 
 class ChatService:
-    """Handles chat-related functionality"""
+    """
+    Handles chat-related functionality including LLM Guard security integration.
     
-    def __init__(self, config: Dict[str, Any], llm_client, logger_service, chat_history_service=None):
+    SECURITY FLOW (CRITICAL):
+    ========================
+    
+    1. **User Message Security Check** (BEFORE any processing):
+       - User messages are checked for security violations BEFORE LLM processing
+       - If unsafe: Return error immediately, NO LLM inference, NO storage anywhere
+       - If safe: Continue to LLM processing
+    
+    2. **LLM Processing** (only for safe messages):
+       - Retrieve conversation context from chat history
+       - Apply language detection and enhancement
+       - Send to LLM for inference
+       - Get response from LLM
+    
+    3. **Response Security Check** (BEFORE storage):
+       - LLM responses are checked for security violations BEFORE storage
+       - If unsafe: Return error immediately, NO storage in chat history
+       - If safe: Store conversation turn in chat history
+    
+    CRITICAL SECURITY REQUIREMENTS:
+    ===============================
+    
+    ✅ **Blocked Messages**: Never stored in chat history or any database
+    ✅ **Blocked Responses**: Never stored in chat history or any database  
+    ✅ **Audit Logging**: Security violations logged for audit (not user-facing)
+    ✅ **Error Handling**: User-friendly error messages without exposing security details
+    ✅ **No Interference**: Security checks don't interfere with chat history or LLM flow
+    ✅ **Fail-Safe**: On security service failure, configurable fallback (allow/block)
+    
+    INTEGRATION POINTS:
+    ===================
+    
+    - **Message Security Check**: Before LLM inference in both streaming and non-streaming
+    - **Response Security Check**: Before chat history storage in both modes
+    - **Streaming Support**: Security checks work seamlessly with streaming responses
+    - **No Storage Pollution**: Unsafe content never enters MongoDB chat history
+    - **Audit Trail**: Security violations logged for monitoring (admin-only)
+    
+    FLOW DIAGRAM:
+    =============
+    
+    User Message → Security Check → [UNSAFE] → Block & Return Error (NO STORAGE)
+                                 ↓ [SAFE]
+                       LLM Processing → Response Generated
+                                     ↓
+                       Response Security Check → [UNSAFE] → Block & Return Error (NO STORAGE)  
+                                              ↓ [SAFE]
+                             Store in Chat History → Return to User
+    
+    This ensures that:
+    - No unsafe content is ever processed by the LLM
+    - No unsafe content is ever stored in chat history
+    - Security violations are logged for audit purposes
+    - User experience remains smooth with clear error messages
+    """
+    
+    def __init__(self, config: Dict[str, Any], llm_client, logger_service, chat_history_service=None, llm_guard_service=None):
         self.config = config
         self.llm_client = llm_client
         self.logger_service = logger_service
         self.chat_history_service = chat_history_service
+        self.llm_guard_service = llm_guard_service
         self.verbose = _is_true_value(config.get('general', {}).get('verbose', False))
         
         # Chat history configuration
@@ -33,6 +91,14 @@ class ChatService:
         
         # Messages configuration
         self.messages_config = config.get('messages', {})
+        
+        # LLM Guard configuration
+        self.llm_guard_enabled = self.llm_guard_service and self.llm_guard_service.enabled
+        if self.verbose:
+            if self.llm_guard_enabled:
+                logger.info("LLM Guard security checking enabled")
+            else:
+                logger.info("LLM Guard security checking disabled")
         
         # Initialize language detector only if enabled
         self.language_detection_enabled = _is_true_value(config.get('general', {}).get('language_detection', True))
@@ -299,6 +365,45 @@ class ChatService:
                     else:
                         logger.warning(f"System prompt ID {system_prompt_id} not found")
         
+        # Check message security BEFORE processing
+        security_result = await self._check_message_security(
+            content=message,
+            content_type="prompt",
+            user_id=user_id,
+            session_id=session_id
+        )
+        
+        # If message is not safe, return error immediately without processing or storing
+        if not security_result.get("is_safe", True):
+            risk_score = security_result.get("risk_score", 0.0)
+            flagged_scanners = security_result.get("flagged_scanners", [])
+            recommendations = security_result.get("recommendations", [])
+            
+            # Log detailed security information for administrators
+            detailed_log_msg = f"Message blocked for session {session_id}: Risk score: {risk_score:.3f}"
+            if flagged_scanners:
+                detailed_log_msg += f", Flagged by: {', '.join(flagged_scanners)}"
+            if recommendations:
+                detailed_log_msg += f", Recommendations: {'; '.join(recommendations)}"
+            logger.warning(detailed_log_msg)
+            
+            # Create user-friendly error message (no sensitive details)
+            user_error_msg = "Message blocked by security scanner."
+            if recommendations and len(recommendations) > 0:
+                # Use the first recommendation as the reason, but sanitize it
+                reason = recommendations[0]
+                # Remove technical details and make it user-friendly
+                reason = reason.replace("Potential ", "").replace(" detected", "").replace("Review and sanitize user input", "")
+                user_error_msg += f" Reason: {reason}"
+            
+            # Return error response in MCP protocol format - NO CHAT HISTORY STORAGE
+            return None, {"error": user_error_msg}, {
+                "collection_name": collection_name,
+                "client_ip": client_ip,
+                "blocked": True,
+                "security_check": security_result
+            }
+        
         # Get conversation context if session is provided
         context_messages = await self._get_conversation_context(session_id)
         
@@ -404,8 +509,29 @@ class ChatService:
                 logger.error(f"Invalid response format: {response_data}")
                 return {"error": "Invalid response format from LLM client"}
             
-            # Check if the response was blocked by moderation
-            if response_data.get("error"):
+            # Check if this was a security block (from _process_chat_base)
+            if response_data.get("error") and metadata.get("blocked"):
+                # This is a security block - return error immediately without any storage
+                error_msg = response_data["error"]
+                
+                # Log the security block (but don't store in chat history)
+                await self._log_response(f"[BLOCKED] {error_msg}", client_ip)
+                
+                # Log conversation if API key is provided (for audit purposes only)
+                if api_key:
+                    await self._log_conversation(message, f"[BLOCKED] {error_msg}", client_ip, api_key)
+                
+                # Return error in MCP protocol format - NO CHAT HISTORY STORAGE
+                return {
+                    "error": {
+                        "code": -32603,
+                        "message": error_msg
+                    }
+                }
+            
+            # Check if the response was blocked by LLM-level moderation (different from security blocks)
+            if response_data.get("error") and not metadata.get("blocked"):
+                # This is an LLM-level moderation block (not a security check failure)
                 error_msg = response_data["error"]
                 # Log the blocked response
                 await self._log_response(error_msg, client_ip)
@@ -414,15 +540,15 @@ class ChatService:
                 if api_key:
                     await self._log_conversation(message, error_msg, client_ip, api_key)
                 
-                # Store blocked message in history if enabled
+                # Store LLM moderation blocks in history (these are different from security blocks)
                 if session_id:
                     await self._store_conversation_turn(
                         session_id=session_id,
                         user_message=message,
-                        assistant_response=f"[BLOCKED] {error_msg}",
+                        assistant_response=f"[LLM MODERATION] {error_msg}",
                         user_id=user_id,
                         api_key=api_key,
-                        metadata={**metadata, "blocked": True}
+                        metadata={**metadata, "llm_moderation": True}
                     )
                 
                 # Format moderation error in MCP protocol format
@@ -442,6 +568,52 @@ class ChatService:
             # Clean and format the response
             response = fix_text_formatting(response)
             
+            # Check response security BEFORE storing in chat history
+            response_security_result = await self._check_message_security(
+                content=response,
+                content_type="response",
+                user_id=user_id,
+                session_id=session_id
+            )
+            
+            # If response is not safe, block it and don't store in history
+            if not response_security_result.get("is_safe", True):
+                risk_score = response_security_result.get("risk_score", 0.0)
+                flagged_scanners = response_security_result.get("flagged_scanners", [])
+                recommendations = response_security_result.get("recommendations", [])
+                
+                # Log detailed security information for administrators
+                detailed_log_msg = f"Response blocked for session {session_id}: Risk score: {risk_score:.3f}"
+                if flagged_scanners:
+                    detailed_log_msg += f", Flagged by: {', '.join(flagged_scanners)}"
+                if recommendations:
+                    detailed_log_msg += f", Recommendations: {'; '.join(recommendations)}"
+                logger.warning(detailed_log_msg)
+                
+                # Create user-friendly error message (no sensitive details)
+                user_error_msg = "Response blocked by security scanner."
+                if recommendations and len(recommendations) > 0:
+                    # Use the first recommendation as the reason, but sanitize it
+                    reason = recommendations[0]
+                    # Remove technical details and make it user-friendly
+                    reason = reason.replace("Potential ", "").replace(" detected", "").replace("Review and sanitize user input", "")
+                    user_error_msg += f" Reason: {reason}"
+                
+                # Log conversation if API key is provided (with blocked response - audit only)
+                if api_key:
+                    await self._log_conversation(message, f"[BLOCKED RESPONSE] {user_error_msg}", client_ip, api_key)
+                
+                # CRITICAL: DO NOT STORE BLOCKED RESPONSES IN CHAT HISTORY
+                # Security-blocked content should never be stored anywhere
+                
+                # Return error response in MCP protocol format
+                return {
+                    "error": {
+                        "code": -32603,
+                        "message": user_error_msg
+                    }
+                }
+            
             # Check for conversation limit warning BEFORE storing conversation
             # This ensures we catch the warning before the count changes
             warning = await self._check_conversation_limit_warning(session_id)
@@ -457,7 +629,7 @@ class ChatService:
             # Log the response
             await self._log_response(response, client_ip)
             
-            # Store conversation turn in history if enabled
+            # Store conversation turn in history if enabled (only for safe content)
             if session_id:
                 await self._store_conversation_turn(
                     session_id=session_id,
@@ -482,6 +654,49 @@ class ChatService:
                                  system_prompt_id: Optional[ObjectId] = None, api_key: Optional[str] = None,
                                  session_id: Optional[str] = None, user_id: Optional[str] = None):
         try:
+            # Check message security BEFORE processing
+            security_result = await self._check_message_security(
+                content=message,
+                content_type="prompt",
+                user_id=user_id,
+                session_id=session_id
+            )
+            
+            # If message is not safe, return error immediately without processing or storing
+            if not security_result.get("is_safe", True):
+                risk_score = security_result.get("risk_score", 0.0)
+                flagged_scanners = security_result.get("flagged_scanners", [])
+                recommendations = security_result.get("recommendations", [])
+                
+                # Log detailed security information for administrators
+                detailed_log_msg = f"Streaming message blocked for session {session_id}: Risk score: {risk_score:.3f}"
+                if flagged_scanners:
+                    detailed_log_msg += f", Flagged by: {', '.join(flagged_scanners)}"
+                if recommendations:
+                    detailed_log_msg += f", Recommendations: {'; '.join(recommendations)}"
+                logger.warning(detailed_log_msg)
+                
+                # Create user-friendly error message (no sensitive details)
+                user_error_msg = "Message blocked by security scanner."
+                if recommendations and len(recommendations) > 0:
+                    # Use the first recommendation as the reason, but sanitize it
+                    reason = recommendations[0]
+                    # Remove technical details and make it user-friendly
+                    reason = reason.replace("Potential ", "").replace(" detected", "").replace("Review and sanitize user input", "")
+                    user_error_msg += f" Reason: {reason}"
+                
+                # Log for audit purposes only (no chat history storage)
+                if api_key:
+                    await self._log_conversation(message, f"[BLOCKED] {user_error_msg}", client_ip, api_key)
+                
+                # Send error as a streaming response - NO STORAGE
+                error_chunk = json.dumps({
+                    "error": user_error_msg,
+                    "done": True
+                })
+                yield f"data: {error_chunk}\n\n"
+                return
+            
             # Get conversation context and language detection
             context_messages = await self._get_conversation_context(session_id)
             enhanced_prompt_id, language_instruction = await self._detect_and_enhance_prompt(message, system_prompt_id)
@@ -571,16 +786,18 @@ class ChatService:
                         if "error" in chunk_data:
                             yield f"data: {chunk}\n\n"
                             
-                            # Store blocked message in history if enabled
-                            if session_id:
+                            # Check if this is LLM-level moderation (different from security blocks)
+                            # LLM moderation blocks can be stored, security blocks cannot
+                            if session_id and not chunk_data.get("security_block", False):
                                 await self._store_conversation_turn(
                                     session_id=session_id,
                                     user_message=message,
-                                    assistant_response=f"[BLOCKED] {chunk_data['error']}",
+                                    assistant_response=f"[LLM MODERATION] {chunk_data['error']}",
                                     user_id=user_id,
                                     api_key=api_key,
-                                    metadata={**metadata, "blocked": True}
+                                    metadata={**metadata, "llm_moderation": True}
                                 )
+                            # CRITICAL: If it's a security block, DO NOT store in chat history
                             break
                             
                         # Track if we've processed a response in this chunk
@@ -618,6 +835,54 @@ class ChatService:
                             # Log the complete response when done
                             await self._log_response(accumulated_text, client_ip)
                             
+                            # Check response security BEFORE storing in chat history
+                            response_security_result = await self._check_message_security(
+                                content=accumulated_text,
+                                content_type="response",
+                                user_id=user_id,
+                                session_id=session_id
+                            )
+                            
+                            # If response is not safe, block it and don't store in history
+                            if not response_security_result.get("is_safe", True):
+                                risk_score = response_security_result.get("risk_score", 0.0)
+                                flagged_scanners = response_security_result.get("flagged_scanners", [])
+                                recommendations = response_security_result.get("recommendations", [])
+                                
+                                # Log detailed security information for administrators
+                                detailed_log_msg = f"Response blocked for session {session_id}: Risk score: {risk_score:.3f}"
+                                if flagged_scanners:
+                                    detailed_log_msg += f", Flagged by: {', '.join(flagged_scanners)}"
+                                if recommendations:
+                                    detailed_log_msg += f", Recommendations: {'; '.join(recommendations)}"
+                                logger.warning(detailed_log_msg)
+                                
+                                # Create user-friendly error message (no sensitive details)
+                                user_error_msg = "Response blocked by security scanner."
+                                if recommendations and len(recommendations) > 0:
+                                    # Use the first recommendation as the reason, but sanitize it
+                                    reason = recommendations[0]
+                                    # Remove technical details and make it user-friendly
+                                    reason = reason.replace("Potential ", "").replace(" detected", "").replace("Review and sanitize user input", "")
+                                    user_error_msg += f" Reason: {reason}"
+                                
+                                # Send error as a streaming response
+                                error_chunk = json.dumps({
+                                    "error": user_error_msg,
+                                    "done": True
+                                })
+                                yield f"data: {error_chunk}\n\n"
+                                
+                                # Log conversation if API key is provided (audit only - no chat history storage)
+                                if api_key:
+                                    await self._log_conversation(message, f"[BLOCKED RESPONSE] {user_error_msg}", client_ip, api_key)
+                                
+                                # CRITICAL: DO NOT STORE BLOCKED RESPONSES IN CHAT HISTORY
+                                # Security-blocked content should never be stored anywhere
+                                
+                                # Break out of the loop as we've blocked the response
+                                break
+                            
                             # Check for conversation limit warning BEFORE storing conversation
                             # This ensures we catch the warning before the count changes
                             warning = await self._check_conversation_limit_warning(session_id)
@@ -632,7 +897,7 @@ class ChatService:
                                 })
                                 yield f"data: {warning_chunk}\n\n"
                             
-                            # Store conversation turn in history if enabled
+                            # Store conversation turn in history if enabled (only for safe content)
                             if session_id and accumulated_text:
                                 await self._store_conversation_turn(
                                     session_id=session_id,
@@ -725,3 +990,68 @@ class ChatService:
         except Exception as e:
             logger.error(f"Error checking conversation limit: {str(e)}")
             return None
+
+    async def _check_message_security(
+        self,
+        content: str,
+        content_type: str = "prompt",
+        user_id: Optional[str] = None,
+        session_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Check message security using LLM Guard service
+        
+        Args:
+            content: The content to check
+            content_type: Type of content ('prompt' or 'response')
+            user_id: Optional user identifier
+            session_id: Optional session identifier
+            
+        Returns:
+            Dictionary with security check results
+        """
+        if not self.llm_guard_enabled:
+            # Return safe result if LLM Guard is disabled
+            return {
+                "is_safe": True,
+                "risk_score": 0.0,
+                "sanitized_content": content,
+                "flagged_scanners": [],
+                "recommendations": ["LLM Guard is disabled"]
+            }
+        
+        try:
+            # Prepare metadata for the security check
+            metadata = {}
+            if session_id:
+                metadata["session_id"] = session_id
+            
+            # Perform security check
+            result = await self.llm_guard_service.check_security(
+                content=content,
+                content_type=content_type,
+                user_id=user_id,
+                metadata=metadata
+            )
+            
+            if self.verbose:
+                is_safe = result.get("is_safe", True)
+                risk_score = result.get("risk_score", 0.0)
+                flagged_scanners = result.get("flagged_scanners", [])
+                
+                logger.info(f"Security check result - Safe: {is_safe}, Risk: {risk_score:.3f}")
+                if flagged_scanners:
+                    logger.info(f"Flagged by scanners: {flagged_scanners}")
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error during security check: {str(e)}")
+            # Return safe result on error to avoid blocking legitimate messages
+            return {
+                "is_safe": True,
+                "risk_score": 0.0,
+                "sanitized_content": content,
+                "flagged_scanners": [],
+                "recommendations": [f"Security check failed: {str(e)}"]
+            }

@@ -83,7 +83,6 @@ class RouteConfigurator:
         return {
             'get_chat_service': self._create_chat_service_dependency(),
             'get_health_service': self._create_health_service_dependency(),
-            'get_guardrail_service': self._create_guardrail_service_dependency(),
             'get_api_key_service': self._create_api_key_service_dependency(),
             'get_prompt_service': self._create_prompt_service_dependency(),
             'validate_session_id': self._create_session_validator(),
@@ -119,12 +118,6 @@ class RouteConfigurator:
                 )
             return request.app.state.health_service
         return get_health_service
-    
-    def _create_guardrail_service_dependency(self):
-        """Create guardrail service dependency."""
-        async def get_guardrail_service(request: Request):
-            return request.app.state.guardrail_service
-        return get_guardrail_service
     
     def _create_api_key_service_dependency(self):
         """Create API key service dependency."""

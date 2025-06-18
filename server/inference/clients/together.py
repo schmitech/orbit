@@ -11,9 +11,9 @@ from ..llm_client_common import LLMClientCommon
 
 class TogetherAIClient(BaseLLMClient, LLMClientCommon):
     '''LLM client implementation for Together.ai using the official Python package.'''
-    def __init__(self, config: Dict[str, Any], retriever: Any, guardrail_service: Any = None, 
-                 reranker_service: Any = None, prompt_service: Any = None, no_results_message: str = ''):
-        super().__init__(config, retriever, guardrail_service, reranker_service, prompt_service, no_results_message)
+    def __init__(self, config: Dict[str, Any], retriever: Any = None,
+                 reranker_service: Any = None, prompt_service: Any = None, no_results_message: str = ""):
+        super().__init__(config, retriever, reranker_service, prompt_service, no_results_message)
 
         # Get Together.ai specific configuration
         together_config = config.get('inference', {}).get('together', {})
@@ -111,10 +111,6 @@ class TogetherAIClient(BaseLLMClient, LLMClientCommon):
         context_messages: Optional[List[Dict[str, str]]] = None
     ) -> Dict[str, Any]:
         '''Generate a response using Together.ai.'''
-        is_safe, refusal_message = await self._check_message_safety(message)
-        if not is_safe:
-            return await self._handle_unsafe_message(refusal_message)
-
         retrieved_docs = await self._retrieve_and_rerank_docs(message, collection_name)
         system_prompt = await self._get_system_prompt(system_prompt_id)
         context = self._format_context(retrieved_docs)
@@ -184,11 +180,6 @@ class TogetherAIClient(BaseLLMClient, LLMClientCommon):
         context_messages: Optional[List[Dict[str, str]]] = None
     ) -> AsyncGenerator[str, None]:
         '''Generate a streaming response using Together.ai.'''
-        is_safe, refusal_message = await self._check_message_safety(message)
-        if not is_safe:
-            yield await self._handle_unsafe_message_stream(refusal_message)
-            return
-
         retrieved_docs = await self._retrieve_and_rerank_docs(message, collection_name)
         system_prompt = await self._get_system_prompt(system_prompt_id)
         context = self._format_context(retrieved_docs)

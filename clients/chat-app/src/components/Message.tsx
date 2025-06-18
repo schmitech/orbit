@@ -45,21 +45,37 @@ export function Message({ message, onRegenerate }: MessageProps) {
       {/* Content */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-2">
-          <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
-            {message.role === 'user' ? 'You' : 'Assistant'}
-          </span>
-          <span className="text-xs text-gray-500 dark:text-gray-400">
-            {message.timestamp.toLocaleTimeString([], { 
-              hour: '2-digit', 
-              minute: '2-digit' 
-            })}
-          </span>
+          {message.isStreaming ? (
+            <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+              Assistant
+            </span>
+          ) : (
+            <>
+              <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                {message.role === 'user' ? 'You' : 'Assistant'}
+              </span>
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                {message.timestamp.toLocaleTimeString([], { 
+                  hour: '2-digit', 
+                  minute: '2-digit' 
+                })}
+              </span>
+            </>
+          )}
         </div>
 
-        <MarkdownRenderer 
-          content={message.content}
-          className="prose prose-sm max-w-none dark:prose-invert"
-        />
+        {message.isStreaming ? (
+          <div className="flex items-center gap-1 mt-1">
+            <span className="inline-block w-2 h-2 bg-gray-400 rounded-full animate-bounce"></span>
+            <span className="inline-block w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-150"></span>
+            <span className="inline-block w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-300"></span>
+          </div>
+        ) : (
+          <MarkdownRenderer 
+            content={message.content}
+            className="prose prose-sm max-w-none dark:prose-invert"
+          />
+        )}
 
         {/* Actions */}
         {message.role === 'assistant' && !message.isStreaming && (

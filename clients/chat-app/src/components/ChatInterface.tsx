@@ -12,25 +12,21 @@ export function ChatInterface() {
     isLoading,
     configureApiSettings,
     error,
-    clearError
+    clearError,
+    cleanupStreamingMessages
   } = useChatStore();
 
   // Configuration state for API settings
   const [showConfig, setShowConfig] = useState(false);
-  const [apiUrl, setApiUrl] = useState('');
+  const [apiUrl, setApiUrl] = useState('http://localhost:3000');
   const [apiKey, setApiKey] = useState('');
 
-  // Check if API is configured on mount
-  useEffect(() => {
-    const hasEnvConfig = import.meta.env.VITE_API_URL && import.meta.env.VITE_API_KEY;
-    const hasWindowConfig = (window as any).CHATBOT_API_URL && (window as any).CHATBOT_API_KEY;
-    
-    if (!hasEnvConfig && !hasWindowConfig) {
-      setShowConfig(true);
-    }
-  }, []);
-
   const currentConversation = conversations.find(c => c.id === currentConversationId);
+
+  // Clean up any orphaned streaming messages on mount
+  useEffect(() => {
+    cleanupStreamingMessages();
+  }, [cleanupStreamingMessages]);
 
   const handleSendMessage = (content: string) => {
     sendMessage(content);

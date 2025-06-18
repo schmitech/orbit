@@ -169,7 +169,7 @@ if [ "$CREATE_API_KEYS" = true ]; then
     echo "🔑 Creating API keys for collections..."
     echo "  • Connecting to server on port $PORT"
     echo "  • Using collection 'city'"
-    echo "  • Using prompt file '$PROJECT_ROOT/prompts/examples/city/city-assistant-normal-prompt.txt'"
+    echo "  • Using prompt file '$PROJECT_ROOT/sample_db/prompts/examples/city/city-assistant-normal-prompt.txt'"
     echo ""
 
     # Create API key for 'city' collection and capture full output
@@ -191,7 +191,7 @@ if [ "$CREATE_API_KEYS" = true ]; then
     API_KEY_OUTPUT=$(python3 "$PROJECT_ROOT/bin/orbit.py" --server-url "$SERVER_URL" key create \
       --collection city \
       --name "City Assistant" \
-      --prompt-file "$PROJECT_ROOT/prompts/examples/city/city-assistant-normal-prompt.txt" \
+      --prompt-file "$PROJECT_ROOT/sample_db/prompts/examples/city/city-assistant-normal-prompt.txt" \
       --prompt-name "Municipal Assistant Prompt")
 
     # Extract just the API key - properly capture orbit_ format keys
@@ -204,13 +204,13 @@ if [ "$CREATE_API_KEYS" = true ]; then
         echo ""
         echo "🔑 Creating API key for activity collection..."
         echo "  • Using collection 'activity'"
-        echo "  • Using prompt file '$PROJECT_ROOT/prompts/examples/activity/activity-assistant-normal-prompt.txt'"
+        echo "  • Using prompt file '$PROJECT_ROOT/sample_db/prompts/examples/activity/activity-assistant-normal-prompt.txt'"
         echo ""
 
         ACTIVITY_API_KEY_OUTPUT=$(python3 "$PROJECT_ROOT/bin/orbit.py" --server-url "$SERVER_URL" key create \
           --collection activity \
           --name "Activity Assistant" \
-          --prompt-file "$PROJECT_ROOT/prompts/examples/activity/activity-assistant-normal-prompt.txt" \
+          --prompt-file "$PROJECT_ROOT/sample_db/prompts/examples/activity/activity-assistant-normal-prompt.txt" \
           --prompt-name "Activity Assistant Prompt")
 
         ACTIVITY_API_KEY=$(echo "$ACTIVITY_API_KEY_OUTPUT" | grep -o '"api_key": "orbit_[A-Za-z0-9]\+"' | cut -d'"' -f4)

@@ -17,29 +17,6 @@ class LLMClientCommon:
     reducing code duplication and making clients more maintainable.
     """
     
-    async def _check_message_safety(self, message: str) -> tuple[bool, Optional[str]]:
-        """
-        Check if a message passes safety checks.
-        
-        Args:
-            message: The user's message
-            
-        Returns:
-            Tuple of (is_safe, refusal_message):
-            - is_safe: True if message is safe, False otherwise
-            - refusal_message: Custom refusal message if unsafe, None if safe
-        """
-        if not self.guardrail_service:
-            return True, None
-            
-        # Call the full check_safety method instead of is_safe to get the refusal message
-        is_safe, refusal_message = await self.guardrail_service.check_safety(message)
-        
-        if not is_safe and getattr(self, 'verbose', False):
-            self.logger.warning("Message failed safety check")
-            
-        return is_safe, refusal_message
-    
     async def _get_system_prompt(self, system_prompt_id: Optional[str] = None) -> str:
         """
         Get the system prompt from the prompt service or return default.

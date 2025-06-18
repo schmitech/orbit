@@ -27,33 +27,31 @@ interface ExtendedChatState extends ChatState {
   regenerateResponse: (messageId: string) => Promise<void>;
   updateConversationTitle: (id: string, title: string) => void;
   clearError: () => void;
-  configureApiSettings: (apiUrl: string, apiKey: string, sessionId?: string) => void;
+  configureApiSettings: (apiUrl: string, apiKey?: string, sessionId?: string) => void;
   getSessionId: () => string;
+  cleanupStreamingMessages: () => void;
 }
 
 // API configuration state
 let apiConfigured = false;
 let currentApiUrl = '';
-let currentApiKey = '';
 
 function ensureApiConfigured(): boolean {
-  if (apiConfigured && currentApiUrl && currentApiKey) {
+  if (apiConfigured && currentApiUrl) {
     return true;
   }
 
   // Check if API settings are available in environment or window
   const apiUrl = import.meta.env.VITE_API_URL || (window as any).CHATBOT_API_URL;
-  const apiKey = import.meta.env.VITE_API_KEY || (window as any).CHATBOT_API_KEY;
 
-  if (!apiUrl || !apiKey) {
-    console.warn('API URL or API Key not configured. Use configureApiSettings() to set them.');
+  if (!apiUrl) {
+    console.warn('API URL not configured. Use configureApiSettings() to set it.');
     return false;
   }
 
   const sessionId = getOrCreateSessionId();
-  configureApi(apiUrl, apiKey, sessionId);
+  configureApi(apiUrl, '', sessionId);
   currentApiUrl = apiUrl;
-  currentApiKey = apiKey;
   apiConfigured = true;
   return true;
 }
@@ -67,23 +65,24 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
 
   getSessionId: () => get().sessionId,
 
-  configureApiSettings: (apiUrl: string, apiKey: string, sessionId?: string) => {
+  configureApiSettings: (apiUrl: string, apiKey?: string, sessionId?: string) => {
     const actualSessionId = sessionId || getOrCreateSessionId();
     if (sessionId) {
       setSessionId(sessionId);
       set({ sessionId: actualSessionId });
     }
     
-    configureApi(apiUrl, apiKey, actualSessionId);
+    configureApi(apiUrl, '', actualSessionId);
     currentApiUrl = apiUrl;
-    currentApiKey = apiKey;
     apiConfigured = true;
   },
 
   createConversation: () => {
     const id = `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const sessionId = get().sessionId;
     const newConversation: Conversation = {
       id,
+      sessionId,
       title: 'New Chat',
       messages: [],
       createdAt: new Date(),
@@ -144,6 +143,12 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
 
   sendMessage: async (content: string) => {
     try {
+      // Prevent multiple simultaneous requests
+      if (get().isLoading) {
+        console.warn('Another request is already in progress');
+        return;
+      }
+
       // Ensure API is configured
       if (!ensureApiConfigured()) {
         throw new Error('API not properly configured. Please configure API settings first.');
@@ -156,7 +161,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         conversationId = get().createConversation();
       }
 
-      // Add user message
+      // Add user message and assistant streaming message in a single atomic update
       const userMessage: Message = {
         id: `msg_${Date.now()}_user`,
         content,
@@ -164,25 +169,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         timestamp: new Date()
       };
 
-      set(state => ({
-        conversations: state.conversations.map(conv =>
-          conv.id === conversationId
-            ? {
-                ...conv,
-                messages: [...conv.messages, userMessage],
-                updatedAt: new Date(),
-                title: conv.messages.length === 0 
-                  ? content.slice(0, 50) + (content.length > 50 ? '...' : '')
-                  : conv.title
-              }
-            : conv
-        ),
-        isLoading: true,
-        error: null
-      }));
-
-      // Add empty assistant message for streaming
-      const assistantMessageId = `msg_${Date.now()}_assistant`;
+      const assistantMessageId = `msg_${Date.now() + 1}_assistant`;
       const assistantMessage: Message = {
         id: assistantMessageId,
         content: '',
@@ -191,17 +178,37 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         isStreaming: true
       };
 
-      set(state => ({
-        conversations: state.conversations.map(conv =>
-          conv.id === conversationId
-            ? {
-                ...conv,
-                messages: [...conv.messages, assistantMessage],
-                updatedAt: new Date()
-              }
-            : conv
-        )
-      }));
+      set(state => {
+        // Debug: Log existing streaming messages before filtering
+        const currentConv = state.conversations.find(c => c.id === conversationId);
+        const streamingMsgs = currentConv?.messages.filter(m => m.role === 'assistant' && m.isStreaming) || [];
+        if (streamingMsgs.length > 0) {
+          console.warn(`Found ${streamingMsgs.length} existing streaming messages, cleaning up:`, streamingMsgs);
+        }
+
+        return {
+          conversations: state.conversations.map(conv =>
+            conv.id === conversationId
+              ? {
+                  ...conv,
+                  messages: [
+                    // Remove any existing streaming assistant messages first
+                    ...conv.messages.filter(m => !(m.role === 'assistant' && m.isStreaming)),
+                    // Add both user message and new streaming assistant message
+                    userMessage,
+                    assistantMessage
+                  ],
+                  updatedAt: new Date(),
+                  title: conv.messages.length === 0 
+                    ? content.slice(0, 50) + (content.length > 50 ? '...' : '')
+                    : conv.title
+                }
+              : conv
+          ),
+          isLoading: true,
+          error: null
+        };
+      });
 
       let receivedAnyText = false;
 
@@ -267,7 +274,8 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         const messages = [...conv.messages];
         const lastMessage = messages[messages.length - 1];
         
-        if (lastMessage && lastMessage.role === 'assistant') {
+        // Only append to streaming assistant messages
+        if (lastMessage && lastMessage.role === 'assistant' && lastMessage.isStreaming) {
           messages[messages.length - 1] = {
             ...lastMessage,
             content: lastMessage.content + content
@@ -285,6 +293,12 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
 
   regenerateResponse: async (messageId: string) => {
     try {
+      // Prevent multiple simultaneous requests
+      if (get().isLoading) {
+        console.warn('Another request is already in progress');
+        return;
+      }
+
       if (!ensureApiConfigured()) {
         throw new Error('API not properly configured');
       }
@@ -390,6 +404,17 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
 
   clearError: () => {
     set({ error: null });
+  },
+
+  // Utility function to clean up any orphaned streaming messages
+  cleanupStreamingMessages: () => {
+    set(state => ({
+      conversations: state.conversations.map(conv => ({
+        ...conv,
+        messages: conv.messages.filter(msg => !(msg.role === 'assistant' && msg.isStreaming))
+      })),
+      isLoading: false
+    }));
   }
 }));
 
@@ -399,21 +424,29 @@ const initializeStore = () => {
   if (saved) {
     try {
       const parsedState = JSON.parse(saved);
-      // Restore Date objects
+      // Restore Date objects and clean up any streaming messages
       parsedState.conversations = parsedState.conversations.map((conv: any) => ({
         ...conv,
         createdAt: new Date(conv.createdAt),
         updatedAt: new Date(conv.updatedAt),
-        messages: conv.messages.map((msg: any) => ({
-          ...msg,
-          timestamp: new Date(msg.timestamp)
-        }))
+        messages: conv.messages
+          .filter((msg: any) => !(msg.role === 'assistant' && msg.isStreaming)) // Remove any streaming messages
+          .map((msg: any) => ({
+            ...msg,
+            timestamp: new Date(msg.timestamp),
+            isStreaming: false // Ensure no messages are marked as streaming
+          }))
       }));
       
       useChatStore.setState({
         conversations: parsedState.conversations || [],
         currentConversationId: parsedState.currentConversationId || null
       });
+      
+      // Clean up any residual streaming messages after initialization
+      setTimeout(() => {
+        useChatStore.getState().cleanupStreamingMessages();
+      }, 100);
     } catch (error) {
       console.error('Failed to load chat state:', error);
     }

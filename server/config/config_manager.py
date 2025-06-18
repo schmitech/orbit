@@ -83,11 +83,6 @@ def _log_config_summary(config: Dict[str, Any], source_path: str):
                 ollama_config = config.get('embeddings', {}).get('ollama', {})
                 logger.info(f"    Ollama: model={ollama_config.get('model', 'nomic-embed-text')}, dimensions={ollama_config.get('dimensions', 768)}")
     
-    # Only log safety settings if enabled
-    if _is_true_value(config.get('safety', {}).get('enabled', True)):
-        safety_mode = config.get('safety', {}).get('mode', 'strict')
-        logger.info(f"  Safety: mode={safety_mode}, max_retries={config.get('safety', {}).get('max_retries', 3)}")
-    
     # Only log datasource settings if they are used by any adapter and not in inference-only mode
     if not inference_only:
         adapter_configs = config.get('adapters', [])
@@ -125,6 +120,44 @@ def _log_config_summary(config: Dict[str, Any], source_path: str):
             logger.info("  Adapters:")
             for adapter in adapter_configs:
                 logger.info(f"    {adapter.get('name')}: type={adapter.get('type')}, datasource={adapter.get('datasource')}, adapter={adapter.get('adapter')}")
+    
+    # Log LLM Guard configuration
+    llm_guard_config = config.get('llm_guard', {})
+    
+    # Check if enabled field exists or if section exists
+    if llm_guard_config:
+        if 'enabled' in llm_guard_config:
+            # Structure with explicit enabled field
+            llm_guard_enabled = llm_guard_config.get('enabled', False)
+        else:
+            # Simplified structure - if section exists, it's enabled
+            llm_guard_enabled = True
+    else:
+        llm_guard_enabled = False
+    
+    logger.info(f"  LLM Guard: {'enabled' if llm_guard_enabled else 'disabled'}")
+    if llm_guard_enabled:
+        service_config = llm_guard_config.get('service', {})
+        base_url = service_config.get('base_url', 'http://localhost:8000')
+        logger.info(f"    Service URL: {_mask_url(base_url)}")
+        
+        security_config = llm_guard_config.get('security', {})
+        risk_threshold = security_config.get('risk_threshold', 0.6)
+        logger.info(f"    Default risk threshold: {risk_threshold}")
+        
+        # Log scanner configurations
+        scanner_config = security_config.get('scanners', {})
+        prompt_scanners = scanner_config.get('prompt', [])
+        response_scanners = scanner_config.get('response', [])
+        
+        if prompt_scanners:
+            logger.info(f"    Prompt scanners: {', '.join(prompt_scanners)}")
+        if response_scanners:
+            logger.info(f"    Response scanners: {', '.join(response_scanners)}")
+        
+        fallback_config = llm_guard_config.get('fallback', {})
+        fallback_behavior = fallback_config.get('on_error', 'allow')
+        logger.info(f"    Fallback behavior: {fallback_behavior}")
     
     # Log if HTTPS is enabled
     https_enabled = _is_true_value(config.get('general', {}).get('https', {}).get('enabled', False))
@@ -348,36 +381,6 @@ def get_default_config() -> Dict[str, Any]:
                 "dimensions": 1024
             }
         },
-        "safety": {
-            "enabled": True,
-            "mode": "fuzzy",
-            "moderator": "ollama",
-            "max_retries": 3,
-            "retry_delay": 1.0,
-            "request_timeout": 10,
-            "allow_on_timeout": False
-        },
-        "moderators": {
-            "openai": {
-                "api_key": "${OPENAI_API_KEY}",
-                "model": "omni-moderation-latest"
-            },
-            "anthropic": {
-                "api_key": "${ANTHROPIC_API_KEY}",
-                "model": "claude-3-haiku-20240307",
-                "temperature": 0.0,
-                "max_tokens": 10,
-                "batch_size": 5
-            },
-            "ollama": {
-                "base_url": "http://localhost:11434",
-                "model": "gemma3:12b",
-                "temperature": 0.0,
-                "top_p": 1.0,
-                "max_tokens": 50,
-                "batch_size": 1
-            }
-        },
         "reranker": {
             "provider": "ollama",
             "enabled": True
@@ -544,5 +547,33 @@ def get_default_config() -> Dict[str, Any]:
             "auto_store_in_vector_db": True,
             "chunk_size": 1000,
             "chunk_overlap": 200
+        },
+        "llm_guard": {
+            "enabled": False,
+            "service": {
+                "base_url": "http://localhost:8000",
+                "timeout": 30
+            },
+            "security": {
+                "risk_threshold": 0.6,
+                "scanners": {
+                    "prompt": [
+                        "ban_substrings",
+                        "ban_topics", 
+                        "prompt_injection",
+                        "toxicity",
+                        "secrets"
+                    ],
+                    "response": [
+                        "no_refusal",
+                        "sensitive",
+                        "bias",
+                        "relevance"
+                    ]
+                }
+            },
+            "fallback": {
+                "on_error": "allow"
+            }
         }
     }

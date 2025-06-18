@@ -6,30 +6,26 @@ which allows different LLM providers to be used while maintaining a consistent A
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, List, Any, Optional, AsyncGenerator, Union
+from typing import Dict, List, Any, Optional, AsyncGenerator
 import logging
-import asyncio
-import json
 
 class BaseLLMClient(ABC):
     """Base LLM client interface that all provider-specific clients should implement."""
     
-    def __init__(self, config: Dict[str, Any], retriever: Any, guardrail_service: Any = None, 
-                 reranker_service: Any = None, prompt_service: Any = None, no_results_message: str = ""):
+    def __init__(self, config: Dict[str, Any], retriever: Any, reranker_service: Any = None, 
+                 prompt_service: Any = None, no_results_message: str = ""):
         """
         Initialize the LLM client with configuration.
         
         Args:
             config: Application configuration dictionary
             retriever: The retriever to use for document lookup
-            guardrail_service: Optional service for content safety checks
             reranker_service: Optional service for reranking results
             prompt_service: Optional service for system prompts
             no_results_message: Message to show when no results are found
         """
         self.config = config
         self.retriever = retriever
-        self.guardrail_service = guardrail_service
         self.reranker_service = reranker_service
         self.prompt_service = prompt_service
         self.no_results_message = no_results_message
@@ -154,9 +150,7 @@ class BaseLLMClient(ABC):
                 "source": source,
                 "url": url,
                 "date": date,
-                "confidence": confidence  # Use confidence as the key regardless of source field name
+                "confidence": confidence
             })
         
         return sources
-
-# Factory will be moved to a separate file

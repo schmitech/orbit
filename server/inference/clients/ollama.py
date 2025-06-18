@@ -16,9 +16,9 @@ from ..llm_client_common import LLMClientCommon
 class OllamaClient(BaseLLMClient, LLMClientCommon):
     """LLM client implementation for Ollama."""
     
-    def __init__(self, config: Dict[str, Any], retriever: Any, guardrail_service: Any = None, 
+    def __init__(self, config: Dict[str, Any], retriever: Any = None,
                  reranker_service: Any = None, prompt_service: Any = None, no_results_message: str = ""):
-        super().__init__(config, retriever, guardrail_service, reranker_service, prompt_service, no_results_message)
+        super().__init__(config, retriever, reranker_service, prompt_service, no_results_message)
         
         # Get Ollama specific configuration
         ollama_config = config.get('inference', {}).get('ollama', {})
@@ -120,11 +120,6 @@ class OllamaClient(BaseLLMClient, LLMClientCommon):
             Dictionary containing response and metadata
         """
         try:
-            # Check if the message is safe
-            is_safe, refusal_message = await self._check_message_safety(message)
-            if not is_safe:
-                return await self._handle_unsafe_message(refusal_message)
-            
             # Retrieve and rerank documents
             retrieved_docs = await self._retrieve_and_rerank_docs(message, collection_name)
             
@@ -215,12 +210,6 @@ class OllamaClient(BaseLLMClient, LLMClientCommon):
             Chunks of the response as they are generated
         """
         try:
-            # Check if the message is safe
-            is_safe, refusal_message = await self._check_message_safety(message)
-            if not is_safe:
-                yield await self._handle_unsafe_message_stream(refusal_message)
-                return
-            
             # Retrieve and rerank documents
             retrieved_docs = await self._retrieve_and_rerank_docs(message, collection_name)
             

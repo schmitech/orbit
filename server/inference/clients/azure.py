@@ -13,16 +13,9 @@ from ..llm_client_common import LLMClientCommon
 class AzureOpenAIClient(BaseLLMClient, LLMClientCommon):
     """LLM client implementation for Azure AI Inference."""
 
-    def __init__(
-        self,
-        config: Dict[str, Any],
-        retriever: Any,
-        guardrail_service: Any = None,
-        reranker_service: Any = None,
-        prompt_service: Any = None,
-        no_results_message: str = ""
-    ):
-        super().__init__(config, retriever, guardrail_service, reranker_service, prompt_service, no_results_message)
+    def __init__(self, config: Dict[str, Any], retriever: Any = None,
+                 reranker_service: Any = None, prompt_service: Any = None, no_results_message: str = ""):
+        super().__init__(config, retriever, reranker_service, prompt_service, no_results_message)
 
         azure_cfg = config.get('inference', {}).get('azure', {})
         self.endpoint = azure_cfg.get('endpoint', os.getenv("AZURE_OPENAI_ENDPOINT", ""))
@@ -95,11 +88,6 @@ class AzureOpenAIClient(BaseLLMClient, LLMClientCommon):
             if self.verbose:
                 self.logger.info(f"Generating response for message: {message[:100]}...")
                 
-            # Check if the message is safe
-            is_safe, refusal_message = await self._check_message_safety(message)
-            if not is_safe:
-                return await self._handle_unsafe_message(refusal_message)
-            
             # Retrieve and rerank documents
             retrieved_docs = await self._retrieve_and_rerank_docs(message, collection_name)
             
@@ -219,12 +207,6 @@ class AzureOpenAIClient(BaseLLMClient, LLMClientCommon):
             if self.verbose:
                 self.logger.info(f"Starting streaming response for message: {message[:100]}...")
                 
-            # Check if the message is safe
-            is_safe, refusal_message = await self._check_message_safety(message)
-            if not is_safe:
-                yield await self._handle_unsafe_message_stream(refusal_message)
-                return
-            
             # Retrieve and rerank documents
             retrieved_docs = await self._retrieve_and_rerank_docs(message, collection_name)
             

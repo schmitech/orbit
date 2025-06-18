@@ -11,16 +11,9 @@ from ..llm_client_common import LLMClientCommon
 class XAIClient(BaseLLMClient, LLMClientCommon):
     """LLM client implementation for x.ai Grok inference."""
 
-    def __init__(
-        self,
-        config: dict,
-        retriever: Any,
-        guardrail_service: Any = None,
-        reranker_service: Any = None,
-        prompt_service: Any = None,
-        no_results_message: str = ""
-    ):
-        super().__init__(config, retriever, guardrail_service, reranker_service, prompt_service, no_results_message)
+    def __init__(self, config: Dict[str, Any], retriever: Any = None,
+                 reranker_service: Any = None, prompt_service: Any = None, no_results_message: str = ""):
+        super().__init__(config, retriever, reranker_service, prompt_service, no_results_message)
 
         xai_cfg = config.get('inference', {}).get('xai', {})
         self.api_key = os.getenv("XAI_API_KEY", xai_cfg.get('api_key', ''))
@@ -108,11 +101,6 @@ class XAIClient(BaseLLMClient, LLMClientCommon):
         system_prompt_id: Optional[str] = None,
         context_messages: Optional[List[Dict[str, str]]] = None
     ) -> dict:
-        """Non-streaming chat completion using x.ai Grok."""
-        is_safe, refusal_message = await self._check_message_safety(message)
-        if not is_safe:
-            return await self._handle_unsafe_message(refusal_message)
-
         try:
             # Retrieve context and prompts
             docs = await self._retrieve_and_rerank_docs(message, collection_name)
@@ -190,11 +178,6 @@ class XAIClient(BaseLLMClient, LLMClientCommon):
         context_messages: Optional[List[Dict[str, str]]] = None
     ) -> AsyncGenerator[str, None]:
         """Streaming chat completion via Server-Sent Events."""
-        is_safe, refusal_message = await self._check_message_safety(message)
-        if not is_safe:
-            yield await self._handle_unsafe_message_stream(refusal_message)
-            return
-
         try:
             docs = await self._retrieve_and_rerank_docs(message, collection_name)
             system_prompt = await self._get_system_prompt(system_prompt_id)

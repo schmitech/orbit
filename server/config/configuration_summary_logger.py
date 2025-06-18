@@ -137,23 +137,34 @@ class ConfigurationSummaryLogger:
     def _log_service_configurations(self) -> None:
         """Log service configuration details."""
         try:
-            # Get safety configuration
-            safety_config = self.config.get('safety', {})
-            safety_enabled = _is_true_value(safety_config.get('enabled', True))
-            safety_moderator = safety_config.get('moderator', 'ollama')
-            safety_mode = safety_config.get('mode', 'strict')
+            # Log LLM Guard service information
+            llm_guard_config = self.config.get('llm_guard', {})
             
-            # Log safety information
-            self.logger.info(f"Safety: {'enabled' if safety_enabled else 'disabled'}")
-            if safety_enabled:
-                self.logger.info(f"Safety moderator: {safety_moderator}")
-                self.logger.info(f"Safety mode: {safety_mode}")
+            # Check if enabled field exists or if section exists
+            if llm_guard_config:
+                if 'enabled' in llm_guard_config:
+                    # Structure with explicit enabled field
+                    llm_guard_enabled = llm_guard_config.get('enabled', False)
+                else:
+                    # Simplified structure - if section exists, it's enabled
+                    llm_guard_enabled = True
+            else:
+                llm_guard_enabled = False
+            
+            self.logger.info(f"LLM Guard: {'enabled' if llm_guard_enabled else 'disabled'}")
+            
+            if llm_guard_enabled:
+                service_config = llm_guard_config.get('service', {})
+                base_url = service_config.get('base_url', 'http://localhost:8000')
+                self.logger.info(f"  LLM Guard service URL: {base_url}")
                 
-                # Log moderator-specific information if available
-                if safety_moderator in self.config.get('moderators', {}):
-                    moderator_config = self.config['moderators'][safety_moderator]
-                    model = moderator_config.get('model', 'unknown')
-                    self.logger.info(f"Moderation model: {model}")
+                security_config = llm_guard_config.get('security', {})
+                risk_threshold = security_config.get('risk_threshold', 0.6)
+                self.logger.info(f"  Default risk threshold: {risk_threshold}")
+                
+                # Use default scanner lists since they're not in simplified config
+                self.logger.info(f"  Available input scanners: 7 (default)")
+                self.logger.info(f"  Available output scanners: 4 (default)")
             
             # Log chat history information if in inference_only mode
             inference_only = _is_true_value(self.config.get('general', {}).get('inference_only', False))
@@ -221,6 +232,11 @@ class ConfigurationSummaryLogger:
                 except AttributeError:
                     # Skip logging if retriever is not fully initialized
                     pass
+            
+            # Log chat history service status (always show, regardless of verbose)
+            chat_history_loaded = hasattr(app.state, 'chat_history_service') and app.state.chat_history_service is not None
+            self.logger.info(f"Chat History Service: {'loaded' if chat_history_loaded else 'not loaded'}")
+            
         except Exception as e:
             self.logger.error(f"Error logging runtime information: {str(e)}")
     
@@ -260,10 +276,11 @@ class ConfigurationSummaryLogger:
                     'inference': self.config.get('general', {}).get('inference_provider', 'ollama')
                 },
                 'services': {
-                    'safety': {
-                        'enabled': _is_true_value(self.config.get('safety', {}).get('enabled', True)),
-                        'moderator': self.config.get('safety', {}).get('moderator', 'ollama'),
-                        'mode': self.config.get('safety', {}).get('mode', 'strict')
+                    'llm_guard': {
+                        'enabled': self._get_llm_guard_enabled_status(),
+                        'base_url': self._get_llm_guard_base_url(),
+                        'default_risk_threshold': self._get_llm_guard_risk_threshold(),
+                        'fallback_behavior': self._get_llm_guard_fallback_behavior()
                     }
                 },
                 'api': {
@@ -300,3 +317,28 @@ class ConfigurationSummaryLogger:
                 'error': f"Failed to generate configuration report: {str(e)}",
                 'server_mode': {'inference_only': False, 'rag_enabled': True}
             }
+    
+    def _get_llm_guard_enabled_status(self) -> bool:
+        """Get LLM Guard enabled status from either configuration structure"""
+        llm_guard_config = self.config.get('llm_guard', {})
+        if llm_guard_config:
+            if 'enabled' in llm_guard_config:
+                return llm_guard_config.get('enabled', False)
+            else:
+                return True
+        return False
+    
+    def _get_llm_guard_base_url(self) -> str:
+        """Get LLM Guard base URL from either configuration structure"""
+        llm_guard_config = self.config.get('llm_guard', {})
+        return llm_guard_config.get('service', {}).get('base_url', 'http://localhost:8000')
+    
+    def _get_llm_guard_risk_threshold(self) -> float:
+        """Get LLM Guard risk threshold from either configuration structure"""
+        llm_guard_config = self.config.get('llm_guard', {})
+        return llm_guard_config.get('security', {}).get('risk_threshold', 0.6)
+    
+    def _get_llm_guard_fallback_behavior(self) -> str:
+        """Get LLM Guard fallback behavior from either configuration structure"""
+        llm_guard_config = self.config.get('llm_guard', {})
+        return llm_guard_config.get('fallback', {}).get('on_error', 'allow')

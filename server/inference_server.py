@@ -292,9 +292,6 @@ class InferenceServer:
             else:
                 self.logger.info("Retriever was never initialized, no need to close")
         
-        if hasattr(app.state, 'guardrail_service'):
-            add_shutdown_task(app.state.guardrail_service, 'Guardrail Service')
-        
         if hasattr(app.state, 'prompt_service'):
             # PromptService doesn't have a close method, so we skip it
             self.logger.info("Skipping PromptService shutdown (no close method)")
@@ -307,6 +304,9 @@ class InferenceServer:
         
         if hasattr(app.state, 'embedding_service'):
             add_shutdown_task(app.state.embedding_service, 'Embedding Service')
+        
+        if hasattr(app.state, 'llm_guard_service'):
+            add_shutdown_task(app.state.llm_guard_service, 'LLM Guard Service')
             
         # Close shared MongoDB service
         if hasattr(app.state, 'mongodb_service'):

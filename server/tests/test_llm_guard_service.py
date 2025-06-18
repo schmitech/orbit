@@ -63,70 +63,49 @@ def load_safety_test_cases():
 
 
 # Test configuration
-def get_test_config(enabled=True, base_url="http://localhost:8000"):
+def get_test_config(enabled=True, base_url="http://localhost:8000", include_scanners=True):
     """Get test configuration for LLM Guard service"""
-    return {
+    config = {
         'general': {
             'verbose': True
-        },
-        'llm_guard': {
-            'enabled': enabled,
-            'service': {
-                'base_url': base_url,
-                'api_version': 'v1',
-                'timeout': {
-                    'connect': 10,
-                    'read': 30,
-                    'total': 60
-                },
-                'retry': {
-                    'max_attempts': 3,
-                    'backoff_factor': 0.3,
-                    'status_forcelist': [500, 502, 503, 504]
-                },
-                'health_check': {
-                    'endpoint': '/health',
-                    'interval': 30,
-                    'timeout': 5
-                }
-            },
-            'security_check': {
-                'default_risk_threshold': 0.5,
-                'default_scanners': ['prompt_injection', 'toxicity'],
-                'available_input_scanners': [
-                    'anonymize', 'ban_substrings', 'ban_topics', 'code',
-                    'prompt_injection', 'secrets', 'toxicity'
-                ],
-                'available_output_scanners': [
-                    'bias', 'no_refusal', 'relevance', 'sensitive'
-                ]
-            },
-            'defaults': {
-                'metadata': {
-                    'client_name': 'orbit-test',
-                    'client_version': '1.0.0'
-                },
-                'user_id': None,
-                'include_timestamp': True
-            },
-            'validation': {
-                'max_content_length': 10000,
-                'valid_content_types': ['prompt', 'response']
-            },
-            'error_handling': {
-                'fallback': {
-                    'on_service_unavailable': 'allow',
-                    'default_safe_response': {
-                        'is_safe': True,
-                        'risk_score': 0.0,
-                        'sanitized_content': None,
-                        'flagged_scanners': [],
-                        'recommendations': ['Service temporarily unavailable - content not scanned']
-                    }
-                }
-            }
         }
     }
+    
+    if enabled:
+        security_config = {
+            'risk_threshold': 0.6
+        }
+        
+        if include_scanners:
+            security_config['scanners'] = {
+                'prompt': [
+                    'ban_substrings',
+                    'ban_topics', 
+                    'prompt_injection',
+                    'toxicity',
+                    'secrets'
+                ],
+                'response': [
+                    'no_refusal',
+                    'sensitive',
+                    'bias',
+                    'relevance'
+                ]
+            }
+        
+        config['llm_guard'] = {
+            'enabled': True,
+            'service': {
+                'base_url': base_url,
+                'timeout': 30
+            },
+            'security': security_config,
+            'fallback': {
+                'on_error': 'allow'
+            }
+        }
+    
+    return config
 
 
 @pytest_asyncio.fixture
@@ -164,8 +143,39 @@ async def test_service_initialization_enabled():
     assert service.enabled is True
     assert service.base_url == "http://localhost:8000"
     assert service.api_version == "v1"
-    assert service.default_risk_threshold == 0.5
+    assert service.default_risk_threshold == 0.6
     assert service.max_content_length == 10000
+
+
+@pytest.mark.asyncio
+async def test_service_initialization_with_scanners():
+    """Test service initialization with scanner configurations"""
+    config = get_test_config(enabled=True, include_scanners=True)
+    service = LLMGuardService(config)
+    
+    assert service.enabled is True
+    assert len(service.configured_prompt_scanners) == 5
+    assert len(service.configured_response_scanners) == 4
+    assert 'ban_substrings' in service.configured_prompt_scanners
+    assert 'ban_topics' in service.configured_prompt_scanners
+    assert 'prompt_injection' in service.configured_prompt_scanners
+    assert 'toxicity' in service.configured_prompt_scanners
+    assert 'secrets' in service.configured_prompt_scanners
+    assert 'no_refusal' in service.configured_response_scanners
+    assert 'sensitive' in service.configured_response_scanners
+    assert 'bias' in service.configured_response_scanners
+    assert 'relevance' in service.configured_response_scanners
+
+
+@pytest.mark.asyncio
+async def test_service_initialization_without_scanners():
+    """Test service initialization without scanner configurations"""
+    config = get_test_config(enabled=True, include_scanners=False)
+    service = LLMGuardService(config)
+    
+    assert service.enabled is True
+    assert len(service.configured_prompt_scanners) == 0
+    assert len(service.configured_response_scanners) == 0
 
 
 @pytest.mark.asyncio
@@ -245,6 +255,107 @@ async def test_security_check_safe_content():
         assert result["is_safe"] is True
         assert result["risk_score"] == 0.1
         assert result["flagged_scanners"] == []
+
+
+@pytest.mark.asyncio
+async def test_security_check_uses_configured_prompt_scanners():
+    """Test that security check uses configured prompt scanners when none specified"""
+    config = get_test_config(enabled=True, include_scanners=True)
+    service = LLMGuardService(config)
+    
+    expected_response = {
+        "is_safe": True,
+        "risk_score": 0.1,
+        "sanitized_content": "Test content",
+        "flagged_scanners": [],
+        "recommendations": []
+    }
+    
+    # Mock the request method and capture the call
+    with patch.object(service, '_make_request_with_retry', return_value=expected_response) as mock_request:
+        await service.check_security(
+            content="Test content",
+            content_type="prompt"
+            # No scanners specified - should use configured ones
+        )
+        
+        # Verify the request was made with configured scanners
+        mock_request.assert_called_once()
+        call_args = mock_request.call_args
+        request_data = call_args[0][2]
+        
+        # Should use configured prompt scanners
+        assert set(request_data["scanners"]) == set(service.configured_prompt_scanners)
+        assert 'ban_substrings' in request_data["scanners"]
+        assert 'ban_topics' in request_data["scanners"]
+        assert 'prompt_injection' in request_data["scanners"]
+        assert 'toxicity' in request_data["scanners"]
+        assert 'secrets' in request_data["scanners"]
+
+
+@pytest.mark.asyncio
+async def test_security_check_uses_configured_response_scanners():
+    """Test that security check uses configured response scanners when none specified"""
+    config = get_test_config(enabled=True, include_scanners=True)
+    service = LLMGuardService(config)
+    
+    expected_response = {
+        "is_safe": True,
+        "risk_score": 0.1,
+        "sanitized_content": "Test response",
+        "flagged_scanners": [],
+        "recommendations": []
+    }
+    
+    # Mock the request method and capture the call
+    with patch.object(service, '_make_request_with_retry', return_value=expected_response) as mock_request:
+        await service.check_security(
+            content="Test response",
+            content_type="response"
+            # No scanners specified - should use configured ones
+        )
+        
+        # Verify the request was made with configured scanners
+        mock_request.assert_called_once()
+        call_args = mock_request.call_args
+        request_data = call_args[0][2]
+        
+        # Should use configured response scanners
+        assert set(request_data["scanners"]) == set(service.configured_response_scanners)
+        assert 'no_refusal' in request_data["scanners"]
+        assert 'sensitive' in request_data["scanners"]
+        assert 'bias' in request_data["scanners"]
+        assert 'relevance' in request_data["scanners"]
+
+
+@pytest.mark.asyncio
+async def test_security_check_empty_scanners_fallback():
+    """Test security check with empty configured scanners falls back gracefully"""
+    config = get_test_config(enabled=True, include_scanners=False)
+    service = LLMGuardService(config)
+    
+    expected_response = {
+        "is_safe": True,
+        "risk_score": 0.1,
+        "sanitized_content": "Test content",
+        "flagged_scanners": [],
+        "recommendations": []
+    }
+    
+    # Mock the request method and capture the call
+    with patch.object(service, '_make_request_with_retry', return_value=expected_response) as mock_request:
+        await service.check_security(
+            content="Test content",
+            content_type="prompt"
+        )
+        
+        # Verify the request was made with empty scanners
+        mock_request.assert_called_once()
+        call_args = mock_request.call_args
+        request_data = call_args[0][2]
+        
+        # Should not include scanners key when empty (optimization)
+        assert "scanners" not in request_data
 
 
 @pytest.mark.asyncio
@@ -420,6 +531,75 @@ async def test_validation_content_too_long():
         await service.check_security(long_content, "prompt")
 
 
+# Test Scanner Configuration Validation
+@pytest.mark.asyncio
+async def test_scanner_validation_with_valid_config():
+    """Test scanner validation with valid configuration"""
+    config = get_test_config(enabled=True, include_scanners=True)
+    
+    # This should not raise any exceptions
+    service = LLMGuardService(config)
+    assert service.enabled is True
+    assert len(service.configured_prompt_scanners) > 0
+    assert len(service.configured_response_scanners) > 0
+
+
+@pytest.mark.asyncio
+async def test_scanner_validation_with_invalid_prompt_scanners():
+    """Test scanner validation with invalid prompt scanners"""
+    config = get_test_config(enabled=True, include_scanners=False)
+    
+    # Add invalid scanners to the config
+    config['llm_guard']['security']['scanners'] = {
+        'prompt': ['invalid_scanner_1', 'prompt_injection', 'another_invalid'],
+        'response': ['no_refusal', 'sensitive']
+    }
+    
+    # Should still initialize but log warnings
+    service = LLMGuardService(config)
+    
+    # Should have filtered out invalid scanners or handled them gracefully
+    assert service.enabled is True
+    # The service should still work even with some invalid scanners in config
+
+
+@pytest.mark.asyncio
+async def test_scanner_validation_with_invalid_response_scanners():
+    """Test scanner validation with invalid response scanners"""
+    config = get_test_config(enabled=True, include_scanners=False)
+    
+    # Add invalid scanners to the config
+    config['llm_guard']['security']['scanners'] = {
+        'prompt': ['prompt_injection', 'toxicity'],
+        'response': ['invalid_output_scanner', 'no_refusal', 'fake_scanner']
+    }
+    
+    # Should still initialize but log warnings
+    service = LLMGuardService(config)
+    
+    # Should have filtered out invalid scanners or handled them gracefully
+    assert service.enabled is True
+    # The service should still work even with some invalid scanners in config
+
+
+@pytest.mark.asyncio
+async def test_scanner_validation_with_empty_config():
+    """Test scanner validation with empty scanner configuration"""
+    config = get_test_config(enabled=True, include_scanners=False)
+    
+    # Add empty scanners to the config
+    config['llm_guard']['security']['scanners'] = {
+        'prompt': [],
+        'response': []
+    }
+    
+    service = LLMGuardService(config)
+    
+    assert service.enabled is True
+    assert len(service.configured_prompt_scanners) == 0
+    assert len(service.configured_response_scanners) == 0
+
+
 @pytest.mark.asyncio
 async def test_validation_invalid_content_type():
     """Test validation with invalid content type"""
@@ -463,7 +643,7 @@ async def test_retry_logic_fallback():
 async def test_fallback_behavior_block():
     """Test fallback behavior when set to block"""
     config = get_test_config()
-    config['llm_guard']['error_handling']['fallback']['on_service_unavailable'] = 'block'
+    config['llm_guard']['fallback']['on_error'] = 'block'
     
     service = LLMGuardService(config)
     
@@ -491,11 +671,35 @@ async def test_get_service_info_enabled():
         assert info["base_url"] == "http://localhost:8000"
         assert info["api_version"] == "v1"
         assert info["healthy"] is True
-        assert info["default_risk_threshold"] == 0.5
+        assert info["default_risk_threshold"] == 0.6
         assert isinstance(info["available_input_scanners"], list)
         assert isinstance(info["available_output_scanners"], list)
         assert info["max_content_length"] == 10000
         assert info["fallback_behavior"] == "allow"
+
+
+@pytest.mark.asyncio
+async def test_get_service_info_with_scanner_config():
+    """Test getting service information with scanner configurations"""
+    config = get_test_config(enabled=True, include_scanners=True)
+    service = LLMGuardService(config)
+    
+    # Mock health check to return True
+    with patch.object(service, 'is_service_healthy', return_value=True):
+        info = await service.get_service_info()
+        
+        assert info["enabled"] is True
+        assert info["healthy"] is True
+        
+        # Check configured scanners are included
+        assert "configured_prompt_scanners" in info
+        assert "configured_response_scanners" in info
+        assert len(info["configured_prompt_scanners"]) == 5
+        assert len(info["configured_response_scanners"]) == 4
+        assert 'ban_substrings' in info["configured_prompt_scanners"]
+        assert 'ban_topics' in info["configured_prompt_scanners"]
+        assert 'no_refusal' in info["configured_response_scanners"]
+        assert 'sensitive' in info["configured_response_scanners"]
 
 
 @pytest.mark.asyncio
@@ -509,7 +713,7 @@ async def test_get_service_info_disabled(disabled_llm_guard_service):
     assert info["base_url"] is None
     assert info["api_version"] is None
     assert info["healthy"] is False
-    assert info["default_risk_threshold"] == 0.5  # This should still be accessible
+    assert info["default_risk_threshold"] == 0.6  # This should still be accessible
     assert info["fallback_behavior"] is None
 
 

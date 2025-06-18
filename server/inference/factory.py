@@ -17,7 +17,6 @@ class LLMClientFactory:
     def create_llm_client(
         config: Dict[str, Any], 
         retriever: Any, 
-        guardrail_service: Any = None,
         reranker_service: Any = None,
         prompt_service: Any = None,
         no_results_message: str = ""
@@ -28,7 +27,6 @@ class LLMClientFactory:
         Args:
             config: Application configuration dictionary
             retriever: The retriever to use for document lookup
-            guardrail_service: Optional service for content safety checks
             reranker_service: Optional service for reranking results
             prompt_service: Optional service for system prompts
             no_results_message: Message to show when no results are found
@@ -46,7 +44,6 @@ class LLMClientFactory:
             return client_class(
                 config, 
                 retriever, 
-                guardrail_service, 
                 reranker_service, 
                 prompt_service, 
                 no_results_message

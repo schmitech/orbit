@@ -17,9 +17,9 @@ from ..llm_client_common import LLMClientCommon
 class GeminiClient(BaseLLMClient, LLMClientCommon):
     """LLM client implementation for Google Gemini."""
     
-    def __init__(self, config: Dict[str, Any], retriever: Any, guardrail_service: Any = None, 
+    def __init__(self, config: Dict[str, Any], retriever: Any = None,
                  reranker_service: Any = None, prompt_service: Any = None, no_results_message: str = ""):
-        super().__init__(config, retriever, guardrail_service, reranker_service, prompt_service, no_results_message)
+        super().__init__(config, retriever, reranker_service, prompt_service, no_results_message)
         
         # Get Gemini specific configuration
         gemini_config = config.get('inference', {}).get('gemini', {})
@@ -111,11 +111,6 @@ class GeminiClient(BaseLLMClient, LLMClientCommon):
         try:
             if self.verbose:
                 self.logger.info(f"Generating response for message: {message[:100]}...")
-            
-            # Check if the message is safe
-            is_safe, refusal_message = await self._check_message_safety(message)
-            if not is_safe:
-                return await self._handle_unsafe_message(refusal_message)
             
             # Retrieve and rerank documents
             retrieved_docs = await self._retrieve_and_rerank_docs(message, collection_name)
@@ -229,12 +224,6 @@ class GeminiClient(BaseLLMClient, LLMClientCommon):
         try:
             if self.verbose:
                 self.logger.info(f"Starting streaming response for message: {message[:100]}...")
-            
-            # Check if the message is safe
-            is_safe, refusal_message = await self._check_message_safety(message)
-            if not is_safe:
-                yield await self._handle_unsafe_message_stream(refusal_message)
-                return
             
             # Retrieve and rerank documents
             retrieved_docs = await self._retrieve_and_rerank_docs(message, collection_name)

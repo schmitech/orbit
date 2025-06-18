@@ -38,41 +38,45 @@ class ServiceFactory:
         self.logger = logger
         self.inference_only = _is_true_value(config.get('general', {}).get('inference_only', False))
         self.chat_history_enabled = _is_true_value(config.get('chat_history', {}).get('enabled', True))
+        self.verbose = _is_true_value(config.get('general', {}).get('verbose', False))
+        
+        # Log the mode detection for debugging (only when verbose)
+        if self.verbose:
+            self.logger.info(f"ServiceFactory initialized - inference_only={self.inference_only}, chat_history_enabled={self.chat_history_enabled}")
     
     async def initialize_all_services(self, app: FastAPI) -> None:
-        """
-        Initialize all services and clients required by the application.
-        
-        This method orchestrates the initialization of all services based on the
-        server mode and configuration.
-        
-        Args:
-            app: The FastAPI application instance
+        """Initialize all services required by the application."""
+        try:
+            if self.verbose:
+                self.logger.info(f"Starting service initialization - inference_only={self.inference_only}, chat_history_enabled={self.chat_history_enabled}")
             
-        Raises:
-            Exception: If any critical service fails to initialize
-        """
-        self.logger.info("Starting service initialization...")
-        
-        # Initialize core services first
-        await self._initialize_core_services(app)
-        
-        # Initialize mode-specific services
-        if self.inference_only:
-            await self._initialize_inference_only_services(app)
-        else:
-            await self._initialize_full_mode_services(app)
-        
-        # Initialize shared services
-        await self._initialize_shared_services(app)
-        
-        # Initialize LLM client and verify connection
-        await self._initialize_llm_client(app)
-        
-        # Initialize final services that depend on LLM client
-        await self._initialize_dependent_services(app)
-        
-        self.logger.info("Service initialization completed successfully")
+            # Initialize core services (MongoDB, Redis) based on mode
+            await self._initialize_core_services(app)
+            
+            # Initialize mode-specific services
+            if self.inference_only:
+                if self.verbose:
+                    self.logger.info("Initializing inference-only mode services")
+                await self._initialize_inference_only_services(app)
+            else:
+                if self.verbose:
+                    self.logger.info("Initializing full RAG mode services")
+                await self._initialize_full_mode_services(app)
+            
+            # Initialize shared services (Logger, LLM Guard, Reranker)
+            await self._initialize_shared_services(app)
+            
+            # Initialize LLM client (after LLM Guard service)
+            await self._initialize_llm_client(app)
+            
+            # Initialize dependent services (chat service and health service)
+            await self._initialize_dependent_services(app)
+            
+            self.logger.info("All services initialized successfully")
+            
+        except Exception as e:
+            self.logger.error(f"Failed to initialize services: {str(e)}")
+            raise
     
     async def _initialize_core_services(self, app: FastAPI) -> None:
         """Initialize core services that are always needed."""
@@ -99,6 +103,8 @@ class ServiceFactory:
         
         # Initialize Chat History Service if enabled
         if self.chat_history_enabled:
+            if self.verbose:
+                self.logger.info("Chat history is enabled - initializing Chat History Service")
             await self._initialize_chat_history_service(app)
         else:
             app.state.chat_history_service = None
@@ -126,9 +132,6 @@ class ServiceFactory:
         # Initialize Logger Service (always needed)
         await self._initialize_logger_service(app)
         
-        # Initialize Guardrail Service if enabled
-        await self._initialize_guardrail_service(app)
-        
         # Initialize LLM Guard Service if enabled
         await self._initialize_llm_guard_service(app)
         
@@ -150,9 +153,8 @@ class ServiceFactory:
         app.state.llm_client = LLMClientFactory.create_llm_client(
             self.config, 
             None if self.inference_only else app.state.retriever,
-            guardrail_service=app.state.guardrail_service,
-            reranker_service=app.state.reranker_service,
-            prompt_service=None if self.inference_only else app.state.prompt_service,
+            reranker_service=getattr(app.state, 'reranker_service', None),
+            prompt_service=None if self.inference_only else getattr(app.state, 'prompt_service', None),
             no_results_message=no_results_message
         )
         
@@ -170,13 +172,15 @@ class ServiceFactory:
         """Initialize services that depend on other services."""
         # Initialize Chat Service (always needed)
         chat_history_service = getattr(app.state, 'chat_history_service', None)
+        llm_guard_service = getattr(app.state, 'llm_guard_service', None)
         
         from services.chat_service import ChatService
         app.state.chat_service = ChatService(
             self.config, 
             app.state.llm_client, 
             app.state.logger_service,
-            chat_history_service
+            chat_history_service,
+            llm_guard_service
         )
         
         # Initialize Health Service
@@ -240,6 +244,8 @@ class ServiceFactory:
     
     async def _initialize_chat_history_service(self, app: FastAPI) -> None:
         """Initialize Chat History Service."""
+        if self.verbose:
+            self.logger.info("Creating Chat History Service instance...")
         from services.chat_history_service import ChatHistoryService
         app.state.chat_history_service = ChatHistoryService(
             self.config, 
@@ -251,12 +257,15 @@ class ServiceFactory:
             self.logger.info("Chat History Service initialized successfully")
             
             # Verify chat history service is working
+            if self.verbose:
+                self.logger.info("Performing Chat History Service health check...")
             health = await app.state.chat_history_service.health_check()
             if health["status"] != "healthy":
                 self.logger.error(f"Chat History Service health check failed: {health}")
                 app.state.chat_history_service = None
             else:
-                self.logger.info(f"Chat History Service health check passed: {health}")
+                if self.verbose:
+                    self.logger.info(f"Chat History Service health check passed: {health}")
         except Exception as e:
             self.logger.error(f"Failed to initialize Chat History Service: {str(e)}")
             # Don't raise - chat history is optional
@@ -412,7 +421,7 @@ class ServiceFactory:
         """Create a fallback retriever accessor."""
         def create_fallback_retriever():
             try:
-                from retrievers.implementations.qa_chroma_retriever import ChromaRetriever
+                from retrievers.implementations.qa.qa_chroma_retriever import ChromaRetriever
                 from retrievers.adapters.registry import ADAPTER_REGISTRY
                 
                 # Create a default QA adapter
@@ -453,25 +462,23 @@ class ServiceFactory:
         await app.state.logger_service.initialize_elasticsearch()
         self.logger.info("Logger Service initialized successfully")
     
-    async def _initialize_guardrail_service(self, app: FastAPI) -> None:
-        """Initialize Guardrail Service if enabled."""
-        if _is_true_value(self.config.get('safety', {}).get('enabled', False)):
-            from services.guardrail_service import GuardrailService
-            app.state.guardrail_service = GuardrailService(self.config)
-            self.logger.info("Initializing GuardrailService...")
-            try:
-                await app.state.guardrail_service.initialize()
-                self.logger.info("GuardrailService initialized successfully")
-            except Exception as e:
-                self.logger.error(f"Failed to initialize GuardrailService: {str(e)}")
-                raise
-        else:
-            app.state.guardrail_service = None
-            self.logger.info("Safety is disabled, skipping GuardrailService initialization")
-    
     async def _initialize_llm_guard_service(self, app: FastAPI) -> None:
         """Initialize LLM Guard Service if enabled."""
-        if _is_true_value(self.config.get('llm_guard', {}).get('enabled', False)):
+        # Get LLM Guard configuration
+        llm_guard_config = self.config.get('llm_guard', {})
+        
+        # Check if enabled (explicit field) or if section exists (simplified structure)
+        if llm_guard_config:
+            if 'enabled' in llm_guard_config:
+                # Structure with explicit enabled field
+                is_enabled = llm_guard_config.get('enabled', False)
+            else:
+                # Simplified structure - if section exists, it's enabled
+                is_enabled = True
+        else:
+            is_enabled = False
+        
+        if is_enabled:
             from services.llm_guard_service import LLMGuardService
             app.state.llm_guard_service = LLMGuardService(self.config)
             self.logger.info("Initializing LLM Guard Service...")

@@ -25,11 +25,10 @@ The LLM Guard Service provides advanced security scanning and content sanitizati
   - Health monitoring and circuit breaker patterns
   - Graceful fallback behavior when service unavailable
 
-- **🔧 Flexible Configuration**
-  - Multiple scanner types and configurations
-  - Adjustable risk thresholds
-  - Environment-specific settings
-  - Custom metadata and user tracking
+- **🔧 Simple Configuration**
+  - Minimal configuration with sensible defaults
+  - Easy setup with just essential settings
+  - Automatic fallback behavior configuration
 
 ---
 
@@ -65,87 +64,42 @@ The LLM Guard Service is integrated into Orbit's service factory pattern and fol
 
 ## 📋 Configuration
 
-### Basic Configuration
+### Simple Configuration
 
 Add the following section to your `config.yaml`:
 
 ```yaml
 llm_guard:
-  enabled: false                    # Enable/disable the service
+  enabled: true                           # Enable/disable the service
   service:
-    base_url: "http://localhost:8000"    # LLM Guard API base URL
-    api_version: "v1"                    # API version
-    timeout:
-      connect: 10                        # Connection timeout (seconds)
-      read: 30                          # Read timeout (seconds)
-      total: 60                         # Total request timeout (seconds)
-    retry:
-      max_attempts: 3                   # Maximum retry attempts
-      backoff_factor: 0.3               # Exponential backoff factor
-      status_forcelist: [500, 502, 503, 504]  # HTTP status codes to retry
-    health_check:
-      endpoint: "/health"               # Health check endpoint
-      interval: 30                     # Health check interval (seconds)
-      timeout: 5                       # Health check timeout (seconds)
+    base_url: "http://localhost:8000"     # LLM Guard API base URL
+    timeout: 30                           # Request timeout (seconds)
+  security:
+    risk_threshold: 0.6                   # Default risk threshold (0.0-1.0)
+  fallback:
+    on_error: "allow"                     # Fallback behavior: "allow" or "block"
 ```
 
-### Security Check Configuration
+### Configuration Options
 
-```yaml
-llm_guard:
-  security_check:
-    default_risk_threshold: 0.5         # Default risk threshold (0.0-1.0)
-    default_scanners: []                # Default scanners (empty = use all available)
-    available_input_scanners:           # Available input content scanners
-      - "anonymize"                     # Anonymize PII data
-      - "ban_substrings"                # Block banned substrings
-      - "ban_topics"                    # Block banned topics
-      - "code"                          # Detect code injection
-      - "prompt_injection"              # Detect prompt injection attacks
-      - "secrets"                       # Detect API keys, passwords, etc.
-      - "toxicity"                      # Detect toxic/harmful content
-    available_output_scanners:          # Available output content scanners
-      - "bias"                          # Detect biased content
-      - "no_refusal"                    # Ensure appropriate refusals
-      - "relevance"                     # Check response relevance
-      - "sensitive"                     # Detect sensitive information
-```
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `service.base_url` | string | `"http://localhost:8000"` | LLM Guard API base URL |
+| `service.timeout` | integer | `30` | Request timeout in seconds |
+| `security.risk_threshold` | float | `0.6` | Default risk threshold (0.0-1.0) |
+| `fallback.on_error` | string | `"allow"` | Fallback behavior when service unavailable |
 
-### Client Defaults
+### Default Settings
 
-```yaml
-llm_guard:
-  defaults:
-    metadata:
-      client_name: "orbit-server"       # Client identification
-      client_version: "1.0.0"          # Client version
-    user_id: null                       # Default user ID (null = not included)
-    include_timestamp: true             # Include timestamp in requests
-```
+The service uses sensible defaults for all other settings:
 
-### Validation Settings
-
-```yaml
-llm_guard:
-  validation:
-    max_content_length: 10000           # Maximum content length to process
-    valid_content_types: ["prompt", "response"]  # Valid content types
-```
-
-### Error Handling
-
-```yaml
-llm_guard:
-  error_handling:
-    fallback:
-      on_service_unavailable: "allow"   # Fallback behavior: "allow", "block", or "raise"
-      default_safe_response:            # Response when service unavailable and fallback="allow"
-        is_safe: true
-        risk_score: 0.0
-        sanitized_content: null
-        flagged_scanners: []
-        recommendations: ["Service temporarily unavailable - content not scanned"]
-```
+- **API Version**: `v1`
+- **Connect Timeout**: `10` seconds
+- **Retry Attempts**: `3` with exponential backoff
+- **Health Check**: `/health` endpoint, 30s interval, 5s timeout
+- **Available Scanners**: 7 input scanners, 4 output scanners
+- **Content Validation**: 10,000 character limit, `["prompt", "response"]` types
+- **Metadata**: Client name `"orbit-server"`, version `"1.0.0"`
 
 ---
 
@@ -153,7 +107,7 @@ llm_guard:
 
 ### Service Integration
 
-The LLM Guard Service is automatically initialized by the service factory when enabled. It's available through the application state:
+The LLM Guard Service is automatically initialized by the service factory when the `llm_guard` section exists in your configuration and `enabled` is set to `true`. It's available through the application state:
 
 ```python
 # Access the service in your code
@@ -321,75 +275,24 @@ The service integrates with the following LLM Guard API endpoints:
 
 ### Input Scanners (Prompt Analysis)
 
-| Scanner | Purpose | Configuration |
-|---------|---------|---------------|
-| `anonymize` | Detect and anonymize PII data | `pii_types`, `anonymization_method` |
-| `ban_substrings` | Block content with banned phrases | `banned_phrases`, `case_sensitive` |
-| `ban_topics` | Block content about banned topics | `banned_topics`, `threshold` |
-| `code` | Detect code injection attempts | `languages`, `suspicious_patterns` |
-| `prompt_injection` | Detect prompt injection attacks | `injection_patterns`, `threshold` |
-| `secrets` | Detect API keys, passwords, tokens | `secret_types`, `entropy_threshold` |
-| `toxicity` | Detect toxic/harmful content | `toxicity_threshold`, `categories` |
+| Scanner | Purpose | Description |
+|---------|---------|-------------|
+| `anonymize` | Detect and anonymize PII data | Identifies and masks personal information |
+| `ban_substrings` | Block content with banned phrases | Filters content containing banned substrings |
+| `ban_topics` | Block content about banned topics | Prevents discussion of prohibited topics |
+| `code` | Detect code injection attempts | Identifies potential code injection attacks |
+| `prompt_injection` | Detect prompt injection attacks | Detects attempts to manipulate the AI system |
+| `secrets` | Detect API keys, passwords, tokens | Identifies sensitive credentials and secrets |
+| `toxicity` | Detect toxic/harmful content | Filters harmful, offensive, or inappropriate content |
 
 ### Output Scanners (Response Analysis)
 
-| Scanner | Purpose | Configuration |
-|---------|---------|---------------|
-| `bias` | Detect biased or unfair content | `bias_types`, `threshold` |
-| `no_refusal` | Ensure appropriate refusals | `refusal_patterns`, `min_confidence` |
-| `relevance` | Check response relevance to prompt | `relevance_threshold`, `similarity_method` |
-| `sensitive` | Detect sensitive information leaks | `sensitivity_categories`, `threshold` |
-
----
-
-## 🔧 Advanced Configuration
-
-### Environment-Specific Settings
-
-You can override configuration for different environments:
-
-```yaml
-llm_guard:
-  enabled: false  # Default setting
-  service:
-    base_url: "http://localhost:8000"  # Default URL
-
-# Override for production
-# Set LLM_GUARD_ENABLED=true and LLM_GUARD_BASE_URL=https://llm-guard.prod.com
-```
-
-### Custom Scanner Configuration
-
-```yaml
-llm_guard:
-  security_check:
-    scanner_configs:
-      prompt_injection:
-        threshold: 0.7
-        patterns: ["ignore previous", "system:", "prompt:"]
-      toxicity:
-        threshold: 0.8
-        categories: ["hate", "violence", "harassment"]
-      secrets:
-        entropy_threshold: 4.0
-        secret_types: ["api_key", "password", "token", "certificate"]
-```
-
-### Performance Tuning
-
-```yaml
-llm_guard:
-  service:
-    timeout:
-      connect: 5      # Faster connection timeout
-      read: 15        # Faster read timeout
-      total: 30       # Faster total timeout
-    retry:
-      max_attempts: 2 # Fewer retries for faster response
-      backoff_factor: 0.5  # Faster backoff
-  validation:
-    max_content_length: 5000  # Smaller content limit
-```
+| Scanner | Purpose | Description |
+|---------|---------|-------------|
+| `bias` | Detect biased or unfair content | Identifies biased or discriminatory responses |
+| `no_refusal` | Ensure appropriate refusals | Checks that the AI appropriately refuses harmful requests |
+| `relevance` | Check response relevance to prompt | Ensures responses are relevant to the original query |
+| `sensitive` | Detect sensitive information leaks | Prevents disclosure of sensitive information |
 
 ---
 
@@ -402,7 +305,7 @@ When the LLM Guard service is unavailable, you can configure different fallback 
 #### Allow (Default)
 - **Behavior**: Allow content to pass through unscanned
 - **Use Case**: Non-critical applications where availability is prioritized
-- **Configuration**: `on_service_unavailable: "allow"`
+- **Configuration**: `on_error: "allow"`
 
 ```python
 # Returns safe response when service is down
@@ -418,7 +321,7 @@ When the LLM Guard service is unavailable, you can configure different fallback 
 #### Block
 - **Behavior**: Block all content when service is unavailable
 - **Use Case**: High-security applications where safety is prioritized
-- **Configuration**: `on_service_unavailable: "block"`
+- **Configuration**: `on_error: "block"`
 
 ```python
 # Returns unsafe response when service is down
@@ -431,32 +334,19 @@ When the LLM Guard service is unavailable, you can configure different fallback 
 }
 ```
 
-#### Raise
-- **Behavior**: Raise exception when service is unavailable
-- **Use Case**: Applications that need explicit error handling
-- **Configuration**: `on_service_unavailable: "raise"`
-
 ### Retry Logic
 
 The service implements exponential backoff retry logic:
 
 ```python
-# Retry configuration
+# Retry configuration (hardcoded defaults)
 max_attempts = 3
 backoff_factor = 0.3
 retry_delays = [0.3, 0.6, 1.2]  # seconds
 
 # Status codes that trigger retries
-retry_status_codes = [500, 502, 503, 504, 429]
+retry_status_codes = [500, 502, 503, 504]
 ```
-
-### Circuit Breaker Pattern
-
-The service includes circuit breaker functionality:
-
-- **Failure Threshold**: After 5 consecutive failures, circuit opens
-- **Recovery Timeout**: 30 seconds before attempting recovery
-- **Health Monitoring**: Automatic health checks to close circuit
 
 ---
 
@@ -505,23 +395,6 @@ Track service performance with built-in metrics:
 
 ## 🔐 Security Considerations
 
-### Authentication
-
-If your LLM Guard service requires authentication, configure it in the service settings:
-
-```yaml
-llm_guard:
-  service:
-    auth:
-      type: "bearer"  # or "api_key", "basic"
-      token: "${LLM_GUARD_TOKEN}"
-      # For API key auth:
-      # api_key_header: "X-API-Key"
-      # For basic auth:
-      # username: "${LLM_GUARD_USERNAME}"
-      # password: "${LLM_GUARD_PASSWORD}"
-```
-
 ### Network Security
 
 - **HTTPS**: Always use HTTPS in production
@@ -532,22 +405,13 @@ llm_guard:
 llm_guard:
   service:
     base_url: "https://llm-guard.internal.company.com"  # HTTPS endpoint
-    verify_ssl: true  # Verify SSL certificates
 ```
 
 ### Data Privacy
 
-- **Content Logging**: Configure whether to log request/response content
-- **PII Handling**: Ensure PII is properly anonymized
-- **Data Retention**: Configure how long scan results are kept
-
-```yaml
-llm_guard:
-  privacy:
-    log_content: false          # Don't log actual content
-    anonymize_logs: true        # Anonymize any logged data
-    retention_days: 7           # Keep scan results for 7 days
-```
+- **Content Logging**: The service does not log actual content by default
+- **PII Handling**: Ensure PII is properly anonymized by the LLM Guard service
+- **Data Retention**: Configure data retention on the LLM Guard service side
 
 ---
 
@@ -557,7 +421,7 @@ llm_guard:
 
 #### Service Not Starting
 ```bash
-# Check if LLM Guard is enabled
+# Check if LLM Guard is configured
 grep -A5 "llm_guard:" config.yaml
 
 # Verify the base URL is correct
@@ -566,23 +430,10 @@ curl -X GET "http://localhost:8000/health"
 
 #### Connection Timeouts
 ```yaml
-# Increase timeouts in config.yaml
+# Increase timeout in config.yaml
 llm_guard:
   service:
-    timeout:
-      connect: 30
-      read: 60
-      total: 120
-```
-
-#### High Error Rates
-```yaml
-# Increase retry attempts and adjust backoff
-llm_guard:
-  service:
-    retry:
-      max_attempts: 5
-      backoff_factor: 0.5
+    timeout: 60  # Increase from default 30 seconds
 ```
 
 ### Debug Mode
@@ -632,7 +483,7 @@ if llm_guard_service:
 The service uses connection pooling for optimal performance:
 
 ```python
-# aiohttp connector settings
+# aiohttp connector settings (hardcoded defaults)
 connector = aiohttp.TCPConnector(
     limit=100,              # Total connection pool size
     limit_per_host=30,      # Connections per host
@@ -645,11 +496,9 @@ connector = aiohttp.TCPConnector(
 
 Health check results are cached to reduce API calls:
 
-```yaml
-llm_guard:
-  service:
-    health_check:
-      interval: 30  # Cache health status for 30 seconds
+```python
+# Health check caching (hardcoded default)
+health_cache_ttl = 30  # Cache health status for 30 seconds
 ```
 
 ### Content Batching
@@ -758,4 +607,182 @@ class SecureChatService:
         }
 ```
 
-This documentation provides comprehensive coverage of the LLM Guard Service integration with Orbit, including architecture, configuration, usage examples, and troubleshooting guidance. 
+### Configuration Examples
+
+#### Basic Setup
+```yaml
+llm_guard:
+  enabled: true
+  service:
+    base_url: "http://localhost:8000"
+    timeout: 30
+  security:
+    risk_threshold: 0.6
+  fallback:
+    on_error: "allow"
+```
+
+#### Production Setup
+```yaml
+llm_guard:
+  enabled: true
+  service:
+    base_url: "https://llm-guard.prod.company.com"
+    timeout: 60
+  security:
+    risk_threshold: 0.7
+  fallback:
+    on_error: "block"
+```
+
+#### High-Security Setup
+```yaml
+llm_guard:
+  enabled: true
+  service:
+    base_url: "https://llm-guard.secure.company.com"
+    timeout: 45
+  security:
+    risk_threshold: 0.5
+  fallback:
+    on_error: "block"
+```
+
+## 🔗 Chat Service Integration
+
+The LLM Guard service is now fully integrated into the chat flow to provide real-time security checking for both user prompts and AI responses. This ensures unsafe content is blocked before processing or storage.
+
+### Security Check Points
+
+1. **User Message Validation**: Before LLM processing
+   - Checks user input for security violations
+   - Blocks unsafe messages immediately
+   - No LLM inference occurs for blocked messages
+
+2. **Response Validation**: Before chat history storage
+   - Checks AI responses for security violations
+   - Blocks unsafe responses from being stored
+   - Prevents harmful content from entering chat history
+
+### Integration Flow
+
+```mermaid
+flowchart TD
+    A[User Message] --> B[Security Check]
+    B -->|Safe| C[LLM Processing]
+    B -->|Unsafe| D[Block & Return Error]
+    C --> E[Response Generated]
+    E --> F[Response Security Check]
+    F -->|Safe| G[Store in Chat History]
+    F -->|Unsafe| H[Block & Return Error]
+    G --> I[Return Response to User]
+```
+
+### Implementation Details
+
+#### Service Dependencies
+The ChatService now accepts an `llm_guard_service` parameter:
+
+```python
+chat_service = ChatService(
+    config, 
+    llm_client, 
+    logger_service,
+    chat_history_service,
+    llm_guard_service  # New parameter
+)
+```
+
+#### Security Check Method
+A new `_check_message_security()` method handles security validation:
+
+```python
+security_result = await self._check_message_security(
+    content=message,
+    content_type="prompt",  # or "response"
+    user_id=user_id,
+    session_id=session_id
+)
+
+if not security_result.get("is_safe", True):
+    # Block and return error
+    return {"error": "Message blocked by security scanner"}
+```
+
+#### Blocked Content Handling
+
+When content is flagged as unsafe:
+
+1. **Detailed Error Messages**: Include risk score, flagged scanners, and recommendations
+2. **Logging**: Security violations are logged with full context
+3. **No Storage**: Unsafe content is never stored in MongoDB chat history
+4. **Audit Trail**: Blocked attempts are logged for security monitoring
+
+#### Error Response Format
+
+Blocked messages return user-friendly error responses without exposing sensitive security details:
+
+```json
+{
+  "error": {
+    "code": -32603,
+    "message": "Message blocked by security scanner. Reason: prompt injection"
+  }
+}
+```
+
+**Note**: Detailed security information (risk scores, scanner names, technical recommendations) is logged for administrators but not exposed to clients for security reasons.
+
+#### Streaming Support
+
+The security integration works seamlessly with streaming responses:
+
+- User messages are checked before streaming begins
+- Complete responses are validated after streaming completes
+- Security errors are streamed as proper JSON chunks
+- Blocked responses don't interrupt the streaming protocol
+
+### Configuration
+
+LLM Guard integration is automatically enabled when the service is configured:
+
+```yaml
+llm_guard:
+  enabled: true
+  service:
+    base_url: "http://localhost:8000"
+    timeout: 30
+  security:
+    risk_threshold: 0.6
+  fallback:
+    on_error: "allow"
+```
+
+### Benefits
+
+✅ **Comprehensive Protection**: Both input and output validation  
+✅ **Zero Storage Pollution**: Unsafe content never enters chat history  
+✅ **Transparent Integration**: Works with existing chat endpoints  
+✅ **Streaming Compatible**: Full support for real-time responses  
+✅ **Detailed Reporting**: Rich error messages and audit trails  
+✅ **Graceful Fallbacks**: Continues working if LLM Guard is unavailable
+
+This documentation provides comprehensive coverage of the LLM Guard Service integration with Orbit, including the simplified configuration, usage examples, and troubleshooting guidance.
+
+#### Security Logging for Administrators
+
+While clients receive user-friendly error messages, detailed security information is logged for administrators:
+
+**Log Example:**
+```
+WARNING: Message blocked for session sess_123: Risk score: 0.85, Flagged by: toxicity, prompt_injection, Recommendations: Potential prompt injection detected. Review and sanitize user input.
+```
+
+**Logged Information:**
+- Session ID for tracking
+- Risk score (0.0-1.0)
+- Specific scanners that flagged the content
+- Technical recommendations for investigation
+- Full security check results in metadata
+
+This provides administrators with the information needed for security monitoring and incident response while keeping sensitive details away from end users. 
