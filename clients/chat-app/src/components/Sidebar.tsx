@@ -91,10 +91,10 @@ export function Sidebar({ onOpenSettings }: SidebarProps) {
     <>
       <div className="w-64 bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex flex-col h-full">
         {/* Header */}
-        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+        <div className="p-3 border-b border-gray-200 dark:border-gray-700">
           <button
             onClick={handleNewChat}
-            className="w-full flex items-center gap-3 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium"
+            className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium"
           >
             <Plus className="w-5 h-5" />
             New Chat
@@ -102,7 +102,7 @@ export function Sidebar({ onOpenSettings }: SidebarProps) {
         </div>
 
         {/* Search */}
-        <div className="p-4">
+        <div className="p-3">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
             <input

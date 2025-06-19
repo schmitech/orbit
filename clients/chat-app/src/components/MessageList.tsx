@@ -77,24 +77,6 @@ export function MessageList({ messages, onRegenerate, isLoading }: MessageListPr
           />
         ))}
         
-        {isLoading && (
-          <div className="flex gap-4 p-4 bg-gray-50 dark:bg-gray-800/50">
-            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center">
-              <span className="text-white text-sm font-medium">AI</span>
-            </div>
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-sm font-medium text-gray-900 dark:text-gray-100">Assistant</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-              </div>
-            </div>
-          </div>
-        )}
-        
         <div ref={messagesEndRef} />
       </div>
     </div>

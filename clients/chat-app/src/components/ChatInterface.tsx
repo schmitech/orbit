@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { MessageList } from './MessageList';
 import { MessageInput } from './MessageInput';
 import { useChatStore } from '../stores/chatStore';
+import { Eye, EyeOff } from 'lucide-react';
 
 export function ChatInterface() {
   const { 
@@ -18,8 +19,9 @@ export function ChatInterface() {
 
   // Configuration state for API settings
   const [showConfig, setShowConfig] = useState(false);
-  const [apiUrl, setApiUrl] = useState('http://localhost:3000');
-  const [apiKey, setApiKey] = useState('');
+  const [apiUrl, setApiUrl] = useState(() => localStorage.getItem('chat-api-url') || 'http://localhost:3000');
+  const [apiKey, setApiKey] = useState(() => localStorage.getItem('chat-api-key') || 'orbit-123456789');
+  const [showApiKey, setShowApiKey] = useState(false);
 
   const currentConversation = conversations.find(c => c.id === currentConversationId);
 
@@ -27,6 +29,12 @@ export function ChatInterface() {
   useEffect(() => {
     cleanupStreamingMessages();
   }, [cleanupStreamingMessages]);
+
+  // Save API settings to localStorage when they change
+  useEffect(() => {
+    localStorage.setItem('chat-api-url', apiUrl);
+    localStorage.setItem('chat-api-key', apiKey);
+  }, [apiUrl, apiKey]);
 
   const handleSendMessage = (content: string) => {
     sendMessage(content);
@@ -36,6 +44,8 @@ export function ChatInterface() {
     if (apiUrl && apiKey) {
       configureApiSettings(apiUrl, apiKey);
       setShowConfig(false);
+      // Clear any existing error after successful configuration
+      clearError();
     }
   };
 
@@ -65,13 +75,22 @@ export function ChatInterface() {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   API Key
                 </label>
-                <input
-                  type="password"
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                  placeholder="your-api-key"
-                />
+                <div className="relative">
+                  <input
+                    type={showApiKey ? "text" : "password"}
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white pr-10"
+                    placeholder="your-api-key"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowApiKey(!showApiKey)}
+                    className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                  >
+                    {showApiKey ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
               </div>
               <div className="flex justify-end space-x-2">
                 <button

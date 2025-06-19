@@ -16,6 +16,17 @@ const setSessionId = (sessionId: string): void => {
   localStorage.setItem('chatbot-session-id', sessionId);
 };
 
+// Counter to ensure unique IDs even if timestamps are identical
+let messageCounter = 0;
+
+// Generate unique message IDs
+const generateUniqueMessageId = (role: 'user' | 'assistant'): string => {
+  const timestamp = Date.now();
+  const counter = ++messageCounter;
+  const random = Math.random().toString(36).substr(2, 9);
+  return `msg_${timestamp}_${counter}_${random}_${role}`;
+};
+
 // Extended chat state for the store
 interface ExtendedChatState extends ChatState {
   sessionId: string;
@@ -41,13 +52,11 @@ function ensureApiConfigured(): boolean {
     return true;
   }
 
-  // Check if API settings are available in environment or window
-  const apiUrl = import.meta.env.VITE_API_URL || (window as any).CHATBOT_API_URL;
-
-  if (!apiUrl) {
-    console.warn('API URL not configured. Use configureApiSettings() to set it.');
-    return false;
-  }
+  // Check localStorage first, then environment variables
+  const apiUrl = localStorage.getItem('chat-api-url') || 
+                import.meta.env.VITE_API_URL || 
+                (window as any).CHATBOT_API_URL ||
+                'http://localhost:3000';
 
   const sessionId = getOrCreateSessionId();
   configureApi(apiUrl, '', sessionId);
@@ -72,9 +81,16 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       set({ sessionId: actualSessionId });
     }
     
-    configureApi(apiUrl, '', actualSessionId);
+    // Configure the API with the provided URL and key
+    configureApi(apiUrl, apiKey || '', actualSessionId);
     currentApiUrl = apiUrl;
     apiConfigured = true;
+
+    // Save settings to localStorage
+    localStorage.setItem('chat-api-url', apiUrl);
+    if (apiKey) {
+      localStorage.setItem('chat-api-key', apiKey);
+    }
   },
 
   createConversation: () => {
@@ -163,13 +179,13 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
 
       // Add user message and assistant streaming message in a single atomic update
       const userMessage: Message = {
-        id: `msg_${Date.now()}_user`,
+        id: generateUniqueMessageId('user'),
         content,
         role: 'user',
         timestamp: new Date()
       };
 
-      const assistantMessageId = `msg_${Date.now() + 1}_assistant`;
+      const assistantMessageId = generateUniqueMessageId('assistant');
       const assistantMessage: Message = {
         id: assistantMessageId,
         content: '',
@@ -178,12 +194,13 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         isStreaming: true
       };
 
+      // Single atomic update for both messages
       set(state => {
-        // Debug: Log existing streaming messages before filtering
+        // Clean up any existing streaming messages first
         const currentConv = state.conversations.find(c => c.id === conversationId);
         const streamingMsgs = currentConv?.messages.filter(m => m.role === 'assistant' && m.isStreaming) || [];
         if (streamingMsgs.length > 0) {
-          console.warn(`Found ${streamingMsgs.length} existing streaming messages, cleaning up:`, streamingMsgs);
+          console.warn(`Cleaning up ${streamingMsgs.length} existing streaming messages`);
         }
 
         return {
@@ -192,10 +209,11 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
               ? {
                   ...conv,
                   messages: [
-                    // Remove any existing streaming assistant messages first
+                    // Keep all non-streaming messages
                     ...conv.messages.filter(m => !(m.role === 'assistant' && m.isStreaming)),
-                    // Add both user message and new streaming assistant message
+                    // Add user message
                     userMessage,
+                    // Add new streaming assistant message
                     assistantMessage
                   ],
                   updatedAt: new Date(),
@@ -314,7 +332,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       if (!userMessage || userMessage.role !== 'user') return;
 
       // Remove the old assistant message and add a new streaming one
-      const newAssistantMessageId = `msg_${Date.now()}_assistant`;
+      const newAssistantMessageId = generateUniqueMessageId('assistant');
       set(state => ({
         conversations: state.conversations.map(conv =>
           conv.id === state.currentConversationId
@@ -420,6 +438,17 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
 
 // Initialize store from localStorage
 const initializeStore = () => {
+  // Initialize API configuration first
+  const savedApiUrl = localStorage.getItem('chat-api-url') || 'http://localhost:3000';
+  const savedApiKey = localStorage.getItem('chat-api-key') || 'orbit-123456789';
+  const sessionId = getOrCreateSessionId();
+  
+  // Configure API with saved or default values
+  configureApi(savedApiUrl, '', sessionId);
+  currentApiUrl = savedApiUrl;
+  apiConfigured = true;
+
+  // Then initialize the rest of the store
   const saved = localStorage.getItem('chat-state');
   if (saved) {
     try {

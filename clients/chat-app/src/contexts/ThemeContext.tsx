@@ -31,7 +31,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         dark = false;
       } else {
         // System preference
-        dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        dark = systemPrefersDark;
       }
       
       setIsDark(dark);
@@ -71,9 +72,12 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     // Listen for system theme changes only if mode is 'system'
     if (theme.mode === 'system') {
       const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-      mediaQuery.addEventListener('change', applyTheme);
+      const handleSystemThemeChange = () => {
+        applyTheme();
+      };
+      mediaQuery.addEventListener('change', handleSystemThemeChange);
       
-      return () => mediaQuery.removeEventListener('change', applyTheme);
+      return () => mediaQuery.removeEventListener('change', handleSystemThemeChange);
     }
   }, [theme]);
 
