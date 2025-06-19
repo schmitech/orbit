@@ -45,22 +45,52 @@ from dotenv import load_dotenv
 from qdrant_client import QdrantClient
 
 # Add server directory to path for importing embedding services
-server_path = Path(__file__).resolve().parents[3] / "server"
+server_path = Path(__file__).resolve().parents[2] / "server"
 sys.path.append(str(server_path))
 
-# Load environment variables from server's .env file
-server_env_path = server_path / ".env"
-if server_env_path.exists():
-    load_dotenv(server_env_path)
+# Load environment variables from main project directory
+project_env_path = Path(__file__).resolve().parents[2] / ".env"
+if project_env_path.exists():
+    load_dotenv(project_env_path)
+    print(f"Loading environment variables from: {project_env_path}")
 else:
-    print(f"Warning: .env file not found at {server_env_path}")
+    print(f"Warning: .env file not found at {project_env_path}")
 
 # Import the same embedding factory used during creation
 from embeddings.base import EmbeddingServiceFactory
 
 def load_config():
-    CONFIG_PATH = Path(__file__).resolve().parents[3] / "server" / "config.yaml"
+    CONFIG_PATH = Path(__file__).resolve().parents[2] / "config.yaml"
     return yaml.safe_load(CONFIG_PATH.read_text())
+
+def resolve_env_placeholder(value):
+    """Resolve environment variable placeholders like ${VAR_NAME}"""
+    if isinstance(value, str) and value.startswith('${') and value.endswith('}'):
+        env_var = value[2:-1]  # Remove ${ and }
+        return os.getenv(env_var, value)  # Return original if env var not found
+    return value
+
+def get_qdrant_config():
+    """Get Qdrant configuration with proper fallbacks"""
+    # Load configuration
+    config = load_config()
+    
+    # Get Qdrant config with fallbacks
+    qdrant_config = config.get('datasources', {}).get('qdrant', {})
+    
+    # Resolve environment variable placeholders
+    host = resolve_env_placeholder(qdrant_config.get('host', 'localhost'))
+    port = resolve_env_placeholder(qdrant_config.get('port', 6333))
+    
+    # Convert port to int if it's a string
+    if isinstance(port, str):
+        try:
+            port = int(port)
+        except ValueError:
+            print(f"Warning: Invalid port value '{port}', using default port 6333")
+            port = 6333
+    
+    return host, port
 
 async def test_qdrant_query(test_query: str, collection_name: str = None):
     config = load_config()
@@ -69,8 +99,7 @@ async def test_qdrant_query(test_query: str, collection_name: str = None):
     embedding_provider = config['embedding']['provider']
     
     # Get Qdrant connection details
-    qdrant_host = os.getenv('QDRANT_HOST', config['datasources']['qdrant']['host'])
-    qdrant_port = int(os.getenv('QDRANT_PORT', config['datasources']['qdrant']['port']))
+    qdrant_host, qdrant_port = get_qdrant_config()
     
     # Print configuration variables
     print("\nConfiguration Variables:")

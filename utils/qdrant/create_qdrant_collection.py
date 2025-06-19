@@ -55,6 +55,35 @@ print(f"Loading environment variables from: {dotenv_path}")
 
 from embeddings.base import EmbeddingServiceFactory
 
+def resolve_env_placeholder(value):
+    """Resolve environment variable placeholders like ${VAR_NAME}"""
+    if isinstance(value, str) and value.startswith('${') and value.endswith('}'):
+        env_var = value[2:-1]  # Remove ${ and }
+        return os.getenv(env_var, value)  # Return original if env var not found
+    return value
+
+def get_qdrant_config():
+    """Get Qdrant configuration with proper fallbacks"""
+    # Load configuration
+    config = load_config()
+    
+    # Get Qdrant config with fallbacks
+    qdrant_config = config.get('datasources', {}).get('qdrant', {})
+    
+    # Resolve environment variable placeholders
+    host = resolve_env_placeholder(qdrant_config.get('host', 'localhost'))
+    port = resolve_env_placeholder(qdrant_config.get('port', 6333))
+    
+    # Convert port to int if it's a string
+    if isinstance(port, str):
+        try:
+            port = int(port)
+        except ValueError:
+            print(f"Warning: Invalid port value '{port}', using default port 6333")
+            port = 6333
+    
+    return host, port
+
 def load_config():
     """Load configuration file from project root"""
     # Get the directory of this script
@@ -236,8 +265,7 @@ async def main():
     
     # Get configuration values
     embedding_provider = config['embedding']['provider']
-    qdrant_host = os.getenv('QDRANT_HOST', config['datasources']['qdrant']['host'])
-    qdrant_port = int(os.getenv('QDRANT_PORT', config['datasources']['qdrant']['port']))
+    qdrant_host, qdrant_port = get_qdrant_config()
     
     print(f"Using embedding provider: {embedding_provider}")
     print(f"Qdrant server: {qdrant_host}:{qdrant_port}")
