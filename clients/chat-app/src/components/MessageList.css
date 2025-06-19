@@ -1,0 +1,12 @@
+.orbit-gradient-logo {
+  filter: brightness(0) saturate(100%);
+  -webkit-filter: brightness(0) saturate(100%);
+}
+
+.orbit-gradient-logo {
+  filter: drop-shadow(0 0 8px rgba(59, 130, 246, 0.5));
+  background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  mix-blend-mode: screen;
+} 

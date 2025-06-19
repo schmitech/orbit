@@ -115,11 +115,11 @@ class LLMGuardService:
         self._initialized = False
         
         if not self.enabled:
-            logger.info("LLM Guard service is disabled")
+            logger.info("🚫 LLM Guard service is disabled")
         else:
-            logger.info(f"LLM Guard service initialized - Base URL: {self.base_url}")
+            logger.info(f"✅ LLM Guard service initialized - Base URL: {self.base_url}")
             if self.verbose:
-                logger.info(f"LLM Guard Configuration:")
+                logger.info(f"✅ LLM Guard Configuration:")
                 logger.info(f"  Base URL: {self.base_url}")
                 logger.info(f"  API Version: {self.api_version}")
                 logger.info(f"  Timeout: {self.timeout}s")
@@ -133,7 +133,7 @@ class LLMGuardService:
     async def initialize(self) -> None:
         """Initialize the service"""
         if not self.enabled:
-            logger.info("LLM Guard service is disabled, skipping initialization")
+            logger.info("🚫 LLM Guard service is disabled, skipping initialization")
             return
             
         # Create aiohttp session with timeout and retry configuration
@@ -163,7 +163,7 @@ class LLMGuardService:
         await self._check_service_health()
         
         self._initialized = True
-        logger.info("LLM Guard service initialized successfully")
+        logger.info("✅ LLM Guard service initialized successfully")
     
     async def _check_service_health(self) -> bool:
         """Check if the LLM Guard service is healthy"""
@@ -181,7 +181,7 @@ class LLMGuardService:
             url = f"{self.base_url}{self.health_endpoint}"
             
             if self.verbose:
-                logger.info(f"LLM Guard health check: {url}")
+                logger.info(f"🏥 LLM Guard health check: {url}")
             
             async with self._session.get(url, timeout=self.health_timeout) as response:
                 if response.status == 200:
@@ -190,18 +190,18 @@ class LLMGuardService:
                     self._last_health_check = current_time
                     
                     if self.verbose:
-                        logger.info(f"LLM Guard service health check passed: {health_data}")
+                        logger.info(f"✅ LLM Guard service health check passed: {health_data}")
                     else:
-                        logger.info(f"LLM Guard service health check passed")
+                        logger.info(f"✅ LLM Guard service health check passed")
                     
                     return True
                 else:
-                    logger.warning(f"LLM Guard service health check failed with status: {response.status}")
+                    logger.warning(f"⚠️ LLM Guard service health check failed with status: {response.status}")
                     self._service_healthy = False
                     return False
                     
         except Exception as e:
-            logger.error(f"LLM Guard service health check failed: {sanitize_error_message(str(e))}")
+            logger.error(f"❌ LLM Guard service health check failed: {sanitize_error_message(str(e))}")
             self._service_healthy = False
             return False
     
@@ -229,7 +229,7 @@ class LLMGuardService:
             Dictionary with security check results
         """
         if not self.enabled:
-            logger.debug("LLM Guard service is disabled, returning safe response")
+            logger.debug("🚫 LLM Guard service is disabled, returning safe response")
             return {
                 "is_safe": True,
                 "risk_score": 0.0,
@@ -259,7 +259,7 @@ class LLMGuardService:
             
             # Log which scanners are being used
             if self.verbose and scanners:
-                logger.info(f"Using configured {content_type} scanners: {scanners}")
+                logger.info(f"🔧 Using configured {content_type} scanners: {scanners}")
         
         # Build metadata
         request_metadata = self.metadata.copy()
@@ -290,49 +290,51 @@ class LLMGuardService:
         
         try:
             if self.verbose:
-                logger.info(f"Security check request: {content_type}, risk_threshold: {risk_threshold}")
+                logger.info(f"🔍 Performing LLM Guard security check for {content_type}: '{content[:50]}...'")
+                logger.info(f"📊 Risk threshold: {risk_threshold}")
                 if scanners:
-                    logger.info(f"Using scanners: {scanners}")
+                    logger.info(f"🔧 Using scanners: {scanners}")
                 if user_id:
-                    logger.info(f"User ID: {user_id}")
+                    logger.info(f"👤 User ID: {user_id}")
             
             result = await self._make_request_with_retry("POST", url, payload)
             
             if self.verbose:
                 elapsed = (time.time() - start_time) * 1000
-                logger.info(f"Security check completed in {elapsed:.2f}ms")
+                logger.info(f"⏱️ LLM Guard security check completed in {elapsed:.2f}ms")
                 
-                # Log detailed results
+                # Log detailed results with emojis
                 risk_score = result.get('risk_score', 0.0)
                 is_safe = result.get('is_safe', True)
                 flagged_scanners = result.get('flagged_scanners', [])
                 recommendations = result.get('recommendations', [])
                 
-                logger.info(f"Security Analysis Results:")
-                logger.info(f"  Content Type: {content_type}")
-                logger.info(f"  Risk Score: {risk_score:.3f}")
-                logger.info(f"  Is Safe: {is_safe}")
-                logger.info(f"  Flagged Scanners: {flagged_scanners if flagged_scanners else 'None'}")
-                
-                if recommendations:
-                    logger.info(f"  Recommendations:")
-                    for rec in recommendations:
-                        logger.info(f"    - {rec}")
+                if is_safe:
+                    logger.info(f"✅ LLM GUARD PASSED: Content was deemed SAFE")
+                    if risk_score > 0.0:
+                        logger.info(f"⚠️ Low risk detected: {risk_score:.3f}")
+                else:
+                    logger.info(f"🛑 LLM GUARD BLOCKED: Content was flagged as UNSAFE")
+                    logger.info(f"🚨 Risk score: {risk_score:.3f}")
+                    if flagged_scanners:
+                        logger.info(f"🚩 Flagged by scanners: {flagged_scanners}")
+                    if recommendations:
+                        logger.info(f"💡 Recommendations: {'; '.join(recommendations)}")
                 
                 # Log content preview (first 100 chars)
                 content_preview = content[:100] + "..." if len(content) > 100 else content
-                logger.info(f"  Content Preview: {content_preview}")
+                logger.debug(f"📝 Content preview: {content_preview}")
                 
                 # Log if content was sanitized
                 sanitized_content = result.get('sanitized_content')
                 if sanitized_content and sanitized_content != content:
                     sanitized_preview = sanitized_content[:100] + "..." if len(sanitized_content) > 100 else sanitized_content
-                    logger.info(f"  Sanitized Content Preview: {sanitized_preview}")
+                    logger.info(f"🧹 Content was sanitized: {sanitized_preview}")
             
             return result
             
         except Exception as e:
-            logger.error(f"Security check failed: {sanitize_error_message(str(e))}")
+            logger.error(f"❌ LLM Guard security check failed: {sanitize_error_message(str(e))}")
             return await self._handle_service_error(content, e)
     
     async def sanitize_content(self, content: str) -> Dict[str, Any]:
@@ -346,7 +348,7 @@ class LLMGuardService:
             Dictionary with sanitized content
         """
         if not self.enabled:
-            logger.debug("LLM Guard service is disabled, returning original content")
+            logger.debug("🚫 LLM Guard service is disabled, returning original content")
             return {
                 "sanitized_content": content,
                 "changes_made": False,
@@ -364,35 +366,35 @@ class LLMGuardService:
         
         try:
             if self.verbose:
-                logger.info(f"Content sanitization request")
+                logger.info(f"🧹 Performing content sanitization")
                 content_preview = content[:100] + "..." if len(content) > 100 else content
-                logger.info(f"  Content Preview: {content_preview}")
+                logger.debug(f"📝 Content preview: {content_preview}")
             
             result = await self._make_request_with_retry("POST", url, payload)
             
             if self.verbose:
                 elapsed = (time.time() - start_time) * 1000
-                logger.info(f"Content sanitization completed in {elapsed:.2f}ms")
+                logger.info(f"⏱️ Content sanitization completed in {elapsed:.2f}ms")
                 
-                # Log sanitization results
+                # Log sanitization results with emojis
                 changes_made = result.get('changes_made', False)
                 removed_items = result.get('removed_items', [])
                 sanitized_content = result.get('sanitized_content', content)
                 
-                logger.info(f"Sanitization Results:")
-                logger.info(f"  Changes Made: {changes_made}")
-                logger.info(f"  Removed Items: {removed_items if removed_items else 'None'}")
-                
-                if changes_made and sanitized_content != content:
-                    sanitized_preview = sanitized_content[:100] + "..." if len(sanitized_content) > 100 else sanitized_content
-                    logger.info(f"  Sanitized Content Preview: {sanitized_preview}")
+                if changes_made:
+                    logger.info(f"✅ Content sanitized successfully")
+                    if removed_items:
+                        logger.info(f"🗑️ Removed items: {removed_items}")
+                    if sanitized_content != content:
+                        sanitized_preview = sanitized_content[:100] + "..." if len(sanitized_content) > 100 else sanitized_content
+                        logger.info(f"🧹 Sanitized content: {sanitized_preview}")
                 else:
-                    logger.info(f"  Content unchanged")
+                    logger.info(f"✅ Content unchanged - no sanitization needed")
             
             return result
             
         except Exception as e:
-            logger.error(f"Content sanitization failed: {sanitize_error_message(str(e))}")
+            logger.error(f"❌ Content sanitization failed: {sanitize_error_message(str(e))}")
             # Return original content as fallback
             return {
                 "sanitized_content": content,

@@ -308,6 +308,10 @@ class InferenceServer:
         if hasattr(app.state, 'llm_guard_service'):
             add_shutdown_task(app.state.llm_guard_service, 'LLM Guard Service')
             
+        # Close Moderator Service
+        if hasattr(app.state, 'moderator_service'):
+            add_shutdown_task(app.state.moderator_service, 'Moderator Service')
+
         # Close shared MongoDB service
         if hasattr(app.state, 'mongodb_service'):
             add_shutdown_task(app.state.mongodb_service, 'MongoDB Service')

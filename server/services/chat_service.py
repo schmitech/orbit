@@ -77,12 +77,13 @@ class ChatService:
     - User experience remains smooth with clear error messages
     """
     
-    def __init__(self, config: Dict[str, Any], llm_client, logger_service, chat_history_service=None, llm_guard_service=None):
+    def __init__(self, config: Dict[str, Any], llm_client, logger_service, chat_history_service=None, llm_guard_service=None, moderator_service=None):
         self.config = config
         self.llm_client = llm_client
         self.logger_service = logger_service
         self.chat_history_service = chat_history_service
         self.llm_guard_service = llm_guard_service
+        self.moderator_service = moderator_service
         self.verbose = _is_true_value(config.get('general', {}).get('verbose', False))
         
         # Chat history configuration
@@ -94,11 +95,20 @@ class ChatService:
         
         # LLM Guard configuration
         self.llm_guard_enabled = self.llm_guard_service and self.llm_guard_service.enabled
+        
+        # Moderator Service configuration
+        self.moderator_enabled = self.moderator_service and self.moderator_service.enabled
+        
         if self.verbose:
             if self.llm_guard_enabled:
                 logger.info("LLM Guard security checking enabled")
             else:
                 logger.info("LLM Guard security checking disabled")
+                
+            if self.moderator_enabled:
+                logger.info("Moderator Service security checking enabled")
+            else:
+                logger.info("Moderator Service security checking disabled")
         
         # Initialize language detector only if enabled
         self.language_detection_enabled = _is_true_value(config.get('general', {}).get('language_detection', True))
@@ -999,7 +1009,7 @@ class ChatService:
         session_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """
-        Check message security using LLM Guard service
+        Check message security using LLM Guard service first, then Moderator Service
         
         Args:
             content: The content to check
@@ -1010,48 +1020,84 @@ class ChatService:
         Returns:
             Dictionary with security check results
         """
+        # First check with LLM Guard service if enabled
         if not self.llm_guard_enabled:
             # Return safe result if LLM Guard is disabled
-            return {
+            llm_guard_result = {
                 "is_safe": True,
                 "risk_score": 0.0,
                 "sanitized_content": content,
                 "flagged_scanners": [],
                 "recommendations": ["LLM Guard is disabled"]
             }
-        
-        try:
-            # Prepare metadata for the security check
-            metadata = {}
-            if session_id:
-                metadata["session_id"] = session_id
-            
-            # Perform security check
-            result = await self.llm_guard_service.check_security(
-                content=content,
-                content_type=content_type,
-                user_id=user_id,
-                metadata=metadata
-            )
-            
-            if self.verbose:
-                is_safe = result.get("is_safe", True)
-                risk_score = result.get("risk_score", 0.0)
-                flagged_scanners = result.get("flagged_scanners", [])
+        else:
+            try:
+                # Prepare metadata for the security check
+                metadata = {}
+                if session_id:
+                    metadata["session_id"] = session_id
                 
-                logger.info(f"Security check result - Safe: {is_safe}, Risk: {risk_score:.3f}")
-                if flagged_scanners:
-                    logger.info(f"Flagged by scanners: {flagged_scanners}")
-            
-            return result
-            
-        except Exception as e:
-            logger.error(f"Error during security check: {str(e)}")
-            # Return safe result on error to avoid blocking legitimate messages
-            return {
-                "is_safe": True,
-                "risk_score": 0.0,
-                "sanitized_content": content,
-                "flagged_scanners": [],
-                "recommendations": [f"Security check failed: {str(e)}"]
-            }
+                # Perform LLM Guard security check
+                llm_guard_result = await self.llm_guard_service.check_security(
+                    content=content,
+                    content_type=content_type,
+                    user_id=user_id,
+                    metadata=metadata
+                )
+                
+                if self.verbose:
+                    is_safe = llm_guard_result.get("is_safe", True)
+                    risk_score = llm_guard_result.get("risk_score", 0.0)
+                    flagged_scanners = llm_guard_result.get("flagged_scanners", [])
+                    
+                    if is_safe:
+                        logger.info(f"✅ LLM Guard security check result - Safe: {is_safe}, Risk: {risk_score:.3f}")
+                        if risk_score > 0.0:
+                            logger.info(f"⚠️ Low risk detected: {risk_score:.3f}")
+                    else:
+                        logger.info(f"🛑 LLM Guard security check result - Safe: {is_safe}, Risk: {risk_score:.3f}")
+                        if flagged_scanners:
+                            logger.info(f"🚩 Flagged by scanners: {flagged_scanners}")
+                
+            except Exception as e:
+                logger.error(f"❌ Error during LLM Guard security check: {str(e)}")
+                # Return safe result on error to avoid blocking legitimate messages
+                llm_guard_result = {
+                    "is_safe": True,
+                    "risk_score": 0.0,
+                    "sanitized_content": content,
+                    "flagged_scanners": [],
+                    "recommendations": [f"LLM Guard check failed: {str(e)}"]
+                }
+        
+        # If LLM Guard deems the content unsafe, block it immediately
+        if not llm_guard_result.get("is_safe", True):
+            return llm_guard_result
+        
+        # If LLM Guard deems the content safe, then check with Moderator Service if enabled
+        if self.moderator_enabled:
+            try:
+                is_safe, refusal_message = await self.moderator_service.check_safety(content)
+                
+                if self.verbose:
+                    if is_safe:
+                        logger.info(f"✅ Moderator Service check - Safe: {is_safe}")
+                    else:
+                        logger.info(f"🛑 Moderator Service check - Safe: {is_safe}")
+                        logger.info(f"🚫 Moderator Service blocked content: {refusal_message}")
+                
+                if not is_safe:
+                    # Content was flagged by Moderator Service
+                    return {
+                        "is_safe": False,
+                        "risk_score": 1.0,
+                        "sanitized_content": content,
+                        "flagged_scanners": ["moderator_service"],
+                        "recommendations": [refusal_message or "Content flagged by Moderator Service"]
+                    }
+            except Exception as e:
+                logger.error(f"❌ Error during Moderator Service check: {str(e)}")
+                # If Moderator Service fails, continue with LLM Guard result
+        
+        # Return the LLM Guard result (which was safe, otherwise we would have returned earlier)
+        return llm_guard_result

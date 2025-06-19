@@ -166,6 +166,38 @@ class ConfigurationSummaryLogger:
                 self.logger.info(f"  Available input scanners: 7 (default)")
                 self.logger.info(f"  Available output scanners: 4 (default)")
             
+            # Get safety configuration
+            safety_config = self.config.get('safety', {})
+            safety_enabled = _is_true_value(safety_config.get('enabled', False))
+            safety_mode = safety_config.get('mode', 'strict')
+            safety_moderator = safety_config.get('moderator')
+            
+            # Log safety information
+            self.logger.info(f"Safety: {'enabled' if safety_enabled else 'disabled'}")
+            if safety_enabled:
+                self.logger.info(f"Safety mode: {safety_mode}")
+                
+                # Log moderator information if specified
+                if safety_moderator:
+                    self.logger.info(f"Safety moderator: {safety_moderator}")
+                    
+                    # Log moderator-specific configuration if available
+                    moderators_config = self.config.get('moderators', {})
+                    if safety_moderator in moderators_config:
+                        moderator_config = moderators_config[safety_moderator]
+                        model = moderator_config.get('model', 'unknown')
+                        self.logger.info(f"Moderation model: {model}")
+                        
+                        # Log additional moderator settings if available
+                        if 'temperature' in moderator_config:
+                            self.logger.info(f"Moderation temperature: {moderator_config['temperature']}")
+                        if 'max_tokens' in moderator_config:
+                            self.logger.info(f"Moderation max tokens: {moderator_config['max_tokens']}")
+                        if 'batch_size' in moderator_config:
+                            self.logger.info(f"Moderation batch size: {moderator_config['batch_size']}")
+                else:
+                    self.logger.info("Safety moderator: not specified (will use inference provider)")
+
             # Log chat history information if in inference_only mode
             inference_only = _is_true_value(self.config.get('general', {}).get('inference_only', False))
             if inference_only:
@@ -236,6 +268,10 @@ class ConfigurationSummaryLogger:
             # Log chat history service status (always show, regardless of verbose)
             chat_history_loaded = hasattr(app.state, 'chat_history_service') and app.state.chat_history_service is not None
             self.logger.info(f"Chat History Service: {'loaded' if chat_history_loaded else 'not loaded'}")
+            
+            # Log moderator service status
+            moderator_loaded = hasattr(app.state, 'moderator_service') and app.state.moderator_service is not None
+            self.logger.info(f"Moderator Service: {'loaded' if moderator_loaded else 'not loaded'}")
             
         except Exception as e:
             self.logger.error(f"Error logging runtime information: {str(e)}")

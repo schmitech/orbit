@@ -42,6 +42,7 @@ class ConfigResolver:
         - Inference provider (LLM)
         - Embedding provider
         - Datasource provider
+        - Safety provider
         - Reranker provider
         
         The resolution process:
@@ -65,6 +66,11 @@ class ConfigResolver:
         
         # Get selected providers
         inference_provider = self.config['general'].get('inference_provider', 'ollama')
+        safety_provider = self._resolve_component_provider('safety')
+        safety_model = self._resolve_component_model('safety', safety_provider)
+        if 'safety' in self.config:
+                self.config['safety']['resolved_provider'] = safety_provider
+                self.config['safety']['resolved_model'] = safety_model
         
         # Only resolve embedding and datasource providers if not in inference_only mode
         if not inference_only:
@@ -92,18 +98,20 @@ class ConfigResolver:
             
             self.logger.info(f"Using datasource provider: {datasource_provider}")
             self.logger.info(f"Using embedding provider: {embedding_provider}")
+            self.logger.info(f"Using safety provider: {safety_provider}")
             self.logger.info(f"Using reranker provider: {reranker_provider}")
+
         else:
             # In inference_only mode, only log the inference provider
             self.logger.info(f"Using inference provider: {inference_provider}")
     
     def _resolve_component_provider(self, component_name: str) -> str:
         """
-        Resolve the provider for a specific component (reranker).
+        Resolve the provider for a specific component (safety or reranker).
         This implements the inheritance with override capability.
         
         Args:
-            component_name: The name of the component ('reranker')
+            component_name: The name of the component ('safety' or 'reranker')
             
         Returns:
             The provider name to use for this component
@@ -114,15 +122,38 @@ class ConfigResolver:
         # Check if there's a component-specific override
         component_config = self.config.get(component_name, {})
         
-        # For reranker, continue using provider_override
-        provider_override = component_config.get('provider_override')
-        if provider_override and provider_override in self.config.get('inference', {}):
-            self.logger.info(f"{component_name.capitalize()} uses custom provider: {provider_override}")
-            return provider_override
+        # For safety component, check for 'moderator'
+        if component_name == 'safety':
+            moderator = component_config.get('moderator')
+            if moderator:
+                # If a specific moderator is configured, use it
+                self.logger.info(f"{component_name.capitalize()} uses configured moderator: {moderator}")
+                return moderator
+            else:
+                # If no moderator specified, fall back to main provider
+                self.logger.info(f"{component_name.capitalize()} falls back to main provider: {main_provider}")
+                return main_provider
+
+        # For reranker component, check for provider_override
+        elif component_name == 'reranker':
+            provider_override = component_config.get('provider_override')
+            if provider_override and provider_override in self.config.get('inference', {}):
+                self.logger.info(f"{component_name.capitalize()} uses custom provider: {provider_override}")
+                return provider_override
+            else:
+                # If no override found, inherit from main provider
+                self.logger.info(f"{component_name.capitalize()} inherits provider from general: {main_provider}")
+                return main_provider
         
-        # If no override found, inherit from main provider
-        self.logger.info(f"{component_name.capitalize()} inherits provider from general: {main_provider}")
-        return main_provider
+        # For any other component, use the default inheritance logic
+        else:
+            provider_override = component_config.get('provider_override')
+            if provider_override and provider_override in self.config.get('inference', {}):
+                self.logger.info(f"{component_name.capitalize()} uses custom provider: {provider_override}")
+                return provider_override
+            else:
+                self.logger.info(f"{component_name.capitalize()} inherits provider from general: {main_provider}")
+                return main_provider
 
     def _resolve_component_model(self, component_name: str, provider: str) -> str:
         """

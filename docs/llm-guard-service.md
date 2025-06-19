@@ -785,4 +785,291 @@ WARNING: Message blocked for session sess_123: Risk score: 0.85, Flagged by: tox
 - Technical recommendations for investigation
 - Full security check results in metadata
 
-This provides administrators with the information needed for security monitoring and incident response while keeping sensitive details away from end users. 
+This provides administrators with the information needed for security monitoring and incident response while keeping sensitive details away from end users.
+
+## 🔄 Bidirectional Security Checking
+
+ORBIT implements a **comprehensive bidirectional security system** that protects against threats from both user inputs and AI outputs. This dual-layer approach ensures that unsafe content is blocked at both entry and exit points of the system.
+
+### 🛡️ Dual-Layer Security Architecture
+
+The security system consists of two complementary services working together:
+
+1. **🔍 LLM Guard Service** - Advanced content scanning with specialized scanners
+2. **🛡️ Moderator Service** - Multi-provider content moderation (OpenAI, Anthropic, Ollama)
+
+### 📍 Security Check Points
+
+#### 1. **Input Validation (User Prompts)**
+```python
+# Before LLM processing - Line ~675 in ChatService
+security_result = await self._check_message_security(
+    content=message,
+    content_type="prompt",  # ← Checking incoming user input
+    user_id=user_id,
+    session_id=session_id
+)
+```
+
+#### 2. **Output Validation (LLM Responses)**
+```python
+# After LLM generation - Line ~583 in ChatService
+response_security_result = await self._check_message_security(
+    content=response,
+    content_type="response",  # ← Checking AI-generated output
+    user_id=user_id,
+    session_id=session_id
+)
+```
+
+### 🔍 LLM Guard Service - Specialized Scanners
+
+The LLM Guard Service uses different scanner configurations optimized for each content type:
+
+#### **Prompt Scanners (Input Protection)**
+```yaml
+scanners:
+  prompt:  # Scanners for user input (prompts)
+    - "ban_substrings"      # Blocks specific harmful phrases
+    - "ban_topics"          # Blocks dangerous topics
+    - "prompt_injection"    # Prevents prompt injection attacks
+    - "toxicity"            # Detects toxic language
+    - "secrets"             # Prevents data leakage
+```
+
+#### **Response Scanners (Output Protection)**
+```yaml
+scanners:
+  response:  # Scanners for AI output (responses)
+    - "no_refusal"          # Ensures AI doesn't refuse legitimate requests
+    - "sensitive"           # Detects sensitive information in responses
+    - "bias"                # Identifies biased content
+    - "relevance"           # Ensures responses are relevant
+```
+
+### 🛡️ Moderator Service - Content Moderation
+
+The Moderator Service provides additional content moderation using multiple providers:
+
+- **OpenAI Moderation API** - Industry-standard content filtering
+- **Anthropic Claude** - Advanced safety analysis
+- **Ollama Models** - Local content moderation capabilities
+
+### 🔄 Security Flow
+
+```
+┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
+│   User Input    │───▶│ LLM Guard        │───▶│ Moderator       │
+│                 │    │ (Prompt Scanners)│    │ Service         │
+└─────────────────┘    └──────────────────┘    └─────────────────┘
+        │                        │                        │
+        ▼                        ▼                        ▼
+┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
+│   LLM Guard     │    │   Moderator      │    │   LLM Client    │
+│   BLOCKED       │    │   BLOCKED        │    │   PROCESSING    │
+└─────────────────┘    └──────────────────┘    └─────────────────┘
+        │                        │                        │
+        ▼                        ▼                        ▼
+┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
+│   Error to      │    │   Error to       │    │   AI Response   │
+│   User          │    │   User           │    │   Generated     │
+└─────────────────┘    └──────────────────┘    └─────────────────┘
+                                                        │
+                                                        ▼
+                                        ┌─────────────────────────┐
+                                        │ Response Security Check │
+                                        │ LLM Guard + Moderator   │
+                                        └─────────────────────────┘
+                                                        │
+                                                        ▼
+                                        ┌─────────────────────────┐
+                                        │   Safe Response         │
+                                        │   to User               │
+                                        └─────────────────────────┘
+```
+
+### 🚨 Blocking Behavior
+
+#### **For Unsafe Prompts (Input Blocking)**
+- **Immediate Block**: Processing stops before LLM inference
+- **No Storage**: Content never enters chat history
+- **Error Response**: User receives immediate feedback
+- **Audit Logging**: Security violations logged for monitoring
+
+#### **For Unsafe Responses (Output Blocking)**
+- **Response Block**: AI output blocked before delivery
+- **No Storage**: Unsafe responses never stored in history
+- **Error Response**: User receives error message
+- **Audit Logging**: Response violations logged for monitoring
+
+### 📊 Scanner Differences Explained
+
+#### **Input Scanners (Protecting Against User Threats)**
+| Scanner | Purpose | Protection |
+|---------|---------|------------|
+| `ban_substrings` | Blocks harmful phrases | Prevents specific dangerous content |
+| `ban_topics` | Blocks dangerous topics | Prevents discussion of prohibited subjects |
+| `prompt_injection` | Detects manipulation attempts | Prevents AI system manipulation |
+| `toxicity` | Detects harmful language | Filters offensive or inappropriate content |
+| `secrets` | Detects sensitive data | Prevents accidental data leakage |
+
+#### **Output Scanners (Protecting Against AI Threats)**
+| Scanner | Purpose | Protection |
+|---------|---------|------------|
+| `no_refusal` | Ensures appropriate refusals | Prevents AI from refusing legitimate requests |
+| `sensitive` | Detects information leaks | Prevents disclosure of sensitive information |
+| `bias` | Detects biased content | Ensures fair and unbiased responses |
+| `relevance` | Checks response relevance | Ensures responses match the query |
+
+### 🔧 Configuration Examples
+
+#### **Basic Bidirectional Setup**
+```yaml
+llm_guard:
+  enabled: true
+  service:
+    base_url: "http://localhost:8000"
+    timeout: 30
+  security:
+    risk_threshold: 0.6
+    scanners:
+      prompt:  # Input protection
+        - "ban_substrings"
+        - "prompt_injection"
+        - "toxicity"
+        - "secrets"
+      response:  # Output protection
+        - "no_refusal"
+        - "sensitive"
+        - "bias"
+        - "relevance"
+  fallback:
+    on_error: "allow"
+
+safety:
+  enabled: true
+  mode: "strict"
+  moderator: "openai"  # or "anthropic", "ollama"
+```
+
+#### **High-Security Bidirectional Setup**
+```yaml
+llm_guard:
+  enabled: true
+  service:
+    base_url: "https://llm-guard.secure.company.com"
+    timeout: 45
+  security:
+    risk_threshold: 0.5  # Lower threshold for stricter checking
+    scanners:
+      prompt:
+        - "ban_substrings"
+        - "ban_topics"
+        - "prompt_injection"
+        - "toxicity"
+        - "secrets"
+        - "code"
+      response:
+        - "no_refusal"
+        - "sensitive"
+        - "bias"
+        - "relevance"
+  fallback:
+    on_error: "block"  # Block when service unavailable
+
+safety:
+  enabled: true
+  mode: "strict"
+  moderator: "anthropic"  # Multiple moderators for redundancy
+```
+
+### 📈 Benefits of Bidirectional Security
+
+✅ **Comprehensive Protection**: Covers both input and output threats  
+✅ **Specialized Scanning**: Different scanners for different content types  
+✅ **Zero Storage Pollution**: Unsafe content never enters chat history  
+✅ **Real-time Blocking**: Immediate response to security violations  
+✅ **Audit Trail**: Complete logging for security monitoring  
+✅ **Graceful Degradation**: Continues working if services are unavailable  
+✅ **Multi-Provider Redundancy**: Multiple moderation services for reliability  
+
+### 🔍 Monitoring and Analytics
+
+#### **Security Metrics to Track**
+- **Input Block Rate**: Percentage of user messages blocked
+- **Output Block Rate**: Percentage of AI responses blocked
+- **Scanner Effectiveness**: Which scanners catch the most violations
+- **False Positive Rate**: Legitimate content incorrectly blocked
+- **Service Availability**: Uptime of security services
+
+#### **Log Analysis**
+```bash
+# Monitor input security violations
+grep "Message blocked for session" logs/orbit.log
+
+# Monitor output security violations  
+grep "Response blocked for session" logs/orbit.log
+
+# Track security service health
+grep "LLM Guard service health check" logs/orbit.log
+```
+
+### 🚀 Implementation Example
+
+```python
+class SecureChatService:
+    def __init__(self, llm_guard_service, moderator_service):
+        self.llm_guard = llm_guard_service
+        self.moderator = moderator_service
+    
+    async def process_chat(self, user_message: str, user_id: str) -> dict:
+        """Process chat with bidirectional security checking"""
+        
+        # 1. INPUT SECURITY CHECK
+        input_security = await self.llm_guard.check_security(
+            content=user_message,
+            content_type="prompt",
+            user_id=user_id
+        )
+        
+        if not input_security["is_safe"]:
+            return {
+                "error": "Input blocked by security scanner",
+                "risk_score": input_security["risk_score"],
+                "flagged_by": input_security["flagged_scanners"]
+            }
+        
+        # 2. MODERATOR CHECK
+        is_safe, refusal_msg = await self.moderator.check_safety(user_message)
+        if not is_safe:
+            return {
+                "error": f"Content flagged by moderator: {refusal_msg}"
+            }
+        
+        # 3. LLM PROCESSING
+        ai_response = await self.generate_response(user_message)
+        
+        # 4. OUTPUT SECURITY CHECK
+        output_security = await self.llm_guard.check_security(
+            content=ai_response,
+            content_type="response",
+            user_id=user_id
+        )
+        
+        if not output_security["is_safe"]:
+            return {
+                "error": "Response blocked by security scanner",
+                "risk_score": output_security["risk_score"],
+                "flagged_by": output_security["flagged_scanners"]
+            }
+        
+        # 5. STORE SAFE CONTENT
+        await self.store_conversation(user_message, ai_response)
+        
+        return {
+            "response": ai_response,
+            "security_passed": True
+        }
+```
+
+This bidirectional security approach ensures that ORBIT provides enterprise-grade protection against both malicious user inputs and potentially harmful AI outputs, while maintaining detailed audit trails for security monitoring and compliance. 

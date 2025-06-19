@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Message } from './Message';
 import { Message as MessageType } from '../types';
+import orbitLogo from '../assets/orbit.png';
 
 interface MessageListProps {
   messages: MessageType[];
@@ -48,9 +49,7 @@ export function MessageList({ messages, onRegenerate, isLoading }: MessageListPr
     return (
       <div className="flex-1 flex items-center justify-center p-8">
         <div className="text-center max-w-lg">
-          <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
-            <span className="text-white text-3xl font-bold">ORBIT</span>
-          </div>
+          <img src={orbitLogo} alt="ORBIT" className="w-48 h-48 object-contain mx-auto mb-2" />
           <h3 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-3">
             Welcome to ORBIT Chat
           </h3>

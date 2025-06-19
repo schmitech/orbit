@@ -61,7 +61,8 @@ def main():
         str(SCRIPT_DIR),
         "-v",
         "--asyncio-mode=auto",
-        "-k", "not test_ollama"
+        "-k", "not test_ollama",
+        "-k", "not test_ollama_moderator"
     ])
 
 if __name__ == "__main__":

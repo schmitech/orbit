@@ -3,13 +3,6 @@
 </div>
 <div align="center">
   <h2><strong>Open Retrieval-Based Inference Toolkit</strong></h2>
-  
-  <p>
-    <a href="#quick-start">Quick Start</a> •
-    <a href="#architecture">Architecture</a> •
-    <a href="#web-chatbot-widget">Widget</a> • 
-    <a href="#documentation">Docs</a> •
-  </p>
 </div>
 
 
@@ -17,8 +10,30 @@ ORBIT is a modular, self-hosted toolkit that provides a unified API for open-sou
 
 ![ORBIT Chat Demo](docs/images/orbit-chat-gui.gif)
 
+## 🚀 Key Features
 
-## Minimum Requirements
+### 🔒 **Security & Moderation**
+ORBIT integrates with ssafety services:
+
+- **🔍 LLM Guard Service**: Advanced content scanning with real-time threat detection
+- **🛡️ Moderator Service**: Multi-provider content moderation
+
+### 🧠 **Retrieval-Augmented Generation (RAG)**
+- **📚 Knowledge Integration**: Connect your data sources to enhance AI responses
+- **🔗 Multi-Adapter Support**: SQL, Vector, and File-based retrieval systems
+- **🎯 Context-Aware Responses**: Intelligent query processing with confidence scoring
+
+### 💬 **Conversation Management**
+- **📝 Chat History**: Persistent conversation tracking with MongoDB
+- **🔄 Session Management**: Multi-user session handling and archiving
+- **🌐 Multi-Language Support**: Automatic language detection and processing
+
+### 🎨 **Web Integration**
+- **📦 Chatbot Widget**: Ready-to-deploy web widget with theming options
+- **🎯 Customizable UI**: Responsive design with configurable appearance
+- **🔌 Easy Integration**: Simple npm package for website embedding
+
+## 📋 Minimum Requirements
 
 - A device (Windows/Linux or Mac) with 16GB memory, GPU preferred
 - Python 3.12+
@@ -26,7 +41,7 @@ ORBIT is a modular, self-hosted toolkit that provides a unified API for open-sou
 - Redis (optional for caching)
 - Elasticsearch (optional for logging)
 
-## Quick Start
+## ⚡ Quick Start
 
 ```bash
 # Download and extract the latest release
@@ -74,7 +89,7 @@ chat_history:
 
 For more details about conversation history configuration and usage, see [Conversation History Documentation](docs/conversation_history.md)
 
-### Starting the Inference server:
+### 🚀 Starting the Inference server:
 ```bash
 # Logs under ./logs/orbit.log, use --help for options.
 ./bin/orbit.sh start
@@ -86,12 +101,12 @@ orbit-chat
 ![ORBIT Chat Demo](docs/images/orbit-chat.gif)
 
 
-## Architecture
+## 🏗️ Architecture
 <p align="left">
-  <img src="docs/images/orbit-diagram.png" width="800" alt="ORBIT Architecture" />
+  <img src="docs/images/orbit-diagram.svg" width="800" alt="ORBIT Architecture" />
 </p>
 
-### SQL Adapter
+### 🗄️ SQL Adapter
 
 RAG (Retrieval-Augmented Generation) mode enhances the model's responses by integrating your knowledge base into the context. This enriches the pre-trained foundation model with your specific data. 
 
@@ -101,7 +116,7 @@ The sample SQLite adapter showcases how ORBIT can be used for:
 - Question-answering applications
 - Document-based Q&A
 
-### Running ORBIT with SQLite Adapter
+### 🔧 Running ORBIT with SQLite Adapter
 You need an instance of MongoDB for this work. MongoDB is required when using ORBIT with retrieval adapters. Change config.yaml as follows:
 ```yaml
 general:
@@ -143,45 +158,72 @@ Load the sample question/answers sets from `./sample_db/city-qa-pairs.json`. RAG
 orbit-chat --url http://localhost:3000 --api-key orbit_1234567ABCDE
 ```
 
-## Web Chatbot Widget
+### 🛡️ **Content Moderation**
+
+ORBIT's multi-layered safety system actively prevents abusive behavior and harmful content. The system combines **LLM Guard Service** for advanced threat detection and **Moderator Service** for content filtering, working together to ensure safe interactions.
+
+**How it works:**
+- **Real-time Scanning**: Every user input is analyzed before processing
+- **Configurable Thresholds**: Adjustable safety levels for different use cases
+- **Automatic Blocking**: Harmful content is intercepted and blocked with clear feedback
+
+**Safety Features:**
+- 🚫 **Abuse Prevention**: Blocks harassment, hate speech, and harmful content
+- 🔒 **Prompt Injection Protection**: Prevents malicious prompt manipulation
+- ⚠️ **Content Filtering**: Filters inappropriate or unsafe material
+- 📊 **Risk Scoring**: Provides detailed risk assessment for each interaction
+
+![ORBIT Moderation](docs/images/moderation.gif)
+
+**Example Security Log Output:**
+```
+🔍 Performing LLM Guard security check for prompt: 'Hello....'
+📊 Risk threshold: 0.5
+⏱️ LLM Guard security check completed in 123.45ms
+✅ LLM GUARD PASSED: Content was deemed SAFE
+🔍 Performing moderator safety check for query: 'Hello....' (attempt 1/3)
+✅ MODERATION PASSED: Query was deemed SAFE by openai moderator
+```
+
+## 🌐 Web Chatbot Widget
 
 ORBIT provides a customizable chatbot widget that can be easily integrated into any website. The widget offers a responsive interface with theming options and features. The widget is available as an npm package at [@schmitech/chatbot-widget](https://www.npmjs.com/package/@schmitech/chatbot-widget). Project details and build instructions can be found at [ORBIT Chat Widget](https://github.com/schmitech/orbit/tree/main/clients/chat-widget).
 
 
-## Documentation
+## 📚 Documentation
 
 For more detailed information, please refer to the following documentation in the [Docs](docs/) folder.
 
-### Getting Started & Configuration
+### 🚀 Getting Started & Configuration
 - [Server Configuration](docs/server.md) - Server setup and configuration guide
 - [Configuration Reference](docs/configuration.md) - Complete configuration options and settings
 - [API Keys Management](docs/api-keys.md) - Authentication and API key setup
 - [Docker Deployment](docs/docker-deployment.md) - Containerized deployment guide
 - [Chroma Setup](docs/chroma-setup.md) - Vector database configuration
 
-### Retrieval & Adapters  
+### 🔗 Retrieval & Adapters  
 - [Adapters Overview](docs/adapters.md) - Understanding ORBIT's adapter system
 - [SQL Retriever Architecture](docs/sql-retriever-architecture.md) - Database-agnostic SQL retrieval system
 - [Vector Retriever Architecture](docs/vector-retriever-architecture.md) - Vector-based semantic search
 - [File Adapter Architecture](docs/file-adapter-architecture.md) - File-based knowledge integration
 
-### Features & Capabilities
+### ⚡ Features & Capabilities
 - [Conversation History](docs/conversation_history.md) - Chat history and session management
 - [Language Detection](docs/language_detection.md) - Multi-language support and detection
 - [LLM Guard Service](docs/llm-guard-service.md) - Advanced security scanning and content sanitization
 - [MCP Protocol](docs/mcp_protocol.md) - Model Context Protocol implementation
 
-### Roadmap & Future Development
+### 🗺️ Roadmap & Future Development
 - [Development Roadmap](docs/roadmap/README.md) - Strategic direction and planned enhancements
 - [Concurrency & Performance](docs/roadmap/concurrency-performance.md) - Scaling to handle thousands of concurrent requests
 - [LLM Guard Security](docs/roadmap/llm-guard-integration.md) - Enterprise-grade AI security and threat protection
 - [Async Messaging & Multi-Modal](docs/roadmap/async-messaging-integration.md) - Message queues and multi-modal processing
 - [Notification Service](docs/roadmap/notification-service-integration.md) - Multi-channel communication system
 
-## Contributing
+## 🤝 Contributing
 
 Contributions are welcome! Please read our [Code of Conduct](CODE_OF_CONDUCT.md) for details the process for submitting pull requests.
 
-## License
+## 📄 License
 
 This project is licensed under the Apache 2.0 License - see the [LICENSE](LICENSE) file for details.

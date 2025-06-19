@@ -132,6 +132,9 @@ class ServiceFactory:
         # Initialize Logger Service (always needed)
         await self._initialize_logger_service(app)
         
+        # Initialize Moderator Service if enabled
+        await self._initialize_moderator_service(app)
+        
         # Initialize LLM Guard Service if enabled
         await self._initialize_llm_guard_service(app)
         
@@ -173,6 +176,7 @@ class ServiceFactory:
         # Initialize Chat Service (always needed)
         chat_history_service = getattr(app.state, 'chat_history_service', None)
         llm_guard_service = getattr(app.state, 'llm_guard_service', None)
+        moderator_service = getattr(app.state, 'moderator_service', None)
         
         from services.chat_service import ChatService
         app.state.chat_service = ChatService(
@@ -180,7 +184,8 @@ class ServiceFactory:
             app.state.llm_client, 
             app.state.logger_service,
             chat_history_service,
-            llm_guard_service
+            llm_guard_service,
+            moderator_service
         )
         
         # Initialize Health Service
@@ -461,6 +466,30 @@ class ServiceFactory:
         app.state.logger_service = LoggerService(self.config)
         await app.state.logger_service.initialize_elasticsearch()
         self.logger.info("Logger Service initialized successfully")
+    
+    async def _initialize_moderator_service(self, app: FastAPI) -> None:
+        """Initialize Moderator Service if enabled."""
+        # Get safety configuration
+        safety_config = self.config.get('safety', {})
+        
+        # Check if safety is enabled
+        safety_enabled = _is_true_value(safety_config.get('enabled', False))
+        
+        if safety_enabled:
+            from services.moderator_service import ModeratorService
+            app.state.moderator_service = ModeratorService(self.config)
+            self.logger.info("Initializing Moderator Service...")
+            try:
+                await app.state.moderator_service.initialize()
+                self.logger.info("Moderator Service initialized successfully")
+            except Exception as e:
+                self.logger.error(f"Failed to initialize Moderator Service: {str(e)}")
+                # Don't raise here - allow server to continue without Moderator
+                app.state.moderator_service = None
+                self.logger.warning("Continuing without Moderator Service")
+        else:
+            app.state.moderator_service = None
+            self.logger.info("Safety is disabled, skipping Moderator Service initialization")
     
     async def _initialize_llm_guard_service(self, app: FastAPI) -> None:
         """Initialize LLM Guard Service if enabled."""
