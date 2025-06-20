@@ -240,16 +240,13 @@ Load the sample question/answers sets from `./sample_db/city-qa-pairs.json`. RAG
 ```bash
 # The DB creation scripts are located under /sample_db/sqlite/
 ./sample_db/setup-demo-db.sh chroma
-
-# Use the key generated from the previous command
-orbit-chat --url http://localhost:3000 --api-key orbit_1234567ABCDE
 ```
 
 ![Creating Chroma Collection](docs/images/chroma-embedding.gif)
 
 Test with a few queries usinf orbit-chat client:
 ```bash
-orbit-chat --api-key "orbit_123456789"
+orbit-chat --url http://localhost:3000 --api-key orbit_1234567ABCDE
 ```
 
 ![ORBIT Chat Chroma Test](docs/images/chroma-test.gif)
