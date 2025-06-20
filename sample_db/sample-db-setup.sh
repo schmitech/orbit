@@ -158,8 +158,8 @@ else
     # Load Q&A pairs
     python3 "$PROJECT_ROOT/sample_db/chroma/create_qa_pairs_collection.py" city "$PROJECT_ROOT/sample_db/city-qa-pairs.json" $LOCAL_FLAG
     
-    # Create activity collection
-    python3 "$PROJECT_ROOT/sample_db/chroma/create_qa_pairs_collection.py" activity "$PROJECT_ROOT/sample_db/activity-qa-pairs.json" $LOCAL_FLAG
+    # Uncomment to create sample activity collection (will take lonnger due to volume of data)
+    # python3 "$PROJECT_ROOT/sample_db/chroma/create_qa_pairs_collection.py" activity "$PROJECT_ROOT/sample_db/activity-qa-pairs.json" $LOCAL_FLAG
 fi
 
 echo "✅ Sample QA collections created."
@@ -207,14 +207,15 @@ if [ "$CREATE_API_KEYS" = true ]; then
         echo "  • Using prompt file '$PROJECT_ROOT/sample_db/prompts/examples/activity/activity-assistant-normal-prompt.txt'"
         echo ""
 
-        ACTIVITY_API_KEY_OUTPUT=$(python3 "$PROJECT_ROOT/bin/orbit.py" --server-url "$SERVER_URL" key create \
-          --collection activity \
-          --name "Activity Assistant" \
-          --prompt-file "$PROJECT_ROOT/sample_db/prompts/examples/activity/activity-assistant-normal-prompt.txt" \
-          --prompt-name "Activity Assistant Prompt")
+        # Uncomment to generate an API Key for the activity collection
+        # ACTIVITY_API_KEY_OUTPUT=$(python3 "$PROJECT_ROOT/bin/orbit.py" --server-url "$SERVER_URL" key create \
+        #   --collection activity \
+        #   --name "Activity Assistant" \
+        #   --prompt-file "$PROJECT_ROOT/sample_db/prompts/examples/activity/activity-assistant-normal-prompt.txt" \
+        #   --prompt-name "Activity Assistant Prompt")
 
-        ACTIVITY_API_KEY=$(echo "$ACTIVITY_API_KEY_OUTPUT" | grep -o '"api_key": "orbit_[A-Za-z0-9]\+"' | cut -d'"' -f4)
-        echo "✅ Activity API key created successfully!"
+        # ACTIVITY_API_KEY=$(echo "$ACTIVITY_API_KEY_OUTPUT" | grep -o '"api_key": "orbit_[A-Za-z0-9]\+"' | cut -d'"' -f4)
+        # echo "✅ Activity API key created successfully!"
     fi
 else
     echo ""
@@ -251,10 +252,10 @@ if [ "$CREATE_API_KEYS" = true ]; then
     echo "API KEYS:"
     echo "================================================================"
     echo "City API KEY: $CITY_API_KEY"
-    if [ "$DATASOURCE" = "chroma" ]; then
-        echo ""
-        echo "Activity API KEY: $ACTIVITY_API_KEY"
-    fi
+    # if [ "$DATASOURCE" = "chroma" ]; then
+    #     echo ""
+    #     echo "Activity API KEY: $ACTIVITY_API_KEY"
+    # fi
     echo "================================================================"
 fi
 

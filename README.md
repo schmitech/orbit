@@ -5,15 +5,20 @@
   <h2><strong>Open Retrieval-Based Inference Toolkit</strong></h2>
 </div>
 
-
 ORBIT is a modular, self-hosted toolkit that provides a unified API for open-source AI inference models. ORBIT enables you to run AI models on your own infrastructure, maintaining full control over your data while reducing dependency on external AI services. The project is actively maintained by [Remsy Schmilinsky](https://www.linkedin.com/in/remsy/).
 
 ![ORBIT Chat Demo](docs/images/orbit-chat-gui.gif)
 
 ## 🚀 Key Features
 
+<p align="left">
+  <img src="docs/images/orbit-diagram.svg" width="800" alt="ORBIT Architecture" />
+</p>
+
+> **Note**: Currently, ORBIT supports SQL, Vector, and File-based retrieval systems. Support for additional data sources is planned for future releases. See [roadmap](https://github.com/schmitech/orbit/tree/main/docs/roadmap) for further details. ORBIT is fast evolving, so if you have a specific requirement that's not currently supported, please let us know so we can add it to our development roadmap.
+
 ### 🔒 **Security & Moderation**
-ORBIT integrates with ssafety services:
+ORBIT integrates with two types of guardrail services to prevent harmful content and ensure safe AI interactions:
 
 - **🔍 LLM Guard Service**: Advanced content scanning with real-time threat detection
 - **🛡️ Moderator Service**: Multi-provider content moderation
@@ -100,12 +105,6 @@ orbit-chat
 
 ![ORBIT Chat Demo](docs/images/orbit-chat.gif)
 
-
-## 🏗️ Architecture
-<p align="left">
-  <img src="docs/images/orbit-diagram.svg" width="800" alt="ORBIT Architecture" />
-</p>
-
 ### 🗄️ SQL Adapter
 
 RAG (Retrieval-Augmented Generation) mode enhances the model's responses by integrating your knowledge base into the context. This enriches the pre-trained foundation model with your specific data. 
@@ -116,7 +115,7 @@ The sample SQLite adapter showcases how ORBIT can be used for:
 - Question-answering applications
 - Document-based Q&A
 
-### 🔧 Running ORBIT with SQLite Adapter
+### 🗄️ Running ORBIT in RAG Mode with Sample SQLite Adapter
 You need an instance of MongoDB for this work. MongoDB is required when using ORBIT with retrieval adapters. Change config.yaml as follows:
 ```yaml
 general:
@@ -158,6 +157,72 @@ Load the sample question/answers sets from `./sample_db/city-qa-pairs.json`. RAG
 orbit-chat --url http://localhost:3000 --api-key orbit_1234567ABCDE
 ```
 
+### 🗂️ Running ORBIT in RAG Mode with Sample Chroma Vector DB Adapter
+As the previous example, you need an instance of MongoDB for this work. For this example, we'll use Ollama for both inference and embedding service.
+
+**Prerequisites:** Make sure Ollama is installed. For installation instructions, visit [https://ollama.com/download](https://ollama.com/download).
+
+Enable the chroma adapter in config.yaml:
+```yaml
+general:
+  port: 3000
+  verbose: false
+  inference_provider: "llama_cpp"
+  inference_only: false
+  adapter: "qa-vector-chroma"
+
+# Enable embedding service needed to index documents in Chroma vector database
+embedding:
+  provider: "ollama"
+  enabled: true
+
+# Make sure adapter exists
+adapters:
+  - name: "qa-vector-chroma"
+    type: "retriever"
+    datasource: "chroma"
+    adapter: "qa"
+    implementation: "retrievers.implementations.qa.QAChromaRetriever"
+    config:
+      confidence_threshold: 0.3
+      distance_scaling_factor: 200.0
+      embedding_provider: null
+      max_results: 5
+      return_results: 3
+
+# Specify DB location location
+datasources:
+  chroma:
+    use_local: true
+    db_path: "sample_db/chroma/chroma_db"
+    host: "localhost"
+    port: 8000
+    embedding_provider: null # change if you want to override default Ollama embedding
+```
+
+Restart the server:
+```bash
+./bin/orbit.sh restart --delete-logs
+```
+Load the sample question/answers sets from `./sample_db/city-qa-pairs.json`. RAG mode requires MongoDB enabled. Use the same settings described in the previous section to set up the MongoDB service.
+
+```bash
+# The DB creation scripts are located under /sample_db/sqlite/
+./sample_db/setup-demo-db.sh chroma
+
+# Use the key generated from the previous command
+orbit-chat --url http://localhost:3000 --api-key orbit_1234567ABCDE
+```
+
+![Creating Chroma Collection](docs/images/chroma-embedding.gif)
+
+Test with a few queries usinf orbit-chat client:
+```bash
+orbit-chat --api-key "orbit_123456789"
+```
+
+![ORBIT Chat Chroma Test](docs/images/chroma-test.gif)
+
 ### 🛡️ **Content Moderation**
 
 ORBIT's multi-layered safety system actively prevents abusive behavior and harmful content. The system combines **LLM Guard Service** for advanced threat detection and **Moderator Service** for content filtering, working together to ensure safe interactions.
@@ -172,6 +237,13 @@ ORBIT's multi-layered safety system actively prevents abusive behavior and harmf
 - 🔒 **Prompt Injection Protection**: Prevents malicious prompt manipulation
 - ⚠️ **Content Filtering**: Filters inappropriate or unsafe material
 - 📊 **Risk Scoring**: Provides detailed risk assessment for each interaction
+
+Follow this instructions to run this client:
+```bash
+cd clients/chat-app
+npm install
+npm run dev
+```
 
 ![ORBIT Moderation](docs/images/moderation.gif)
 
@@ -188,7 +260,6 @@ ORBIT's multi-layered safety system actively prevents abusive behavior and harmf
 ## 🌐 Web Chatbot Widget
 
 ORBIT provides a customizable chatbot widget that can be easily integrated into any website. The widget offers a responsive interface with theming options and features. The widget is available as an npm package at [@schmitech/chatbot-widget](https://www.npmjs.com/package/@schmitech/chatbot-widget). Project details and build instructions can be found at [ORBIT Chat Widget](https://github.com/schmitech/orbit/tree/main/clients/chat-widget).
-
 
 ## 📚 Documentation
 
@@ -222,7 +293,15 @@ For more detailed information, please refer to the following documentation in th
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please read our [Code of Conduct](CODE_OF_CONDUCT.md) for details the process for submitting pull requests.
+Contributions are welcome! Please read our [Code of Conduct](CODE_OF_CONDUCT.md) for details on the process for submitting pull requests. We're actively seeking contributors to help implement components from our [Development Roadmap](docs/roadmap/README.md).
+
+### 🛠️ How to Get Started
+1. Check out our [roadmap documentation](docs/roadmap/README.md) for detailed specifications
+2. Review open issues and discussions for current priorities
+3. Join our community discussions to align on implementation approaches
+4. Submit proposals for components you'd like to work on
+
+Whether you're interested in backend development, frontend development, DevOps, documentation, or testing, there's a place for everyone in making ORBIT even better!
 
 ## 📄 License
 

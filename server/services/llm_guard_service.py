@@ -113,6 +113,7 @@ class LLMGuardService:
         self._last_health_check = 0
         self._service_healthy = None
         self._initialized = False
+        self._service_available = False
         
         if not self.enabled:
             logger.info("🚫 LLM Guard service is disabled")
@@ -160,9 +161,19 @@ class LLMGuardService:
         )
         
         # Perform initial health check
-        await self._check_service_health()
+        health_check_passed = await self._check_service_health()
+        
+        if not health_check_passed:
+            logger.error("❌ LLM Guard service health check failed - cancelling initialization")
+            # Close the session since we won't be using it
+            await self._session.close()
+            self._session = None
+            self._initialized = False
+            self._service_available = False
+            return
         
         self._initialized = True
+        self._service_available = True
         logger.info("✅ LLM Guard service initialized successfully")
     
     async def _check_service_health(self) -> bool:
@@ -236,6 +247,17 @@ class LLMGuardService:
                 "sanitized_content": content,
                 "flagged_scanners": [],
                 "recommendations": ["LLM Guard service is disabled"]
+            }
+        
+        # Check if service is available (initialized and healthy)
+        if not self._service_available:
+            logger.warning("🚫 LLM Guard service is not available (health check failed during initialization), returning safe response")
+            return {
+                "is_safe": True,
+                "risk_score": 0.0,
+                "sanitized_content": content,
+                "flagged_scanners": [],
+                "recommendations": ["LLM Guard service is not available"]
             }
         
         # Validate inputs
@@ -355,6 +377,16 @@ class LLMGuardService:
                 "removed_items": []
             }
         
+        # Check if service is available (initialized and healthy)
+        if not self._service_available:
+            logger.warning("🚫 LLM Guard service is not available (health check failed during initialization), returning original content")
+            return {
+                "sanitized_content": content,
+                "changes_made": False,
+                "removed_items": [],
+                "error": "LLM Guard service is not available"
+            }
+        
         # Validate content length
         if len(content) > self.max_content_length:
             raise ValueError(f"Content length {len(content)} exceeds maximum {self.max_content_length}")
@@ -411,6 +443,14 @@ class LLMGuardService:
                 "output_scanners": self.available_output_scanners
             }
         
+        # Check if service is available (initialized and healthy)
+        if not self._service_available:
+            logger.warning("🚫 LLM Guard service is not available (health check failed during initialization), returning configured defaults")
+            return {
+                "input_scanners": self.available_input_scanners,
+                "output_scanners": self.available_output_scanners
+            }
+        
         try:
             url = f"{self.base_url}/{self.api_version}/security/scanners"
             result = await self._make_request_with_retry("GET", url)
@@ -433,6 +473,10 @@ class LLMGuardService:
         """Make HTTP request with retry logic"""
         if not self._session:
             raise RuntimeError("Service not initialized")
+        
+        # Check if service is available
+        if not self._service_available:
+            raise RuntimeError("LLM Guard service is not available (health check failed during initialization)")
         
         last_exception = None
         
@@ -558,8 +602,6 @@ class LLMGuardService:
         if content_type not in self.valid_content_types:
             raise ValueError(f"Invalid content_type. Must be one of: {self.valid_content_types}")
         
-
-        
         # Validate risk threshold
         if risk_threshold is not None:
             if not (0.0 <= risk_threshold <= 1.0):
@@ -569,6 +611,11 @@ class LLMGuardService:
         """Check if the LLM Guard service is currently healthy"""
         if not self.enabled:
             return False
+        
+        # If service is not available (failed initialization), return False
+        if not self._service_available:
+            return False
+            
         return await self._check_service_health()
     
     async def get_service_info(self) -> Dict[str, Any]:
@@ -577,6 +624,7 @@ class LLMGuardService:
             "enabled": self.enabled,
             "base_url": self.base_url if self.enabled else None,
             "api_version": self.api_version if self.enabled else None,
+            "available": self._service_available if self.enabled else False,
             "healthy": await self.is_service_healthy() if self.enabled else False,
             "default_risk_threshold": self.default_risk_threshold,
             "configured_prompt_scanners": self.configured_prompt_scanners if self.enabled else [],
