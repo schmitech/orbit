@@ -105,7 +105,7 @@ orbit-chat
 
 ![ORBIT Chat Demo](docs/images/orbit-chat.gif)
 
-### 🗄️ SQL Adapter
+### 🗄️ Running ORBIT in RAG Mode with Sample SQLite Adapter
 
 RAG (Retrieval-Augmented Generation) mode enhances the model's responses by integrating your knowledge base into the context. This enriches the pre-trained foundation model with your specific data. 
 
@@ -115,7 +115,6 @@ The sample SQLite adapter showcases how ORBIT can be used for:
 - Question-answering applications
 - Document-based Q&A
 
-### 🗄️ Running ORBIT in RAG Mode with Sample SQLite Adapter
 You need an instance of MongoDB for this work. MongoDB is required when using ORBIT with retrieval adapters. Change config.yaml as follows:
 ```yaml
 general:
@@ -158,16 +157,34 @@ orbit-chat --url http://localhost:3000 --api-key orbit_1234567ABCDE
 ```
 
 ### 🗂️ Running ORBIT in RAG Mode with Sample Chroma Vector DB Adapter
-As the previous example, you need an instance of MongoDB for this work. For this example, we'll use Ollama for both inference and embedding service.
+As the previous example, you need an instance of MongoDB. For this example, we'll use Ollama for both inference and embedding service.
 
 **Prerequisites:** Make sure Ollama is installed. For installation instructions, visit [https://ollama.com/download](https://ollama.com/download).
+
+Once Ollama is installed, run these commands to pull these models:
+
+```bash
+ollama pull nomic-embed-text
+ollama pull gemma3:1b
+
+# Make sure models exist
+ollama list
+
+NAME                       ID              SIZE      MODIFIED     
+nomic-embed-text:latest    0a109f422b47    274 MB    2 months ago    
+gemma3:1b                  8648f39daa8f    815 MB    2 months ago
+```
 
 Enable the chroma adapter in config.yaml:
 ```yaml
 general:
   port: 3000
-  verbose: false
-  inference_provider: "llama_cpp"
+  verbose: true # More logging so you can undersatnd what's happening under the hood
+  session_id:
+    header_name: "X-Session-ID"
+    required: true
+  inference_provider: "ollama"
+  language_detection: true
   inference_only: false
   adapter: "qa-vector-chroma"
 
@@ -198,6 +215,20 @@ datasources:
     host: "localhost"
     port: 8000
     embedding_provider: null # change if you want to override default Ollama embedding
+
+# Ollama inference service settings
+inference:
+  ollama:
+    base_url: "http://localhost:11434"
+    temperature: 0.1
+    top_p: 0.8
+    top_k: 20
+    repeat_penalty: 1.1
+    num_predict: 1024
+    num_ctx: 1024
+    num_threads: 8
+    model: "gemma3:1b"
+    stream: true    
 ```
 
 Restart the server:
