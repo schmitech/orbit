@@ -225,6 +225,115 @@ class ChatService:
             logger.info(f"Generated response for {client_ip}")
             logger.info(f"Response: {response[:100]}...")  # Log just the beginning to avoid huge logs
     
+    async def _detect_message_language(self, message: str) -> str:
+        """
+        Detect the language of a message
+        
+        Args:
+            message: The message to analyze
+            
+        Returns:
+            Language code (defaults to 'en' if detection fails)
+        """
+        # Skip language detection if disabled
+        if not self.language_detection_enabled or not self.language_detector:
+            return "en"
+            
+        try:
+            detected_lang = self.language_detector.detect(message)
+            if self.verbose:
+                logger.info(f"Language detection result: '{detected_lang}' for message: '{message[:50]}...'")
+            return detected_lang
+        except Exception as lang_error:
+            logger.warning(f"Language detection failed: {str(lang_error)}, defaulting to English")
+            return "en"
+    
+    def _get_language_name(self, language_code: str) -> str:
+        """
+        Get human-readable language name from ISO code
+        
+        Args:
+            language_code: Two-letter language code
+            
+        Returns:
+            Human-readable language name
+        """
+        try:
+            import pycountry
+            try:
+                language = pycountry.languages.get(alpha_2=language_code)
+                return language.name if language else f"the language with code '{language_code}'"
+            except (AttributeError, KeyError):
+                return f"the language with code '{language_code}'"
+        except ImportError:
+            language_names = {
+                'en': 'English', 'es': 'Spanish', 'fr': 'French', 'de': 'German',
+                'it': 'Italian', 'pt': 'Portuguese', 'ru': 'Russian', 'zh': 'Chinese',
+                'ja': 'Japanese', 'ko': 'Korean', 'ar': 'Arabic', 'hi': 'Hindi',
+                'mn': 'Mongolian'
+            }
+            return language_names.get(language_code, f"the language with code '{language_code}'")
+    
+    def _create_inference_only_language_instruction(self, language_name: str) -> str:
+        """
+        Create a strong language instruction for inference-only mode
+        
+        Args:
+            language_name: Human-readable language name
+            
+        Returns:
+            Language instruction text
+        """
+        return (
+            f"\n\n=== LANGUAGE OVERRIDE ===\n"
+            f"ATTENTION: The user has switched to {language_name}.\n"
+            f"MANDATORY INSTRUCTION: You MUST respond ONLY in {language_name}.\n"
+            f"IGNORE any previous conversation language patterns.\n"
+            f"The user expects and requires a response in {language_name}.\n"
+            f"Do NOT respond in English or any other language.\n"
+            f"=== END LANGUAGE OVERRIDE ===\n"
+        )
+    
+    def _create_full_mode_language_instruction(self, language_name: str) -> str:
+        """
+        Create a language instruction for full mode (system prompt enhancement)
+        
+        Args:
+            language_name: Human-readable language name
+            
+        Returns:
+            Language instruction text
+        """
+        return f"\n\nIMPORTANT: The user's message is in {language_name}. You MUST respond in {language_name} only."
+    
+    async def _enhance_system_prompt_with_language(self, system_prompt_id: ObjectId, language_instruction: str) -> bool:
+        """
+        Enhance a stored system prompt with language instruction
+        
+        Args:
+            system_prompt_id: ID of the system prompt to enhance
+            language_instruction: Language instruction to add
+            
+        Returns:
+            True if enhancement succeeded, False otherwise
+        """
+        if not (hasattr(self.llm_client, 'prompt_service') and self.llm_client.prompt_service):
+            return False
+            
+        try:
+            prompt_doc = await self.llm_client.prompt_service.get_prompt_by_id(system_prompt_id)
+            if prompt_doc and 'prompt' in prompt_doc:
+                enhanced_prompt = prompt_doc['prompt'] + language_instruction
+                self.llm_client.override_system_prompt = enhanced_prompt
+                
+                if self.verbose:
+                    logger.info(f"Enhanced stored system prompt with language instruction")
+                return True
+        except Exception as prompt_error:
+            logger.warning(f"Failed to retrieve/enhance system prompt: {str(prompt_error)}")
+        
+        return False
+    
     async def _detect_and_enhance_prompt(self, message: str, system_prompt_id: Optional[ObjectId] = None) -> tuple[Optional[ObjectId], Optional[str]]:
         """
         Detect message language and prepare language enhancement
@@ -248,186 +357,134 @@ class ChatService:
                 if self.verbose:
                     logger.warning("Language detector not available, skipping language enhancement")
                 return system_prompt_id, None
-                
+            
             # Detect the language of the message
-            try:
-                detected_lang = self.language_detector.detect(message)
-            except Exception as lang_error:
-                logger.warning(f"Language detection failed: {str(lang_error)}, defaulting to English")
-                detected_lang = "en"
+            detected_lang = await self._detect_message_language(message)
             
-            if self.verbose:
-                logger.info(f"Language detection result: '{detected_lang}' for message: '{message[:50]}...'")
-                
             # Only enhance if language is not English
-            if detected_lang != 'en':
-                # Get language name from ISO code
-                try:
-                    import pycountry
-                    try:
-                        language = pycountry.languages.get(alpha_2=detected_lang)
-                        language_name = language.name if language else f"the language with code '{detected_lang}'"
-                    except (AttributeError, KeyError):
-                        language_name = f"the language with code '{detected_lang}'"
-                except ImportError:
-                    language_names = {
-                        'en': 'English', 'es': 'Spanish', 'fr': 'French', 'de': 'German',
-                        'it': 'Italian', 'pt': 'Portuguese', 'ru': 'Russian', 'zh': 'Chinese',
-                        'ja': 'Japanese', 'ko': 'Korean', 'ar': 'Arabic', 'hi': 'Hindi',
-                        'mn': 'Mongolian'
-                    }
-                    language_name = language_names.get(detected_lang, f"the language with code '{detected_lang}'")
-                
-                # Check if we're in inference-only mode
-                inference_only = self.config.get('general', {}).get('inference_only', False)
-                
-                if inference_only:
-                    # Inference-only mode: Create a very strong language instruction
-                    # This needs to be strong enough to override conversation history patterns
-                    language_instruction = (
-                        f"\n\n=== CRITICAL LANGUAGE OVERRIDE ===\n"
-                        f"ATTENTION: The user has switched to {language_name}.\n"
-                        f"MANDATORY INSTRUCTION: You MUST respond ONLY in {language_name}.\n"
-                        f"IGNORE any previous conversation language patterns.\n"
-                        f"The user expects and requires a response in {language_name}.\n"
-                        f"Do NOT respond in English or any other language.\n"
-                        f"=== END LANGUAGE OVERRIDE ===\n"
-                    )
-                    
-                    if self.verbose:
-                        logger.info(f"Inference-only mode: Will append STRONG language instruction for {language_name}")
-                        logger.info(f"Language instruction content: '{language_instruction[:150]}...'")
-                    return None, language_instruction
-                    
-                else:
-                    # Full mode: language instruction goes to system prompt (original logic)
-                    language_instruction = f"\n\nIMPORTANT: The user's message is in {language_name}. You MUST respond in {language_name} only."
-                    
-                    if self.verbose:
-                        logger.info(f"Full mode: Language instruction will be added to system prompt for: {language_name}")
-                    
-                    # If we have a stored prompt, enhance it
-                    if (hasattr(self.llm_client, 'prompt_service') and 
-                        self.llm_client.prompt_service and 
-                        system_prompt_id):
-                        
-                        try:
-                            prompt_doc = await self.llm_client.prompt_service.get_prompt_by_id(system_prompt_id)
-                            if prompt_doc and 'prompt' in prompt_doc:
-                                enhanced_prompt = prompt_doc['prompt'] + language_instruction
-                                self.llm_client.override_system_prompt = enhanced_prompt
-                                
-                                if self.verbose:
-                                    logger.info(f"Enhanced stored system prompt with language instruction")
-                                return None, None
-                        except Exception as prompt_error:
-                            logger.warning(f"Failed to retrieve/enhance system prompt: {str(prompt_error)}")
-                    
-                    # If no stored prompt available, just return the language instruction
-                    # The LLM client will use its default empty system prompt
-                    return system_prompt_id, language_instruction
-                
-            # No language enhancement needed
-            return system_prompt_id, None
+            if detected_lang == 'en':
+                return system_prompt_id, None
             
+            # Get human-readable language name
+            language_name = self._get_language_name(detected_lang)
+            
+            # Check if we're in inference-only mode
+            inference_only = self.config.get('general', {}).get('inference_only', False)
+            
+            if inference_only:
+                # Inference-only mode: Create a very strong language instruction
+                language_instruction = self._create_inference_only_language_instruction(language_name)
+                
+                if self.verbose:
+                    logger.info(f"Inference-only mode: Creating language override for {language_name}")
+                return None, language_instruction
+            else:
+                # Full mode: language instruction goes to system prompt
+                language_instruction = self._create_full_mode_language_instruction(language_name)
+                
+                if self.verbose:
+                    logger.info(f"Full mode: Enhancing system prompt for {language_name}")
+                
+                # Try to enhance stored prompt if available
+                if system_prompt_id:
+                    if await self._enhance_system_prompt_with_language(system_prompt_id, language_instruction):
+                        return None, None
+                
+                # If no stored prompt available, return the language instruction
+                return system_prompt_id, language_instruction
+                
         except Exception as e:
             logger.error(f"Unexpected error in language detection: {str(e)}")
             return system_prompt_id, None
     
-    async def _process_chat_base(self, message: str, client_ip: str, collection_name: str, 
-                                 system_prompt_id: Optional[ObjectId] = None, api_key: Optional[str] = None,
-                                 session_id: Optional[str] = None, user_id: Optional[str] = None):
+    async def _log_request_details(self, message: str, client_ip: str, collection_name: str, 
+                                  system_prompt_id: Optional[ObjectId], api_key: Optional[str],
+                                  session_id: Optional[str], user_id: Optional[str]):
         """
-        Base method for processing chat messages, handling common functionality.
+        Log detailed request information for debugging
         
         Args:
             message: The chat message
-            client_ip: Client IP address
+            client_ip: Client IP address  
             collection_name: Collection name to use for retrieval
-            system_prompt_id: Optional system prompt ID to use
-            api_key: Optional API key for authentication
-            session_id: Optional session identifier for chat history
+            system_prompt_id: Optional system prompt ID
+            api_key: Optional API key
+            session_id: Optional session identifier
             user_id: Optional user identifier
-            
-        Returns:
-            Tuple of (enhanced_prompt_id, response_data, metadata)
         """
-        # Log the incoming message and parameters
         await self._log_request(message, client_ip, collection_name)
         
-        if self.verbose:
-            # Mask API key for logging
-            masked_api_key = "None"
-            if api_key:
-                masked_api_key = mask_api_key(api_key, show_last=True)
+        if not self.verbose:
+            return
             
-            logger.info(f"System prompt ID: {system_prompt_id}")
-            logger.info(f"API key: {masked_api_key}")
-            logger.info(f"Session ID: {session_id}")
-            logger.info(f"User ID: {user_id}")
-            if system_prompt_id:
-                # Log the prompt details if we have a prompt service on the LLM client
-                if hasattr(self.llm_client, 'prompt_service') and self.llm_client.prompt_service:
-                    prompt_doc = await self.llm_client.prompt_service.get_prompt_by_id(system_prompt_id)
-                    if prompt_doc:
-                        logger.info(f"Using system prompt: {prompt_doc.get('name', 'Unknown')}")
-                        logger.info(f"Prompt content (first 100 chars): {prompt_doc.get('prompt', '')[:100]}...")
-                    else:
-                        logger.warning(f"System prompt ID {system_prompt_id} not found")
+        # Mask API key for logging
+        masked_api_key = "None"
+        if api_key:
+            masked_api_key = mask_api_key(api_key, show_last=True)
         
-        # Check message security BEFORE processing
-        security_result = await self._check_message_security(
-            content=message,
-            content_type="prompt",
-            user_id=user_id,
-            session_id=session_id
-        )
+        logger.info(f"System prompt ID: {system_prompt_id}")
+        logger.info(f"API key: {masked_api_key}")
+        logger.info(f"Session ID: {session_id}")
+        logger.info(f"User ID: {user_id}")
         
-        # If message is not safe, return error immediately without processing or storing
-        if not security_result.get("is_safe", True):
-            risk_score = security_result.get("risk_score", 0.0)
-            flagged_scanners = security_result.get("flagged_scanners", [])
-            recommendations = security_result.get("recommendations", [])
-            
-            # Log detailed security information for administrators
-            detailed_log_msg = f"Message blocked for session {session_id}: Risk score: {risk_score:.3f}"
-            if flagged_scanners:
-                detailed_log_msg += f", Flagged by: {', '.join(flagged_scanners)}"
-            if recommendations:
-                detailed_log_msg += f", Recommendations: {'; '.join(recommendations)}"
-            logger.warning(detailed_log_msg)
-            
-            # Create user-friendly error message (no sensitive details)
-            user_error_msg = "Message blocked by security scanner."
-            if recommendations and len(recommendations) > 0:
-                # Use the first recommendation as the reason, but sanitize it
-                reason = recommendations[0]
-                # Remove technical details and make it user-friendly
-                reason = reason.replace("Potential ", "").replace(" detected", "").replace("Review and sanitize user input", "")
-                user_error_msg += f" Reason: {reason}"
-            
-            # Return error response in MCP protocol format - NO CHAT HISTORY STORAGE
-            return None, {"error": user_error_msg}, {
-                "collection_name": collection_name,
-                "client_ip": client_ip,
-                "blocked": True,
-                "security_check": security_result
-            }
+        # Log system prompt details if available
+        if system_prompt_id and hasattr(self.llm_client, 'prompt_service') and self.llm_client.prompt_service:
+            try:
+                prompt_doc = await self.llm_client.prompt_service.get_prompt_by_id(system_prompt_id)
+                if prompt_doc:
+                    logger.info(f"Using system prompt: {prompt_doc.get('name', 'Unknown')}")
+                    logger.info(f"Prompt content (first 100 chars): {prompt_doc.get('prompt', '')[:100]}...")
+                else:
+                    logger.warning(f"System prompt ID {system_prompt_id} not found")
+            except Exception as e:
+                logger.warning(f"Failed to retrieve system prompt details: {str(e)}")
+
+    async def _prepare_llm_request_data(self, message: str, system_prompt_id: Optional[ObjectId], 
+                                       session_id: Optional[str]) -> tuple[str, List[Dict[str, str]], Optional[ObjectId]]:
+        """
+        Prepare all data needed for the LLM request including context and language enhancements
         
+        Args:
+            message: The original chat message
+            system_prompt_id: Optional system prompt ID
+            session_id: Optional session identifier for chat history
+            
+        Returns:
+            Tuple of (final_message, final_context_messages, enhanced_prompt_id)
+        """
         # Get conversation context if session is provided
         context_messages = await self._get_conversation_context(session_id)
         
         # Detect language and get enhancement instructions
         enhanced_prompt_id, language_instruction = await self._detect_and_enhance_prompt(message, system_prompt_id)
         
-        # Prepare the message and context for inference-only mode with language override
+        # Apply language enhancement if needed
+        final_message, final_context_messages = self._apply_language_enhancement(
+            message, context_messages, language_instruction
+        )
+        
+        return final_message, final_context_messages, enhanced_prompt_id
+    
+    def _apply_language_enhancement(self, message: str, context_messages: List[Dict[str, str]], 
+                                   language_instruction: Optional[str]) -> tuple[str, List[Dict[str, str]]]:
+        """
+        Apply language enhancement to message and context for inference-only mode
+        
+        Args:
+            message: The original chat message
+            context_messages: List of context messages
+            language_instruction: Optional language instruction to apply
+            
+        Returns:
+            Tuple of (final_message, final_context_messages)
+        """
         final_message = message
         final_context_messages = context_messages
         
         if language_instruction and self.config.get('general', {}).get('inference_only', False):
             if self.verbose:
-                logger.info(f"Original user message: '{message}'")
-                logger.info(f"Language instruction to append: '{language_instruction[:100]}...'")
+                # Just log that we're applying language enhancement, not the full instruction
+                logger.info(f"Applying language override enhancement for inference-only mode")
             
             # In inference-only mode, we need to be strategic about language instruction placement
             # Strategy 1: Prepend the language instruction to the user message for immediate impact
@@ -455,41 +512,118 @@ class ChatService:
                 final_context_messages.append(ack_msg)
                 
                 if self.verbose:
-                    logger.info(f"Added language override context messages to conversation history")
-            
-            if self.verbose:
-                logger.info(f"Final combined message: '{final_message[:200]}...'")
-        else:
-            if self.verbose:
-                logger.info(f"No language instruction needed - using original message: '{message}'")
+                    logger.info(f"Added strategic language override context messages")
         
-        # Prepare metadata for storage
+        return final_message, final_context_messages
+    
+    async def _generate_llm_response(self, final_message: str, collection_name: str, 
+                                    enhanced_prompt_id: Optional[ObjectId], 
+                                    final_context_messages: List[Dict[str, str]]) -> Dict[str, Any]:
+        """
+        Generate LLM response with proper prompt handling and cleanup
+        
+        Args:
+            final_message: The processed message to send to LLM
+            collection_name: Collection name for retrieval
+            enhanced_prompt_id: Optional enhanced prompt ID
+            final_context_messages: Processed context messages
+            
+        Returns:
+            Response data from LLM
+        """
+        try:
+            # Generate response with appropriate prompt handling
+            if enhanced_prompt_id is None:
+                # Using override system prompt (full mode with language enhancement) or no system prompt (inference-only)
+                response_data = await self.llm_client.generate_response(
+                    message=final_message,
+                    collection_name=collection_name,
+                    context_messages=final_context_messages
+                )
+                # Clear any overrides after use
+                self._clear_prompt_overrides()
+            else:
+                # Using stored system prompt
+                response_data = await self.llm_client.generate_response(
+                    message=final_message,
+                    collection_name=collection_name,
+                    system_prompt_id=enhanced_prompt_id,
+                    context_messages=final_context_messages
+                )
+            
+            return response_data
+        except Exception as e:
+            logger.error(f"Error generating LLM response: {str(e)}")
+            return {"error": f"Failed to generate response: {str(e)}"}
+    
+    def _clear_prompt_overrides(self):
+        """Clear any prompt overrides after use"""
+        if hasattr(self.llm_client, 'clear_override_system_prompt'):
+            self.llm_client.clear_override_system_prompt()
+        elif hasattr(self.llm_client, 'override_system_prompt'):
+            self.llm_client.override_system_prompt = None
+
+    async def _process_chat_base(self, message: str, client_ip: str, collection_name: str, 
+                                 system_prompt_id: Optional[ObjectId] = None, api_key: Optional[str] = None,
+                                 session_id: Optional[str] = None, user_id: Optional[str] = None):
+        """
+        Base method for processing chat messages, handling common functionality.
+        
+        Args:
+            message: The chat message
+            client_ip: Client IP address
+            collection_name: Collection name to use for retrieval
+            system_prompt_id: Optional system prompt ID to use
+            api_key: Optional API key for authentication
+            session_id: Optional session identifier for chat history
+            user_id: Optional user identifier
+            
+        Returns:
+            Tuple of (enhanced_prompt_id, response_data, metadata)
+        """
+        # 1. Log request details
+        await self._log_request_details(message, client_ip, collection_name, system_prompt_id, 
+                                       api_key, session_id, user_id)
+        
+        # 2. Check message security BEFORE processing
+        security_result = await self._check_message_security(
+            content=message,
+            content_type="prompt",
+            user_id=user_id,
+            session_id=session_id
+        )
+        
+        # If message is not safe, return error immediately without processing or storing
+        if not security_result.get("is_safe", True):
+            error_response = await self._handle_security_violation(
+                security_result=security_result,
+                session_id=session_id,
+                content_type="message"
+            )
+            
+            # Return error response in MCP protocol format - NO CHAT HISTORY STORAGE
+            return None, {"error": error_response["error"]}, {
+                "collection_name": collection_name,
+                "client_ip": client_ip,
+                "blocked": True,
+                "security_check": security_result
+            }
+        
+        # 3. Prepare LLM request data (context, language enhancement, etc.)
+        final_message, final_context_messages, enhanced_prompt_id = await self._prepare_llm_request_data(
+            message, system_prompt_id, session_id
+        )
+        
+        # 4. Generate LLM response
+        response_data = await self._generate_llm_response(
+            final_message, collection_name, enhanced_prompt_id, final_context_messages
+        )
+        
+        # 5. Prepare metadata for storage
         metadata = {
             "collection_name": collection_name,
             "client_ip": client_ip
         }
-        
-        # Generate response with context
-        if enhanced_prompt_id is None:
-            # Using override system prompt (full mode with language enhancement) or no system prompt (inference-only)
-            response_data = await self.llm_client.generate_response(
-                message=final_message,
-                collection_name=collection_name,
-                context_messages=final_context_messages
-            )
-            # Clear any overrides after use
-            if hasattr(self.llm_client, 'clear_override_system_prompt'):
-                self.llm_client.clear_override_system_prompt()
-            elif hasattr(self.llm_client, 'override_system_prompt'):
-                self.llm_client.override_system_prompt = None
-        else:
-            # Using stored system prompt
-            response_data = await self.llm_client.generate_response(
-                message=final_message,
-                collection_name=collection_name,
-                system_prompt_id=enhanced_prompt_id,
-                context_messages=final_context_messages
-            )
             
         return enhanced_prompt_id, response_data, metadata
 
@@ -588,30 +722,15 @@ class ChatService:
             
             # If response is not safe, block it and don't store in history
             if not response_security_result.get("is_safe", True):
-                risk_score = response_security_result.get("risk_score", 0.0)
-                flagged_scanners = response_security_result.get("flagged_scanners", [])
-                recommendations = response_security_result.get("recommendations", [])
-                
-                # Log detailed security information for administrators
-                detailed_log_msg = f"Response blocked for session {session_id}: Risk score: {risk_score:.3f}"
-                if flagged_scanners:
-                    detailed_log_msg += f", Flagged by: {', '.join(flagged_scanners)}"
-                if recommendations:
-                    detailed_log_msg += f", Recommendations: {'; '.join(recommendations)}"
-                logger.warning(detailed_log_msg)
-                
-                # Create user-friendly error message (no sensitive details)
-                user_error_msg = "Response blocked by security scanner."
-                if recommendations and len(recommendations) > 0:
-                    # Use the first recommendation as the reason, but sanitize it
-                    reason = recommendations[0]
-                    # Remove technical details and make it user-friendly
-                    reason = reason.replace("Potential ", "").replace(" detected", "").replace("Review and sanitize user input", "")
-                    user_error_msg += f" Reason: {reason}"
+                error_response = await self._handle_security_violation(
+                    security_result=response_security_result,
+                    session_id=session_id,
+                    content_type="response"
+                )
                 
                 # Log conversation if API key is provided (with blocked response - audit only)
                 if api_key:
-                    await self._log_conversation(message, f"[BLOCKED RESPONSE] {user_error_msg}", client_ip, api_key)
+                    await self._log_conversation(message, f"[BLOCKED RESPONSE] {error_response['error']}", client_ip, api_key)
                 
                 # CRITICAL: DO NOT STORE BLOCKED RESPONSES IN CHAT HISTORY
                 # Security-blocked content should never be stored anywhere
@@ -620,39 +739,18 @@ class ChatService:
                 return {
                     "error": {
                         "code": -32603,
-                        "message": user_error_msg
+                        "message": error_response["error"]
                     }
                 }
             
-            # Check for conversation limit warning BEFORE storing conversation
-            # This ensures we catch the warning before the count changes
-            warning = await self._check_conversation_limit_warning(session_id)
-            if warning:
-                # Append warning to the response
-                response = f"{response}\n\n---\n{warning}"
-                # Update the response in response_data
-                response_data["response"] = response
-                
-                if self.verbose:
-                    logger.info(f"Added conversation limit warning for session {session_id}")
+            # Handle conversation storage with warning check and logging
+            final_response, warning_added = await self._handle_conversation_storage(
+                session_id, message, response, user_id, api_key, metadata, client_ip
+            )
             
-            # Log the response
-            await self._log_response(response, client_ip)
-            
-            # Store conversation turn in history if enabled (only for safe content)
-            if session_id:
-                await self._store_conversation_turn(
-                    session_id=session_id,
-                    user_message=message,
-                    assistant_response=response,
-                    user_id=user_id,
-                    api_key=api_key,
-                    metadata=metadata
-                )
-            
-            # Log conversation if API key is provided
-            if api_key:
-                await self._log_conversation(message, response, client_ip, api_key)
+            # Update response_data if warning was added
+            if warning_added:
+                response_data["response"] = final_response
             
             return response_data
             
@@ -674,109 +772,59 @@ class ChatService:
             
             # If message is not safe, return error immediately without processing or storing
             if not security_result.get("is_safe", True):
-                risk_score = security_result.get("risk_score", 0.0)
-                flagged_scanners = security_result.get("flagged_scanners", [])
-                recommendations = security_result.get("recommendations", [])
-                
-                # Log detailed security information for administrators
-                detailed_log_msg = f"Streaming message blocked for session {session_id}: Risk score: {risk_score:.3f}"
-                if flagged_scanners:
-                    detailed_log_msg += f", Flagged by: {', '.join(flagged_scanners)}"
-                if recommendations:
-                    detailed_log_msg += f", Recommendations: {'; '.join(recommendations)}"
-                logger.warning(detailed_log_msg)
-                
-                # Create user-friendly error message (no sensitive details)
-                user_error_msg = "Message blocked by security scanner."
-                if recommendations and len(recommendations) > 0:
-                    # Use the first recommendation as the reason, but sanitize it
-                    reason = recommendations[0]
-                    # Remove technical details and make it user-friendly
-                    reason = reason.replace("Potential ", "").replace(" detected", "").replace("Review and sanitize user input", "")
-                    user_error_msg += f" Reason: {reason}"
+                error_response = await self._handle_security_violation(
+                    security_result=security_result,
+                    session_id=session_id,
+                    content_type="streaming message"
+                )
                 
                 # Log for audit purposes only (no chat history storage)
                 if api_key:
-                    await self._log_conversation(message, f"[BLOCKED] {user_error_msg}", client_ip, api_key)
+                    await self._log_conversation(message, f"[BLOCKED] {error_response['error']}", client_ip, api_key)
                 
                 # Send error as a streaming response - NO STORAGE
                 error_chunk = json.dumps({
-                    "error": user_error_msg,
+                    "error": error_response["error"],
                     "done": True
                 })
                 yield f"data: {error_chunk}\n\n"
                 return
             
-            # Get conversation context and language detection
-            context_messages = await self._get_conversation_context(session_id)
-            enhanced_prompt_id, language_instruction = await self._detect_and_enhance_prompt(message, system_prompt_id)
+            # Prepare LLM request data (context, language enhancement, etc.)
+            final_message, final_context_messages, enhanced_prompt_id = await self._prepare_llm_request_data(
+                message, system_prompt_id, session_id
+            )
             
-            # Prepare the message and context for inference-only mode with language override
-            final_message = message
-            final_context_messages = context_messages
-            
-            if language_instruction and self.config.get('general', {}).get('inference_only', False):
-                if self.verbose:
-                    logger.info(f"Original user message: '{message}'")
-                    logger.info(f"Language instruction to append: '{language_instruction[:100]}...'")
-                
-                # In inference-only mode, we need to be strategic about language instruction placement
-                # Strategy 1: Prepend the language instruction to the user message for immediate impact
-                final_message = language_instruction + "\n\n" + message
-                
-                # Strategy 2: If we have conversation context, inject a language override message
-                # This helps override the established language pattern from history
-                if context_messages and len(context_messages) > 0:
-                    # Create a copy of context messages to avoid modifying the original
-                    final_context_messages = context_messages.copy()
-                    
-                    # Add a strategic language override message as the most recent context
-                    # This appears right before the current user message, making it highly prominent
-                    language_override_msg = {
-                        "role": "user",
-                        "content": f"Please note: I am now switching to a different language for my next question. Please respond in the same language I use in my next message, regardless of the language used in our previous conversation."
-                    }
-                    final_context_messages.append(language_override_msg)
-                    
-                    # Add assistant acknowledgment to reinforce the instruction
-                    ack_msg = {
-                        "role": "assistant", 
-                        "content": "Understood. I will respond in whatever language you use in your next message."
-                    }
-                    final_context_messages.append(ack_msg)
-                    
-                    if self.verbose:
-                        logger.info(f"Added language override context messages to conversation history")
-                
-                if self.verbose:
-                    logger.info(f"Final combined message: '{final_message[:200]}...'")
-            else:
-                if self.verbose:
-                    logger.info(f"No language instruction needed - using original message: '{message}'")
-            
-            # Prepare metadata for storage
+            # Prepare metadata for tracking
             metadata = {
+                "client_ip": client_ip,
                 "collection_name": collection_name,
-                "client_ip": client_ip
+                "system_prompt_id": str(system_prompt_id) if system_prompt_id else None,
+                "enhanced_prompt_id": str(enhanced_prompt_id) if enhanced_prompt_id else None,
+                "context_messages_count": len(final_context_messages),
+                "blocked": False
             }
             
-            # Create a unique stream ID for this session
-            stream_id = f"{session_id}_{id(message)}"
+            # Generate unique stream ID for this request
+            stream_id = f"stream_{session_id}_{int(asyncio.get_event_loop().time() * 1000)}"
             
-            # Initialize thread-safe queue and lock for this stream
+            # Initialize thread-safe storage for this stream
             self._stream_queues[stream_id] = Queue()
             self._stream_locks[stream_id] = threading.Lock()
             
-            # Generate and stream response
+            # Buffer to accumulate the complete response for post-stream security check
             accumulated_text = ""
+            sources = []
+            stream_completed_successfully = False
             
             try:
-                # Generate the streaming response
-                if enhanced_prompt_id is None:
-                    # Using override system prompt (full mode with language enhancement) or no system prompt (inference-only)
+                # Start the stream generation
+                if enhanced_prompt_id:
+                    # Using enhanced prompt
                     stream_generator = self.llm_client.generate_response_stream(
                         message=final_message,
                         collection_name=collection_name,
+                        system_prompt_id=enhanced_prompt_id,
                         context_messages=final_context_messages
                     )
                 else:
@@ -787,15 +835,14 @@ class ChatService:
                         system_prompt_id=enhanced_prompt_id,
                         context_messages=final_context_messages
                     )
-                    
+                
+                # TRUST-THEN-VERIFY STREAMING: Stream immediately while buffering
                 async for chunk in stream_generator:
                     try:
                         chunk_data = json.loads(chunk)
                         
-                        # If there's an error in the chunk, yield it and stop
+                        # If there's an error in the chunk, handle it immediately
                         if "error" in chunk_data:
-                            yield f"data: {chunk}\n\n"
-                            
                             # Check if this is LLM-level moderation (different from security blocks)
                             # LLM moderation blocks can be stored, security blocks cannot
                             if session_id and not chunk_data.get("security_block", False):
@@ -807,138 +854,108 @@ class ChatService:
                                     api_key=api_key,
                                     metadata={**metadata, "llm_moderation": True}
                                 )
-                            # CRITICAL: If it's a security block, DO NOT store in chat history
-                            break
-                            
-                        # Track if we've processed a response in this chunk
-                        response_processed = False
                         
-                        # If there's a response, process it
-                        if "response" in chunk_data:
-                            # Clean and format the response
-                            cleaned_chunk = fix_text_formatting(chunk_data["response"])
-                            
-                            # Thread-safe accumulation
-                            with self._stream_locks[stream_id]:
-                                accumulated_text += cleaned_chunk
-                            
-                            # Create a proper chunk response for MCP protocol compatibility
-                            chunk_response = {
-                                "response": cleaned_chunk,
-                                "done": False
-                            }
-                            yield f"data: {json.dumps(chunk_response)}\n\n"
-                            response_processed = True
-                        
-                        # Handle done marker and sources - but avoid duplicating response content
-                        if chunk_data.get("done", False):
-                            if not response_processed:
-                                # Only yield the original chunk if we haven't already processed its response
-                                yield f"data: {chunk}\n\n"
-                            else:
-                                # Send a clean done marker without duplicating the response
-                                done_chunk = {"done": True}
-                                if "sources" in chunk_data:
-                                    done_chunk["sources"] = chunk_data["sources"]
-                                yield f"data: {json.dumps(done_chunk)}\n\n"
-                            
-                            # Log the complete response when done
-                            await self._log_response(accumulated_text, client_ip)
-                            
-                            # Check response security BEFORE storing in chat history
-                            response_security_result = await self._check_message_security(
-                                content=accumulated_text,
-                                content_type="response",
-                                user_id=user_id,
-                                session_id=session_id
-                            )
-                            
-                            # If response is not safe, block it and don't store in history
-                            if not response_security_result.get("is_safe", True):
-                                risk_score = response_security_result.get("risk_score", 0.0)
-                                flagged_scanners = response_security_result.get("flagged_scanners", [])
-                                recommendations = response_security_result.get("recommendations", [])
-                                
-                                # Log detailed security information for administrators
-                                detailed_log_msg = f"Response blocked for session {session_id}: Risk score: {risk_score:.3f}"
-                                if flagged_scanners:
-                                    detailed_log_msg += f", Flagged by: {', '.join(flagged_scanners)}"
-                                if recommendations:
-                                    detailed_log_msg += f", Recommendations: {'; '.join(recommendations)}"
-                                logger.warning(detailed_log_msg)
-                                
-                                # Create user-friendly error message (no sensitive details)
-                                user_error_msg = "Response blocked by security scanner."
-                                if recommendations and len(recommendations) > 0:
-                                    # Use the first recommendation as the reason, but sanitize it
-                                    reason = recommendations[0]
-                                    # Remove technical details and make it user-friendly
-                                    reason = reason.replace("Potential ", "").replace(" detected", "").replace("Review and sanitize user input", "")
-                                    user_error_msg += f" Reason: {reason}"
-                                
-                                # Send error as a streaming response
-                                error_chunk = json.dumps({
-                                    "error": user_error_msg,
-                                    "done": True
-                                })
-                                yield f"data: {error_chunk}\n\n"
-                                
-                                # Log conversation if API key is provided (audit only - no chat history storage)
-                                if api_key:
-                                    await self._log_conversation(message, f"[BLOCKED RESPONSE] {user_error_msg}", client_ip, api_key)
-                                
-                                # CRITICAL: DO NOT STORE BLOCKED RESPONSES IN CHAT HISTORY
-                                # Security-blocked content should never be stored anywhere
-                                
-                                # Break out of the loop as we've blocked the response
-                                break
-                            
-                            # Check for conversation limit warning BEFORE storing conversation
-                            # This ensures we catch the warning before the count changes
-                            warning = await self._check_conversation_limit_warning(session_id)
-                            if warning:
-                                # Send the warning as a separate chunk in the correct format
-                                warning_text = f"\n\n---\n{warning}"
-                                accumulated_text += warning_text
-                                # Use the correct format the client expects
-                                warning_chunk = json.dumps({
-                                    "response": warning_text,
-                                    "done": False
-                                })
-                                yield f"data: {warning_chunk}\n\n"
-                            
-                            # Store conversation turn in history if enabled (only for safe content)
-                            if session_id and accumulated_text:
-                                await self._store_conversation_turn(
-                                    session_id=session_id,
-                                    user_message=message,
-                                    assistant_response=accumulated_text,
-                                    user_id=user_id,
-                                    api_key=api_key,
-                                    metadata=metadata
-                                )
-                            
-                            # Log conversation to Elasticsearch if API key is provided
-                            if api_key:
-                                await self._log_conversation(message, accumulated_text, client_ip, api_key)
-                            
-                            # Clear the override after use if we used in-memory override
-                            if enhanced_prompt_id is None and hasattr(self.llm_client, 'override_system_prompt'):
-                                if hasattr(self.llm_client, 'clear_override_system_prompt'):
-                                    self.llm_client.clear_override_system_prompt()
-                                else:
-                                    self.llm_client.override_system_prompt = None
-                            
-                            # Break out of the loop when done=True
-                            break
-                                    
-                        elif "sources" in chunk_data and not response_processed:
-                            # Only yield sources if we haven't processed a response in this chunk
+                            # Send error as a streaming response and return immediately
                             yield f"data: {chunk}\n\n"
-                                
+                            return
+                        
+                        # 1. STREAM IMMEDIATELY: Yield the chunk to the client for low latency
+                        yield f"data: {chunk}\n\n"
+                        
+                        # 2. CONCURRENTLY BUFFER: Accumulate content for post-stream security check
+                        if "response" in chunk_data:
+                            # Clean and format the response chunk
+                            cleaned_chunk = fix_text_formatting(chunk_data["response"])
+                            accumulated_text += cleaned_chunk
+                        
+                        # Handle sources
+                        if "sources" in chunk_data:
+                            sources = chunk_data["sources"]
+                        
+                        # Handle done marker
+                        if chunk_data.get("done", False):
+                            stream_completed_successfully = True
+                            break
+                            
                     except json.JSONDecodeError:
                         logger.error(f"Error parsing chunk as JSON: {chunk}")
+                        # Still yield the chunk even if we can't parse it
+                        yield f"data: {chunk}\n\n"
                         continue
+                
+                # 3. POST-STREAM SECURITY CHECK: Now that streaming is complete, verify the full response
+                if accumulated_text and stream_completed_successfully:
+                    response_security_result = await self._check_message_security(
+                        content=accumulated_text,
+                        content_type="response",
+                        user_id=user_id,
+                        session_id=session_id
+                    )
+                    
+                    # 4. STORE OR FLAG: Handle the security check result
+                    if response_security_result.get("is_safe", True):
+                        # Response is safe - proceed with normal storage and logging
+                        final_response, warning_added = await self._handle_conversation_storage(
+                            session_id, message, accumulated_text, user_id, api_key, metadata, client_ip
+                        )
+                        
+                        # If a warning was added, send it as an additional chunk to the client
+                        if warning_added:
+                            warning_text = final_response[len(accumulated_text):]  # Extract just the warning part
+                            warning_chunk = json.dumps({
+                                "response": warning_text,
+                                "done": False
+                            })
+                            yield f"data: {warning_chunk}\n\n"
+                            
+                            # Send final done marker
+                            done_chunk = {"done": True}
+                            if sources:
+                                done_chunk["sources"] = sources
+                            yield f"data: {json.dumps(done_chunk)}\n\n"
+                        
+                        if self.verbose:
+                            logger.info(f"✅ Streaming response completed and stored safely for session {session_id}")
+                    
+                    else:
+                        # CRITICAL: Unsafe content was streamed but will NOT be stored
+                        error_response = await self._handle_security_violation(
+                            security_result=response_security_result,
+                            session_id=session_id,
+                            content_type="post-stream response"
+                        )
+                        
+                        # Log critical violation - content was streamed but not stored
+                        logger.critical(
+                            f"🚨 CRITICAL POST-STREAM SECURITY VIOLATION: Unsafe content was streamed to user "
+                            f"for session {session_id} before being caught by security check. "
+                            f"Content was NOT stored in chat history. Consider flagging this user/session."
+                        )
+                        
+                        # Log the violation for audit (but don't store in chat history)
+                        if api_key:
+                            await self._log_conversation(
+                                message, 
+                                f"[POST-STREAM VIOLATION] {error_response['error']}", 
+                                client_ip, 
+                                api_key
+                            )
+                        
+                        # CRITICAL: DO NOT STORE UNSAFE CONTENT IN CHAT HISTORY
+                        # The content was already streamed, but we prevent database pollution
+                        
+                        # Optionally, you could add logic here to:
+                        # - Flag the user account for review
+                        # - Add the session to a watchlist
+                        # - Send notification to administrators
+                        # - Temporarily restrict the user's access
+                
+                # Clear the override after use if we used in-memory override
+                if enhanced_prompt_id is None and hasattr(self.llm_client, 'override_system_prompt'):
+                    if hasattr(self.llm_client, 'clear_override_system_prompt'):
+                        self.llm_client.clear_override_system_prompt()
+                    else:
+                        self.llm_client.override_system_prompt = None
                         
             except Exception as stream_error:
                 logger.error(f"Error in stream generation: {str(stream_error)}")
@@ -960,6 +977,48 @@ class ChatService:
             logger.error(f"Error processing chat stream: {str(e)}")
             error_json = json.dumps({"error": str(e), "done": True})
             yield f"data: {error_json}\n\n"
+
+    async def _handle_security_violation(
+        self,
+        security_result: Dict[str, Any],
+        session_id: Optional[str],
+        content_type: str = "content"
+    ) -> Dict[str, Any]:
+        """
+        Handle security violations by logging details and formatting user-friendly error messages.
+        
+        Args:
+            security_result: Result from security check containing risk score, flagged scanners, etc.
+            session_id: Optional session identifier
+            content_type: Type of content being checked (for logging context)
+            
+        Returns:
+            Dictionary with formatted error message and blocked flag
+        """
+        risk_score = security_result.get("risk_score", 0.0)
+        flagged_scanners = security_result.get("flagged_scanners", [])
+        recommendations = security_result.get("recommendations", [])
+        
+        # Log detailed security information for administrators
+        detailed_log_msg = f"{content_type.capitalize()} blocked for session {session_id}: Risk score: {risk_score:.3f}"
+        if flagged_scanners:
+            detailed_log_msg += f", Flagged by: {', '.join(flagged_scanners)}"
+        if recommendations:
+            detailed_log_msg += f", Recommendations: {'; '.join(recommendations)}"
+        logger.warning(detailed_log_msg)
+        
+        # Create user-friendly error message (no sensitive details)
+        user_error_msg = f"{content_type.capitalize()} blocked by security scanner."
+        if recommendations and len(recommendations) > 0:
+            # Use the first recommendation as the reason, but sanitize it
+            reason = recommendations[0]
+            # Remove technical details and make it user-friendly
+            reason = reason.replace("Potential ", "").replace(" detected", "").replace("Review and sanitize user input", "").strip()
+            if reason:  # Only add reason if there's something left after sanitization
+                user_error_msg += f" Reason: {reason}"
+        
+        # Return error in a consistent format
+        return {"error": user_error_msg, "blocked": True}
 
     async def _check_conversation_limit_warning(self, session_id: Optional[str]) -> Optional[str]:
         """
@@ -1000,6 +1059,58 @@ class ChatService:
         except Exception as e:
             logger.error(f"Error checking conversation limit: {str(e)}")
             return None
+    
+    async def _handle_conversation_storage(self, session_id: Optional[str], message: str, 
+                                          accumulated_text: str, user_id: Optional[str],
+                                          api_key: Optional[str], metadata: Dict[str, Any],
+                                          client_ip: str) -> tuple[str, bool]:
+        """
+        Handle conversation storage with warning check and logging
+        
+        Args:
+            session_id: Session identifier
+            message: Original user message
+            accumulated_text: Assistant response
+            user_id: Optional user identifier
+            api_key: Optional API key
+            metadata: Metadata for storage
+            client_ip: Client IP address
+            
+        Returns:
+            Tuple of (final_response, warning_added)
+        """
+        # Log the complete response
+        await self._log_response(accumulated_text, client_ip)
+        
+        # Check for conversation limit warning BEFORE storing conversation
+        warning = await self._check_conversation_limit_warning(session_id)
+        final_response = accumulated_text
+        warning_added = False
+        
+        if warning:
+            # Add the warning to the response for storage
+            final_response = f"{accumulated_text}\n\n---\n{warning}"
+            warning_added = True
+            
+            if self.verbose:
+                logger.info(f"Added conversation limit warning for session {session_id}")
+        
+        # Store conversation turn in history (safe content only)
+        if session_id:
+            await self._store_conversation_turn(
+                session_id=session_id,
+                user_message=message,
+                assistant_response=final_response,
+                user_id=user_id,
+                api_key=api_key,
+                metadata=metadata
+            )
+        
+        # Log conversation to Elasticsearch if API key is provided
+        if api_key:
+            await self._log_conversation(message, final_response, client_ip, api_key)
+        
+        return final_response, warning_added
 
     async def _check_message_security(
         self,
