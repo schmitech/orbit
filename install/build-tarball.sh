@@ -90,7 +90,7 @@ mkdir -p dist/build/${PACKAGE_NAME}
 
 # Create directory structure
 echo "Creating directory structure..."
-mkdir -p dist/build/${PACKAGE_NAME}/{bin,server,prompts,docs,logs,sample_db}
+mkdir -p dist/build/${PACKAGE_NAME}/{bin,server,prompts,docs,logs,examples}
 
 # Copy core server files
 echo "Copying server files..."
@@ -108,12 +108,12 @@ done
 
 # Copy download_hf_gguf_model.py to bin directory
 echo "Copying download_hf_gguf_model.py to bin directory..."
-cp "utils/scripts/download_hf_gguf_model.py" "dist/build/${PACKAGE_NAME}/bin/"
+cp "utils/download_hf_gguf_model.py" "dist/build/${PACKAGE_NAME}/bin/"
 chmod +x "dist/build/${PACKAGE_NAME}/bin/download_hf_gguf_model.py"
 
 # Sample data and scripts
 echo "Copying sample databases and scripts..."
-find sample_db -type f -not -path "*/\.*" -not -path "*/__pycache__/*" -not -name "*.pyc" -not -name "*.pyo" -not -name "*.pyd" | while read file; do
+find examples -type f -not -path "*/\.*" -not -path "*/__pycache__/*" -not -name "*.pyc" -not -name "*.pyo" -not -name "*.pyd" | while read file; do
     mkdir -p "dist/build/${PACKAGE_NAME}/$(dirname "$file")"
     cp "$file" "dist/build/${PACKAGE_NAME}/$file"
 done
@@ -205,7 +205,7 @@ echo "Making scripts executable..."
 chmod +x dist/build/${PACKAGE_NAME}/bin/orbit.py
 chmod +x dist/build/${PACKAGE_NAME}/bin/orbit.sh
 chmod +x dist/build/${PACKAGE_NAME}/setup.sh
-chmod +x dist/build/${PACKAGE_NAME}/sample_db/sample-db-setup.sh
+chmod +x dist/build/${PACKAGE_NAME}/examples/sample-db-setup.sh
 
 # Create tarball
 echo "Creating distribution tarball..."

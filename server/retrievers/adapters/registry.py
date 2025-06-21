@@ -33,7 +33,7 @@ class AdapterRegistry:
         
         Args:
             adapter_type: Type of adapter (e.g., 'retriever', 'parser')
-            datasource: Datasource name (e.g., 'sqlite', 'chroma')
+            datasource: Datasource name (e.g., 'sqlite', 'chroma', 'qdrant')
             adapter_name: Adapter name (e.g., 'qa', 'generic')
             implementation: Fully qualified implementation path (e.g., 'module.submodule.ClassName')
             factory_func: Optional factory function to create the adapter
@@ -62,7 +62,7 @@ class AdapterRegistry:
         
         Args:
             adapter_type: Type of adapter (e.g., 'retriever', 'parser')
-            datasource: Datasource name (e.g., 'sqlite', 'chroma')
+            datasource: Datasource name (e.g., 'sqlite', 'chroma', 'qdrant')
             adapter_name: Adapter name (e.g., 'qa', 'generic')
             
         Returns:
@@ -84,7 +84,7 @@ class AdapterRegistry:
         
         Args:
             adapter_type: Type of adapter (e.g., 'retriever', 'parser')
-            datasource: Datasource name (e.g., 'sqlite', 'chroma')
+            datasource: Datasource name (e.g., 'sqlite', 'chroma', 'qdrant')
             adapter_name: Adapter name (e.g., 'qa', 'generic')
             override_config: Optional configuration to override registered config
             **kwargs: Additional keyword arguments to pass to the factory
@@ -152,7 +152,7 @@ class AdapterRegistry:
         
         Args:
             adapter_type: Type of adapter (e.g., 'retriever', 'parser')
-            datasource: Datasource name (e.g., 'sqlite', 'chroma')
+            datasource: Datasource name (e.g., 'sqlite', 'chroma', 'qdrant')
             adapter_name: Adapter name (e.g., 'qa', 'generic')
             
         Returns:

@@ -138,7 +138,7 @@ if [ "$DATASOURCE" = "sqlite" ]; then
     fi
 
     # Create new SQLite database with sample data
-    python3 "$PROJECT_ROOT/sample_db/sqlite/rag_cli.py" setup --db-path "$PROJECT_ROOT/sample_db/sqlite/sqlite_db" --data-path "$PROJECT_ROOT/sample_db/city-qa-pairs.json"
+    python3 "$PROJECT_ROOT/examples/sqlite/rag_cli.py" setup --db-path "$PROJECT_ROOT/examples/sqlite/sqlite_db" --data-path "$PROJECT_ROOT/examples/city-qa-pairs.json"
 else
     # Remove existing Chroma database directory if it exists
     if [ "$USE_LOCAL" = "true" ]; then
@@ -152,14 +152,14 @@ else
     echo "Creating Chroma collections..."
     LOCAL_FLAG=""
     if [ "$USE_LOCAL" = "true" ]; then
-        LOCAL_FLAG="--local --db-path $PROJECT_ROOT/sample_db/chroma/chroma_db"
+        LOCAL_FLAG="--local --db-path $PROJECT_ROOT/examples/chroma/chroma_db"
     fi
     
     # Load Q&A pairs
-    python3 "$PROJECT_ROOT/sample_db/chroma/create_qa_pairs_collection.py" city "$PROJECT_ROOT/sample_db/city-qa-pairs.json" $LOCAL_FLAG
+    python3 "$PROJECT_ROOT/examples/chroma/create_qa_pairs_collection.py" city "$PROJECT_ROOT/examples/city-qa-pairs.json" $LOCAL_FLAG
     
     # Uncomment to create sample activity collection (will take lonnger due to volume of data)
-    # python3 "$PROJECT_ROOT/sample_db/chroma/create_qa_pairs_collection.py" activity "$PROJECT_ROOT/sample_db/activity-qa-pairs.json" $LOCAL_FLAG
+    # python3 "$PROJECT_ROOT/examples/chroma/create_qa_pairs_collection.py" activity "$PROJECT_ROOT/examples/activity-qa-pairs.json" $LOCAL_FLAG
 fi
 
 echo "✅ Sample QA collections created."
@@ -169,7 +169,7 @@ if [ "$CREATE_API_KEYS" = true ]; then
     echo "🔑 Creating API keys for collections..."
     echo "  • Connecting to server on port $PORT"
     echo "  • Using collection 'city'"
-    echo "  • Using prompt file '$PROJECT_ROOT/sample_db/prompts/examples/city/city-assistant-normal-prompt.txt'"
+    echo "  • Using prompt file '$PROJECT_ROOT/examples/prompts/examples/city/city-assistant-normal-prompt.txt'"
     echo ""
 
     # Create API key for 'city' collection and capture full output
@@ -191,7 +191,7 @@ if [ "$CREATE_API_KEYS" = true ]; then
     API_KEY_OUTPUT=$(python3 "$PROJECT_ROOT/bin/orbit.py" --server-url "$SERVER_URL" key create \
       --collection city \
       --name "City Assistant" \
-      --prompt-file "$PROJECT_ROOT/sample_db/prompts/examples/city/city-assistant-normal-prompt.txt" \
+      --prompt-file "$PROJECT_ROOT/examples/prompts/examples/city/city-assistant-normal-prompt.txt" \
       --prompt-name "Municipal Assistant Prompt")
 
     # Extract just the API key - properly capture orbit_ format keys
@@ -204,14 +204,14 @@ if [ "$CREATE_API_KEYS" = true ]; then
         echo ""
         echo "🔑 Creating API key for activity collection..."
         echo "  • Using collection 'activity'"
-        echo "  • Using prompt file '$PROJECT_ROOT/sample_db/prompts/examples/activity/activity-assistant-normal-prompt.txt'"
+        echo "  • Using prompt file '$PROJECT_ROOT/examples/prompts/examples/activity/activity-assistant-normal-prompt.txt'"
         echo ""
 
         # Uncomment to generate an API Key for the activity collection
         # ACTIVITY_API_KEY_OUTPUT=$(python3 "$PROJECT_ROOT/bin/orbit.py" --server-url "$SERVER_URL" key create \
         #   --collection activity \
         #   --name "Activity Assistant" \
-        #   --prompt-file "$PROJECT_ROOT/sample_db/prompts/examples/activity/activity-assistant-normal-prompt.txt" \
+        #   --prompt-file "$PROJECT_ROOT/examples/prompts/examples/activity/activity-assistant-normal-prompt.txt" \
         #   --prompt-name "Activity Assistant Prompt")
 
         # ACTIVITY_API_KEY=$(echo "$ACTIVITY_API_KEY_OUTPUT" | grep -o '"api_key": "orbit_[A-Za-z0-9]\+"' | cut -d'"' -f4)

@@ -266,12 +266,12 @@ adapters:
 datasources:
   chroma:
     use_local: true
-    db_path: "sample_db/chroma/chroma_db"
+    db_path: "examples/chroma/chroma_db"
     host: "localhost"
     port: 8000
     embedding_provider: null 
   sqlite:
-    db_path: "sample_db/sqlite/sqlite_db"
+    db_path: "examples/sqlite/sqlite_db"
   postgres:
     host: "localhost"
     port: 5432

@@ -255,7 +255,7 @@ def register_adapters():
     logger.info("Registering built-in domain adapters...")
     
     # Register adapters for all supported datasources
-    for datasource in ['sqlite', 'chroma']:
+    for datasource in ['sqlite', 'chroma', 'qdrant']:
         # Register QA document adapter with default config
         ADAPTER_REGISTRY.register(
             adapter_type="retriever",

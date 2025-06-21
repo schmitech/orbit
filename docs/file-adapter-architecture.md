@@ -241,7 +241,7 @@ config = {
     "datasources": {
         "chroma": {
             "use_local": True,
-            "db_path": "sample_db/chroma/chroma_db"
+            "db_path": "examples/chroma/chroma_db"
         }
     }
 }

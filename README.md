@@ -139,18 +139,18 @@ adapters:
 # Specify DB location location
 datasources:
   sqlite:
-    db_path: "sample_db/sqlite/sqlite_db"      
+    db_path: "examples/sqlite/sqlite_db"      
 ```
 
 Restart the server:
 ```bash
 ./bin/orbit.sh restart --delete-logs
 ```
-Load the sample question/answers sets from `./sample_db/city-qa-pairs.json`. RAG mode requires MongoDB enabled. Use the same settings described in the previous section to set up the MongoDB service.
+Load the sample question/answers sets from `./examples/city-qa-pairs.json`. RAG mode requires MongoDB enabled. Use the same settings described in the previous section to set up the MongoDB service.
 
 ```bash
-# The DB creation scripts are located under /sample_db/sqlite/
-./sample_db/setup-demo-db.sh sqlite
+# The DB creation scripts are located under /examples/sqlite/
+./examples/setup-demo-db.sh sqlite
 
 # Use the key generated from the previous command
 orbit-chat --url http://localhost:3000 --api-key orbit_1234567ABCDE
@@ -211,7 +211,7 @@ adapters:
 datasources:
   chroma:
     use_local: true
-    db_path: "sample_db/chroma/chroma_db"
+    db_path: "examples/chroma/chroma_db"
     host: "localhost"
     port: 8000
     embedding_provider: null # change if you want to override default Ollama embedding
@@ -235,11 +235,11 @@ Restart the server:
 ```bash
 ./bin/orbit.sh restart --delete-logs
 ```
-Load the sample question/answers sets from `./sample_db/city-qa-pairs.json`. RAG mode requires MongoDB enabled. Use the same settings described in the previous section to set up the MongoDB service.
+Load the sample question/answers sets from `./examples/city-qa-pairs.json`. RAG mode requires MongoDB enabled. Use the same settings described in the previous section to set up the MongoDB service.
 
 ```bash
-# The DB creation scripts are located under /sample_db/sqlite/
-./sample_db/setup-demo-db.sh chroma
+# The DB creation scripts are located under /examples/sqlite/
+./examples/setup-demo-db.sh chroma
 ```
 
 ![Creating Chroma Collection](docs/images/chroma-embedding.gif)

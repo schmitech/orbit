@@ -1,6 +1,6 @@
 general:
   port: 3000
-  verbose: true
+  verbose: false
   https:
     enabled: false
     port: 3443
@@ -9,7 +9,7 @@ general:
   session_id:
     header_name: "X-Session-ID"
     required: true
-  inference_provider: "ollama"
+  inference_provider: "llama_cpp"
   language_detection: false
   inference_only: true
   adapter: "qa-sql"
@@ -20,7 +20,7 @@ messages:
 
 embedding:
   provider: "ollama"
-  enabled: false
+  enabled: true
 
 api_keys:
   header_name: "X-API-Key"
@@ -81,7 +81,7 @@ internal_services:
     ttl: 3600  # 1 hour, matching temp_key_expiry
 
 chat_history:
-  enabled: false
+  enabled: true
   collection_name: "chat_history"
   store_metadata: true
   retention_days: 90
@@ -128,8 +128,8 @@ embeddings:
     embed_type: "llama_embedding"
   ollama:
     base_url: "http://localhost:11434"
-    model: "nomic-embed-text"
-    dimensions: 768
+    model: "bge-m3"
+    dimensions: 1024
   jina:
     api_key: ${JINA_API_KEY}
     base_url: "https://api.jina.ai/v1"
@@ -140,7 +140,7 @@ embeddings:
   openai:
     api_key: ${OPENAI_API_KEY}
     model: "text-embedding-3-large"
-    dimensions: 1024
+    dimensions: 3072
     batch_size: 10
   cohere:
     api_key: ${COHERE_API_KEY}
@@ -292,7 +292,7 @@ inference:
     num_predict: 1024
     num_ctx: 8192
     num_threads: 8
-    model: "gemma3:1b"
+    model: "gemma3:12b"
     stream: true
   vllm:
     host: "localhost"
@@ -441,7 +441,7 @@ inference:
 safety:
   enabled: false
   mode: "fuzzy"
-  moderator: "ollama"
+  moderator: "openai"
   max_retries: 3
   retry_delay: 1.0
   request_timeout: 10
@@ -465,12 +465,11 @@ moderators:
     max_tokens: 50
     batch_size: 1
 
-# Instructions: https://github.com/schmitech/llm-guard-service
 llm_guard:
   enabled: true
   service:
     base_url: "http://localhost:8000"
-  timeout: 30
+    timeout: 30
   security:
     risk_threshold: 0.6
     # Scanner configurations for different content types
@@ -478,7 +477,7 @@ llm_guard:
       prompt:  # Scanners for user input (prompts)
         - "ban_substrings"
         - "ban_topics" 
-        - "prompt_injection"
+        # - "prompt_injection"
         - "toxicity"
         - "secrets"
       response:  # Scanners for AI output (responses)
@@ -498,4 +497,4 @@ rerankers:
     base_url: "http://localhost:11434"
     model: "xitao/bge-reranker-v2-m3:latest"
     temperature: 0.0
-    batch_size: 5
+    batch_size: 5 

@@ -64,6 +64,14 @@ def resolve_env_placeholder(value):
 
 def get_qdrant_config():
     """Get Qdrant configuration with proper fallbacks"""
+    # Load environment variables from main project directory
+    project_env_path = Path(__file__).resolve().parents[2] / ".env"
+    if project_env_path.exists():
+        load_dotenv(project_env_path, override=True)
+        print(f"Loading environment variables from: {project_env_path}")
+    else:
+        print(f"Warning: .env file not found at {project_env_path}")
+    
     # Load configuration
     config = load_config()
     
@@ -73,6 +81,10 @@ def get_qdrant_config():
     # Resolve environment variable placeholders
     host = resolve_env_placeholder(qdrant_config.get('host', 'localhost'))
     port = resolve_env_placeholder(qdrant_config.get('port', 6333))
+    
+    # Debug output to show what values are being used
+    print(f"Qdrant config from config.yaml: host={qdrant_config.get('host')}, port={qdrant_config.get('port')}")
+    print(f"Resolved values: host={host}, port={port}")
     
     # Convert port to int if it's a string
     if isinstance(port, str):
