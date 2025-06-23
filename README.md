@@ -62,6 +62,8 @@ ORBIT integrates with two types of guardrail services to prevent harmful content
 - Redis (optional for caching)
 - Elasticsearch (optional for logging)
 
+![ORBIT Chat GUI Example](docs/images/orbit-chat-gui.gif)
+
 ## Quick Start
 
 ```bash
