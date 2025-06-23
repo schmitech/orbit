@@ -25,36 +25,36 @@ ORBIT is a modular, self-hosted toolkit that provides a unified API for open-sou
 *Want to see what's coming next? Check out our [Development Roadmap](docs/roadmap/README.md)*
 
 
-## 🚀 Key Features
+## High-Level Architecture
 
 <div align="center">
-  <img src="docs/images/orbit-diagram.png" width="1000" alt="ORBIT Architecture" />
+  <img src="docs/images/orbit-architecture.png" width="1000" alt="ORBIT Architecture" />
 </div>
 
 > **Note**: Currently, ORBIT supports SQL, Vector, and File-based retrieval systems. Support for additional data sources is planned for future releases. See [roadmap](https://github.com/schmitech/orbit/tree/main/docs/roadmap) for further details. ORBIT is fast evolving, so if you have a specific requirement that's not currently supported, please let us know so we can add it to our development roadmap.
 
-### 🧠 **Retrieval-Augmented Generation (RAG)**
-- **📚 Knowledge Integration**: Connect your data sources to enhance AI responses
-- **🔗 Multi-Adapter Support**: SQL, Vector, and File-based retrieval systems
-- **🎯 Context-Aware Responses**: Intelligent query processing with confidence scoring
+### **Retrieval-Augmented Generation (RAG)**
+- **Knowledge Integration**: Connect your data sources to enhance AI responses
+- **Multi-Adapter Support**: SQL, Vector, and File-based retrieval systems
+- **Context-Aware Responses**: Intelligent query processing with confidence scoring
 
-### 💬 **Conversation History**
-- **📝 Chat History**: Persistent conversation tracking with MongoDB
-- **🔄 Session Management**: Multi-user session handling and archiving
-- **🌐 Multi-Language Support**: Automatic language detection and processing
+### **Conversation History**
+- **Chat History**: Persistent conversation tracking with MongoDB
+- **Session Management**: Multi-user session handling and archiving
+- **Multi-Language Support**: Automatic language detection and processing
 
-### 🔒 **Security & Moderation**
+### **Security & Moderation**
 ORBIT integrates with two types of guardrail services to prevent harmful content and ensure safe AI interactions:
 
-- **🔍 LLM Guard Service**: Advanced content scanning with real-time threat detection
-- **🛡️ Moderator Service**: Multi-provider content moderation
+- **LLM Guard Service**: Advanced content scanning with real-time threat detection
+- **Moderator Service**: Multi-provider content moderation
 
-### 🎨 **Web Integration**
-- **📦 Chatbot Widget**: Ready-to-deploy web widget with theming options
-- **🎯 Customizable UI**: Responsive design with configurable appearance
-- **🔌 Easy Integration**: Simple npm package for website embedding
+### **Web Integration**
+- **Chatbot Widget**: Ready-to-deploy web widget with theming options
+- **Customizable UI**: Responsive design with configurable appearance
+- **Easy Integration**: Simple npm package for website embedding
 
-## 📋 Minimum Requirements
+## Minimum Requirements
 
 - A device (Windows/Linux or Mac) with 16GB memory, GPU preferred
 - Python 3.12+
@@ -62,7 +62,7 @@ ORBIT integrates with two types of guardrail services to prevent harmful content
 - Redis (optional for caching)
 - Elasticsearch (optional for logging)
 
-## ⚡ Quick Start
+## Quick Start
 
 ```bash
 # Download and extract the latest release
@@ -79,6 +79,14 @@ source venv/bin/activate
 # Get a GGUF model
 python ./bin/download_hf_gguf_model.py --repo-id "TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF" --filename "*q4_0.gguf" --output-dir "./gguf"
 ```
+
+ORBIT uses YAML configuration files to control its behavior. The main sections are:
+
+- **general**: Server settings, ports, providers
+- **inference**: LLM provider configurations
+- **datasources**: Vector database settings
+- **embeddings**: Embedding model configurations
+- **adapters**: Query processing pipelines
 
 Edit config.yaml specify `llama_cpp` as inference provider and your GGUF model.
 ```yaml
@@ -110,7 +118,7 @@ chat_history:
 
 For more details about conversation history configuration and usage, see [Conversation History Documentation](docs/conversation_history.md)
 
-### 🚀 Starting the Inference server:
+### Starting the Inference server:
 ```bash
 # Logs under ./logs/orbit.log, use --help for options.
 ./bin/orbit.sh start
@@ -121,7 +129,7 @@ orbit-chat
 
 ![ORBIT Chat Demo](docs/images/orbit-chat.gif)
 
-### 🗄️ Running ORBIT in RAG Mode with Sample SQLite Adapter
+### Running ORBIT in RAG Mode with Sample SQLite Adapter
 
 RAG (Retrieval-Augmented Generation) mode enhances the model's responses by integrating your knowledge base into the context. This enriches the pre-trained foundation model with your specific data. 
 
@@ -172,7 +180,7 @@ Load the sample question/answers sets from `./examples/city-qa-pairs.json`. RAG 
 orbit-chat --url http://localhost:3000 --api-key orbit_1234567ABCDE
 ```
 
-### 🗂️ Running ORBIT in RAG Mode with Sample Chroma Vector DB Adapter
+### Running ORBIT in RAG Mode with Sample Chroma Vector DB Adapter
 As the previous example, you need an instance of MongoDB. For this example, we'll use Ollama for both inference and embedding service.
 
 **Prerequisites:** Make sure Ollama is installed. For installation instructions, visit [https://ollama.com/download](https://ollama.com/download).
@@ -267,7 +275,7 @@ orbit-chat --url http://localhost:3000 --api-key orbit_1234567ABCDE
 
 ![ORBIT Chat Chroma Test](docs/images/chroma-test.gif)
 
-### 🛡️ **Content Moderation**
+### **Content Moderation**
 
 ORBIT's multi-layered safety system actively prevents abusive behavior and harmful content. The system combines **LLM Guard Service** for advanced threat detection and **Moderator Service** for content filtering, working together to ensure safe interactions.
 
@@ -277,10 +285,10 @@ ORBIT's multi-layered safety system actively prevents abusive behavior and harmf
 - **Automatic Blocking**: Harmful content is intercepted and blocked with clear feedback
 
 **Safety Features:**
-- 🚫 **Abuse Prevention**: Blocks harassment, hate speech, and harmful content
-- 🔒 **Prompt Injection Protection**: Prevents malicious prompt manipulation
-- ⚠️ **Content Filtering**: Filters inappropriate or unsafe material
-- 📊 **Risk Scoring**: Provides detailed risk assessment for each interaction
+- **Abuse Prevention**: Blocks harassment, hate speech, and harmful content
+- **Prompt Injection Protection**: Prevents malicious prompt manipulation
+- **Content Filtering**: Filters inappropriate or unsafe material
+- **Risk Scoring**: Provides detailed risk assessment for each interaction
 
 Follow this instructions to run this client:
 ```bash
@@ -293,51 +301,51 @@ npm run dev
 
 **Example Security Log Output:**
 ```
-🔍 Performing LLM Guard security check for prompt: 'Hello....'
-📊 Risk threshold: 0.5
-⏱️ LLM Guard security check completed in 123.45ms
-✅ LLM GUARD PASSED: Content was deemed SAFE
-🔍 Performing moderator safety check for query: 'Hello....' (attempt 1/3)
-✅ MODERATION PASSED: Query was deemed SAFE by openai moderator
+Performing LLM Guard security check for prompt: 'Hello....'
+Risk threshold: 0.5
+LLM Guard security check completed in 123.45ms
+LLM GUARD PASSED: Content was deemed SAFE
+Performing moderator safety check for query: 'Hello....' (attempt 1/3)
+MODERATION PASSED: Query was deemed SAFE by openai moderator
 ```
 
-## 🌐 Web Chatbot Widget
+## Web Chatbot Widget
 
 ORBIT provides a customizable chatbot widget that can be easily integrated into any website. The widget offers a responsive interface with theming options and features. The widget is available as an npm package at [@schmitech/chatbot-widget](https://www.npmjs.com/package/@schmitech/chatbot-widget). Project details and build instructions can be found at [ORBIT Chat Widget](https://github.com/schmitech/orbit/tree/main/clients/chat-widget).
 
-## 📚 Documentation
+## Documentation
 
 For more detailed information, please refer to the following documentation in the [Docs](docs/) folder.
 
-### 🚀 Getting Started & Configuration
+### Getting Started & Configuration
 - [Server Configuration](docs/server.md) - Server setup and configuration guide
 - [Configuration Reference](docs/configuration.md) - Complete configuration options and settings
 - [API Keys Management](docs/api-keys.md) - Authentication and API key setup
 - [Docker Deployment](docs/docker-deployment.md) - Containerized deployment guide
 - [Chroma Setup](docs/chroma-setup.md) - Vector database configuration
 
-### 🔗 Retrieval & Adapters  
+### Retrieval & Adapters  
 - [Adapters Overview](docs/adapters.md) - Understanding ORBIT's adapter system
 - [SQL Retriever Architecture](docs/sql-retriever-architecture.md) - Database-agnostic SQL retrieval system
 - [Vector Retriever Architecture](docs/vector-retriever-architecture.md) - Vector-based semantic search
 - [File Adapter Architecture](docs/file-adapter-architecture.md) - File-based knowledge integration
 
-### ⚡ Features & Capabilities
+### Features & Capabilities
 - [Conversation History](docs/conversation_history.md) - Chat history and session management
 - [Language Detection](docs/language_detection.md) - Multi-language support and detection
 - [LLM Guard Service](docs/llm-guard-service.md) - Advanced security scanning and content sanitization
 - [MCP Protocol](docs/mcp_protocol.md) - Model Context Protocol implementation
 
-### 🗺️ Roadmap & Future Development
+### Roadmap & Future Development
 - [Development Roadmap](docs/roadmap/README.md) - Strategic direction and planned enhancements
 - [Concurrency & Performance](docs/roadmap/concurrency-performance.md) - Scaling to handle thousands of concurrent requests
 - [Async Messaging & Multi-Modal](docs/roadmap/async-messaging-integration.md) - Message queues and multi-modal processing
 - [Notification Service](docs/roadmap/notification-service-integration.md) - Multi-channel communication system
 
-## 🤝 Contributing
+## Contributing
 
 see the [CONTRIBUTING](CONTRIBUTING) file for details.
 
-## 📄 License
+## License
 
 This project is licensed under the Apache 2.0 License - see the [LICENSE](LICENSE) file for details.

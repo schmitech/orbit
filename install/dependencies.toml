@@ -69,7 +69,8 @@ dependencies = [
     "together==1.5.7",
     "boto3==1.38.13",
     "azure-ai-inference==1.0.0b9",
-    "google-cloud-aiplatform==1.98.0"
+    "google-cloud-aiplatform==1.98.0",
+    "ibm-watsonx-ai==1.3.26"
 ]
 
 [profiles.all]

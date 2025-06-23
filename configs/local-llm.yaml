@@ -1,0 +1,156 @@
+# Config for local LLM with llama.cpp 
+general:
+  port: 3000
+  verbose: false
+  https:
+    enabled: false
+  session_id:
+    header_name: "X-Session-ID"
+    required: false
+  inference_provider: "llama_cpp"
+  language_detection: true
+  inference_only: false
+  adapter: "qa-vector-chroma"
+
+messages:
+  no_results_response: "I'm sorry, but I don't have any specific information about that topic in my knowledge base."
+  collection_not_found: "I couldn't find the requested collection. Please make sure the collection exists before querying it."
+
+embedding:
+  provider: "llama_cpp"
+  enabled: true
+
+api_keys:
+  header_name: "X-API-Key"
+  prefix: "orbit_"
+
+logging:
+  level: "INFO"
+  handlers:
+    file:
+      enabled: true
+      directory: "logs"
+      filename: "orbit-local-llm.log"
+      max_size_mb: 20
+      backup_count: 10
+      rotation: "midnight"
+      format: "text"
+    console:
+      enabled: true
+      format: "text"
+  capture_warnings: true
+  propagate: false
+  loggers:
+    inference.clients.llama_cpp:
+      level: "ERROR"
+    llama_cpp:
+      level: "ERROR"
+
+internal_services:
+  mongodb:
+    host: "localhost"
+    port: 27017
+    database: "orbit"
+    apikey_collection: "api_keys"
+
+  redis:
+    enabled: false
+
+chat_history:
+  enabled: false
+
+file_upload:
+  enabled: true
+  max_size_mb: 10
+  max_files_per_batch: 10
+  allowed_extensions:
+    - ".txt"
+    - ".pdf"
+    - ".docx"
+    - ".doc"
+    - ".xlsx"
+    - ".xls"
+    - ".csv"
+    - ".md"
+    - ".json"
+  upload_directory: "uploads"
+  save_to_disk: true
+  auto_store_in_vector_db: true
+  chunk_size: 1000
+  chunk_overlap: 200
+
+embeddings:
+  llama_cpp:
+    model_path: "gguf/nomic-embed-text-v1.5-Q4_0.gguf"
+    model: "nomic-embed-text-v1.5-Q4_0"
+    n_ctx: 1024 
+    n_threads: 4
+    n_gpu_layers: 0
+    main_gpu: 0 
+    tensor_split: null
+    batch_size: 8
+    dimensions: 768
+    embed_type: "llama_embedding"
+
+adapters:
+  - name: "qa-vector-chroma"
+    type: "retriever"
+    datasource: "chroma"
+    adapter: "qa"
+    implementation: "retrievers.implementations.qa.QAChromaRetriever"
+    config:
+      confidence_threshold: 0.3
+      distance_scaling_factor: 200.0
+      max_results: 5
+      return_results: 3
+
+  - name: "file-vector"
+    type: "retriever"
+    datasource: "chroma"
+    adapter: "file"
+    implementation: "retrievers.implementations.file.FileChromaRetriever"
+    config:
+      confidence_threshold: 0.1
+      distance_scaling_factor: 150.0
+      max_results: 10
+      return_results: 5
+      include_file_metadata: true
+      boost_file_uploads: true
+      file_content_weight: 1.5
+      metadata_weight: 0.8
+
+datasources:
+  chroma:
+    use_local: true
+    db_path: "examples/chroma/chroma_db"
+
+inference:
+  llama_cpp:
+    model_path: "gguf/tinyllama-1.1b-chat-v1.0.Q4_0.gguf"
+    chat_format: "chatml"
+    verbose: false
+    temperature: 0.1
+    top_p: 0.8
+    top_k: 20
+    max_tokens: 1024
+    repeat_penalty: 1.1
+    n_ctx: 4096
+    n_threads: 8
+    stream: true
+    n_gpu_layers: 0
+    main_gpu: 0
+    tensor_split: null
+    stop_tokens: [
+      "<|im_start|>", 
+      "<|im_end|>",
+      "<|endoftext|>"
+    ]
+
+safety:
+  enabled: false
+
+llm_guard:
+  enabled: false
+
+reranker:
+  enabled: false 

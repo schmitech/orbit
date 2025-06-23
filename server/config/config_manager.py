@@ -106,6 +106,10 @@ def _log_config_summary(config: Dict[str, Any], source_path: str):
     elif inference_provider == 'xai':
         xai_config = config.get('inference', {}).get('xai', {})
         logger.info(f"  XAI: model={xai_config.get('model')}, show_thinking={_is_true_value(xai_config.get('show_thinking', False))}")
+    elif inference_provider == 'watson':
+        watson_config = config.get('inference', {}).get('watson', {})
+        logger.info(f"  Watson AI: model={watson_config.get('model')}, api_base={_mask_url(watson_config.get('api_base'))}")
+        logger.info(f"  Stream: {_is_true_value(watson_config.get('stream', True))}")
     
     # Only log MongoDB settings if chat history is enabled
     if _is_true_value(config.get('chat_history', {}).get('enabled', True)):
@@ -464,6 +468,23 @@ def get_default_config() -> Dict[str, Any]:
                 "max_tokens": 1024,
                 "stream": True,
                 "show_thinking": False
+            },
+            "watson": {
+                "api_key": "${WATSON_API_KEY}",
+                "api_base": "${WATSON_API_BASE}",
+                "project_id": "${WATSON_PROJECT_ID}",
+                "space_id": None,
+                "instance_id": None,
+                "region": None,
+                "auth_type": "iam",
+                "model": "meta-llama/llama-3-8b-instruct",
+                "temperature": 0.1,
+                "top_p": 0.8,
+                "top_k": 20,
+                "max_tokens": 1024,
+                "time_limit": 10000,
+                "stream": True,
+                "verify": False
             }
         },
         "internal_services": {

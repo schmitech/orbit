@@ -1,0 +1,143 @@
+# Config for Ollama-only inference
+general:
+  port: 3000
+  verbose: false
+  https:
+    enabled: false
+  session_id:
+    header_name: "X-Session-ID"
+    required: false
+  inference_provider: "ollama"
+  language_detection: true
+  inference_only: false
+  adapter: "qa-vector-chroma"
+
+messages:
+  no_results_response: "I'm sorry, but I don't have any specific information about that topic in my knowledge base."
+  collection_not_found: "I couldn't find the requested collection. Please make sure the collection exists before querying it."
+
+embedding:
+  provider: "ollama"
+  enabled: true
+
+api_keys:
+  header_name: "X-API-Key"
+  prefix: "orbit_"
+
+logging:
+  level: "INFO"
+  handlers:
+    file:
+      enabled: true
+      directory: "logs"
+      filename: "orbit-ollama.log"
+      max_size_mb: 20
+      backup_count: 10
+      rotation: "midnight"
+      format: "text"
+    console:
+      enabled: true
+      format: "text"
+  capture_warnings: true
+  propagate: false
+
+internal_services:
+  mongodb:
+    host: "localhost"
+    port: 27017
+    database: "orbit"
+    apikey_collection: "api_keys"
+
+  redis:
+    enabled: false
+
+chat_history:
+  enabled: false
+
+file_upload:
+  enabled: true
+  max_size_mb: 10
+  max_files_per_batch: 10
+  allowed_extensions:
+    - ".txt"
+    - ".pdf"
+    - ".docx"
+    - ".doc"
+    - ".xlsx"
+    - ".xls"
+    - ".csv"
+    - ".md"
+    - ".json"
+  upload_directory: "uploads"
+  save_to_disk: true
+  auto_store_in_vector_db: true
+  chunk_size: 1000
+  chunk_overlap: 200
+
+embeddings:
+  ollama:
+    base_url: "http://localhost:11434"
+    model: "nomic-embed-text"
+    dimensions: 768
+
+adapters:
+  - name: "qa-vector-chroma"
+    type: "retriever"
+    datasource: "chroma"
+    adapter: "qa"
+    implementation: "retrievers.implementations.qa.QAChromaRetriever"
+    config:
+      confidence_threshold: 0.3
+      distance_scaling_factor: 200.0
+      max_results: 5
+      return_results: 3
+
+  - name: "file-vector"
+    type: "retriever"
+    datasource: "chroma"
+    adapter: "file"
+    implementation: "retrievers.implementations.file.FileChromaRetriever"
+    config:
+      confidence_threshold: 0.1
+      distance_scaling_factor: 150.0
+      max_results: 10
+      return_results: 5
+      include_file_metadata: true
+      boost_file_uploads: true
+      file_content_weight: 1.5
+      metadata_weight: 0.8
+
+datasources:
+  chroma:
+    use_local: true
+    db_path: "examples/chroma/chroma_db"
+
+inference:
+  ollama:
+    base_url: "http://localhost:11434"
+    temperature: 0.1
+    top_p: 0.8
+    top_k: 20
+    repeat_penalty: 1.1
+    num_predict: 1024
+    num_ctx: 8192
+    num_threads: 8
+    model: "llama3.2:3b"
+    stream: true
+
+safety:
+  enabled: false
+
+llm_guard:
+  enabled: false
+
+reranker:
+  provider: "ollama"
+  enabled: true
+
+rerankers:
+  ollama:
+    base_url: "http://localhost:11434"
+    model: "xitao/bge-reranker-v2-m3:latest"
+    temperature: 0.0
+    batch_size: 5 

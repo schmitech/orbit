@@ -1,0 +1,96 @@
+# Minimal config for basic operation
+general:
+  port: 3000
+  verbose: false
+  https:
+    enabled: false
+  session_id:
+    header_name: "X-Session-ID"
+    required: false
+  inference_provider: "ollama"
+  language_detection: false
+  inference_only: true
+  adapter: "qa-vector-chroma"
+
+messages:
+  no_results_response: "I don't have information about that topic."
+  collection_not_found: "Collection not found."
+
+embedding:
+  provider: "ollama"
+  enabled: true
+
+api_keys:
+  header_name: "X-API-Key"
+  prefix: "orbit_"
+
+logging:
+  level: "WARNING"
+  handlers:
+    file:
+      enabled: false
+    console:
+      enabled: true
+      format: "text"
+  capture_warnings: false
+
+internal_services:
+  mongodb:
+    host: "localhost"
+    port: 27017
+    database: "orbit"
+    apikey_collection: "api_keys"
+
+  redis:
+    enabled: false
+
+chat_history:
+  enabled: false
+
+file_upload:
+  enabled: false
+
+embeddings:
+  ollama:
+    base_url: "http://localhost:11434"
+    model: "nomic-embed-text"
+    dimensions: 768
+
+adapters:
+  - name: "qa-vector-chroma"
+    type: "retriever"
+    datasource: "chroma"
+    adapter: "qa"
+    implementation: "retrievers.implementations.qa.QAChromaRetriever"
+    config:
+      confidence_threshold: 0.3
+      distance_scaling_factor: 200.0
+      max_results: 5
+      return_results: 3
+
+datasources:
+  chroma:
+    use_local: true
+    db_path: "examples/chroma/chroma_db"
+
+inference:
+  ollama:
+    base_url: "http://localhost:11434"
+    temperature: 0.1
+    top_p: 0.8
+    top_k: 20
+    repeat_penalty: 1.1
+    num_predict: 1024
+    num_ctx: 8192
+    num_threads: 4
+    model: "gemma3:1b"
+    stream: true
+
+safety:
+  enabled: false
+
+llm_guard:
+  enabled: false
+
+reranker:
+  enabled: false 

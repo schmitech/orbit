@@ -1,258 +1,458 @@
-# ORBIT - Docker Deployment
+# ORBIT Docker Setup Guide
 
-This repository contains Docker configuration files for running the ORBIT RAG (Retrieval-Augmented Generation) system with Ollama and MongoDB.
+This guide will help you get ORBIT up and running with Docker in minutes. ORBIT is a flexible AI server that supports multiple inference providers, vector databases, and embedding models.
 
-## System Components
-
-- **ORBIT Server**: FastAPI application that handles retrieval and generation
-- **Ollama**: Local inference server for running LLMs (must be running externally)
-- **MongoDB**: Database for storing API keys and other metadata (must be running externally)
+## Table of Contents
+- [Quick Start](#quick-start)
+- [Prerequisites](#prerequisites)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Running ORBIT](#running-orbit)
+- [Managing ORBIT](#managing-orbit)
+- [Advanced Usage](#advanced-usage)
+- [Troubleshooting](#troubleshooting)
 
 ## Prerequisites
 
-- Docker
-- Docker Compose
-- 8GB+ RAM
-- GPU (optional but recommended for better performance)
-- Ollama running externally
-- MongoDB running externally
+Before you begin, ensure you have:
 
-## Quick Start
+- **Docker** (version 20.10 or higher)
+- **Docker Compose** (version 2.0 or higher)
+- **Git** (to clone the repository)
+- **4GB+ RAM** available for Docker
+- **10GB+ disk space** for models and data
 
-### First-time Setup
-
-1. Clone this repository
-2. Make the initialization and setup scripts executable:
-   ```bash
-   chmod +x docker-init.sh docker-setup-db.sh
-   ```
-3. Create and configure your environment files:
-   ```bash
-   # Copy the example config and env files
-   cp config.yaml.example config.yaml
-   cp .env.example .env
-   
-   # Edit the files with your settings
-   # config.yaml - Configure your server settings
-   # .env - Add your API keys and credentials
-   ```
-4. Initialize the environment and build the image:
-   ```bash
-   ./docker-init.sh --build
-   ```
-5. Set up a sample database (choose either chroma or sqlite):
-   ```bash
-   ./docker-setup-db.sh chroma
-   ```
-
-### Regular Usage
-
-- Start the containers (after stopping):
-  ```bash
-  ./docker-init.sh
-  ```
-
-- Stop the environment:
-  ```bash
-  docker compose down
-  ```
-
-### Making Changes
-
-- After changing `config.yaml`:
-  ```bash
-  docker compose restart orbit-server
-  ```
-
-- After changing code or `requirements.txt`:
-  ```bash
-  ./docker-init.sh --build
-  ```
-
-- View logs:
-  ```bash
-  docker compose logs -f orbit-server
-  ```
-
-## Configuration Management
-
-### Updating Configuration
-
-There are several ways to update the configuration after deployment:
-
-1. **Direct File Edit** (Recommended for most changes):
-   - Edit `config.yaml` on your host machine
-   - Restart the container:
-     ```bash
-     docker compose restart orbit-server
-     ```
-
-2. **Environment Variables**:
-   - Create a `.env` file or set environment variables:
-     ```bash
-     ORBIT_CONFIG_GENERAL_PORT=3000
-     ORBIT_CONFIG_LOGGING_LEVEL=DEBUG
-     ```
-   - Restart the container:
-     ```bash
-     docker compose restart orbit-server
-     ```
-
-3. **Docker Compose Override**:
-   - Create `docker-compose.override.yml`:
-     ```yaml
-     services:
-       orbit-server:
-         environment:
-           - ORBIT_CONFIG_GENERAL_PORT=4000
-     ```
-   - Restart the container:
-     ```bash
-     docker compose restart orbit-server
-     ```
-
-### When to Rebuild the Image
-
-You need to rebuild the image (`docker compose up --build`) when:
-- Making changes to the application code
-- Updating `requirements.txt`
-- Modifying the `Dockerfile`
-
-You do NOT need to rebuild when:
-- Updating `config.yaml` (mounted volume)
-- Changing environment variables
-- Modifying mounted volumes (chroma_db, sqlite_db, logs)
-
-### Environment Variable Naming
-
-Configuration overrides use this pattern:
-- `ORBIT_CONFIG_` prefix
-- Section name in uppercase
-- Subsection name in uppercase
-- All joined with underscores
-
-Examples:
-- `general.port` → `ORBIT_CONFIG_GENERAL_PORT`
-- `logging.level` → `ORBIT_CONFIG_LOGGING_LEVEL`
-- `embedding.provider` → `ORBIT_CONFIG_EMBEDDING_PROVIDER`
-
-## Common Issues and Solutions
-
-### Permission Issues
-
-If you encounter permission errors like:
-```
-open /Users/username/.docker/buildx/current: permission denied
-```
-
-Fix it by running:
+Verify your installation:
 ```bash
-sudo chown -R $USER ~/.docker
+docker --version
+docker compose version  # or docker-compose --version
 ```
 
-### Container Build Process
+## Installation
 
-The system requires the orbit-server container to be built. If you only see the image but no running container, run:
+### 1. Clone the Repository
+
 ```bash
-docker compose up --build
+git clone <your-repo-url>
+cd orbit
 ```
 
-### Verifying Installation
+### 2. Make Scripts Executable
 
-Check if containers are running:
 ```bash
-docker compose ps
+chmod +x docker-init.sh orbit-docker.sh
 ```
 
-You should see the orbit-server container in the running state.
+### 3. Create Environment File
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` to add your API keys (only if using commercial providers):
+```bash
+# Edit with your preferred editor
+nano .env
+# or
+vim .env
+```
+
+### 4. Choose Your Setup Profile
+
+ORBIT supports different dependency profiles:
+
+| Profile | Description | Use Case |
+|---------|-------------|----------|
+| `minimal` | Core dependencies only | Local Ollama inference |
+| `torch` | Includes PyTorch dependencies | GPU-accelerated inference |
+| `commercial` | Commercial provider SDKs | OpenAI, Anthropic, etc. |
+| `all` | Everything included | Maximum flexibility |
+
+### 5. Initialize ORBIT
+
+Basic setup with minimal profile:
+```bash
+./docker-init.sh --build --profile minimal
+```
+
+Setup with all features:
+```bash
+./docker-init.sh --build --profile all
+```
+
+Setup with GGUF model download:
+```bash
+./docker-init.sh --build --profile minimal --download-gguf
+```
 
 ## Configuration
 
-The system is configured using the `config.yaml` file. The Docker setup provides a pre-configured `docker-config.yaml` that is copied to `config.yaml` during initialization if the file doesn't exist.
+### Understanding Config Files
 
-Environment variables can be set in the `.env` file:
+ORBIT uses YAML configuration files to control its behavior. The main sections are:
+
+- **general**: Server settings, ports, providers
+- **inference**: LLM provider configurations
+- **datasources**: Vector database settings
+- **embeddings**: Embedding model configurations
+- **adapters**: Query processing pipelines
+
+### Config File Locations
 
 ```
-MONGODB_USERNAME=admin
-MONGODB_PASSWORD=password
-OPENAI_API_KEY=your_key_here
-...
+orbit/
+├── config.yaml           # Default config file
+├── configs/              # Directory for multiple configs
+│   ├── minimal.yaml      # Minimal setup
+│   ├── development.yaml  # Development with verbose logging
+│   ├── production.yaml   # Production-ready config
+│   └── commercial.yaml   # Commercial providers config
 ```
 
-## Components
+### Using Custom Configs
 
-### ORBIT Server
-
-The ORBIT server is a FastAPI application that provides an API for:
-- Querying the RAG system
-- Managing API keys
-- Managing collections
-
-### External Services
-
-The system expects the following services to be running externally:
-
-#### Ollama
-- Must be accessible at the host specified by `OLLAMA_HOST` (defaults to localhost)
-- Required models:
-  - gemma3:1b - Used for inference
-  - nomic-embed-text - Used for embeddings
-
-#### MongoDB
-- Must be accessible at the host specified by `MONGODB_HOST` (defaults to localhost)
-- Default credentials:
-  - Username: admin
-  - Password: password
-- These can be changed in the `.env` file
-
-## Usage
-
-After setting up the sample database, you'll get API keys for accessing different collections. You can use these keys with the Python client as shown in the output of the setup script.
-
-## Directory Structure
-
-- `chroma_db`: Persistent storage for Chroma vector database
-- `sqlite_db`: Persistent storage for SQLite database
-- `logs`: Server log files
-
-## Common Commands
-
-- Start the system: `docker compose up -d`
-- Stop the system: `docker compose down`
-- View logs: `docker compose logs -f orbit-server`
-- Restart server: `docker compose restart orbit-server`
-- Shell into server: `docker exec -it orbit-server bash`
-
-### Removing Images and Containers
-
-To completely remove the system and start fresh:
+Start ORBIT with a specific config:
 ```bash
-# Stop and remove containers
+# During initialization
+./docker-init.sh --build --config configs/production.yaml
+
+# Or when running
+./orbit-docker.sh start --config configs/production.yaml
+```
+
+### Important Docker Config Settings
+
+When using Docker, ensure your config uses Docker service names instead of `localhost`:
+
+```yaml
+# Correct for Docker
+inference:
+  ollama:
+    base_url: "http://ollama:11434"  # NOT http://localhost:11434
+
+datasources:
+  chroma:
+    host: "chroma"  # NOT localhost
+    port: 8000
+
+internal_services:
+  mongodb:
+    host: "mongodb"  # NOT localhost
+    port: 27017
+```
+
+## Running ORBIT
+
+### Starting ORBIT
+
+Use the `orbit-docker.sh` helper script:
+
+```bash
+# Start with default config
+./orbit-docker.sh start
+
+# Start with specific config
+./orbit-docker.sh start --config configs/production.yaml
+
+# Start with different profile
+./orbit-docker.sh start --profile commercial
+
+# Start on different port
+./orbit-docker.sh start --port 8080
+
+# Start in foreground (see logs)
+./orbit-docker.sh start --attach
+```
+
+### Checking Status
+
+```bash
+# View container status
+./orbit-docker.sh status
+
+# Check health endpoint
+curl http://localhost:3000/health
+```
+
+### Viewing Logs
+
+```bash
+# View recent logs
+./orbit-docker.sh logs
+
+# Follow logs in real-time
+./orbit-docker.sh logs --follow
+
+# Using docker-compose directly
+docker compose logs -f orbit-server
+```
+
+### Stopping ORBIT
+
+```bash
+# Stop all services
+./orbit-docker.sh stop
+
+# Or using docker-compose
 docker compose down
+```
 
-# Remove the orbit-server image
-docker rmi orbit-server:latest
+## Managing ORBIT
 
-# Remove all unused images (optional)
-docker image prune -f
+### API Key Management
 
-# Rebuild and start
-docker compose up --build
+ORBIT supports API key authentication for secure access:
+
+```bash
+# Create a new API key
+./orbit-docker.sh cli key create --name "my-app"
+
+# List all API keys
+./orbit-docker.sh cli key list
+
+# Delete an API key
+./orbit-docker.sh cli key delete <key-id>
+```
+
+### Using the CLI
+
+Access ORBIT's CLI tools inside the container:
+
+```bash
+# Get CLI help
+./orbit-docker.sh cli --help
+
+# Check server status
+./orbit-docker.sh cli status
+
+# Run any orbit command
+./orbit-docker.sh cli <command> [options]
+```
+
+### Accessing Container Shell
+
+```bash
+# Open bash shell in container
+./orbit-docker.sh exec bash
+
+# Run specific commands
+./orbit-docker.sh exec ls -la /app/logs
+```
+
+## Advanced Usage
+
+### Using Multiple Configurations
+
+Create different configs for different scenarios:
+
+```bash
+# Development setup
+./orbit-docker.sh start --config configs/development.yaml
+
+# Switch to production
+./orbit-docker.sh stop
+./orbit-docker.sh start --config configs/production.yaml
+```
+
+### Persistent Data
+
+ORBIT stores data in Docker volumes:
+- `mongodb-data`: API keys and metadata
+- `ollama-data`: Downloaded models
+- `chroma-data`: Vector embeddings
+
+To backup data:
+```bash
+# Backup volumes
+docker run --rm -v orbit_mongodb-data:/data -v $(pwd):/backup alpine tar czf /backup/mongodb-backup.tar.gz -C /data .
+```
+
+### Using Commercial Providers
+
+1. Add API keys to `.env`:
+```bash
+OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=sk-ant-...
+```
+
+2. Use commercial profile:
+```bash
+./docker-init.sh --build --profile commercial
+```
+
+3. Update config to use commercial provider:
+```yaml
+general:
+  inference_provider: "openai"  # or "anthropic", "gemini", etc.
+```
+
+### GPU Support
+
+For GPU acceleration with NVIDIA:
+
+1. Install NVIDIA Container Toolkit
+2. Use the torch profile:
+```bash
+./docker-init.sh --build --profile torch
+```
+
+3. Update docker-compose.yml to add GPU support:
+```yaml
+orbit-server:
+  deploy:
+    resources:
+      reservations:
+        devices:
+          - driver: nvidia
+            count: 1
+            capabilities: [gpu]
+```
+
+## Making API Requests
+
+### Basic Chat Request
+
+```bash
+curl -X POST http://localhost:3000/v1/chat \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "message": "What is ORBIT?",
+    "session_id": "test-session"
+  }'
+```
+
+### With API Key
+
+```bash
+curl -X POST http://localhost:3000/v1/chat \
+  -H 'Content-Type: application/json' \
+  -H 'X-API-Key: orbit_your-key-here' \
+  -d '{
+    "message": "Tell me about vector databases"
+  }'
+```
+
+### Streaming Response
+
+```bash
+curl -X POST http://localhost:3000/v1/chat \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "message": "Explain quantum computing",
+    "stream": true
+  }'
 ```
 
 ## Troubleshooting
 
-### Port Conflicts
+### Common Issues
 
-If you have port conflicts, edit the `config.yaml` file to change the port or use environment variables to override it.
+#### 1. Services Won't Start
 
-### Connection Issues
+Check logs for specific service:
+```bash
+docker compose logs mongodb
+docker compose logs ollama
+docker compose logs chroma
+```
 
-Make sure the configuration properly references your external Ollama and MongoDB services by their correct hostnames and ports.
+#### 2. Ollama Model Not Found
 
-### Build Issues
+Pull the model manually:
+```bash
+docker exec -it orbit-ollama ollama pull llama3.2
+```
 
-If you encounter build issues:
-1. Check Docker logs: `docker compose logs`
-2. Ensure all required files are present
-3. Try rebuilding: `docker compose up --build --force-recreate`
+#### 3. Permission Errors
+
+Fix permissions on directories:
+```bash
+sudo chown -R $USER:$USER logs data gguf
+```
+
+#### 4. Port Already in Use
+
+Change the port in `.env`:
+```bash
+ORBIT_PORT=3001
+```
+
+Or when running:
+```bash
+./orbit-docker.sh start --port 3001
+```
+
+#### 5. Out of Memory
+
+Increase Docker memory limit in Docker Desktop settings or:
+```bash
+# Check current usage
+docker stats
+
+# Restart with memory limits
+docker compose down
+docker compose up -d
+```
+
+### Debug Mode
+
+Enable verbose logging:
+
+1. Update config.yaml:
+```yaml
+general:
+  verbose: true
+logging:
+  level: "DEBUG"
+```
+
+2. Restart ORBIT:
+```bash
+./orbit-docker.sh restart
+```
+
+### Health Checks
+
+Monitor service health:
+```bash
+# Check all services
+docker compose ps
+
+# Test individual services
+curl http://localhost:11434/api/health  # Ollama
+curl http://localhost:8000/api/v1/heartbeat  # Chroma
+```
+
+### Resetting Everything
+
+To start fresh:
+```bash
+# Stop and remove containers
+docker compose down
+
+# Remove volumes (WARNING: Deletes all data)
+docker compose down -v
+
+# Remove images
+docker rmi orbit-server:latest
+
+# Rebuild
+./docker-init.sh --rebuild --profile minimal
+```
+
+## Next Steps
+
+1. **Explore the API**: Check `/docs` endpoint for OpenAPI documentation
+2. **Add Your Data**: Use the file upload endpoint to add documents
+3. **Customize Adapters**: Modify configs to change retrieval behavior
+4. **Monitor Performance**: Use the built-in logging and metrics
+5. **Scale Up**: Add more workers or deploy to Kubernetes
+
+## Support
+
+- Check logs first: `./orbit-docker.sh logs`
+- Review your config file for syntax errors
+- Ensure all required environment variables are set
+- Verify Docker has enough resources allocated
+
+Happy Orbiting! 🚀

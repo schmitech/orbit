@@ -9,7 +9,7 @@ def get_client_class(provider: str):
     Dynamically import and return the appropriate client class for the given provider.
     
     Args:
-        provider: The name of the provider (e.g., 'ollama', 'openai', etc.)
+        provider: The name of the provider (e.g., 'ollama', 'openai', 'watson', etc.)
         
     Returns:
         The client class for the specified provider
@@ -70,6 +70,9 @@ def get_client_class(provider: str):
         elif provider == 'cohere':
             from .cohere import CohereClient
             return CohereClient
+        elif provider == 'watson':
+            from .watson import WatsonClient
+            return WatsonClient
         else:
             raise ValueError(f"Unsupported provider: {provider}")
     except ImportError as e:

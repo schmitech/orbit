@@ -51,6 +51,23 @@ The LLM Guard Service is integrated into Orbit's service factory pattern and fol
 └─────────────────┘    └──────────────────┘
 ```
 
+
+### Safety Check Flow
+```mermaid
+graph TD
+    A[User Message] --> B[Chat Service]
+    B --> C{Security Check<br/>FIRST LINE OF DEFENSE}
+    C -->|UNSAFE| D[🛑 Block Immediately<br/>NO LLM CALL]
+    C -->|SAFE| E[LLM Client]
+    E --> F[Generate Response]
+    F --> G{LLM Client Security<br/>OUTGOING CHECK}
+    G -->|UNSAFE| H[🛑 Block Response]
+    G -->|SAFE| I[Store & Return]
+    D --> J[Return Error]
+    H --> K[Return Security Error]
+    I --> L[Return Response]
+```
+
 ### Components
 
 1. **LLMGuardService**: Main service class that handles security operations
