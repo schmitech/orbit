@@ -331,7 +331,6 @@ For more detailed information, please refer to the following documentation in th
 ### 🗺️ Roadmap & Future Development
 - [Development Roadmap](docs/roadmap/README.md) - Strategic direction and planned enhancements
 - [Concurrency & Performance](docs/roadmap/concurrency-performance.md) - Scaling to handle thousands of concurrent requests
-- [LLM Guard Security](docs/roadmap/llm-guard-integration.md) - Enterprise-grade AI security and threat protection
 - [Async Messaging & Multi-Modal](docs/roadmap/async-messaging-integration.md) - Message queues and multi-modal processing
 - [Notification Service](docs/roadmap/notification-service-integration.md) - Multi-channel communication system
 

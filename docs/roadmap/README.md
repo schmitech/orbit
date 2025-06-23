@@ -28,14 +28,6 @@ Scaling ORBIT to handle thousands of concurrent requests:
 - Auto-scaling and circuit breaker patterns
 - Real-time performance monitoring
 
-### 4. [LLM Guard Security Integration](llm-guard-integration.md) ✅ **IMPLEMENTED**
-Enterprise-grade AI security and threat protection:
-- Dedicated FastAPI security microservice
-- Advanced prompt injection and jailbreak detection
-- Comprehensive content sanitization
-- Real-time threat intelligence
-- Compliance-ready audit trails
-
 **Implementation Status**: The LLM Guard service has been fully integrated into Orbit. See the [LLM Guard Service Documentation](../llm-guard-service.md) for configuration and usage details.
 
 ### 5. [Asynchronous Messaging & Multi-Modal Processing](async-messaging-integration.md)
