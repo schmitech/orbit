@@ -81,7 +81,7 @@ internal_services:
     ttl: 3600  # 1 hour, matching temp_key_expiry
 
 chat_history:
-  enabled: true
+  enabled: false
   collection_name: "chat_history"
   store_metadata: true
   retention_days: 90
@@ -128,8 +128,8 @@ embeddings:
     embed_type: "llama_embedding"
   ollama:
     base_url: "http://localhost:11434"
-    model: "bge-m3"
-    dimensions: 1024
+    model: "nomic-embed-text"
+    dimensions: 768
   jina:
     api_key: ${JINA_API_KEY}
     base_url: "https://api.jina.ai/v1"
@@ -228,7 +228,7 @@ adapters:
 datasources:
   chroma:
     use_local: true
-    db_path: "sample_db/chroma/chroma_db"
+    db_path: "examples/chroma/chroma_db"
     host: "localhost"
     port: 8000
     embedding_provider: null 
@@ -238,7 +238,7 @@ datasources:
     embedding_provider: null
     collection_name: "orbit"
   sqlite:
-    db_path: "sample_db/sqlite/sqlite_db"
+    db_path: "examples/sqlite/sqlite_db"
   postgres:
     host: "localhost"
     port: 5432
@@ -292,7 +292,7 @@ inference:
     num_predict: 1024
     num_ctx: 8192
     num_threads: 8
-    model: "gemma3:12b"
+    model: "gemma3:1b"
     stream: true
   vllm:
     host: "localhost"
@@ -477,7 +477,7 @@ llm_guard:
       prompt:  # Scanners for user input (prompts)
         - "ban_substrings"
         - "ban_topics" 
-        # - "prompt_injection"
+        - "prompt_injection"
         - "toxicity"
         - "secrets"
       response:  # Scanners for AI output (responses)

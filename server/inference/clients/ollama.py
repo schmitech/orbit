@@ -18,7 +18,9 @@ class OllamaClient(BaseLLMClient, LLMClientCommon):
     
     def __init__(self, config: Dict[str, Any], retriever: Any = None,
                  reranker_service: Any = None, prompt_service: Any = None, no_results_message: str = ""):
-        super().__init__(config, retriever, reranker_service, prompt_service, no_results_message)
+        # Initialize base classes properly
+        BaseLLMClient.__init__(self, config, retriever, reranker_service, prompt_service, no_results_message)
+        LLMClientCommon.__init__(self)  # Initialize the common client
         
         # Get Ollama specific configuration
         ollama_config = config.get('inference', {}).get('ollama', {})
@@ -37,6 +39,7 @@ class OllamaClient(BaseLLMClient, LLMClientCommon):
         self.verbose = ollama_config.get('verbose', config.get('general', {}).get('verbose', False))
         
         self.ollama_client = None
+        self.logger = logging.getLogger(self.__class__.__name__)
         
     async def initialize(self) -> None:
         """Initialize the Ollama client."""
@@ -180,12 +183,19 @@ class OllamaClient(BaseLLMClient, LLMClientCommon):
             # Format the sources for citation
             sources = self._format_sources(retrieved_docs)
             
-            return {
+            # Prepare the response data
+            response_data = {
                 "response": response_text,
                 "sources": sources,
                 "tokens": data.get("eval_count", 0),
                 "processing_time": processing_time
             }
+            
+            if self.verbose:
+                self.logger.info("🔒 [OLLAMA CLIENT] Calling security wrapper for non-streaming response")
+            
+            # Apply security checking before returning
+            return await self._secure_response(response_data)
         except Exception as e:
             self.logger.error(f"Error generating response: {str(e)}")
             return {"error": f"Failed to generate response: {str(e)}"}
@@ -260,34 +270,47 @@ class OllamaClient(BaseLLMClient, LLMClientCommon):
                         yield json.dumps({"error": f"Failed to generate response: {error_text}", "done": True})
                         return
                     
-                    # Parse the streaming response
-                    buffer = ""
-                    async for line in response.content:
-                        chunk = line.decode('utf-8').strip()
-                        if not chunk:
-                            continue
-                        
+                    # Create the original stream generator
+                    async def original_stream():
                         try:
-                            data = json.loads(chunk)
-                            if "response" in data:
-                                buffer += data["response"]
-                                yield json.dumps({
-                                    "response": data["response"],
-                                    "sources": [],
-                                    "done": False
-                                })
-                            
-                            if data.get("done", False):
-                                # When stream is complete, send the sources
-                                sources = self._format_sources(retrieved_docs)
-                                yield json.dumps({
-                                    "response": "",
-                                    "sources": sources,
-                                    "done": True
-                                })
-                        except json.JSONDecodeError:
-                            self.logger.error(f"Error parsing JSON: {chunk}")
-                            continue
+                            # Parse the streaming response
+                            buffer = ""
+                            async for line in response.content:
+                                chunk = line.decode('utf-8').strip()
+                                if not chunk:
+                                    continue
+                                
+                                try:
+                                    data = json.loads(chunk)
+                                    if "response" in data:
+                                        buffer += data["response"]
+                                        yield json.dumps({
+                                            "response": data["response"],
+                                            "sources": [],
+                                            "done": False
+                                        })
+                                    
+                                    if data.get("done", False):
+                                        # When stream is complete, send the sources
+                                        sources = self._format_sources(retrieved_docs)
+                                        yield json.dumps({
+                                            "response": "",
+                                            "sources": sources,
+                                            "done": True
+                                        })
+                                except json.JSONDecodeError:
+                                    self.logger.error(f"Error parsing JSON: {chunk}")
+                                    continue
+                        except Exception as e:
+                            self.logger.error(f"Error in streaming response: {str(e)}")
+                            yield json.dumps({"error": f"Error in streaming response: {str(e)}", "done": True})
+                    
+                    # Apply security checking to the stream
+                    if self.verbose:
+                        self.logger.info("🔒 [OLLAMA CLIENT] Calling security wrapper for streaming response")
+                    
+                    async for secure_chunk in self._secure_response_stream(original_stream()):
+                        yield secure_chunk
         except Exception as e:
             self.logger.error(f"Error generating streaming response: {str(e)}")
             yield json.dumps({"error": f"Failed to generate response: {str(e)}", "done": True}) 

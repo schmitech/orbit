@@ -13,7 +13,9 @@ class HuggingFaceClient(BaseLLMClient, LLMClientCommon):
 
     def __init__(self, config: Dict[str, Any], retriever: Any = None,
                  reranker_service: Any = None, prompt_service: Any = None, no_results_message: str = ""):
-        super().__init__(config, retriever, reranker_service, prompt_service, no_results_message)
+        # Initialize base classes properly
+        BaseLLMClient.__init__(self, config, retriever, reranker_service, prompt_service, no_results_message)
+        LLMClientCommon.__init__(self)  # Initialize the common client
 
         hf_cfg = config.get("inference", {}).get("huggingface", {})
         self.model_name = hf_cfg.get("model_name", "gpt2")
@@ -22,10 +24,11 @@ class HuggingFaceClient(BaseLLMClient, LLMClientCommon):
         self.temperature = hf_cfg.get("temperature", 0.7)
         self.top_p = hf_cfg.get("top_p", 0.9)
         self.stream = hf_cfg.get("stream", False)
+        self.verbose = hf_cfg.get('verbose', config.get('general', {}).get('verbose', False))
 
         self.model = None
         self.tokenizer = None
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger(self.__class__.__name__)
         self.logger.info(f"Initializing HuggingFace client with model: {self.model_name}")
 
     async def initialize(self) -> None:
@@ -156,7 +159,8 @@ class HuggingFaceClient(BaseLLMClient, LLMClientCommon):
                 self.logger.warning(f"'_format_sources' returned type {type(sources).__name__} (value: {str(sources)[:100]}) for sources, defaulting to empty list.")
                 sources = []
 
-            yield {
+            # Wrap response with security checking
+            response_dict = {
                 "response": text.strip(),
                 "sources": sources,
                 "tokens": len(generated),
@@ -167,6 +171,9 @@ class HuggingFaceClient(BaseLLMClient, LLMClientCommon):
                 },
                 "processing_time": elapsed
             }
+            
+            secured_response = await self._secure_response(response_dict)
+            yield secured_response
         except Exception as e:
             self.logger.error(f"Error generating response: {str(e)}")
             yield {
@@ -183,6 +190,19 @@ class HuggingFaceClient(BaseLLMClient, LLMClientCommon):
             }
 
     async def generate_response_stream(
+        self,
+        message: str,
+        collection_name: str,
+        system_prompt_id: Optional[str] = None,
+        context_messages: Optional[List[Dict[str, str]]] = None
+    ) -> AsyncGenerator[str, None]:
+        # Wrap the entire streaming response with security checking
+        async for chunk in self._secure_response_stream(
+            self._generate_response_stream_internal(message, collection_name, system_prompt_id, context_messages)
+        ):
+            yield chunk
+    
+    async def _generate_response_stream_internal(
         self,
         message: str,
         collection_name: str,

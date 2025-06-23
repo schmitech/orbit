@@ -19,7 +19,9 @@ class OpenAIClient(BaseLLMClient, LLMClientCommon):
     
     def __init__(self, config: Dict[str, Any], retriever: Any = None,
                  reranker_service: Any = None, prompt_service: Any = None, no_results_message: str = ""):
-        super().__init__(config, retriever, reranker_service, prompt_service, no_results_message)
+        # Initialize base classes properly
+        BaseLLMClient.__init__(self, config, retriever, reranker_service, prompt_service, no_results_message)
+        LLMClientCommon.__init__(self)  # Initialize the common client
         
         # Get OpenAI specific configuration
         openai_config = config.get('inference', {}).get('openai', {})
@@ -196,13 +198,20 @@ class OpenAIClient(BaseLLMClient, LLMClientCommon):
             if self.verbose:
                 self.logger.info(f"Token usage: {tokens}")
             
-            return {
+            # Prepare the response data
+            response_data = {
                 "response": response_text,
                 "sources": sources,
                 "tokens": tokens["total"],
                 "token_usage": tokens,
                 "processing_time": processing_time
             }
+            
+            if self.verbose:
+                self.logger.info("🔒 [OPENAI CLIENT] Calling security wrapper for non-streaming response")
+            
+            # Apply security checking before returning
+            return await self._secure_response(response_data)
         except Exception as e:
             self.logger.error(f"Error generating response: {str(e)}")
             return {"error": f"Failed to generate response: {str(e)}"}
@@ -286,36 +295,44 @@ class OpenAIClient(BaseLLMClient, LLMClientCommon):
             # Generate streaming response
             response_stream = await self.openai_client.chat.completions.create(**params)
             
-            # Process the streaming response
-            try:
-                chunk_count = 0
-                async for chunk in response_stream:
-                    if chunk.choices and chunk.choices[0].delta.content:
-                        chunk_text = chunk.choices[0].delta.content
-                        chunk_count += 1
-                        
-                        if self.verbose and chunk_count % 10 == 0:
-                            self.logger.debug(f"Received chunk {chunk_count}")
-                        
-                        yield json.dumps({
-                            "response": chunk_text,
-                            "sources": [],
-                            "done": False
-                        })
-                
-                if self.verbose:
-                    self.logger.info(f"Streaming complete. Received {chunk_count} chunks")
-                
-                # When stream is complete, send the sources
-                sources = self._format_sources(retrieved_docs)
-                yield json.dumps({
-                    "response": "",
-                    "sources": sources,
-                    "done": True
-                })
-            except Exception as e:
-                self.logger.error(f"Error in streaming response: {str(e)}")
-                yield json.dumps({"error": f"Error in streaming response: {str(e)}", "done": True})
+            # Create the original stream generator
+            async def original_stream():
+                try:
+                    chunk_count = 0
+                    async for chunk in response_stream:
+                        if chunk.choices and chunk.choices[0].delta.content:
+                            chunk_text = chunk.choices[0].delta.content
+                            chunk_count += 1
+                            
+                            if self.verbose and chunk_count % 10 == 0:
+                                self.logger.debug(f"Received chunk {chunk_count}")
+                            
+                            yield json.dumps({
+                                "response": chunk_text,
+                                "sources": [],
+                                "done": False
+                            })
+                    
+                    if self.verbose:
+                        self.logger.info(f"Streaming complete. Received {chunk_count} chunks")
+                    
+                    # When stream is complete, send the sources
+                    sources = self._format_sources(retrieved_docs)
+                    yield json.dumps({
+                        "response": "",
+                        "sources": sources,
+                        "done": True
+                    })
+                except Exception as e:
+                    self.logger.error(f"Error in streaming response: {str(e)}")
+                    yield json.dumps({"error": f"Error in streaming response: {str(e)}", "done": True})
+            
+            # Apply security checking to the stream
+            if self.verbose:
+                self.logger.info("🔒 [OPENAI CLIENT] Calling security wrapper for streaming response")
+            
+            async for secure_chunk in self._secure_response_stream(original_stream()):
+                yield secure_chunk
                 
         except Exception as e:
             self.logger.error(f"Error generating streaming response: {str(e)}")

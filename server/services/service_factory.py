@@ -158,7 +158,9 @@ class ServiceFactory:
             None if self.inference_only else app.state.retriever,
             reranker_service=getattr(app.state, 'reranker_service', None),
             prompt_service=None if self.inference_only else getattr(app.state, 'prompt_service', None),
-            no_results_message=no_results_message
+            no_results_message=no_results_message,
+            llm_guard_service=getattr(app.state, 'llm_guard_service', None),
+            moderator_service=getattr(app.state, 'moderator_service', None)
         )
         
         # Initialize LLM client

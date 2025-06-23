@@ -19,7 +19,9 @@ class LLMClientFactory:
         retriever: Any, 
         reranker_service: Any = None,
         prompt_service: Any = None,
-        no_results_message: str = ""
+        no_results_message: str = "",
+        llm_guard_service: Any = None,
+        moderator_service: Any = None
     ) -> BaseLLMClient:
         """
         Create an LLM client based on the selected inference provider.
@@ -30,6 +32,8 @@ class LLMClientFactory:
             reranker_service: Optional service for reranking results
             prompt_service: Optional service for system prompts
             no_results_message: Message to show when no results are found
+            llm_guard_service: Optional LLM Guard service for response security
+            moderator_service: Optional Moderator service for response security
             
         Returns:
             An initialized LLM client instance
@@ -40,14 +44,21 @@ class LLMClientFactory:
             # Get the appropriate client class dynamically
             client_class = get_client_class(provider)
             
-            # Create and return the client instance
-            return client_class(
+            # Create the client instance
+            client = client_class(
                 config, 
                 retriever, 
                 reranker_service, 
                 prompt_service, 
                 no_results_message
             )
+            
+            # Set security services if the client supports them
+            if hasattr(client, 'set_security_services'):
+                client.set_security_services(llm_guard_service, moderator_service)
+            
+            return client
+            
         except (ImportError, ValueError) as e:
             logging.error(f"Failed to create LLM client for provider {provider}: {str(e)}")
             raise 

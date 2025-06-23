@@ -18,7 +18,9 @@ class OpenRouterClient(BaseLLMClient, LLMClientCommon):
         prompt_service: Any = None,
         no_results_message: str = ""
     ):
-        super().__init__(config, retriever, reranker_service, prompt_service, no_results_message)
+        # Initialize base classes properly
+        BaseLLMClient.__init__(self, config, retriever, reranker_service, prompt_service, no_results_message)
+        LLMClientCommon.__init__(self)  # Initialize the common client
 
         or_cfg = config.get('inference', {}).get('openrouter', {})
         self.base_url = or_cfg.get('base_url', os.getenv('OPENROUTER_API_BASE', 'https://openrouter.ai/api/v1'))
@@ -31,7 +33,7 @@ class OpenRouterClient(BaseLLMClient, LLMClientCommon):
         self.verbose = or_cfg.get('verbose', config.get('general', {}).get('verbose', False))
 
         self.openai_client = None
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger(self.__class__.__name__)
 
     async def initialize(self) -> None:
         """Initialize the OpenAI Async client with OpenRouter settings."""
@@ -136,7 +138,8 @@ class OpenRouterClient(BaseLLMClient, LLMClientCommon):
         usage = response.usage if hasattr(response, 'usage') else None
         tokens = getattr(usage, 'total_tokens', None)
 
-        return {
+        # Wrap response with security checking
+        response_dict = {
             "response": text,
             "sources": sources,
             "tokens": tokens,
@@ -147,8 +150,23 @@ class OpenRouterClient(BaseLLMClient, LLMClientCommon):
             },
             "processing_time": elapsed
         }
+        
+        return await self._secure_response(response_dict)
 
     async def generate_response_stream(
+        self,
+        message: str,
+        collection_name: str,
+        system_prompt_id: Optional[str] = None,
+        context_messages: Optional[List[Dict[str, str]]] = None
+    ) -> AsyncGenerator[str, None]:
+        # Wrap the entire streaming response with security checking
+        async for chunk in self._secure_response_stream(
+            self._generate_response_stream_internal(message, collection_name, system_prompt_id, context_messages)
+        ):
+            yield chunk
+    
+    async def _generate_response_stream_internal(
         self,
         message: str,
         collection_name: str,

@@ -32,7 +32,9 @@ class QALlamaCppClient(BaseLLMClient, LLMClientCommon):
     
     def __init__(self, config: Dict[str, Any], retriever: Any = None,
                  reranker_service: Any = None, prompt_service: Any = None, no_results_message: str = ""):
-        super().__init__(config, retriever, reranker_service, prompt_service, no_results_message)
+        # Initialize base classes properly
+        BaseLLMClient.__init__(self, config, retriever, reranker_service, prompt_service, no_results_message)
+        LLMClientCommon.__init__(self)  # Initialize the common client
         
         # Get LlamaCpp specific configuration
         llama_cpp_config = config.get('inference', {}).get('llama_cpp', {})
@@ -64,7 +66,7 @@ class QALlamaCppClient(BaseLLMClient, LLMClientCommon):
         self.repeat_penalty = llama_cpp_config.get('repeat_penalty', 1.1)
         
         self.llama_model = None
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger(self.__class__.__name__)
         
     async def initialize(self) -> None:
         """Initialize the LlamaCpp client."""
@@ -256,17 +258,33 @@ class QALlamaCppClient(BaseLLMClient, LLMClientCommon):
             if self.verbose and token_usage:
                 self.logger.info(f"Token usage: {token_usage}")
             
-            return {
+            # Wrap response with security checking
+            response_dict = {
                 "response": response_text,
                 "sources": sources,
                 "tokens": token_usage.get("completion_tokens", 0),
                 "processing_time": processing_time
             }
+            
+            return await self._secure_response(response_dict)
         except Exception as e:
             self.logger.error(f"Error generating response: {str(e)}")
             return {"error": f"Failed to generate response: {str(e)}"}
     
     async def generate_response_stream(
+        self, 
+        message: str, 
+        collection_name: str,
+        system_prompt_id: Optional[str] = None,
+        context_messages: Optional[List[Dict[str, str]]] = None
+    ) -> AsyncGenerator[str, None]:
+        # Wrap the entire streaming response with security checking
+        async for chunk in self._secure_response_stream(
+            self._generate_response_stream_internal(message, collection_name, system_prompt_id, context_messages)
+        ):
+            yield chunk
+    
+    async def _generate_response_stream_internal(
         self, 
         message: str, 
         collection_name: str,

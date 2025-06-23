@@ -1,37 +1,53 @@
 <div align="center">
-  <img src="docs/images/orbit.png" width="400" alt="ORBIT">
+  <img src="docs/images/orbit.png" width="300" alt="ORBIT">
 </div>
 <div align="center">
-  <h2><strong>Open Retrieval-Based Inference Toolkit</strong></h2>
+  <h1>ORBIT - Open Retrieval-Based Inference Toolkit</h1>
 </div>
 
 ORBIT is a modular, self-hosted toolkit that provides a unified API for open-source AI inference models. ORBIT enables you to run AI models on your own infrastructure, maintaining full control over your data while reducing dependency on external AI services. The project is actively maintained by [Remsy Schmilinsky](https://www.linkedin.com/in/remsy/).
 
-![ORBIT Chat Demo](docs/images/orbit-chat-gui.gif)
+## 🎉 Jun 12 2025 - Announcing ORBIT v1.1.3
+
+### 🌍 Language Detection
+- **Accuracy**: Improved language detection module for more precise multilingual support
+- **Better Coverage**: Updated unit tests ensure robust language processing across all supported languages
+
+### ⚡ vLLM Integration Fixed
+- **Stable Performance**: Resolved vLLM inference issues for reliable high-performance model serving
+- **Optimized Configuration**: Updated vLLM settings for better resource utilization and stability
+
+### 🔧 Improvements
+- **Retrievers Design**: Refactored SQL and vector retrievers for better inheritance patterns
+- **File Adapter**: Added file upload endpoints with retrieval adapter support
+- **Memory Management**: Better conversation history handling with dynamic context sizing
+
+*Want to see what's coming next? Check out our [Development Roadmap](docs/roadmap/README.md)*
+
 
 ## 🚀 Key Features
 
-<p align="left">
-  <img src="docs/images/orbit-diagram.svg" width="800" alt="ORBIT Architecture" />
-</p>
+<div align="center">
+  <img src="docs/images/orbit-diagram.png" width="1000" alt="ORBIT Architecture" />
+</div>
 
 > **Note**: Currently, ORBIT supports SQL, Vector, and File-based retrieval systems. Support for additional data sources is planned for future releases. See [roadmap](https://github.com/schmitech/orbit/tree/main/docs/roadmap) for further details. ORBIT is fast evolving, so if you have a specific requirement that's not currently supported, please let us know so we can add it to our development roadmap.
-
-### 🔒 **Security & Moderation**
-ORBIT integrates with two types of guardrail services to prevent harmful content and ensure safe AI interactions:
-
-- **🔍 LLM Guard Service**: Advanced content scanning with real-time threat detection
-- **🛡️ Moderator Service**: Multi-provider content moderation
 
 ### 🧠 **Retrieval-Augmented Generation (RAG)**
 - **📚 Knowledge Integration**: Connect your data sources to enhance AI responses
 - **🔗 Multi-Adapter Support**: SQL, Vector, and File-based retrieval systems
 - **🎯 Context-Aware Responses**: Intelligent query processing with confidence scoring
 
-### 💬 **Conversation Management**
+### 💬 **Conversation History**
 - **📝 Chat History**: Persistent conversation tracking with MongoDB
 - **🔄 Session Management**: Multi-user session handling and archiving
 - **🌐 Multi-Language Support**: Automatic language detection and processing
+
+### 🔒 **Security & Moderation**
+ORBIT integrates with two types of guardrail services to prevent harmful content and ensure safe AI interactions:
+
+- **🔍 LLM Guard Service**: Advanced content scanning with real-time threat detection
+- **🛡️ Moderator Service**: Multi-provider content moderation
 
 ### 🎨 **Web Integration**
 - **📦 Chatbot Widget**: Ready-to-deploy web widget with theming options

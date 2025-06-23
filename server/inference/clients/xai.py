@@ -13,7 +13,9 @@ class XAIClient(BaseLLMClient, LLMClientCommon):
 
     def __init__(self, config: Dict[str, Any], retriever: Any = None,
                  reranker_service: Any = None, prompt_service: Any = None, no_results_message: str = ""):
-        super().__init__(config, retriever, reranker_service, prompt_service, no_results_message)
+        # Initialize base classes properly
+        BaseLLMClient.__init__(self, config, retriever, reranker_service, prompt_service, no_results_message)
+        LLMClientCommon.__init__(self)  # Initialize the common client
 
         xai_cfg = config.get('inference', {}).get('xai', {})
         self.api_key = os.getenv("XAI_API_KEY", xai_cfg.get('api_key', ''))
@@ -30,7 +32,7 @@ class XAIClient(BaseLLMClient, LLMClientCommon):
         self.verbose = config.get('general', {}).get('verbose', False)
 
         self.session: aiohttp.ClientSession | None = None
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger(self.__class__.__name__)
 
     def _clean_response(self, text: str) -> str:
         """Remove thinking process from response if show_thinking is False."""
@@ -159,18 +161,34 @@ class XAIClient(BaseLLMClient, LLMClientCommon):
                 "total": usage.get("total_tokens", 0)
             }
 
-            return {
+            # Wrap response with security checking
+            response_dict = {
                 "response": text,
                 "sources": sources,
                 "tokens": tokens["total"],
                 "token_usage": tokens,
                 "processing_time": elapsed
             }
+            
+            return await self._secure_response(response_dict)
         except Exception as e:
             self.logger.error(f"Error generating response from XAI: {str(e)}")
             raise
 
     async def generate_response_stream(
+        self,
+        message: str,
+        collection_name: str,
+        system_prompt_id: Optional[str] = None,
+        context_messages: Optional[List[Dict[str, str]]] = None
+    ) -> AsyncGenerator[str, None]:
+        # Wrap the entire streaming response with security checking
+        async for chunk in self._secure_response_stream(
+            self._generate_response_stream_internal(message, collection_name, system_prompt_id, context_messages)
+        ):
+            yield chunk
+    
+    async def _generate_response_stream_internal(
         self,
         message: str,
         collection_name: str,
