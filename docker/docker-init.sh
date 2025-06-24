@@ -17,6 +17,11 @@ PROFILE="minimal"
 DOWNLOAD_GGUF=false
 PULL_MODEL=true
 
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Change to the script directory to ensure docker-compose.yml is found
+cd "$SCRIPT_DIR"
+
 print_help() {
     echo "Usage: ./docker-init.sh [OPTIONS]"
     echo ""
@@ -68,9 +73,9 @@ else
     exit 1
 fi
 
-# Create necessary directories
+# Create necessary directories (relative to script directory)
 echo -e "${YELLOW}📁 Creating required directories...${NC}"
-mkdir -p logs data config gguf install configs
+mkdir -p ../logs ../data ../config ../gguf ../install ../configs
 
 # Handle config file
 if [ -n "$CONFIG_FILE" ]; then
@@ -80,18 +85,18 @@ if [ -n "$CONFIG_FILE" ]; then
         exit 1
     fi
     # Copy to default location
-    cp "$CONFIG_FILE" config.yaml
+    cp "$CONFIG_FILE" ../config.yaml
     echo -e "${GREEN}✅ Using config file: $CONFIG_FILE${NC}"
     
     # Export for docker-compose
     export ORBIT_CONFIG_PATH="$CONFIG_FILE"
 else
-    # Check for default config.yaml
-    if [ ! -f "config.yaml" ]; then
+    # Check for default config.yaml in parent directory
+    if [ ! -f "../config.yaml" ]; then
         if [ "$CREATE_DEFAULT_CONFIG" = true ]; then
             echo -e "${YELLOW}⚠️  config.yaml not found. Creating minimal Docker configuration...${NC}"
             
-            cat > config.yaml << 'EOF'
+            cat > ../config.yaml << 'EOF'
 # ORBIT Server Configuration - Docker Edition
 general:
   host: "0.0.0.0"
@@ -198,11 +203,11 @@ EOF
     fi
 fi
 
-# Check for .env file
-if [ ! -f ".env" ]; then
+# Check for .env file in parent directory
+if [ ! -f "../.env" ]; then
     echo -e "${YELLOW}⚠️  .env file not found. Creating template...${NC}"
     
-    cat > .env << 'EOF'
+    cat > ../.env << 'EOF'
 # ORBIT Docker Environment Variables
 
 # Server Configuration
@@ -241,10 +246,10 @@ fi
 # Download GGUF model if requested
 if [ "$DOWNLOAD_GGUF" = true ]; then
     echo -e "${YELLOW}📥 Downloading GGUF model...${NC}"
-    mkdir -p gguf
-    if [ ! -f "gguf/gemma-3-1b-it-Q4_0.gguf" ]; then
+    mkdir -p ../gguf
+    if [ ! -f "../gguf/gemma-3-1b-it-Q4_0.gguf" ]; then
         curl -L "https://huggingface.co/unsloth/gemma-3-1b-it-GGUF/resolve/main/gemma-3-1b-it-Q4_0.gguf" \
-             -o "gguf/gemma-3-1b-it-Q4_0.gguf"
+             -o "../gguf/gemma-3-1b-it-Q4_0.gguf"
         echo -e "${GREEN}✅ GGUF model downloaded${NC}"
     else
         echo -e "${BLUE}ℹ️  GGUF model already exists${NC}"
@@ -282,8 +287,8 @@ $DOCKER_COMPOSE ps
 # Pull Ollama model if needed
 if [ "$PULL_MODEL" = true ]; then
     # Try to extract model from config file
-    if [ -f "config.yaml" ]; then
-        OLLAMA_MODEL=$(grep -A5 "inference:" config.yaml | grep -A5 "ollama:" | grep "model:" | head -1 | sed 's/.*model:[[:space:]]*"\?\([^"]*\)"\?.*/\1/' | tr -d ' ')
+    if [ -f "../config.yaml" ]; then
+        OLLAMA_MODEL=$(grep -A5 "inference:" ../config.yaml | grep -A5 "ollama:" | grep "model:" | head -1 | sed 's/.*model:[[:space:]]*"\?\([^"]*\)"\?.*/\1/' | tr -d ' ')
     fi
     
     # Fallback to default if not found

@@ -2,17 +2,17 @@ services:
   # FastAPI server
   orbit-server:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: docker/Dockerfile
     image: orbit-server:latest
     container_name: orbit-server
     ports:
       - "${ORBIT_PORT:-3000}:${ORBIT_PORT:-3000}"
     volumes:
-      - ./config.yaml:/app/config.yaml
-      - ./logs:/app/logs
+      - ../config.yaml:/app/config.yaml
+      - ../logs:/app/logs
     env_file:
-      - .env
+      - ../.env
     restart: unless-stopped
 
 networks:
