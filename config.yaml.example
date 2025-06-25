@@ -71,7 +71,7 @@ internal_services:
     password: ${INTERNAL_SERVICES_MONGODB_PASSWORD}
 
   redis:
-    enabled: true
+    enabled: false
     host: ${INTERNAL_SERVICES_REDIS_HOST}
     port: ${INTERNAL_SERVICES_REDIS_PORT}
     db: 0
@@ -303,7 +303,7 @@ inference:
     max_tokens: 1024
     stream: true
   llama_cpp:
-    model_path: "gguf/tinyllama-1.1b-chat-v1.0.Q4_0.gguf"
+    model_path: "gguf/gemma-3-1b-it-Q4_0.gguf"
     chat_format: "chatml"  # Chat format to use (chatml, llama-2, gemma, etc.)
     verbose: false
     temperature: 0.1

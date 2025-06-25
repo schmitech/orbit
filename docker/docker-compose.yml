@@ -11,6 +11,7 @@ services:
     volumes:
       - ../config.yaml:/app/config.yaml
       - ../logs:/app/logs
+      - ../gguf:/app/gguf
     env_file:
       - ../.env
     environment:

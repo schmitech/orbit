@@ -12,12 +12,19 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Remember the original working directory for relative paths
+ORIGINAL_DIR="$(pwd)"
+# Change to the script directory to ensure docker-compose.yml is found
+cd "$SCRIPT_DIR"
+
 # Default values
 CONFIG_FILE=""
 PROFILE="minimal"
 DETACHED=true
 COMMAND=""
-ENV_FILE=".env"
+ENV_FILE="../.env"
 PORT="3000"
 CONTAINER_NAME="orbit-server"
 
@@ -122,11 +129,16 @@ export DEPENDENCY_PROFILE=$PROFILE
 
 # Handle config file
 if [ -n "$CONFIG_FILE" ]; then
+    # If CONFIG_FILE is a relative path, make it relative to the original directory
+    if [[ "$CONFIG_FILE" != /* ]]; then
+        CONFIG_FILE="$ORIGINAL_DIR/$CONFIG_FILE"
+    fi
+    
     if [ ! -f "$CONFIG_FILE" ]; then
         echo -e "${RED}❌ Config file not found: $CONFIG_FILE${NC}"
         exit 1
     fi
-    export ORBIT_CONFIG_PATH="$CONFIG_FILE"
+    export CONFIG_PATH="$CONFIG_FILE"
     echo -e "${BLUE}Using config: $CONFIG_FILE${NC}"
 fi
 

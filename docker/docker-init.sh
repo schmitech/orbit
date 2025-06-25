@@ -194,6 +194,18 @@ else
     $DOCKER_COMPOSE up -d > /dev/null 2>&1
 fi
 
+# Sanity check: ensure config.yaml exists inside the container
+CONFIG_PATH_IN_CONTAINER="/app/config.yaml"
+echo -e "${YELLOW}🔍 Checking for config.yaml inside the container at $CONFIG_PATH_IN_CONTAINER...${NC}"
+if ! docker exec orbit-server test -f "$CONFIG_PATH_IN_CONTAINER"; then
+    echo -e "${RED}❌ config.yaml not found inside the container at $CONFIG_PATH_IN_CONTAINER!${NC}"
+    echo -e "${YELLOW}Check your docker-compose.yml volume mappings and config file location.${NC}"
+    $DOCKER_COMPOSE logs orbit-server
+    exit 1
+else
+    echo -e "${GREEN}✅ config.yaml found inside the container.${NC}"
+fi
+
 # Wait for services to be ready
 echo -e "${YELLOW}⏳ Waiting for services to be ready...${NC}"
 sleep 10
@@ -223,7 +235,13 @@ while [ $ELAPSED -lt $HEALTH_CHECK_TIMEOUT ]; do
 done
 
 if [ $ELAPSED -ge $HEALTH_CHECK_TIMEOUT ]; then
-    echo -e "${YELLOW}⚠️  Server health check timed out. Check logs with: $DOCKER_COMPOSE logs orbit-server${NC}"
+    echo -e "${YELLOW}⚠️  Server health check timed out. Showing recent logs...${NC}"
+    echo -e "${BLUE}📋 Last 20 lines of orbit-server logs:${NC}"
+    $DOCKER_COMPOSE logs --tail=20 orbit-server
+    echo -e "${YELLOW}ℹ️  For full logs, run: $DOCKER_COMPOSE logs orbit-server${NC}"
+else
+    echo -e "${BLUE}📋 Showing recent logs to verify startup:${NC}"
+    $DOCKER_COMPOSE logs --tail=10 orbit-server
 fi
 
 echo -e "
