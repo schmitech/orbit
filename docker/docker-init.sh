@@ -16,6 +16,8 @@ VERBOSE=false
 PROFILE="minimal"
 DOWNLOAD_GGUF=false
 PULL_MODEL=true
+CREATE_DEFAULT_CONFIG=true
+CONFIG_FILE=""
 
 # Get the directory where this script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -29,6 +31,8 @@ print_help() {
     echo "  --build              Build containers before starting"
     echo "  --rebuild            Force rebuild of Docker images"
     echo "  --profile <name>     Dependency profile (minimal, torch, commercial, all)"
+    echo "  --config <file>      Use specific config file"
+    echo "  --no-default-config  Don't create default config if none exists"
     echo "  --download-gguf      Download GGUF model"
     echo "  --no-pull-model      Don't pull Ollama model"
     echo "  --verbose            Show verbose output"
@@ -37,6 +41,7 @@ print_help() {
     echo "Examples:"
     echo "  ./docker-init.sh --build --profile minimal"
     echo "  ./docker-init.sh --rebuild --profile all --download-gguf"
+    echo "  ./docker-init.sh --config /path/to/config.yaml"
     exit 0
 }
 
@@ -46,6 +51,8 @@ while [[ "$#" -gt 0 ]]; do
         --build) BUILD=true ;;
         --rebuild) REBUILD=true; BUILD=true ;;
         --profile) PROFILE="$2"; shift ;;
+        --config) CONFIG_FILE="$2"; shift ;;
+        --no-default-config) CREATE_DEFAULT_CONFIG=false ;;
         --download-gguf) DOWNLOAD_GGUF=true ;;
         --no-pull-model) PULL_MODEL=false ;;
         --verbose) VERBOSE=true ;;
@@ -73,6 +80,19 @@ else
     exit 1
 fi
 
+# Ensure DOCKER_COMPOSE is set
+if [ -z "$DOCKER_COMPOSE" ]; then
+    echo -e "${RED}❌ Internal error: DOCKER_COMPOSE variable is not set. Exiting.${NC}"
+    exit 1
+fi
+
+# Check if docker-compose.yml exists
+if [ ! -f "docker-compose.yml" ]; then
+    echo -e "${RED}❌ docker-compose.yml not found in current directory${NC}"
+    echo -e "${YELLOW}ℹ️  Make sure you're running this script from the docker/ directory${NC}"
+    exit 1
+fi
+
 # Create necessary directories (relative to script directory)
 echo -e "${YELLOW}📁 Creating required directories...${NC}"
 mkdir -p ../logs ../data ../config ../gguf ../install ../configs
@@ -94,106 +114,16 @@ else
     # Check for default config.yaml in parent directory
     if [ ! -f "../config.yaml" ]; then
         if [ "$CREATE_DEFAULT_CONFIG" = true ]; then
-            echo -e "${YELLOW}⚠️  config.yaml not found. Creating minimal Docker configuration...${NC}"
-            
-            cat > ../config.yaml << 'EOF'
-# ORBIT Server Configuration - Docker Edition
-general:
-  host: "0.0.0.0"
-  port: 3000
-  inference_provider: "ollama"
-  datasource_provider: "chroma"
-  adapter: "qa-vector-chroma"
-  verbose: false
-  inference_only: false
-  language_detection: true
-  session_id:
-    header_name: "X-Session-ID"
-    required: false
-
-# API Key settings
-api_keys:
-  enabled: true
-  header_name: "X-API-Key"
-  prefix: "orbit_"
-
-# Logging configuration
-logging:
-  level: "INFO"
-  handlers:
-    console:
-      enabled: true
-      format: "text"
-    file:
-      enabled: true
-      directory: "/app/logs"
-      filename: "orbit.log"
-      format: "json"
-      max_size_mb: 10
-      backup_count: 5
-
-# MongoDB configuration
-internal_services:
-  mongodb:
-    host: "mongodb"
-    port: 27017
-    database: "orbit"
-    apikey_collection: "api_keys"
-    username: ""
-    password: ""
-
-# Embedding configuration
-embedding:
-  provider: "ollama"
-  enabled: true
-
-embeddings:
-  ollama:
-    base_url: "http://ollama:11434"
-    model: "nomic-embed-text"
-    dimensions: 768
-
-# Inference providers
-inference:
-  ollama:
-    base_url: "http://ollama:11434"
-    model: "llama3.2"
-    temperature: 0.1
-    top_p: 0.8
-    top_k: 20
-    repeat_penalty: 1.1
-    num_predict: 1024
-    num_ctx: 8192
-    stream: true
-
-# Datasource configuration
-datasources:
-  chroma:
-    use_local: false
-    host: "chroma"
-    port: 8000
-    embedding_provider: "ollama"
-
-# Adapter configuration
-adapters:
-  - name: "qa-vector-chroma"
-    type: "retriever"
-    datasource: "chroma"
-    adapter: "qa"
-    implementation: "retrievers.implementations.qa.QAChromaRetriever"
-    config:
-      confidence_threshold: 0.3
-      distance_scaling_factor: 200.0
-      embedding_provider: "ollama"
-      max_results: 5
-      return_results: 3
-
-# Messages
-messages:
-  no_results_response: "I don't have any specific information about that topic in my knowledge base."
-  collection_not_found: "The requested collection was not found."
-EOF
-            echo -e "${GREEN}✅ Created minimal config.yaml for Docker${NC}"
+            if [ -f "../config.yaml.example" ]; then
+                echo -e "${YELLOW}⚠️  config.yaml not found. Copying from config.yaml.example...${NC}"
+                cp ../config.yaml.example ../config.yaml
+                echo -e "${GREEN}✅ Created config.yaml from example template${NC}"
+                echo -e "${BLUE}ℹ️  You may want to review and customize the configuration in config.yaml${NC}"
+            else
+                echo -e "${RED}❌ Neither config.yaml nor config.yaml.example found${NC}"
+                echo -e "${YELLOW}ℹ️  Please ensure config.yaml.example exists in the parent directory${NC}"
+                exit 1
+            fi
         else
             echo -e "${RED}❌ config.yaml not found and --no-default-config was specified${NC}"
             exit 1
@@ -205,52 +135,36 @@ fi
 
 # Check for .env file in parent directory
 if [ ! -f "../.env" ]; then
-    echo -e "${YELLOW}⚠️  .env file not found. Creating template...${NC}"
-    
-    cat > ../.env << 'EOF'
-# ORBIT Docker Environment Variables
-
-# Server Configuration
-ORBIT_PORT=3000
-DEPENDENCY_PROFILE=minimal
-
-# API Keys (optional - only needed for commercial providers)
-OPENAI_API_KEY=
-ANTHROPIC_API_KEY=
-GOOGLE_API_KEY=
-COHERE_API_KEY=
-GROQ_API_KEY=
-DEEPSEEK_API_KEY=
-MISTRAL_API_KEY=
-TOGETHER_API_KEY=
-
-# MongoDB Configuration
-MONGODB_URI=mongodb://mongodb:27017/
-MONGODB_DB=orbit
-
-# Ollama Configuration
-OLLAMA_BASE_URL=http://ollama:11434
-OLLAMA_MODEL=llama3.2
-
-# ChromaDB Configuration
-CHROMA_HOST=chroma
-CHROMA_PORT=8000
-
-# Admin Token (for API key management)
-API_ADMIN_TOKEN=change_me_to_secure_token
-EOF
-    echo -e "${GREEN}✅ Created .env template${NC}"
-    echo -e "${YELLOW}⚠️  Please edit the .env file to add your API keys if using commercial providers.${NC}"
+    echo -e "${YELLOW}⚠️  .env file not found. Creating...${NC}"
+    if [ -f "../.env.example" ]; then
+        cp ../.env.example ../.env
+        echo -e "${GREEN}✅ Copied .env from .env.example${NC}"
+        echo -e "${BLUE}ℹ️  You may want to review and customize the environment variables in .env${NC}"
+    else
+        echo -e "${RED}❌ .env.example not found${NC}"
+        echo -e "${YELLOW}ℹ️  Please ensure .env.example exists in the parent directory${NC}"
+        exit 1
+    fi
 fi
 
-# Download GGUF model if requested
+# Check if curl is available for GGUF download
 if [ "$DOWNLOAD_GGUF" = true ]; then
+    if ! command -v curl &> /dev/null; then
+        echo -e "${RED}❌ curl is not installed. Please install curl to download GGUF models.${NC}"
+        exit 1
+    fi
+    
     echo -e "${YELLOW}📥 Downloading GGUF model...${NC}"
     mkdir -p ../gguf
     if [ ! -f "../gguf/gemma-3-1b-it-Q4_0.gguf" ]; then
-        curl -L "https://huggingface.co/unsloth/gemma-3-1b-it-GGUF/resolve/main/gemma-3-1b-it-Q4_0.gguf" \
-             -o "../gguf/gemma-3-1b-it-Q4_0.gguf"
-        echo -e "${GREEN}✅ GGUF model downloaded${NC}"
+        echo -e "${BLUE}ℹ️  Downloading gemma-3-1b-it-Q4_0.gguf...${NC}"
+        if curl -L "https://huggingface.co/unsloth/gemma-3-1b-it-GGUF/resolve/main/gemma-3-1b-it-Q4_0.gguf" \
+             -o "../gguf/gemma-3-1b-it-Q4_0.gguf" --progress-bar; then
+            echo -e "${GREEN}✅ GGUF model downloaded successfully${NC}"
+        else
+            echo -e "${RED}❌ Failed to download GGUF model${NC}"
+            exit 1
+        fi
     else
         echo -e "${BLUE}ℹ️  GGUF model already exists${NC}"
     fi
@@ -258,6 +172,10 @@ fi
 
 # Set environment variable for dependency profile
 export DEPENDENCY_PROFILE=$PROFILE
+
+# Always stop and remove old containers before building or starting new ones
+echo -e "${YELLOW}🛑 Stopping existing containers...${NC}"
+$DOCKER_COMPOSE down
 
 # Build or rebuild if requested
 if [ "$REBUILD" = true ]; then
@@ -284,37 +202,28 @@ sleep 10
 echo -e "${BLUE}📊 Checking service status...${NC}"
 $DOCKER_COMPOSE ps
 
-# Pull Ollama model if needed
-if [ "$PULL_MODEL" = true ]; then
-    # Try to extract model from config file
-    if [ -f "../config.yaml" ]; then
-        OLLAMA_MODEL=$(grep -A5 "inference:" ../config.yaml | grep -A5 "ollama:" | grep "model:" | head -1 | sed 's/.*model:[[:space:]]*"\?\([^"]*\)"\?.*/\1/' | tr -d ' ')
-    fi
-    
-    # Fallback to default if not found
-    if [ -z "$OLLAMA_MODEL" ]; then
-        OLLAMA_MODEL="llama3.2"
-    fi
-    
-    echo -e "${YELLOW}🧠 Checking Ollama model: $OLLAMA_MODEL${NC}"
-    
-    # Check if model exists
-    if ! docker exec orbit-ollama ollama list | grep -q "$OLLAMA_MODEL"; then
-        echo -e "${YELLOW}📥 Pulling Ollama model...${NC}"
-        docker exec orbit-ollama ollama pull $OLLAMA_MODEL
-        echo -e "${GREEN}✅ Model pulled successfully${NC}"
-    else
-        echo -e "${GREEN}✅ Model already available${NC}"
-    fi
-fi
-
-# Test the health endpoint
+# Test the health endpoint with timeout
 echo -e "${YELLOW}🏥 Testing health endpoint...${NC}"
 sleep 5
-if curl -f http://localhost:3000/health > /dev/null 2>&1; then
-    echo -e "${GREEN}✅ ORBIT server is healthy!${NC}"
-else
-    echo -e "${YELLOW}⚠️  Server not ready yet. Check logs with: docker compose logs orbit-server${NC}"
+
+# Try health check with timeout
+HEALTH_CHECK_TIMEOUT=30
+HEALTH_CHECK_INTERVAL=2
+ELAPSED=0
+
+while [ $ELAPSED -lt $HEALTH_CHECK_TIMEOUT ]; do
+    if curl -f -s http://localhost:3000/health > /dev/null 2>&1; then
+        echo -e "${GREEN}✅ ORBIT server is healthy!${NC}"
+        break
+    fi
+    
+    echo -e "${YELLOW}⏳ Waiting for server to be ready... (${ELAPSED}s/${HEALTH_CHECK_TIMEOUT}s)${NC}"
+    sleep $HEALTH_CHECK_INTERVAL
+    ELAPSED=$((ELAPSED + HEALTH_CHECK_INTERVAL))
+done
+
+if [ $ELAPSED -ge $HEALTH_CHECK_TIMEOUT ]; then
+    echo -e "${YELLOW}⚠️  Server health check timed out. Check logs with: $DOCKER_COMPOSE logs orbit-server${NC}"
 fi
 
 echo -e "
@@ -322,14 +231,11 @@ ${GREEN}🎉 ORBIT Docker environment initialized!${NC}
 
 ${BLUE}Service URLs:${NC}
   - ORBIT API: http://localhost:3000
-  - MongoDB: mongodb://localhost:27017
-  - Ollama: http://localhost:11434
-  - ChromaDB: http://localhost:8000
-
+  
 ${BLUE}Quick Commands:${NC}
-  - View logs:     ${DOCKER_COMPOSE} logs -f orbit-server
-  - Stop services: ${DOCKER_COMPOSE} down
-  - Restart:       ${DOCKER_COMPOSE} restart
+  - View logs:     $DOCKER_COMPOSE logs -f orbit-server
+  - Stop services: $DOCKER_COMPOSE down
+  - Restart:       $DOCKER_COMPOSE restart
   - CLI access:    docker exec -it orbit-server orbit --help
   - API test:      curl -X POST http://localhost:3000/v1/chat \\
                      -H 'Content-Type: application/json' \\

@@ -165,11 +165,12 @@ case $COMMAND in
         ;;
         
     logs)
-        FOLLOW=""
-        if [[ "$1" == "--follow" ]] || [[ "$1" == "-f" ]]; then
-            FOLLOW="-f"
+        # If no extra args, default to orbit-server logs
+        if [ $# -eq 0 ]; then
+            $DOCKER_COMPOSE --env-file "$ENV_FILE" logs orbit-server
+        else
+            $DOCKER_COMPOSE --env-file "$ENV_FILE" logs "$@"
         fi
-        $DOCKER_COMPOSE --env-file "$ENV_FILE" logs $FOLLOW orbit-server
         ;;
         
     exec)

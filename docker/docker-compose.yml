@@ -13,12 +13,6 @@ services:
       - ../logs:/app/logs
     env_file:
       - ../.env
+    environment:
+      - CONFIG_PATH=/app/config.yaml
     restart: unless-stopped
-
-networks:
-  default:
-    driver: bridge
-
-volumes:
-  ollama-data:
-  mongodb-data:
