@@ -483,7 +483,7 @@ moderators:
     batch_size: 1
 
 llm_guard:
-  enabled: true
+  enabled: false
   service:
     base_url: "http://localhost:8000"
     timeout: 30

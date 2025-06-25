@@ -37,30 +37,39 @@ class MongoDBService:
         try:
             # Log MongoDB configuration (without sensitive data)
             logger.info(f"Initializing MongoDB connection with config: host={mongodb_config.get('host')}, port={mongodb_config.get('port')}, database={mongodb_config.get('database')}")
-            
-            # Construct connection string for MongoDB Atlas
-            if "mongodb.net" in mongodb_config.get('host', ''):
-                # MongoDB Atlas connection string format
-                connection_string = f"mongodb+srv://{mongodb_config['username']}:{mongodb_config['password']}@{mongodb_config['host']}/{mongodb_config['database']}?retryWrites=true&w=majority"
+
+            host = mongodb_config.get('host', '')
+            port = mongodb_config.get('port', '')
+            database = mongodb_config.get('database', '')
+            username = mongodb_config.get('username', '')
+            password = mongodb_config.get('password', '')
+
+            if "mongodb.net" in host and username and password:
+                # MongoDB Atlas with authentication
+                connection_string = f"mongodb+srv://{username}:{password}@{host}/{database}?retryWrites=true&w=majority"
                 logger.info("Using MongoDB Atlas connection string format")
+            elif username and password:
+                # Local or remote MongoDB with authentication
+                connection_string = f"mongodb://{username}:{password}@{host}:{port}/{database}"
+                logger.info("Using standard MongoDB connection string format with authentication")
             else:
-                # Standard MongoDB connection string format
-                connection_string = f"mongodb://{mongodb_config['username']}:{mongodb_config['password']}@{mongodb_config['host']}:{mongodb_config['port']}/{mongodb_config['database']}"
-                logger.info("Using standard MongoDB connection string format")
-            
-            logger.info(f"Attempting to connect to MongoDB at {mongodb_config['host']}")
-            
+                # Local MongoDB without authentication
+                connection_string = f"mongodb://{host}:{port}/{database}"
+                logger.info("Using standard MongoDB connection string format without authentication")
+
+            logger.info(f"Attempting to connect to MongoDB at {host}")
+
             # Connect to MongoDB
             self.client = motor.motor_asyncio.AsyncIOMotorClient(connection_string)
             logger.info("MongoDB client created successfully")
-            
+
             # Test the connection
             await self.client.admin.command('ping')
             logger.info("MongoDB connection test successful")
-            
-            self.database = self.client[mongodb_config['database']]
-            logger.info(f"Using database '{mongodb_config['database']}'")
-            
+
+            self.database = self.client[database]
+            logger.info(f"Using database '{database}'")
+
             logger.info("MongoDB Service initialized successfully")
             self._initialized = True
         except Exception as e:
