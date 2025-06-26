@@ -91,12 +91,12 @@ export function Sidebar({ onOpenSettings }: SidebarProps) {
     <>
       <div className="w-64 bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex flex-col h-full">
         {/* Header */}
-        <div className="p-3 border-b border-gray-200 dark:border-gray-700">
+        <div className="h-20 p-4 border-b border-gray-200 dark:border-gray-700 flex items-center">
           <button
             onClick={handleNewChat}
-            className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium"
+            className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium text-sm"
           >
-            <Plus className="w-5 h-5" />
+            <Plus className="w-4 h-4" />
             New Chat
           </button>
         </div>
@@ -177,10 +177,10 @@ export function Sidebar({ onOpenSettings }: SidebarProps) {
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+        <div className="h-24 p-4 border-t border-gray-200 dark:border-gray-700 flex items-center">
           <button
             onClick={onOpenSettings}
-            className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+            className="w-full flex items-center justify-center gap-3 px-4 py-3 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
           >
             <Settings className="w-5 h-5" />
             Settings

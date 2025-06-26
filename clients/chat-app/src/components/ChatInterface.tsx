@@ -134,12 +134,9 @@ export function ChatInterface() {
       )}
 
       {/* Chat Header */}
-      <div className="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
-        <div className="max-w-4xl mx-auto flex justify-between items-center">
-          <div>
-            <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-              {currentConversation?.title || 'New Chat'}
-            </h1>
+      <div className="h-20 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 flex items-center">
+        <div className="w-full flex justify-between items-center">
+          <div className="flex-1">
             {currentConversation && (
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                 {currentConversation.messages.length} messages • Last updated {
@@ -148,12 +145,14 @@ export function ChatInterface() {
               </p>
             )}
           </div>
-          <button
-            onClick={() => setShowConfig(true)}
-            className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
-          >
-            Configure API
-          </button>
+          <div className="flex-shrink-0 ml-4 pr-4">
+            <button
+              onClick={() => setShowConfig(true)}
+              className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+            >
+              Configure API
+            </button>
+          </div>
         </div>
       </div>
 
