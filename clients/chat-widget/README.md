@@ -1,27 +1,124 @@
-# How to Use the Chatbot Widget
+# Schmitech Chatbot Widget
 
-This guide will help you integrate the chatbot widget into your website with minimal effort.
+A powerful, customizable chatbot widget that integrates seamlessly into any website. Perfect for customer support, lead generation, and user engagement.
 
-## Quick Start
+## 🚀 Quick Start
 
-### 1. Include the Widget Files
+### Prerequisites
+- Any modern web browser
+- A web server (for local development, you can use a simple HTTP server)
+- Basic knowledge of HTML/JavaScript
 
-Choose one of these methods to include the widget:
+### Installation Methods
 
-**Option 1 - All-in-one bundle (Recommended):**
+**Option 1 - CDN:**
 ```html
-<script src="https://unpkg.com/@schmitech/chatbot-widget@latest/dist/chatbot-widget.bundle.js"></script>
-```
-
-**Option 2 - Separate files:**
-```html
-<script src="https://unpkg.com/@schmitech/chatbot-widget@latest/dist/chatbot-widget.umd.js"></script>
+<!-- Add to your HTML head -->
 <link rel="stylesheet" href="https://unpkg.com/@schmitech/chatbot-widget@latest/dist/chatbot-widget.css">
+
+<!-- Add before closing body tag -->
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@schmitech/chatbot-widget@latest/dist/chatbot-widget.umd.js"></script>
 ```
 
-### 2. Initialize the Widget
+**Option 2 - npm install:**
+```bash
+npm install @schmitech/chatbot-widget
+```
 
-Add this code to your website:
+### 30-Second Setup
+
+1. **Add the widget to your HTML:**
+```html
+<!DOCTYPE html>
+<html>
+<head>
+    <link rel="stylesheet" href="https://unpkg.com/@schmitech/chatbot-widget@latest/dist/chatbot-widget.css">
+</head>
+<body>
+    <!-- Your website content -->
+    
+    <!-- Chatbot container (optional - for embedded mode) -->
+    <div id="chatbot-container"></div>
+    
+    <!-- Widget dependencies -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@schmitech/chatbot-widget@latest/dist/chatbot-widget.umd.js"></script>
+    
+    <!-- Initialize widget -->
+    <script>
+        window.addEventListener('load', function() {
+            window.initChatbotWidget({
+                apiUrl: 'https://your-api-endpoint.com',
+                apiKey: 'your-api-key',
+                sessionId: 'user-session-' + Date.now(),
+                containerSelector: '#chatbot-container', // Remove for floating widget
+                widgetConfig: {
+                    header: { title: "Chat Assistant" },
+                    welcome: { 
+                        title: "Hello! 👋", 
+                        description: "How can I help you today?" 
+                    }
+                }
+            });
+        });
+    </script>
+</body>
+</html>
+```
+
+2. **Replace the placeholder values:**
+   - `https://your-api-endpoint.com` → Your chatbot API URL
+   - `your-api-key` → Your API authentication key
+
+3. **Done!** The widget will appear on your website.
+
+## 📋 Two Integration Modes
+
+### Floating Widget (Default)
+The widget appears as a chat button in the bottom-right corner:
+```html
+<script>
+window.addEventListener('load', function() {
+    window.initChatbotWidget({
+        apiUrl: 'https://your-api-endpoint.com',
+        apiKey: 'your-api-key',
+        sessionId: 'user-session-' + Date.now(),
+        // No containerSelector = floating mode
+        widgetConfig: {
+            header: { title: "Chat Assistant" },
+            welcome: { title: "Hi there! 👋", description: "How can I help?" }
+        }
+    });
+});
+</script>
+```
+
+### Embedded Widget
+The widget embeds directly into a specific container:
+```html
+<!-- Add container div where you want the widget -->
+<div id="chat-widget" style="height: 500px; width: 100%;"></div>
+
+<script>
+window.addEventListener('load', function() {
+    window.initChatbotWidget({
+        apiUrl: 'https://your-api-endpoint.com',
+        apiKey: 'your-api-key',
+        sessionId: 'user-session-' + Date.now(),
+        containerSelector: '#chat-widget', // Embed in this container
+        widgetConfig: {
+            header: { title: "Chat Assistant" },
+            welcome: { title: "Hi there! 👋", description: "How can I help?" }
+        }
+    });
+});
+</script>
+```
+
+## 🛠️ Settings
 
 ```html
 <script>
@@ -153,32 +250,112 @@ To place the widget in a specific container instead of the bottom-right corner:
 </script>
 ```
 
+### Separate JavaScript File (Recommended for Complex Sites)
+
+For better organization, create a separate file for your chatbot configuration:
+
+**1. Create `chatbot-config.js`:**
+```javascript
+// chatbot-config.js
+function getSessionId() {
+  const storageKey = 'chatbot_session_id';
+  let sessionId = sessionStorage.getItem(storageKey);
+  
+  if (!sessionId) {
+    sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    sessionStorage.setItem(storageKey, sessionId);
+  }
+  
+  return sessionId;
+}
+
+function initializeChatbot() {
+  if (!window.initChatbotWidget) {
+    console.error('Chatbot widget not loaded');
+    return;
+  }
+
+  window.initChatbotWidget({
+    apiUrl: 'https://your-api-endpoint.com',
+    apiKey: 'your-api-key',
+    sessionId: getSessionId(),
+    widgetConfig: {
+      header: { title: "Support Chat" },
+      welcome: { 
+        title: "Welcome! 👋", 
+        description: "How can we help you today?" 
+      },
+      suggestedQuestions: [
+        { text: "How can I get started?", query: "Help me get started" },
+        { text: "Contact support", query: "I need to contact support" }
+      ],
+      theme: {
+        primary: '#4f46e5',
+        secondary: '#7c3aed'
+      }
+    }
+  });
+}
+
+window.addEventListener('load', initializeChatbot);
+```
+
+**2. Include in your HTML:**
+```html
+<!DOCTYPE html>
+<html>
+<head>
+    <link rel="stylesheet" href="https://unpkg.com/@schmitech/chatbot-widget@latest/dist/chatbot-widget.css">
+</head>
+<body>
+    <!-- Your website content -->
+    
+    <!-- Widget dependencies -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@schmitech/chatbot-widget@latest/dist/chatbot-widget.umd.js"></script>
+    
+    <!-- Your chatbot configuration -->
+    <script src="chatbot-config.js"></script>
+</body>
+</html>
+```
+
 ### React/TypeScript Integration
 
-For React applications, you can integrate the widget like this:
+For React applications:
 
 ```tsx
-import { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
+
+declare global {
+  interface Window {
+    initChatbotWidget?: (config: any) => void;
+  }
+}
 
 function App() {
+  const widgetInitialized = useRef(false);
+
   useEffect(() => {
-    if (typeof window !== 'undefined' && window.initChatbotWidget) {
+    if (!widgetInitialized.current && window.initChatbotWidget) {
       window.initChatbotWidget({
-        apiUrl: process.env.REACT_APP_API_ENDPOINT,
-        apiKey: process.env.REACT_APP_API_KEY,
-        sessionId: process.env.REACT_APP_SESSION_ID,
-        header: {
-          title: "AI Assistant"
-        },
-        // ... other config options
+        apiUrl: process.env.REACT_APP_API_ENDPOINT || 'https://your-api-endpoint.com',
+        apiKey: process.env.REACT_APP_API_KEY || 'your-api-key',
+        sessionId: `session_${Date.now()}`,
+        widgetConfig: {
+          header: { title: "AI Assistant" },
+          welcome: { title: "Hello!", description: "How can I help?" }
+        }
       });
+      widgetInitialized.current = true;
     }
   }, []);
 
-  return (
-    // Your app content
-  );
+  return <div>{/* Your app content */}</div>;
 }
+
+export default App;
 ```
 
 ## Theme Configuration
@@ -348,9 +525,88 @@ The widget uses **Mona Sans** font by default, with fallbacks to system fonts fo
    - If you see styling issues, check for conflicting CSS rules
    - Dark themes require proper text color configuration
 
+## 🐛 Troubleshooting
+
+### Common Issues
+
+**1. Widget doesn't appear:**
+```javascript
+// Check if widget loaded in browser console
+console.log(typeof window.initChatbotWidget); // Should not be 'undefined'
+
+// Check for error messages in console
+// Make sure CSS file is loaded in Network tab
+```
+
+**2. "Chatbot container not found" error:**
+```html
+<!-- Make sure CSS file is included BEFORE the widget script -->
+<link rel="stylesheet" href="https://unpkg.com/@schmitech/chatbot-widget@latest/dist/chatbot-widget.css">
+
+<!-- For embedded mode, ensure container exists -->
+<div id="chatbot-container"></div>
+```
+
+**3. Widget appears but doesn't work:**
+```javascript
+// Verify your API configuration
+{
+  apiUrl: 'https://your-actual-api-url.com', // Must be a valid URL
+  apiKey: 'your-actual-api-key',             // Must be valid
+  sessionId: 'unique-session-id'             // Must be unique per user
+}
+```
+
+**4. Styling issues:**
+```css
+/* If widget styling conflicts with your site */
+.chatbot-widget {
+  z-index: 9999 !important;
+}
+```
+
+### Browser Compatibility
+- ✅ Chrome 60+
+- ✅ Firefox 55+
+- ✅ Safari 12+
+- ✅ Edge 79+
+- ❌ Internet Explorer (not supported)
+
+### Cache Issues
+If changes don't appear:
+```html
+<!-- Add version parameter to force reload -->
+<script src="https://unpkg.com/@schmitech/chatbot-widget@latest/dist/chatbot-widget.umd.js?v=1.0"></script>
+<script src="chatbot-config.js?v=1.0"></script>
+```
+
+## 📱 Mobile Responsiveness
+
+The widget automatically adapts to mobile devices:
+- Floating mode: Full-screen overlay on mobile
+- Embedded mode: Responsive to container size
+- Touch-friendly buttons and input
+
+## 🔧 Local Development
+
+For testing locally:
+```bash
+# Simple HTTP server with Python
+python -m http.server 8000
+
+# Or with Node.js
+npx http-server
+
+# Or with PHP
+php -S localhost:8000
+```
+
+Then visit `http://localhost:8000`
+
 ## Support
 
-For more help:
-- Visit our [GitHub repository](https://github.com/schmitech/orbit)
-- Check the demo at `/demo.html` for live examples
-- Open an issue on GitHub for bug reports
+For help and questions:
+- 📖 [Full Documentation](https://github.com/schmitech/chatbot-widget)
+- 🐛 [Report Issues](https://github.com/schmitech/chatbot-widget/issues)
+- 💬 [Community Discussions](https://github.com/schmitech/chatbot-widget/discussions)
+- 📧 Email: info@schmitech.ai
