@@ -394,6 +394,79 @@ docker compose down
 docker compose up -d
 ```
 
+#### 6. Database Service Issues (MongoDB/Redis)
+
+If ORBIT server won't start and gets stuck waiting for dependencies:
+
+**Check service status:**
+```bash
+# Check which services are running vs created
+docker compose ps -a
+
+# Look for services with "Created" status instead of "Running (healthy)"
+```
+
+**Check database logs:**
+```bash
+# Check MongoDB logs
+docker compose logs mongodb
+
+# Check Redis logs  
+docker compose logs redis
+
+# Follow logs in real-time
+docker compose logs -f redis mongodb
+```
+
+**Identify port conflicts:**
+```bash
+# Check if Redis port is in use
+sudo lsof -i :6379
+
+# Check if MongoDB port is in use  
+sudo lsof -i :27017
+
+# Check ORBIT port
+sudo lsof -i :3000
+```
+
+**Resolve port conflicts:**
+```bash
+# Stop system Redis service (if conflicting)
+sudo systemctl stop redis-server
+sudo systemctl disable redis-server
+
+# Stop system MongoDB service (if conflicting)
+sudo systemctl stop mongod
+sudo systemctl disable mongod
+
+# Verify ports are free
+sudo lsof -i :6379
+sudo lsof -i :27017
+```
+
+**Manual service startup for debugging:**
+```bash
+# Try starting Redis manually to see errors
+docker compose up redis
+
+# Try starting MongoDB manually
+docker compose up mongodb
+
+# Check container networking
+docker network ls
+docker network inspect orbit_orbit-network
+```
+
+**Test database connectivity:**
+```bash
+# Test Redis connection
+docker exec -it orbit-redis redis-cli ping
+
+# Test MongoDB connection  
+docker exec -it orbit-mongodb mongosh --eval "db.adminCommand('ping')"
+```
+
 ### Debug Mode
 
 Enable verbose logging:
@@ -425,34 +498,102 @@ curl http://localhost:8000/api/v1/heartbeat  # Chroma
 
 ### Resetting Everything
 
-To start fresh:
+To start completely fresh and test the full initialization process:
+
+#### Complete Reset (Recommended)
 ```bash
-# Stop and remove containers
+# Stop and remove all containers
 docker compose down
 
-# Remove volumes (WARNING: Deletes all data)
-docker compose down -v
+# Clean up unused Docker objects (containers, networks, images)
+docker system prune -f
 
-# Remove images
+# Remove all unused volumes (WARNING: Deletes all data)
+docker volume prune -f
+
+# Remove the ORBIT server image to force rebuild
 docker rmi orbit-server:latest
 
-# Rebuild
-./docker-init.sh --rebuild --profile minimal
+# Verify clean state (should show no containers)
+docker ps -a
+
+# Now rebuild from scratch
+./docker-init.sh --build --profile minimal
 ```
 
-## Next Steps
+#### Quick Reset (Keeps Images)
+```bash
+# Stop and remove containers + volumes
+docker compose down -v
 
-1. **Explore the API**: Check `/docs` endpoint for OpenAPI documentation
-2. **Add Your Data**: Use the file upload endpoint to add documents
-3. **Customize Adapters**: Modify configs to change retrieval behavior
-4. **Monitor Performance**: Use the built-in logging and metrics
-5. **Scale Up**: Add more workers or deploy to Kubernetes
+# Restart fresh
+./docker-init.sh --build --profile minimal
+```
 
-## Support
+#### Nuclear Option (Complete Docker Reset)
+If you're still having issues, reset Docker completely:
+```bash
+# Stop Docker service
+sudo systemctl stop docker
 
-- Check logs first: `./orbit-docker.sh logs`
-- Review your config file for syntax errors
-- Ensure all required environment variables are set
-- Verify Docker has enough resources allocated
+# Remove all Docker data (WARNING: Removes EVERYTHING!)
+sudo rm -rf /var/lib/docker
+
+# Start Docker service
+sudo systemctl start docker
+
+# Rebuild everything
+./docker-init.sh --build --profile minimal
+```
+
+#### Verify Clean Environment
+Before running docker-init.sh, ensure no port conflicts:
+```bash
+# Check for existing services on required ports
+sudo lsof -i :3000   # ORBIT
+sudo lsof -i :6379   # Redis
+sudo lsof -i :27017  # MongoDB
+
+# Stop any conflicting services
+sudo systemctl stop redis-server
+sudo systemctl stop mongod
+```
+
+### 6. Docker overlay2 Storage Error
+
+If you see an error like:
+
+```
+failed to solve: failed to read dockerfile: failed to prepare  as <id>: symlink ../<id>/diff /opt/dlami/nvme/docker/overlay2/l/<id>: no such file or directory
+```
+
+This indicates a problem with Docker's internal overlay2 storage, often due to corruption or missing files. This is not a problem with your code or Dockerfile, but with Docker's storage backend.
+
+#### Solution (Non-Destructive First)
+
+Try cleaning up unused Docker objects:
+
+```bash
+docker system prune -a --volumes
+```
+
+If the problem persists, you may need to reset Docker's storage (WARNING: this will delete all containers, images, and volumes!):
+
+#### Solution (Destructive - Resets Docker Storage)
+
+```bash
+sudo systemctl stop docker
+sudo rm -rf /var/lib/docker/overlay2
+sudo rm -rf /var/lib/docker/containers
+sudo systemctl start docker
+```
+
+Then rebuild your images:
+
+```bash
+./docker-init.sh --build --profile minimal --download-gguf
+```
+
+**Warning:** The destructive solution will remove all Docker data. Back up any important data before proceeding.
 
 Happy Orbiting! 🚀

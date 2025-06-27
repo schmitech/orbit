@@ -26,11 +26,21 @@
 #     ./setup.sh --profile torch --profile commercial
 #
 #   With GGUF model:
-#     ./setup.sh --profile minimal --download-gguf
+#     ./setup.sh --profile minimal --download-gguf gemma3-1b.gguf
+#     ./setup.sh --download-gguf my-kaggle-model.gguf --gguf-models-config ../my-gguf-list.conf
+#     ./setup.sh --download-gguf gemma3-1b.gguf --download-gguf another-model.gguf
 #
 #   Custom profile from TOML:
 #     ./setup.sh --profile custom_example
 #
+# GGUF Model Download Options:
+#   --download-gguf [model]    Download GGUF model(s) by name (can be used multiple times)
+#   --gguf-models-config <f>   Path to GGUF models .conf config (default: ../gguf-models.conf)
+#
+# The GGUF model(s) to download must be defined in the config file as:
+#   model-name.gguf=https://url/to/model.gguf
+#
+# If --download-gguf is used without a value, it defaults to gemma3-1b.gguf if present in the config.
 # =============================================================================
 
 # Exit on error
@@ -229,54 +239,71 @@ get_model_info() {
     echo "$result"
 }
 
-# Function to download GGUF model
-# Function to download GGUF model
+# Function to get URL for a model from config file
+get_model_url() {
+    local model_name="$1"
+    local config_file="$2"
+    if [ ! -f "$config_file" ]; then
+        return 1
+    fi
+    while IFS='=' read -r model url; do
+        [[ "$model" =~ ^#.*$ || -z "$model" ]] && continue  # skip comments/empty
+        if [ "$model" = "$model_name" ]; then
+            echo "$url"
+            return 0
+        fi
+    done < "$config_file"
+    return 1
+}
+
+# Refactored GGUF model download function
+# Downloads all models in GGUF_MODELS_TO_DOWNLOAD using GGUF_MODELS_CONFIG
+# If GGUF_MODELS_TO_DOWNLOAD is empty, downloads default model (gemma3-1b.gguf) if present in config
+
 download_gguf_model() {
-    print_message "yellow" "Downloading Gemma 3 1B GGUF model..."
-    
-    # Get the actual directory of this script (setup.sh)
-    SCRIPT_PATH="${BASH_SOURCE[0]}"
-    SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
     PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-    
-    # Debug: Show current working directory and calculated paths
-    print_message "blue" "Current working directory: $(pwd)"
-    print_message "blue" "Script directory: $SCRIPT_DIR"
-    print_message "blue" "Project root: $PROJECT_ROOT"
-    
-    # Create gguf directory in project root if it doesn't exist
     GGUF_DIR="$PROJECT_ROOT/gguf"
     mkdir -p "$GGUF_DIR"
-    
-    print_message "blue" "Creating GGUF directory at: $GGUF_DIR"
-    
-    # Verify the directory exists and show its absolute path
-    if [ ! -d "$GGUF_DIR" ]; then
-        print_message "red" "Error: Failed to create GGUF directory at $GGUF_DIR"
+    print_message "blue" "GGUF directory: $GGUF_DIR"
+
+    if [ ! -f "$GGUF_MODELS_CONFIG" ]; then
+        print_message "red" "GGUF models config file not found: $GGUF_MODELS_CONFIG"
         exit 1
     fi
-    
-    # Download the model to project root gguf directory
-    print_message "blue" "Downloading to: $GGUF_DIR/gemma-3-1b-it-Q4_0.gguf"
-    if ! curl -L "https://huggingface.co/unsloth/gemma-3-1b-it-GGUF/resolve/main/gemma-3-1b-it-Q4_0.gguf" -o "$GGUF_DIR/gemma-3-1b-it-Q4_0.gguf"; then
-        print_message "red" "Error: Failed to download GGUF model."
-        exit 1
+
+    if [ ${#GGUF_MODELS_TO_DOWNLOAD[@]} -eq 0 ]; then
+        # Default to gemma3-1b.gguf if present in config
+        GGUF_MODELS_TO_DOWNLOAD+=("gemma3-1b.gguf")
     fi
-    
-    # Verify the file was created in the correct location
-    if [ -f "$GGUF_DIR/gemma-3-1b-it-Q4_0.gguf" ]; then
-        print_message "green" "GGUF model downloaded successfully to: $GGUF_DIR/gemma-3-1b-it-Q4_0.gguf"
-        print_message "blue" "File size: $(du -h "$GGUF_DIR/gemma-3-1b-it-Q4_0.gguf" | cut -f1)"
-    else
-        print_message "red" "Error: GGUF model was not found at expected location: $GGUF_DIR/gemma-3-1b-it-Q4_0.gguf"
-        exit 1
-    fi
+
+    print_message "yellow" "Downloading GGUF model(s)..."
+    for model in "${GGUF_MODELS_TO_DOWNLOAD[@]}"; do
+        url=$(get_model_url "$model" "$GGUF_MODELS_CONFIG")
+        if [ -z "$url" ]; then
+            print_message "red" "Unknown GGUF model: $model (not found in $GGUF_MODELS_CONFIG)"
+            continue
+        fi
+        if [ ! -f "$GGUF_DIR/$model" ]; then
+            print_message "blue" "Downloading $model..."
+            if curl -L "$url" -o "$GGUF_DIR/$model" --progress-bar; then
+                print_message "green" "$model downloaded successfully to: $GGUF_DIR/$model"
+                print_message "blue" "File size: $(du -h "$GGUF_DIR/$model" | cut -f1)"
+            else
+                print_message "red" "Failed to download $model"
+                exit 1
+            fi
+        else
+            print_message "blue" "$model already exists at $GGUF_DIR/$model"
+        fi
+    done
 }
 
 # Default values
 DOWNLOAD_GGUF=false
 PROFILES=()
 LIST_PROFILES=false
+GGUF_MODELS_TO_DOWNLOAD=()
+GGUF_MODELS_CONFIG="$SCRIPT_DIR/../gguf-models.conf"
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -291,7 +318,20 @@ while [[ $# -gt 0 ]]; do
             ;;
         --download-gguf)
             DOWNLOAD_GGUF=true
-            shift
+            if [[ -n "$2" && "${2:0:1}" != "-" ]]; then
+                GGUF_MODELS_TO_DOWNLOAD+=("$2")
+                shift 2
+            else
+                shift
+            fi
+            ;;
+        --gguf-models-config)
+            if [ -z "$2" ]; then
+                print_message "red" "Error: --gguf-models-config requires a value"
+                exit 1
+            fi
+            GGUF_MODELS_CONFIG="$2"
+            shift 2
             ;;
         --list-profiles|--list)
             LIST_PROFILES=true
@@ -306,14 +346,16 @@ while [[ $# -gt 0 ]]; do
             echo "  --profile, -p <name>    Install dependencies for specified profile"
             echo "                          Can be used multiple times"
             echo "  --list-profiles, --list List available dependency profiles"
-            echo "  --download-gguf         Download Gemma 3 1B GGUF model"
+            echo "  --download-gguf         Download GGUF model(s) as specified by --gguf-model"
+            echo "  --gguf-models-config <f>Path to GGUF models .conf config (default: ../gguf-models.conf)"
             echo "  --help, -h              Show this help message"
             echo ""
             echo "Examples:"
             echo "  $0 --list-profiles"
             echo "  $0 --profile minimal"
             echo "  $0 --profile torch --profile commercial"
-            echo "  $0 --profile all --download-gguf"
+            echo "  $0 --profile all --download-gguf gemma3-1b.gguf"
+            echo "  $0 --download-gguf my-kaggle-model.gguf --gguf-models-config ../my-gguf-list.conf"
             exit 0
             ;;
         *)

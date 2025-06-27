@@ -266,8 +266,8 @@ datasources:
       verify_certs: true
       embedding_provider: null
   redis:
-    host: "localhost"
-    port: 6379
+    host: ${DATASOURCE_REDIS_HOST}
+    port: ${DATASOURCE_REDIS_PORT}
     password: ${DATASOURCE_REDIS_PASSWORD}
     db: 0
     use_ssl: false
@@ -303,7 +303,7 @@ inference:
     max_tokens: 1024
     stream: true
   llama_cpp:
-    model_path: "gguf/gemma-3-1b-it-Q4_0.gguf"
+    model_path: "gguf/gemma3-1b.gguf"
     chat_format: "chatml"  # Chat format to use (chatml, llama-2, gemma, etc.)
     verbose: false
     temperature: 0.1

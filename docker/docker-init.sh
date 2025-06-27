@@ -19,6 +19,29 @@ PULL_MODEL=true
 CREATE_DEFAULT_CONFIG=true
 CONFIG_FILE=""
 
+# GGUF model config file (.conf)
+GGUF_MODELS_CONFIG="../gguf-models.conf"
+GGUF_MODELS_TO_DOWNLOAD=()
+
+# Function to get URL for a model from config file
+get_model_url() {
+    local model_name="$1"
+    local config_file="$2"
+    
+    if [ ! -f "$config_file" ]; then
+        return 1
+    fi
+    
+    while IFS='=' read -r model url; do
+        [[ "$model" =~ ^#.*$ || -z "$model" ]] && continue  # skip comments/empty
+        if [ "$model" = "$model_name" ]; then
+            echo "$url"
+            return 0
+        fi
+    done < "$config_file"
+    return 1
+}
+
 # Get the directory where this script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Change to the script directory to ensure docker-compose.yml is found
@@ -28,38 +51,62 @@ print_help() {
     echo "Usage: ./docker-init.sh [OPTIONS]"
     echo ""
     echo "Options:"
-    echo "  --build              Build containers before starting"
-    echo "  --rebuild            Force rebuild of Docker images"
-    echo "  --profile <name>     Dependency profile (minimal, torch, commercial, all)"
-    echo "  --config <file>      Use specific config file"
-    echo "  --no-default-config  Don't create default config if none exists"
-    echo "  --download-gguf      Download GGUF model"
-    echo "  --no-pull-model      Don't pull Ollama model"
-    echo "  --verbose            Show verbose output"
-    echo "  --help               Show this help message"
+    echo "  --build                   Build containers before starting"
+    echo "  --rebuild                 Force rebuild of Docker images"
+    echo "  --profile <name>          Dependency profile (minimal, torch, commercial, all)"
+    echo "  --config <file>           Use specific config file"
+    echo "  --no-default-config       Don't create default config if none exists"
+    echo "  --download-gguf [model]   Download GGUF model(s) by name (can be used multiple times)"
+    echo "  --gguf-models-config <f>  Path to GGUF models .conf config (default: ../gguf-models.conf)"
+    echo "  --no-pull-model           Don't pull Ollama model"
+    echo "  --verbose                 Show verbose output"
+    echo "  --help                    Show this help message"
+    echo ""
+    echo "GGUF models .conf example (../gguf-models.conf):"
+    echo "gemma-3-1b=https://huggingface.co/unsloth/gemma-3-1b-it-GGUF/resolve/main/gemma-3-1b-it-Q4_0.gguf"
+    echo "my-kaggle-model.gguf=https://www.kaggle.com/models/your/model/download/my-kaggle-model.gguf"
     echo ""
     echo "Examples:"
     echo "  ./docker-init.sh --build --profile minimal"
-    echo "  ./docker-init.sh --rebuild --profile all --download-gguf"
+    echo "  ./docker-init.sh --rebuild --profile all --download-gguf gemma-3-1b"
+    echo "  ./docker-init.sh --download-gguf my-kaggle-model.gguf --gguf-models-config ../my-gguf-list.conf"
+    echo "  ./docker-init.sh --download-gguf gemma-3-1b --download-gguf another-model.gguf"
     echo "  ./docker-init.sh --config /path/to/config.yaml"
     exit 0
 }
 
 # Parse command line arguments
-while [[ "$#" -gt 0 ]]; do
+while [[ $# -gt 0 ]]; do
     case $1 in
-        --build) BUILD=true ;;
-        --rebuild) REBUILD=true; BUILD=true ;;
-        --profile) PROFILE="$2"; shift ;;
-        --config) CONFIG_FILE="$2"; shift ;;
-        --no-default-config) CREATE_DEFAULT_CONFIG=false ;;
-        --download-gguf) DOWNLOAD_GGUF=true ;;
-        --no-pull-model) PULL_MODEL=false ;;
-        --verbose) VERBOSE=true ;;
+        --build) BUILD=true; shift ;;
+        --rebuild) REBUILD=true; BUILD=true; shift ;;
+        --profile)
+            PROFILE="$2"
+            shift 2
+            ;;
+        --config)
+            CONFIG_FILE="$2"
+            shift 2
+            ;;
+        --no-default-config) CREATE_DEFAULT_CONFIG=false; shift ;;
+        --download-gguf)
+            DOWNLOAD_GGUF=true
+            if [[ -n "$2" && "${2:0:1}" != "-" ]]; then
+                GGUF_MODELS_TO_DOWNLOAD+=("$2")
+                shift 2
+            else
+                shift
+            fi
+            ;;
+        --gguf-models-config)
+            GGUF_MODELS_CONFIG="$2"
+            shift 2
+            ;;
+        --no-pull-model) PULL_MODEL=false; shift ;;
+        --verbose) VERBOSE=true; shift ;;
         --help) print_help ;;
         *) echo -e "${RED}Unknown parameter: $1${NC}"; exit 1 ;;
     esac
-    shift
 done
 
 echo -e "${BLUE}🚀 Initializing ORBIT Docker environment...${NC}"
@@ -153,21 +200,36 @@ if [ "$DOWNLOAD_GGUF" = true ]; then
         echo -e "${RED}❌ curl is not installed. Please install curl to download GGUF models.${NC}"
         exit 1
     fi
-    
-    echo -e "${YELLOW}📥 Downloading GGUF model...${NC}"
-    mkdir -p ../gguf
-    if [ ! -f "../gguf/gemma-3-1b-it-Q4_0.gguf" ]; then
-        echo -e "${BLUE}ℹ️  Downloading gemma-3-1b-it-Q4_0.gguf...${NC}"
-        if curl -L "https://huggingface.co/unsloth/gemma-3-1b-it-GGUF/resolve/main/gemma-3-1b-it-Q4_0.gguf" \
-             -o "../gguf/gemma-3-1b-it-Q4_0.gguf" --progress-bar; then
-            echo -e "${GREEN}✅ GGUF model downloaded successfully${NC}"
-        else
-            echo -e "${RED}❌ Failed to download GGUF model${NC}"
-            exit 1
-        fi
-    else
-        echo -e "${BLUE}ℹ️  GGUF model already exists${NC}"
+    if [ ! -f "$GGUF_MODELS_CONFIG" ]; then
+        echo -e "${RED}❌ GGUF models config file not found: $GGUF_MODELS_CONFIG${NC}"
+        exit 1
     fi
+
+    if [ ${#GGUF_MODELS_TO_DOWNLOAD[@]} -eq 0 ]; then
+        echo -e "${YELLOW}⚠️  No GGUF models specified. Use --download-gguf <name> to specify models to download.${NC}"
+    fi
+
+    echo -e "${YELLOW}📥 Downloading GGUF model(s)...${NC}"
+    mkdir -p ../gguf
+
+    for model in "${GGUF_MODELS_TO_DOWNLOAD[@]}"; do
+        url=$(get_model_url "$model" "$GGUF_MODELS_CONFIG")
+        if [ -z "$url" ]; then
+            echo -e "${RED}❌ Unknown GGUF model: $model (not found in $GGUF_MODELS_CONFIG)${NC}"
+            continue
+        fi
+        if [ ! -f "../gguf/$model" ]; then
+            echo -e "${BLUE}ℹ️  Downloading $model...${NC}"
+            if curl -L "$url" -o "../gguf/$model" --progress-bar; then
+                echo -e "${GREEN}✅ $model downloaded successfully${NC}"
+            else
+                echo -e "${RED}❌ Failed to download $model${NC}"
+                exit 1
+            fi
+        else
+            echo -e "${BLUE}ℹ️  $model already exists${NC}"
+        fi
+    done
 fi
 
 # Set environment variable for dependency profile
@@ -258,11 +320,6 @@ ${BLUE}Quick Commands:${NC}
   - API test:      curl -X POST http://localhost:3000/v1/chat \\
                      -H 'Content-Type: application/json' \\
                      -d '{\"message\": \"Hello, ORBIT!\"}'
-
-${BLUE}Management:${NC}
-  - Create API key: docker exec -it orbit-server orbit key create --name myapp
-  - List API keys:  docker exec -it orbit-server orbit key list
-  - Server status:  docker exec -it orbit-server orbit status
 
 Happy orbiting! 🚀
 "

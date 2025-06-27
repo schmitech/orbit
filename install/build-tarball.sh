@@ -1,4 +1,40 @@
 #!/bin/bash
+#
+# ORBIT Build Tarball Script
+# --------------------------
+# This script builds a distributable tarball package for the ORBIT project.
+#
+# USAGE:
+#   ./build-tarball.sh [VERSION]
+#
+# ARGUMENTS:
+#   VERSION   (optional) The version string to use for the package (default: 1.0.0)
+#
+# DESCRIPTION:
+#   - Cleans previous build artifacts and prepares a fresh build directory structure.
+#   - Copies all necessary server, CLI, configuration, and example files into the build directory.
+#   - Checks for required dependencies (python3 >= 3.12, tar, git [optional]).
+#   - Verifies the Python version is at least 3.12.
+#   - Generates a metadata file with build and version information.
+#   - Creates a tar.gz archive of the package in the dist/ directory.
+#   - Verifies the tarball and generates a SHA256 checksum.
+#
+# OUTPUTS:
+#   - dist/orbit-<VERSION>.tar.gz           # The distributable tarball
+#   - dist/orbit-<VERSION>.tar.gz.sha256    # SHA256 checksum file
+#   - build-<timestamp>.log                 # Build log file
+#
+# REQUIREMENTS:
+#   - bash
+#   - python3 (>= 3.12)
+#   - tar
+#   - git (optional, for build metadata)
+#
+# EXAMPLES:
+#   ./build-tarball.sh
+#   ./build-tarball.sh 0.2.0
+#
+# For more details, see the inline comments or contact the ORBIT maintainers.
 set -e
 
 # Parse command line arguments
@@ -90,7 +126,7 @@ mkdir -p dist/build/${PACKAGE_NAME}
 
 # Create directory structure
 echo "Creating directory structure..."
-mkdir -p dist/build/${PACKAGE_NAME}/{bin,server,prompts,docs,logs,examples}
+mkdir -p dist/build/${PACKAGE_NAME}/{bin,server,prompts,docs,logs,examples,docker}
 
 # Copy core server files
 echo "Copying server files..."
@@ -131,6 +167,7 @@ cp install/dependencies.toml dist/build/${PACKAGE_NAME}/ 2>/dev/null || echo "Wa
 cp README.md dist/build/${PACKAGE_NAME}/ 2>/dev/null || echo "Warning: README.md not found"
 chmod +x install/setup.sh
 cp install/setup.sh dist/build/${PACKAGE_NAME}/ 2>/dev/null || echo "Warning: setup.sh not found"
+cp gguf-models.conf dist/build/${PACKAGE_NAME}/ 2>/dev/null || echo "Warning: gguf-models.conf not found"
 
 # Create example configuration
 echo "Creating example configuration yaml file..."
