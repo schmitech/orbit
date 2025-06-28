@@ -63,13 +63,23 @@ class ConfigurationSummaryLogger:
         - System monitoring
         - Documentation
         
+        IMPORTANT: This summary is ALWAYS displayed on the console regardless
+        of verbose setting or console logging configuration to ensure server
+        readiness is always visible.
+        
         Args:
             app: Optional FastAPI application instance for accessing runtime state
         """
         try:
+            # Always log to the configured logger (file, etc.)
             self.logger.info("=" * 50)
             self.logger.info("Server Configuration Summary")
             self.logger.info("=" * 50)
+            
+            # Also force console output for configuration summary regardless of settings
+            print("=" * 50)
+            print("Server Configuration Summary")
+            print("=" * 50)
             
             # Log server mode information
             self._log_server_mode()
@@ -95,8 +105,19 @@ class ConfigurationSummaryLogger:
             
             # Log system settings
             self._log_system_settings()
+            
+            # Add a clear indication that the server is ready
+            self.logger.info("=" * 50)
+            self.logger.info("✅ Server is ready and accepting requests")
+            self.logger.info("=" * 50)
+            
+            print("=" * 50)
+            print("✅ Server is ready and accepting requests")
+            print("=" * 50)
+            
         except Exception as e:
             self.logger.error(f"Error logging configuration summary: {str(e)}")
+            print(f"Error logging configuration summary: {str(e)}")
             # Continue execution - don't let logging errors break the application
     
     def _log_server_mode(self) -> None:
@@ -105,17 +126,26 @@ class ConfigurationSummaryLogger:
             inference_only = _is_true_value(self.config.get('general', {}).get('inference_only', False))
             
             # Log mode first and prominently
-            self.logger.info(f"Mode: {'INFERENCE-ONLY' if inference_only else 'FULL'} (RAG {'disabled' if inference_only else 'enabled'})")
-            self.logger.info("-" * 50)
+            mode_message = f"Mode: {'INFERENCE-ONLY' if inference_only else 'FULL'} (RAG {'disabled' if inference_only else 'enabled'})"
+            self.logger.info(mode_message)
+            print(mode_message)
+            
+            separator = "-" * 50
+            self.logger.info(separator)
+            print(separator)
         except Exception as e:
-            self.logger.error(f"Error logging server mode: {str(e)}")
+            error_msg = f"Error logging server mode: {str(e)}"
+            self.logger.error(error_msg)
+            print(error_msg)
     
     def _log_provider_configurations(self) -> None:
         """Log provider configuration details."""
         try:
             # Get selected providers
             inference_provider = self.config.get('general', {}).get('inference_provider', 'ollama')
-            self.logger.info(f"Inference provider: {inference_provider}")
+            inference_msg = f"Inference provider: {inference_provider}"
+            self.logger.info(inference_msg)
+            print(inference_msg)
             
             # Only log embedding info if not in inference_only mode
             inference_only = _is_true_value(self.config.get('general', {}).get('inference_only', False))
@@ -125,14 +155,24 @@ class ConfigurationSummaryLogger:
                 embedding_enabled = _is_true_value(embedding_config.get('enabled', True))
                 embedding_provider = embedding_config.get('provider', 'ollama')
                 
-                self.logger.info(f"Embedding: {'enabled' if embedding_enabled else 'disabled'}")
+                embedding_status_msg = f"Embedding: {'enabled' if embedding_enabled else 'disabled'}"
+                self.logger.info(embedding_status_msg)
+                print(embedding_status_msg)
+                
                 if embedding_enabled:
-                    self.logger.info(f"Embedding provider: {embedding_provider}")
+                    embedding_provider_msg = f"Embedding provider: {embedding_provider}"
+                    self.logger.info(embedding_provider_msg)
+                    print(embedding_provider_msg)
+                    
                     if embedding_provider in self.config.get('embeddings', {}):
                         embed_model = self.config['embeddings'][embedding_provider].get('model', 'unknown')
-                        self.logger.info(f"Embedding model: {embed_model}")
+                        embed_model_msg = f"Embedding model: {embed_model}"
+                        self.logger.info(embed_model_msg)
+                        print(embed_model_msg)
         except Exception as e:
-            self.logger.error(f"Error logging provider configurations: {str(e)}")
+            error_msg = f"Error logging provider configurations: {str(e)}"
+            self.logger.error(error_msg)
+            print(error_msg)
     
     def _log_service_configurations(self) -> None:
         """Log service configuration details."""
@@ -151,20 +191,31 @@ class ConfigurationSummaryLogger:
             else:
                 llm_guard_enabled = False
             
-            self.logger.info(f"LLM Guard: {'enabled' if llm_guard_enabled else 'disabled'}")
+            llm_guard_msg = f"LLM Guard: {'enabled' if llm_guard_enabled else 'disabled'}"
+            self.logger.info(llm_guard_msg)
+            print(llm_guard_msg)
             
             if llm_guard_enabled:
                 service_config = llm_guard_config.get('service', {})
                 base_url = service_config.get('base_url', 'http://localhost:8000')
-                self.logger.info(f"  LLM Guard service URL: {base_url}")
+                base_url_msg = f"  LLM Guard service URL: {base_url}"
+                self.logger.info(base_url_msg)
+                print(base_url_msg)
                 
                 security_config = llm_guard_config.get('security', {})
                 risk_threshold = security_config.get('risk_threshold', 0.6)
-                self.logger.info(f"  Default risk threshold: {risk_threshold}")
+                risk_threshold_msg = f"  Default risk threshold: {risk_threshold}"
+                self.logger.info(risk_threshold_msg)
+                print(risk_threshold_msg)
                 
                 # Use default scanner lists since they're not in simplified config
-                self.logger.info(f"  Available input scanners: 7 (default)")
-                self.logger.info(f"  Available output scanners: 4 (default)")
+                input_scanners_msg = f"  Available input scanners: 7 (default)"
+                self.logger.info(input_scanners_msg)
+                print(input_scanners_msg)
+                
+                output_scanners_msg = f"  Available output scanners: 4 (default)"
+                self.logger.info(output_scanners_msg)
+                print(output_scanners_msg)
             
             # Get safety configuration
             safety_config = self.config.get('safety', {})
@@ -173,74 +224,119 @@ class ConfigurationSummaryLogger:
             safety_moderator = safety_config.get('moderator')
             
             # Log safety information
-            self.logger.info(f"Safety: {'enabled' if safety_enabled else 'disabled'}")
+            safety_msg = f"Safety: {'enabled' if safety_enabled else 'disabled'}"
+            self.logger.info(safety_msg)
+            print(safety_msg)
+            
             if safety_enabled:
-                self.logger.info(f"Safety mode: {safety_mode}")
+                safety_mode_msg = f"Safety mode: {safety_mode}"
+                self.logger.info(safety_mode_msg)
+                print(safety_mode_msg)
                 
                 # Log moderator information if specified
                 if safety_moderator:
-                    self.logger.info(f"Safety moderator: {safety_moderator}")
+                    moderator_msg = f"Safety moderator: {safety_moderator}"
+                    self.logger.info(moderator_msg)
+                    print(moderator_msg)
                     
                     # Log moderator-specific configuration if available
                     moderators_config = self.config.get('moderators', {})
                     if safety_moderator in moderators_config:
                         moderator_config = moderators_config[safety_moderator]
                         model = moderator_config.get('model', 'unknown')
-                        self.logger.info(f"Moderation model: {model}")
+                        model_msg = f"Moderation model: {model}"
+                        self.logger.info(model_msg)
+                        print(model_msg)
                         
                         # Log additional moderator settings if available
                         if 'temperature' in moderator_config:
-                            self.logger.info(f"Moderation temperature: {moderator_config['temperature']}")
+                            temp_msg = f"Moderation temperature: {moderator_config['temperature']}"
+                            self.logger.info(temp_msg)
+                            print(temp_msg)
                         if 'max_tokens' in moderator_config:
-                            self.logger.info(f"Moderation max tokens: {moderator_config['max_tokens']}")
+                            tokens_msg = f"Moderation max tokens: {moderator_config['max_tokens']}"
+                            self.logger.info(tokens_msg)
+                            print(tokens_msg)
                         if 'batch_size' in moderator_config:
-                            self.logger.info(f"Moderation batch size: {moderator_config['batch_size']}")
+                            batch_msg = f"Moderation batch size: {moderator_config['batch_size']}"
+                            self.logger.info(batch_msg)
+                            print(batch_msg)
                 else:
-                    self.logger.info("Safety moderator: not specified (will use inference provider)")
+                    no_moderator_msg = "Safety moderator: not specified (will use inference provider)"
+                    self.logger.info(no_moderator_msg)
+                    print(no_moderator_msg)
 
             # Log chat history information if in inference_only mode
             inference_only = _is_true_value(self.config.get('general', {}).get('inference_only', False))
             if inference_only:
                 self._log_chat_history_configuration()
         except Exception as e:
-            self.logger.error(f"Error logging service configurations: {str(e)}")
+            error_msg = f"Error logging service configurations: {str(e)}"
+            self.logger.error(error_msg)
+            print(error_msg)
     
     def _log_chat_history_configuration(self) -> None:
         """Log chat history service configuration."""
         try:
             chat_history_config = self.config.get('chat_history', {})
             chat_history_enabled = _is_true_value(chat_history_config.get('enabled', True))
-            self.logger.info(f"Chat History: {'enabled' if chat_history_enabled else 'disabled'}")
+            chat_history_msg = f"Chat History: {'enabled' if chat_history_enabled else 'disabled'}"
+            self.logger.info(chat_history_msg)
+            print(chat_history_msg)
             
             if chat_history_enabled:
-                self.logger.info(f"  - Default message limit: {chat_history_config.get('default_limit', 50)}")
-                self.logger.info(f"  - Store metadata: {chat_history_config.get('store_metadata', True)}")
-                self.logger.info(f"  - Retention days: {chat_history_config.get('retention_days', 90)}")
-                self.logger.info(f"  - Session auto-generate: {chat_history_config.get('session', {}).get('auto_generate', True)}")
-                self.logger.info(f"  - Max conversation messages: dynamically calculated based on inference provider context window")
+                limit_msg = f"  - Default message limit: {chat_history_config.get('default_limit', 50)}"
+                self.logger.info(limit_msg)
+                print(limit_msg)
+                
+                metadata_msg = f"  - Store metadata: {chat_history_config.get('store_metadata', True)}"
+                self.logger.info(metadata_msg)
+                print(metadata_msg)
+                
+                retention_msg = f"  - Retention days: {chat_history_config.get('retention_days', 90)}"
+                self.logger.info(retention_msg)
+                print(retention_msg)
+                
+                session_msg = f"  - Session auto-generate: {chat_history_config.get('session', {}).get('auto_generate', True)}"
+                self.logger.info(session_msg)
+                print(session_msg)
+                
+                max_msg = f"  - Max conversation messages: dynamically calculated based on inference provider context window"
+                self.logger.info(max_msg)
+                print(max_msg)
         except Exception as e:
-            self.logger.error(f"Error logging chat history configuration: {str(e)}")
+            error_msg = f"Error logging chat history configuration: {str(e)}"
+            self.logger.error(error_msg)
+            print(error_msg)
     
     def _log_api_configurations(self) -> None:
         """Log API and security configuration details."""
         try:
             # Get language detection configuration
             language_detection_enabled = _is_true_value(self.config.get('general', {}).get('language_detection', True))
-            self.logger.info(f"Language Detection: {'enabled' if language_detection_enabled else 'disabled'}")
+            language_msg = f"Language Detection: {'enabled' if language_detection_enabled else 'disabled'}"
+            self.logger.info(language_msg)
+            print(language_msg)
             
             # Get session ID configuration
             session_config = self.config.get('general', {}).get('session_id', {})
             session_enabled = _is_true_value(session_config.get('required', False))
             session_header = session_config.get('header_name', 'X-Session-ID')
-            self.logger.info(f"Session ID: {'enabled' if session_enabled else 'disabled'} (header: {session_header})")
+            session_msg = f"Session ID: {'enabled' if session_enabled else 'disabled'} (header: {session_header})"
+            self.logger.info(session_msg)
+            print(session_msg)
             
             # Get API key configuration
             api_key_config = self.config.get('api_keys', {})
             api_key_enabled = _is_true_value(api_key_config.get('enabled', True))
             api_key_header = api_key_config.get('header_name', 'X-API-Key')
-            self.logger.info(f"API Key: {'enabled' if api_key_enabled else 'disabled'} (header: {api_key_header})")
+            api_key_msg = f"API Key: {'enabled' if api_key_enabled else 'disabled'} (header: {api_key_header})"
+            self.logger.info(api_key_msg)
+            print(api_key_msg)
         except Exception as e:
-            self.logger.error(f"Error logging API configurations: {str(e)}")
+            error_msg = f"Error logging API configurations: {str(e)}"
+            self.logger.error(error_msg)
+            print(error_msg)
     
     def _log_model_information(self) -> None:
         """Log model configuration details."""
@@ -249,9 +345,13 @@ class ConfigurationSummaryLogger:
             inference_provider = self.config.get('general', {}).get('inference_provider', 'ollama')
             if inference_provider in self.config.get('inference', {}):
                 model_name = self.config['inference'][inference_provider].get('model', 'unknown')
-                self.logger.info(f"Server running with {model_name} model")
+                model_msg = f"Server running with {model_name} model"
+                self.logger.info(model_msg)
+                print(model_msg)
         except Exception as e:
-            self.logger.error(f"Error logging model information: {str(e)}")
+            error_msg = f"Error logging model information: {str(e)}"
+            self.logger.error(error_msg)
+            print(error_msg)
     
     def _log_runtime_information(self, app: FastAPI) -> None:
         """Log runtime-specific information when available."""
@@ -260,38 +360,60 @@ class ConfigurationSummaryLogger:
             inference_only = _is_true_value(self.config.get('general', {}).get('inference_only', False))
             if not inference_only and hasattr(app.state, 'retriever') and app.state.retriever is not None:
                 try:
-                    self.logger.info(f"Confidence threshold: {app.state.retriever.confidence_threshold}")
+                    confidence_msg = f"Confidence threshold: {app.state.retriever.confidence_threshold}"
+                    self.logger.info(confidence_msg)
+                    print(confidence_msg)
                 except AttributeError:
                     # Skip logging if retriever is not fully initialized
                     pass
             
             # Log chat history service status (always show, regardless of verbose)
             chat_history_loaded = hasattr(app.state, 'chat_history_service') and app.state.chat_history_service is not None
-            self.logger.info(f"Chat History Service: {'loaded' if chat_history_loaded else 'not loaded'}")
+            chat_history_status_msg = f"Chat History Service: {'loaded' if chat_history_loaded else 'not loaded'}"
+            self.logger.info(chat_history_status_msg)
+            print(chat_history_status_msg)
             
             # Log moderator service status
             moderator_loaded = hasattr(app.state, 'moderator_service') and app.state.moderator_service is not None
-            self.logger.info(f"Moderator Service: {'loaded' if moderator_loaded else 'not loaded'}")
+            moderator_status_msg = f"Moderator Service: {'loaded' if moderator_loaded else 'not loaded'}"
+            self.logger.info(moderator_status_msg)
+            print(moderator_status_msg)
             
         except Exception as e:
-            self.logger.error(f"Error logging runtime information: {str(e)}")
+            error_msg = f"Error logging runtime information: {str(e)}"
+            self.logger.error(error_msg)
+            print(error_msg)
     
     def _log_endpoint_information(self) -> None:
         """Log API endpoint information."""
         try:
-            self.logger.info("API Endpoints:")
-            self.logger.info("  - MCP Completion Endpoint: POST /v1/chat")
-            self.logger.info("  - Health check: GET /health")
+            endpoints_header = "API Endpoints:"
+            self.logger.info(endpoints_header)
+            print(endpoints_header)
+            
+            chat_endpoint = "  - MCP Completion Endpoint: POST /v1/chat"
+            self.logger.info(chat_endpoint)
+            print(chat_endpoint)
+            
+            health_endpoint = "  - Health check: GET /health"
+            self.logger.info(health_endpoint)
+            print(health_endpoint)
         except Exception as e:
-            self.logger.error(f"Error logging endpoint information: {str(e)}")
+            error_msg = f"Error logging endpoint information: {str(e)}"
+            self.logger.error(error_msg)
+            print(error_msg)
     
     def _log_system_settings(self) -> None:
         """Log system-level settings."""
         try:
             verbose_enabled = _is_true_value(self.config.get('general', {}).get('verbose', False))
-            self.logger.info(f"Verbose mode: {verbose_enabled}")
+            verbose_msg = f"Verbose mode: {verbose_enabled}"
+            self.logger.info(verbose_msg)
+            print(verbose_msg)
         except Exception as e:
-            self.logger.error(f"Error logging system settings: {str(e)}")
+            error_msg = f"Error logging system settings: {str(e)}"
+            self.logger.error(error_msg)
+            print(error_msg)
     
     def generate_configuration_report(self) -> Dict[str, Any]:
         """

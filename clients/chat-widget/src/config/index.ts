@@ -28,6 +28,10 @@ export interface ChatConfig {
     chatButton: {
       background: string;
       hoverBackground?: string;
+      borderColor?: string;
+      iconColor?: string;
+      iconBorderColor?: string;
+      iconName?: string;
     };
   };
   welcome: {
@@ -38,7 +42,6 @@ export interface ChatConfig {
     text: string;
     query: string;
   }>;
-
 }
 
 export const defaultTheme = {
@@ -66,7 +69,11 @@ export const defaultTheme = {
   },
   chatButton: {
     background: '#ffffff',
-    hoverBackground: '#f8fafc'
+    hoverBackground: '#f8fafc',
+    borderColor: '#e5e7eb',
+    iconColor: '#f97316',
+    iconBorderColor: '#111111',
+    iconName: 'MessageSquare'
   }
 };
 

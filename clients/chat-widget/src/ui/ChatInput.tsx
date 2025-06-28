@@ -32,17 +32,28 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 }) => {
   return (
     <div
-      className="p-4 border-t-0 shrink-0 relative"
+      className="border-t-0 shrink-0 relative"
       style={{
-        background: `${theme.input.background} !important`,
-        backgroundColor: `${theme.input.background} !important`,
+        background: `${theme.input.background}`,
+        backgroundColor: `${theme.input.background}`,
+        borderTopLeftRadius: 0,
+        borderTopRightRadius: 0,
+        zIndex: 10,
+        position: 'relative',
+        marginTop: '-2px',
+        paddingTop: '18px',
+        paddingLeft: '16px',
+        paddingRight: '16px',
+        paddingBottom: '16px'
       }}
     >
-      {/* Subtle top border gradient */}
+      {/* Solid background barrier to block any background bleeding */}
       <div 
-        className="absolute top-0 left-0 right-0 h-px"
+        className="absolute inset-0"
         style={{
-          background: 'linear-gradient(90deg, transparent, rgba(0,0,0,0.1), transparent)'
+          background: `${theme.input.background}`,
+          backgroundColor: `${theme.input.background}`,
+          zIndex: -1
         }}
       />
       

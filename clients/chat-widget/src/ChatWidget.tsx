@@ -3,7 +3,8 @@ import { Minimize2, Trash2 } from 'lucide-react';
 import { useChatStore, Message } from './store/chatStore';
 import { getChatConfig, defaultTheme, ChatConfig } from './config/index';
 import { configureApi } from '@schmitech/chatbot-api';
-import MessagesSquareIcon from './config/messages-square.svg?react';
+import * as LucideIcons from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 
 import { 
   CHAT_CONSTANTS, 
@@ -92,7 +93,18 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
   // Listen for configuration updates
   useEffect(() => {
     const handleConfigUpdate = (event: CustomEvent) => {
-      setCurrentConfig(event.detail);
+      setCurrentConfig(prev => ({
+        ...prev,
+        ...event.detail,
+        theme: {
+          ...prev.theme,
+          ...event.detail.theme,
+          chatButton: {
+            ...prev.theme?.chatButton,
+            ...event.detail.theme?.chatButton
+          }
+        }
+      }));
     };
 
     window.addEventListener('chatbot-config-update', handleConfigUpdate as EventListener);
@@ -194,6 +206,131 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
       }
     };
   }, [scrollTimeoutRef]);
+
+  // Map demo icon names to actual Lucide React icon names
+  const iconNameMap: Record<string, keyof typeof LucideIcons> = {
+    // Chat and Communication
+    'MessageSquare': 'MessageSquare',
+    'MessageCircle': 'MessageCircle',
+    'MessageCircleMore': 'MoreHorizontal', // Use MoreHorizontal for dots
+    'MessageSquareText': 'MessageSquareText',
+    'MessageSquareDots': 'MessageSquareDot',
+    'ChatBubble': 'MessageCircle',
+    'ChatBubbleLeft': 'MessageCircle',
+    'ChatBubbleLeftRight': 'MessageCircle',
+    'ChatBubbleLeftEllipsis': 'MessageCircle',
+    'ChatBubbleLeftDots': 'MessageCircle',
+    
+    // Help and Info  
+    'HelpCircle': 'HelpCircle',
+    'QuestionMarkCircle': 'HelpCircle',
+    'Info': 'Info',
+    'Lightbulb': 'Lightbulb',
+    'Sparkles': 'Sparkles',
+    
+    // People
+    'Bot': 'Bot',
+    'User': 'User',
+    'Users': 'Users',
+    'UserCheck': 'UserCheck',
+    'UserPlus': 'UserPlus',
+    
+    // Communication
+    'Phone': 'Phone',
+    'Mail': 'Mail',
+    'MailOpen': 'MailOpen',
+    'Send': 'Send',
+    'Reply': 'Reply',
+    
+    // Actions and Interface
+    'Heart': 'Heart',
+    'Star': 'Star',
+    'ThumbsUp': 'ThumbsUp',
+    'Smile': 'Smile',
+    'Laugh': 'Laugh',
+    
+    // Settings and Tools
+    'Settings': 'Settings',
+    'Cog': 'Settings', // Map to Settings since Cog might not exist
+    'Wrench': 'Wrench',
+    'Tool': 'Wrench', // Map to Wrench
+    'Hammer': 'Hammer',
+    
+    // Navigation
+    'Home': 'Home',
+    'Search': 'Search',
+    'Menu': 'Menu',
+    'Grid': 'Grid3X3',
+    'List': 'List',
+    
+    // Basic Actions
+    'Plus': 'Plus',
+    'Minus': 'Minus',
+    'X': 'X',
+    'Check': 'Check',
+    'ArrowRight': 'ArrowRight',
+    
+    // Special
+    'Zap': 'Zap',
+    'Target': 'Target',
+    'Flag': 'Flag',
+    'Bookmark': 'Bookmark',
+    'Gift': 'Gift',
+    
+    // Additional common icons
+    'Bell': 'Bell',
+    'BellRing': 'BellRing',
+    'Calendar': 'Calendar',
+    'Clock': 'Clock',
+    'MapPin': 'MapPin',
+    'Globe': 'Globe',
+    'Link': 'Link',
+    'Download': 'Download',
+    'Upload': 'Upload',
+    'Share': 'Share',
+    'Copy': 'Copy',
+    'Edit': 'Edit',
+    'Trash': 'Trash',
+    'Eye': 'Eye',
+    'EyeOff': 'EyeOff',
+    'Lock': 'Lock',
+    'Unlock': 'Unlock',
+    'Shield': 'Shield',
+    'AlertCircle': 'AlertCircle',
+    'AlertTriangle': 'AlertTriangle',
+    'CheckCircle': 'CheckCircle',
+    'XCircle': 'XCircle',
+    'MinusCircle': 'MinusCircle',
+    'PlusCircle': 'PlusCircle',
+    'Play': 'Play',
+    'Pause': 'Pause',
+    'Stop': 'Square',
+    'SkipBack': 'SkipBack',
+    'SkipForward': 'SkipForward',
+    'Volume': 'Volume2',
+    'VolumeX': 'VolumeX',
+    'Mic': 'Mic',
+    'MicOff': 'MicOff',
+    'Camera': 'Camera',
+    'Video': 'Video',
+    'Image': 'Image',
+    'File': 'File',
+    'FileText': 'FileText',
+    'Folder': 'Folder',
+    'FolderOpen': 'FolderOpen',
+    'Database': 'Database',
+    'Server': 'Server',
+    'Monitor': 'Monitor',
+    'Smartphone': 'Smartphone',
+    'Tablet': 'Tablet',
+    'Laptop': 'Laptop',
+    'Activity': 'Activity'
+  };
+
+  const requestedIconName = theme.chatButton?.iconName || 'MessageSquare';
+  const mappedIconName = iconNameMap[requestedIconName] || 'MessageSquare';
+  
+  const IconComponent: LucideIcon = (LucideIcons as any)[mappedIconName] || LucideIcons.MessageSquare;
 
   return (
     <div className="fixed bottom-8 right-8 z-50 flex flex-col items-end font-sans" style={{ fontFamily: FONT_FAMILY }}>
@@ -326,9 +463,11 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
           style={{
             background: isOpen 
               ? `linear-gradient(135deg, ${theme.primary}, ${theme.primary}e6)` 
-              : `linear-gradient(135deg, ${theme.chatButton?.background || '#ffffff'}, ${theme.chatButton?.hoverBackground || '#f8fafc'})`,
+              : isButtonHovered 
+                ? theme.chatButton?.hoverBackground || theme.chatButton?.background || '#ffffff'
+                : theme.chatButton?.background || '#ffffff',
             color: !isOpen ? theme.text.primary : undefined,
-            border: isOpen ? 'none' : '1px solid rgba(0, 0, 0, 0.1)',
+            border: isOpen ? 'none' : `1px solid ${theme.chatButton?.borderColor || '#e5e7eb'}`,
             width: CHAT_CONSTANTS.BUTTON_SIZES.CHAT_BUTTON.width,
             height: CHAT_CONSTANTS.BUTTON_SIZES.CHAT_BUTTON.height,
             transform: isButtonHovered ? 'translateY(-2px) scale(1.05)' : 'translateY(0) scale(1)',
@@ -355,11 +494,16 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
               className="text-white opacity-90 drop-shadow-sm relative z-10" 
             />
           ) : (
-            <MessagesSquareIcon 
-              width={48} 
-              height={48} 
-              className="relative z-10 transition-transform duration-300 group-hover:scale-110 drop-shadow-sm" 
-              style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))' }}
+            <IconComponent
+              width={48}
+              height={48}
+              className="relative z-10 transition-transform duration-300 group-hover:scale-110 drop-shadow-sm"
+              style={{
+                filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))',
+                fill: theme.chatButton?.iconColor || '#f97316',
+                stroke: theme.chatButton?.iconBorderColor || '#111',
+                strokeWidth: 1
+              }}
             />
           )}
         </button>
