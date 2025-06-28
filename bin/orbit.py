@@ -226,6 +226,7 @@ class ServerController:
         try:
             # Ensure logs directory exists
             self.log_file.parent.mkdir(parents=True, exist_ok=True)
+            self.log_file.parent.chmod(0o700)
             
             # Open log file for output
             with open(self.log_file, 'a') as log:

@@ -502,6 +502,9 @@ To start completely fresh and test the full initialization process:
 
 #### Complete Reset (Recommended)
 ```bash
+# Stop the containers
+docker rm -f orbit-server orbit-mongodb orbit-redis
+
 # Stop and remove all containers
 docker compose down
 
@@ -512,13 +515,13 @@ docker system prune -f
 docker volume prune -f
 
 # Remove the ORBIT server image to force rebuild
-docker rmi orbit-server:latest
+docker rmi orbit-server:latest mongo:8.0 redis:7.2
 
 # Verify clean state (should show no containers)
 docker ps -a
 
 # Now rebuild from scratch
-./docker-init.sh --build --profile minimal
+./docker-init.sh --build --profile minimal --download-gguf gguf-model.gguf
 ```
 
 #### Quick Reset (Keeps Images)

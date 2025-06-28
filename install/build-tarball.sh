@@ -126,11 +126,25 @@ mkdir -p dist/build/${PACKAGE_NAME}
 
 # Create directory structure
 echo "Creating directory structure..."
-mkdir -p dist/build/${PACKAGE_NAME}/{bin,server,prompts,docs,logs,examples,docker}
+mkdir -p dist/build/${PACKAGE_NAME}/{bin,server,install,docs,logs,examples,docker}
 
 # Copy core server files
 echo "Copying server files..."
 find server -type f -not -path "*/\.*" -not -path "*/__pycache__/*" -not -name "*.pyc" -not -name "*.pyo" -not -name "*.pyd" | while read file; do
+    mkdir -p "dist/build/${PACKAGE_NAME}/$(dirname "$file")"
+    cp "$file" "dist/build/${PACKAGE_NAME}/$file"
+done
+
+# Copy install files (excluding build-tarball.sh)
+echo "Copying install files..."
+find install -type f -not -path "*/\.*" -not -path "*/__pycache__/*" -not -name "*.pyc" -not -name "*.pyo" -not -name "*.pyd" -not -name "build-tarball.sh" | while read file; do
+    mkdir -p "dist/build/${PACKAGE_NAME}/$(dirname "$file")"
+    cp "$file" "dist/build/${PACKAGE_NAME}/$file"
+done
+
+# Copy docker files
+echo "Copying docker files..."
+find docker -type f -not -path "*/\.*" -not -path "*/__pycache__/*" -not -name "*.pyc" -not -name "*.pyo" -not -name "*.pyd" | while read file; do
     mkdir -p "dist/build/${PACKAGE_NAME}/$(dirname "$file")"
     cp "$file" "dist/build/${PACKAGE_NAME}/$file"
 done
@@ -190,11 +204,6 @@ cat > dist/build/${PACKAGE_NAME}/meta.json << EOF
 }
 EOF
 
-# Create installation and setup script
-echo "Creating installation script..."
-cp install/install.sh.template dist/build/${PACKAGE_NAME}/install.sh
-chmod +x dist/build/${PACKAGE_NAME}/install.sh
-
 # Create documentation
 echo "Creating documentation..."
 cat > dist/build/${PACKAGE_NAME}/docs/QUICKSTART.md << 'EOF'
@@ -218,7 +227,7 @@ This guide will help you get started with ORBIT server and CLI.
 
 2. Run the installation script:
    ```
-   ./install.sh
+   ./install/setup.sh --profile minimal --download-gguf gguf-model.gguf
    ```
 
 3. Configure your environment:

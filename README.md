@@ -66,21 +66,43 @@ ORBIT integrates with two types of guardrail services to prevent harmful content
 
 ## Quick Start
 
+### Deploying locally
 ```bash
 # Download and extract the latest release
-curl -L https://github.com/schmitech/orbit/releases/download/v1.1.3/orbit-1.1.3.tar.gz
-tar -xzf orbit-1.1.3.tar.gz
-cd orbit-1.1.3
+curl -L https://github.com/schmitech/orbit/releases/download/v1.1.3/orbit-1.1.4.tar.gz
+tar -xzf orbit-1.1.4.tar.gz
+cd orbit-1.1.4
 
-# Add --help for command options
-./install.sh
+# Create environment file from template
+cp .env.example .env
+
+# Models are defined in gguf-models.conf - add your preferred model to the config file
+# Default uses gemma3-1b.gguf for quick testing on low-resource devices
+./install/setup.sh --profile minimal --download-gguf gemma3-1b.gguf
 
 # Activate virtual environment
 source venv/bin/activate
 
-# Get a GGUF model
-python ./bin/download_hf_gguf_model.py --repo-id "TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF" --filename "*q4_0.gguf" --output-dir "./gguf"
+# Star the server Logs under ./logs/orbit.log, use --help for options.
+./bin/orbit.sh start
 ```
+
+### Deploying with Docker
+```bash
+./docker/docker-init.sh --build --profile minimal --download-gguf gemma3-1b.gguf
+
+# Check the logs
+./docker/orbit-docker.sh logs --follow
+
+# Open terminal in container
+./docker/orbit-docker.sh exec bash
+```
+
+Run ORBIT client (default url is http://localhost:3000, use --help for options):
+```bash
+orbit-chat
+```
+![ORBIT Chat Demo](docs/images/orbit-chat.gif)
 
 ORBIT uses YAML configuration files to control its behavior. The main sections are:
 
@@ -104,6 +126,8 @@ inference:
 
 If you want to keep conversation history, you will need a MongoDB instance. This is configurable under the `internal_services` section in config.yaml.
 
+> **Note**: MongoDB and Redis are included when deployed using docker.
+
 ```bash
 # Copy .env.example to .env and add your MongoDB connection parameters:
 INTERNAL_SERVICES_MONGODB_HOST=localhost
@@ -119,17 +143,6 @@ chat_history:
 ```
 
 For more details about conversation history configuration and usage, see [Conversation History Documentation](docs/conversation_history.md)
-
-### Starting the Inference server:
-```bash
-# Logs under ./logs/orbit.log, use --help for options.
-./bin/orbit.sh start
-
-# Run ORBIT client (default url is http://localhost:3000, use --help for options):
-orbit-chat 
-```
-
-![ORBIT Chat Demo](docs/images/orbit-chat.gif)
 
 ### Running ORBIT in RAG Mode with Sample SQLite Adapter
 
