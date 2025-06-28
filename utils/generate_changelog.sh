@@ -16,8 +16,8 @@
 #
 # Usage:
 #   ./generate_changelog.sh <start_date> <end_date>
-#   ./generate_changelog.sh 2024-01-01 2024-12-31
-#   ./generate_changelog.sh "2024-01-01" "2024-12-31"
+#   ./generate_changelog.sh 2025-01-01 2025-01-31
+#   ./generate_changelog.sh "2025-01-01" "2025-01-31"
 #
 # Arguments:
 #   start_date  - Start date in YYYY-MM-DD format (e.g., 2024-01-01)

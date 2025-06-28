@@ -1,5 +1,30 @@
 # Changelog
 
+## [1.1.4] - 2025-06-27
+
+### Docker & Deployment Scripts
+- Improve docker and setup scripts
+- Fix profile 'torch' and docker deployment issues
+- Added missing google-cloud dependency for profile 'commercial' in toml file
+
+### Security & Moderation
+- Fixed issue related to moderation called after LLM response instead of checking first before returning final response to client
+- Integrate new llm_guard service with existing moderators. Now it's possible to use both services to enforce safety.
+- Make safety check bidirectional (user prompt and LLM response)
+
+### Vector Database & Retrieval
+- Added Qdrant vector retriever (similar to Chroma)
+
+### Code Quality & Architecture
+- Chat Service Module: Significant improvement in code quality, maintainability and testability
+
+### Inference Providers
+- Added cohere and IBM Watson AI inference client
+
+### UI/Widget Improvements
+- Added new Widget Theming App
+- Chat Widget v0.4.9 new version of Widget with further UX enhancements and design updates
+
 ## [1.1.3] - 2025-06-12
 
 ### Language Support

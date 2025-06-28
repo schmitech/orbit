@@ -7,23 +7,32 @@
 
 ORBIT is a modular, self-hosted toolkit that provides a unified API for open-source AI inference models. ORBIT enables you to run AI models on your own infrastructure, maintaining full control over your data while reducing dependency on external AI services. The project is actively maintained by [Remsy Schmilinsky](https://www.linkedin.com/in/remsy/).
 
-## 🎉 Jun 12, 2025 - Announcing ORBIT v1.1.3
+## 🎉 Jun 27, 2025 - Announcing ORBIT v1.1.4
 
-### 🌍 Language Detection
-- **Accuracy**: Improved language detection module for more precise multilingual support
-- **Better Coverage**: Updated unit tests ensure robust language processing across all supported languages
+### 🔒 Enhanced Security & Moderation
+- **LLM-Guard**: Integrated with [LLM Guard](https://github.com/protectai/llm-guard) though a new [LLM Guard Service](https://github.com/schmitech/llm-guard-service) on top of existing moderators
+- **Bidirectional Safety**: Safety checks now validate both user input and AI responses
 
-### ⚡ vLLM Integration Fixed
-- **Stable Performance**: Resolved vLLM inference issues for reliable high-performance model serving
-- **Optimized Configuration**: Updated vLLM settings for better resource utilization and stability
+### 🐳 Docker & Deployment
+- **Improved Scripts**: Enhanced docker and setup scripts for better deployment experience
+- **Profile Fixes**: Resolved 'torch' profile and docker deployment issues
+- **Dependency Management**: Added missing google-cloud dependency for 'commercial' profile
 
-### 🔧 Improvements
-- **Retrievers Design**: Refactored SQL and vector retrievers for better inheritance patterns
-- **File Adapter**: Added file upload endpoints with retrieval adapter support
-- **Memory Management**: Better conversation history handling with dynamic context sizing
+### 🔍 Vector Database & Retrieval
+- **Qdrant Support**: Added Qdrant vector retriever as an alternative to Chroma
+
+### 🏗️ Code Quality & Architecture
+- **Chat Service**: Significant improvements in code quality, maintainability and testability
+- **Better Structure**: Refactored modules for cleaner architecture
+
+### 🤖 Inference Providers
+- **New providers**: Implemented Cohere and IBM Watson AI inference clients
+
+### 🎨 UI/Widget Improvements
+- **Theming Platform**: Implemented new widget theming app
+- **Enhanced UX**: Chat Widget v0.4.9 with further UX enhancements and design updates
 
 *Want to see what's coming next? Check out our [Development Roadmap](docs/roadmap/README.md)*
-
 
 ## High-Level Architecture
 
@@ -69,7 +78,7 @@ ORBIT integrates with two types of guardrail services to prevent harmful content
 ### Deploying locally
 ```bash
 # Download and extract the latest release
-curl -L https://github.com/schmitech/orbit/releases/download/v1.1.3/orbit-1.1.4.tar.gz
+curl -L https://github.com/schmitech/orbit/releases/download/v1.1.4/orbit-1.1.4.tar.gz
 tar -xzf orbit-1.1.4.tar.gz
 cd orbit-1.1.4
 
@@ -78,6 +87,7 @@ cp .env.example .env
 
 # Models are defined in gguf-models.conf - add your preferred model to the config file
 # Default uses gemma3-1b.gguf for quick testing on low-resource devices
+# You may also use /utils/download_hf_gguf_model.py to download GGUF files
 ./install/setup.sh --profile minimal --download-gguf gemma3-1b.gguf
 
 # Activate virtual environment
@@ -97,6 +107,8 @@ source venv/bin/activate
 # Open terminal in container
 ./docker/orbit-docker.sh exec bash
 ```
+
+For more details about deploying ORBIT using docker, see [Docker Deployment](docs/docker-deployment.md)
 
 Run ORBIT client (default url is http://localhost:3000, use --help for options):
 ```bash

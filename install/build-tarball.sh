@@ -175,12 +175,9 @@ find prompts -type f -not -path "*/\.*" -not -path "*/__pycache__/*" -not -name 
     cp "$file" "dist/build/${PACKAGE_NAME}/$file"
 done
 
-# Copy configuration files
-echo "Copying configuration files..."
-cp install/dependencies.toml dist/build/${PACKAGE_NAME}/ 2>/dev/null || echo "Warning: dependencies.toml not found"
+# Copy root files
+echo "Copying root files..."
 cp README.md dist/build/${PACKAGE_NAME}/ 2>/dev/null || echo "Warning: README.md not found"
-chmod +x install/setup.sh
-cp install/setup.sh dist/build/${PACKAGE_NAME}/ 2>/dev/null || echo "Warning: setup.sh not found"
 cp gguf-models.conf dist/build/${PACKAGE_NAME}/ 2>/dev/null || echo "Warning: gguf-models.conf not found"
 
 # Create example configuration
@@ -250,7 +247,7 @@ EOF
 echo "Making scripts executable..."
 chmod +x dist/build/${PACKAGE_NAME}/bin/orbit.py
 chmod +x dist/build/${PACKAGE_NAME}/bin/orbit.sh
-chmod +x dist/build/${PACKAGE_NAME}/setup.sh
+chmod +x dist/build/${PACKAGE_NAME}/install/setup.sh
 chmod +x dist/build/${PACKAGE_NAME}/examples/sample-db-setup.sh
 
 # Create tarball
