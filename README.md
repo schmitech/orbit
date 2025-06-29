@@ -37,7 +37,7 @@ ORBIT is a modular, self-hosted toolkit that provides a unified API for open-sou
 ## High-Level Architecture
 
 <div align="center">
-  <img src="docs/images/orbit-architecture.png" width="1000" alt="ORBIT Architecture" />
+  <img src="docs/images/orbit-architecture.png" width="800" alt="ORBIT Architecture" />
 </div>
 
 > **Note**: Currently, ORBIT supports SQL, Vector, and File-based retrieval systems. Support for additional data sources is planned for future releases. See [roadmap](https://github.com/schmitech/orbit/tree/main/docs/roadmap) for further details. ORBIT is fast evolving, so if you have a specific requirement that's not currently supported, please let us know so we can add it to our development roadmap.

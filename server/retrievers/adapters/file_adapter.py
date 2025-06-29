@@ -5,7 +5,6 @@ File adapter for processing uploaded files with domain-specific formatting
 from typing import Dict, Any, List, Optional
 import logging
 from retrievers.adapters.domain_adapters import DocumentAdapter, DocumentAdapterFactory
-from retrievers.adapters.summarization_adapter import SummarizationAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -27,17 +26,29 @@ class FileAdapter(DocumentAdapter):
         self.preserve_file_structure = self.config.get('preserve_file_structure', True)
         self.extract_metadata = self.config.get('extract_metadata', True)
         self.verbose = self.config.get('verbose', False)
-        
-        # Initialize summarization adapter for content processing
-        self.summarization_adapter = SummarizationAdapter(config=config, **kwargs)
+        self.max_summary_length = self.config.get('max_summary_length', 200)
         
         if self.verbose:
             logger.info(f"Initialized File Adapter with confidence_threshold: {self.confidence_threshold}")
     
     def format_document(self, raw_doc: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
         """Format uploaded file documents with enhanced metadata"""
-        # Start with basic formatting from summarization adapter
-        item = self.summarization_adapter.format_document(raw_doc, metadata)
+        # Start with basic formatting
+        item = {
+            "raw_document": raw_doc,
+            "metadata": metadata.copy() if metadata else {},
+        }
+        
+        # Add title if available
+        if metadata and "title" in metadata:
+            item["title"] = metadata["title"]
+            item["content"] = f"Title: {metadata['title']}\n\nContent: {raw_doc}"
+        else:
+            item["content"] = raw_doc
+            
+        # Add summary if available in metadata
+        if metadata and "summary" in metadata:
+            item["summary"] = metadata["summary"]
         
         # Add file-specific enhancements
         if metadata:
@@ -93,8 +104,17 @@ class FileAdapter(DocumentAdapter):
             elif content_type in ['data', 'spreadsheet']:
                 return self._extract_data_answer(first_result, filename)
         
-        # Fallback to summarization adapter
-        return self.summarization_adapter.extract_direct_answer(context)
+        # Fallback to basic summarization logic
+        if ("summary" in first_result and 
+            first_result.get("confidence", 0) >= self.confidence_threshold):
+            return first_result["summary"]
+        
+        # Otherwise, create a truncated version as a quick summary
+        content = first_result.get("content", "")
+        if len(content) > self.max_summary_length:
+            return content[:self.max_summary_length] + "..."
+            
+        return content
     
     def apply_domain_specific_filtering(self, 
                                       context_items: List[Dict[str, Any]], 
