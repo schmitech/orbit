@@ -20,10 +20,10 @@ The API Key Manager utility allows you to create, test, and manage API keys and 
 
 ```bash
 # Create a new API key with a system prompt
-python orbit.py --url http://localhost:3000 create \
+python orbit.py --url http://localhost:3000 key create\
   --collection city \
   --name "City Assistant" \
-  --prompt-file ../prompts/examples/city/city-assistant-normal-prompt.txt \
+  --prompt-file .examples/prompts/examples/city/city-assistant-normal-prompt.txt \
   --prompt-name "Municipal Assistant Prompt"
 
 # List all API keys

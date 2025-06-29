@@ -5,7 +5,7 @@
   <h1>ORBIT - Open Retrieval-Based Inference Toolkit</h1>
 </div>
 
-ORBIT is a modular, self-hosted toolkit that provides a unified API for open-source AI inference models. ORBIT enables you to run AI models on your own infrastructure, maintaining full control over your data while reducing dependency on external AI services. The project is actively maintained by [Remsy Schmilinsky](https://www.linkedin.com/in/remsy/).
+ORBIT is a modular, self-hosted toolkit offering a unified API for open-source AI inference models. Its goal is to help organizations deploy in-house AI solutions that ensure privacy compliance and avoid unpredictable external AI costs. This project is actively maintained by [Remsy Schmilinsky](https://www.linkedin.com/in/remsy/).
 
 ## 🎉 Jun 27, 2025 - Announcing ORBIT v1.1.4
 
@@ -34,7 +34,7 @@ ORBIT is a modular, self-hosted toolkit that provides a unified API for open-sou
 
 *Want to see what's coming next? Check out our [Development Roadmap](docs/roadmap/README.md)*
 
-## High-Level Architecture
+## Features
 
 <div align="center">
   <img src="docs/images/orbit-architecture.png" width="800" alt="ORBIT Architecture" />

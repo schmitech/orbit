@@ -313,11 +313,22 @@ class RouteConfigurator:
             return health
     
     def _include_admin_routes(self, app: FastAPI) -> None:
-        """Include admin routes and file upload routes."""
+        """Include admin routes, auth routes, and file upload routes."""
         from routes.admin_routes import admin_router
         from routes.file_routes import file_router
+        from routes.auth_routes import auth_router
+        
+        # Include existing routers
         app.include_router(admin_router)
         app.include_router(file_router)
+        
+        # Include auth router if auth is enabled
+        auth_enabled = _is_true_value(self.config.get('auth', {}).get('enabled', False))
+        if auth_enabled:
+            app.include_router(auth_router)
+            self.logger.info("Authentication routes registered")
+        else:
+            self.logger.info("Authentication routes skipped (auth disabled)")
     
     async def _process_mcp_request(
         self, 

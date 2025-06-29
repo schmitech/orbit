@@ -177,6 +177,33 @@ class ConfigurationSummaryLogger:
     def _log_service_configurations(self) -> None:
         """Log service configuration details."""
         try:
+            # Log Authentication Service information (CRITICAL for security)
+            auth_config = self.config.get('auth', {})
+            auth_enabled = _is_true_value(auth_config.get('enabled', False))
+            auth_msg = f"🔐 Authentication Service: {'ENABLED' if auth_enabled else 'DISABLED'}"
+            self.logger.info(auth_msg)
+            print(auth_msg)
+            
+            if auth_enabled:
+                session_duration = auth_config.get('session_duration_hours', 12)
+                session_msg = f"  - Session duration: {session_duration} hours"
+                self.logger.info(session_msg)
+                print(session_msg)
+                
+                admin_username = auth_config.get('default_admin_username', 'admin')
+                admin_msg = f"  - Default admin username: {admin_username}"
+                self.logger.info(admin_msg)
+                print(admin_msg)
+                
+                pbkdf2_iterations = auth_config.get('pbkdf2_iterations', 600000)
+                pbkdf2_msg = f"  - Password hashing iterations: {pbkdf2_iterations}"
+                self.logger.info(pbkdf2_msg)
+                print(pbkdf2_msg)
+            else:
+                security_warning = "  ⚠️  WARNING: Authentication is DISABLED!"
+                self.logger.warning(security_warning)
+                print(security_warning)
+            
             # Log LLM Guard service information
             llm_guard_config = self.config.get('llm_guard', {})
             
@@ -373,6 +400,12 @@ class ConfigurationSummaryLogger:
             self.logger.info(chat_history_status_msg)
             print(chat_history_status_msg)
             
+            # Log authentication service status (CRITICAL for security)
+            auth_service_loaded = hasattr(app.state, 'auth_service') and app.state.auth_service is not None
+            auth_service_status_msg = f"🔐 Authentication Service: {'loaded' if auth_service_loaded else 'not loaded'}"
+            self.logger.info(auth_service_status_msg)
+            print(auth_service_status_msg)
+            
             # Log moderator service status
             moderator_loaded = hasattr(app.state, 'moderator_service') and app.state.moderator_service is not None
             moderator_status_msg = f"Moderator Service: {'loaded' if moderator_loaded else 'not loaded'}"
@@ -434,6 +467,12 @@ class ConfigurationSummaryLogger:
                     'inference': self.config.get('general', {}).get('inference_provider', 'ollama')
                 },
                 'services': {
+                    'auth': {
+                        'enabled': _is_true_value(self.config.get('auth', {}).get('enabled', False)),
+                        'session_duration_hours': self.config.get('auth', {}).get('session_duration_hours', 12),
+                        'default_admin_username': self.config.get('auth', {}).get('default_admin_username', 'admin'),
+                        'pbkdf2_iterations': self.config.get('auth', {}).get('pbkdf2_iterations', 600000)
+                    },
                     'llm_guard': {
                         'enabled': self._get_llm_guard_enabled_status(),
                         'base_url': self._get_llm_guard_base_url(),

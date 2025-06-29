@@ -20,6 +20,9 @@ from models.schema import (
     ApiKeyPromptAssociate
 )
 
+# Import auth dependencies
+from routes.auth_dependencies import check_admin_or_api_key
+
 # Initialize logger
 logger = logging.getLogger(__name__)
 
@@ -40,6 +43,13 @@ def get_prompt_service(request: Request):
 def check_inference_only_mode(request: Request, feature_name: str):
     """Check if we're in inference-only mode and raise error if feature is not available"""
     inference_only = _is_true_value(request.app.state.config.get('general', {}).get('inference_only', False))
+    auth_enabled = _is_true_value(request.app.state.config.get('auth', {}).get('enabled', False))
+    
+    # If we're in inference-only mode but auth is disabled, allow API key management
+    if inference_only and not auth_enabled and "API key" in feature_name:
+        logger.info(f"Allowing {feature_name} in inference-only mode because authentication is disabled")
+        return
+    
     if inference_only:
         raise HTTPException(
             status_code=503, 
@@ -56,14 +66,30 @@ def check_service_availability(service, service_name: str):
         )
 
 
+async def admin_auth_check(
+    request: Request,
+    authorized: bool = Depends(check_admin_or_api_key)
+):
+    """
+    Check if the request is authorized via admin auth or API key.
+    This allows backward compatibility with existing API key system.
+    """
+    return authorized
+
+
 # API Key Management Routes
 @admin_router.post("/api-keys", response_model=ApiKeyResponse)
 async def create_api_key(
     api_key_data: ApiKeyCreate,
-    request: Request
+    request: Request,
+    authorized: bool = Depends(admin_auth_check)
 ):
     """
     Create a new API key for accessing the server.
+    
+    This endpoint now requires either:
+    - Admin authentication (Bearer token)
+    - Valid API key with appropriate permissions
     
     This endpoint allows administrators to create API keys with:
     - Collection-based access control
@@ -80,6 +106,7 @@ async def create_api_key(
     Args:
         api_key_data: The API key creation request data
         request: The incoming request
+        authorized: Authentication check result
         
     Returns:
         ApiKeyResponse containing the created API key and metadata
@@ -107,7 +134,10 @@ async def create_api_key(
 
 
 @admin_router.get("/api-keys")
-async def list_api_keys(request: Request):
+async def list_api_keys(
+    request: Request,
+    authorized: bool = Depends(admin_auth_check)
+):
     """
     List all API keys in the system.
     
@@ -176,7 +206,11 @@ async def list_api_keys(request: Request):
 
 
 @admin_router.get("/api-keys/{api_key}/status")
-async def get_api_key_status(api_key: str, request: Request):
+async def get_api_key_status(
+    api_key: str, 
+    request: Request,
+    authorized: bool = Depends(admin_auth_check)
+):
     """
     Get the status of a specific API key.
     
@@ -220,7 +254,8 @@ async def get_api_key_status(api_key: str, request: Request):
 @admin_router.post("/api-keys/deactivate")
 async def deactivate_api_key(
     data: ApiKeyDeactivate,
-    api_key_service = Depends(get_api_key_service)
+    api_key_service = Depends(get_api_key_service),
+    authorized: bool = Depends(admin_auth_check)
 ):
     """
     Deactivate an API key
@@ -244,7 +279,8 @@ async def deactivate_api_key(
 @admin_router.delete("/api-keys/{api_key}")
 async def delete_api_key(
     api_key: str,
-    api_key_service = Depends(get_api_key_service)
+    api_key_service = Depends(get_api_key_service),
+    authorized: bool = Depends(admin_auth_check)
 ):
     """
     Delete an API key
@@ -269,7 +305,8 @@ async def delete_api_key(
 async def associate_prompt_with_api_key(
     api_key: str,
     data: ApiKeyPromptAssociate,
-    api_key_service = Depends(get_api_key_service)
+    api_key_service = Depends(get_api_key_service),
+    authorized: bool = Depends(admin_auth_check)
 ):
     """Associate a system prompt with an API key"""
     success = await api_key_service.update_api_key_system_prompt(api_key, data.prompt_id)
@@ -284,7 +321,8 @@ async def associate_prompt_with_api_key(
 @admin_router.post("/prompts", response_model=SystemPromptResponse)
 async def create_prompt(
     prompt_data: SystemPromptCreate,
-    request: Request
+    request: Request,
+    authorized: bool = Depends(admin_auth_check)
 ):
     """Create a new system prompt"""
     check_inference_only_mode(request, "Prompt management")
@@ -316,7 +354,10 @@ async def create_prompt(
 
 
 @admin_router.get("/prompts")
-async def list_prompts(prompt_service = Depends(get_prompt_service)):
+async def list_prompts(
+    prompt_service = Depends(get_prompt_service),
+    authorized: bool = Depends(admin_auth_check)
+):
     """List all system prompts"""
     return await prompt_service.list_prompts()
 
@@ -324,7 +365,8 @@ async def list_prompts(prompt_service = Depends(get_prompt_service)):
 @admin_router.get("/prompts/{prompt_id}")
 async def get_prompt(
     prompt_id: str,
-    prompt_service = Depends(get_prompt_service)
+    prompt_service = Depends(get_prompt_service),
+    authorized: bool = Depends(admin_auth_check)
 ):
     """Get a system prompt by ID"""
     prompt = await prompt_service.get_prompt_by_id(prompt_id)
@@ -346,7 +388,8 @@ async def get_prompt(
 async def update_prompt(
     prompt_id: str,
     prompt_data: SystemPromptUpdate,
-    prompt_service = Depends(get_prompt_service)
+    prompt_service = Depends(get_prompt_service),
+    authorized: bool = Depends(admin_auth_check)
 ):
     """Update a system prompt"""
     success = await prompt_service.update_prompt(
@@ -377,7 +420,8 @@ async def update_prompt(
 @admin_router.delete("/prompts/{prompt_id}")
 async def delete_prompt(
     prompt_id: str,
-    prompt_service = Depends(get_prompt_service)
+    prompt_service = Depends(get_prompt_service),
+    authorized: bool = Depends(admin_auth_check)
 ):
     """Delete a system prompt"""
     success = await prompt_service.delete_prompt(prompt_id)

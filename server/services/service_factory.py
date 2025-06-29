@@ -12,6 +12,7 @@ from fastapi import FastAPI
 
 from config.config_manager import _is_true_value
 from inference import LLMClientFactory
+from services.auth_service import AuthService
 
 
 class ServiceFactory:
@@ -80,15 +81,56 @@ class ServiceFactory:
     
     async def _initialize_core_services(self, app: FastAPI) -> None:
         """Initialize core services that are always needed."""
+        # Check if authentication is enabled
+        auth_enabled = _is_true_value(self.config.get('auth', {}).get('enabled', False))
+        
         # Initialize MongoDB service if needed
-        if not self.inference_only or (self.inference_only and self.chat_history_enabled):
+        # MongoDB is required when:
+        # - auth is enabled (for user/session storage)
+        # - chat_history is enabled (for chat history storage)
+        # - inference_only is false (for full RAG mode)
+        if (not self.inference_only or 
+            (self.inference_only and self.chat_history_enabled) or
+            auth_enabled):
             await self._initialize_mongodb_service(app)
         else:
             app.state.mongodb_service = None
-            self.logger.info("Skipping MongoDB initialization - inference_only=true and chat_history disabled")
+            self.logger.info("Skipping MongoDB initialization - inference_only=true, chat_history disabled, and auth disabled")
         
         # Initialize Redis service if enabled
         await self._initialize_redis_service(app)
+        
+        # Initialize authentication service (requires MongoDB to be initialized first)
+        if hasattr(app.state, 'mongodb_service') and app.state.mongodb_service:
+            await self._initialize_auth_service(app)
+        else:
+            self.logger.warning("MongoDB service not available, skipping auth service initialization")
+    
+    async def _initialize_auth_service(self, app: FastAPI) -> None:
+        """Initialize the authentication service"""
+        auth_enabled = _is_true_value(self.config.get('auth', {}).get('enabled', False))
+        
+        if not auth_enabled:
+            self.logger.info("Authentication service disabled in configuration")
+            app.state.auth_service = None
+            return
+        
+        try:
+            # Use the shared MongoDB service if available
+            mongodb_service = getattr(app.state, 'mongodb_service', None)
+            
+            # Initialize auth service
+            from services.auth_service import AuthService
+            auth_service = AuthService(self.config, mongodb_service)
+            await auth_service.initialize()
+            
+            app.state.auth_service = auth_service
+            self.logger.info("Authentication service initialized successfully")
+            
+        except Exception as e:
+            self.logger.error(f"Failed to initialize authentication service: {str(e)}")
+            # Don't fail the entire startup if auth fails, but log it prominently
+            app.state.auth_service = None
     
     async def _initialize_inference_only_services(self, app: FastAPI) -> None:
         """Initialize services specific to inference-only mode."""
@@ -97,9 +139,17 @@ class ServiceFactory:
         # Set services to None for inference-only mode
         app.state.retriever = None
         app.state.embedding_service = None
-        app.state.api_key_service = None
         app.state.prompt_service = None
         app.state.reranker_service = None
+        
+        # Check if authentication is disabled - if so, initialize API key service for admin operations
+        auth_enabled = _is_true_value(self.config.get('auth', {}).get('enabled', False))
+        if not auth_enabled:
+            self.logger.info("Authentication disabled - initializing API key service for admin operations")
+            await self._initialize_api_key_service(app)
+        else:
+            app.state.api_key_service = None
+            self.logger.info("Authentication enabled - API key service not needed in inference-only mode")
         
         # Initialize Chat History Service if enabled
         if self.chat_history_enabled:

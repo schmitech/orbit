@@ -325,6 +325,12 @@ def get_default_config() -> Dict[str, Any]:
             "header_name": "X-API-Key",
             "prefix": "orbit_",
         },
+        "auth": {
+            "enabled": False,
+            "session_duration_hours": 12,
+            "default_admin_username": "admin",
+            "default_admin_password": "admin123"
+        },
         "logging": {
             "level": "INFO",
             "handlers": {
@@ -500,6 +506,9 @@ def get_default_config() -> Dict[str, Any]:
                 "port": 27017,
                 "database": "orbit",
                 "apikey_collection": "api_keys",
+                "users_collection": "users",
+                "sessions_collection": "sessions",
+                "prompts_collection": "system_prompts",
                 "username": "${INTERNAL_SERVICES_MONGODB_USERNAME}",
                 "password": "${INTERNAL_SERVICES_MONGODB_PASSWORD}"
             }

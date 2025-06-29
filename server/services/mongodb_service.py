@@ -97,7 +97,7 @@ class MongoDBService:
         self._collections[collection_name] = collection
         return collection
     
-    async def create_index(self, collection_name: str, field_name: Union[str, List[Tuple[str, int]]], unique: bool = False, sparse: bool = False) -> str:
+    async def create_index(self, collection_name: str, field_name: Union[str, List[Tuple[str, int]]], unique: bool = False, sparse: bool = False, ttl_seconds: Optional[int] = None) -> str:
         """
         Create an index on a collection field
         
@@ -106,6 +106,7 @@ class MongoDBService:
             field_name: Field to index (string) or list of (field, direction) tuples for compound indexes
             unique: Whether the index should enforce uniqueness
             sparse: Whether the index should be sparse (only include documents with the field)
+            ttl_seconds: TTL (Time To Live) in seconds for automatic document expiration (only for date fields)
             
         Returns:
             Name of the created index
@@ -115,14 +116,32 @@ class MongoDBService:
             
         collection = self.get_collection(collection_name)
         
+        # Build index options
+        index_options = {}
+        if unique:
+            index_options['unique'] = unique
+        if sparse:
+            index_options['sparse'] = sparse
+        if ttl_seconds is not None:
+            index_options['expireAfterSeconds'] = ttl_seconds
+        
         # Handle compound indexes
         if isinstance(field_name, list):
-            index_name = await collection.create_index(field_name, unique=unique, sparse=sparse)
+            index_name = await collection.create_index(field_name, **index_options)
         else:
-            index_name = await collection.create_index(field_name, unique=unique, sparse=sparse)
+            index_name = await collection.create_index(field_name, **index_options)
             
         if self.verbose:
-            logger.info(f"Created {'unique ' if unique else ''}{'sparse ' if sparse else ''}index on {collection_name}.{field_name}")
+            index_type_desc = []
+            if unique:
+                index_type_desc.append('unique')
+            if sparse:
+                index_type_desc.append('sparse')
+            if ttl_seconds is not None:
+                index_type_desc.append(f'TTL ({ttl_seconds}s)')
+            
+            desc = ' '.join(index_type_desc) + ' ' if index_type_desc else ''
+            logger.info(f"Created {desc}index on {collection_name}.{field_name}")
         return index_name
     
     async def find_one(self, collection_name: str, query: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -252,6 +271,28 @@ class MongoDBService:
         except Exception as e:
             logger.error(f"Error deleting document from {collection_name}: {str(e)}")
             return False
+    
+    async def delete_many(self, collection_name: str, query: Dict[str, Any]) -> int:
+        """
+        Delete multiple documents from a collection
+        
+        Args:
+            collection_name: Name of the collection
+            query: MongoDB query to find the documents
+            
+        Returns:
+            Number of documents deleted
+        """
+        if not self._initialized:
+            await self.initialize()
+            
+        try:
+            collection = self.get_collection(collection_name)
+            result = await collection.delete_many(query)
+            return result.deleted_count
+        except Exception as e:
+            logger.error(f"Error deleting documents from {collection_name}: {str(e)}")
+            return 0
     
     async def ensure_id_is_object_id(self, id_value: Union[str, ObjectId]) -> ObjectId:
         """

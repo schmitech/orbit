@@ -1,6 +1,6 @@
 general:
   port: 3000
-  verbose: false
+  verbose: true
   https:
     enabled: false
     port: 3443
@@ -18,9 +18,16 @@ messages:
   no_results_response: "I'm sorry, but I don't have any specific information about that topic in my knowledge base."
   collection_not_found: "I couldn't find the requested collection. Please make sure the collection exists before querying it."
 
+auth:
+  enabled: false
+  session_duration_hours: 12
+  default_admin_username: admin
+  default_admin_password: ${ORBIT_DEFAULT_ADMIN_PASSWORD}
+  pbkdf2_iterations: 600000
+
 embedding:
   provider: "ollama"
-  enabled: true
+  enabled: false
 
 api_keys:
   header_name: "X-API-Key"
@@ -65,10 +72,13 @@ internal_services:
   mongodb:
     host: ${INTERNAL_SERVICES_MONGODB_HOST}
     port: ${INTERNAL_SERVICES_MONGODB_PORT}
-    database: "orbit"
-    apikey_collection: "api_keys"
     username: ${INTERNAL_SERVICES_MONGODB_USERNAME}
     password: ${INTERNAL_SERVICES_MONGODB_PASSWORD}
+    database: "orbit"
+    users_collection: users
+    sessions_collection: sessions
+    apikey_collection: api_keys
+    prompts_collection: system_prompts
 
   redis:
     enabled: false
@@ -81,7 +91,7 @@ internal_services:
     ttl: 3600  # 1 hour, matching temp_key_expiry
 
 chat_history:
-  enabled: false
+  enabled: true
   collection_name: "chat_history"
   store_metadata: true
   retention_days: 90
