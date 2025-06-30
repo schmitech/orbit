@@ -13,6 +13,8 @@ import sys
 import time
 from pathlib import Path
 from dotenv import load_dotenv
+import pytest
+import pytest_asyncio
 
 # Get the directory of this script
 SCRIPT_DIR = Path(__file__).parent.absolute()
@@ -56,7 +58,7 @@ TEST_CONFIG = {
         'sessions_collection': 'test_sessions'
     },
     'auth': {
-        'session_duration_hours': 12,
+        'session_duration_hours': 1,
         'default_admin_username': 'admin',
         'default_admin_password': 'admin123',
         'pbkdf2_iterations': 600000
@@ -72,157 +74,228 @@ if missing_vars:
     logger.error("Please check your .env file and ensure all required MongoDB variables are set")
     sys.exit(1)
 
-async def test_auth_service():
-    """Test the authentication service functionality"""
-    
-    # Use the test configuration
+@pytest_asyncio.fixture(scope="function")
+async def mongodb_service():
+    """Fixture for a shared MongoDBService instance."""
     config = TEST_CONFIG
-    
-    # Clean up test collections before running tests
     mongodb = MongoDBService(config)
     await mongodb.initialize()
-    await mongodb.database.drop_collection('test_users')
-    await mongodb.database.drop_collection('test_sessions')
-    mongodb.close()
     
-    # Log configuration info (with sensitive data masked)
     logger.info(f"Testing with MongoDB at: {config['internal_services']['mongodb']['host']}:{config['internal_services']['mongodb']['port']}")
     logger.info(f"Using database: {config['internal_services']['mongodb']['database']}")
     username = config['internal_services']['mongodb']['username']
     if username:
         masked_username = username[:2] + '*' * (len(username) - 2) if len(username) > 2 else '*****'
         logger.info(f"Using username: {masked_username}")
-    
-    # Initialize the service
-    auth_service = AuthService(config)
-    await auth_service.initialize()
-    
-    try:
-        # Test 1: Login with default admin credentials
-        logger.info("\n=== Test 1: Login with default admin ===")
-        success, token, user_info = await auth_service.authenticate_user('admin', 'admin123')
-        assert success, "Default admin login should succeed"
-        assert token is not None, "Should receive a token"
-        assert user_info['username'] == 'admin', "Username should be admin"
-        assert user_info['role'] == 'admin', "Role should be admin"
-        logger.info(f"✓ Login successful. Token: {token[:8]}...")
-        logger.info(f"✓ User info: {user_info}")
-        
-        # Test 2: Validate the token
-        logger.info("\n=== Test 2: Validate token ===")
-        is_valid, validated_user = await auth_service.validate_token(token)
-        assert is_valid, "Token should be valid"
-        assert validated_user['username'] == 'admin', "Should get correct user info"
-        logger.info(f"✓ Token is valid. User: {validated_user}")
-        
-        # Test 3: Invalid login
-        logger.info("\n=== Test 3: Invalid login ===")
-        success, bad_token, bad_user = await auth_service.authenticate_user('admin', 'wrongpassword')
-        assert not success, "Login with wrong password should fail"
-        assert bad_token is None, "Should not receive a token"
-        logger.info("✓ Invalid login correctly rejected")
-        
-        # Test 4: Create a new user
-        logger.info("\n=== Test 4: Create new user ===")
-        # Use unique username to avoid conflicts with existing test data
-        unique_username = f"testuser_{int(time.time())}"
-        new_user_id = await auth_service.create_user(unique_username, 'testpass123', 'admin')
-        assert new_user_id is not None, "Should create user successfully"
-        logger.info(f"✓ Created new user with ID: {new_user_id}")
-        
-        # Test 4.5: Create a user with default role (should be "user")
-        logger.info("\n=== Test 4.5: Create user with default role ===")
-        default_username = f"defaultuser_{int(time.time())}"
-        default_user_id = await auth_service.create_user(default_username, 'testpass123')
-        assert default_user_id is not None, "Should create user with default role successfully"
-        
-        # Verify the default role is "user"
-        success, _, default_user_info = await auth_service.authenticate_user(default_username, 'testpass123')
-        assert success, "Default user login should succeed"
-        assert default_user_info['role'] == 'user', "Default role should be 'user'"
-        logger.info(f"✓ Created user with default role: {default_user_info['role']}")
-        
-        # Test 5: Login with new user
-        logger.info("\n=== Test 5: Login with new user ===")
-        success, new_token, new_user_info = await auth_service.authenticate_user(unique_username, 'testpass123')
-        assert success, "New user login should succeed"
-        assert new_token is not None, "Should receive a token"
-        logger.info(f"✓ New user login successful. Token: {new_token[:8]}...")
-        
-        # Test 6: Change password
-        logger.info("\n=== Test 6: Change password ===")
-        success = await auth_service.change_password(new_user_info['id'], 'testpass123', 'newpass456')
-        assert success, "Password change should succeed"
-        logger.info("✓ Password changed successfully")
-        
-        # Verify old password no longer works
-        success, _, _ = await auth_service.authenticate_user(unique_username, 'testpass123')
-        assert not success, "Old password should not work"
-        logger.info("✓ Old password correctly rejected")
-        
-        # Verify new password works
-        success, _, _ = await auth_service.authenticate_user(unique_username, 'newpass456')
-        assert success, "New password should work"
-        logger.info("✓ New password accepted")
-        
-        # Test 7: List users
-        logger.info("\n=== Test 7: List users ===")
-        users = await auth_service.list_users()
-        assert len(users) >= 2, "Should have at least 2 users"
-        logger.info(f"✓ Found {len(users)} users:")
-        for user in users:
-            logger.info(f"  - {user['username']} ({user['role']})")
-        
-        # Test 8: Deactivate user
-        logger.info("\n=== Test 8: Deactivate user ===")
-        success = await auth_service.update_user_status(new_user_id, False)
-        assert success, "Should deactivate user successfully"
-        logger.info("✓ User deactivated")
-        
-        # Verify deactivated user cannot login
-        success, _, _ = await auth_service.authenticate_user(unique_username, 'newpass456')
-        assert not success, "Deactivated user should not be able to login"
-        logger.info("✓ Deactivated user correctly rejected")
-        
-        # Test 9: Logout
-        logger.info("\n=== Test 9: Logout ===")
-        success = await auth_service.logout(token)
-        assert success, "Logout should succeed"
-        logger.info("✓ Logged out successfully")
-        
-        # Verify token is no longer valid
-        is_valid, _ = await auth_service.validate_token(token)
-        assert not is_valid, "Token should be invalid after logout"
-        logger.info("✓ Token correctly invalidated")
-        
-        # Test 10: Exception handling with invalid ObjectId
-        logger.info("\n=== Test 10: Exception handling with invalid ObjectId ===")
-        # Test change_password with invalid ObjectId
-        success = await auth_service.change_password("invalid_object_id", "oldpass", "newpass")
-        assert not success, "Should fail with invalid ObjectId"
-        logger.info("✓ Invalid ObjectId correctly handled in change_password")
-        
-        # Test update_user_status with invalid ObjectId
-        success = await auth_service.update_user_status("invalid_object_id", True)
-        assert not success, "Should fail with invalid ObjectId"
-        logger.info("✓ Invalid ObjectId correctly handled in update_user_status")
-        
-        logger.info("\n✅ All tests passed!")
-        
-    except AssertionError as e:
-        logger.error(f"❌ Test failed: {e}")
-        raise
-    except Exception as e:
-        logger.error(f"❌ Unexpected error: {e}")
-        raise
-    finally:
-        # Clean up test data
-        logger.info("\n=== Cleaning up test data ===")
-        await auth_service.mongodb.database.drop_collection('test_users')
-        await auth_service.mongodb.database.drop_collection('test_sessions')
-        await auth_service.close()
-        logger.info("✓ Test data cleaned up")
 
+    yield mongodb
+    mongodb.close()
+
+@pytest_asyncio.fixture(scope="function")
+async def auth_service(mongodb_service: MongoDBService):
+    """Pytest fixture for initializing the AuthService and cleaning up."""
+    config = TEST_CONFIG
+    users_collection_name = config.get('mongodb', {}).get('users_collection', 'test_users')
+    sessions_collection_name = config.get('mongodb', {}).get('sessions_collection', 'test_sessions')
+
+    await mongodb_service.database.drop_collection(users_collection_name)
+    await mongodb_service.database.drop_collection(sessions_collection_name)
+    
+    service = AuthService(config, mongodb_service=mongodb_service)
+    await service.initialize()
+    
+    yield service
+    
+    logger.info("\n=== Cleaning up all test data ===")
+    await service.mongodb.database.drop_collection(users_collection_name)
+    await service.mongodb.database.drop_collection(sessions_collection_name)
+    await service.close()
+    logger.info("✓ All test data cleaned up")
+
+@pytest_asyncio.fixture
+async def new_user(auth_service: AuthService):
+    """Creates a new user for a test and cleans it up afterward."""
+    unique_username = f"testuser_{time.time_ns()}"
+    password = 'testpass123'
+    new_user_id = await auth_service.create_user(unique_username, password, 'user')
+    assert new_user_id is not None
+    
+    user_data = {"id": new_user_id, "username": unique_username, "password": password}
+    
+    yield user_data
+    
+    # Cleanup the created user
+    await auth_service.delete_user(new_user_id)
+
+# --- Test Cases ---
+
+async def test_default_admin_login(auth_service: AuthService):
+    """Test 1: Login with default admin credentials"""
+    logger.info("\n=== Test: Login with default admin ===")
+    success, token, user_info = await auth_service.authenticate_user('admin', 'admin123')
+    assert success, "Default admin login should succeed"
+    assert token is not None, "Should receive a token"
+    assert user_info['username'] == 'admin', "Username should be admin"
+    assert user_info['role'] == 'admin', "Role should be admin"
+
+async def test_validate_token(auth_service: AuthService):
+    """Test 2: Validate the token"""
+    logger.info("\n=== Test: Validate token ===")
+    success, token, _ = await auth_service.authenticate_user('admin', 'admin123')
+    assert success
+    is_valid, validated_user = await auth_service.validate_token(token)
+    assert is_valid, "Token should be valid"
+    assert validated_user['username'] == 'admin', "Should get correct user info"
+
+async def test_invalid_login(auth_service: AuthService):
+    """Test 3: Invalid login"""
+    logger.info("\n=== Test: Invalid login ===")
+    success, bad_token, _ = await auth_service.authenticate_user('admin', 'wrongpassword')
+    assert not success, "Login with wrong password should fail"
+    assert bad_token is None, "Should not receive a token"
+
+async def test_create_new_user(new_user):
+    """Test 4: Create a new user"""
+    logger.info("\n=== Test: Create new user ===")
+    assert new_user['id'] is not None, "Should create user successfully"
+
+async def test_create_user_with_default_role(auth_service: AuthService):
+    """Test 4.5: Create a user with default role (should be 'user')"""
+    logger.info("\n=== Test: Create user with default role ===")
+    default_username = f"defaultuser_{time.time_ns()}"
+    default_user_id = await auth_service.create_user(default_username, 'testpass123')
+    assert default_user_id is not None, "Should create user with default role successfully"
+    
+    success, _, default_user_info = await auth_service.authenticate_user(default_username, 'testpass123')
+    assert success, "Default user login should succeed"
+    assert default_user_info['role'] == 'user', "Default role should be 'user'"
+    
+    # Cleanup
+    await auth_service.delete_user(default_user_id)
+
+async def test_login_with_new_user(auth_service: AuthService, new_user):
+    """Test 5: Login with new user"""
+    logger.info("\n=== Test: Login with new user ===")
+    success, new_token, new_user_info = await auth_service.authenticate_user(new_user['username'], new_user['password'])
+    assert success, "New user login should succeed"
+    assert new_token is not None, "Should receive a token"
+    assert new_user_info['id'] == new_user['id']
+
+async def test_change_password(auth_service: AuthService, new_user):
+    """Test 6: Change password"""
+    logger.info("\n=== Test: Change password ===")
+    success = await auth_service.change_password(new_user['id'], new_user['password'], 'newpass456')
+    assert success, "Password change should succeed"
+    
+    # Verify old password no longer works
+    success, _, _ = await auth_service.authenticate_user(new_user['username'], new_user['password'])
+    assert not success, "Old password should not work"
+    
+    # Verify new password works
+    success, _, _ = await auth_service.authenticate_user(new_user['username'], 'newpass456')
+    assert success, "New password should work"
+
+async def test_list_users(auth_service: AuthService, new_user):
+    """Test 7: List users"""
+    logger.info("\n=== Test: List users ===")
+    users = await auth_service.list_users()
+    assert len(users) >= 2, "Should have at least admin and new_user"
+    usernames = [u['username'] for u in users]
+    assert 'admin' in usernames
+    assert new_user['username'] in usernames
+
+async def test_deactivate_and_reactivate_user(auth_service: AuthService, new_user):
+    """Test 8 & 8.5: Deactivate and reactivate user"""
+    logger.info("\n=== Test: Deactivate user ===")
+    deactivate_success = await auth_service.update_user_status(new_user['id'], False)
+    assert deactivate_success, "Should deactivate user successfully"
+    
+    # Verify deactivated user cannot login
+    login_fail, _, _ = await auth_service.authenticate_user(new_user['username'], new_user['password'])
+    assert not login_fail, "Deactivated user should not be able to login"
+    
+    logger.info("\n=== Test: Reactivate user ===")
+    reactivate_success = await auth_service.update_user_status(new_user['id'], True)
+    assert reactivate_success, "Should reactivate user successfully"
+    
+    # Verify reactivated user can login
+    login_success, _, _ = await auth_service.authenticate_user(new_user['username'], new_user['password'])
+    assert login_success, "Reactivated user should be able to login"
+
+async def test_logout(auth_service: AuthService):
+    """Test 9: Logout"""
+    logger.info("\n=== Test: Logout ===")
+    success, token, _ = await auth_service.authenticate_user('admin', 'admin123')
+    assert success
+    
+    logout_success = await auth_service.logout(token)
+    assert logout_success, "Logout should succeed"
+    
+    # Verify token is no longer valid
+    is_valid, _ = await auth_service.validate_token(token)
+    assert not is_valid, "Token should be invalid after logout"
+
+async def test_invalid_objectid_handling(auth_service: AuthService):
+    """Test 10: Exception handling with invalid ObjectId"""
+    logger.info("\n=== Test: Exception handling with invalid ObjectId ===")
+    # Test change_password with invalid ObjectId
+    success_change = await auth_service.change_password("invalid_object_id", "oldpass", "newpass")
+    assert not success_change, "change_password should fail with invalid ObjectId"
+    
+    # Test update_user_status with invalid ObjectId
+    success_update = await auth_service.update_user_status("invalid_object_id", True)
+    assert not success_update, "update_user_status should fail with invalid ObjectId"
+    
+    # Test delete_user with invalid ObjectId
+    success_delete = await auth_service.delete_user("invalid_object_id")
+    assert not success_delete, "delete_user should fail with invalid ObjectId"
+
+async def test_create_existing_user(auth_service: AuthService, new_user):
+    """Test 11: Attempt to create a user that already exists"""
+    logger.info("\n=== Test: Attempt to create existing user ===")
+    existing_user_id = await auth_service.create_user(new_user['username'], 'newpass123')
+    assert existing_user_id is None, "Should not create user with existing username"
+
+async def test_reset_user_password(auth_service: AuthService, new_user):
+    """Test 12: Reset user password (as admin)"""
+    logger.info("\n=== Test: Reset user password ===")
+    success = await auth_service.reset_user_password(new_user['id'], 'resetpassword789')
+    assert success, "Password reset should succeed"
+    
+    # Verify new password works
+    success, _, _ = await auth_service.authenticate_user(new_user['username'], 'resetpassword789')
+    assert success, "Reset password should work"
+
+async def test_delete_default_admin_fails(auth_service: AuthService):
+    """Test 13: Attempt to delete default admin user"""
+    logger.info("\n=== Test: Attempt to delete default admin user ===")
+    users = await auth_service.list_users()
+    admin_user_id = next((user['id'] for user in users if user['username'] == 'admin'), None)
+    assert admin_user_id is not None, "Could not find admin user"
+    success = await auth_service.delete_user(admin_user_id)
+    assert not success, "Should not be able to delete default admin user"
+
+async def test_delete_user(auth_service: AuthService, new_user):
+    """Test 14: Delete user"""
+    logger.info("\n=== Test: Delete user ===")
+    # new_user fixture will delete the user, but we want to test the function explicitly
+    # So we create another user to delete
+    username = f"user_to_delete_{time.time_ns()}"
+    user_id = await auth_service.create_user(username, "password")
+    assert user_id is not None
+
+    success = await auth_service.delete_user(user_id)
+    assert success, "Should delete user successfully"
+    
+    # Verify deleted user cannot login
+    success_login, _, _ = await auth_service.authenticate_user(username, "password")
+    assert not success_login, "Deleted user should not be able to login"
+
+async def test_login_non_existent_user(auth_service: AuthService):
+    """Test 15: Login with non-existent user"""
+    logger.info("\n=== Test: Login with non-existent user ===")
+    success, _, _ = await auth_service.authenticate_user('nonexistentuser', 'somepassword')
+    assert not success, "Login with non-existent user should fail"
 
 if __name__ == "__main__":
     asyncio.run(test_auth_service())

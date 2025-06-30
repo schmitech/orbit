@@ -49,7 +49,7 @@ Integrated Commands (API Key + Prompt):
     orbit key create --collection COLLECTION --name NAME --prompt-id ID
 
 Examples:
-    # Authentication (token persisted in ~/.orbit/.env)
+    # Authentication
     orbit login --username admin --password secret123  # Or just 'orbit login' to be prompted
     orbit me
     orbit change-password                               # Change your password (interactive)
@@ -59,55 +59,36 @@ Examples:
     # User Management
     orbit user list                       List all users
     orbit user config                     Check auth configuration
+    orbit user reset-password --username admin --password newpass
+    orbit user reset-password --user-id 507f1f77bcf86cd799439011 --password newpass
+    orbit user delete --user-id 507f1f77bcf86cd799439011  Delete a user
+    orbit user deactivate --username user1  Deactivate a user
+    orbit user activate --username user1   Activate a user
     orbit user debug                      Run debug_auth.py script
     orbit auth-status                     Check authentication status
     # For full user management: python server/tests/debug_auth.py
 
-    # Start the server
-    orbit start --config config.yaml --port 3000
+    # Server Management
+    orbit start                           Start the server
+    orbit stop                            Stop the server
+    orbit restart                         Restart the server
+    orbit status                          Check server status
 
-    # Create API key with a new prompt
-    orbit key create --collection city --name "City Assistant" \
-      --prompt-file prompts/examples/city/city-assistant-normal-prompt.txt \
-      --prompt-name "Municipal Assistant Prompt"
-
-    # Create API key with an existing prompt
-    orbit key create --collection legal --name "Legal Team" --prompt-id 612a4b3c78e9f25d3e1f42a7
-
-    # List all API keys
-    orbit key list
-
-    # Test an API key
-    orbit key test --key orbit_abcd1234
-
-    # Create a standalone prompt
-    orbit prompt create --name "Support Assistant" \
-      --file prompts/support.txt --version "1.0"
-
-    # Associate an existing prompt with an API key
-    orbit prompt associate --key orbit_abcd1234 --prompt-id 612a4b3c78e9f25d3e1f42a7
-
-    # Get server status
-    orbit status
-
-    # Stop the server
-    orbit stop
+    # API Key Management
+    orbit key create --collection docs --name "Customer Support"
+    orbit key list                        List all API keys
+    orbit key test --key api_abcd1234     Test an API key
+    orbit key delete --key api_abcd1234   Delete an API key
 
     # System Prompt Management
     orbit prompt create --name "Support" --file support.txt
     orbit prompt list                     List all prompts
     orbit prompt get --id 612a4b3c...     Get a specific prompt
     orbit prompt delete --id 612a4b3c...  Delete a prompt
-    
-    # User Management
-    orbit user list                       List all users
-    orbit user config                     Check auth configuration
-    orbit user reset-password --username admin --password newpass
-    orbit user delete --user-id 507f1f77bcf86cd799439011  Delete a user
-    orbit user deactivate --username user1  Deactivate a user
-    orbit user activate --username user1   Activate a user
-    
+
     # Combined Operations
+    orbit key create --collection legal --name "Legal Team" \\
+      --prompt-file legal_prompt.txt --prompt-name "Legal Assistant"
 """
 
 import os
@@ -767,6 +748,31 @@ class ApiManager:
                 error_msg = f"Failed to reset password: {str(e)}"
             raise RuntimeError(error_msg) from e
     
+    def find_user_id_by_username(self, username: str) -> str:
+        """
+        Find a user's ID by their username
+        
+        Args:
+            username: The username to search for
+            
+        Returns:
+            The user ID if found
+            
+        Raises:
+            RuntimeError: If user is not found
+        """
+        self._ensure_authenticated()
+        
+        # Get all users and find the one with matching username
+        users = self.list_users()
+        for user in users:
+            if user.get('username') == username:
+                user_id = user.get('_id') or user.get('id')
+                if user_id:
+                    return user_id
+        
+        raise RuntimeError(f"User with username '{username}' not found")
+    
     def delete_user(self, user_id: str) -> Dict[str, Any]:
         """
         Delete a user
@@ -1386,6 +1392,11 @@ Examples:
   # User Management
   orbit user list                       List all users
   orbit user config                     Check auth configuration
+  orbit user reset-password --username admin --password newpass
+  orbit user reset-password --user-id 507f1f77bcf86cd799439011 --password newpass
+  orbit user delete --user-id 507f1f77bcf86cd799439011  Delete a user
+  orbit user deactivate --username user1  Deactivate a user
+  orbit user activate --username user1   Activate a user
   orbit user debug                      Run debug_auth.py script
   orbit auth-status                     Check authentication status
   # For full user management: python server/tests/debug_auth.py
@@ -1407,14 +1418,6 @@ Examples:
   orbit prompt list                     List all prompts
   orbit prompt get --id 612a4b3c...     Get a specific prompt
   orbit prompt delete --id 612a4b3c...  Delete a prompt
-  
-      # User Management
-    orbit user list                       List all users
-    orbit user config                     Check auth configuration
-    orbit user reset-password --user-id USER_ID --password newpass
-    orbit user delete --user-id USER_ID   Delete a user by ID
-    orbit user deactivate --username user1  Deactivate a user
-    orbit user activate --username user1   Activate a user
   
   # Combined Operations
   orbit key create --collection legal --name "Legal Team" \\
@@ -1576,7 +1579,9 @@ Examples:
         
         # Reset password command
         reset_parser = user_subparsers.add_parser('reset-password', help='Reset a user password (admin only)')
-        reset_parser.add_argument('--user-id', required=True, help='User ID to reset password for')
+        reset_group = reset_parser.add_mutually_exclusive_group(required=True)
+        reset_group.add_argument('--user-id', help='User ID to reset password for')
+        reset_group.add_argument('--username', help='Username to reset password for')
         reset_parser.add_argument('--password', required=True, help='New password')
         
         # Delete user command
@@ -1852,7 +1857,12 @@ Examples:
             
             elif args.user_command == 'reset-password':
                 try:
-                    result = api_manager.reset_user_password(args.user_id, args.password)
+                    # Determine user ID from either --user-id or --username
+                    user_id = args.user_id
+                    if args.username:
+                        user_id = api_manager.find_user_id_by_username(args.username)
+                    
+                    result = api_manager.reset_user_password(user_id, args.password)
                     print(json.dumps(result, indent=2))
                     print("\nUser password reset successfully.")
                     return 0

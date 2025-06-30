@@ -97,8 +97,11 @@ class AuthService:
         if salt is None:
             salt = secrets.token_bytes(16)
         
-        # Use PBKDF2 with SHA256, 100,000 iterations
-        dk = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt, 100000)
+        # Read iterations from config, falling back to 100000 if not set.
+        iterations = self.config.get('auth', {}).get('pbkdf2_iterations', 600000)
+
+        # Use PBKDF2 with SHA256, with the configured number of iterations
+        dk = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt, iterations)
         
         return salt, dk
     
