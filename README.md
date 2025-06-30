@@ -1,9 +1,8 @@
 <div align="center">
   <img src="docs/images/orbit.png" width="200" alt="ORBIT">
 </div>
-<div align="center">
-  <h1>ORBIT - Open Retrieval-Based Inference Toolkit</h1>
-</div>
+
+# ORBIT - Open Retrieval-Based Inference Toolkit
 
 ORBIT is a modular, self-hosted toolkit offering a unified API for open-source AI inference models. Its goal is to help organizations deploy in-house AI solutions that ensure privacy compliance and avoid unpredictable external AI costs. This project is actively maintained by [Remsy Schmilinsky](https://www.linkedin.com/in/remsy/).
 

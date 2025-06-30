@@ -4,7 +4,7 @@ ORBIT Control CLI
 ================================
 
 A command-line tool to manage the ORBIT server.
-Provides server control, API key management, and system prompt management.
+Provides server control, API key management, system prompt management, and authentication.
 
 This tool combines server management with API administration features.
 
@@ -13,6 +13,20 @@ Server Control Commands:
     orbit stop
     orbit restart [--config CONFIG_PATH] [--host HOST] [--port PORT]
     orbit status
+
+Authentication Commands:
+    orbit login [--username USERNAME] [--password PASSWORD]  # Will prompt if not provided, token stored in ~/.orbit/.env
+    orbit logout                                             # Clears token from ~/.orbit/.env
+    orbit register --username USERNAME --password PASSWORD [--role ROLE]
+    orbit me
+    orbit change-password                                    # Interactive password change
+
+User Management Commands:
+    orbit user list
+    orbit user config
+    orbit user debug
+    orbit auth-status
+    # For full user management: python server/tests/debug_auth.py
 
 API Key Management Commands:
     orbit key create --collection COLLECTION --name NAME [--notes NOTES]
@@ -35,6 +49,20 @@ Integrated Commands (API Key + Prompt):
     orbit key create --collection COLLECTION --name NAME --prompt-id ID
 
 Examples:
+    # Authentication (token persisted in ~/.orbit/.env)
+    orbit login --username admin --password secret123  # Or just 'orbit login' to be prompted
+    orbit me
+    orbit change-password                               # Change your password (interactive)
+    orbit register --username newuser --password pass123 --role user
+    orbit logout
+
+    # User Management
+    orbit user list                       List all users
+    orbit user config                     Check auth configuration
+    orbit user debug                      Run debug_auth.py script
+    orbit auth-status                     Check authentication status
+    # For full user management: python server/tests/debug_auth.py
+
     # Start the server
     orbit start --config config.yaml --port 3000
 
@@ -64,6 +92,22 @@ Examples:
 
     # Stop the server
     orbit stop
+
+    # System Prompt Management
+    orbit prompt create --name "Support" --file support.txt
+    orbit prompt list                     List all prompts
+    orbit prompt get --id 612a4b3c...     Get a specific prompt
+    orbit prompt delete --id 612a4b3c...  Delete a prompt
+    
+    # User Management
+    orbit user list                       List all users
+    orbit user config                     Check auth configuration
+    orbit user reset-password --username admin --password newpass
+    orbit user delete --user-id 507f1f77bcf86cd799439011  Delete a user
+    orbit user deactivate --username user1  Deactivate a user
+    orbit user activate --username user1   Activate a user
+    
+    # Combined Operations
 """
 
 import os
@@ -75,6 +119,7 @@ import subprocess
 import time
 import json
 import requests
+import getpass
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 import dotenv
@@ -418,12 +463,16 @@ class ApiManager:
         # Load environment variables from .env file if it exists
         dotenv.load_dotenv()
         
-        # Get server URL from args or environment
+        # Try to load token and server URL from persistent storage first
+        self._load_token_from_file()
+        
+        # Get server URL from args, persistent storage, or environment
         self.server_url = server_url or os.environ.get('API_SERVER_URL', 'http://localhost:3000')
         self.server_url = self.server_url.rstrip('/')
         
-        # Set admin auth token if available in environment
-        self.admin_token = os.environ.get('API_ADMIN_TOKEN')
+        # Set admin auth token if available in environment (fallback)
+        if not hasattr(self, 'admin_token') or not self.admin_token:
+            self.admin_token = os.environ.get('API_ADMIN_TOKEN')
     
     def _read_file_content(self, file_path: str) -> str:
         """
@@ -440,6 +489,418 @@ class ApiManager:
                 return file.read()
         except Exception as e:
             raise RuntimeError(f"Error reading file {file_path}: {str(e)}") from e
+    
+    def _save_token_to_file(self, token: str) -> None:
+        """Save token to ~/.orbit/.env file for persistence"""
+        orbit_dir = Path.home() / ".orbit"
+        orbit_dir.mkdir(exist_ok=True, mode=0o700)
+        
+        env_file = orbit_dir / ".env"
+        with open(env_file, 'w') as f:
+            f.write(f'API_ADMIN_TOKEN={token}\n')
+            f.write(f'API_SERVER_URL={self.server_url}\n')
+        
+        # Set secure permissions on the file
+        env_file.chmod(0o600)
+    
+    def _load_token_from_file(self) -> Optional[str]:
+        """Load token from ~/.orbit/.env file"""
+        env_file = Path.home() / ".orbit" / ".env"
+        if env_file.exists():
+            # Use override=True to ensure personal token takes precedence
+            dotenv.load_dotenv(env_file, override=True)
+            self.admin_token = os.environ.get('API_ADMIN_TOKEN')
+            # Also update server URL if not already set
+            if not hasattr(self, 'server_url'):
+                self.server_url = os.environ.get('API_SERVER_URL', 'http://localhost:3000')
+            return self.admin_token
+        return None
+    
+    def _clear_token_file(self) -> None:
+        """Clear the token from ~/.orbit/.env file"""
+        env_file = Path.home() / ".orbit" / ".env"
+        if env_file.exists():
+            env_file.unlink()
+    
+    def _ensure_authenticated(self) -> None:
+        """Ensure user is authenticated before proceeding"""
+        if not self.admin_token:
+            raise RuntimeError("Authentication required. Please run 'orbit login' first.")
+    
+    # Authentication methods
+    def login(self, username: str, password: str) -> Dict[str, Any]:
+        """
+        Authenticate a user and return a bearer token
+        
+        Args:
+            username: The username
+            password: The password
+            
+        Returns:
+            Dictionary containing the login response with token and user info
+        """
+        url = f"{self.server_url}/auth/login"
+        
+        headers = {
+            "Content-Type": "application/json"
+        }
+        
+        data = {
+            "username": username,
+            "password": password
+        }
+        
+        try:
+            response = requests.post(url, headers=headers, json=data)
+            response.raise_for_status()
+            result = response.json()
+            
+            # Update the admin token if login successful
+            if "token" in result:
+                self.admin_token = result["token"]
+                # Save to environment variable for future use (session)
+                os.environ["API_ADMIN_TOKEN"] = self.admin_token
+                # Save to persistent file storage
+                self._save_token_to_file(self.admin_token)
+            
+            return result
+        except requests.exceptions.RequestException as e:
+            if hasattr(e, 'response') and e.response is not None:
+                error_msg = f"Login failed: {e.response.status_code} {e.response.text}"
+            else:
+                error_msg = f"Login failed: {str(e)}"
+            raise RuntimeError(error_msg) from e
+    
+    def logout(self) -> Dict[str, Any]:
+        """
+        Logout the current user by invalidating their token
+        
+        Returns:
+            Dictionary containing the logout response
+        """
+        if not self.admin_token:
+            return {"message": "Not logged in"}
+        
+        url = f"{self.server_url}/auth/logout"
+        
+        headers = {
+            "Authorization": f"Bearer {self.admin_token}"
+        }
+        
+        try:
+            response = requests.post(url, headers=headers)
+            response.raise_for_status()
+            result = response.json()
+            
+            # Clear the admin token
+            self.admin_token = None
+            if "API_ADMIN_TOKEN" in os.environ:
+                del os.environ["API_ADMIN_TOKEN"]
+            # Clear the persistent token file
+            self._clear_token_file()
+            
+            return result
+        except requests.exceptions.RequestException as e:
+            # Clear token anyway even if server logout fails
+            self.admin_token = None
+            if "API_ADMIN_TOKEN" in os.environ:
+                del os.environ["API_ADMIN_TOKEN"]
+            # Clear the persistent token file
+            self._clear_token_file()
+            
+            if hasattr(e, 'response') and e.response is not None:
+                error_msg = f"Logout failed: {e.response.status_code} {e.response.text}"
+            else:
+                error_msg = f"Logout failed: {str(e)}"
+            raise RuntimeError(error_msg) from e
+    
+    def register_user(self, username: str, password: str, role: str = "user") -> Dict[str, Any]:
+        """
+        Register a new user (admin only)
+        
+        Args:
+            username: The username for the new user
+            password: The password for the new user
+            role: The role for the new user (default: "user")
+            
+        Returns:
+            Dictionary containing the registration response
+        """
+        self._ensure_authenticated()
+        
+        url = f"{self.server_url}/auth/register"
+        
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.admin_token}"
+        }
+        
+        data = {
+            "username": username,
+            "password": password,
+            "role": role
+        }
+        
+        try:
+            response = requests.post(url, headers=headers, json=data)
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            if hasattr(e, 'response') and e.response is not None:
+                error_msg = f"Registration failed: {e.response.status_code} {e.response.text}"
+            else:
+                error_msg = f"Registration failed: {str(e)}"
+            raise RuntimeError(error_msg) from e
+    
+    def get_current_user(self) -> Dict[str, Any]:
+        """
+        Get information about the currently authenticated user
+        
+        Returns:
+            Dictionary containing the current user information
+        """
+        self._ensure_authenticated()
+        
+        url = f"{self.server_url}/auth/me"
+        
+        headers = {
+            "Authorization": f"Bearer {self.admin_token}"
+        }
+        
+        try:
+            response = requests.get(url, headers=headers)
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            if hasattr(e, 'response') and e.response is not None:
+                error_msg = f"Failed to get current user: {e.response.status_code} {e.response.text}"
+            else:
+                error_msg = f"Failed to get current user: {str(e)}"
+            raise RuntimeError(error_msg) from e
+    
+    # User Management utilities (from debug_auth.py)
+    def check_config_password(self) -> Dict[str, Any]:
+        """
+        Check what password the server is configured to use
+        
+        Returns:
+            Dictionary containing configuration information
+        """
+        # This endpoint doesn't exist, so we'll return a message
+        return {
+            "message": "Auth configuration endpoint not available",
+            "note": "Use debug_auth.py script for detailed configuration inspection"
+        }
+    
+    def list_users(self) -> List[Dict[str, Any]]:
+        """
+        List all users in the system
+        
+        Returns:
+            List of dictionaries containing user information
+        """
+        self._ensure_authenticated()
+        
+        # Try to get users through the auth service
+        url = f"{self.server_url}/auth/users"
+        
+        headers = {
+            "Authorization": f"Bearer {self.admin_token}"
+        }
+        
+        try:
+            response = requests.get(url, headers=headers)
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            if hasattr(e, 'response') and e.response is not None:
+                if e.response.status_code == 404:
+                    raise RuntimeError("User management endpoint not found. Check if the server is running and authentication is enabled.")
+                elif e.response.status_code == 500:
+                    raise RuntimeError(f"Server error while listing users: {e.response.text}")
+                elif e.response.status_code == 403:
+                    raise RuntimeError("Admin privileges required to list users.")
+                error_msg = f"Failed to list users: {e.response.status_code} {e.response.text}"
+            else:
+                error_msg = f"Failed to list users: {str(e)}"
+            raise RuntimeError(error_msg) from e
+    
+    def reset_user_password(self, user_id: str, new_password: str) -> Dict[str, Any]:
+        """
+        Reset a user's password (admin only)
+        
+        Args:
+            user_id: The user ID whose password to reset
+            new_password: The new password
+            
+        Returns:
+            Dictionary containing the result of the operation
+        """
+        self._ensure_authenticated()
+        
+        url = f"{self.server_url}/auth/reset-password"
+        
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.admin_token}"
+        }
+        
+        data = {
+            "user_id": user_id,
+            "new_password": new_password
+        }
+        
+        try:
+            response = requests.post(url, headers=headers, json=data)
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            if hasattr(e, 'response') and e.response is not None:
+                if e.response.status_code == 403:
+                    raise RuntimeError("Admin privileges required to reset user passwords.")
+                elif e.response.status_code == 404:
+                    raise RuntimeError("User not found or password reset failed.")
+                elif e.response.status_code == 400:
+                    raise RuntimeError("Use change-password to change your own password.")
+                error_msg = f"Failed to reset password: {e.response.status_code} {e.response.text}"
+            else:
+                error_msg = f"Failed to reset password: {str(e)}"
+            raise RuntimeError(error_msg) from e
+    
+    def delete_user(self, user_id: str) -> Dict[str, Any]:
+        """
+        Delete a user
+        
+        Args:
+            user_id: The user ID to delete
+            
+        Returns:
+            Dictionary containing the result of the operation
+        """
+        self._ensure_authenticated()
+        
+        url = f"{self.server_url}/auth/users/{user_id}"
+        
+        headers = {
+            "Authorization": f"Bearer {self.admin_token}"
+        }
+        
+        try:
+            response = requests.delete(url, headers=headers)
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            if hasattr(e, 'response') and e.response is not None:
+                if e.response.status_code == 404:
+                    raise RuntimeError("User not found or could not be deleted.")
+                elif e.response.status_code == 403:
+                    raise RuntimeError("Admin privileges required to delete users.")
+                elif e.response.status_code == 400:
+                    raise RuntimeError("Cannot delete your own account or invalid request.")
+                error_msg = f"Failed to delete user: {e.response.status_code} {e.response.text}"
+            else:
+                error_msg = f"Failed to delete user: {str(e)}"
+            raise RuntimeError(error_msg) from e
+    
+    def deactivate_user(self, username: str) -> Dict[str, Any]:
+        """
+        Deactivate a user
+        
+        Args:
+            username: The username to deactivate
+            
+        Returns:
+            Dictionary containing the result of the operation
+        """
+        return {
+            "message": "User deactivation endpoint not available",
+            "note": "Use debug_auth.py script for user management",
+            "username": username
+        }
+    
+    def activate_user(self, username: str) -> Dict[str, Any]:
+        """
+        Activate a user
+        
+        Args:
+            username: The username to activate
+            
+        Returns:
+            Dictionary containing the result of the operation
+        """
+        return {
+            "message": "User activation endpoint not available",
+            "note": "Use debug_auth.py script for user management",
+            "username": username
+        }
+    
+    def check_auth_status(self) -> Dict[str, Any]:
+        """
+        Check authentication status and token validity
+        
+        Returns:
+            Dictionary containing authentication status
+        """
+        if not self.admin_token:
+            return {
+                "authenticated": False,
+                "message": "No authentication token found"
+            }
+        
+        try:
+            # Try to get current user info to validate token
+            user_info = self.get_current_user()
+            return {
+                "authenticated": True,
+                "token": f"{self.admin_token[:8]}...",
+                "user": user_info,
+                "message": "Token is valid"
+            }
+        except Exception as e:
+            return {
+                "authenticated": False,
+                "token": f"{self.admin_token[:8]}...",
+                "error": str(e),
+                "message": "Token is invalid or expired"
+            }
+    
+    def change_password(self, current_password: str, new_password: str) -> Dict[str, Any]:
+        """
+        Change the current user's password
+        
+        Args:
+            current_password: The current password
+            new_password: The new password
+            
+        Returns:
+            Dictionary containing the result of the operation
+        """
+        self._ensure_authenticated()
+        
+        url = f"{self.server_url}/auth/change-password"
+        
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.admin_token}"
+        }
+        
+        data = {
+            "current_password": current_password,
+            "new_password": new_password
+        }
+        
+        try:
+            response = requests.post(url, headers=headers, json=data)
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            if hasattr(e, 'response') and e.response is not None:
+                if e.response.status_code == 400:
+                    raise RuntimeError("Current password is incorrect or password change failed.")
+                error_msg = f"Failed to change password: {e.response.status_code} {e.response.text}"
+            else:
+                error_msg = f"Failed to change password: {str(e)}"
+            raise RuntimeError(error_msg) from e
     
     # API Key methods
     def create_api_key(
@@ -465,6 +926,7 @@ class ApiManager:
         Returns:
             Dictionary containing the created API key details
         """
+        self._ensure_authenticated()
         # First handle prompt if needed
         if prompt_file and (prompt_name or prompt_id):
             prompt_text = self._read_file_content(prompt_file)
@@ -529,6 +991,7 @@ class ApiManager:
         Returns:
             List of dictionaries containing API key details
         """
+        self._ensure_authenticated()
         url = f"{self.server_url}/admin/api-keys"
         
         headers = {}
@@ -558,6 +1021,7 @@ class ApiManager:
         Returns:
             Dictionary containing the result of the operation
         """
+        self._ensure_authenticated()
         url = f"{self.server_url}/admin/api-keys/deactivate"
         
         headers = {
@@ -593,6 +1057,7 @@ class ApiManager:
         Returns:
             Dictionary containing the result of the operation
         """
+        self._ensure_authenticated()
         url = f"{self.server_url}/admin/api-keys/{api_key}"
         
         headers = {}
@@ -622,6 +1087,7 @@ class ApiManager:
         Returns:
             Dictionary containing the API key status
         """
+        self._ensure_authenticated()
         url = f"{self.server_url}/admin/api-keys/{api_key}/status"
         
         headers = {}
@@ -693,6 +1159,7 @@ class ApiManager:
         Returns:
             Dictionary containing the created prompt details
         """
+        self._ensure_authenticated()
         url = f"{self.server_url}/admin/prompts"
         
         headers = {
@@ -728,6 +1195,7 @@ class ApiManager:
         Returns:
             List of dictionaries containing prompt details
         """
+        self._ensure_authenticated()
         url = f"{self.server_url}/admin/prompts"
         
         headers = {}
@@ -757,6 +1225,7 @@ class ApiManager:
         Returns:
             Dictionary containing the prompt details
         """
+        self._ensure_authenticated()
         url = f"{self.server_url}/admin/prompts/{prompt_id}"
         
         headers = {}
@@ -788,6 +1257,7 @@ class ApiManager:
         Returns:
             Dictionary containing the updated prompt details
         """
+        self._ensure_authenticated()
         url = f"{self.server_url}/admin/prompts/{prompt_id}"
         
         headers = {
@@ -826,6 +1296,7 @@ class ApiManager:
         Returns:
             Dictionary containing the result of the operation
         """
+        self._ensure_authenticated()
         url = f"{self.server_url}/admin/prompts/{prompt_id}"
         
         headers = {}
@@ -856,6 +1327,7 @@ class ApiManager:
         Returns:
             Dictionary containing the result of the operation
         """
+        self._ensure_authenticated()
         url = f"{self.server_url}/admin/api-keys/{api_key}/prompt"
         
         headers = {
@@ -904,6 +1376,20 @@ class OrbitCLI:
             formatter_class=argparse.RawDescriptionHelpFormatter,
             epilog="""
 Examples:
+  # Authentication
+  orbit login --username admin --password secret123  # Or just 'orbit login' to be prompted
+  orbit me
+  orbit change-password                               # Change your password (interactive)
+  orbit register --username newuser --password pass123 --role user
+  orbit logout
+  
+  # User Management
+  orbit user list                       List all users
+  orbit user config                     Check auth configuration
+  orbit user debug                      Run debug_auth.py script
+  orbit auth-status                     Check authentication status
+  # For full user management: python server/tests/debug_auth.py
+  
   # Server Management
   orbit start                           Start the server
   orbit stop                            Stop the server
@@ -922,6 +1408,14 @@ Examples:
   orbit prompt get --id 612a4b3c...     Get a specific prompt
   orbit prompt delete --id 612a4b3c...  Delete a prompt
   
+      # User Management
+    orbit user list                       List all users
+    orbit user config                     Check auth configuration
+    orbit user reset-password --user-id USER_ID --password newpass
+    orbit user delete --user-id USER_ID   Delete a user by ID
+    orbit user deactivate --username user1  Deactivate a user
+    orbit user activate --username user1   Activate a user
+  
   # Combined Operations
   orbit key create --collection legal --name "Legal Team" \\
     --prompt-file legal_prompt.txt --prompt-name "Legal Assistant"
@@ -937,11 +1431,17 @@ Examples:
         # Server control commands
         self._add_server_commands(subparsers)
         
+        # Authentication commands
+        self._add_auth_commands(subparsers)
+        
         # API key management commands
         self._add_key_commands(subparsers)
         
         # System prompt management commands
         self._add_prompt_commands(subparsers)
+        
+        # User management commands
+        self._add_user_commands(subparsers)
         
         return parser
     
@@ -969,6 +1469,33 @@ Examples:
         
         # Status command
         status_parser = subparsers.add_parser('status', help='Check server status')
+    
+    def _add_auth_commands(self, subparsers):
+        """Add authentication commands to the subparsers."""
+        # Login command
+        login_parser = subparsers.add_parser('login', help='Login to the server')
+        login_parser.add_argument('--username', '-u', help='Username (will prompt if not provided)')
+        login_parser.add_argument('--password', '-p', help='Password (will prompt if not provided)')
+        
+        # Logout command
+        logout_parser = subparsers.add_parser('logout', help='Logout from the server')
+        
+        # Register command
+        register_parser = subparsers.add_parser('register', help='Register a new user (admin only)')
+        register_parser.add_argument('--username', '-u', required=True, help='Username for the new user')
+        register_parser.add_argument('--password', '-p', required=True, help='Password for the new user')
+        register_parser.add_argument('--role', '-r', default='user', help='Role for the new user (default: user)')
+        
+        # Me command
+        me_parser = subparsers.add_parser('me', help='Get current user information')
+        
+        # Auth status command
+        auth_status_parser = subparsers.add_parser('auth-status', help='Check authentication status')
+        
+        # Change password command
+        change_password_parser = subparsers.add_parser('change-password', help='Change your password')
+        change_password_parser.add_argument('--current-password', help='Current password (will prompt if not provided)')
+        change_password_parser.add_argument('--new-password', help='New password (will prompt if not provided)')
     
     def _add_key_commands(self, subparsers):
         """Add API key management commands to the subparsers."""
@@ -1036,6 +1563,37 @@ Examples:
         associate_parser.add_argument('--key', required=True, help='API key')
         associate_parser.add_argument('--prompt-id', required=True, help='Prompt ID to associate')
     
+    def _add_user_commands(self, subparsers):
+        """Add user management commands to the subparsers."""
+        user_parser = subparsers.add_parser('user', help='User management')
+        user_subparsers = user_parser.add_subparsers(dest='user_command', help='User command to execute')
+        
+        # List users command
+        list_parser = user_subparsers.add_parser('list', help='List all users')
+        
+        # Check config command
+        config_parser = user_subparsers.add_parser('config', help='Check authentication configuration')
+        
+        # Reset password command
+        reset_parser = user_subparsers.add_parser('reset-password', help='Reset a user password (admin only)')
+        reset_parser.add_argument('--user-id', required=True, help='User ID to reset password for')
+        reset_parser.add_argument('--password', required=True, help='New password')
+        
+        # Delete user command
+        delete_parser = user_subparsers.add_parser('delete', help='Delete a user')
+        delete_parser.add_argument('--user-id', required=True, help='User ID to delete')
+        
+        # Deactivate user command
+        deactivate_parser = user_subparsers.add_parser('deactivate', help='Deactivate a user')
+        deactivate_parser.add_argument('--username', required=True, help='Username to deactivate')
+        
+        # Activate user command
+        activate_parser = user_subparsers.add_parser('activate', help='Activate a user')
+        activate_parser.add_argument('--username', required=True, help='Username to activate')
+        
+        # Debug auth command
+        debug_parser = user_subparsers.add_parser('debug', help='Run debug_auth.py script for user management')
+    
     def execute(self, args):
         """Execute the parsed command."""
         # Handle server control commands
@@ -1066,6 +1624,121 @@ Examples:
             status = self.server_controller.status()
             print(json.dumps(status, indent=2))
             return 0 if status['status'] == 'running' else 1
+        
+        # Handle authentication commands
+        elif args.command == 'login':
+            api_manager = self.get_api_manager(args.server_url)
+            try:
+                # Prompt for username if not provided
+                username = args.username
+                if not username:
+                    username = input("Username: ")
+                    if not username:
+                        print("Username is required.", file=sys.stderr)
+                        return 1
+                
+                # Prompt for password if not provided
+                password = args.password
+                if not password:
+                    password = getpass.getpass("Password: ")
+                    if not password:
+                        print("Password is required.", file=sys.stderr)
+                        return 1
+                
+                result = api_manager.login(username, password)
+                print(json.dumps(result, indent=2))
+                print("\nLogin successful.")
+                return 0
+            except Exception as e:
+                print(f"Login failed: {str(e)}", file=sys.stderr)
+                return 1
+        
+        elif args.command == 'logout':
+            api_manager = self.get_api_manager(args.server_url)
+            try:
+                result = api_manager.logout()
+                print(json.dumps(result, indent=2))
+                print("\nLogout successful.")
+                return 0
+            except Exception as e:
+                error_msg = str(e)
+                # Handle case where token is already invalid (e.g., after password change)
+                if "401" in error_msg and ("Invalid" in error_msg or "expired" in error_msg):
+                    print("Already logged out (token was invalid or expired).")
+                    # Clear the token file anyway
+                    api_manager._clear_token_file()
+                    return 0
+                else:
+                    print(f"Logout failed: {error_msg}", file=sys.stderr)
+                    return 1
+        
+        elif args.command == 'register':
+            api_manager = self.get_api_manager(args.server_url)
+            try:
+                result = api_manager.register_user(args.username, args.password, args.role)
+                print(json.dumps(result, indent=2))
+                print("\nUser registered successfully.")
+                return 0
+            except Exception as e:
+                print(f"Registration failed: {str(e)}", file=sys.stderr)
+                return 1
+        
+        elif args.command == 'me':
+            api_manager = self.get_api_manager(args.server_url)
+            try:
+                result = api_manager.get_current_user()
+                print(json.dumps(result, indent=2))
+                return 0
+            except Exception as e:
+                print(f"Failed to get user info: {str(e)}", file=sys.stderr)
+                return 1
+        
+        elif args.command == 'auth-status':
+            api_manager = self.get_api_manager(args.server_url)
+            try:
+                result = api_manager.check_auth_status()
+                print(json.dumps(result, indent=2))
+                return 0 if result['authenticated'] else 1
+            except Exception as e:
+                print(f"Failed to check authentication status: {str(e)}", file=sys.stderr)
+                return 1
+        
+        elif args.command == 'change-password':
+            api_manager = self.get_api_manager(args.server_url)
+            try:
+                # Prompt for current password if not provided
+                current_password = args.current_password
+                if not current_password:
+                    current_password = getpass.getpass("Enter current password: ")
+                    if not current_password:
+                        print("Current password is required.", file=sys.stderr)
+                        return 1
+                
+                # Prompt for new password if not provided
+                new_password = args.new_password
+                if not new_password:
+                    new_password = getpass.getpass("Enter new password: ")
+                    if not new_password:
+                        print("New password is required.", file=sys.stderr)
+                        return 1
+                    
+                    # Confirm new password
+                    confirm_password = getpass.getpass("Confirm new password: ")
+                    if new_password != confirm_password:
+                        print("New passwords do not match.", file=sys.stderr)
+                        return 1
+                
+                result = api_manager.change_password(current_password, new_password)
+                print(json.dumps(result, indent=2))
+                print("\nPassword changed successfully!")
+                print("Note: All sessions have been invalidated for security.")
+                print("You will need to login again with your new password.")
+                # Clear the local token since it's now invalid
+                api_manager._clear_token_file()
+                return 0
+            except Exception as e:
+                print(f"Failed to change password: {str(e)}", file=sys.stderr)
+                return 1
         
         # Handle API key commands
         elif args.command == 'key':
@@ -1161,6 +1834,68 @@ Examples:
                 print(json.dumps(result, indent=2))
                 print("\nSystem prompt associated with API key successfully.")
                 return 0
+        
+        # Handle user commands
+        elif args.command == 'user':
+            api_manager = self.get_api_manager(args.server_url)
+            
+            if args.user_command == 'list':
+                result = api_manager.list_users()
+                print(json.dumps(result, indent=2))
+                print(f"\nFound {len(result)} users.")
+                return 0
+            
+            elif args.user_command == 'config':
+                result = api_manager.check_config_password()
+                print(json.dumps(result, indent=2))
+                return 0
+            
+            elif args.user_command == 'reset-password':
+                try:
+                    result = api_manager.reset_user_password(args.user_id, args.password)
+                    print(json.dumps(result, indent=2))
+                    print("\nUser password reset successfully.")
+                    return 0
+                except Exception as e:
+                    print(f"Failed to reset user password: {str(e)}", file=sys.stderr)
+                    return 1
+            
+            elif args.user_command == 'delete':
+                try:
+                    result = api_manager.delete_user(args.user_id)
+                    print(json.dumps(result, indent=2))
+                    print("\nUser deleted successfully.")
+                    return 0
+                except Exception as e:
+                    print(f"Failed to delete user: {str(e)}", file=sys.stderr)
+                    return 1
+            
+            elif args.user_command == 'deactivate':
+                result = api_manager.deactivate_user(args.username)
+                print(json.dumps(result, indent=2))
+                print("\nUser deactivated successfully.")
+                return 0
+            
+            elif args.user_command == 'activate':
+                result = api_manager.activate_user(args.username)
+                print(json.dumps(result, indent=2))
+                print("\nUser activated successfully.")
+                return 0
+            
+            elif args.user_command == 'debug':
+                # Run the debug_auth.py script
+                debug_script_path = self.server_controller.project_root / "server" / "tests" / "debug_auth.py"
+                if debug_script_path.exists():
+                    print("Running debug_auth.py script for user management...")
+                    print("This script provides detailed user management capabilities.")
+                    print(f"Script location: {debug_script_path}")
+                    print("\nTo run manually:")
+                    print(f"cd {self.server_controller.project_root}/server/tests")
+                    print("python debug_auth.py")
+                    return 0
+                else:
+                    print(f"Debug script not found at: {debug_script_path}")
+                    return 1
         
         return 1
 

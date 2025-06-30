@@ -576,6 +576,124 @@ class AuthService:
             logger.error(f"Unexpected error updating user status: {str(e)}")
             return False
     
+    async def reset_user_password(self, user_id: str, new_password: str) -> bool:
+        """
+        Reset a user's password (admin function - doesn't require old password)
+        
+        Args:
+            user_id: The user's ID
+            new_password: The new password
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            from bson import ObjectId
+            
+            # Get user
+            user = await self.mongodb.find_one(
+                self.users_collection_name,
+                {"_id": ObjectId(user_id)}
+            )
+            
+            if not user:
+                logger.warning(f"User not found for password reset: {user_id}")
+                return False
+            
+            # Hash new password
+            salt, hash_bytes = self._hash_password(new_password)
+            encoded_password = self._encode_password(salt, hash_bytes)
+            
+            # Update password
+            result = await self.mongodb.update_one(
+                self.users_collection_name,
+                {"_id": user["_id"]},
+                {"$set": {"password": encoded_password}}
+            )
+            
+            if result:
+                # Invalidate all sessions for this user
+                await self.mongodb.delete_many(
+                    self.sessions_collection_name,
+                    {"user_id": user["_id"]}
+                )
+                
+                if self.verbose:
+                    logger.info(f"Password reset for user: {user['username']} (ID: {user_id})")
+            
+            return result
+            
+        except InvalidId as e:
+            logger.error(f"Invalid user ID format: {str(e)}")
+            return False
+        except (ServerSelectionTimeoutError, ConnectionFailure) as e:
+            logger.error(f"MongoDB connection error resetting password: {str(e)}")
+            return False
+        except (OperationFailure, DuplicateKeyError) as e:
+            logger.error(f"MongoDB operation error resetting password: {str(e)}")
+            return False
+        except Exception as e:
+            logger.error(f"Unexpected error resetting password: {str(e)}")
+            return False
+    
+    async def delete_user(self, user_id: str) -> bool:
+        """
+        Delete a user and all associated sessions
+        
+        Args:
+            user_id: The user's ID to delete
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            from bson import ObjectId
+            
+            # Get user first to check if exists
+            user = await self.mongodb.find_one(
+                self.users_collection_name,
+                {"_id": ObjectId(user_id)}
+            )
+            
+            if not user:
+                logger.warning(f"User not found for deletion: {user_id}")
+                return False
+            
+            # Don't allow deletion of default admin user
+            if user["username"] == self.default_admin_username:
+                logger.warning(f"Cannot delete default admin user: {user['username']}")
+                return False
+            
+            # Delete all sessions for this user first
+            await self.mongodb.delete_many(
+                self.sessions_collection_name,
+                {"user_id": user["_id"]}
+            )
+            
+            # Delete the user
+            result = await self.mongodb.delete_one(
+                self.users_collection_name,
+                {"_id": ObjectId(user_id)}
+            )
+            
+            if result and self.verbose:
+                logger.info(f"Deleted user: {user['username']} (ID: {user_id})")
+            
+            return result
+            
+        except InvalidId as e:
+            logger.error(f"Invalid user ID format: {str(e)}")
+            return False
+        except (ServerSelectionTimeoutError, ConnectionFailure) as e:
+            logger.error(f"MongoDB connection error deleting user: {str(e)}")
+            return False
+        except (OperationFailure, DuplicateKeyError) as e:
+            logger.error(f"MongoDB operation error deleting user: {str(e)}")
+            return False
+        except Exception as e:
+            logger.error(f"Unexpected error deleting user: {str(e)}")
+            return False
+    
     async def close(self) -> None:
         """Close the authentication service"""
         # MongoDB service will be closed by the main shutdown process
