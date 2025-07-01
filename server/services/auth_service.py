@@ -501,16 +501,27 @@ class AuthService:
             logger.error(f"Unexpected error creating user {username}: {str(e)}")
             return None
     
-    async def list_users(self) -> list:
+    async def list_users(self, filter_query: Optional[Dict[str, Any]] = None, limit: int = 100, offset: int = 0) -> list:
         """
-        List all users
+        List all users with optional filtering and pagination
         
+        Args:
+            filter_query: Optional MongoDB filter query
+            limit: Maximum number of users to return
+            offset: Number of users to skip for pagination
+            
         Returns:
             List of user records (without passwords)
         """
         try:
             users = []
-            cursor = self.users_collection.find({})
+            
+            # Use the provided filter query or default to empty dict
+            query = filter_query or {}
+            
+            # Apply pagination
+            cursor = self.users_collection.find(query).skip(offset).limit(limit)
+            
             async for user in cursor:
                 users.append({
                     "id": str(user["_id"]),
@@ -532,6 +543,49 @@ class AuthService:
         except Exception as e:
             logger.error(f"Unexpected error listing users: {str(e)}")
             return []
+    
+    async def get_user_by_id(self, user_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Get a single user by ID with full details
+        
+        Args:
+            user_id: The user's ID
+            
+        Returns:
+            User record with full details (without password) or None if not found
+        """
+        try:
+            from bson import ObjectId
+            
+            user = await self.mongodb.find_one(
+                self.users_collection_name,
+                {"_id": ObjectId(user_id)}
+            )
+            
+            if not user:
+                return None
+            
+            return {
+                "id": str(user["_id"]),
+                "username": user["username"],
+                "role": user.get("role", "user"),
+                "active": user.get("active", True),
+                "created_at": user.get("created_at"),
+                "last_login": user.get("last_login")
+            }
+            
+        except InvalidId as e:
+            logger.error(f"Invalid user ID format: {str(e)}")
+            return None
+        except (ServerSelectionTimeoutError, ConnectionFailure) as e:
+            logger.error(f"MongoDB connection error getting user by ID: {str(e)}")
+            return None
+        except (OperationFailure, DuplicateKeyError) as e:
+            logger.error(f"MongoDB operation error getting user by ID: {str(e)}")
+            return None
+        except Exception as e:
+            logger.error(f"Unexpected error getting user by ID: {str(e)}")
+            return None
     
     async def update_user_status(self, user_id: str, active: bool) -> bool:
         """

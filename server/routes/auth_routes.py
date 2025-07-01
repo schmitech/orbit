@@ -64,6 +64,10 @@ class ResetPasswordRequest(BaseModel):
     new_password: str
 
 
+class DeactivateUserRequest(BaseModel):
+    user_id: str
+
+
 # Authentication Endpoints
 @auth_router.post("/login", response_model=LoginResponse)
 async def login(
@@ -119,36 +123,100 @@ async def login(
 
 @auth_router.get("/me", response_model=UserResponse)
 async def get_current_user_info(
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    auth_service = Depends(get_auth_service)
 ):
     """
     Get information about the currently authenticated user.
     
     Args:
         current_user: Current user from authentication
+        auth_service: Authentication service
         
     Returns:
-        Current user information
+        Current user information with full details
     """
-    return UserResponse(
-        id=current_user["id"],
-        username=current_user["username"],
-        role=current_user["role"],
-        active=current_user["active"]
-    )
+    try:
+        # Get complete user data from database
+        user = await auth_service.get_user_by_id(current_user["id"])
+        
+        if not user:
+            raise HTTPException(
+                status_code=404,
+                detail="User not found"
+            )
+        
+        # Safe datetime conversion
+        created_at = None
+        if user.get("created_at"):
+            try:
+                created_at = user["created_at"].isoformat() if hasattr(user["created_at"], 'isoformat') else str(user["created_at"])
+            except Exception:
+                created_at = None
+        
+        last_login = None
+        if user.get("last_login"):
+            try:
+                last_login = user["last_login"].isoformat() if hasattr(user["last_login"], 'isoformat') else str(user["last_login"])
+            except Exception:
+                last_login = None
+        
+        return UserResponse(
+            id=user["id"],
+            username=user["username"],
+            role=user["role"],
+            active=user["active"],
+            created_at=created_at,
+            last_login=last_login
+        )
+        
+    except HTTPException:
+        # Re-raise HTTPExceptions as-is
+        raise
+    except Exception as e:
+        logger.error(f"Error getting current user info: {type(e).__name__}: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Internal server error while getting user info: {str(e)}"
+        )
 
 @auth_router.get("/users", response_model=List[UserResponse])
 async def list_users(
+    role: Optional[str] = None,
+    active_only: bool = False,
+    limit: int = 100,
+    offset: int = 0,
     admin_user = Depends(require_admin),
     auth_service = Depends(get_auth_service)
 ):
     """
-    List all users in the system.
+    List all users in the system with optional filtering and pagination.
     
     Requires admin authentication.
+    
+    Args:
+        role: Optional role filter (user, admin)
+        active_only: If True, only return active users
+        limit: Maximum number of users to return (default: 100, max: 1000)
+        offset: Number of users to skip for pagination (default: 0)
     """
     try:
-        users = await auth_service.list_users()
+        # Validate parameters
+        if limit > 1000:
+            limit = 1000
+        if limit < 1:
+            limit = 100
+        if offset < 0:
+            offset = 0
+        
+        # Build filter query
+        filter_query = {}
+        if role:
+            filter_query["role"] = role
+        if active_only:
+            filter_query["active"] = True
+        
+        users = await auth_service.list_users(filter_query=filter_query, limit=limit, offset=offset)
         
         result = []
         for user in users:
@@ -445,4 +513,109 @@ async def reset_user_password(
         raise HTTPException(
             status_code=500,
             detail="Internal server error during password reset"
+        )
+
+
+@auth_router.post("/users/{user_id}/deactivate")
+async def deactivate_user(
+    user_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    auth_service = Depends(get_auth_service)
+):
+    """
+    Deactivate a user (admin only).
+    
+    Args:
+        user_id: The ID of the user to deactivate
+        current_user: Current authenticated user
+        auth_service: Authentication service
+        
+    Returns:
+        Deactivation confirmation
+        
+    Raises:
+        HTTPException: If deactivation fails or user not admin
+    """
+    # Check if current user is admin
+    if current_user.get("role") != "admin":
+        raise HTTPException(
+            status_code=403,
+            detail="Only administrators can deactivate users"
+        )
+    
+    # Prevent admin from deactivating themselves
+    if current_user.get("id") == user_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot deactivate your own account"
+        )
+    
+    try:
+        success = await auth_service.update_user_status(user_id, False)
+        
+        if not success:
+            raise HTTPException(
+                status_code=404,
+                detail="User not found or could not be deactivated"
+            )
+        
+        return {"message": "User deactivated successfully", "user_id": user_id}
+        
+    except HTTPException:
+        # Re-raise HTTPExceptions as-is
+        raise
+    except Exception as e:
+        logger.error(f"User deactivation error: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error during user deactivation"
+        )
+
+
+@auth_router.post("/users/{user_id}/activate")
+async def activate_user(
+    user_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    auth_service = Depends(get_auth_service)
+):
+    """
+    Activate a user (admin only).
+    
+    Args:
+        user_id: The ID of the user to activate
+        current_user: Current authenticated user
+        auth_service: Authentication service
+        
+    Returns:
+        Activation confirmation
+        
+    Raises:
+        HTTPException: If activation fails or user not admin
+    """
+    # Check if current user is admin
+    if current_user.get("role") != "admin":
+        raise HTTPException(
+            status_code=403,
+            detail="Only administrators can activate users"
+        )
+    
+    try:
+        success = await auth_service.update_user_status(user_id, True)
+        
+        if not success:
+            raise HTTPException(
+                status_code=404,
+                detail="User not found or could not be activated"
+            )
+        
+        return {"message": "User activated successfully", "user_id": user_id}
+        
+    except HTTPException:
+        # Re-raise HTTPExceptions as-is
+        raise
+    except Exception as e:
+        logger.error(f"User activation error: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error during user activation"
         ) 

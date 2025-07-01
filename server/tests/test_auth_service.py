@@ -297,5 +297,74 @@ async def test_login_non_existent_user(auth_service: AuthService):
     success, _, _ = await auth_service.authenticate_user('nonexistentuser', 'somepassword')
     assert not success, "Login with non-existent user should fail"
 
+async def test_get_user_by_id(auth_service: AuthService, new_user):
+    """Test 16: Get user by ID with full details"""
+    logger.info("\n=== Test: Get user by ID ===")
+    
+    # Test getting existing user
+    user = await auth_service.get_user_by_id(new_user['id'])
+    assert user is not None, "Should get user successfully"
+    assert user['id'] == new_user['id'], "User ID should match"
+    assert user['username'] == new_user['username'], "Username should match"
+    assert user['role'] == 'user', "Role should be 'user'"
+    assert user['active'] is True, "User should be active"
+    assert 'created_at' in user, "Should include created_at timestamp"
+    assert 'last_login' in user, "Should include last_login timestamp"
+    
+    # Test getting non-existent user
+    non_existent_user = await auth_service.get_user_by_id("507f1f77bcf86cd799439011")
+    assert non_existent_user is None, "Should return None for non-existent user"
+    
+    # Test with invalid ObjectId
+    invalid_user = await auth_service.get_user_by_id("invalid_object_id")
+    assert invalid_user is None, "Should return None for invalid ObjectId"
+
+async def test_get_user_by_id_invalid_objectid(auth_service: AuthService):
+    """Test 17: Get user by ID with invalid ObjectId"""
+    logger.info("\n=== Test: Get user by ID with invalid ObjectId ===")
+    
+    # Test with various invalid ObjectId formats
+    invalid_ids = [
+        "invalid_object_id",
+        "123",
+        "not_a_valid_id",
+        "",
+        "507f1f77bcf86cd79943901"  # Too short
+    ]
+    
+    for invalid_id in invalid_ids:
+        user = await auth_service.get_user_by_id(invalid_id)
+        assert user is None, f"Should return None for invalid ID: {invalid_id}"
+
+def test_auth_service():
+    """Run all authentication service tests"""
+    logger.info("Starting Authentication Service tests...")
+    
+    # Run all test functions
+    test_functions = [
+        test_default_admin_login,
+        test_validate_token,
+        test_invalid_login,
+        test_create_new_user,
+        test_create_user_with_default_role,
+        test_login_with_new_user,
+        test_change_password,
+        test_list_users,
+        test_deactivate_and_reactivate_user,
+        test_logout,
+        test_invalid_objectid_handling,
+        test_create_existing_user,
+        test_reset_user_password,
+        test_delete_default_admin_fails,
+        test_delete_user,
+        test_login_non_existent_user,
+        test_get_user_by_id,
+        test_get_user_by_id_invalid_objectid
+    ]
+    
+    # Note: This is a placeholder. In practice, you would use pytest to run these tests
+    logger.info(f"Found {len(test_functions)} test functions")
+    logger.info("To run tests, use: pytest server/tests/test_auth_service.py -v")
+
 if __name__ == "__main__":
     asyncio.run(test_auth_service())

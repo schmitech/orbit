@@ -136,10 +136,14 @@ async def create_api_key(
 @admin_router.get("/api-keys")
 async def list_api_keys(
     request: Request,
+    collection: Optional[str] = None,
+    active_only: bool = False,
+    limit: int = 100,
+    offset: int = 0,
     authorized: bool = Depends(admin_auth_check)
 ):
     """
-    List all API keys in the system.
+    List all API keys in the system with optional filtering and pagination.
     
     This endpoint provides a list of all API keys with:
     - Masked key values
@@ -152,9 +156,13 @@ async def list_api_keys(
     - This is an admin-only endpoint
     - Should be protected by additional authentication
     - API keys are masked in the response
-    - Limited to 100 keys per request
+    - Limited to 1000 keys per request
     
     Args:
+        collection: Optional collection name filter
+        active_only: If True, only return active keys
+        limit: Maximum number of keys to return (default: 100, max: 1000)
+        offset: Number of keys to skip for pagination (default: 0)
         request: The incoming request
         
     Returns:
@@ -170,13 +178,28 @@ async def list_api_keys(
     check_service_availability(api_key_service, "API key service")
     
     try:
+        # Validate parameters
+        if limit > 1000:
+            limit = 1000
+        if limit < 1:
+            limit = 100
+        if offset < 0:
+            offset = 0
+        
         # Ensure service is initialized
         if not api_key_service._initialized:
             await api_key_service.initialize()
         
-        # Retrieve all API keys
-        cursor = api_key_service.api_keys_collection.find({})
-        api_keys = await cursor.to_list(length=100)  # Limit to 100 keys
+        # Build filter query
+        filter_query = {}
+        if collection:
+            filter_query["collection_name"] = collection
+        if active_only:
+            filter_query["active"] = True
+        
+        # Retrieve API keys with filtering and pagination
+        cursor = api_key_service.api_keys_collection.find(filter_query).skip(offset).limit(limit)
+        api_keys = await cursor.to_list(length=limit)
         
         # Convert MongoDB documents to JSON-serializable format
         serialized_keys = []
@@ -355,11 +378,29 @@ async def create_prompt(
 
 @admin_router.get("/prompts")
 async def list_prompts(
+    name_filter: Optional[str] = None,
+    limit: int = 100,
+    offset: int = 0,
     prompt_service = Depends(get_prompt_service),
     authorized: bool = Depends(admin_auth_check)
 ):
-    """List all system prompts"""
-    return await prompt_service.list_prompts()
+    """
+    List all system prompts with optional filtering and pagination.
+    
+    Args:
+        name_filter: Optional name filter (case-insensitive partial match)
+        limit: Maximum number of prompts to return (default: 100, max: 1000)
+        offset: Number of prompts to skip for pagination (default: 0)
+    """
+    # Validate parameters
+    if limit > 1000:
+        limit = 1000
+    if limit < 1:
+        limit = 100
+    if offset < 0:
+        offset = 0
+    
+    return await prompt_service.list_prompts(name_filter=name_filter, limit=limit, offset=offset)
 
 
 @admin_router.get("/prompts/{prompt_id}")

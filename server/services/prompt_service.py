@@ -12,6 +12,7 @@ from typing import Dict, Any, Optional, List
 from fastapi import HTTPException
 from datetime import datetime, UTC
 from bson import ObjectId
+import re
 
 from services.mongodb_service import MongoDBService
 
@@ -152,15 +153,32 @@ class PromptService:
             logger.error(f"Error retrieving prompt by name: {str(e)}")
             return None
     
-    async def list_prompts(self) -> List[Dict[str, Any]]:
+    async def list_prompts(self, name_filter: Optional[str] = None, limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
         """
-        List all prompts
+        List all prompts with optional filtering and pagination
         
+        Args:
+            name_filter: Optional name filter (case-insensitive partial match)
+            limit: Maximum number of prompts to return
+            offset: Number of prompts to skip for pagination
+            
         Returns:
             List of all prompt documents
         """
         try:
-            prompts = await self.mongodb.find_many(self.collection_name, {})
+            # Build filter query
+            filter_query = {}
+            if name_filter:
+                # Case-insensitive partial match using regex
+                filter_query["name"] = {"$regex": re.escape(name_filter), "$options": "i"}
+            
+            # Apply pagination
+            prompts = await self.mongodb.find_many(
+                self.collection_name, 
+                filter_query,
+                limit=limit,
+                skip=offset
+            )
             
             # Convert _id to string representation
             for prompt in prompts:
