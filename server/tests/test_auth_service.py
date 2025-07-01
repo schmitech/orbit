@@ -319,6 +319,28 @@ async def test_get_user_by_id(auth_service: AuthService, new_user):
     invalid_user = await auth_service.get_user_by_id("invalid_object_id")
     assert invalid_user is None, "Should return None for invalid ObjectId"
 
+async def test_get_user_by_username(auth_service: AuthService, new_user):
+    """Test 16a: Get user by username with efficient database lookup"""
+    logger.info("\n=== Test: Get user by username ===")
+    
+    # Test getting existing user by username
+    user = await auth_service.get_user_by_username(new_user['username'])
+    assert user is not None, "Should get user successfully"
+    assert user['id'] == new_user['id'], "User ID should match"
+    assert user['username'] == new_user['username'], "Username should match"
+    assert user['role'] == 'user', "Role should be 'user'"
+    assert user['active'] is True, "User should be active"
+    assert 'created_at' in user, "Should include created_at timestamp"
+    assert 'last_login' in user, "Should include last_login timestamp"
+    
+    # Test getting non-existent user by username
+    non_existent_user = await auth_service.get_user_by_username("nonexistent_username")
+    assert non_existent_user is None, "Should return None for non-existent username"
+    
+    # Test with empty username
+    empty_user = await auth_service.get_user_by_username("")
+    assert empty_user is None, "Should return None for empty username"
+
 async def test_get_user_by_id_invalid_objectid(auth_service: AuthService):
     """Test 17: Get user by ID with invalid ObjectId"""
     logger.info("\n=== Test: Get user by ID with invalid ObjectId ===")
@@ -359,6 +381,7 @@ def test_auth_service():
         test_delete_user,
         test_login_non_existent_user,
         test_get_user_by_id,
+        test_get_user_by_username,
         test_get_user_by_id_invalid_objectid
     ]
     

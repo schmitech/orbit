@@ -33,8 +33,8 @@ ORBIT's authentication leverages PBKDF2-SHA256 (600k iterations) for password se
 3. **Token Generation**: Cryptographically secure token created
 4. **Session Storage**: Token and user info stored in MongoDB
 5. **Token Response**: Bearer token returned to client
-6. **Token Persistence**: CLI stores token locally for future requests
-7. **Request Authorization**: Subsequent requests include bearer token
+6. **Token Persistence**: CLI stores token in secure storage (keyring/file) and loads into session variable
+7. **Request Authorization**: Subsequent requests include bearer token from session variable
 8. **Token Validation**: Service validates token against active sessions
 
 ## Database Schema
@@ -131,8 +131,6 @@ encoded_password = base64.b64encode(salt + dk).decode('utf-8')
 - **No Password Hints**: No password recovery without admin intervention
 - **No Security Questions**: Only password-based authentication
 - **No Remember Me**: Each session requires full authentication
-
-
 
 ### Additional Security Measures
 
@@ -294,6 +292,218 @@ Authorization: Bearer abc123...
 }
 ```
 
+## Credential Storage
+
+### Overview
+
+ORBIT CLI stores authentication credentials using configurable storage methods with a simplified state management approach:
+
+- **Keyring (Default)**: Uses system's native credential management
+  - **macOS**: macOS Keychain Access
+  - **Linux**: Secret Service API (GNOME Keyring, KWallet, etc.)
+- **File Storage**: Plain text file in `~/.orbit/.env` (less secure but visible)
+- **Fallback**: Base64 encoded file storage when keyring fails
+
+### Authentication State Management
+
+The CLI uses a simplified authentication state management approach:
+
+1. **Secure Storage**: Single source of truth for persistence (keyring or file)
+2. **Session Token**: `self.admin_token` instance variable for current CLI session
+3. **No Environment Variables**: Tokens are not stored in `os.environ`
+
+**Authentication Flow:**
+- **Initialization**: Load token from secure storage → `self.admin_token`
+- **Login**: Server → `self.admin_token` + save to secure storage
+- **Logout**: Clear `self.admin_token` + clear secure storage
+- **API Calls**: Use `self.admin_token` for authorization
+
+### Storage Methods
+
+#### Keyring Storage (Recommended)
+- **Security**: High - uses system's encrypted credential storage
+- **Visibility**: Hidden - tokens not visible in plain text
+- **Configuration**: `auth.credential_storage: keyring` (default)
+- **Storage**: System keychain with service "orbit-cli" and account "auth-token"
+
+#### File Storage (User Choice)
+- **Security**: Medium - plain text file with restricted permissions (600)
+- **Visibility**: High - tokens visible in `~/.orbit/.env`
+- **Configuration**: `auth.credential_storage: file`
+- **Use Case**: Development, debugging, or when keyring is not available
+- **Format**: Direct file reading (no environment variable loading)
+
+### Storage Locations
+
+#### macOS Keychain
+```
+~/Library/Keychains/login.keychain-db
+```
+
+#### Linux Secret Service
+```
+~/.local/share/keyrings/ (GNOME Keyring)
+~/.kde/share/apps/kwallet/ (KDE Wallet)
+```
+
+#### Fallback File Storage
+```
+~/.orbit/.env (base64 encoded, chmod 600)
+```
+
+### Managing Stored Credentials
+
+#### View Stored Credentials
+
+**macOS:**
+```bash
+# View auth token entry
+security find-generic-password -s "orbit-cli" -a "auth-token"
+
+# View server URL entry
+security find-generic-password -s "orbit-cli" -a "server-url"
+
+# List all orbit-cli entries
+security find-generic-password -s "orbit-cli"
+```
+
+**Linux:**
+```bash
+# Using secret-tool (GNOME Keyring)
+secret-tool search service "orbit-cli"
+
+# Using kwallet (KDE)
+kwallet-query kdewallet -r "orbit-cli"
+
+# Using dbus (generic)
+dbus-send --session --dest=org.freedesktop.secrets \
+  --print-reply /org/freedesktop/secrets \
+  org.freedesktop.Secret.Service.SearchItems \
+  dict:string:string:"service","orbit-cli"
+```
+
+**GUI Method (macOS):**
+1. Open "Keychain Access" app
+2. Search for "orbit-cli"
+3. View entries for "auth-token" and "server-url"
+
+**GUI Method (Linux):**
+- **GNOME**: Open "Passwords and Keys" (seahorse)
+- **KDE**: Open "KDE Wallet Manager"
+
+#### Delete Stored Credentials
+
+**macOS:**
+```bash
+# Delete auth token
+security delete-generic-password -s "orbit-cli" -a "auth-token"
+
+# Delete server URL
+security delete-generic-password -s "orbit-cli" -a "server-url"
+
+# Delete all orbit-cli entries
+security delete-generic-password -s "orbit-cli"
+```
+
+**Linux:**
+```bash
+# Using secret-tool (GNOME Keyring)
+secret-tool remove service "orbit-cli" account "auth-token"
+secret-tool remove service "orbit-cli" account "server-url"
+
+# Using kwallet (KDE)
+kwallet-query kdewallet -d "orbit-cli"
+```
+
+**Fallback File:**
+```bash
+# Remove fallback file storage
+rm ~/.orbit/.env
+```
+
+#### Troubleshooting Credential Storage
+
+**Check if keyring is available:**
+```bash
+python -c "import keyring; print('Keyring available:', keyring.get_keyring())"
+```
+
+**Force fallback storage:**
+```bash
+# Clear keyring and force file storage
+orbit logout
+rm ~/.orbit/.env  # if exists
+# Next login will use fallback storage
+```
+
+**Reset all credentials:**
+```bash
+# Complete credential reset
+orbit logout
+rm -rf ~/.orbit/
+# Re-login to recreate storage
+```
+
+### Security Considerations
+
+#### Keyring vs File Storage
+
+- **Keyring (Recommended)**: Uses system's encrypted credential storage
+- **File Storage (Fallback)**: Base64 encoded, file permissions 600
+- **Migration**: Automatically migrates from file to keyring when available
+
+#### Security Best Practices
+
+1. **Use Keyring**: Install `keyring` package for enhanced security
+2. **Regular Rotation**: Change passwords periodically
+3. **Session Management**: Use `orbit logout` to clear credentials
+4. **Access Control**: Keep `~/.orbit/` directory secure (chmod 700)
+
+#### Installation Requirements
+
+**macOS:**
+```bash
+# Keyring support is built-in
+pip install keyring
+```
+
+**Linux:**
+```bash
+# GNOME Keyring
+sudo apt-get install python3-keyring gnome-keyring
+
+# KDE Wallet
+sudo apt-get install python3-keyring kwallet
+
+# Generic Secret Service
+sudo apt-get install python3-keyring libsecret-1-dev
+```
+
+#### Configuring Storage Method
+
+**Set storage method in config.yaml:**
+```yaml
+auth:
+  credential_storage: keyring  # or "file"
+```
+
+**Change storage method:**
+```bash
+# Switch to file storage (plain text)
+orbit config set auth.credential_storage file
+
+# Switch back to keyring storage
+orbit config set auth.credential_storage keyring
+
+# Clear existing credentials after changing method
+orbit logout
+```
+
+**Check current storage method:**
+```bash
+orbit config show --key auth.credential_storage
+```
+
 ## CLI Commands
 
 ### Authentication Commands
@@ -319,7 +529,18 @@ orbit me
 
 #### Check Authentication Status
 ```bash
+# Check if authenticated and show user info
 orbit auth-status
+
+# Check with JSON output for scripting
+orbit auth-status --output json
+
+# Check authentication and credential storage
+orbit auth-status
+# Shows:
+# - Authentication status
+# - User information
+# - Security storage method (keyring vs file)
 ```
 
 ### Password Management
@@ -373,6 +594,11 @@ auth:
   # Default admin (change immediately!)
   default_admin_username: "admin"
   default_admin_password: "${ORBIT_DEFAULT_ADMIN_PASSWORD}"
+  
+  # Credential storage method: "keyring" (default) or "file"
+  # - keyring: Uses system keychain (macOS Keychain, Linux Secret Service) - more secure
+  # - file: Uses plain text file in ~/.orbit/.env - less secure but visible
+  credential_storage: keyring
 ```
 
 ### MongoDB Settings
@@ -431,15 +657,17 @@ Located in `bin/orbit.py`
 #### Features:
 
 - Interactive password prompts with `getpass`
-- Persistent token storage in `~/.orbit/.env`
+- Simplified token storage using secure storage (keyring/file) as single source of truth
+- Session token management via `self.admin_token` instance variable
 - Comprehensive error handling and user feedback
 - Support for both interactive and scripted usage
+- Automatic migration from legacy storage formats
 
 ## Security Best Practices
 
 ### Implemented
 
-✅ **Strong Password Hashing**: PBKDF2-SHA256 with 100k iterations  
+✅ **Strong Password Hashing**: PBKDF2-SHA256 with 600k iterations  
 ✅ **Secure Token Generation**: Cryptographically random tokens  
 ✅ **Session Expiration**: Automatic timeout and cleanup  
 ✅ **Password Confirmation**: Interactive CLI prompts confirmation  
@@ -547,20 +775,6 @@ orbit user reset-password --user-id 507f1f77bcf86cd799439011 --password temppass
 
 # Logout
 orbit logout
-```
-
-### Troubleshooting
-
-```bash
-# Check authentication status
-orbit auth-status
-
-# Force logout and clear local token
-orbit logout
-rm ~/.orbit/.env
-
-# Check server logs for auth issues
-tail -f logs/orbit.log | grep auth
 ```
 
 ## Monitoring and Maintenance

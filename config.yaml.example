@@ -24,6 +24,10 @@ auth:
   default_admin_username: admin
   default_admin_password: ${ORBIT_DEFAULT_ADMIN_PASSWORD}
   pbkdf2_iterations: 600000
+  # Credential storage method: "keyring" (default) or "file"
+  # - keyring: Uses system keychain (macOS Keychain, Linux Secret Service)
+  # - file: Uses plain text file in ~/.orbit/.env (less secure but visible)
+  credential_storage: file
 
 embedding:
   provider: "ollama"

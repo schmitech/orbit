@@ -188,14 +188,28 @@ if [ "$CREATE_API_KEYS" = true ]; then
     fi
     echo "✅ Server is running"
     
-    API_KEY_OUTPUT=$(python3 "$PROJECT_ROOT/bin/orbit.py" --server-url "$SERVER_URL" key create \
+    # Check if we need to authenticate first
+    echo "Checking authentication status..."
+    AUTH_STATUS=$(python3 "$PROJECT_ROOT/bin/orbit.py" auth-status 2>/dev/null || echo 'not authenticated')
+    
+    if echo "$AUTH_STATUS" | grep -q 'authenticated'; then
+        echo "✅ Authentication verified"
+    else
+        echo "❌ Not authenticated. Please login first:"
+        echo "  python $PROJECT_ROOT/bin/orbit.py login"
+        echo "Then run this script again."
+        exit 1
+    fi
+    
+    API_KEY_OUTPUT=$(python3 "$PROJECT_ROOT/bin/orbit.py" key create \
       --collection city \
       --name "City Assistant" \
+      --notes "This is a sample API key for the City Assistant collection." \
       --prompt-file "$PROJECT_ROOT/examples/prompts/examples/city/city-assistant-normal-prompt.txt" \
       --prompt-name "Municipal Assistant Prompt")
 
     # Extract just the API key - properly capture orbit_ format keys
-    CITY_API_KEY=$(echo "$API_KEY_OUTPUT" | grep -o '"api_key": "orbit_[A-Za-z0-9]\+"' | cut -d'"' -f4)
+    CITY_API_KEY=$(echo "$API_KEY_OUTPUT" | grep -o 'orbit_[A-Za-z0-9]\+' | head -1)
 
     echo "✅ API key created successfully!"
 

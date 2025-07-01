@@ -54,6 +54,13 @@ class UserResponse(BaseModel):
     last_login: Optional[str] = None
 
 
+class UserByUsernameResponse(BaseModel):
+    id: str
+    username: str
+    role: str
+    active: bool
+
+
 class ChangePasswordRequest(BaseModel):
     current_password: str
     new_password: str
@@ -253,6 +260,55 @@ async def list_users(
         raise HTTPException(
             status_code=500,
             detail=f"Internal server error while listing users: {str(e)}"
+        )
+
+@auth_router.get("/users/by-username", response_model=UserByUsernameResponse)
+async def get_user_by_username(
+    username: str,
+    admin_user = Depends(require_admin),
+    auth_service = Depends(get_auth_service)
+):
+    """
+    Get a user by username (admin only).
+    
+    This endpoint allows efficient lookup of users by username without
+    fetching all users and filtering client-side.
+    
+    Args:
+        username: The username to search for
+        admin_user: Current admin user (required)
+        auth_service: Authentication service
+        
+    Returns:
+        User information for the specified username
+        
+    Raises:
+        HTTPException: If user not found or access denied
+    """
+    try:
+        user = await auth_service.get_user_by_username(username)
+        
+        if not user:
+            raise HTTPException(
+                status_code=404,
+                detail=f"User with username '{username}' not found"
+            )
+        
+        return UserByUsernameResponse(
+            id=user["id"],
+            username=user["username"],
+            role=user["role"],
+            active=user["active"]
+        )
+        
+    except HTTPException:
+        # Re-raise HTTPExceptions as-is
+        raise
+    except Exception as e:
+        logger.error(f"Error getting user by username: {type(e).__name__}: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Internal server error while getting user by username: {str(e)}"
         )
 
 @auth_router.post("/register", response_model=RegisterResponse)

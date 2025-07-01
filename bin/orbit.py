@@ -24,8 +24,8 @@ Server Control Commands:
     orbit status [--watch] [--interval SECONDS]
 
 Authentication Commands:
-    orbit login [--username USERNAME] [--password PASSWORD] [--no-save]  # Will prompt if not provided, token stored securely in system keychain
-    orbit logout [--all]                                                # Clears token from system keychain
+    orbit login [--username USERNAME] [--password PASSWORD] [--no-save]  # Will prompt if not provided, token stored based on config
+    orbit logout [--all]                                                # Clears token from storage (keychain or file)
     orbit register --username USERNAME [--password PASSWORD] [--role ROLE]
     orbit me
     orbit auth-status
@@ -56,9 +56,10 @@ System Prompt Management Commands:
     orbit prompt associate --key KEY --prompt-id PROMPT_ID
 
 Configuration Management Commands:
-    orbit config show [--key KEY]
-    orbit config set KEY VALUE
-    orbit config reset [--force]
+    orbit config show [--key KEY]                    # Show CLI configuration
+    orbit config effective [--key KEY] [--sources-only]  # Show effective configuration with sources
+    orbit config set KEY VALUE                       # Set CLI configuration value
+    orbit config reset [--force]                     # Reset CLI configuration to defaults
 
 Examples:
     # Authentication
@@ -117,10 +118,13 @@ Examples:
     orbit prompt associate --key api_123 --prompt-id 612a4b3c...
 
     # Configuration Management
-    orbit config show                                   # Show all configuration
-    orbit config show --key server.default_url          # Show specific setting
-    orbit config set server.timeout 60                  # Set configuration value
-    orbit config reset                                  # Reset to defaults
+    orbit config show                                   # Show CLI configuration
+    orbit config show --key server.default_url          # Show specific CLI setting
+    orbit config effective                              # Show effective config with sources
+    orbit config effective --key auth.credential_storage # Check specific setting source
+    orbit config effective --sources-only               # Show only config sources
+    orbit config set server.timeout 60                  # Set CLI configuration value
+    orbit config reset                                  # Reset CLI config to defaults
     orbit config reset --force                          # Reset without confirmation
 
     # Output Formatting
@@ -133,6 +137,13 @@ Examples:
     # Combined Operations
     orbit key create --collection legal --name "Legal Team" \\
       --prompt-file legal_prompt.txt --prompt-name "Legal Assistant"
+
+Configuration Precedence:
+    The CLI uses a smart configuration system that prioritizes server config.yaml for server-related settings:
+    - Server settings (server.*, auth.*) prioritize server config.yaml by default
+    - CLI settings can override server config when explicitly set
+    - Use 'orbit config effective' to see which config source is being used
+    - Use 'orbit config set <key> <value>' to override with CLI-specific values
 """
 
 import os
@@ -147,7 +158,6 @@ import requests
 import getpass  # noqa
 from pathlib import Path
 from typing import Optional, Dict, Any, List
-import dotenv
 import logging
 from rich.console import Console
 from rich.table import Table
@@ -247,6 +257,10 @@ class ConfigManager:
     def __init__(self, config_dir: Path = DEFAULT_CONFIG_DIR):
         self.config_dir = config_dir
         self.config_file = config_dir / "config.json"
+        self._config_cache = None
+        self._server_config_cache = None
+        self._last_config_load = 0
+        self._config_cache_ttl = 60  # Cache for 60 seconds
         self.ensure_config_dir()
     
     def ensure_config_dir(self) -> None:
@@ -254,25 +268,78 @@ class ConfigManager:
         self.config_dir.mkdir(exist_ok=True, mode=0o700)
         DEFAULT_LOG_DIR.mkdir(exist_ok=True, mode=0o700)
     
-    def load_config(self) -> Dict[str, Any]:
-        """Load configuration from file."""
-        if not self.config_file.exists():
-            return self.get_default_config()
+    def _load_server_config(self) -> Optional[Dict[str, Any]]:
+        """Load server configuration from config.yaml with caching."""
+        current_time = time.time()
+        
+        # Return cached config if still valid
+        if (self._server_config_cache is not None and 
+            current_time - self._last_config_load < self._config_cache_ttl):
+            return self._server_config_cache
         
         try:
-            with open(self.config_file, 'r') as f:
-                return json.load(f)
-        except json.JSONDecodeError as e:
-            raise ConfigurationError(f"Invalid configuration file: {e}")
+            import yaml
+            config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config.yaml')
+            if os.path.exists(config_path):
+                with open(config_path, 'r') as f:
+                    server_config = yaml.safe_load(f)
+                    self._server_config_cache = server_config
+                    self._last_config_load = current_time
+                    return server_config
         except Exception as e:
-            raise ConfigurationError(f"Failed to load configuration: {e}")
+            logger.debug(f"Failed to read server config.yaml: {e}")
+        
+        return None
+    
+    def _get_server_config_value(self, key: str, default: Any = None) -> Any:
+        """Get a value from server configuration with dot notation support."""
+        server_config = self._load_server_config()
+        if not server_config:
+            return default
+        
+        keys = key.split('.')
+        value = server_config
+        
+        for k in keys:
+            if isinstance(value, dict) and k in value:
+                value = value[k]
+            else:
+                return default
+        
+        return value
+    
+    def load_config(self) -> Dict[str, Any]:
+        """Load configuration from file with caching."""
+        current_time = time.time()
+        
+        # Return cached config if still valid
+        if (self._config_cache is not None and 
+            current_time - self._last_config_load < self._config_cache_ttl):
+            return self._config_cache
+        
+        if not self.config_file.exists():
+            config = self.get_default_config()
+        else:
+            try:
+                with open(self.config_file, 'r') as f:
+                    config = json.load(f)
+            except json.JSONDecodeError as e:
+                raise ConfigurationError(f"Invalid configuration file: {e}")
+            except Exception as e:
+                raise ConfigurationError(f"Failed to load configuration: {e}")
+        
+        self._config_cache = config
+        self._last_config_load = current_time
+        return config
     
     def save_config(self, config: Dict[str, Any]) -> None:
-        """Save configuration to file."""
+        """Save configuration to file and invalidate cache."""
         try:
             with open(self.config_file, 'w') as f:
                 json.dump(config, f, indent=2)
             self.config_file.chmod(0o600)
+            # Invalidate cache
+            self._config_cache = None
         except Exception as e:
             raise ConfigurationError(f"Failed to save configuration: {e}")
     
@@ -287,7 +354,8 @@ class ConfigManager:
             "auth": {
                 "use_keyring": KEYRING_AVAILABLE,
                 "fallback_token_file": str(DEFAULT_ENV_FILE),
-                "session_duration_hours": 12
+                "session_duration_hours": 12,
+                "credential_storage": "keyring"  # keyring, file
             },
             "output": {
                 "format": "table",  # table, json, yaml
@@ -300,19 +368,98 @@ class ConfigManager:
             }
         }
     
-    def get(self, key: str, default: Any = None) -> Any:
-        """Get configuration value by dot-notation key."""
-        config = self.load_config()
-        keys = key.split('.')
-        value = config
+    def get(self, key: str, default: Any = None, prioritize_server: bool = False) -> Any:
+        """
+        Get configuration value by dot-notation key with configurable precedence.
         
-        for k in keys:
-            if isinstance(value, dict) and k in value:
-                value = value[k]
-            else:
-                return default
+        Args:
+            key: Configuration key in dot notation
+            default: Default value if not found
+            prioritize_server: If True, prioritize server config over CLI config for server-related settings
+            
+        Returns:
+            Configuration value
+        """
+        # For server-related settings, prioritize server config by default
+        if prioritize_server and key.startswith(('server.', 'auth.')):
+            # Try server config first
+            server_value = self._get_server_config_value(key, None)
+            if server_value is not None:
+                return server_value
+            
+            # Fall back to CLI config
+            config = self.load_config()
+            keys = key.split('.')
+            value = config
+            
+            for k in keys:
+                if isinstance(value, dict) and k in value:
+                    value = value[k]
+                else:
+                    return default
+            
+            return value
+        else:
+            # Standard behavior: CLI config first, then server config
+            config = self.load_config()
+            keys = key.split('.')
+            value = config
+            
+            for k in keys:
+                if isinstance(value, dict) and k in value:
+                    value = value[k]
+                else:
+                    # Try server config as fallback
+                    return self._get_server_config_value(key, default)
+            
+            return value
+    
+    def get_auth_storage_method(self) -> str:
+        """Get the authentication storage method with proper fallback logic."""
+        # Prioritize server config for auth settings
+        storage_method = self.get('auth.credential_storage', prioritize_server=True)
+        if storage_method:
+            return storage_method
         
-        return value
+        # Final fallback
+        return 'keyring' if KEYRING_AVAILABLE else 'file'
+    
+    def get_server_url(self, override_url: Optional[str] = None) -> str:
+        """Get server URL with proper precedence."""
+        if override_url:
+            return override_url.rstrip('/')
+        
+        # Prioritize server config for server settings
+        url = self.get('server.default_url', prioritize_server=True)
+        if url:
+            return url.rstrip('/')
+        
+        # Fallback to server config port
+        server_config = self._load_server_config()
+        if server_config and 'general' in server_config:
+            port = server_config['general'].get('port', 3000)
+            return f"http://localhost:{port}"
+        
+        # Final fallback
+        return "http://localhost:3000"
+    
+    def get_timeout(self) -> int:
+        """Get request timeout."""
+        return self.get('server.timeout', 30)
+    
+    def get_retry_attempts(self) -> int:
+        """Get retry attempts."""
+        return self.get('server.retry_attempts', 3)
+    
+    def get_output_format(self, override_format: Optional[str] = None) -> str:
+        """Get output format."""
+        return override_format or self.get('output.format', 'table')
+    
+    def get_use_color(self, override_color: Optional[bool] = None) -> bool:
+        """Get color usage preference."""
+        if override_color is not None:
+            return override_color
+        return self.get('output.color', True)
     
     def set(self, key: str, value: Any) -> None:
         """Set configuration value by dot-notation key."""
@@ -327,6 +474,93 @@ class ConfigManager:
         
         target[keys[-1]] = value
         self.save_config(config)
+    
+    def invalidate_cache(self) -> None:
+        """Invalidate configuration cache."""
+        self._config_cache = None
+        self._server_config_cache = None
+    
+    def get_effective_config(self) -> Dict[str, Any]:
+        """
+        Get the effective configuration showing which values come from where.
+        
+        Returns:
+            Dictionary with effective config and source information
+        """
+        cli_config = self.load_config()
+        server_config = self._load_server_config()
+        
+        effective_config = {
+            "cli_config": cli_config,
+            "server_config": server_config,
+            "effective_values": {},
+            "sources": {}
+        }
+        
+        # Check all possible configuration keys
+        all_keys = [
+            "server.default_url",
+            "server.timeout", 
+            "server.retry_attempts",
+            "auth.credential_storage",
+            "auth.use_keyring",
+            "auth.fallback_token_file",
+            "auth.session_duration_hours",
+            "output.format",
+            "output.color",
+            "output.verbose",
+            "history.enabled",
+            "history.max_entries"
+        ]
+        
+        for key in all_keys:
+            # Get value with server prioritization for server/auth keys
+            prioritize_server = key.startswith(('server.', 'auth.'))
+            value = self.get(key, prioritize_server=prioritize_server)
+            
+            effective_config["effective_values"][key] = value
+            
+            # Determine source
+            if prioritize_server:
+                server_value = self._get_server_config_value(key, None)
+                if server_value is not None:
+                    effective_config["sources"][key] = "server_config"
+                else:
+                    # Check if CLI has this value
+                    keys = key.split('.')
+                    cli_value = cli_config
+                    for k in keys:
+                        if isinstance(cli_value, dict) and k in cli_value:
+                            cli_value = cli_value[k]
+                        else:
+                            cli_value = None
+                            break
+                    
+                    if cli_value is not None:
+                        effective_config["sources"][key] = "cli_config"
+                    else:
+                        effective_config["sources"][key] = "default"
+            else:
+                # Check CLI first
+                keys = key.split('.')
+                cli_value = cli_config
+                for k in keys:
+                    if isinstance(cli_value, dict) and k in cli_value:
+                        cli_value = cli_value[k]
+                    else:
+                        cli_value = None
+                        break
+                
+                if cli_value is not None:
+                    effective_config["sources"][key] = "cli_config"
+                else:
+                    server_value = self._get_server_config_value(key, None)
+                    if server_value is not None:
+                        effective_config["sources"][key] = "server_config"
+                    else:
+                        effective_config["sources"][key] = "default"
+        
+        return effective_config
 
 # Enhanced output formatting
 class OutputFormatter:
@@ -408,6 +642,7 @@ class ServerController:
         self.pid_file = self.project_root / pid_file
         self.log_file = self.project_root / "logs" / "orbit.log"
         self.formatter = OutputFormatter()
+        self._cpu_initialized = False  # Track if CPU monitoring has been initialized
     
     def _read_pid(self) -> Optional[int]:
         """
@@ -734,13 +969,110 @@ class ServerController:
             uptime_seconds = time.time() - process.create_time()
             uptime_str = self._format_uptime(uptime_seconds)
             
+            # Get CPU percentage with proper initialization
+            cpu_percent = self._get_cpu_percent(process)
+            
             return {
                 "status": "running",
                 "pid": pid,
                 "uptime": uptime_str,
                 "uptime_seconds": uptime_seconds,
                 "memory_mb": round(process.memory_info().rss / 1024 / 1024, 2),
-                "cpu_percent": process.cpu_percent(),
+                "cpu_percent": cpu_percent,
+                "message": f"Server is running with PID {pid}"
+            }
+        except Exception as e:
+            return {
+                "status": "unknown",
+                "pid": pid,
+                "error": str(e),
+                "message": f"Error checking server status: {e}"
+            }
+    
+    def _get_cpu_percent(self, process: psutil.Process) -> float:
+        """
+        Get CPU percentage for a process with proper initialization.
+        
+        Args:
+            process: The psutil Process object
+            
+        Returns:
+            CPU percentage as float
+        """
+        try:
+            # For the first call, we need to initialize the CPU monitoring
+            if not self._cpu_initialized:
+                # Call cpu_percent() once to initialize the baseline
+                process.cpu_percent()
+                self._cpu_initialized = True
+                # Return 0.0 for the first call since we don't have a baseline yet
+                return 0.0
+            
+            # For subsequent calls, get the actual CPU percentage
+            return process.cpu_percent()
+        except Exception as e:
+            logger.debug(f"Error getting CPU percentage: {e}")
+            return 0.0
+    
+    def get_enhanced_status(self, interval: float = 1.0) -> Dict[str, Any]:
+        """
+        Get enhanced status with more accurate CPU measurement.
+        
+        Args:
+            interval: Time interval for CPU measurement (default: 1.0 second)
+            
+        Returns:
+            A dictionary containing enhanced status information
+        """
+        pid = self._read_pid()
+        
+        if not pid:
+            return {
+                "status": "stopped",
+                "message": "Server is not running (no PID file found)"
+            }
+        
+        if not self._is_process_running(pid):
+            return {
+                "status": "stopped",
+                "pid": pid,
+                "message": f"Server is not running (PID {pid} not found)"
+            }
+        
+        try:
+            process = psutil.Process(pid)
+            uptime_seconds = time.time() - process.create_time()
+            uptime_str = self._format_uptime(uptime_seconds)
+            
+            # Get more accurate CPU measurement with interval
+            cpu_percent = process.cpu_percent(interval=interval)
+            
+            # Get additional system information
+            memory_info = process.memory_info()
+            memory_percent = process.memory_percent()
+            
+            # Get number of threads
+            num_threads = process.num_threads()
+            
+            # Get I/O counters if available
+            try:
+                io_counters = process.io_counters()
+                io_read_mb = round(io_counters.read_bytes / 1024 / 1024, 2)
+                io_write_mb = round(io_counters.write_bytes / 1024 / 1024, 2)
+            except (psutil.AccessDenied, AttributeError):
+                io_read_mb = io_write_mb = 0.0
+            
+            return {
+                "status": "running",
+                "pid": pid,
+                "uptime": uptime_str,
+                "uptime_seconds": uptime_seconds,
+                "memory_mb": round(memory_info.rss / 1024 / 1024, 2),
+                "memory_percent": round(memory_percent, 2),
+                "cpu_percent": round(cpu_percent, 2),
+                "num_threads": num_threads,
+                "io_read_mb": io_read_mb,
+                "io_write_mb": io_write_mb,
                 "message": f"Server is running with PID {pid}"
             }
         except Exception as e:
@@ -768,39 +1100,116 @@ class ServerController:
         return " ".join(parts) if parts else "< 1m"
 
 
+# Decorator for centralized API error handling
+def handle_api_errors(operation_name: str = None, custom_errors: Dict[int, str] = None):
+    """
+    Decorator to centralize HTTP error handling for API methods.
+    
+    Args:
+        operation_name: Optional name of the operation for better error messages
+        custom_errors: Optional dict mapping status codes to custom error messages
+    """
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            try:
+                return func(*args, **kwargs)
+            except requests.exceptions.HTTPError as e:
+                status_code = e.response.status_code
+                
+                # Check for custom error messages first
+                if custom_errors and status_code in custom_errors:
+                    if status_code in [401, 403]:
+                        raise AuthenticationError(custom_errors[status_code])
+                    else:
+                        raise OrbitError(custom_errors[status_code])
+                
+                # Default error handling based on status codes
+                if status_code == 401:
+                    raise AuthenticationError("Authentication failed. Your token may be invalid or expired.")
+                elif status_code == 403:
+                    raise AuthenticationError("Permission denied. Admin privileges may be required.")
+                elif status_code == 404:
+                    operation = operation_name or "Resource"
+                    raise OrbitError(f"{operation} not found.")
+                elif status_code == 409:
+                    raise OrbitError("Resource already exists or conflict detected.")
+                elif status_code == 400:
+                    try:
+                        error_detail = e.response.json().get('detail', 'Bad request')
+                    except:
+                        error_detail = 'Bad request'
+                    raise OrbitError(f"Bad request: {error_detail}")
+                else:
+                    operation = operation_name or "Operation"
+                    raise OrbitError(f"{operation} failed: {status_code} {e.response.text}")
+            except NetworkError:
+                # Re-raise network errors as-is
+                raise
+            except Exception as e:
+                # Handle unexpected errors
+                operation = operation_name or "Operation"
+                raise OrbitError(f"{operation} failed: {str(e)}")
+        return wrapper
+    return decorator
+
+
 # Enhanced API Manager with better error handling and retry logic
 class ApiManager:
-    """Manager class for API keys and system prompts via the server API endpoints"""
+    """
+    API Manager for the ORBIT CLI
     
-    def __init__(self, server_url: str = None, config_manager: ConfigManager = None):
+    This class provides a clean interface to the ORBIT server API with centralized
+    error handling via the @handle_api_errors decorator.
+    
+    Usage of @handle_api_errors decorator:
+    
+    1. Basic usage with default error handling:
+       @handle_api_errors(operation_name="Operation description")
+       
+    2. With custom error messages for specific status codes:
+       @handle_api_errors(
+           operation_name="Operation description",
+           custom_errors={
+               403: "Custom forbidden message",
+               404: "Custom not found message"
+           }
+       )
+    
+    The decorator automatically handles:
+    - 401: Authentication failed (-> AuthenticationError)
+    - 403: Permission denied (-> AuthenticationError) 
+    - 404: Resource not found (-> OrbitError)
+    - 409: Resource conflict/already exists (-> OrbitError)
+    - 400: Bad request (-> OrbitError)
+    - Other codes: Generic error with status code (-> OrbitError)
+    - NetworkError: Re-raised as-is
+    - Other exceptions: Wrapped in OrbitError
+    """
+    
+    def __init__(self, config_manager: ConfigManager, server_url: Optional[str] = None, load_token: bool = True):
         """
         Initialize the API Manager
         
         Args:
-            server_url: The URL of the server, e.g., 'http://localhost:3000'
             config_manager: Configuration manager instance
+            server_url: Optional server URL override
+            load_token: Whether to load token on initialization (default: True)
         """
-        self.config_manager = config_manager or ConfigManager()
+        self.config_manager = config_manager
         self.formatter = OutputFormatter()
+        self._legacy_warning_shown = False  # Track if we've shown the legacy warning
+        self.admin_token = None  # Initialize token as None
         
-        # Load environment variables from .env file if it exists
-        dotenv.load_dotenv()
+        # Load token from secure storage if requested
+        if load_token:
+            self._load_token_secure()
         
-        # Try to load token and server URL from persistent storage first
-        self._load_token_secure()
+        # Get server URL using centralized method
+        self.server_url = self.config_manager.get_server_url(server_url)
         
-        # Get server URL from args, persistent storage, or environment
-        default_url = self.config_manager.get('server.default_url', 'http://localhost:3000')
-        self.server_url = server_url or os.environ.get('API_SERVER_URL', default_url)
-        self.server_url = self.server_url.rstrip('/')
-        
-        # Set admin auth token if available in environment (fallback)
-        if not hasattr(self, 'admin_token') or not self.admin_token:
-            self.admin_token = os.environ.get('API_ADMIN_TOKEN')
-        
-        # Retry configuration
-        self.retry_attempts = self.config_manager.get('server.retry_attempts', 3)
-        self.timeout = self.config_manager.get('server.timeout', 30)
+        # Retry configuration using centralized methods
+        self.retry_attempts = self.config_manager.get_retry_attempts()
+        self.timeout = self.config_manager.get_timeout()
     
     def _make_request(self, method: str, url: str, headers: Dict[str, str] = None, 
                      json_data: Dict[str, Any] = None, retry: bool = True) -> requests.Response:
@@ -867,8 +1276,16 @@ class ApiManager:
             raise OrbitError(f"Error reading file {file_path}: {str(e)}")
     
     def _save_token_secure(self, token: str) -> None:
-        """Save token securely using system keychain/credential manager"""
-        if KEYRING_AVAILABLE:
+        """Save token securely using system keychain/credential manager or file storage based on config"""
+        storage_method = self.config_manager.get_auth_storage_method()
+        
+        if storage_method == 'file':
+            # Use file storage as requested
+            self._save_token_to_file_plain(token)
+            return
+        
+        # Try keyring if available and not explicitly disabled
+        if KEYRING_AVAILABLE and storage_method == 'keyring':
             try:
                 # Store token in system keychain
                 keyring.set_password(KEYRING_SERVICE, KEYRING_TOKEN_KEY, token)
@@ -887,10 +1304,25 @@ class ApiManager:
                 return
             except Exception as e:
                 logger.warning(f"Failed to save token to keychain: {e}")
-                logger.info("Falling back to encrypted file storage")
+                logger.info("Falling back to file storage")
         
         # Fallback to file-based storage (with improved security)
         self._save_token_to_file_fallback(token)
+    
+    def _save_token_to_file_plain(self, token: str) -> None:
+        """Save token to file in plain text (less secure but visible)"""
+        DEFAULT_ENV_FILE.parent.mkdir(exist_ok=True, mode=0o700)
+        
+        with open(DEFAULT_ENV_FILE, 'w') as f:
+            f.write(f'# ORBIT CLI Configuration - Plain text storage\n')
+            f.write(f'# Set auth.credential_storage: keyring in config.yaml for enhanced security\n')
+            f.write(f'API_ADMIN_TOKEN={token}\n')
+            f.write(f'API_SERVER_URL={self.server_url}\n')
+        
+        # Set secure permissions on the file
+        DEFAULT_ENV_FILE.chmod(0o600)
+        logger.debug("Saved authentication token to plain text file storage")
+        logger.info("Using plain text storage - token is visible in ~/.orbit/.env")
     
     def _save_token_to_file_fallback(self, token: str) -> None:
         """Fallback: Save token to file with improved security measures"""
@@ -913,37 +1345,70 @@ class ApiManager:
         if not KEYRING_AVAILABLE:
             logger.warning("For enhanced security, install keyring: pip install keyring")
     
-    def _load_token_secure(self) -> Optional[str]:
-        """Load token securely from system keychain or fallback storage"""
-        if KEYRING_AVAILABLE:
+    def _load_token_secure(self, suppress_legacy_warning: bool = False) -> Optional[str]:
+        """Load token securely from system keychain or fallback storage based on config"""
+        # Reset warning flag on each new token load attempt
+        if not suppress_legacy_warning:
+            self._legacy_warning_shown = False
+        
+        storage_method = self.config_manager.get_auth_storage_method()
+
+        if storage_method == 'file':
             try:
-                # Try to load from system keychain first
+                # Read directly from .env file
+                if DEFAULT_ENV_FILE.exists():
+                    with open(DEFAULT_ENV_FILE, 'r') as f:
+                        for line in f:
+                            line = line.strip()
+                            if line.startswith('API_ADMIN_TOKEN='):
+                                self.admin_token = line.split('=', 1)[1]
+                                logger.debug("Loaded authentication token from file storage")
+                                return self.admin_token
+                            elif line.startswith('API_SERVER_URL=') and not hasattr(self, 'server_url'):
+                                self.server_url = line.split('=', 1)[1]
+            except Exception as e:
+                logger.error(f"Failed to load token from file: {e}")
+            return None
+
+        # Try keyring if available and not explicitly disabled
+        if KEYRING_AVAILABLE and storage_method == 'keyring':
+            try:
+                # Try to get token from system keychain
                 token = keyring.get_password(KEYRING_SERVICE, KEYRING_TOKEN_KEY)
                 if token:
                     self.admin_token = token
-                    # Also load server URL if available
-                    stored_url = keyring.get_password(KEYRING_SERVICE, KEYRING_SERVER_KEY)
-                    if stored_url and not hasattr(self, 'server_url'):
-                        self.server_url = stored_url
+                    # Also try to get server URL
+                    server_url = keyring.get_password(KEYRING_SERVICE, KEYRING_SERVER_KEY)
+                    if server_url and not hasattr(self, 'server_url'):
+                        self.server_url = server_url
                     logger.debug("Loaded authentication token from system keychain")
                     return self.admin_token
             except Exception as e:
-                logger.debug(f"Failed to load token from keychain: {e}")
-        
+                logger.warning(f"Failed to load token from keychain: {e}")
+                logger.info("Falling back to file storage")
+
         # Fallback to file-based storage
-        return self._load_token_from_file_fallback()
-    
-    def _load_token_from_file_fallback(self) -> Optional[str]:
-        """Fallback: Load token from file storage"""
-        if DEFAULT_ENV_FILE.exists():
-            try:
-                # Try new format first (base64 encoded)
-                dotenv.load_dotenv(DEFAULT_ENV_FILE, override=True)
+        try:
+            if DEFAULT_ENV_FILE.exists():
+                encoded_token = None
+                encoded_url = None
+                plain_token = None
+                plain_url = None
+                
+                # Read file directly to find tokens
+                with open(DEFAULT_ENV_FILE, 'r') as f:
+                    for line in f:
+                        line = line.strip()
+                        if line.startswith('API_ADMIN_TOKEN_B64='):
+                            encoded_token = line.split('=', 1)[1]
+                        elif line.startswith('API_SERVER_URL_B64='):
+                            encoded_url = line.split('=', 1)[1]
+                        elif line.startswith('API_ADMIN_TOKEN='):
+                            plain_token = line.split('=', 1)[1]
+                        elif line.startswith('API_SERVER_URL='):
+                            plain_url = line.split('=', 1)[1]
                 
                 # Check for base64 encoded token (new format)
-                encoded_token = os.environ.get('API_ADMIN_TOKEN_B64')
-                encoded_url = os.environ.get('API_SERVER_URL_B64')
-                
                 if encoded_token:
                     import base64
                     try:
@@ -956,23 +1421,39 @@ class ApiManager:
                         logger.warning(f"Failed to decode token: {e}")
                 
                 # Fallback to old plain text format for backward compatibility
-                plain_token = os.environ.get('API_ADMIN_TOKEN')
                 if plain_token:
                     self.admin_token = plain_token
-                    plain_url = os.environ.get('API_SERVER_URL')
                     if plain_url and not hasattr(self, 'server_url'):
                         self.server_url = plain_url
-                    logger.warning("Loaded legacy plain text token - consider running 'orbit login' again for enhanced security")
-                    return self.admin_token
                     
-            except Exception as e:
-                logger.error(f"Failed to load token from file: {e}")
+                    # Try to automatically migrate if this is a fresh load (not suppressed)
+                    if not suppress_legacy_warning:
+                        self._migrate_legacy_token_if_needed()
+                    
+                    # Only show the warning if migration didn't happen and if not suppressed
+                    if not self._legacy_warning_shown and not suppress_legacy_warning:
+                        # Check if the legacy file still exists after migration attempt
+                        if DEFAULT_ENV_FILE.exists():
+                            logger.warning("Found legacy plain text token in ~/.orbit/.env")
+                            if KEYRING_AVAILABLE:
+                                logger.info("To migrate to secure storage: orbit config set auth.credential_storage keyring && orbit logout && orbit login")
+                            else:
+                                logger.info("For enhanced security: pip install keyring && orbit config set auth.credential_storage keyring && orbit logout && orbit login")
+                        self._legacy_warning_shown = True
+                    
+                    return self.admin_token
                 
+        except Exception as e:
+            logger.error(f"Failed to load token from file: {e}")
+            
         return None
     
     def _clear_token_secure(self) -> None:
         """Clear token from secure storage"""
-        if KEYRING_AVAILABLE:
+        # Check configuration for storage preference
+        storage_method = self.config_manager.get_auth_storage_method()
+        
+        if storage_method == 'keyring' and KEYRING_AVAILABLE:
             try:
                 # Clear from system keychain
                 keyring.delete_password(KEYRING_SERVICE, KEYRING_TOKEN_KEY)
@@ -983,13 +1464,74 @@ class ApiManager:
             except Exception as e:
                 logger.warning(f"Failed to clear token from keychain: {e}")
         
-        # Also clear file-based storage
+        # Also clear file-based storage (both plain text and encoded)
         if DEFAULT_ENV_FILE.exists():
             try:
                 DEFAULT_ENV_FILE.unlink()
                 logger.debug("Cleared authentication token from file storage")
             except Exception as e:
                 logger.warning(f"Failed to clear token file: {e}")
+    
+    def _migrate_legacy_token_if_needed(self) -> None:
+        """Automatically migrate from legacy plain text storage to secure storage if possible"""
+        # Check if we have a legacy plain text file
+        if not DEFAULT_ENV_FILE.exists():
+            return
+        
+        try:
+            # Read the legacy file to check if it contains plain text tokens
+            plain_token = None
+            plain_url = None
+            
+            with open(DEFAULT_ENV_FILE, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if line.startswith('API_ADMIN_TOKEN='):
+                        plain_token = line.split('=', 1)[1]
+                    elif line.startswith('API_SERVER_URL='):
+                        plain_url = line.split('=', 1)[1]
+            
+            if not plain_token:
+                return  # No legacy token to migrate
+            
+            # Check if keyring is available and we're not explicitly using file storage
+            storage_method = self.config_manager.get_auth_storage_method()
+            if KEYRING_AVAILABLE and storage_method != 'file':
+                # Automatically migrate to keyring
+                try:
+                    keyring.set_password(KEYRING_SERVICE, KEYRING_TOKEN_KEY, plain_token)
+                    if plain_url:
+                        keyring.set_password(KEYRING_SERVICE, KEYRING_SERVER_KEY, plain_url)
+                    
+                    # Remove the legacy file
+                    DEFAULT_ENV_FILE.unlink()
+                    
+                    logger.info("Automatically migrated from legacy plain text storage to secure keychain")
+                    return
+                except Exception as e:
+                    logger.debug(f"Failed to migrate to keyring: {e}")
+            
+            # If we can't use keyring, migrate to base64 encoded file storage
+            if storage_method != 'file':
+                try:
+                    import base64
+                    obfuscated_token = base64.b64encode(plain_token.encode()).decode()
+                    obfuscated_url = base64.b64encode((plain_url or self.server_url).encode()).decode()
+                    
+                    with open(DEFAULT_ENV_FILE, 'w') as f:
+                        f.write(f'# ORBIT CLI Configuration - Token is base64 encoded\n')
+                        f.write(f'# Migrated from legacy plain text storage\n')
+                        f.write(f'API_ADMIN_TOKEN_B64={obfuscated_token}\n')
+                        f.write(f'API_SERVER_URL_B64={obfuscated_url}\n')
+                    
+                    DEFAULT_ENV_FILE.chmod(0o600)
+                    logger.info("Automatically migrated from legacy plain text storage to base64 encoded storage")
+                    return
+                except Exception as e:
+                    logger.debug(f"Failed to migrate to base64 storage: {e}")
+                    
+        except Exception as e:
+            logger.debug(f"Failed to check for legacy token migration: {e}")
     
     def _ensure_authenticated(self) -> None:
         """Ensure user is authenticated before proceeding"""
@@ -1027,8 +1569,10 @@ class ApiManager:
             # Update the admin token if login successful
             if "token" in result:
                 self.admin_token = result["token"]
-                # Save to environment variable for future use (session)
-                os.environ["API_ADMIN_TOKEN"] = self.admin_token
+                
+                # Check if we should migrate from legacy storage
+                self._migrate_legacy_token_if_needed()
+                
                 # Save to persistent secure storage
                 self._save_token_secure(self.admin_token)
             
@@ -1066,25 +1610,26 @@ class ApiManager:
             response.raise_for_status()
             result = response.json()
             
-            # Clear the admin token
+            # Clear the admin token and persistent storage
             self.admin_token = None
-            if "API_ADMIN_TOKEN" in os.environ:
-                del os.environ["API_ADMIN_TOKEN"]
-            # Clear the persistent secure storage
             self._clear_token_secure()
             
             return result
         except Exception as e:
             # Clear token anyway even if server logout fails
             self.admin_token = None
-            if "API_ADMIN_TOKEN" in os.environ:
-                del os.environ["API_ADMIN_TOKEN"]
-            # Clear the persistent secure storage
             self._clear_token_secure()
             
             logger.debug(f"Logout error (token cleared anyway): {e}")
             return {"message": "Logged out locally"}
     
+    @handle_api_errors(
+        operation_name="User registration",
+        custom_errors={
+            403: "Admin privileges required to register users",
+            409: "User already exists"
+        }
+    )
     def register_user(self, username: str, password: str, role: str = "user") -> Dict[str, Any]:
         """
         Register a new user (admin only)
@@ -1112,22 +1657,16 @@ class ApiManager:
             "role": role
         }
         
-        try:
-            response = self._make_request("POST", url, headers=headers, json_data=data)
-            response.raise_for_status()
-            return response.json()
-        except requests.exceptions.HTTPError as e:
-            if e.response.status_code == 403:
-                raise AuthenticationError("Admin privileges required to register users")
-            elif e.response.status_code == 409:
-                raise OrbitError("User already exists")
-            else:
-                raise OrbitError(f"Registration failed: {e.response.status_code} {e.response.text}")
-        except NetworkError:
-            raise
-        except Exception as e:
-            raise OrbitError(f"Registration failed: {str(e)}")
+        response = self._make_request("POST", url, headers=headers, json_data=data)
+        response.raise_for_status()
+        return response.json()
     
+    @handle_api_errors(
+        operation_name="Get current user",
+        custom_errors={
+            401: "Invalid or expired token"
+        }
+    )
     def get_current_user(self) -> Dict[str, Any]:
         """
         Get information about the currently authenticated user
@@ -1143,54 +1682,69 @@ class ApiManager:
             "Authorization": f"Bearer {self.admin_token}"
         }
         
-        try:
-            response = self._make_request("GET", url, headers=headers)
-            response.raise_for_status()
-            return response.json()
-        except requests.exceptions.HTTPError as e:
-            if e.response.status_code == 401:
-                raise AuthenticationError("Invalid or expired token")
-            else:
-                raise OrbitError(f"Failed to get current user: {e.response.status_code} {e.response.text}")
-        except NetworkError:
-            raise
-        except Exception as e:
-            raise OrbitError(f"Failed to get current user: {str(e)}")
+        response = self._make_request("GET", url, headers=headers)
+        response.raise_for_status()
+        return response.json()
     
     def check_auth_status(self) -> Dict[str, Any]:
         """
-        Check authentication status
+        Check authentication status and return detailed information
         
         Returns:
-            Dictionary containing authentication status
+            Dictionary containing authentication status, user info, and security info
         """
-        if not self.admin_token:
+        storage_method = self.config_manager.get_auth_storage_method()
+
+        # Check if token exists (suppress legacy warning for status check)
+        token = self._load_token_secure(suppress_legacy_warning=True)
+        if not token:
             return {
                 "authenticated": False,
-                "message": "Not authenticated"
+                "message": "Not authenticated",
+                "security": {
+                    "storage_method": storage_method,
+                    "keyring_available": KEYRING_AVAILABLE
+                }
             }
-        
+
+        # Validate token by making a request
         try:
-            # Try to get current user info to verify token
             user_info = self.get_current_user()
             return {
                 "authenticated": True,
                 "user": user_info,
-                "message": "Authenticated"
+                "security": {
+                    "storage_method": storage_method,
+                    "keyring_available": KEYRING_AVAILABLE
+                }
             }
         except AuthenticationError:
             return {
                 "authenticated": False,
-                "message": "Token invalid or expired"
+                "message": "Token expired or invalid",
+                "security": {
+                    "storage_method": storage_method,
+                    "keyring_available": KEYRING_AVAILABLE
+                }
             }
         except Exception as e:
             return {
                 "authenticated": False,
-                "error": str(e),
-                "message": "Authentication status unknown"
+                "message": f"Error checking status: {str(e)}",
+                "security": {
+                    "storage_method": storage_method,
+                    "keyring_available": KEYRING_AVAILABLE
+                }
             }
     
     # User Management utilities
+    @handle_api_errors(
+        operation_name="List users",
+        custom_errors={
+            403: "Admin privileges required to list users",
+            404: "User management endpoint not found. Check if the server is running and authentication is enabled"
+        }
+    )
     def list_users(self, role: Optional[str] = None, active_only: bool = False, limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
         """
         List all users in the system with optional server-side filtering
@@ -1226,21 +1780,9 @@ class ApiManager:
             "Authorization": f"Bearer {self.admin_token}"
         }
         
-        try:
-            response = self._make_request("GET", url, headers=headers)
-            response.raise_for_status()
-            return response.json()
-        except requests.exceptions.HTTPError as e:
-            if e.response.status_code == 404:
-                raise OrbitError("User management endpoint not found. Check if the server is running and authentication is enabled.")
-            elif e.response.status_code == 403:
-                raise AuthenticationError("Admin privileges required to list users.")
-            else:
-                raise OrbitError(f"Failed to list users: {e.response.status_code} {e.response.text}")
-        except NetworkError:
-            raise
-        except Exception as e:
-            raise OrbitError(f"Failed to list users: {str(e)}")
+        response = self._make_request("GET", url, headers=headers)
+        response.raise_for_status()
+        return response.json()
     
     def reset_user_password(self, user_id: str, new_password: str) -> Dict[str, Any]:
         """
@@ -1285,9 +1827,16 @@ class ApiManager:
         except Exception as e:
             raise OrbitError(f"Failed to reset password: {str(e)}")
     
+    @handle_api_errors(
+        operation_name="Find user by username",
+        custom_errors={
+            403: "Admin privileges required to find users by username",
+            404: f"User not found"  # Note: Will be customized below for specific username
+        }
+    )
     def find_user_id_by_username(self, username: str) -> str:
         """
-        Find a user's ID by their username
+        Find a user's ID by their username using efficient server-side lookup
         
         Args:
             username: The username to search for
@@ -1300,16 +1849,34 @@ class ApiManager:
         """
         self._ensure_authenticated()
         
-        # Get all users and find the one with matching username
-        users = self.list_users()
-        for user in users:
-            if user.get('username') == username:
-                user_id = user.get('_id') or user.get('id')
-                if user_id:
-                    return user_id
+        url = f"{self.server_url}/auth/users/by-username"
+        query_string = f"?username={username}"
         
-        raise OrbitError(f"User with username '{username}' not found")
+        headers = {
+            "Authorization": f"Bearer {self.admin_token}"
+        }
+        
+        try:
+            response = self._make_request("GET", f"{url}{query_string}", headers=headers)
+            response.raise_for_status()
+            user_data = response.json()
+            return user_data.get('id')
+        except requests.exceptions.HTTPError as e:
+            # Handle 404 specially to include the username in the error message
+            if e.response.status_code == 404:
+                raise OrbitError(f"User with username '{username}' not found")
+            else:
+                # Let the decorator handle other status codes
+                raise
     
+    @handle_api_errors(
+        operation_name="Delete user",
+        custom_errors={
+            403: "Admin privileges required to delete users",
+            404: "User not found",
+            400: "Cannot delete your own account"
+        }
+    )
     def delete_user(self, user_id: str) -> Dict[str, Any]:
         """
         Delete a user
@@ -1328,23 +1895,9 @@ class ApiManager:
             "Authorization": f"Bearer {self.admin_token}"
         }
         
-        try:
-            response = self._make_request("DELETE", url, headers=headers)
-            response.raise_for_status()
-            return response.json()
-        except requests.exceptions.HTTPError as e:
-            if e.response.status_code == 404:
-                raise OrbitError("User not found.")
-            elif e.response.status_code == 403:
-                raise AuthenticationError("Admin privileges required to delete users.")
-            elif e.response.status_code == 400:
-                raise OrbitError("Cannot delete your own account.")
-            else:
-                raise OrbitError(f"Failed to delete user: {e.response.status_code} {e.response.text}")
-        except NetworkError:
-            raise
-        except Exception as e:
-            raise OrbitError(f"Failed to delete user: {str(e)}")
+        response = self._make_request("DELETE", url, headers=headers)
+        response.raise_for_status()
+        return response.json()
     
     def change_password(self, current_password: str, new_password: str) -> Dict[str, Any]:
         """
@@ -1511,6 +2064,7 @@ class ApiManager:
         except Exception as e:
             raise OrbitError(f"Error listing API keys: {str(e)}")
     
+    @handle_api_errors(operation_name="Deactivate API key")
     def deactivate_api_key(self, api_key: str) -> Dict[str, Any]:
         """
         Deactivate an API key
@@ -1533,16 +2087,9 @@ class ApiManager:
             "api_key": api_key
         }
         
-        try:
-            response = self._make_request("POST", url, headers=headers, json_data=data)
-            response.raise_for_status()
-            return response.json()
-        except requests.exceptions.HTTPError as e:
-            raise OrbitError(f"Error deactivating API key: {e.response.status_code} {e.response.text}")
-        except NetworkError:
-            raise
-        except Exception as e:
-            raise OrbitError(f"Error deactivating API key: {str(e)}")
+        response = self._make_request("POST", url, headers=headers, json_data=data)
+        response.raise_for_status()
+        return response.json()
     
     def deactivate_user(self, user_id: str) -> Dict[str, Any]:
         """
@@ -1972,7 +2519,7 @@ class OrbitCLI:
     def get_api_manager(self, server_url: Optional[str] = None) -> ApiManager:
         """Get or create the API manager instance."""
         if self.api_manager is None:
-            self.api_manager = ApiManager(server_url, self.config_manager)
+            self.api_manager = ApiManager(self.config_manager, server_url)
         return self.api_manager
     
     def create_parser(self) -> argparse.ArgumentParser:
@@ -1986,7 +2533,8 @@ For more information about a specific command, use:
   orbit <command> --help
 
 Configuration files are stored in ~/.orbit/
-Authentication tokens are stored securely in ~/.orbit/.env
+Authentication tokens are stored based on config (keychain or ~/.orbit/.env)
+Server settings prioritize config.yaml by default - use 'orbit config effective' to see sources
 
 Report issues at: https://github.com/schmitech/orbit/issues
 """
@@ -2339,6 +2887,15 @@ Report issues at: https://github.com/schmitech/orbit/issues
         )
         show_parser.add_argument('--key', help='Show specific configuration key')
         
+        # Effective config command
+        effective_parser = config_subparsers.add_parser(
+            'effective', 
+            help='Show effective configuration',
+            description='Display effective configuration showing which values come from CLI vs server config'
+        )
+        effective_parser.add_argument('--key', help='Show specific configuration key')
+        effective_parser.add_argument('--sources-only', action='store_true', help='Show only the source of each setting')
+        
         # Set config command
         set_parser = config_subparsers.add_parser(
             'set', 
@@ -2364,9 +2921,9 @@ Report issues at: https://github.com/schmitech/orbit/issues
             global logger
             logger = setup_logging(args.verbose, log_file)
             
-            # Configure output formatter - check for subcommand-specific args first
-            output_format = getattr(args, 'output', None) or self.config_manager.get('output.format', 'table')
-            use_color = not getattr(args, 'no_color', False) and self.config_manager.get('output.color', True)
+            # Configure output formatter using centralized methods
+            output_format = self.config_manager.get_output_format(getattr(args, 'output', None))
+            use_color = self.config_manager.get_use_color(not getattr(args, 'no_color', False))
             self.formatter = OutputFormatter(format=output_format, color=use_color)
             
             # Handle server control commands
@@ -2400,10 +2957,14 @@ Report issues at: https://github.com/schmitech/orbit/issues
             elif args.command == 'status':
                 if args.watch:
                     try:
+                        # Initialize CPU monitoring for watch mode
+                        self.server_controller._cpu_initialized = False
+                        
                         while True:
                             console.clear()
-                            status = self.server_controller.status()
-                            self._display_status(status)
+                            # Use enhanced status for watch mode with better CPU measurement
+                            status = self.server_controller.get_enhanced_status(interval=0.5)
+                            self._display_enhanced_status(status)
                             time.sleep(args.interval)
                     except KeyboardInterrupt:
                         self.formatter.info("Status monitoring stopped")
@@ -2448,15 +3009,22 @@ Report issues at: https://github.com/schmitech/orbit/issues
                 else:
                     self.formatter.success(f"Logged in as {result.get('username', username)}")
                     if not args.no_save:
-                        if KEYRING_AVAILABLE:
+                        storage_method = api_manager.config_manager.get_auth_storage_method()
+                        if storage_method == 'keyring':
                             self.formatter.info("Credentials securely stored in system keychain")
+                        elif storage_method == 'file':
+                            self.formatter.info("Credentials saved to file storage (~/.orbit/.env)")
                         else:
                             self.formatter.info("Credentials saved to secure file storage")
-                            self.formatter.warning("For enhanced security, consider installing keyring: pip install keyring")
+                            if not KEYRING_AVAILABLE:
+                                self.formatter.warning("For enhanced security, consider installing keyring: pip install keyring")
                 return 0
             
             elif args.command == 'logout':
-                api_manager = self.get_api_manager(args.server_url)
+                # Create a fresh API manager instance for logout to avoid legacy warnings
+                api_manager = ApiManager(self.config_manager, args.server_url, load_token=False)
+                # Load token only for logout operation, suppressing legacy warnings
+                api_manager._load_token_secure(suppress_legacy_warning=True)
                 result = api_manager.logout()
                 if getattr(args, 'output', None) == 'json':
                     self.formatter.format_json(result)
@@ -2498,33 +3066,10 @@ Report issues at: https://github.com/schmitech/orbit/issues
                 api_manager = self.get_api_manager(args.server_url)
                 result = api_manager.check_auth_status()
                 
-                # Add security information
-                result['security'] = {
-                    'keyring_available': KEYRING_AVAILABLE,
-                    'secure_storage': KEYRING_AVAILABLE,
-                    'storage_method': 'system_keychain' if KEYRING_AVAILABLE else 'file_fallback'
-                }
-                
                 if getattr(args, 'output', None) == 'json':
                     self.formatter.format_json(result)
                 else:
-                    if result['authenticated']:
-                        console.print("authenticated")
-                        if 'user' in result:
-                            self._display_user_info(result['user'])
-                    else:
-                        console.print("not authenticated")
-                        if 'error' in result:
-                            self.formatter.error(f"Error: {result['error']}")
-                    
-                    # Display security status
-                    console.print()
-                    console.print("[bold]Security Status:[/bold]")
-                    if KEYRING_AVAILABLE:
-                        console.print("✓ Secure credential storage enabled (system keychain)")
-                    else:
-                        console.print("⚠ Using fallback file storage")
-                        console.print("  For enhanced security, install keyring: pip install keyring")
+                    self._display_auth_status(result)
                 return 0 if result['authenticated'] else 1
             
 
@@ -2863,7 +3408,7 @@ Report issues at: https://github.com/schmitech/orbit/issues
                     if args.key:
                         value = self.config_manager.get(args.key)
                         if value is not None:
-                            if args.output == 'json':
+                            if self.formatter.format == 'json':
                                 self.formatter.format_json({args.key: value})
                             else:
                                 console.print(f"{args.key}: {value}")
@@ -2872,10 +3417,36 @@ Report issues at: https://github.com/schmitech/orbit/issues
                             return 1
                     else:
                         config = self.config_manager.load_config()
-                        if args.output == 'json':
+                        if self.formatter.format == 'json':
                             self.formatter.format_json(config)
                         else:
                             self._display_config(config)
+                    return 0
+                
+                elif args.config_command == 'effective':
+                    effective_config = self.config_manager.get_effective_config()
+                    
+                    if args.key:
+                        if args.key in effective_config["effective_values"]:
+                            value = effective_config["effective_values"][args.key]
+                            source = effective_config["sources"][args.key]
+                            if self.formatter.format == 'json':
+                                self.formatter.format_json({
+                                    "key": args.key,
+                                    "value": value,
+                                    "source": source
+                                })
+                            else:
+                                console.print(f"[bold]{args.key}:[/bold] {value}")
+                                console.print(f"[dim]Source: {source}[/dim]")
+                        else:
+                            self.formatter.error(f"Configuration key '{args.key}' not found")
+                            return 1
+                    else:
+                        if self.formatter.format == 'json':
+                            self.formatter.format_json(effective_config)
+                        else:
+                            self._display_effective_config(effective_config, args.sources_only)
                     return 0
                 
                 elif args.config_command == 'set':
@@ -2923,6 +3494,45 @@ Report issues at: https://github.com/schmitech/orbit/issues
             console.print(f"[bold]Uptime:[/bold] {status['uptime']}")
             console.print(f"[bold]Memory:[/bold] {status['memory_mb']} MB")
             console.print(f"[bold]CPU:[/bold] {status['cpu_percent']}%")
+        elif status['status'] == 'stopped':
+            self.formatter.warning(status['message'])
+        else:
+            self.formatter.error(status['message'])
+            if 'error' in status:
+                console.print(f"[bold]Error:[/bold] {status['error']}")
+    
+    def _display_enhanced_status(self, status: Dict[str, Any]) -> None:
+        """Display enhanced server status with additional metrics."""
+        if status['status'] == 'running':
+            self.formatter.success(status['message'])
+            
+            # Create a table for better organization
+            from rich.table import Table
+            table = Table(show_header=False, box=None, padding=(0, 2))
+            table.add_column("Metric", style="bold")
+            table.add_column("Value")
+            
+            # Basic info
+            table.add_row("PID", str(status['pid']))
+            table.add_row("Uptime", status['uptime'])
+            
+            # Performance metrics
+            table.add_row("Memory", f"{status['memory_mb']} MB ({status.get('memory_percent', 0)}%)")
+            table.add_row("CPU", f"{status['cpu_percent']}%")
+            
+            # Additional metrics if available
+            if 'num_threads' in status:
+                table.add_row("Threads", str(status['num_threads']))
+            
+            if 'io_read_mb' in status and 'io_write_mb' in status:
+                table.add_row("I/O", f"R: {status['io_read_mb']} MB, W: {status['io_write_mb']} MB")
+            
+            console.print(table)
+            
+            # Add timestamp
+            from datetime import datetime
+            console.print(f"\n[dim]Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}[/dim]")
+            
         elif status['status'] == 'stopped':
             self.formatter.warning(status['message'])
         else:
@@ -2978,6 +3588,78 @@ Report issues at: https://github.com/schmitech/orbit/issues
                 self._display_config(value, prefix + "  ")
             else:
                 console.print(f"{prefix}{key}: {value}")
+    
+    def _display_effective_config(self, effective_config: Dict[str, Any], sources_only: bool = False) -> None:
+        """Display effective configuration with source information."""
+        from rich.table import Table
+        
+        # Create a table for better organization
+        table = Table(show_header=True, header_style="bold magenta")
+        table.add_column("Setting", style="bold")
+        if not sources_only:
+            table.add_column("Value")
+        table.add_column("Source", style="dim")
+        
+        # Group settings by category
+        categories = {
+            "Server": ["server.default_url", "server.timeout", "server.retry_attempts"],
+            "Authentication": ["auth.credential_storage", "auth.use_keyring", "auth.fallback_token_file", "auth.session_duration_hours"],
+            "Output": ["output.format", "output.color", "output.verbose"],
+            "History": ["history.enabled", "history.max_entries"]
+        }
+        
+        for category, keys in categories.items():
+            # Add category header
+            table.add_row(f"[bold blue]{category}[/bold blue]", "", "")
+            
+            for key in keys:
+                if key in effective_config["effective_values"]:
+                    value = effective_config["effective_values"][key]
+                    source = effective_config["sources"][key]
+                    
+                    # Color code the source
+                    if source == "server_config":
+                        source_display = "[green]server_config[/green]"
+                    elif source == "cli_config":
+                        source_display = "[yellow]cli_config[/yellow]"
+                    else:
+                        source_display = "[dim]default[/dim]"
+                    
+                    if sources_only:
+                        table.add_row(key, source_display)
+                    else:
+                        # Truncate long values
+                        value_str = str(value)
+                        if len(value_str) > 50:
+                            value_str = value_str[:47] + "..."
+                        table.add_row(key, value_str, source_display)
+        
+        console.print(table)
+        
+        # Add legend
+        console.print("\n[bold]Legend:[/bold]")
+        console.print("[green]server_config[/green] - Value from server's config.yaml")
+        console.print("[yellow]cli_config[/yellow] - Value from CLI's ~/.orbit/config.json")
+        console.print("[dim]default[/dim] - Default value (no config found)")
+        
+        # Add note about precedence
+        console.print("\n[bold]Note:[/bold] Server-related settings (server.*, auth.*) prioritize server config by default.")
+        console.print("Use 'orbit config set <key> <value>' to override with CLI-specific values.")
+    
+    def _display_auth_status(self, result: Dict[str, Any]) -> None:
+        """Display authentication status in a formatted way."""
+        if result.get('authenticated'):
+            self.formatter.success("authenticated")
+            user = result.get('user', {})
+            console.print(f"[bold]Username:[/bold] {user.get('username', 'N/A')}")
+            console.print(f"[bold]Role:[/bold] {user.get('role', 'N/A')}")
+            console.print(f"[bold]ID:[/bold] {user.get('id', 'N/A')}")
+            console.print(f"[bold]Created:[/bold] {user.get('created_at', 'N/A')}")
+            console.print(f"[bold]Last Login:[/bold] {user.get('last_login', 'N/A')}")
+        else:
+            self.formatter.warning("not authenticated")
+            message = result.get('message', 'No active session')
+            console.print(f"\n[bold]Status:[/bold] {message}")
 
 
 def main():

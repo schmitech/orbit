@@ -587,6 +587,44 @@ class AuthService:
             logger.error(f"Unexpected error getting user by ID: {str(e)}")
             return None
     
+    async def get_user_by_username(self, username: str) -> Optional[Dict[str, Any]]:
+        """
+        Get a single user by username with efficient database lookup
+        
+        Args:
+            username: The username to search for
+            
+        Returns:
+            User record with basic details (without password) or None if not found
+        """
+        try:
+            user = await self.mongodb.find_one(
+                self.users_collection_name,
+                {"username": username}
+            )
+            
+            if not user:
+                return None
+            
+            return {
+                "id": str(user["_id"]),
+                "username": user["username"],
+                "role": user.get("role", "user"),
+                "active": user.get("active", True),
+                "created_at": user.get("created_at"),
+                "last_login": user.get("last_login")
+            }
+            
+        except (ServerSelectionTimeoutError, ConnectionFailure) as e:
+            logger.error(f"MongoDB connection error getting user by username: {str(e)}")
+            return None
+        except (OperationFailure, DuplicateKeyError) as e:
+            logger.error(f"MongoDB operation error getting user by username: {str(e)}")
+            return None
+        except Exception as e:
+            logger.error(f"Unexpected error getting user by username: {str(e)}")
+            return None
+    
     async def update_user_status(self, user_id: str, active: bool) -> bool:
         """
         Activate or deactivate a user
