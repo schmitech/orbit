@@ -1,10 +1,10 @@
-<div align="center">
-  <img src="docs/images/orbit.png" width="200" alt="ORBIT">
-</div>
-
-# ORBIT - Open Retrieval-Based Inference Toolkit
+## Open Retrieval-Based Inference Toolkit (ORBIT)
 
 ORBIT is a modular, self-hosted toolkit offering a unified API for open-source AI inference models. Its goal is to help organizations deploy in-house AI solutions that ensure privacy compliance and avoid unpredictable external AI costs. This project is actively maintained by [Remsy Schmilinsky](https://www.linkedin.com/in/remsy/).
+
+<div align="center">
+  <img src="docs/images/orbit-architecture.png" width="800" alt="ORBIT Architecture" />
+</div>
 
 ## 🎉 Jun 27, 2025 - Announcing ORBIT v1.1.4
 
@@ -33,13 +33,8 @@ ORBIT is a modular, self-hosted toolkit offering a unified API for open-source A
 
 *Want to see what's coming next? Check out our [Development Roadmap](docs/roadmap/README.md)*
 
+
 ## Features
-
-<div align="center">
-  <img src="docs/images/orbit-architecture.png" width="800" alt="ORBIT Architecture" />
-</div>
-
-> **Note**: Currently, ORBIT supports SQL, Vector, and File-based retrieval systems. Support for additional data sources is planned for future releases. See [roadmap](https://github.com/schmitech/orbit/tree/main/docs/roadmap) for further details. ORBIT is fast evolving, so if you have a specific requirement that's not currently supported, please let us know so we can add it to our development roadmap.
 
 ### **Retrieval-Augmented Generation (RAG)**
 - **Knowledge Integration**: Connect your data sources to enhance AI responses
