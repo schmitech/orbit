@@ -72,7 +72,7 @@ ORBIT integrates with two types of guardrail services to prevent harmful content
 ### Deploying locally
 ```bash
 # Download and extract the latest release
-curl -L https://github.com/schmitech/orbit/releases/download/v1.1.4/orbit-1.1.4.tar.gz
+curl -L https://github.com/schmitech/orbit/releases/download/v1.1.4/orbit-1.1.4.tar.gz -o orbit-1.1.4.tar.gz
 tar -xzf orbit-1.1.4.tar.gz
 cd orbit-1.1.4
 
