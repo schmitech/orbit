@@ -2585,6 +2585,7 @@ Report issues at: https://github.com/schmitech/orbit/issues
         start_parser.add_argument('--port', type=int, help='Port to bind to (e.g., 3000)')
         start_parser.add_argument('--reload', action='store_true', help='Enable auto-reload for development')
         start_parser.add_argument('--delete-logs', action='store_true', help='Delete logs folder before starting')
+        start_parser.set_defaults(func=self.handle_start_command)
         
         # Stop command
         stop_parser = subparsers.add_parser(
@@ -2595,6 +2596,7 @@ Report issues at: https://github.com/schmitech/orbit/issues
         stop_parser.add_argument('--timeout', type=int, default=30, help='Timeout for graceful shutdown (seconds)')
         stop_parser.add_argument('--delete-logs', action='store_true', help='Delete logs folder after stopping')
         stop_parser.add_argument('--force', action='store_true', help='Force stop without graceful shutdown')
+        stop_parser.set_defaults(func=self.handle_stop_command)
         
         # Restart command
         restart_parser = subparsers.add_parser(
@@ -2606,6 +2608,7 @@ Report issues at: https://github.com/schmitech/orbit/issues
         restart_parser.add_argument('--host', type=str, help='Host to bind to')
         restart_parser.add_argument('--port', type=int, help='Port to bind to')
         restart_parser.add_argument('--delete-logs', action='store_true', help='Delete logs folder during restart')
+        restart_parser.set_defaults(func=self.handle_restart_command)
         
         # Status command
         status_parser = subparsers.add_parser(
@@ -2615,6 +2618,7 @@ Report issues at: https://github.com/schmitech/orbit/issues
         )
         status_parser.add_argument('--watch', action='store_true', help='Continuously monitor status')
         status_parser.add_argument('--interval', type=int, default=5, help='Watch interval in seconds')
+        status_parser.set_defaults(func=self.handle_status_command)
     
     def _add_auth_commands(self, subparsers):
         """Add authentication commands to the subparsers."""
@@ -2627,6 +2631,7 @@ Report issues at: https://github.com/schmitech/orbit/issues
         login_parser.add_argument('--username', '-u', help='Username (will prompt if not provided)')
         login_parser.add_argument('--password', '-p', help='Password (will prompt if not provided)')
         login_parser.add_argument('--no-save', action='store_true', help='Do not save credentials')
+        login_parser.set_defaults(func=self.handle_login_command)
         
         # Logout command
         logout_parser = subparsers.add_parser(
@@ -2635,6 +2640,7 @@ Report issues at: https://github.com/schmitech/orbit/issues
             description='Logout and clear saved credentials'
         )
         logout_parser.add_argument('--all', action='store_true', help='Logout from all sessions')
+        logout_parser.set_defaults(func=self.handle_logout_command)
         
         # Register command
         register_parser = subparsers.add_parser(
@@ -2646,6 +2652,7 @@ Report issues at: https://github.com/schmitech/orbit/issues
         register_parser.add_argument('--password', '-p', help='Password (will prompt if not provided)')
         register_parser.add_argument('--role', '-r', default='user', choices=['user', 'admin'], help='User role')
         register_parser.add_argument('--email', help='Email address for the user')
+        register_parser.set_defaults(func=self.handle_register_command)
         
         # Me command
         me_parser = subparsers.add_parser(
@@ -2653,6 +2660,7 @@ Report issues at: https://github.com/schmitech/orbit/issues
             help='Show current user information',
             description='Display information about the currently authenticated user'
         )
+        me_parser.set_defaults(func=self.handle_me_command)
         
         # Auth status command
         auth_status_parser = subparsers.add_parser(
@@ -2660,6 +2668,7 @@ Report issues at: https://github.com/schmitech/orbit/issues
             help='Check authentication status',
             description='Check if you are authenticated and token validity'
         )
+        auth_status_parser.set_defaults(func=self.handle_auth_status_command)
         
 
     
@@ -2684,6 +2693,7 @@ Report issues at: https://github.com/schmitech/orbit/issues
         create_parser.add_argument('--prompt-id', help='Existing system prompt ID to associate')
         create_parser.add_argument('--prompt-name', help='Name for a new system prompt')
         create_parser.add_argument('--prompt-file', help='Path to file containing system prompt')
+        create_parser.set_defaults(func=self.handle_key_create_command)
         
         # List keys command
         list_parser = key_subparsers.add_parser(
@@ -2697,6 +2707,7 @@ Report issues at: https://github.com/schmitech/orbit/issues
         list_parser.add_argument('--offset', type=int, default=0, help='Number of keys to skip for pagination (default: 0)')
         list_parser.add_argument('--output', choices=['table', 'json'], help='Output format')
         list_parser.add_argument('--no-color', action='store_true', help='Disable colored output')
+        list_parser.set_defaults(func=self.handle_key_list_command)
         
         # Test key command
         test_parser = key_subparsers.add_parser(
@@ -2705,6 +2716,7 @@ Report issues at: https://github.com/schmitech/orbit/issues
             description='Test if an API key is valid and active'
         )
         test_parser.add_argument('--key', required=True, help='API key to test')
+        test_parser.set_defaults(func=self.handle_key_test_command)
         
         # Status command
         status_parser = key_subparsers.add_parser(
@@ -2713,6 +2725,7 @@ Report issues at: https://github.com/schmitech/orbit/issues
             description='Get detailed status of an API key'
         )
         status_parser.add_argument('--key', required=True, help='API key to check')
+        status_parser.set_defaults(func=self.handle_key_status_command)
         
         # Deactivate command
         deactivate_parser = key_subparsers.add_parser(
@@ -2721,6 +2734,7 @@ Report issues at: https://github.com/schmitech/orbit/issues
             description='Temporarily deactivate an API key'
         )
         deactivate_parser.add_argument('--key', required=True, help='API key to deactivate')
+        deactivate_parser.set_defaults(func=self.handle_key_deactivate_command)
         
         # Delete command
         delete_parser = key_subparsers.add_parser(
@@ -2730,6 +2744,7 @@ Report issues at: https://github.com/schmitech/orbit/issues
         )
         delete_parser.add_argument('--key', required=True, help='API key to delete')
         delete_parser.add_argument('--force', action='store_true', help='Skip confirmation prompt')
+        delete_parser.set_defaults(func=self.handle_key_delete_command)
     
     def _add_prompt_commands(self, subparsers):
         """Add system prompt management commands to the subparsers."""
@@ -2749,6 +2764,7 @@ Report issues at: https://github.com/schmitech/orbit/issues
         create_parser.add_argument('--name', required=True, help='Unique name for the prompt')
         create_parser.add_argument('--file', required=True, help='Path to file containing prompt text')
         create_parser.add_argument('--version', default='1.0', help='Version string (default: 1.0)')
+        create_parser.set_defaults(func=self.handle_prompt_create_command)
         
         # List prompts command
         list_parser = prompt_subparsers.add_parser(
@@ -2761,6 +2777,7 @@ Report issues at: https://github.com/schmitech/orbit/issues
         list_parser.add_argument('--offset', type=int, default=0, help='Number of prompts to skip for pagination (default: 0)')
         list_parser.add_argument('--output', choices=['table', 'json'], help='Output format')
         list_parser.add_argument('--no-color', action='store_true', help='Disable colored output')
+        list_parser.set_defaults(func=self.handle_prompt_list_command)
         
         # Get prompt command
         get_parser = prompt_subparsers.add_parser(
@@ -2770,6 +2787,7 @@ Report issues at: https://github.com/schmitech/orbit/issues
         )
         get_parser.add_argument('--id', required=True, help='Prompt ID')
         get_parser.add_argument('--save', help='Save prompt to file')
+        get_parser.set_defaults(func=self.handle_prompt_get_command)
         
         # Update prompt command
         update_parser = prompt_subparsers.add_parser(
@@ -2780,6 +2798,7 @@ Report issues at: https://github.com/schmitech/orbit/issues
         update_parser.add_argument('--id', required=True, help='Prompt ID to update')
         update_parser.add_argument('--file', required=True, help='Path to file with updated prompt text')
         update_parser.add_argument('--version', help='New version string')
+        update_parser.set_defaults(func=self.handle_prompt_update_command)
         
         # Delete prompt command
         delete_parser = prompt_subparsers.add_parser(
@@ -2789,6 +2808,7 @@ Report issues at: https://github.com/schmitech/orbit/issues
         )
         delete_parser.add_argument('--id', required=True, help='Prompt ID to delete')
         delete_parser.add_argument('--force', action='store_true', help='Skip confirmation prompt')
+        delete_parser.set_defaults(func=self.handle_prompt_delete_command)
         
         # Associate prompt with API key command
         associate_parser = prompt_subparsers.add_parser(
@@ -2798,6 +2818,7 @@ Report issues at: https://github.com/schmitech/orbit/issues
         )
         associate_parser.add_argument('--key', required=True, help='API key')
         associate_parser.add_argument('--prompt-id', required=True, help='Prompt ID to associate')
+        associate_parser.set_defaults(func=self.handle_prompt_associate_command)
     
     def _add_user_commands(self, subparsers):
         """Add user management commands to the subparsers."""
@@ -2820,6 +2841,7 @@ Report issues at: https://github.com/schmitech/orbit/issues
         list_parser.add_argument('--offset', type=int, default=0, help='Number of users to skip for pagination (default: 0)')
         list_parser.add_argument('--output', choices=['table', 'json'], help='Output format')
         list_parser.add_argument('--no-color', action='store_true', help='Disable colored output')
+        list_parser.set_defaults(func=self.handle_user_list_command)
         
         # Reset password command
         reset_parser = user_subparsers.add_parser(
@@ -2831,6 +2853,7 @@ Report issues at: https://github.com/schmitech/orbit/issues
         reset_group.add_argument('--user-id', help='User ID')
         reset_group.add_argument('--username', help='Username')
         reset_parser.add_argument('--password', help='New password (will generate if not provided)')
+        reset_parser.set_defaults(func=self.handle_user_reset_password_command)
         
         # Delete user command
         delete_parser = user_subparsers.add_parser(
@@ -2840,6 +2863,7 @@ Report issues at: https://github.com/schmitech/orbit/issues
         )
         delete_parser.add_argument('--user-id', required=True, help='User ID to delete')
         delete_parser.add_argument('--force', action='store_true', help='Skip confirmation prompt')
+        delete_parser.set_defaults(func=self.handle_user_delete_command)
         
         # Deactivate user command
         deactivate_parser = user_subparsers.add_parser(
@@ -2849,6 +2873,7 @@ Report issues at: https://github.com/schmitech/orbit/issues
         )
         deactivate_parser.add_argument('--user-id', required=True, help='User ID to deactivate')
         deactivate_parser.add_argument('--force', action='store_true', help='Skip confirmation prompt')
+        deactivate_parser.set_defaults(func=self.handle_user_deactivate_command)
         
         # Activate user command
         activate_parser = user_subparsers.add_parser(
@@ -2858,6 +2883,7 @@ Report issues at: https://github.com/schmitech/orbit/issues
         )
         activate_parser.add_argument('--user-id', required=True, help='User ID to activate')
         activate_parser.add_argument('--force', action='store_true', help='Skip confirmation prompt')
+        activate_parser.set_defaults(func=self.handle_user_activate_command)
         
         # Change password command
         change_password_parser = user_subparsers.add_parser(
@@ -2867,6 +2893,7 @@ Report issues at: https://github.com/schmitech/orbit/issues
         )
         change_password_parser.add_argument('--current-password', help='Current password (will prompt if not provided)')
         change_password_parser.add_argument('--new-password', help='New password (will prompt if not provided)')
+        change_password_parser.set_defaults(func=self.handle_user_change_password_command)
         
 
     
@@ -2886,6 +2913,7 @@ Report issues at: https://github.com/schmitech/orbit/issues
             description='Display current configuration'
         )
         show_parser.add_argument('--key', help='Show specific configuration key')
+        show_parser.set_defaults(func=self.handle_config_show_command)
         
         # Effective config command
         effective_parser = config_subparsers.add_parser(
@@ -2895,6 +2923,7 @@ Report issues at: https://github.com/schmitech/orbit/issues
         )
         effective_parser.add_argument('--key', help='Show specific configuration key')
         effective_parser.add_argument('--sources-only', action='store_true', help='Show only the source of each setting')
+        effective_parser.set_defaults(func=self.handle_config_effective_command)
         
         # Set config command
         set_parser = config_subparsers.add_parser(
@@ -2904,6 +2933,7 @@ Report issues at: https://github.com/schmitech/orbit/issues
         )
         set_parser.add_argument('key', help='Configuration key (dot notation)')
         set_parser.add_argument('value', help='Configuration value')
+        set_parser.set_defaults(func=self.handle_config_set_command)
         
         # Reset config command
         reset_parser = config_subparsers.add_parser(
@@ -2912,6 +2942,586 @@ Report issues at: https://github.com/schmitech/orbit/issues
             description='Reset configuration to defaults'
         )
         reset_parser.add_argument('--force', action='store_true', help='Skip confirmation prompt')
+        reset_parser.set_defaults(func=self.handle_config_reset_command)
+    
+    # Command Handler Methods
+    
+    def handle_start_command(self, args):
+        """Handler for the 'start' command."""
+        success = self.server_controller.start(
+            config_path=args.config,
+            host=args.host,
+            port=args.port,
+            reload=args.reload,
+            delete_logs=args.delete_logs
+        )
+        return 0 if success else 1
+    
+    def handle_stop_command(self, args):
+        """Handler for the 'stop' command."""
+        if args.force:
+            timeout = 1
+        else:
+            timeout = args.timeout
+        success = self.server_controller.stop(timeout=timeout, delete_logs=args.delete_logs)
+        return 0 if success else 1
+    
+    def handle_restart_command(self, args):
+        """Handler for the 'restart' command."""
+        success = self.server_controller.restart(
+            config_path=args.config,
+            host=args.host,
+            port=args.port,
+            delete_logs=args.delete_logs
+        )
+        return 0 if success else 1
+    
+    def handle_status_command(self, args):
+        """Handler for the 'status' command."""
+        if args.watch:
+            try:
+                # Initialize CPU monitoring for watch mode
+                self.server_controller._cpu_initialized = False
+                
+                while True:
+                    console.clear()
+                    # Use enhanced status for watch mode with better CPU measurement
+                    status = self.server_controller.get_enhanced_status(interval=0.5)
+                    self._display_enhanced_status(status)
+                    time.sleep(args.interval)
+            except KeyboardInterrupt:
+                self.formatter.info("Status monitoring stopped")
+                return 0
+        else:
+            status = self.server_controller.status()
+            self._display_status(status)
+            return 0 if status['status'] == 'running' else 1
+    
+    def handle_login_command(self, args):
+        """Handler for the 'login' command."""
+        api_manager = self.get_api_manager(args.server_url)
+        
+        # Check if already authenticated
+        auth_status = api_manager.check_auth_status()
+        if auth_status.get('authenticated'):
+            current_user = auth_status.get('user', {})
+            username = current_user.get('username', 'unknown')
+            self.formatter.warning(f"Already logged in as {username}")
+            self.formatter.info("Please logout first if you want to login with a different account")
+            return 0
+        
+        # Prompt for username if not provided
+        username = args.username
+        if not username:
+            username = Prompt.ask("Username")
+            if not username:
+                self.formatter.error("Username is required")
+                return 1
+        
+        # Prompt for password if not provided
+        password = args.password
+        if not password:
+            password = getpass.getpass("Password: ")
+            if not password:
+                self.formatter.error("Password is required")
+                return 1
+        
+        result = api_manager.login(username, password)
+        if args.output == 'json':
+            self.formatter.format_json(result)
+        else:
+            self.formatter.success(f"Logged in as {result.get('username', username)}")
+            if not args.no_save:
+                storage_method = api_manager.config_manager.get_auth_storage_method()
+                if storage_method == 'keyring':
+                    self.formatter.info("Credentials securely stored in system keychain")
+                elif storage_method == 'file':
+                    self.formatter.info("Credentials saved to file storage (~/.orbit/.env)")
+                else:
+                    self.formatter.info("Credentials saved to secure file storage")
+                    if not KEYRING_AVAILABLE:
+                        self.formatter.warning("For enhanced security, consider installing keyring: pip install keyring")
+        return 0
+    
+    def handle_logout_command(self, args):
+        """Handler for the 'logout' command."""
+        # Create a fresh API manager instance for logout to avoid legacy warnings
+        api_manager = ApiManager(self.config_manager, args.server_url, load_token=False)
+        # Load token only for logout operation, suppressing legacy warnings
+        api_manager._load_token_secure(suppress_legacy_warning=True)
+        result = api_manager.logout()
+        if getattr(args, 'output', None) == 'json':
+            self.formatter.format_json(result)
+        else:
+            if result.get("message", "").lower().startswith("logout successful"):
+                self.formatter.success("Logged out successfully")
+            else:
+                self.formatter.info(result.get("message", "Logged out"))
+        return 0
+    
+    def handle_register_command(self, args):
+        """Handler for the 'register' command."""
+        api_manager = self.get_api_manager(args.server_url)
+        
+        password = args.password
+        if not password:
+            password = getpass.getpass("Password for new user: ")
+            confirm = getpass.getpass("Confirm password: ")
+            if password != confirm:
+                self.formatter.error("Passwords do not match")
+                return 1
+        
+        result = api_manager.register_user(args.username, password, args.role)
+        if args.output == 'json':
+            self.formatter.format_json(result)
+        else:
+            self.formatter.success(f"User '{args.username}' registered successfully")
+        return 0
+    
+    def handle_me_command(self, args):
+        """Handler for the 'me' command."""
+        api_manager = self.get_api_manager(args.server_url)
+        result = api_manager.get_current_user()
+        if args.output == 'json':
+            self.formatter.format_json(result)
+        else:
+            self._display_user_info(result)
+        return 0
+    
+    def handle_auth_status_command(self, args):
+        """Handler for the 'auth-status' command."""
+        api_manager = self.get_api_manager(args.server_url)
+        result = api_manager.check_auth_status()
+        
+        if getattr(args, 'output', None) == 'json':
+            self.formatter.format_json(result)
+        else:
+            self._display_auth_status(result)
+        return 0 if result['authenticated'] else 1
+    
+    def handle_key_create_command(self, args):
+        """Handler for the 'key create' command."""
+        api_manager = self.get_api_manager(args.server_url)
+        result = api_manager.create_api_key(
+            args.collection,
+            args.name,
+            args.notes,
+            args.prompt_id,
+            args.prompt_name,
+            args.prompt_file
+        )
+        if args.output == 'json':
+            self.formatter.format_json(result)
+        else:
+            self.formatter.success("API key created successfully")
+            console.print(f"[bold]API Key:[/bold] {result.get('api_key', 'N/A')}")
+            console.print(f"[bold]Client:[/bold] {result.get('client_name', 'N/A')}")
+            console.print(f"[bold]Collection:[/bold] {result.get('collection', result.get('collection_name', 'N/A'))}")
+            if result.get('system_prompt_id'):
+                console.print(f"[bold]Prompt ID:[/bold] {result['system_prompt_id']}")
+        return 0
+    
+    def handle_key_list_command(self, args):
+        """Handler for the 'key list' command."""
+        api_manager = self.get_api_manager(args.server_url)
+        result = api_manager.list_api_keys(
+            collection=args.collection,
+            active_only=args.active_only,
+            limit=args.limit,
+            offset=args.offset
+        )
+        if getattr(args, 'output', None) == 'json':
+            self.formatter.format_json(result)
+        else:
+            if result:
+                headers = ['API Key', 'Client', 'Collection', 'Active', 'Created']
+                data = []
+                for key in result:
+                    created_at = key.get('created_at', 'N/A')
+                    if isinstance(created_at, (int, float)):
+                        # Convert timestamp to date string
+                        from datetime import datetime
+                        created_at = datetime.fromtimestamp(created_at).strftime('%Y-%m-%d')
+                    elif isinstance(created_at, str):
+                        created_at = created_at[:10]
+                    
+                    data.append({
+                        'API Key': key.get('api_key', 'N/A')[:20] + '...',
+                        'Client': key.get('client_name', 'N/A'),
+                        'Collection': key.get('collection', key.get('collection_name', 'N/A')),
+                        'Active': '✓' if key.get('active', True) else '✗',
+                        'Created': created_at
+                    })
+                self.formatter.format_table(data, headers)
+                console.print(f"Found {len(result)} api keys")
+            else:
+                console.print("No api keys found")
+        return 0
+    
+    def handle_key_test_command(self, args):
+        """Handler for the 'key test' command."""
+        api_manager = self.get_api_manager(args.server_url)
+        result = api_manager.test_api_key(args.key)
+        if args.output == 'json':
+            self.formatter.format_json(result)
+        else:
+            if result.get('status') == 'error':
+                self.formatter.error(f"API key test failed: {result.get('error', 'Unknown error')}")
+                return 1
+            else:
+                self.formatter.success("API key is valid and active")
+                if 'server_version' in result:
+                    console.print(f"Server version: {result['server_version']}")
+        return 0 if result.get('status') != 'error' else 1
+    
+    def handle_key_status_command(self, args):
+        """Handler for the 'key status' command."""
+        api_manager = self.get_api_manager(args.server_url)
+        result = api_manager.get_api_key_status(args.key)
+        if args.output == 'json':
+            self.formatter.format_json(result)
+        else:
+            self._display_api_key_status(result)
+        return 0
+    
+    def handle_key_deactivate_command(self, args):
+        """Handler for the 'key deactivate' command."""
+        api_manager = self.get_api_manager(args.server_url)
+        result = api_manager.deactivate_api_key(args.key)
+        if args.output == 'json':
+            self.formatter.format_json(result)
+        else:
+            self.formatter.success("API key deactivated successfully")
+        return 0
+    
+    def handle_key_delete_command(self, args):
+        """Handler for the 'key delete' command."""
+        if not args.force:
+            if not Confirm.ask(f"Are you sure you want to delete API key {args.key[:20]}...?"):
+                self.formatter.info("Operation cancelled")
+                return 0
+        
+        api_manager = self.get_api_manager(args.server_url)
+        result = api_manager.delete_api_key(args.key)
+        if args.output == 'json':
+            self.formatter.format_json(result)
+        else:
+            self.formatter.success("API key deleted successfully")
+        return 0
+    
+    def handle_prompt_create_command(self, args):
+        """Handler for the 'prompt create' command."""
+        api_manager = self.get_api_manager(args.server_url)
+        prompt_text = api_manager._read_file_content(args.file)
+        result = api_manager.create_prompt(args.name, prompt_text, args.version)
+        if args.output == 'json':
+            self.formatter.format_json(result)
+        else:
+            self.formatter.success("System prompt created successfully")
+            console.print(f"[bold]ID:[/bold] {result.get('_id') or result.get('id', 'N/A')}")
+            console.print(f"[bold]Name:[/bold] {result.get('name', 'N/A')}")
+            console.print(f"[bold]Version:[/bold] {result.get('version', 'N/A')}")
+        return 0
+    
+    def handle_prompt_list_command(self, args):
+        """Handler for the 'prompt list' command."""
+        api_manager = self.get_api_manager(args.server_url)
+        result = api_manager.list_prompts(
+            name_filter=args.name_filter,
+            limit=args.limit,
+            offset=args.offset
+        )
+        if getattr(args, 'output', None) == 'json':
+            self.formatter.format_json(result)
+        else:
+            if result:
+                headers = ['ID', 'Name', 'Version', 'Created', 'Updated']
+                data = []
+                for prompt in result:
+                    created_at = prompt.get('created_at', 'N/A')
+                    updated_at = prompt.get('updated_at', 'N/A')
+                    
+                    if isinstance(created_at, (int, float)):
+                        from datetime import datetime
+                        created_at = datetime.fromtimestamp(created_at).strftime('%Y-%m-%d')
+                    elif isinstance(created_at, str):
+                        created_at = created_at[:10]
+                    
+                    if isinstance(updated_at, (int, float)):
+                        from datetime import datetime
+                        updated_at = datetime.fromtimestamp(updated_at).strftime('%Y-%m-%d')
+                    elif isinstance(updated_at, str):
+                        updated_at = updated_at[:10]
+                    
+                    data.append({
+                        'ID': (prompt.get('_id') or prompt.get('id', 'N/A'))[:12] + '...',
+                        'Name': prompt.get('name', 'N/A'),
+                        'Version': prompt.get('version', 'N/A'),
+                        'Created': created_at,
+                        'Updated': updated_at
+                    })
+                self.formatter.format_table(data, headers)
+                console.print(f"Found {len(result)} prompts")
+            else:
+                console.print("No prompts found")
+        return 0
+    
+    def handle_prompt_get_command(self, args):
+        """Handler for the 'prompt get' command."""
+        api_manager = self.get_api_manager(args.server_url)
+        result = api_manager.get_prompt(args.id)
+        if args.output == 'json':
+            self.formatter.format_json(result)
+        else:
+            self._display_prompt_details(result)
+            
+            if args.save:
+                with open(args.save, 'w') as f:
+                    f.write(result.get('prompt', ''))
+                self.formatter.success(f"Prompt saved to {args.save}")
+        return 0
+    
+    def handle_prompt_update_command(self, args):
+        """Handler for the 'prompt update' command."""
+        api_manager = self.get_api_manager(args.server_url)
+        prompt_text = api_manager._read_file_content(args.file)
+        result = api_manager.update_prompt(args.id, prompt_text, args.version)
+        if args.output == 'json':
+            self.formatter.format_json(result)
+        else:
+            self.formatter.success("System prompt updated successfully")
+        return 0
+    
+    def handle_prompt_delete_command(self, args):
+        """Handler for the 'prompt delete' command."""
+        if not args.force:
+            if not Confirm.ask(f"Are you sure you want to delete prompt {args.id[:12]}...?"):
+                self.formatter.info("Operation cancelled")
+                return 0
+        
+        api_manager = self.get_api_manager(args.server_url)
+        result = api_manager.delete_prompt(args.id)
+        if args.output == 'json':
+            self.formatter.format_json(result)
+        else:
+            self.formatter.success("System prompt deleted successfully")
+        return 0
+    
+    def handle_prompt_associate_command(self, args):
+        """Handler for the 'prompt associate' command."""
+        api_manager = self.get_api_manager(args.server_url)
+        result = api_manager.associate_prompt_with_api_key(args.key, args.prompt_id)
+        if args.output == 'json':
+            self.formatter.format_json(result)
+        else:
+            self.formatter.success("System prompt associated with API key successfully")
+        return 0
+    
+    def handle_user_list_command(self, args):
+        """Handler for the 'user list' command."""
+        api_manager = self.get_api_manager(args.server_url)
+        result = api_manager.list_users(
+            role=args.role,
+            active_only=args.active_only,
+            limit=args.limit,
+            offset=args.offset
+        )
+        if getattr(args, 'output', None) == 'json':
+            self.formatter.format_json(result)
+        else:
+            if result:
+                headers = ['ID', 'Username', 'Role', 'Active', 'Created']
+                data = []
+                for user in result:
+                    created_at = user.get('created_at', 'N/A')
+                    if isinstance(created_at, (int, float)):
+                        from datetime import datetime
+                        created_at = datetime.fromtimestamp(created_at).strftime('%Y-%m-%d')
+                    elif isinstance(created_at, str):
+                        created_at = created_at[:10]
+                    
+                    data.append({
+                        'ID': (user.get('_id') or user.get('id', 'N/A'))[:12] + '...',
+                        'Username': user.get('username', 'N/A'),
+                        'Role': user.get('role', 'N/A'),
+                        'Active': '✓' if user.get('active', True) else '✗',
+                        'Created': created_at
+                    })
+                self.formatter.format_table(data, headers)
+                console.print(f"Found {len(result)} users")
+            else:
+                console.print("No users found")
+        return 0
+    
+    def handle_user_reset_password_command(self, args):
+        """Handler for the 'user reset-password' command."""
+        api_manager = self.get_api_manager(args.server_url)
+        
+        # Determine user ID from either --user-id or --username
+        user_id = args.user_id
+        if args.username:
+            user_id = api_manager.find_user_id_by_username(args.username)
+        
+        password = args.password
+        if not password:
+            # Generate a random password
+            import secrets
+            import string
+            alphabet = string.ascii_letters + string.digits
+            password = ''.join(secrets.choice(alphabet) for i in range(16))
+            console.print(f"[bold]Generated password:[/bold] {password}")
+        
+        result = api_manager.reset_user_password(user_id, password)
+        if args.output == 'json':
+            self.formatter.format_json(result)
+        else:
+            self.formatter.success("User password reset successfully")
+        return 0
+    
+    def handle_user_delete_command(self, args):
+        """Handler for the 'user delete' command."""
+        if not args.force:
+            if not Confirm.ask(f"Are you sure you want to delete user {args.user_id[:12]}...?"):
+                self.formatter.info("Operation cancelled")
+                return 0
+        
+        api_manager = self.get_api_manager(args.server_url)
+        result = api_manager.delete_user(args.user_id)
+        if getattr(args, 'output', None) == 'json':
+            self.formatter.format_json(result)
+        else:
+            self.formatter.success("User deleted successfully")
+        return 0
+    
+    def handle_user_deactivate_command(self, args):
+        """Handler for the 'user deactivate' command."""
+        if not args.force:
+            if not Confirm.ask(f"Are you sure you want to deactivate user {args.user_id[:12]}...?"):
+                self.formatter.info("Operation cancelled")
+                return 0
+        
+        api_manager = self.get_api_manager(args.server_url)
+        result = api_manager.deactivate_user(args.user_id)
+        if getattr(args, 'output', None) == 'json':
+            self.formatter.format_json(result)
+        else:
+            self.formatter.success("User deactivated successfully")
+        return 0
+    
+    def handle_user_activate_command(self, args):
+        """Handler for the 'user activate' command."""
+        if not args.force:
+            if not Confirm.ask(f"Are you sure you want to activate user {args.user_id[:12]}...?"):
+                self.formatter.info("Operation cancelled")
+                return 0
+        
+        api_manager = self.get_api_manager(args.server_url)
+        result = api_manager.activate_user(args.user_id)
+        if getattr(args, 'output', None) == 'json':
+            self.formatter.format_json(result)
+        else:
+            self.formatter.success("User activated successfully")
+        return 0
+    
+    def handle_user_change_password_command(self, args):
+        """Handler for the 'user change-password' command."""
+        api_manager = self.get_api_manager(args.server_url)
+        
+        # Prompt for current password if not provided
+        current_password = args.current_password
+        if not current_password:
+            current_password = getpass.getpass("Current password: ")
+        
+        # Prompt for new password if not provided
+        new_password = args.new_password
+        if not new_password:
+            new_password = getpass.getpass("New password: ")
+            confirm = getpass.getpass("Confirm new password: ")
+            if new_password != confirm:
+                self.formatter.error("New passwords do not match")
+                return 1
+        
+        result = api_manager.change_password(current_password, new_password)
+        if getattr(args, 'output', None) == 'json':
+            self.formatter.format_json(result)
+        else:
+            self.formatter.success("Password changed successfully")
+            self.formatter.warning("All sessions have been invalidated. Please login again.")
+        # Clear the local token since it's now invalid
+        api_manager._clear_token_secure()
+        return 0
+    
+    def handle_config_show_command(self, args):
+        """Handler for the 'config show' command."""
+        if args.key:
+            value = self.config_manager.get(args.key)
+            if value is not None:
+                if self.formatter.format == 'json':
+                    self.formatter.format_json({args.key: value})
+                else:
+                    console.print(f"{args.key}: {value}")
+            else:
+                self.formatter.error(f"Configuration key '{args.key}' not found")
+                return 1
+        else:
+            config = self.config_manager.load_config()
+            if self.formatter.format == 'json':
+                self.formatter.format_json(config)
+            else:
+                self._display_config(config)
+        return 0
+    
+    def handle_config_effective_command(self, args):
+        """Handler for the 'config effective' command."""
+        effective_config = self.config_manager.get_effective_config()
+        
+        if args.key:
+            if args.key in effective_config["effective_values"]:
+                value = effective_config["effective_values"][args.key]
+                source = effective_config["sources"][args.key]
+                if self.formatter.format == 'json':
+                    self.formatter.format_json({
+                        "key": args.key,
+                        "value": value,
+                        "source": source
+                    })
+                else:
+                    console.print(f"[bold]{args.key}:[/bold] {value}")
+                    console.print(f"[dim]Source: {source}[/dim]")
+            else:
+                self.formatter.error(f"Configuration key '{args.key}' not found")
+                return 1
+        else:
+            if self.formatter.format == 'json':
+                self.formatter.format_json(effective_config)
+            else:
+                self._display_effective_config(effective_config, args.sources_only)
+        return 0
+    
+    def handle_config_set_command(self, args):
+        """Handler for the 'config set' command."""
+        # Try to parse value as JSON first
+        try:
+            value = json.loads(args.value)
+        except json.JSONDecodeError:
+            # If not JSON, treat as string
+            value = args.value
+        
+        self.config_manager.set(args.key, value)
+        self.formatter.success(f"Configuration updated: {args.key} = {value}")
+        return 0
+    
+    def handle_config_reset_command(self, args):
+        """Handler for the 'config reset' command."""
+        if not args.force:
+            if not Confirm.ask("Are you sure you want to reset configuration to defaults?"):
+                self.formatter.info("Operation cancelled")
+                return 0
+        
+        default_config = self.config_manager.get_default_config()
+        self.config_manager.save_config(default_config)
+        self.formatter.success("Configuration reset to defaults")
+        return 0
     
     def execute(self, args):
         """Execute the parsed command."""
@@ -2926,551 +3536,14 @@ Report issues at: https://github.com/schmitech/orbit/issues
             use_color = self.config_manager.get_use_color(not getattr(args, 'no_color', False))
             self.formatter = OutputFormatter(format=output_format, color=use_color)
             
-            # Handle server control commands
-            if args.command == 'start':
-                success = self.server_controller.start(
-                    config_path=args.config,
-                    host=args.host,
-                    port=args.port,
-                    reload=args.reload,
-                    delete_logs=args.delete_logs
-                )
-                return 0 if success else 1
+            # Call the function that was mapped to the command
+            if hasattr(args, 'func'):
+                return args.func(args)
             
-            elif args.command == 'stop':
-                if args.force:
-                    timeout = 1
-                else:
-                    timeout = args.timeout
-                success = self.server_controller.stop(timeout=timeout, delete_logs=args.delete_logs)
-                return 0 if success else 1
-            
-            elif args.command == 'restart':
-                success = self.server_controller.restart(
-                    config_path=args.config,
-                    host=args.host,
-                    port=args.port,
-                    delete_logs=args.delete_logs
-                )
-                return 0 if success else 1
-            
-            elif args.command == 'status':
-                if args.watch:
-                    try:
-                        # Initialize CPU monitoring for watch mode
-                        self.server_controller._cpu_initialized = False
-                        
-                        while True:
-                            console.clear()
-                            # Use enhanced status for watch mode with better CPU measurement
-                            status = self.server_controller.get_enhanced_status(interval=0.5)
-                            self._display_enhanced_status(status)
-                            time.sleep(args.interval)
-                    except KeyboardInterrupt:
-                        self.formatter.info("Status monitoring stopped")
-                        return 0
-                else:
-                    status = self.server_controller.status()
-                    self._display_status(status)
-                    return 0 if status['status'] == 'running' else 1
-            
-            # Handle authentication commands
-            elif args.command == 'login':
-                api_manager = self.get_api_manager(args.server_url)
-                
-                # Check if already authenticated
-                auth_status = api_manager.check_auth_status()
-                if auth_status.get('authenticated'):
-                    current_user = auth_status.get('user', {})
-                    username = current_user.get('username', 'unknown')
-                    self.formatter.warning(f"Already logged in as {username}")
-                    self.formatter.info("Please logout first if you want to login with a different account")
-                    return 0
-                
-                # Prompt for username if not provided
-                username = args.username
-                if not username:
-                    username = Prompt.ask("Username")
-                    if not username:
-                        self.formatter.error("Username is required")
-                        return 1
-                
-                # Prompt for password if not provided
-                password = args.password
-                if not password:
-                    password = getpass.getpass("Password: ")
-                    if not password:
-                        self.formatter.error("Password is required")
-                        return 1
-                
-                result = api_manager.login(username, password)
-                if args.output == 'json':
-                    self.formatter.format_json(result)
-                else:
-                    self.formatter.success(f"Logged in as {result.get('username', username)}")
-                    if not args.no_save:
-                        storage_method = api_manager.config_manager.get_auth_storage_method()
-                        if storage_method == 'keyring':
-                            self.formatter.info("Credentials securely stored in system keychain")
-                        elif storage_method == 'file':
-                            self.formatter.info("Credentials saved to file storage (~/.orbit/.env)")
-                        else:
-                            self.formatter.info("Credentials saved to secure file storage")
-                            if not KEYRING_AVAILABLE:
-                                self.formatter.warning("For enhanced security, consider installing keyring: pip install keyring")
-                return 0
-            
-            elif args.command == 'logout':
-                # Create a fresh API manager instance for logout to avoid legacy warnings
-                api_manager = ApiManager(self.config_manager, args.server_url, load_token=False)
-                # Load token only for logout operation, suppressing legacy warnings
-                api_manager._load_token_secure(suppress_legacy_warning=True)
-                result = api_manager.logout()
-                if getattr(args, 'output', None) == 'json':
-                    self.formatter.format_json(result)
-                else:
-                    if result.get("message", "").lower().startswith("logout successful"):
-                        self.formatter.success("Logged out successfully")
-                    else:
-                        self.formatter.info(result.get("message", "Logged out"))
-                return 0
-            
-            elif args.command == 'register':
-                api_manager = self.get_api_manager(args.server_url)
-                
-                password = args.password
-                if not password:
-                    password = getpass.getpass("Password for new user: ")
-                    confirm = getpass.getpass("Confirm password: ")
-                    if password != confirm:
-                        self.formatter.error("Passwords do not match")
-                        return 1
-                
-                result = api_manager.register_user(args.username, password, args.role)
-                if args.output == 'json':
-                    self.formatter.format_json(result)
-                else:
-                    self.formatter.success(f"User '{args.username}' registered successfully")
-                return 0
-            
-            elif args.command == 'me':
-                api_manager = self.get_api_manager(args.server_url)
-                result = api_manager.get_current_user()
-                if args.output == 'json':
-                    self.formatter.format_json(result)
-                else:
-                    self._display_user_info(result)
-                return 0
-            
-            elif args.command == 'auth-status':
-                api_manager = self.get_api_manager(args.server_url)
-                result = api_manager.check_auth_status()
-                
-                if getattr(args, 'output', None) == 'json':
-                    self.formatter.format_json(result)
-                else:
-                    self._display_auth_status(result)
-                return 0 if result['authenticated'] else 1
-            
-
-            
-            # Handle API key commands
-            elif args.command == 'key':
-                api_manager = self.get_api_manager(args.server_url)
-                
-                if args.key_command == 'create':
-                    result = api_manager.create_api_key(
-                        args.collection,
-                        args.name,
-                        args.notes,
-                        args.prompt_id,
-                        args.prompt_name,
-                        args.prompt_file
-                    )
-                    if args.output == 'json':
-                        self.formatter.format_json(result)
-                    else:
-                        self.formatter.success("API key created successfully")
-                        console.print(f"[bold]API Key:[/bold] {result.get('api_key', 'N/A')}")
-                        console.print(f"[bold]Client:[/bold] {result.get('client_name', 'N/A')}")
-                        console.print(f"[bold]Collection:[/bold] {result.get('collection', result.get('collection_name', 'N/A'))}")
-                        if result.get('system_prompt_id'):
-                            console.print(f"[bold]Prompt ID:[/bold] {result['system_prompt_id']}")
-                    return 0
-                
-                elif args.key_command == 'list':
-                    result = api_manager.list_api_keys(
-                        collection=args.collection,
-                        active_only=args.active_only,
-                        limit=args.limit,
-                        offset=args.offset
-                    )
-                    if getattr(args, 'output', None) == 'json':
-                        self.formatter.format_json(result)
-                    else:
-                        if result:
-                            headers = ['API Key', 'Client', 'Collection', 'Active', 'Created']
-                            data = []
-                            for key in result:
-                                created_at = key.get('created_at', 'N/A')
-                                if isinstance(created_at, (int, float)):
-                                    # Convert timestamp to date string
-                                    from datetime import datetime
-                                    created_at = datetime.fromtimestamp(created_at).strftime('%Y-%m-%d')
-                                elif isinstance(created_at, str):
-                                    created_at = created_at[:10]
-                                
-                                data.append({
-                                    'API Key': key.get('api_key', 'N/A')[:20] + '...',
-                                    'Client': key.get('client_name', 'N/A'),
-                                    'Collection': key.get('collection', key.get('collection_name', 'N/A')),
-                                    'Active': '✓' if key.get('active', True) else '✗',
-                                    'Created': created_at
-                                })
-                            self.formatter.format_table(data, headers)
-                            console.print(f"Found {len(result)} api keys")
-                        else:
-                            console.print("No api keys found")
-                    return 0
-                
-                elif args.key_command == 'test':
-                    result = api_manager.test_api_key(args.key)
-                    if args.output == 'json':
-                        self.formatter.format_json(result)
-                    else:
-                        if result.get('status') == 'error':
-                            self.formatter.error(f"API key test failed: {result.get('error', 'Unknown error')}")
-                            return 1
-                        else:
-                            self.formatter.success("API key is valid and active")
-                            if 'server_version' in result:
-                                console.print(f"Server version: {result['server_version']}")
-                    return 0 if result.get('status') != 'error' else 1
-                
-                elif args.key_command == 'status':
-                    result = api_manager.get_api_key_status(args.key)
-                    if args.output == 'json':
-                        self.formatter.format_json(result)
-                    else:
-                        self._display_api_key_status(result)
-                    return 0
-                
-                elif args.key_command == 'deactivate':
-                    result = api_manager.deactivate_api_key(args.key)
-                    if args.output == 'json':
-                        self.formatter.format_json(result)
-                    else:
-                        self.formatter.success("API key deactivated successfully")
-                    return 0
-                
-                elif args.key_command == 'delete':
-                    if not args.force:
-                        if not Confirm.ask(f"Are you sure you want to delete API key {args.key[:20]}...?"):
-                            self.formatter.info("Operation cancelled")
-                            return 0
-                    
-                    result = api_manager.delete_api_key(args.key)
-                    if args.output == 'json':
-                        self.formatter.format_json(result)
-                    else:
-                        self.formatter.success("API key deleted successfully")
-                    return 0
-            
-            # Handle system prompt commands
-            elif args.command == 'prompt':
-                api_manager = self.get_api_manager(args.server_url)
-                
-                if args.prompt_command == 'create':
-                    prompt_text = api_manager._read_file_content(args.file)
-                    result = api_manager.create_prompt(args.name, prompt_text, args.version)
-                    if args.output == 'json':
-                        self.formatter.format_json(result)
-                    else:
-                        self.formatter.success("System prompt created successfully")
-                        console.print(f"[bold]ID:[/bold] {result.get('_id') or result.get('id', 'N/A')}")
-                        console.print(f"[bold]Name:[/bold] {result.get('name', 'N/A')}")
-                        console.print(f"[bold]Version:[/bold] {result.get('version', 'N/A')}")
-                    return 0
-                
-                elif args.prompt_command == 'list':
-                    result = api_manager.list_prompts(
-                        name_filter=args.name_filter,
-                        limit=args.limit,
-                        offset=args.offset
-                    )
-                    if getattr(args, 'output', None) == 'json':
-                        self.formatter.format_json(result)
-                    else:
-                        if result:
-                            headers = ['ID', 'Name', 'Version', 'Created', 'Updated']
-                            data = []
-                            for prompt in result:
-                                created_at = prompt.get('created_at', 'N/A')
-                                updated_at = prompt.get('updated_at', 'N/A')
-                                
-                                if isinstance(created_at, (int, float)):
-                                    from datetime import datetime
-                                    created_at = datetime.fromtimestamp(created_at).strftime('%Y-%m-%d')
-                                elif isinstance(created_at, str):
-                                    created_at = created_at[:10]
-                                
-                                if isinstance(updated_at, (int, float)):
-                                    from datetime import datetime
-                                    updated_at = datetime.fromtimestamp(updated_at).strftime('%Y-%m-%d')
-                                elif isinstance(updated_at, str):
-                                    updated_at = updated_at[:10]
-                                
-                                data.append({
-                                    'ID': (prompt.get('_id') or prompt.get('id', 'N/A'))[:12] + '...',
-                                    'Name': prompt.get('name', 'N/A'),
-                                    'Version': prompt.get('version', 'N/A'),
-                                    'Created': created_at,
-                                    'Updated': updated_at
-                                })
-                            self.formatter.format_table(data, headers)
-                            console.print(f"Found {len(result)} prompts")
-                        else:
-                            console.print("No prompts found")
-                    return 0
-                
-                elif args.prompt_command == 'get':
-                    result = api_manager.get_prompt(args.id)
-                    if args.output == 'json':
-                        self.formatter.format_json(result)
-                    else:
-                        self._display_prompt_details(result)
-                        
-                        if args.save:
-                            with open(args.save, 'w') as f:
-                                f.write(result.get('prompt', ''))
-                            self.formatter.success(f"Prompt saved to {args.save}")
-                    return 0
-                
-                elif args.prompt_command == 'update':
-                    prompt_text = api_manager._read_file_content(args.file)
-                    result = api_manager.update_prompt(args.id, prompt_text, args.version)
-                    if args.output == 'json':
-                        self.formatter.format_json(result)
-                    else:
-                        self.formatter.success("System prompt updated successfully")
-                    return 0
-                
-                elif args.prompt_command == 'delete':
-                    if not args.force:
-                        if not Confirm.ask(f"Are you sure you want to delete prompt {args.id[:12]}...?"):
-                            self.formatter.info("Operation cancelled")
-                            return 0
-                    
-                    result = api_manager.delete_prompt(args.id)
-                    if args.output == 'json':
-                        self.formatter.format_json(result)
-                    else:
-                        self.formatter.success("System prompt deleted successfully")
-                    return 0
-                
-                elif args.prompt_command == 'associate':
-                    result = api_manager.associate_prompt_with_api_key(args.key, args.prompt_id)
-                    if args.output == 'json':
-                        self.formatter.format_json(result)
-                    else:
-                        self.formatter.success("System prompt associated with API key successfully")
-                    return 0
-            
-            # Handle user commands
-            elif args.command == 'user':
-                api_manager = self.get_api_manager(args.server_url)
-                
-                if args.user_command == 'list':
-                    result = api_manager.list_users(
-                        role=args.role,
-                        active_only=args.active_only,
-                        limit=args.limit,
-                        offset=args.offset
-                    )
-                    if getattr(args, 'output', None) == 'json':
-                        self.formatter.format_json(result)
-                    else:
-                        if result:
-                            headers = ['ID', 'Username', 'Role', 'Active', 'Created']
-                            data = []
-                            for user in result:
-                                created_at = user.get('created_at', 'N/A')
-                                if isinstance(created_at, (int, float)):
-                                    from datetime import datetime
-                                    created_at = datetime.fromtimestamp(created_at).strftime('%Y-%m-%d')
-                                elif isinstance(created_at, str):
-                                    created_at = created_at[:10]
-                                
-                                data.append({
-                                    'ID': (user.get('_id') or user.get('id', 'N/A'))[:12] + '...',
-                                    'Username': user.get('username', 'N/A'),
-                                    'Role': user.get('role', 'N/A'),
-                                    'Active': '✓' if user.get('active', True) else '✗',
-                                    'Created': created_at
-                                })
-                            self.formatter.format_table(data, headers)
-                            console.print(f"Found {len(result)} users")
-                        else:
-                            console.print("No users found")
-                    return 0
-                
-                elif args.user_command == 'reset-password':
-                    # Determine user ID from either --user-id or --username
-                    user_id = args.user_id
-                    if args.username:
-                        user_id = api_manager.find_user_id_by_username(args.username)
-                    
-                    password = args.password
-                    if not password:
-                        # Generate a random password
-                        import secrets
-                        import string
-                        alphabet = string.ascii_letters + string.digits
-                        password = ''.join(secrets.choice(alphabet) for i in range(16))
-                        console.print(f"[bold]Generated password:[/bold] {password}")
-                    
-                    result = api_manager.reset_user_password(user_id, password)
-                    if args.output == 'json':
-                        self.formatter.format_json(result)
-                    else:
-                        self.formatter.success("User password reset successfully")
-                    return 0
-                
-                elif args.user_command == 'delete':
-                    if not args.force:
-                        if not Confirm.ask(f"Are you sure you want to delete user {args.user_id[:12]}...?"):
-                            self.formatter.info("Operation cancelled")
-                            return 0
-                    
-                    result = api_manager.delete_user(args.user_id)
-                    if getattr(args, 'output', None) == 'json':
-                        self.formatter.format_json(result)
-                    else:
-                        self.formatter.success("User deleted successfully")
-                    return 0
-                
-                elif args.user_command == 'deactivate':
-                    if not args.force:
-                        if not Confirm.ask(f"Are you sure you want to deactivate user {args.user_id[:12]}...?"):
-                            self.formatter.info("Operation cancelled")
-                            return 0
-                    
-                    result = api_manager.deactivate_user(args.user_id)
-                    if getattr(args, 'output', None) == 'json':
-                        self.formatter.format_json(result)
-                    else:
-                        self.formatter.success("User deactivated successfully")
-                    return 0
-                
-                elif args.user_command == 'activate':
-                    if not args.force:
-                        if not Confirm.ask(f"Are you sure you want to activate user {args.user_id[:12]}...?"):
-                            self.formatter.info("Operation cancelled")
-                            return 0
-                    
-                    result = api_manager.activate_user(args.user_id)
-                    if getattr(args, 'output', None) == 'json':
-                        self.formatter.format_json(result)
-                    else:
-                        self.formatter.success("User activated successfully")
-                    return 0
-                
-                elif args.user_command == 'change-password':
-                    # Prompt for current password if not provided
-                    current_password = args.current_password
-                    if not current_password:
-                        current_password = getpass.getpass("Current password: ")
-                    
-                    # Prompt for new password if not provided
-                    new_password = args.new_password
-                    if not new_password:
-                        new_password = getpass.getpass("New password: ")
-                        confirm = getpass.getpass("Confirm new password: ")
-                        if new_password != confirm:
-                            self.formatter.error("New passwords do not match")
-                            return 1
-                    
-                    result = api_manager.change_password(current_password, new_password)
-                    if getattr(args, 'output', None) == 'json':
-                        self.formatter.format_json(result)
-                    else:
-                        self.formatter.success("Password changed successfully")
-                        self.formatter.warning("All sessions have been invalidated. Please login again.")
-                    # Clear the local token since it's now invalid
-                    api_manager._clear_token_secure()
-                    return 0
-                
-
-            
-            # Handle configuration commands
-            elif args.command == 'config':
-                if args.config_command == 'show':
-                    if args.key:
-                        value = self.config_manager.get(args.key)
-                        if value is not None:
-                            if self.formatter.format == 'json':
-                                self.formatter.format_json({args.key: value})
-                            else:
-                                console.print(f"{args.key}: {value}")
-                        else:
-                            self.formatter.error(f"Configuration key '{args.key}' not found")
-                            return 1
-                    else:
-                        config = self.config_manager.load_config()
-                        if self.formatter.format == 'json':
-                            self.formatter.format_json(config)
-                        else:
-                            self._display_config(config)
-                    return 0
-                
-                elif args.config_command == 'effective':
-                    effective_config = self.config_manager.get_effective_config()
-                    
-                    if args.key:
-                        if args.key in effective_config["effective_values"]:
-                            value = effective_config["effective_values"][args.key]
-                            source = effective_config["sources"][args.key]
-                            if self.formatter.format == 'json':
-                                self.formatter.format_json({
-                                    "key": args.key,
-                                    "value": value,
-                                    "source": source
-                                })
-                            else:
-                                console.print(f"[bold]{args.key}:[/bold] {value}")
-                                console.print(f"[dim]Source: {source}[/dim]")
-                        else:
-                            self.formatter.error(f"Configuration key '{args.key}' not found")
-                            return 1
-                    else:
-                        if self.formatter.format == 'json':
-                            self.formatter.format_json(effective_config)
-                        else:
-                            self._display_effective_config(effective_config, args.sources_only)
-                    return 0
-                
-                elif args.config_command == 'set':
-                    # Try to parse value as JSON first
-                    try:
-                        value = json.loads(args.value)
-                    except json.JSONDecodeError:
-                        # If not JSON, treat as string
-                        value = args.value
-                    
-                    self.config_manager.set(args.key, value)
-                    self.formatter.success(f"Configuration updated: {args.key} = {value}")
-                    return 0
-                
-                elif args.config_command == 'reset':
-                    if not args.force:
-                        if not Confirm.ask("Are you sure you want to reset configuration to defaults?"):
-                            self.formatter.info("Operation cancelled")
-                            return 0
-                    
-                    default_config = self.config_manager.get_default_config()
-                    self.config_manager.save_config(default_config)
-                    self.formatter.success("Configuration reset to defaults")
-                    return 0
+            # If no command was given, print help
+            if not args.command:
+                self.create_parser().print_help()
+                return 1
             
             return 1
             
@@ -3667,10 +3740,6 @@ def main():
     cli = OrbitCLI()
     parser = cli.create_parser()
     args = parser.parse_args()
-    
-    if not args.command:
-        parser.print_help()
-        return
     
     exit_code = cli.execute(args)
     sys.exit(exit_code)
