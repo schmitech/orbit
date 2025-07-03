@@ -171,9 +171,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             minHeight: '44px',
             padding: '0',
             border: 'none',
-            boxShadow: message.trim() && !isLoading
-              ? `0 4px 12px -2px ${theme.secondary}40, 0 2px 4px -1px ${theme.secondary}20`
-              : '0 2px 4px -1px rgba(0, 0, 0, 0.1)',
+            boxShadow: 'none',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -184,15 +182,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           }}
           onMouseEnter={(e) => {
             e.currentTarget.style.setProperty('transform', 'translateY(-50%)', 'important');
-            if (message.trim() && !isLoading) {
-              e.currentTarget.style.setProperty('boxShadow', `0 6px 16px -2px ${theme.secondary}50, 0 4px 8px -1px ${theme.secondary}30`, 'important');
-            }
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.setProperty('transform', 'translateY(-50%)', 'important');
-            if (message.trim() && !isLoading) {
-              e.currentTarget.style.setProperty('boxShadow', `0 4px 12px -2px ${theme.secondary}40, 0 2px 4px -1px ${theme.secondary}20`, 'important');
-            }
           }}
           aria-label="Send message"
         >
@@ -214,21 +206,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           />
         </button>
         
-        {/* Character Counter */}
-        {message.length > 0 && (
-          <div
-            className="absolute bottom-2 right-16 text-xs px-2.5 py-1 rounded-full transition-all duration-200"
-            style={{
-              ...getCharacterCountStyle(message.length, CHAT_CONSTANTS.MAX_MESSAGE_LENGTH),
-              // Use opaque background for the counter too
-              backgroundColor: opaqueBackground,
-              border: `1px solid ${theme.input.border || '#e5e7eb'}`,
-              fontWeight: '500'
-            }}
-          >
-            {message.length}/{CHAT_CONSTANTS.MAX_MESSAGE_LENGTH}
-          </div>
-        )}
+
       </div>
     </div>
   );
