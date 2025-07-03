@@ -198,7 +198,11 @@ window.addEventListener('load', function() {
           // Chat button styling
           chatButton: {
             background: '#ffffff',     // Button background
-            hoverBackground: '#f8fafc' // Button hover background
+            hoverBackground: '#f8fafc', // Button hover background
+            iconColor: '#7c3aed',      // Icon color
+            iconBorderColor: '#e5e7eb', // Icon border color
+            borderColor: '#e5e7eb',     // Button border color
+            iconName: 'MessageSquare'   // Icon name (see available icons below)
           }
         }
       }
@@ -388,14 +392,18 @@ theme: {
   chatButton: {
     background: string;      // Chat button background
     hoverBackground: string; // Chat button hover background
-  },
-  iconColor: string;        // Widget icon color
+    iconColor: string;       // Icon color
+    iconBorderColor: string; // Icon border color
+    borderColor: string;     // Button border color
+    iconName: string;        // Icon name (see available icons above)
+  }
 }
 ```
 
 ### Built-in Themes
 
 The demo includes several professional themes:
+- **Default** - Orange and blue gradient (AI Assistant theme)
 - **Modern** - Vibrant indigo/purple gradient
 - **Minimal** - Clean gray palette  
 - **Corporate** - Professional blue theme
@@ -404,6 +412,8 @@ The demo includes several professional themes:
 - **Sunset** - Warm orange-red gradient
 - **Lavender** - Elegant purple theme
 - **Monochrome** - Sophisticated grayscale
+
+Each theme includes appropriate icon selection and color coordination for a cohesive look.
 
 ## Suggested Questions Length Configuration
 
@@ -441,15 +451,60 @@ window.initChatbotWidget({
 
 ## Available Icons
 
-Choose from these built-in icons:
-- `heart` - Heart icon
-- `message-square` - Square message bubble (default)
-- `message-circle` - Round message bubble  
-- `message-dots` - Message bubble with dots
-- `help-circle` - Question mark in circle
-- `info` - Information icon
-- `bot` - Robot icon
-- `sparkles` - Sparkles icon
+Choose from these chatbot and AI assistant related icons:
+
+### Chat and Communication
+- `MessageSquare` - Square message bubble (default)
+- `MessageCircle` - Round message bubble  
+- `MessageCircleMore` - Round message bubble with dots
+- `MessageSquareText` - Square message bubble with text lines
+- `MessageSquareDots` - Square message bubble with dots
+- `ChatBubble` - Classic chat bubble
+- `ChatBubbleLeft` - Left-aligned chat bubble
+- `ChatBubbleLeftRight` - Two-way chat bubble
+- `ChatBubbleLeftEllipsis` - Chat bubble with ellipsis
+- `ChatBubbleLeftDots` - Chat bubble with dots
+- `Send` - Send icon
+- `Reply` - Reply icon
+
+### Help and Information
+- `HelpCircle` - Question mark in circle
+- `QuestionMarkCircle` - Question mark in circle (alias)
+- `Info` - Information icon
+- `Lightbulb` - Lightbulb (ideas/help)
+- `Sparkles` - Sparkles (magic/assistance)
+
+### AI and Technology
+- `Bot` - Robot icon
+- `Brain` - Brain icon (AI/intelligence)
+- `Cpu` - CPU chip icon
+- `Chip` - Microchip icon
+- `Zap` - Lightning bolt (power/energy)
+- `Target` - Target icon (precision/accuracy)
+
+### People and Users
+- `User` - Single user icon
+- `Users` - Multiple users icon
+- `UserCheck` - User with checkmark
+- `UserPlus` - User with plus sign
+- `UserMinus` - User with minus sign
+
+### Search and Discovery
+- `Search` - Magnifying glass
+- `SearchX` - Search with X (clear search)
+- `Filter` - Filter icon
+
+### Usage Example
+```javascript
+theme: {
+  chatButton: {
+    iconName: 'Bot',           // Use robot icon
+    iconColor: '#7c3aed',      // Purple icon color
+    iconBorderColor: '#e5e7eb', // Light gray border
+    borderColor: '#e5e7eb'      // Button border color
+  }
+}
+```
 
 ## Widget Configuration Structure
 
@@ -470,8 +525,7 @@ Choose from these built-in icons:
   ],
   maxSuggestedQuestionLength?: number;      // Display length limit (default: 50)
   maxSuggestedQuestionQueryLength?: number; // Query length limit (default: 200)
-  theme: { /* theme object */ },
-  icon: string;            // Widget icon type
+  theme: { /* theme object */ }
 }
 ```
 

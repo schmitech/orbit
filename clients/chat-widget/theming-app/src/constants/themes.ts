@@ -5,63 +5,45 @@ export const defaultCustomColors: CustomColors = {
   secondary: '#7c3aed',
   background: '#ffffff',
   textPrimary: '#111827',
+  textSecondary: '#6b7280',
   textInverse: '#ffffff',
   inputBackground: '#f9fafb',
   inputBorder: '#e5e7eb',
   userBubble: '#4f46e5',
   assistantBubble: '#f8fafc',
   userText: '#ffffff',
+  suggestedBackground: '#fff7ed',
+  suggestedHoverBackground: '#ffedd5',
   suggestedText: '#4338ca',
   chatButtonBg: '#ffffff',
   chatButtonHover: '#f8fafc',
-  iconColor: '#7c3aed'
+  iconColor: '#7c3aed',
+  iconBorderColor: '#e5e7eb',
+  buttonBorderColor: '#e5e7eb',
+  iconName: 'MessageSquare'
 };
 
 export const defaultWidgetConfig: WidgetConfig = {
   header: {
-    title: 'ORBIT Chat'
+    title: 'Chat Assistant'
   },
   welcome: {
-    title: 'Welcome! 👋',
+    title: 'Hello! 👋',
     description: 'How can I help you today?'
   },
   suggestedQuestions: [
     {
-      text: "Help me code something",
-      query: "Can you help me write a simple function to calculate a tip?"
+      text: 'What can you help me with?',
+      query: 'What can you help me with today?'
     },
     {
-      text: "Explain a concept",
-      query: "What is machine learning and how does it work?"
-    },
-    {
-      text: "Write something creative",
-      query: "Write a short story about a robot learning to paint"
-    },
-    {
-      text: "Solve a problem",
-      query: "I need to organize my daily schedule better. Any tips?"
-    },
-    {
-      text: "Analyze something",
-      query: "What are the pros and cons of remote work?"
-    },
-    {
-      text: "Learn a language",
-      query: "Teach me 5 basic Spanish phrases for travel"
-    },
-    {
-      text: "Get advice",
-      query: "How can I improve my productivity while working from home?"
-    },
-    {
-      text: "Do some math",
-      query: "If I save $50 per month, how much will I have in 2 years?"
+      text: 'How do I get started?',
+      query: 'How do I get started with this service?'
     }
   ],
-  maxSuggestedQuestionLength: 100,
+  maxSuggestedQuestionLength: 50,
   maxSuggestedQuestionQueryLength: 200,
-  icon: 'message-square'
+  icon: 'MessageSquare'
 };
 
 export const themes: Record<string, Theme> = {
@@ -72,16 +54,22 @@ export const themes: Record<string, Theme> = {
       secondary: '#7c3aed',
       background: '#ffffff',
       textPrimary: '#111827',
+      textSecondary: '#6b7280',
       textInverse: '#ffffff',
       inputBackground: '#f9fafb',
       inputBorder: '#e5e7eb',
       userBubble: '#4f46e5',
       assistantBubble: '#f8fafc',
       userText: '#ffffff',
+      suggestedBackground: '#fff7ed',
+      suggestedHoverBackground: '#ffedd5',
       suggestedText: '#4338ca',
       chatButtonBg: '#ffffff',
       chatButtonHover: '#f8fafc',
-      iconColor: '#7c3aed'
+      iconColor: '#7c3aed',
+      iconBorderColor: '#e5e7eb',
+      buttonBorderColor: '#e5e7eb',
+      iconName: 'Sparkles'
     }
   },
   minimal: {
@@ -91,15 +79,22 @@ export const themes: Record<string, Theme> = {
       secondary: '#6b7280',
       background: '#ffffff',
       textPrimary: '#111827',
+      textSecondary: '#6b7280',
       textInverse: '#ffffff',
       inputBackground: '#f9fafb',
       inputBorder: '#d1d5db',
       userBubble: '#374151',
       assistantBubble: '#f9fafb',
       userText: '#ffffff',
+      suggestedBackground: '#f3f4f6',
+      suggestedHoverBackground: '#e5e7eb',
       suggestedText: '#374151',
       chatButtonBg: '#ffffff',
-      chatButtonHover: '#f9fafb'
+      chatButtonHover: '#f9fafb',
+      iconColor: '#6b7280',
+      iconBorderColor: '#e5e7eb',
+      buttonBorderColor: '#e5e7eb',
+      iconName: 'MessageCircle'
     }
   },
   corporate: {
@@ -109,15 +104,22 @@ export const themes: Record<string, Theme> = {
       secondary: '#3b82f6',
       background: '#ffffff',
       textPrimary: '#1e293b',
+      textSecondary: '#64748b',
       textInverse: '#ffffff',
       inputBackground: '#f8fafc',
       inputBorder: '#e2e8f0',
       userBubble: '#1e40af',
       assistantBubble: '#f1f5f9',
       userText: '#ffffff',
+      suggestedBackground: '#eff6ff',
+      suggestedHoverBackground: '#dbeafe',
       suggestedText: '#1d4ed8',
       chatButtonBg: '#ffffff',
-      chatButtonHover: '#f8fafc'
+      chatButtonHover: '#f8fafc',
+      iconColor: '#3b82f6',
+      iconBorderColor: '#e5e7eb',
+      buttonBorderColor: '#e5e7eb',
+      iconName: 'MessageSquareText'
     }
   },
   dark: {
@@ -127,15 +129,22 @@ export const themes: Record<string, Theme> = {
       secondary: '#06b6d4',
       background: '#1e293b',
       textPrimary: '#f1f5f9',
+      textSecondary: '#cbd5e1',
       textInverse: '#ffffff',
       inputBackground: '#334155',
       inputBorder: '#475569',
       userBubble: '#06b6d4',
       assistantBubble: '#0f172a',
       userText: '#ffffff',
+      suggestedBackground: '#164e63',
+      suggestedHoverBackground: '#0e7490',
       suggestedText: '#67e8f9',
       chatButtonBg: '#334155',
-      chatButtonHover: '#475569'
+      chatButtonHover: '#475569',
+      iconColor: '#06b6d4',
+      iconBorderColor: '#475569',
+      buttonBorderColor: '#475569',
+      iconName: 'Bot'
     }
   },
   emerald: {
@@ -145,15 +154,22 @@ export const themes: Record<string, Theme> = {
       secondary: '#10b981',
       background: '#ffffff',
       textPrimary: '#1f2937',
+      textSecondary: '#6b7280',
       textInverse: '#ffffff',
       inputBackground: '#f0fdf4',
       inputBorder: '#d1fae5',
       userBubble: '#065f46',
       assistantBubble: '#ecfdf5',
       userText: '#ffffff',
+      suggestedBackground: '#ecfdf5',
+      suggestedHoverBackground: '#d1fae5',
       suggestedText: '#047857',
       chatButtonBg: '#ffffff',
-      chatButtonHover: '#f0fdf4'
+      chatButtonHover: '#f0fdf4',
+      iconColor: '#10b981',
+      iconBorderColor: '#e5e7eb',
+      buttonBorderColor: '#e5e7eb',
+      iconName: 'Leaf'
     }
   },
   sunset: {
@@ -163,15 +179,97 @@ export const themes: Record<string, Theme> = {
       secondary: '#f59e0b',
       background: '#ffffff',
       textPrimary: '#1f2937',
+      textSecondary: '#6b7280',
       textInverse: '#ffffff',
       inputBackground: '#fffbeb',
       inputBorder: '#fed7aa',
       userBubble: '#dc2626',
       assistantBubble: '#fff7ed',
       userText: '#ffffff',
+      suggestedBackground: '#fff7ed',
+      suggestedHoverBackground: '#ffedd5',
       suggestedText: '#c2410c',
       chatButtonBg: '#ffffff',
-      chatButtonHover: '#fffbeb'
+      chatButtonHover: '#fffbeb',
+      iconColor: '#f59e0b',
+      iconBorderColor: '#e5e7eb',
+      buttonBorderColor: '#e5e7eb',
+      iconName: 'Sun'
+    }
+  },
+  lavender: {
+    name: 'Lavender',
+    colors: {
+      primary: '#7c3aed',
+      secondary: '#a855f7',
+      background: '#ffffff',
+      textPrimary: '#1f2937',
+      textSecondary: '#6b7280',
+      textInverse: '#ffffff',
+      inputBackground: '#faf5ff',
+      inputBorder: '#e9d5ff',
+      userBubble: '#7c3aed',
+      assistantBubble: '#f5f3ff',
+      userText: '#ffffff',
+      suggestedBackground: '#f5f3ff',
+      suggestedHoverBackground: '#ede9fe',
+      suggestedText: '#6d28d9',
+      chatButtonBg: '#ffffff',
+      chatButtonHover: '#faf5ff',
+      iconColor: '#a855f7',
+      iconBorderColor: '#e5e7eb',
+      buttonBorderColor: '#e5e7eb',
+      iconName: 'Sparkles'
+    }
+  },
+  monochrome: {
+    name: 'Monochrome',
+    colors: {
+      primary: '#1f2937',
+      secondary: '#6b7280',
+      background: '#ffffff',
+      textPrimary: '#111827',
+      textSecondary: '#6b7280',
+      textInverse: '#ffffff',
+      inputBackground: '#f9fafb',
+      inputBorder: '#d1d5db',
+      userBubble: '#1f2937',
+      assistantBubble: '#f3f4f6',
+      userText: '#ffffff',
+      suggestedBackground: '#f3f4f6',
+      suggestedHoverBackground: '#e5e7eb',
+      suggestedText: '#374151',
+      chatButtonBg: '#ffffff',
+      chatButtonHover: '#f9fafb',
+      iconColor: '#6b7280',
+      iconBorderColor: '#e5e7eb',
+      buttonBorderColor: '#e5e7eb',
+      iconName: 'MessageCircleMore'
+    }
+  },
+  rose: {
+    name: 'Rose',
+    colors: {
+      primary: '#be185d',
+      secondary: '#ec4899',
+      background: '#ffffff',
+      textPrimary: '#1f2937',
+      textSecondary: '#6b7280',
+      textInverse: '#ffffff',
+      inputBackground: '#fdf2f8',
+      inputBorder: '#f9a8d4',
+      userBubble: '#be185d',
+      assistantBubble: '#fdf2f8',
+      userText: '#ffffff',
+      suggestedBackground: '#fdf2f8',
+      suggestedHoverBackground: '#fce7f3',
+      suggestedText: '#be185d',
+      chatButtonBg: '#ffffff',
+      chatButtonHover: '#fdf2f8',
+      iconColor: '#ec4899',
+      iconBorderColor: '#e5e7eb',
+      buttonBorderColor: '#e5e7eb',
+      iconName: 'Sparkles'
     }
   }
 };

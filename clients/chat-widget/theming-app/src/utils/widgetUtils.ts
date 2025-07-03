@@ -13,6 +13,7 @@ export const generateThemeConfig = (customColors: CustomColors): ThemeConfig => 
   background: customColors.background,
   text: {
     primary: customColors.textPrimary,
+    secondary: customColors.textSecondary,
     inverse: customColors.textInverse
   },
   input: {
@@ -25,13 +26,18 @@ export const generateThemeConfig = (customColors: CustomColors): ThemeConfig => 
     userText: customColors.userText
   },
   suggestedQuestions: {
+    background: customColors.suggestedBackground,
+    hoverBackground: customColors.suggestedHoverBackground,
     text: customColors.suggestedText
   },
   chatButton: {
     background: customColors.chatButtonBg,
-    hoverBackground: customColors.chatButtonHover
-  },
-  iconColor: customColors.iconColor
+    hoverBackground: customColors.chatButtonHover,
+    iconColor: customColors.iconColor,
+    iconBorderColor: customColors.iconBorderColor,
+    borderColor: customColors.buttonBorderColor,
+    iconName: customColors.iconName
+  }
 });
 
 // Initialize widget

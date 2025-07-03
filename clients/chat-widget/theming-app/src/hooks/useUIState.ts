@@ -6,10 +6,12 @@ export const useUIState = () => {
   const [copied, setCopied] = useState(false);
   const [expandedSections, setExpandedSections] = useState<ExpandedSections>({
     mainColors: true,
+    textColors: true,
     messageBubbles: true,
+    inputField: true,
     suggestedQuestions: true,
     chatButton: true,
-    icon: true
+    iconSelection: true
   });
 
   // Toggle section expansion
@@ -30,10 +32,12 @@ export const useUIState = () => {
   const expandAllSections = () => {
     setExpandedSections({
       mainColors: true,
+      textColors: true,
       messageBubbles: true,
+      inputField: true,
       suggestedQuestions: true,
       chatButton: true,
-      icon: true
+      iconSelection: true
     });
   };
 
@@ -41,10 +45,12 @@ export const useUIState = () => {
   const collapseAllSections = () => {
     setExpandedSections({
       mainColors: false,
+      textColors: false,
       messageBubbles: false,
+      inputField: false,
       suggestedQuestions: false,
       chatButton: false,
-      icon: false
+      iconSelection: false
     });
   };
 

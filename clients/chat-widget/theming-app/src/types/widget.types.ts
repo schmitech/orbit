@@ -3,15 +3,22 @@ export interface CustomColors {
     secondary: string;
     background: string;
     textPrimary: string;
+    textSecondary: string;
     textInverse: string;
     inputBackground: string;
     inputBorder: string;
     userBubble: string;
     assistantBubble: string;
     userText: string;
+    suggestedBackground: string;
+    suggestedHoverBackground: string;
     suggestedText: string;
     chatButtonBg: string;
     chatButtonHover: string;
+    iconColor: string;
+    iconBorderColor: string;
+    buttonBorderColor: string;
+    iconName: string;
     [key: string]: string;
   }
   
@@ -39,6 +46,7 @@ export interface CustomColors {
     background: string;
     text: {
       primary: string;
+      secondary: string;
       inverse: string;
     };
     input: {
@@ -51,13 +59,18 @@ export interface CustomColors {
       userText: string;
     };
     suggestedQuestions: {
+      background: string;
+      hoverBackground: string;
       text: string;
     };
     chatButton: {
       background: string;
       hoverBackground: string;
+      iconColor: string;
+      iconBorderColor: string;
+      borderColor: string;
+      iconName: string;
     };
-    iconColor: string;
   }
   
   export interface Theme {
@@ -73,10 +86,12 @@ export interface CustomColors {
   
   export interface ExpandedSections {
     mainColors: boolean;
+    textColors: boolean;
     messageBubbles: boolean;
+    inputField: boolean;
     suggestedQuestions: boolean;
     chatButton: boolean;
-    icon: boolean;
+    iconSelection: boolean;
   }
   
   export type TabType = 'theme' | 'content' | 'prompt' | 'code';
