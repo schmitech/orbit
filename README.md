@@ -284,6 +284,12 @@ MODERATION PASSED: Query was deemed SAFE by openai moderator
 
 ORBIT provides a customizable chatbot widget that can be easily integrated into any website. The widget offers a responsive interface with theming options and features. The widget is available as an npm package at [@schmitech/chatbot-widget](https://www.npmjs.com/package/@schmitech/chatbot-widget). Project details and build instructions can be found at [ORBIT Chat Widget](https://github.com/schmitech/orbit/tree/main/clients/chat-widget).
 
+Build instructions for the the theming app can be found under the [chat widget theming project](clients/chat-widget/theming-app/README.md).
+
+Here's a preview of the theming tool:
+
+![Theming](docs/images/theming.gif)
+
 ## Documentation
 
 For more detailed information, please refer to the following documentation in the [Docs](docs/) folder.
