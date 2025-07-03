@@ -30,12 +30,28 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   handleSendMessage,
   setIsFocused,
 }) => {
+  // Force opaque background color - this is the key fix
+  const getOpaqueBackground = () => {
+    // If the theme background is transparent or has alpha, use white
+    const bg = theme.input.background;
+    if (!bg || bg === 'transparent' || bg.includes('rgba') || bg.includes('hsla')) {
+      return '#ffffff';
+    }
+    // If it's a hex color with alpha (8 digits), remove the alpha
+    if (bg.match(/^#[0-9A-Fa-f]{8}$/)) {
+      return bg.substring(0, 7);
+    }
+    return bg;
+  };
+
+  const opaqueBackground = getOpaqueBackground();
+
   return (
     <div
       className="border-t-0 shrink-0 relative"
       style={{
-        background: `${theme.input.background}`,
-        backgroundColor: `${theme.input.background}`,
+        background: opaqueBackground,
+        backgroundColor: opaqueBackground,
         borderTopLeftRadius: 0,
         borderTopRightRadius: 0,
         zIndex: 10,
@@ -44,16 +60,28 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         paddingTop: '18px',
         paddingLeft: '16px',
         paddingRight: '16px',
-        paddingBottom: '16px'
+        paddingBottom: '16px',
+        // Add isolation to create a new stacking context
+        isolation: 'isolate'
       }}
     >
-      {/* Solid background barrier to block any background bleeding */}
+      {/* Multiple solid background barriers to ensure no bleed-through */}
       <div 
         className="absolute inset-0"
         style={{
-          background: `${theme.input.background}`,
-          backgroundColor: `${theme.input.background}`,
-          zIndex: -1
+          background: opaqueBackground,
+          backgroundColor: opaqueBackground,
+          zIndex: -2,
+          pointerEvents: 'none'
+        }}
+      />
+      <div 
+        className="absolute inset-0"
+        style={{
+          background: opaqueBackground,
+          backgroundColor: opaqueBackground,
+          zIndex: -1,
+          pointerEvents: 'none'
         }}
       />
       
@@ -66,11 +94,24 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         style={{
           borderColor: isFocused ? theme.secondary : theme.input.border,
           border: '1px solid',
-          background: `${theme.input.background} !important`,
-          backgroundColor: `${theme.input.background} !important`,
-          boxShadow: 'none'
+          background: opaqueBackground,
+          backgroundColor: opaqueBackground,
+          boxShadow: 'none',
+          // Ensure this container also blocks any bleed-through
+          isolation: 'isolate'
         }}
       >
+        {/* Additional background layer inside the input container */}
+        <div 
+          className="absolute inset-0 rounded-2xl"
+          style={{
+            background: opaqueBackground,
+            backgroundColor: opaqueBackground,
+            zIndex: 0,
+            pointerEvents: 'none'
+          }}
+        />
+        
         {/* Textarea */}
         <textarea
           ref={inputRef}
@@ -83,10 +124,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           maxLength={CHAT_CONSTANTS.MAX_MESSAGE_LENGTH}
           id="chat-message-input"
           name="chat-message-input"
-          className="w-full resize-none"
+          className="w-full resize-none relative"
           style={{
-            background: `${theme.input.background} !important`,
-            backgroundColor: `${theme.input.background} !important`,
+            background: opaqueBackground,
+            backgroundColor: opaqueBackground,
             color: theme.text.primary,
             height: '52px',
             minHeight: '52px',
@@ -96,15 +137,17 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             boxSizing: 'border-box',
             fontWeight: '400',
             textAlign: 'left',
-            border: 'none !important',
-            boxShadow: 'none !important',
-            outline: 'none !important',
+            border: 'none',
+            boxShadow: 'none',
+            outline: 'none',
             paddingLeft: '24px',
             paddingRight: '60px',
             paddingTop: '16px',
             paddingBottom: '16px',
             fontSize: '16px',
-            fontFamily: 'inherit'
+            fontFamily: 'inherit',
+            position: 'relative',
+            zIndex: 1
           }}
         />
         
@@ -174,11 +217,12 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         {/* Character Counter */}
         {message.length > 0 && (
           <div
-            className="absolute bottom-2 right-16 text-xs px-2.5 py-1 rounded-full transition-all duration-200 backdrop-blur-sm"
+            className="absolute bottom-2 right-16 text-xs px-2.5 py-1 rounded-full transition-all duration-200"
             style={{
               ...getCharacterCountStyle(message.length, CHAT_CONSTANTS.MAX_MESSAGE_LENGTH),
-              backdropFilter: 'blur(8px)',
-              WebkitBackdropFilter: 'blur(8px)',
+              // Use opaque background for the counter too
+              backgroundColor: opaqueBackground,
+              border: `1px solid ${theme.input.border || '#e5e7eb'}`,
               fontWeight: '500'
             }}
           >

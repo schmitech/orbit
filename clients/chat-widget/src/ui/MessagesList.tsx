@@ -66,13 +66,46 @@ export const MessagesList: React.FC<MessagesListProps> = ({
   maxSuggestedQuestionLength,
   maxSuggestedQuestionQueryLength,
 }) => {
+  // Helper function to ensure opaque background
+  const getOpaqueBackground = () => {
+    const bg = theme.input.background;
+    if (!bg || bg === 'transparent' || bg.includes('rgba') || bg.includes('hsla')) {
+      return '#ffffff';
+    }
+    if (bg.match(/^#[0-9A-Fa-f]{8}$/)) {
+      return bg.substring(0, 7);
+    }
+    return bg;
+  };
+
+  const opaqueBackground = getOpaqueBackground();
+
   return (
-    <div className="flex-1 overflow-hidden relative" style={{ background: 'transparent' }}>
+    <div 
+      className="flex-1 overflow-hidden relative" 
+      style={{ 
+        background: opaqueBackground,
+        backgroundColor: opaqueBackground,
+        isolation: 'isolate'
+      }}
+    >
+      {/* Additional background layer to ensure no bleed-through */}
+      <div 
+        className="absolute inset-0"
+        style={{
+          background: opaqueBackground,
+          backgroundColor: opaqueBackground,
+          zIndex: 0,
+          pointerEvents: 'none'
+        }}
+      />
+      
       <div
         ref={messagesContainerRef}
         className="h-full w-full overflow-y-auto scroll-smooth relative messages-container"
         style={{
-          background: theme.input.background,
+          background: opaqueBackground,
+          backgroundColor: opaqueBackground,
           overflowY: 'auto',
           overflowX: 'hidden',
           height: '100%',
@@ -81,7 +114,9 @@ export const MessagesList: React.FC<MessagesListProps> = ({
           paddingTop: '8px',
           paddingLeft: '8px',
           paddingRight: '8px',
-          paddingBottom: '0px'
+          paddingBottom: '0px',
+          position: 'relative',
+          zIndex: 1
         }}
         onScroll={handleScroll}
       >
