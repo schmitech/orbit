@@ -142,7 +142,7 @@ fi
 
 # Create necessary directories (relative to script directory)
 echo -e "${YELLOW}📁 Creating required directories...${NC}"
-mkdir -p ../logs ../data ../config ../gguf ../install ../configs
+mkdir -p ../logs ../data ../config ../gguf ../install
 
 # Handle config file
 if [ -n "$CONFIG_FILE" ]; then

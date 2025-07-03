@@ -27,7 +27,7 @@
 #
 #   With GGUF model:
 #     ./setup.sh --profile minimal --download-gguf gemma3-1b.gguf
-#     ./setup.sh --download-gguf my-kaggle-model.gguf --gguf-models-config ../my-gguf-list.conf
+#     ./setup.sh --download-gguf my-kaggle-model.gguf --gguf-models-config ./gguf-models.conf
 #     ./setup.sh --download-gguf gemma3-1b.gguf --download-gguf another-model.gguf
 #
 #   Custom profile from TOML:
@@ -35,7 +35,7 @@
 #
 # GGUF Model Download Options:
 #   --download-gguf [model]    Download GGUF model(s) by name (can be used multiple times)
-#   --gguf-models-config <f>   Path to GGUF models .conf config (default: ../gguf-models.conf)
+#   --gguf-models-config <f>   Path to GGUF models .conf config (default: ./gguf-models.conf)
 #
 # The GGUF model(s) to download must be defined in the config file as:
 #   model-name.gguf=https://url/to/model.gguf
@@ -303,7 +303,7 @@ DOWNLOAD_GGUF=false
 PROFILES=()
 LIST_PROFILES=false
 GGUF_MODELS_TO_DOWNLOAD=()
-GGUF_MODELS_CONFIG="$SCRIPT_DIR/../gguf-models.conf"
+GGUF_MODELS_CONFIG="$SCRIPT_DIR/gguf-models.conf"
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -347,7 +347,7 @@ while [[ $# -gt 0 ]]; do
             echo "                          Can be used multiple times"
             echo "  --list-profiles, --list List available dependency profiles"
             echo "  --download-gguf         Download GGUF model(s) as specified by --gguf-model"
-            echo "  --gguf-models-config <f>Path to GGUF models .conf config (default: ../gguf-models.conf)"
+            echo "  --gguf-models-config <f>Path to GGUF models .conf config (default: ./gguf-models.conf)"
             echo "  --help, -h              Show this help message"
             echo ""
             echo "Examples:"
@@ -355,7 +355,7 @@ while [[ $# -gt 0 ]]; do
             echo "  $0 --profile minimal"
             echo "  $0 --profile torch --profile commercial"
             echo "  $0 --profile all --download-gguf gemma3-1b.gguf"
-            echo "  $0 --download-gguf my-kaggle-model.gguf --gguf-models-config ../my-gguf-list.conf"
+            echo "  $0 --download-gguf my-kaggle-model.gguf --gguf-models-config ./gguf-models.conf"
             exit 0
             ;;
         *)

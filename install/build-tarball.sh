@@ -178,7 +178,6 @@ done
 # Copy root files
 echo "Copying root files..."
 cp README.md dist/build/${PACKAGE_NAME}/ 2>/dev/null || echo "Warning: README.md not found"
-cp gguf-models.conf dist/build/${PACKAGE_NAME}/ 2>/dev/null || echo "Warning: gguf-models.conf not found"
 
 # Create example configuration
 echo "Creating example configuration yaml file..."
