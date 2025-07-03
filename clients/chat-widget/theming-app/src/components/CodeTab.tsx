@@ -1,5 +1,10 @@
 import React, { useState } from 'react';
 import { Copy, Check } from 'lucide-react';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { github } from 'react-syntax-highlighter/dist/esm/styles/hljs';
+import prettier from 'prettier/standalone';
+import parserBabel from 'prettier/parser-babel';
+import parserHtml from 'prettier/parser-html';
 import type { WidgetConfig, CustomColors } from '../types/widget.types';
 import { Button } from './Button';
 
@@ -30,13 +35,41 @@ export const CodeTab: React.FC<CodeTabProps> = ({
       .trim();
   };
 
-  const currentCode = activeSubTab === 'expanded' 
-    ? generateCode(widgetConfig, customColors)
-    : generateMinifiedCode(widgetConfig, customColors);
+  // Format code with Prettier for the expanded tab
+  let formattedCode = '';
+  if (activeSubTab === 'expanded') {
+    const rawCode = generateCode(widgetConfig, customColors);
+    let parser = 'babel';
+    let plugin: any = parserBabel;
+    if (/^\s*<\/?[a-zA-Z]/.test(rawCode)) {
+      parser = 'html';
+      plugin = parserHtml;
+    }
+    try {
+      if (plugin) {
+        const pretty = prettier.format(rawCode, {
+          parser,
+          plugins: [plugin],
+          semi: true,
+          singleQuote: true,
+        });
+        formattedCode = typeof pretty === 'string' ? pretty : rawCode;
+      } else {
+        formattedCode = rawCode;
+      }
+    } catch (e) {
+      formattedCode = rawCode;
+    }
+  } else {
+    formattedCode = generateMinifiedCode(widgetConfig, customColors);
+  }
+  if (typeof formattedCode !== 'string') {
+    formattedCode = '';
+  }
 
   const handleCopyCode = async () => {
     try {
-      await navigator.clipboard.writeText(currentCode);
+      await navigator.clipboard.writeText(formattedCode);
       setLocalCopied(true);
       setTimeout(() => setLocalCopied(false), 2000);
     } catch (err) {
@@ -50,45 +83,85 @@ export const CodeTab: React.FC<CodeTabProps> = ({
     <div>
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-medium text-gray-900">Implementation Code</h3>
-        <Button
-          onClick={handleCopyCode}
-          icon={localCopied ? Check : Copy}
-          size="sm"
-        >
-          {localCopied ? 'Copied!' : 'Copy Code'}
-        </Button>
       </div>
 
-      {/* Sub-tabs */}
-      <div className="flex space-x-1 mb-4">
+      {/* Sub-tabs and Download Button */}
+      <div className="flex items-center mb-4">
+        <div className="flex space-x-1">
+          <button
+            onClick={() => setActiveSubTab('expanded')}
+            className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
+              activeSubTab === 'expanded'
+                ? 'bg-blue-100 text-blue-700 border border-blue-200'
+                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+            }`}
+          >
+            Expanded
+          </button>
+          <button
+            onClick={() => setActiveSubTab('minified')}
+            className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
+              activeSubTab === 'minified'
+                ? 'bg-blue-100 text-blue-700 border border-blue-200'
+                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+            }`}
+          >
+            Minified
+          </button>
+        </div>
         <button
-          onClick={() => setActiveSubTab('expanded')}
-          className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
-            activeSubTab === 'expanded'
-              ? 'bg-blue-100 text-blue-700 border border-blue-200'
-              : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-          }`}
+          onClick={() => {
+            // Add import instructions as a comment
+            const importInstructions =
+              '// To use this widget, include the following script in your HTML:\n' +
+              "// <script src=\"https://unpkg.com/@schmitech/chatbot-widget@latest/dist/chatbot-widget.bundle.js\"></script>\n" +
+              '// Then use the code below to initialize the widget:\n\n';
+            const fileContent = importInstructions + formattedCode;
+            const blob = new Blob([fileContent], { type: 'text/javascript' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'chatbot-widget-setup.js';
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(() => {
+              document.body.removeChild(a);
+              URL.revokeObjectURL(url);
+            }, 100);
+          }}
+          className="ml-auto px-3 py-2 text-sm font-medium rounded-lg bg-green-100 text-green-800 border border-green-200 hover:bg-green-200 transition-colors"
         >
-          Expanded
-        </button>
-        <button
-          onClick={() => setActiveSubTab('minified')}
-          className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
-            activeSubTab === 'minified'
-              ? 'bg-blue-100 text-blue-700 border border-blue-200'
-              : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-          }`}
-        >
-          Minified
+          Download JS
         </button>
       </div>
       
       <div className="relative rounded-lg overflow-hidden">
-        <pre className="bg-gray-900 text-gray-100 p-4 overflow-x-auto">
-          <code className="language-html text-sm">
-            {currentCode}
-          </code>
-        </pre>
+        {/* Copy icon overlay */}
+        <button
+          onClick={handleCopyCode}
+          className="absolute top-2 right-2 z-10 p-1 bg-white/80 hover:bg-white rounded shadow transition-colors"
+          title={localCopied ? 'Copied!' : 'Copy code'}
+          style={{ lineHeight: 0 }}
+        >
+          {localCopied ? <Check className="w-5 h-5 text-green-600" /> : <Copy className="w-5 h-5 text-gray-600" />}
+        </button>
+        <SyntaxHighlighter
+          key={activeSubTab}
+          language="javascript"
+          style={github}
+          customStyle={{
+            fontSize: '13px',
+            lineHeight: '1.4',
+            fontFamily: 'Mona Sans, Roboto Mono, ui-monospace, SFMono-Regular, SF Mono, Consolas, Liberation Mono, Menlo, monospace',
+            margin: 0,
+            borderRadius: '0.5rem',
+            padding: '1rem'
+          }}
+          showLineNumbers={false}
+          wrapLines={true}
+        >
+          {formattedCode}
+        </SyntaxHighlighter>
       </div>
 
       <div className="mt-4 space-y-3">

@@ -72,9 +72,9 @@ const ChatbotThemingPlatform = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-3 gap-8">
+        <div className="grid grid-cols-5 gap-8">
           {/* Left Column - Customization Panel */}
-          <div className="col-span-2 space-y-6">
+          <div className="col-span-3 space-y-6">
             {/* API Configuration */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <div className="flex items-center justify-between mb-4">
@@ -164,67 +164,67 @@ const ChatbotThemingPlatform = () => {
           </div>
 
           {/* Right Column - Instructions Panel */}
-          <div className="col-span-1">
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 sticky top-8">
-              <div className="text-center mb-6">
-                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="col-span-2">
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 sticky top-8">
+              <div className="text-center mb-8">
+                <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-5">
+                  <svg className="w-10 h-10 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                   </svg>
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Live Preview</h3>
-                <p className="text-sm text-gray-600">See your customizations in real-time</p>
+                <h3 className="text-2xl font-bold text-gray-900 mb-3">Live Preview</h3>
+                <p className="text-base text-gray-600 leading-relaxed">See your customizations in real-time</p>
               </div>
 
-              <div className="space-y-4">
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <div className="flex items-start gap-3">
-                    <div className="flex-shrink-0 w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">1</div>
+              <div className="space-y-5">
+                <div className="bg-gray-50 rounded-xl p-5">
+                  <div className="flex items-start gap-4">
+                    <div className="flex-shrink-0 w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold">1</div>
                     <div>
-                      <p className="text-sm font-medium text-gray-900">Customize Your Theme</p>
-                      <p className="text-xs text-gray-600 mt-1">Use the controls on the left to personalize colors, content, and behavior</p>
+                      <p className="text-base font-semibold text-gray-900 mb-2">Customize Your Theme</p>
+                      <p className="text-sm text-gray-600 leading-relaxed">Use the controls on the left to personalize colors, content, and behavior. Try different themes or adjust individual settings.</p>
                     </div>
                   </div>
                 </div>
 
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <div className="flex items-start gap-3">
-                    <div className="flex-shrink-0 w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">2</div>
+                <div className="bg-gray-50 rounded-xl p-5">
+                  <div className="flex items-start gap-4">
+                    <div className="flex-shrink-0 w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold">2</div>
                     <div>
-                      <p className="text-sm font-medium text-gray-900">Find the Widget</p>
-                      <p className="text-xs text-gray-600 mt-1">Look for the chat button in the bottom-right corner of your screen</p>
+                      <p className="text-base font-semibold text-gray-900 mb-2">Find the Widget</p>
+                      <p className="text-sm text-gray-600 leading-relaxed">Look for the chat button in the bottom-right corner of your screen. It will appear as a colorful floating button.</p>
                     </div>
                   </div>
                 </div>
 
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <div className="flex items-start gap-3">
-                    <div className="flex-shrink-0 w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">3</div>
+                <div className="bg-gray-50 rounded-xl p-5">
+                  <div className="flex items-start gap-4">
+                    <div className="flex-shrink-0 w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold">3</div>
                     <div>
-                      <p className="text-sm font-medium text-gray-900">Click to Expand</p>
-                      <p className="text-xs text-gray-600 mt-1">Click the widget button to open and see your theme changes applied!</p>
+                      <p className="text-base font-semibold text-gray-900 mb-2">Click to Expand</p>
+                      <p className="text-sm text-gray-600 leading-relaxed">Click the widget button to open the chat interface and see your theme changes applied in real-time!</p>
                     </div>
                   </div>
                 </div>
 
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <div className="flex items-start gap-3">
-                    <div className="flex-shrink-0 w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">4</div>
+                <div className="bg-gray-50 rounded-xl p-5">
+                  <div className="flex items-start gap-4">
+                    <div className="flex-shrink-0 w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold">4</div>
                     <div>
-                      <p className="text-sm font-medium text-gray-900">Test & Iterate</p>
-                      <p className="text-xs text-gray-600 mt-1">Make adjustments and see changes instantly in the live widget</p>
+                      <p className="text-base font-semibold text-gray-900 mb-2">Test & Iterate</p>
+                      <p className="text-sm text-gray-600 leading-relaxed">Make adjustments and see changes instantly in the live widget. Test different scenarios and interactions.</p>
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div className="mt-6 pt-6 border-t border-gray-200">
-                <div className="text-center">
-                  <div className="inline-flex items-center gap-2 text-sm text-gray-600 mb-2">
-                  </div>
-                  <p className="text-xs text-gray-500">Changes are applied instantly - no need to save or refresh!</p>
-                </div>
-              </div>
+                             <div className="mt-8 pt-6 border-t border-gray-200">
+                 <div className="text-center">
+                   <div className="inline-flex items-center gap-2 text-sm text-gray-600 mb-3">
+                   </div>
+                   <p className="text-sm text-gray-500 leading-relaxed">Changes are applied instantly - no need to save or refresh!</p>
+                 </div>
+               </div>
             </div>
           </div>
         </div>
