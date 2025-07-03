@@ -179,7 +179,11 @@ function App() {
           // Chat button styling
           chatButton: {
             background: '#ffffff',     // Button background
-            hoverBackground: '#f3f4f6' // Button hover background
+            hoverBackground: '#f3f4f6', // Button hover background
+            iconColor: '#3b82f6',      // Icon color (matches secondary theme color)
+            iconBorderColor: '#e5e7eb', // Icon border color
+            borderColor: '#e5e7eb',     // Button border color
+            iconName: 'MessageSquare'   // Icon name (see available icons in README)
           }
         }
       }

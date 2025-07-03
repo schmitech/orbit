@@ -1,6 +1,6 @@
 # Schmitech Chatbot Widget
 
-A powerful, customizable chatbot widget that integrates seamlessly into any website. Perfect for customer support, lead generation, and user engagement.
+A customizable chatbot widget that integrates seamlessly into any website. Perfect for customer support, lead generation, and user engagement.
 
 ## 🚀 Quick Start
 

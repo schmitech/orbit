@@ -156,9 +156,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           onClick={handleSendMessage}
           disabled={!message.trim() || isLoading}
           className={clsx(
-            "absolute right-2 top-1/2 transform -translate-y-1/2 rounded-xl transition-all duration-300 flex items-center justify-center shrink-0 overflow-hidden group",
+            "absolute right-2 top-1/2 transform -translate-y-1/2 rounded-xl flex items-center justify-center shrink-0 overflow-hidden group",
             message.trim() && !isLoading
-              ? "hover:scale-105"
+              ? "hover:scale-105 transition-all duration-300"
               : "cursor-not-allowed opacity-50"
           )}
           style={{
@@ -179,12 +179,6 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             position: 'absolute',
             zIndex: 10,
             transform: 'translateY(-50%)'
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.setProperty('transform', 'translateY(-50%)', 'important');
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.setProperty('transform', 'translateY(-50%)', 'important');
           }}
           aria-label="Send message"
         >
