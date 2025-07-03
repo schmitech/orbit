@@ -87,18 +87,18 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       
       {/* Input Container with integrated send button */}
       <div
-        className={clsx(
-          "relative rounded-2xl transition-all duration-300 overflow-hidden input-modern shadow-soft",
-          isFocused ? "ring-2 ring-opacity-50" : "ring-0"
-        )}
+        className="relative rounded-2xl transition-all duration-300 overflow-hidden input-modern shadow-soft"
         style={{
-          borderColor: isFocused ? theme.secondary : theme.input.border,
-          border: '1px solid',
+          borderColor: theme.secondary || theme.input.border || '#9ca3af',
+          border: '1.5px solid',
           background: opaqueBackground,
           backgroundColor: opaqueBackground,
           boxShadow: 'none',
           // Ensure this container also blocks any bleed-through
-          isolation: 'isolate'
+          isolation: 'isolate',
+          // Explicitly remove focus rings
+          outline: 'none',
+          outlineOffset: '0px'
         }}
       >
         {/* Additional background layer inside the input container */}
