@@ -1,6 +1,6 @@
 general:
   port: 3000
-  verbose: true
+  verbose: false
   https:
     enabled: false
     port: 3443

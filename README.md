@@ -1,71 +1,21 @@
 ## Open Retrieval-Based Inference Toolkit (ORBIT)
 
-ORBIT is a modular, self-hosted toolkit offering a unified API for open-source AI inference models. Its goal is to help organizations deploy in-house AI solutions that ensure privacy compliance and avoid unpredictable external AI costs. This project is actively maintained by [Remsy Schmilinsky](https://www.linkedin.com/in/remsy/).
+ORBIT is a middleware platform offering a unified API for AI inference, enabling anyone to deploy AI solutions without paying for subscriptions or token-based credits. ORBIT is particularly useful for organizations that require visibility, transparency, explainability, and auditability of their AI workflows when handling sensitive data. This project is actively maintained by [Remsy Schmilinsky](https://www.linkedin.com/in/remsy/). Check out the [Changelog](CHANGELOG.md) for the latest updates.
 
-<div align="center">
+## High-Level Architecture
+<div align="left">
   <img src="docs/images/orbit-architecture.png" width="800" alt="ORBIT Architecture" />
 </div>
 
-## 🎉 Jun 27, 2025 - Announcing ORBIT v1.1.4
-
-### 🔒 Enhanced Security & Moderation
-- **LLM-Guard**: Integrated with [LLM Guard](https://github.com/protectai/llm-guard) though a new [LLM Guard Service](https://github.com/schmitech/llm-guard-service) on top of existing moderators
-- **Bidirectional Safety**: Safety checks now validate both user input and AI responses
-
-### 🐳 Docker & Deployment
-- **Improved Scripts**: Enhanced docker and setup scripts for better deployment experience
-- **Profile Fixes**: Resolved 'torch' profile and docker deployment issues
-- **Dependency Management**: Added missing google-cloud dependency for 'commercial' profile
-
-### 🔍 Vector Database & Retrieval
-- **Qdrant Support**: Added Qdrant vector retriever as an alternative to Chroma
-
-### 🏗️ Code Quality & Architecture
-- **Chat Service**: Significant improvements in code quality, maintainability and testability
-- **Better Structure**: Refactored modules for cleaner architecture
-
-### 🤖 Inference Providers
-- **New providers**: Implemented Cohere and IBM Watson AI inference clients
-
-### 🎨 UI/Widget Improvements
-- **Theming Platform**: Implemented new widget theming app
-- **Enhanced UX**: Chat Widget v0.4.9 with further UX enhancements and design updates
-
-*Want to see what's coming next? Check out our [Development Roadmap](docs/roadmap/README.md)*
-
-
-## Features
-
-### **Retrieval-Augmented Generation (RAG)**
-- **Knowledge Integration**: Connect your data sources to enhance AI responses
-- **Multi-Adapter Support**: SQL, Vector, and File-based retrieval systems
-- **Context-Aware Responses**: Intelligent query processing with confidence scoring
-
-### **Conversation History**
-- **Chat History**: Persistent conversation tracking with MongoDB
-- **Session Management**: Multi-user session handling and archiving
-- **Multi-Language Support**: Automatic language detection and processing
-
-### **Security & Moderation**
-ORBIT integrates with two types of guardrail services to prevent harmful content and ensure safe AI interactions:
-
-- **LLM Guard Service**: Advanced content scanning with real-time threat detection
-- **Moderator Service**: Multi-provider content moderation
-
-### **Web Integration**
-- **Chatbot Widget**: Ready-to-deploy web widget with theming options
-- **Customizable UI**: Responsive design with configurable appearance
-- **Easy Integration**: Simple npm package for website embedding
+Integration with commercial AI platforms is optional and requires your own API keys. Currently, ORBIT supports SQL, Vector, and File-based retrieval systems. Support for additional data sources is planned for future releases. See [roadmap](https://github.com/schmitech/orbit/tree/main/docs/roadmap) for further details. ORBIT is fast evolving, so feel free to [add a request](https://github.com/schmitech/orbit/issues) if you have a specific requirement that's not currently supported.
 
 ## Minimum Requirements
 
 - A device (Windows/Linux or Mac) with 16GB memory, GPU preferred
 - Python 3.12+
-- MongoDB (required for RAG mode and chat history)
-- Redis (optional for caching)
-- Elasticsearch (optional for logging)
-
-![ORBIT Chat GUI Example](docs/images/orbit-chat-gui.gif)
+- MongoDB (required for authentication, RAG and conversation history)
+- Redis (optional)
+- Elasticsearch (optional)
 
 ## Quick Start
 
