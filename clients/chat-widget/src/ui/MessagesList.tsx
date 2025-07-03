@@ -157,8 +157,8 @@ export const MessagesList: React.FC<MessagesListProps> = ({
         <div className="py-4">
           <div className="w-full px-3 mb-6">
             <div className="max-w-lg mx-auto sm:max-w-2xl">
-              <h4 className="font-bold text-2xl mb-4 px-1" style={{ color: theme.text.primary }}>{currentConfig.welcome.title}</h4>
-              <p className="text-xl px-1 py-2" style={{ color: theme.text.secondary }}>
+              <h4 className="font-bold text-xl mb-4 px-1" style={{ color: theme.text.primary }}>{currentConfig.welcome.title}</h4>
+              <p className="text-lg px-1 py-2" style={{ color: theme.text.secondary }}>
                 {currentConfig.welcome.description}
               </p>
             </div>
