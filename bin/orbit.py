@@ -1535,6 +1535,15 @@ class ApiManager:
     
     def _ensure_authenticated(self) -> None:
         """Ensure user is authenticated before proceeding"""
+        # First check if authentication is enabled in server config
+        auth_enabled = self.config_manager._get_server_config_value('auth.enabled', False)
+        
+        # If auth is disabled, allow access without authentication
+        if not auth_enabled:
+            logger.debug("Authentication disabled in server config - allowing access without authentication")
+            return
+        
+        # If auth is enabled, require authentication
         if not self.admin_token:
             raise AuthenticationError("Authentication required. Please run 'orbit login' first.")
     
@@ -1694,6 +1703,9 @@ class ApiManager:
             Dictionary containing authentication status, user info, and security info
         """
         storage_method = self.config_manager.get_auth_storage_method()
+        
+        # Check if authentication is enabled in server config
+        auth_enabled = self.config_manager._get_server_config_value('auth.enabled', False)
 
         # Check if token exists (suppress legacy warning for status check)
         token = self._load_token_secure(suppress_legacy_warning=True)
@@ -1701,6 +1713,7 @@ class ApiManager:
             return {
                 "authenticated": False,
                 "message": "Not authenticated",
+                "server_auth_enabled": auth_enabled,
                 "security": {
                     "storage_method": storage_method,
                     "keyring_available": KEYRING_AVAILABLE
@@ -1713,6 +1726,7 @@ class ApiManager:
             return {
                 "authenticated": True,
                 "user": user_info,
+                "server_auth_enabled": auth_enabled,
                 "security": {
                     "storage_method": storage_method,
                     "keyring_available": KEYRING_AVAILABLE
@@ -1722,6 +1736,7 @@ class ApiManager:
             return {
                 "authenticated": False,
                 "message": "Token expired or invalid",
+                "server_auth_enabled": auth_enabled,
                 "security": {
                     "storage_method": storage_method,
                     "keyring_available": KEYRING_AVAILABLE
@@ -1731,6 +1746,7 @@ class ApiManager:
             return {
                 "authenticated": False,
                 "message": f"Error checking status: {str(e)}",
+                "server_auth_enabled": auth_enabled,
                 "security": {
                     "storage_method": storage_method,
                     "keyring_available": KEYRING_AVAILABLE
@@ -3001,6 +3017,13 @@ Report issues at: https://github.com/schmitech/orbit/issues
         """Handler for the 'login' command."""
         api_manager = self.get_api_manager(args.server_url)
         
+        # Check if authentication is enabled in server config
+        auth_enabled = api_manager.config_manager._get_server_config_value('auth.enabled', False)
+        if not auth_enabled:
+            self.formatter.warning("Authentication is disabled in server config")
+            self.formatter.info("Login is not required - key and prompt operations are available without authentication")
+            return 0
+        
         # Check if already authenticated
         auth_status = api_manager.check_auth_status()
         if auth_status.get('authenticated'):
@@ -3063,6 +3086,13 @@ Report issues at: https://github.com/schmitech/orbit/issues
         """Handler for the 'register' command."""
         api_manager = self.get_api_manager(args.server_url)
         
+        # Check if authentication is enabled in server config
+        auth_enabled = api_manager.config_manager._get_server_config_value('auth.enabled', False)
+        if not auth_enabled:
+            self.formatter.warning("Authentication is disabled in server config")
+            self.formatter.info("User registration is not available when authentication is disabled")
+            return 1
+        
         password = args.password
         if not password:
             password = getpass.getpass("Password for new user: ")
@@ -3081,6 +3111,14 @@ Report issues at: https://github.com/schmitech/orbit/issues
     def handle_me_command(self, args):
         """Handler for the 'me' command."""
         api_manager = self.get_api_manager(args.server_url)
+        
+        # Check if authentication is enabled in server config
+        auth_enabled = api_manager.config_manager._get_server_config_value('auth.enabled', False)
+        if not auth_enabled:
+            self.formatter.warning("Authentication is disabled in server config")
+            self.formatter.info("User information is not available when authentication is disabled")
+            return 1
+        
         result = api_manager.get_current_user()
         if args.output == 'json':
             self.formatter.format_json(result)
@@ -3320,6 +3358,14 @@ Report issues at: https://github.com/schmitech/orbit/issues
     def handle_user_list_command(self, args):
         """Handler for the 'user list' command."""
         api_manager = self.get_api_manager(args.server_url)
+        
+        # Check if authentication is enabled in server config
+        auth_enabled = api_manager.config_manager._get_server_config_value('auth.enabled', False)
+        if not auth_enabled:
+            self.formatter.warning("Authentication is disabled in server config")
+            self.formatter.info("User management is not available when authentication is disabled")
+            return 1
+        
         result = api_manager.list_users(
             role=args.role,
             active_only=args.active_only,
@@ -3357,6 +3403,13 @@ Report issues at: https://github.com/schmitech/orbit/issues
         """Handler for the 'user reset-password' command."""
         api_manager = self.get_api_manager(args.server_url)
         
+        # Check if authentication is enabled in server config
+        auth_enabled = api_manager.config_manager._get_server_config_value('auth.enabled', False)
+        if not auth_enabled:
+            self.formatter.warning("Authentication is disabled in server config")
+            self.formatter.info("User management is not available when authentication is disabled")
+            return 1
+        
         # Determine user ID from either --user-id or --username
         user_id = args.user_id
         if args.username:
@@ -3380,12 +3433,20 @@ Report issues at: https://github.com/schmitech/orbit/issues
     
     def handle_user_delete_command(self, args):
         """Handler for the 'user delete' command."""
+        api_manager = self.get_api_manager(args.server_url)
+        
+        # Check if authentication is enabled in server config
+        auth_enabled = api_manager.config_manager._get_server_config_value('auth.enabled', False)
+        if not auth_enabled:
+            self.formatter.warning("Authentication is disabled in server config")
+            self.formatter.info("User management is not available when authentication is disabled")
+            return 1
+        
         if not args.force:
             if not Confirm.ask(f"Are you sure you want to delete user {args.user_id[:12]}...?"):
                 self.formatter.info("Operation cancelled")
                 return 0
         
-        api_manager = self.get_api_manager(args.server_url)
         result = api_manager.delete_user(args.user_id)
         if getattr(args, 'output', None) == 'json':
             self.formatter.format_json(result)
@@ -3395,12 +3456,20 @@ Report issues at: https://github.com/schmitech/orbit/issues
     
     def handle_user_deactivate_command(self, args):
         """Handler for the 'user deactivate' command."""
+        api_manager = self.get_api_manager(args.server_url)
+        
+        # Check if authentication is enabled in server config
+        auth_enabled = api_manager.config_manager._get_server_config_value('auth.enabled', False)
+        if not auth_enabled:
+            self.formatter.warning("Authentication is disabled in server config")
+            self.formatter.info("User management is not available when authentication is disabled")
+            return 1
+        
         if not args.force:
             if not Confirm.ask(f"Are you sure you want to deactivate user {args.user_id[:12]}...?"):
                 self.formatter.info("Operation cancelled")
                 return 0
         
-        api_manager = self.get_api_manager(args.server_url)
         result = api_manager.deactivate_user(args.user_id)
         if getattr(args, 'output', None) == 'json':
             self.formatter.format_json(result)
@@ -3410,12 +3479,20 @@ Report issues at: https://github.com/schmitech/orbit/issues
     
     def handle_user_activate_command(self, args):
         """Handler for the 'user activate' command."""
+        api_manager = self.get_api_manager(args.server_url)
+        
+        # Check if authentication is enabled in server config
+        auth_enabled = api_manager.config_manager._get_server_config_value('auth.enabled', False)
+        if not auth_enabled:
+            self.formatter.warning("Authentication is disabled in server config")
+            self.formatter.info("User management is not available when authentication is disabled")
+            return 1
+        
         if not args.force:
             if not Confirm.ask(f"Are you sure you want to activate user {args.user_id[:12]}...?"):
                 self.formatter.info("Operation cancelled")
                 return 0
         
-        api_manager = self.get_api_manager(args.server_url)
         result = api_manager.activate_user(args.user_id)
         if getattr(args, 'output', None) == 'json':
             self.formatter.format_json(result)
@@ -3426,6 +3503,13 @@ Report issues at: https://github.com/schmitech/orbit/issues
     def handle_user_change_password_command(self, args):
         """Handler for the 'user change-password' command."""
         api_manager = self.get_api_manager(args.server_url)
+        
+        # Check if authentication is enabled in server config
+        auth_enabled = api_manager.config_manager._get_server_config_value('auth.enabled', False)
+        if not auth_enabled:
+            self.formatter.warning("Authentication is disabled in server config")
+            self.formatter.info("User management is not available when authentication is disabled")
+            return 1
         
         # Prompt for current password if not provided
         current_password = args.current_password
@@ -3721,6 +3805,14 @@ Report issues at: https://github.com/schmitech/orbit/issues
     
     def _display_auth_status(self, result: Dict[str, Any]) -> None:
         """Display authentication status in a formatted way."""
+        # Show server authentication status
+        server_auth_enabled = result.get('server_auth_enabled', False)
+        if server_auth_enabled:
+            console.print(f"[bold]Server Authentication:[/bold] [green]ENABLED[/green]")
+        else:
+            console.print(f"[bold]Server Authentication:[/bold] [yellow]DISABLED[/yellow]")
+            console.print("[dim]Note: Key and prompt operations are available without login when auth is disabled[/dim]")
+        
         if result.get('authenticated'):
             self.formatter.success("authenticated")
             user = result.get('user', {})
@@ -3730,7 +3822,10 @@ Report issues at: https://github.com/schmitech/orbit/issues
             console.print(f"[bold]Created:[/bold] {user.get('created_at', 'N/A')}")
             console.print(f"[bold]Last Login:[/bold] {user.get('last_login', 'N/A')}")
         else:
-            self.formatter.warning("not authenticated")
+            if not server_auth_enabled:
+                self.formatter.info("not authenticated (not required)")
+            else:
+                self.formatter.warning("not authenticated")
             message = result.get('message', 'No active session')
             console.print(f"\n[bold]Status:[/bold] {message}")
 
