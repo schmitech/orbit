@@ -7,6 +7,7 @@ import { CHAT_CONSTANTS } from '../shared/styles';
 export type MessageRole = 'user' | 'assistant' | 'system';
 
 export interface Message {
+  id: string;
   role: MessageRole;
   content: string;
 }
@@ -74,6 +75,15 @@ function ensureApiConfigured(): boolean {
   return false;
 }
 
+// Helper function to generate unique IDs
+function generateMessageId(): string {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  // Fallback for environments without crypto.randomUUID
+  return `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+}
+
 export const useChatStore = create<ChatState>((set, get) => ({
   messages: [],
   isLoading: false,
@@ -98,13 +108,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }
       // Add user message
       set(state => ({
-        messages: [...state.messages, { role: 'user', content: safeContent }],
+        messages: [...state.messages, { id: generateMessageId(), role: 'user', content: safeContent }],
         isLoading: true,
         error: null
       }));
       // Add empty assistant message that will be filled as the stream comes in
       set(state => ({
-        messages: [...state.messages, { role: 'assistant', content: '' }],
+        messages: [...state.messages, { id: generateMessageId(), role: 'assistant', content: '' }],
       }));
       let receivedAnyText = false;
       try {
@@ -115,8 +125,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
             get().appendToLastMessage(chunk.text);
             receivedAnyText = true;
           }
-          // Handle audio content separately - don't append it to the text
-          // The audio handling should be done in the UI component
         }
         // If we didn't receive any text, show an error message
         if (!receivedAnyText) {
@@ -162,7 +170,3 @@ export const useChatStore = create<ChatState>((set, get) => ({
     // ensureApiConfigured();
   }
 }));
-
-// Don't try to configure the API immediately on load
-// Instead, wait for the first message to be sent
-// This prevents circular dependencies and initialization issues

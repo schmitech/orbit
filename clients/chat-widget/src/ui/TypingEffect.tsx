@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { MarkdownRenderer } from '../shared/MarkdownComponents';
 import { CHAT_CONSTANTS } from '../shared/styles';
 
@@ -29,207 +29,177 @@ export const TypingEffect: React.FC<TypingEffectProps> = ({
   setIsAnimating,
   scrollToBottom,
 }) => {
-  // Use a ref to store the current animation progress
-  const [displayedContent, setDisplayedContent] = useState(() => {
-    // Restore progress if available
-    const progress = typingProgressRef.current.get(messageIndex);
-    return progress ? content.slice(0, progress) : '';
-  });
+  // State for displayed content
+  const [displayedContent, setDisplayedContent] = useState('');
   const [isThinking, setIsThinking] = useState(true);
-  const currentIndexRef = useRef(typingProgressRef.current.get(messageIndex) || 0);
-  const isAnimatingRef = useRef(false);
+  
+  // Refs for animation control
+  const currentIndexRef = useRef(0);
   const animationFrameRef = useRef<number>();
-  // This flag tracks whether animation has been initialized
-  const hasInitializedRef = useRef(false);
-  // We'll use this to store the full content to ensure continuity
-  const fullContentRef = useRef(content);
+  const isLocallyAnimatingRef = useRef(false);
+  const hasCompletedRef = useRef(false);
+  const lastContentLengthRef = useRef(0);
 
-  // Initialize animation only once
+  // Clean up animation on unmount
   useEffect(() => {
-    // Skip if this message has already been animated
-    if (hasBeenAnimated(messageIndex)) {
-      setDisplayedContent(content);
-      setIsThinking(false);
-      onComplete();
-      typingProgressRef.current.set(messageIndex, content.length);
-      return;
-    }
-
-    // Update content if it changed but don't restart animation
-    if (hasInitializedRef.current && content !== fullContentRef.current) {
-      fullContentRef.current = content;
-      return;
-    }
-
-    // Skip if we've already initialized
-    if (hasInitializedRef.current) {
-      return;
-    }
-
-    // Mark as initialized to prevent restart on re-render
-    hasInitializedRef.current = true;
-    fullContentRef.current = content;
-
-    // Start the animation with a small delay to ensure component is ready
-    setTimeout(() => {
-      startTypingAnimation();
-    }, 10);
-
     return () => {
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
       }
+      isLocallyAnimatingRef.current = false;
     };
-  }, [messageIndex, content, hasBeenAnimated, onComplete]);
+  }, []);
 
-  // Function to handle animation
-  const startTypingAnimation = () => {
-    if (isAnimatingRef.current) {
+  // Skip animation for already animated messages
+  useEffect(() => {
+    if (hasBeenAnimated(messageIndex)) {
+      setDisplayedContent(content);
+      setIsThinking(false);
+      hasCompletedRef.current = true;
+      return;
+    }
+  }, [hasBeenAnimated, messageIndex, content]);
+
+  // Animation function
+  const animate = useCallback(() => {
+    if (!isLocallyAnimatingRef.current || hasCompletedRef.current) {
       return;
     }
 
-    if (!hasInitializedRef.current) {
-      return;
-    }
-
-    isAnimatingRef.current = true;
-    isTypingRef.current = true;
-    setIsAnimating(true);
+    const currentContent = content;
+    const targetLength = currentContent.length;
     
-    // Start from current position (important for resuming after tab switching)
-    let currentIndex = currentIndexRef.current;
-    let lastScrollTime = 0;
-    let lastTypingTime = 0;
-    const typingSpeed = 15; // milliseconds between characters (faster speed)
-
-    // Show thinking state only at the beginning
-    if (currentIndex === 0) {
-      setIsThinking(true);
-    } else {
+    if (currentIndexRef.current === 0 && targetLength > 0) {
       setIsThinking(false);
     }
 
-    const animateText = (timestamp: number) => {
-      // Check if animation was canceled or component unmounted
-      if (!isAnimatingRef.current || !hasInitializedRef.current) {
-        return;
-      }
+    if (currentIndexRef.current < targetLength) {
+      // Type one character
+      currentIndexRef.current++;
+      setDisplayedContent(currentContent.slice(0, currentIndexRef.current));
       
-      // Check if enough time has passed for the next character
-      if (timestamp - lastTypingTime < typingSpeed) {
-        animationFrameRef.current = requestAnimationFrame(animateText);
-        return;
-      }
+      // Save progress
+      typingProgressRef.current.set(messageIndex, currentIndexRef.current);
       
-      lastTypingTime = timestamp;
-      
-      if (currentIndex < fullContentRef.current.length) {
-        const newContent = fullContentRef.current.slice(0, currentIndex + 1);
-        setDisplayedContent(newContent);
-        typingProgressRef.current.set(messageIndex, currentIndex + 1);
-        
-        // Exit thinking state after first character
-        if (currentIndex === 0) {
-          setIsThinking(false);
-        }
+      // Schedule next frame
+      animationFrameRef.current = requestAnimationFrame(() => {
+        setTimeout(() => animate(), 15); // 15ms delay between characters
+      });
+    } else if (targetLength > 0 && currentIndexRef.current === targetLength) {
+      // Animation complete
+      completeAnimation();
+    }
+  }, [content, messageIndex, typingProgressRef]);
 
-        // Scroll occasionally during animation
-        if (timestamp - lastScrollTime > CHAT_CONSTANTS.ANIMATIONS.ANIMATION_SCROLL_INTERVAL) {
-          scrollToBottom();
-          lastScrollTime = timestamp;
-        }
-
-        // Save the current position (crucial for resuming)
-        currentIndex++;
-        currentIndexRef.current = currentIndex;
-        
-        animationFrameRef.current = requestAnimationFrame(animateText);
-      } else {
-        // Animation is complete
-        completeAnimation();
-      }
-    };
-
-    // Use setTimeout to ensure the first frame is scheduled properly
-    setTimeout(() => {
-      if (isAnimatingRef.current && hasInitializedRef.current) {
-        animationFrameRef.current = requestAnimationFrame(animateText);
-      }
-    }, 0);
-  };
-
-  // Handle animation completion
-  const completeAnimation = () => {
+  // Complete animation function
+  const completeAnimation = useCallback(() => {
+    if (hasCompletedRef.current) return;
+    
+    hasCompletedRef.current = true;
+    isLocallyAnimatingRef.current = false;
     isTypingRef.current = false;
-    onComplete();
-    isAnimatingRef.current = false;
     setIsAnimating(false);
+    setDisplayedContent(content);
+    typingProgressRef.current.set(messageIndex, content.length);
+    onComplete();
     scrollToBottom();
-    typingProgressRef.current.set(messageIndex, fullContentRef.current.length);
-  };
+  }, [content, messageIndex, onComplete, scrollToBottom, setIsAnimating, isTypingRef, typingProgressRef]);
+
+  // Skip animation on user input
+  const skipAnimation = useCallback(() => {
+    if (isLocallyAnimatingRef.current && !hasCompletedRef.current) {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+      currentIndexRef.current = content.length;
+      completeAnimation();
+    }
+  }, [content, completeAnimation]);
+
+  // Start or continue animation when content changes
+  useEffect(() => {
+    if (hasCompletedRef.current || hasBeenAnimated(messageIndex)) {
+      return;
+    }
+
+    const contentLength = content.length;
+    
+    // If content is empty, stay in thinking state
+    if (contentLength === 0) {
+      setIsThinking(true);
+      return;
+    }
+
+    // If this is new content (not just growing), start animation
+    if (!isLocallyAnimatingRef.current && contentLength > lastContentLengthRef.current) {
+      isLocallyAnimatingRef.current = true;
+      isTypingRef.current = true;
+      setIsAnimating(true);
+      
+      // Restore progress if available
+      const savedProgress = typingProgressRef.current.get(messageIndex) || 0;
+      if (savedProgress > 0 && savedProgress < contentLength) {
+        currentIndexRef.current = savedProgress;
+        setDisplayedContent(content.slice(0, savedProgress));
+        setIsThinking(false);
+      } else {
+        currentIndexRef.current = 0;
+        setDisplayedContent('');
+      }
+      
+      animate();
+    }
+
+    lastContentLengthRef.current = contentLength;
+  }, [content, messageIndex, animate, hasBeenAnimated, setIsAnimating, isTypingRef, typingProgressRef]);
 
   // Handle user input to skip animation
   useEffect(() => {
-    const handleUserInput = () => {
-      if (isAnimatingRef.current) {
-        if (animationFrameRef.current) {
-          cancelAnimationFrame(animationFrameRef.current);
-        }
-        setDisplayedContent(fullContentRef.current);
-        setIsThinking(false);
-        completeAnimation();
-        typingProgressRef.current.set(messageIndex, fullContentRef.current.length);
-      }
-    };
-
+    const handleUserInput = () => skipAnimation();
     const textarea = inputRef.current;
+    
     if (textarea) {
       textarea.addEventListener('input', handleUserInput);
+      textarea.addEventListener('keydown', handleUserInput);
     }
 
     return () => {
       if (textarea) {
         textarea.removeEventListener('input', handleUserInput);
+        textarea.removeEventListener('keydown', handleUserInput);
       }
     };
-  }, [inputRef]);
+  }, [inputRef, skipAnimation]);
 
-  // This is the key handler for document visibility changes
+  // Handle visibility changes
   useEffect(() => {
     let hiddenAt: number | null = null;
+    
     const handleVisibilityChange = () => {
       if (document.hidden) {
-        // Page is hidden, pause by canceling current animation
+        // Pause animation
         if (animationFrameRef.current) {
           cancelAnimationFrame(animationFrameRef.current);
-          isAnimatingRef.current = false;
         }
         hiddenAt = Date.now();
-      } else if (hasInitializedRef.current && !isAnimatingRef.current && currentIndexRef.current > 0 && currentIndexRef.current < fullContentRef.current.length) {
-        // Page is visible again
-        const now = Date.now();
-        if (hiddenAt && now - hiddenAt > CHAT_CONSTANTS.ANIMATIONS.VISIBILITY_SKIP_THRESHOLD) {
-          // If away for more than 1s, instantly finish animation
-          setDisplayedContent(fullContentRef.current);
-          setIsThinking(false);
-          completeAnimation();
-          typingProgressRef.current.set(messageIndex, fullContentRef.current.length);
-        } else {
-          // Resume animation
-          startTypingAnimation();
+      } else if (hiddenAt && !hasCompletedRef.current) {
+        // Resume or skip based on time away
+        const awayTime = Date.now() - hiddenAt;
+        if (awayTime > CHAT_CONSTANTS.ANIMATIONS.VISIBILITY_SKIP_THRESHOLD) {
+          skipAnimation();
+        } else if (isLocallyAnimatingRef.current) {
+          animate();
         }
         hiddenAt = null;
       }
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, []);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [animate, skipAnimation]);
 
-  if (isThinking && currentIndexRef.current === 0) {
+  // Render
+  if (isThinking && content.length === 0) {
     return (
       <div className="text-gray-500">
         <span className="font-medium">Thinking</span>
@@ -242,9 +212,5 @@ export const TypingEffect: React.FC<TypingEffectProps> = ({
     );
   }
 
-  return (
-    <div>
-      <MarkdownRenderer content={displayedContent} />
-    </div>
-  );
+  return <MarkdownRenderer content={displayedContent} />;
 };

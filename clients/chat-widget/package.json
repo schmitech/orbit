@@ -1,7 +1,7 @@
 {
   "name": "@schmitech/chatbot-widget",
   "private": false,
-  "version": "0.4.10",
+  "version": "0.4.11",
   "type": "module",
   "main": "./dist/chatbot-widget.umd.js",
   "module": "./dist/chatbot-widget.es.js",
@@ -27,7 +27,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@schmitech/chatbot-api": "^0.4.5",
+    "@schmitech/chatbot-api": "^0.5.1",
     "clsx": "^2.1.0",
     "katex": "^0.16.8",
     "lucide-react": "^0.344.0",
