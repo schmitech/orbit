@@ -5,7 +5,7 @@
  * Usage: DEBUG=1 npm run test-query "your query here" "http://your-api-url.com" ["your-api-key"] ["your-session-id"]
  */
 
-import { configureApi, streamChat } from '../api.ts';
+import { configureApi, streamChat } from '../dist/api.mjs';
 import readline from 'readline';
 
 // Get the query, API URL, API key, and optional session ID from command line arguments

@@ -5,7 +5,7 @@
  * Usage: npm run test-query-from-pairs path/to/questions.json "http://your-api-url.com" ["your-api-key"] [number_of_questions] ["your-session-id"]
  */
 
-import { configureApi, streamChat } from '../api.ts';
+import { configureApi, streamChat } from '../dist/api.mjs';
 import fs from 'fs';
 
 // Get the JSON file path, API URL, API key, number of questions, and optional session ID from command line arguments
@@ -67,26 +67,12 @@ try {
       console.log('🤖 Assistant: ');
       
       // Use streamChat with correct parameters (message, stream)
-      let previousText = '';
       for await (const response of streamChat(query, true)) {
         if (response.text) {
-          // Check if this is accumulated text or delta text
-          if (response.text.startsWith(previousText)) {
-            // This is accumulated text, extract only the new part
-            const newText = response.text.slice(previousText.length);
-            if (newText) {
-              process.stdout.write(newText);
-              buffer += newText;
-              hasReceivedData = true;
-            }
-            previousText = response.text;
-          } else {
-            // This is delta text, write it directly
-            process.stdout.write(response.text);
-            buffer += response.text;
-            previousText += response.text;
-            hasReceivedData = true;
-          }
+          // Write the text directly - the API now handles deltas correctly
+          process.stdout.write(response.text);
+          buffer += response.text;
+          hasReceivedData = true;
         }
         
         if (response.done) {

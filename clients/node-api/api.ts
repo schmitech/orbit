@@ -2,6 +2,30 @@
 let httpAgent: any = null;
 let httpsAgent: any = null;
 
+// Initialize agents for connection pooling in Node.js environments
+if (typeof window === 'undefined') {
+  // Lazy load to avoid including 'http' in browser bundles
+  Promise.all([
+    import('http').catch(() => null),
+    import('https').catch(() => null)
+  ]).then(([http, https]) => {
+    if (http?.default?.Agent) {
+      httpAgent = new http.default.Agent({ keepAlive: true });
+    } else if (http?.Agent) {
+      httpAgent = new http.Agent({ keepAlive: true });
+    }
+    
+    if (https?.default?.Agent) {
+      httpsAgent = new https.default.Agent({ keepAlive: true });
+    } else if (https?.Agent) {
+      httpsAgent = new https.Agent({ keepAlive: true });
+    }
+  }).catch(err => {
+    // Silently fail - connection pooling is optional
+    console.warn('Failed to initialize HTTP agents:', err.message);
+  });
+}
+
 // Define the StreamResponse interface
 export interface StreamResponse {
   text: string;
@@ -54,362 +78,323 @@ interface MCPResponse {
   };
 }
 
-// Store the configured API URL, key, and session ID
-let configuredApiUrl: string | null = null;
-let configuredApiKey: string | null = null;
-let configuredSessionId: string | null = null;
+export class ApiClient {
+  private readonly apiUrl: string;
+  private readonly apiKey: string | null;
+  private sessionId: string | null; // Session ID can be mutable
 
-// Configure the API with a custom URL, API key (optional), and session ID (optional)
-export const configureApi = (apiUrl: string, apiKey: string | null = null, sessionId: string | null = null): void => {
-  if (!apiUrl || typeof apiUrl !== 'string') {
-    throw new Error('API URL must be a valid string');
-  }
-  if (apiKey !== null && typeof apiKey !== 'string') {
-    throw new Error('API key must be a valid string or null');
-  }
-  if (sessionId !== null && typeof sessionId !== 'string') {
-    throw new Error('Session ID must be a valid string or null');
-  }
-  configuredApiUrl = apiUrl;
-  configuredApiKey = apiKey;
-  configuredSessionId = sessionId;
-}
-
-// Get the configured API URL or throw an error if not configured
-const getApiUrl = (): string => {
-  if (!configuredApiUrl) {
-    throw new Error('API URL not configured. Please call configureApi() with your server URL before using any API functions.');
-  }
-  return configuredApiUrl;
-};
-
-// Get the configured API key or return null if not configured
-const getApiKey = (): string | null => {
-  return configuredApiKey;
-};
-
-// Get the configured session ID or return null if not configured
-const getSessionId = (): string | null => {
-  return configuredSessionId;
-};
-
-// Helper to get fetch options with connection pooling if available
-const getFetchOptions = (apiUrl: string, options: RequestInit = {}): RequestInit | any => {
-  const isHttps = apiUrl.startsWith('https:');
-  
-  // Only use agents in Node.js environment
-  if (typeof window === 'undefined') {
-    if (isHttps && httpsAgent) {
-      return { ...options, agent: httpsAgent } as any;
-    } else if (httpAgent) {
-      return { ...options, agent: httpAgent } as any;
+  constructor(config: { apiUrl: string; apiKey?: string | null; sessionId?: string | null }) {
+    if (!config.apiUrl || typeof config.apiUrl !== 'string') {
+      throw new Error('API URL must be a valid string');
     }
-  }
-  
-  // Browser environment
-  const requestId = Date.now().toString(36) + Math.random().toString(36).substring(2);
-  
-  // Use keep-alive header in browser environments
-  const headers: Record<string, string> = {
-    'Connection': 'keep-alive',
-    'X-Request-ID': requestId
-  };
-  
-  // Add API key to headers only if it exists
-  const apiKey = getApiKey();
-  if (apiKey) {
-    headers['X-API-Key'] = apiKey;
-  }
-  
-  // Add session ID to headers only if it exists
-  const sessionId = getSessionId();
-  if (sessionId) {
-    headers['X-Session-ID'] = sessionId;
-  }
-  
-  return {
-    ...options,
-    headers: {
-      ...options.headers,
-      ...headers
+    if (config.apiKey !== undefined && config.apiKey !== null && typeof config.apiKey !== 'string') {
+      throw new Error('API key must be a valid string or null');
     }
-  };
-};
-
-// Create MCP request
-const createMCPRequest = (message: string, stream: boolean = true): MCPRequest => {
-  return {
-    jsonrpc: "2.0",
-    method: "tools/call",
-    params: {
-      name: "chat",
-      arguments: {
-        messages: [
-          { role: "user", content: message }
-        ],
-        stream
-      }
-    },
-    id: Date.now().toString(36) + Math.random().toString(36).substring(2)
-  };
-};
-
-// Create MCP tools request
-const createMCPToolsRequest = (tools: Array<{ name: string; parameters: Record<string, any> }>): MCPRequest => {
-  return {
-    jsonrpc: "2.0",
-    method: "tools/call",
-    params: {
-      name: "tools",
-      arguments: {
-        tools
-      }
-    },
-    id: Date.now().toString(36) + Math.random().toString(36).substring(2)
-  };
-};
-
-export async function* streamChat(
-  message: string,
-  stream: boolean = true
-): AsyncGenerator<StreamResponse> {
-  try {
-    const API_URL = getApiUrl();
+    if (config.sessionId !== undefined && config.sessionId !== null && typeof config.sessionId !== 'string') {
+      throw new Error('Session ID must be a valid string or null');
+    }
     
-    // Add timeout to the fetch request
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+    this.apiUrl = config.apiUrl;
+    this.apiKey = config.apiKey ?? null;
+    this.sessionId = config.sessionId ?? null;
+  }
 
-    const response = await fetch(`${API_URL}/v1/chat`, {
-      ...getFetchOptions(API_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': stream ? 'text/event-stream' : 'application/json'
-        },
-        body: JSON.stringify(createMCPRequest(message, stream)),
-      }),
-      signal: controller.signal
-    });
+  public setSessionId(sessionId: string | null): void {
+    if (sessionId !== null && typeof sessionId !== 'string') {
+      throw new Error('Session ID must be a valid string or null');
+    }
+    this.sessionId = sessionId;
+  }
 
-    clearTimeout(timeoutId);
+  public getSessionId(): string | null {
+    return this.sessionId;
+  }
+
+  // Helper to get fetch options with connection pooling if available
+  private getFetchOptions(options: RequestInit = {}): RequestInit {
+    const baseOptions: RequestInit = {};
+    
+    // Environment-specific options
+    if (typeof window === 'undefined') {
+      // Node.js: Use connection pooling agent
+      const isHttps = this.apiUrl.startsWith('https:');
+      const agent = isHttps ? httpsAgent : httpAgent;
+      if (agent) {
+        (baseOptions as any).agent = agent;
+      }
+    } else {
+      // Browser: Use keep-alive header
+      baseOptions.headers = { 'Connection': 'keep-alive' };
+    }
+
+    // Common headers
+    const headers: Record<string, string> = {
+      'X-Request-ID': Date.now().toString(36) + Math.random().toString(36).substring(2),
+    };
+
+    // Merge base options headers (for browser keep-alive)
+    if (baseOptions.headers) {
+      Object.assign(headers, baseOptions.headers);
+    }
+
+    // Merge original request headers
+    if (options.headers) {
+      Object.assign(headers, options.headers);
+    }
+
+    if (this.apiKey) {
+      headers['X-API-Key'] = this.apiKey;
+    }
+
+    if (this.sessionId) {
+      headers['X-Session-ID'] = this.sessionId;
+    }
+
+    return {
+      ...options,
+      ...baseOptions,
+      headers,
+    };
+  }
+
+  // Create MCP request
+  private createMCPRequest(message: string, stream: boolean = true): MCPRequest {
+    return {
+      jsonrpc: "2.0",
+      method: "tools/call",
+      params: {
+        name: "chat",
+        arguments: {
+          messages: [
+            { role: "user", content: message }
+          ],
+          stream
+        }
+      },
+      id: Date.now().toString(36) + Math.random().toString(36).substring(2)
+    };
+  }
+
+  // Create MCP tools request
+  private createMCPToolsRequest(tools: Array<{ name: string; parameters: Record<string, any> }>): MCPRequest {
+    return {
+      jsonrpc: "2.0",
+      method: "tools/call",
+      params: {
+        name: "tools",
+        arguments: {
+          tools
+        }
+      },
+      id: Date.now().toString(36) + Math.random().toString(36).substring(2)
+    };
+  }
+
+  public async *streamChat(
+    message: string,
+    stream: boolean = true
+  ): AsyncGenerator<StreamResponse> {
+    try {
+      // Add timeout to the fetch request
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+
+      const response = await fetch(`${this.apiUrl}/v1/chat`, {
+        ...this.getFetchOptions({
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': stream ? 'text/event-stream' : 'application/json'
+          },
+          body: JSON.stringify(this.createMCPRequest(message, stream)),
+        }),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Network response was not ok: ${response.status} ${errorText}`);
+      }
+
+      if (!stream) {
+        // Handle non-streaming response
+        const data = await response.json() as MCPResponse;
+        if (data.error) {
+          throw new Error(`MCP Error: ${data.error.message}`);
+        }
+        if (data.result?.output?.messages?.[0]?.content) {
+          yield {
+            text: data.result.output.messages[0].content,
+            done: true
+          };
+        }
+        return;
+      }
+      
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('No reader available');
+
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let hasReceivedContent = false;
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) {
+            break;
+          }
+
+          const chunk = decoder.decode(value, { stream: true });
+          buffer += chunk;
+          
+          // Process complete lines immediately as they arrive
+          let lineStartIndex = 0;
+          let newlineIndex;
+          
+          while ((newlineIndex = buffer.indexOf('\n', lineStartIndex)) !== -1) {
+            const line = buffer.slice(lineStartIndex, newlineIndex).trim();
+            lineStartIndex = newlineIndex + 1;
+            
+            if (line && line.startsWith('data: ')) {
+              const jsonText = line.slice(6).trim();
+              
+              // Check for [DONE] message or empty data lines
+              if (!jsonText || jsonText === '[DONE]') {
+                yield { text: '', done: true };
+                return;
+              }
+
+              try {
+                const data = JSON.parse(jsonText) as MCPResponse;
+                
+                if (data.error) {
+                  throw new Error(`MCP Error: ${data.error.message}`);
+                }
+                
+                // Handle MCP protocol format - server sends chunks of new text directly
+                if (data.result?.type === 'chunk' && data.result.chunk?.content) {
+                  hasReceivedContent = true;
+                  yield { text: data.result.chunk.content, done: false };
+                } else if (data.result?.type === 'complete') {
+                  // Final piece of content or just the done signal
+                  const finalText = data.result.output?.messages?.[0]?.content ?? '';
+                  // Only yield final text if we haven't received incremental chunks
+                  if (!hasReceivedContent && finalText) {
+                    yield { text: finalText, done: true };
+                  } else {
+                    yield { text: '', done: true };
+                  }
+                  return;
+                } else if ('response' in data && typeof data.response === 'string') {
+                  // Handle direct server response format (legacy compatibility)
+                  const isDone = 'done' in data && data.done === true;
+                  
+                  if (isDone) {
+                    // For final response, only yield if we haven't received incremental chunks
+                    if (!hasReceivedContent && data.response) {
+                      yield { text: data.response, done: true };
+                    } else {
+                      yield { text: '', done: true };
+                    }
+                    return;
+                  } else {
+                    // For incremental chunks, always yield
+                    hasReceivedContent = true;
+                    yield { text: data.response, done: false };
+                  }
+                }
+                
+              } catch (parseError) {
+                console.warn('Error parsing JSON chunk:', parseError);
+              }
+            }
+          }
+          
+          // Keep remaining incomplete line in buffer
+          buffer = buffer.slice(lineStartIndex);
+          
+          // Prevent buffer from growing too large
+          if (buffer.length > 1000000) { // 1MB limit
+            console.warn('Buffer too large, truncating...');
+            buffer = buffer.slice(-500000); // Keep last 500KB
+          }
+        }
+        
+        // If we exit the while loop naturally, ensure we send a done signal
+        if (hasReceivedContent) {
+          yield { text: '', done: true };
+        }
+        
+      } finally {
+        reader.releaseLock();
+      }
+      
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        throw new Error('Connection timed out. Please check if the server is running.');
+      } else if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+        throw new Error('Could not connect to the server. Please check if the server is running.');
+      } else {
+        // Re-throw the error to be caught by the caller
+        throw error;
+      }
+    }
+  }
+
+  // New function to send tools request
+  public async sendToolsRequest(tools: Array<{ name: string; parameters: Record<string, any> }>): Promise<MCPResponse> {
+    const response = await fetch(`${this.apiUrl}/v1/chat`, this.getFetchOptions({
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(this.createMCPToolsRequest(tools)),
+    }));
 
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Network response was not ok: ${response.status} ${errorText}`);
     }
 
-    if (!stream) {
-      // Handle non-streaming response
-      const data = await response.json() as MCPResponse;
-      if (data.error) {
-        throw new Error(`MCP Error: ${data.error.message}`);
-      }
-      if (data.result?.output?.messages?.[0]?.content) {
-        yield {
-          text: data.result.output.messages[0].content,
-          done: true
-        };
-      }
-      return;
-    }
-    
-    const reader = response.body?.getReader();
-    if (!reader) throw new Error('No reader available');
-
-    const decoder = new TextDecoder();
-    let buffer = '';
-    let currentFullText = '';
-    let hasReceivedContent = false;
-
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) {
-          break;
-        }
-
-        const chunk = decoder.decode(value, { stream: true });
-        buffer += chunk;
-        
-        // Process complete lines immediately as they arrive
-        let lineStartIndex = 0;
-        let newlineIndex;
-        
-        while ((newlineIndex = buffer.indexOf('\n', lineStartIndex)) !== -1) {
-          const line = buffer.slice(lineStartIndex, newlineIndex).trim();
-          lineStartIndex = newlineIndex + 1;
-          
-          if (line && line.startsWith('data: ')) {
-            try {
-              const jsonText = line.slice(6).trim();
-              
-              // Check for [DONE] message (legacy format)
-              if (jsonText === '[DONE]') {
-                yield { text: '', done: true };
-                return;
-              }
-
-              // Skip empty data lines
-              if (!jsonText) {
-                continue;
-              }
-
-              const data = JSON.parse(jsonText) as MCPResponse;
-              
-              // Handle errors
-              if (data.error) {
-                throw new Error(`MCP Error: ${data.error.message}`);
-              }
-              
-              let content = '';
-              let isDone = false;
-              
-              // Handle MCP protocol format
-              if (data.result) {
-                if (data.result.type === 'start') {
-                  continue;
-                } else if (data.result.type === 'chunk' && data.result.chunk) {
-                  content = data.result.chunk.content;
-                } else if (data.result.type === 'complete' && data.result.output?.messages?.[0]) {
-                  content = data.result.output.messages[0].content;
-                  isDone = true;
-                }
-              }
-              
-              // Handle direct server response format (from LLM clients)
-              // This is what the server actually sends: { "response": "...", "done": false/true }
-              if (!content && 'response' in data && typeof data.response === 'string') {
-                content = data.response;
-              }
-              
-              // Check for done signal in the data
-              if ('done' in data && data.done === true) {
-                isDone = true;
-              }
-
-              if (content) {
-                const newText = extractNewText(content, currentFullText);
-                if (newText) {
-                  currentFullText += newText;
-                  hasReceivedContent = true;
-                  yield {
-                    text: newText,
-                    done: isDone
-                  };
-                }
-              }
-              
-              // If we received a done signal, exit
-              if (isDone) {
-                if (!hasReceivedContent) {
-                  // Yield empty response to indicate completion
-                  yield { text: '', done: true };
-                }
-                return;
-              }
-            } catch (parseError) {
-              // Don't throw, just continue processing
-              console.warn('Error parsing JSON chunk:', parseError);
-            }
-          }
-        }
-        
-        // Keep remaining incomplete line in buffer
-        buffer = buffer.slice(lineStartIndex);
-        
-        // Prevent buffer from growing too large
-        if (buffer.length > 1000000) { // 1MB limit
-          console.warn('Buffer too large, truncating...');
-          buffer = buffer.slice(-500000); // Keep last 500KB
-        }
-      }
-      
-      // If we exit the while loop naturally, ensure we send a done signal
-      if (hasReceivedContent) {
-        yield { text: '', done: true };
-      }
-      
-    } finally {
-      reader.releaseLock();
+    const data = await response.json() as MCPResponse;
+    if (data.error) {
+      throw new Error(`MCP Error: ${data.error.message}`);
     }
 
-    // Handle any remaining buffer (fallback)
-    if (buffer && buffer.startsWith('data: ')) {
-      try {
-        const jsonText = buffer.slice(6).trim();
-        if (jsonText && jsonText !== '[DONE]') {
-          const data = JSON.parse(jsonText) as MCPResponse;
-          if (data.result?.chunk?.content) {
-            const newText = extractNewText(data.result.chunk.content, currentFullText);
-            if (newText) {
-              yield {
-                text: newText,
-                done: true
-              };
-            }
-          }
-        }
-      } catch (error) {
-        console.warn('Error parsing final JSON buffer:', error);
-      }
-    }
-    
-  } catch (error: any) {
-    if (error.name === 'AbortError') {
-      yield { 
-        text: 'Connection timed out. Please check if the server is running.', 
-        done: true 
-      };
-    } else if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
-      yield { 
-        text: 'Could not connect to the server. Please check if the server is running.', 
-        done: true 
-      };
-    } else {
-      yield { 
-        text: `Error: ${error.message}`, 
-        done: true 
-      };
-    }
+    return data;
   }
 }
 
-// Helper function to extract only new text from incoming chunks
-function extractNewText(incomingText: string, currentText: string): string {
-  // Simplified version - just check if we have new content at the end
-  if (!currentText) return incomingText;
-  
-  // If incoming text is longer and starts with current text, return the new part
-  if (incomingText.length > currentText.length && incomingText.startsWith(currentText)) {
-    return incomingText.slice(currentText.length);
-  }
-  
-  // Otherwise return the full incoming text (fallback)
-  return incomingText;
+// Legacy compatibility functions - these create a default client instance
+// These are kept for backward compatibility but should be deprecated in favor of the class-based approach
+
+let defaultClient: ApiClient | null = null;
+
+// Configure the API with a custom URL, API key (optional), and session ID (optional)
+export const configureApi = (apiUrl: string, apiKey: string | null = null, sessionId: string | null = null): void => {
+  defaultClient = new ApiClient({ apiUrl, apiKey, sessionId });
 }
 
-// New function to send tools request
+// Legacy streamChat function that uses the default client
+export async function* streamChat(
+  message: string,
+  stream: boolean = true
+): AsyncGenerator<StreamResponse> {
+  if (!defaultClient) {
+    throw new Error('API not configured. Please call configureApi() with your server URL before using any API functions.');
+  }
+  
+  yield* defaultClient.streamChat(message, stream);
+}
+
+// Legacy sendToolsRequest function that uses the default client
 export async function sendToolsRequest(tools: Array<{ name: string; parameters: Record<string, any> }>): Promise<MCPResponse> {
-  const API_URL = getApiUrl();
+  if (!defaultClient) {
+    throw new Error('API not configured. Please call configureApi() with your server URL before using any API functions.');
+  }
   
-  const response = await fetch(`${API_URL}/v1/chat`, getFetchOptions(API_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(createMCPToolsRequest(tools)),
-  }));
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Network response was not ok: ${response.status} ${errorText}`);
-  }
-
-  const data = await response.json() as MCPResponse;
-  if (data.error) {
-    throw new Error(`MCP Error: ${data.error.message}`);
-  }
-
-  return data;
+  return defaultClient.sendToolsRequest(tools);
 }
