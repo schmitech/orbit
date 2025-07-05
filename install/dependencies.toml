@@ -91,12 +91,6 @@ dependencies = [
     "pre-commit>=4.2.0",
 ]
 
-# GGUF model configuration
-[models.gguf.gemma_3_1b]
-url = "https://huggingface.co/unsloth/gemma-3-1b-it-GGUF/resolve/main/gemma-3-1b-it-Q4_0.gguf"
-path = "server/gguf/gemma-3-1b-it-Q4_0.gguf"
-description = "Gemma 3 1B quantized model"
-
 # Custom profile example - users can add their own
 [profiles.custom_example]
 description = "Example custom profile with specific providers"

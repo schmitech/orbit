@@ -1,14 +1,12 @@
 import React, { useState } from 'react';
-import { Plus, Search, MessageSquare, MoreHorizontal, Trash2, Edit2, Settings } from 'lucide-react';
+import { Plus, Search, MessageSquare, MoreHorizontal, Trash2, Edit2 } from 'lucide-react';
 import { useChatStore } from '../stores/chatStore';
 import { Conversation } from '../types';
 import { ConfirmationModal } from './ConfirmationModal';
 
-interface SidebarProps {
-  onOpenSettings: () => void;
-}
+interface SidebarProps {}
 
-export function Sidebar({ onOpenSettings }: SidebarProps) {
+export function Sidebar({}: SidebarProps) {
     const {
     conversations,
     currentConversationId,
@@ -89,51 +87,63 @@ export function Sidebar({ onOpenSettings }: SidebarProps) {
 
   return (
     <>
-      <div className="w-64 bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex flex-col h-full">
+      <div className="w-72 bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 flex flex-col h-full shadow-xl">
         {/* Header */}
-        <div className="h-20 p-4 border-b border-gray-200 dark:border-gray-700 flex items-center">
+        <div className="p-6 pb-4">
           <button
             onClick={handleNewChat}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium text-sm"
+            className="w-full group flex items-center justify-center gap-3 px-6 py-4 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 dark:from-blue-500 dark:to-blue-600 dark:hover:from-blue-600 dark:hover:to-blue-700 text-white rounded-xl transition-all duration-200 font-medium text-sm shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
           >
-            <Plus className="w-4 h-4" />
-            New Chat
+            <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform duration-200" />
+            New Conversation
           </button>
         </div>
 
         {/* Search */}
-        <div className="p-3">
+        <div className="px-6 pb-4">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
             <input
               type="text"
               placeholder="Search conversations..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
+              className="w-full pl-12 pr-4 py-3 bg-white dark:bg-slate-800 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-400/30 shadow-sm hover:shadow-md transition-all duration-200 placeholder-slate-400 dark:placeholder-slate-500"
             />
           </div>
         </div>
 
         {/* Conversations List */}
-        <div className="flex-1 overflow-y-auto px-2">
+        <div className="flex-1 overflow-y-auto px-4 pb-4">
           {filteredConversations.length === 0 ? (
-            <div className="p-4 text-center text-gray-500 dark:text-gray-400 text-sm">
-              {searchQuery ? 'No conversations found' : 'No conversations yet'}
+            <div className="p-8 text-center">
+              <MessageSquare className="w-12 h-12 mx-auto mb-4 text-slate-300 dark:text-slate-600" />
+              <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">
+                {searchQuery ? 'No conversations found' : 'No conversations yet'}
+              </p>
+              <p className="text-slate-400 dark:text-slate-500 text-xs mt-2">
+                {searchQuery ? 'Try a different search term' : 'Start a new conversation to begin'}
+              </p>
             </div>
           ) : (
-            <div className="space-y-1">
+            <div className="space-y-2">
               {filteredConversations.map((conversation) => (
                 <div
                   key={conversation.id}
                   onClick={() => selectConversation(conversation.id)}
-                  className={`group flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${
+                  className={`group flex items-center gap-3 p-4 rounded-xl cursor-pointer transition-all duration-200 ${
                     currentConversationId === conversation.id
-                      ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-900 dark:text-blue-100'
-                      : 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300'
+                      ? 'bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/30 dark:to-indigo-900/30 shadow-md transform scale-[1.02]'
+                      : 'hover:bg-gradient-to-r hover:from-slate-50 hover:to-slate-100 dark:hover:from-slate-800 dark:hover:to-slate-700 hover:shadow-md hover:transform hover:scale-[1.01]'
                   }`}
                 >
-                  <MessageSquare className="w-4 h-4 flex-shrink-0" />
+                  <div className={`p-2 rounded-lg ${
+                    currentConversationId === conversation.id
+                      ? 'bg-blue-100 dark:bg-blue-800/50 text-blue-600 dark:text-blue-400'
+                      : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 group-hover:bg-slate-200 dark:group-hover:bg-slate-600'
+                  }`}>
+                    <MessageSquare className="w-4 h-4" />
+                  </div>
                   
                   {editingId === conversation.id ? (
                     <input
@@ -145,29 +155,38 @@ export function Sidebar({ onOpenSettings }: SidebarProps) {
                         if (e.key === 'Escape') handleEditCancel();
                       }}
                       onBlur={() => handleEditSubmit(conversation.id)}
-                      className="flex-1 bg-transparent border-none outline-none text-sm"
+                      className="flex-1 bg-transparent border-none outline-none text-sm font-medium text-slate-700 dark:text-slate-300"
                       autoFocus
                     />
                   ) : (
-                    <span className="flex-1 text-sm truncate">
-                      {conversation.title}
-                    </span>
+                    <div className="flex-1 min-w-0">
+                      <h3 className={`text-sm font-medium truncate ${
+                        currentConversationId === conversation.id
+                          ? 'text-slate-900 dark:text-slate-100'
+                          : 'text-slate-700 dark:text-slate-300'
+                      }`}>
+                        {conversation.title}
+                      </h3>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                        {conversation.messages.length} messages
+                      </p>
+                    </div>
                   )}
 
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                     <button
                       onClick={(e) => handleEditStart(e, conversation)}
-                      className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
+                      className="p-2 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg transition-colors duration-200"
                       title="Edit title"
                     >
-                      <Edit2 className="w-3 h-3" />
+                      <Edit2 className="w-4 h-4 text-slate-500 dark:text-slate-400" />
                     </button>
                     <button
                       onClick={(e) => handleDeleteConversation(e, conversation)}
-                      className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors text-red-600 dark:text-red-400"
+                      className="p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors duration-200 text-red-500 dark:text-red-400"
                       title="Delete conversation"
                     >
-                      <Trash2 className="w-3 h-3" />
+                      <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
@@ -176,16 +195,7 @@ export function Sidebar({ onOpenSettings }: SidebarProps) {
           )}
         </div>
 
-        {/* Footer */}
-        <div className="h-24 p-4 border-t border-gray-200 dark:border-gray-700 flex items-center">
-          <button
-            onClick={onOpenSettings}
-            className="w-full flex items-center justify-center gap-3 px-4 py-3 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
-          >
-            <Settings className="w-5 h-5" />
-            Settings
-          </button>
-        </div>
+
       </div>
 
       {/* Delete Confirmation Modal */}

@@ -41,21 +41,42 @@
   }
   
   body {
-    @apply bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100;
+    @apply bg-gradient-to-br from-slate-100 via-white to-blue-100 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 text-slate-900 dark:text-slate-100;
+  }
+  
+  /* Remove all textarea borders and outlines */
+  textarea {
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+    appearance: none !important;
+  }
+  
+  textarea:focus {
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+    ring: none !important;
   }
 }
 
 @layer components {
   .prose {
-    @apply text-gray-900 dark:text-gray-100;
+    @apply text-slate-900 dark:text-slate-100;
   }
   
   .prose pre {
-    @apply bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100;
+    @apply bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-xl;
   }
   
   .prose code {
-    @apply bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100;
+    @apply bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-md px-1.5 py-0.5;
+  }
+  
+  .prose blockquote {
+    @apply border-l-4 border-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-r-xl pl-6 py-4 my-4;
   }
 }
 
@@ -66,15 +87,15 @@
 }
 
 ::-webkit-scrollbar-track {
-  @apply bg-gray-100 dark:bg-gray-800;
+  @apply bg-slate-100 dark:bg-slate-800 rounded-full;
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-gray-300 dark:bg-gray-600 rounded-full;
+  @apply bg-slate-300 dark:bg-slate-600 rounded-full hover:bg-slate-400 dark:hover:bg-slate-500;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  @apply bg-gray-400 dark:bg-gray-500;
+  @apply bg-slate-400 dark:bg-slate-500;
 }
 
 /* High contrast mode adjustments */
@@ -83,20 +104,16 @@
   --tw-bg-opacity: 1;
 }
 
-.high-contrast .text-gray-500 {
-  @apply text-gray-700 dark:text-gray-300;
+.high-contrast .text-slate-500 {
+  @apply text-slate-700 dark:text-slate-300;
 }
 
-.high-contrast .text-gray-400 {
-  @apply text-gray-600 dark:text-gray-200;
+.high-contrast .text-slate-400 {
+  @apply text-slate-600 dark:text-slate-200;
 }
 
-.high-contrast .border-gray-200 {
-  @apply border-gray-400 dark:border-gray-500;
-}
-
-.high-contrast .bg-gray-50 {
-  @apply bg-gray-100 dark:bg-gray-800;
+.high-contrast .bg-slate-50 {
+  @apply bg-slate-100 dark:bg-slate-800;
 }
 
 /* Animation improvements */
@@ -110,12 +127,23 @@
   to { transform: translateX(0); }
 }
 
+@keyframes shimmer {
+  0% { background-position: -200px 0; }
+  100% { background-position: 200px 0; }
+}
+
 .animate-fadeIn {
-  animation: fadeIn 0.2s ease-out;
+  animation: fadeIn 0.3s ease-out;
 }
 
 .animate-slideIn {
   animation: slideIn 0.3s ease-out;
+}
+
+.animate-shimmer {
+  animation: shimmer 1.5s infinite;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+  background-size: 200px 100%;
 }
 
 /* Focus improvements - Remove default focus styles for custom components */
@@ -127,12 +155,12 @@
 button:focus-visible,
 input:focus-visible,
 textarea:focus-visible {
-  @apply outline-none;
+  @apply outline-none ring-2 ring-blue-500/30 dark:ring-blue-400/30 ring-offset-2 ring-offset-white dark:ring-offset-slate-900;
 }
 
 /* Custom focus styles for buttons */
 button:focus-visible {
-  @apply ring-2 ring-blue-500/50 dark:ring-blue-400/50 ring-offset-2 ring-offset-white dark:ring-offset-gray-900;
+  @apply transform scale-[1.02] transition-transform duration-200;
 }
 
 /* Mobile optimizations */
@@ -140,13 +168,35 @@ button:focus-visible {
   .prose {
     @apply text-sm;
   }
+  
+  body {
+    @apply text-sm;
+  }
 }
 
-/* Custom color for gray-750 */
-.bg-gray-750 {
-  background-color: rgb(55 65 81 / 0.7);
+/* Glass effect utility */
+.glass-effect {
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
 }
 
-.dark .bg-gray-750 {
-  background-color: rgb(31 41 55 / 0.8);
+/* Gradient text utility */
+.gradient-text {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Modern shadow utilities */
+.shadow-modern {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.shadow-modern-lg {
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+.shadow-modern-xl {
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
 }

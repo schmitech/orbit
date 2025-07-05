@@ -9,12 +9,12 @@ function App() {
 
   return (
     <ThemeProvider>
-      <div className="h-screen flex bg-gray-100 dark:bg-gray-900">
+      <div className="h-screen flex bg-gradient-to-br from-slate-100 via-white to-blue-100 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
         {/* Sidebar */}
-        <Sidebar onOpenSettings={() => setIsSettingsOpen(true)} />
+        <Sidebar />
         
         {/* Main Chat Interface */}
-        <ChatInterface />
+        <ChatInterface onOpenSettings={() => setIsSettingsOpen(true)} />
         
         {/* Settings Modal */}
         <Settings 

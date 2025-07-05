@@ -27,11 +27,7 @@ export function Message({ message, onRegenerate }: MessageProps) {
   };
 
   return (
-    <div className={`group flex gap-4 p-4 ${
-      message.role === 'user' 
-        ? 'bg-transparent' 
-        : 'bg-gray-50 dark:bg-gray-800/50'
-    } ${message.isStreaming ? 'animate-pulse' : ''}`}>
+    <div className={`group flex gap-4 p-4 bg-transparent ${message.isStreaming ? 'animate-pulse' : ''}`}>
       
       {/* Avatar */}
       <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-medium ${

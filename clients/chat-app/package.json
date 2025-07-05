@@ -10,7 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@schmitech/chatbot-api": "^0.4.5",
+    "@schmitech/chatbot-api": "^0.5.1",
     "@types/markdown-it": "^14.1.2",
     "katex": "^0.16.22",
     "lucide-react": "^0.344.0",

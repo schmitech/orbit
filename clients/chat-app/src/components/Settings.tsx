@@ -140,38 +140,44 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
             </h3>
 
             {/* Voice Input */}
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between opacity-50">
               <div className="flex items-center gap-2">
-                <Mic className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                <Mic className="w-4 h-4 text-gray-400 dark:text-gray-500" />
                 <div>
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  <label className="text-sm font-medium text-gray-500 dark:text-gray-400">
                     Voice Input
                   </label>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    Enable microphone for voice messages
+                  <p className="text-xs text-gray-400 dark:text-gray-500">
+                    Enable microphone for voice messages (Coming soon)
                   </p>
                 </div>
               </div>
-              <button className="relative inline-flex h-6 w-11 items-center rounded-full bg-blue-600">
-                <span className="inline-block h-4 w-4 transform translate-x-6 rounded-full bg-white transition-transform" />
+              <button 
+                disabled
+                className="relative inline-flex h-6 w-11 items-center rounded-full bg-gray-200 dark:bg-gray-600 cursor-not-allowed"
+              >
+                <span className="inline-block h-4 w-4 transform translate-x-1 rounded-full bg-gray-300 dark:bg-gray-500" />
               </button>
             </div>
 
             {/* Sound Effects */}
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between opacity-50">
               <div className="flex items-center gap-2">
-                <Volume2 className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                <Volume2 className="w-4 h-4 text-gray-400 dark:text-gray-500" />
                 <div>
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  <label className="text-sm font-medium text-gray-500 dark:text-gray-400">
                     Sound Effects
                   </label>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    Play sounds for notifications
+                  <p className="text-xs text-gray-400 dark:text-gray-500">
+                    Play sounds for notifications (Coming soon)
                   </p>
                 </div>
               </div>
-              <button className="relative inline-flex h-6 w-11 items-center rounded-full bg-gray-200 dark:bg-gray-600">
-                <span className="inline-block h-4 w-4 transform translate-x-1 rounded-full bg-white transition-transform" />
+              <button 
+                disabled
+                className="relative inline-flex h-6 w-11 items-center rounded-full bg-gray-200 dark:bg-gray-600 cursor-not-allowed"
+              >
+                <span className="inline-block h-4 w-4 transform translate-x-1 rounded-full bg-gray-300 dark:bg-gray-500" />
               </button>
             </div>
           </div>

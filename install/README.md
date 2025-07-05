@@ -10,10 +10,11 @@ Orbit uses a TOML file (`dependencies.toml`) to manage different dependency prof
 
 This shows all available dependency profiles defined in `dependencies.toml`:
 - `minimal`: Core dependencies only (default)
-- `huggingface`: Adds Hugging Face model support
-- `commercial`: Adds commercial cloud providers (OpenAI, Anthropic, etc.)
-- `all`: Includes everything
+- `torch`: Adds PyTorch and transformer model support (GPU/CUDA optimized)
+- `commercial`: Adds commercial cloud providers (OpenAI, Anthropic, Google, etc.)
+- `all`: Includes everything (minimal + torch + commercial)
 - `development`: Adds development and testing tools
+- `custom_example`: Example custom profile (for reference)
 
 ### 2. Install Specific Profile
 
@@ -21,8 +22,8 @@ This shows all available dependency profiles defined in `dependencies.toml`:
 # Install minimal dependencies (default)
 ./setup.sh
 
-# Install Hugging Face support
-./setup.sh --profile huggingface
+# Install PyTorch support (GPU/CUDA optimized)
+./setup.sh --profile torch
 
 # Install commercial providers
 ./setup.sh --profile commercial
@@ -34,18 +35,24 @@ This shows all available dependency profiles defined in `dependencies.toml`:
 ### 3. Combine Multiple Profiles
 
 ```bash
-# Install both Hugging Face and commercial providers
-./setup.sh --profile huggingface --profile commercial
+# Install both PyTorch and commercial providers
+./setup.sh --profile torch --profile commercial
 ```
 
 ### 4. Download GGUF Model
 
 ```bash
-# Install minimal + download GGUF model
+# Install minimal + download default GGUF model (gemma3-1b.gguf)
 ./setup.sh --download-gguf
 
-# Install everything + download GGUF model
-./setup.sh --profile all --download-gguf
+# Install everything + download specific GGUF model
+./setup.sh --profile all --download-gguf gemma3-1b.gguf
+
+# Download multiple GGUF models
+./setup.sh --download-gguf gemma3-1b.gguf --download-gguf my-kaggle-model.gguf
+
+# Use custom GGUF models config file
+./setup.sh --download-gguf gemma3-1b.gguf --gguf-models-config ./my-custom-models.conf
 ```
 
 ## Creating Custom Profiles
@@ -75,7 +82,7 @@ Profiles can extend other profiles:
 ```toml
 [profiles.data_science]
 description = "Data science tools"
-extends = ["minimal", "huggingface"]
+extends = ["minimal", "torch"]
 dependencies = [
     "pandas>=2.0.0",
     "numpy>=1.24.0",
@@ -86,15 +93,12 @@ dependencies = [
 
 ## Model Configuration
 
-GGUF models are configured in the TOML file:
+GGUF models are configured in the `gguf-models.conf` file:
 
-```toml
-[models.gguf]
-gemma_3_1b = {
-    url = "https://huggingface.co/...",
-    path = "server/gguf/gemma-3-1b-it-Q4_0.gguf",
-    description = "Gemma 3 1B quantized model"
-}
+```bash
+# Example gguf-models.conf
+gemma3-1b.gguf=https://huggingface.co/unsloth/gemma-3-1b-it-GGUF/resolve/main/gemma-3-1b-it-Q4_0.gguf
+my-kaggle-model.gguf=https://www.kaggle.com/models/your/model/download/my-kaggle-model.gguf
 ```
 
 ## 📦 ORBIT Packaging and Distribution Guide
@@ -252,13 +256,15 @@ RUN pip install --no-cache-dir \
     llama-cpp-python==0.3.9 \
     elasticsearch==9.0.0
 
-# Install Hugging Face dependencies if profile includes it
-RUN if [ "$DEPENDENCY_PROFILE" = "huggingface" ] || [ "$DEPENDENCY_PROFILE" = "all" ]; then \
+# Install PyTorch dependencies if profile includes it
+RUN if [ "$DEPENDENCY_PROFILE" = "torch" ] || [ "$DEPENDENCY_PROFILE" = "all" ]; then \
     pip install --no-cache-dir \
-    huggingface-hub==0.30.2 \
-    safetensors==0.5.3 \
-    torch==2.1.0 \
-    transformers==4.35.0; \
+    torch==2.7.0 \
+    vllm>=0.9.1 \
+    transformers>=4.52.4 \
+    accelerate>=0.27.2 \
+    sentencepiece>=0.2.0 \
+    protobuf>=4.25.2; \
     fi
 
 # Install commercial provider dependencies if profile includes it
@@ -330,8 +336,8 @@ Build and distribute as a Docker image with different profiles:
 # Build with minimal dependencies
 docker build --build-arg DEPENDENCY_PROFILE=minimal -t orbit-server:0.1.0 .
 
-# Build with Hugging Face support
-docker build --build-arg DEPENDENCY_PROFILE=huggingface -t orbit-server:0.1.0 .
+# Build with PyTorch support
+docker build --build-arg DEPENDENCY_PROFILE=torch -t orbit-server:0.1.0 .
 
 # Build with commercial providers
 docker build --build-arg DEPENDENCY_PROFILE=commercial -t orbit-server:0.1.0 .
@@ -352,7 +358,7 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        - DEPENDENCY_PROFILE=all  # Options: minimal, huggingface, commercial, all
+        - DEPENDENCY_PROFILE=all  # Options: minimal, torch, commercial, all
         - INSTALL_EXTRA_DEPS=false
 ```
 
@@ -447,16 +453,17 @@ The installation script (`install.sh`) supports different dependency profiles to
 # Install with specific profile
 ./install.sh --profile all
 ./install.sh -p commercial
-./install.sh --profile huggingface
+./install.sh --profile torch
 ```
 
 ### Available Profiles
 
 - `minimal`: Core dependencies only (default)
-- `huggingface`: Adds Hugging Face model support
-- `commercial`: Adds commercial cloud providers (OpenAI, Anthropic, etc.)
-- `all`: Includes everything
+- `torch`: Adds PyTorch and transformer model support (GPU/CUDA optimized)
+- `commercial`: Adds commercial cloud providers (OpenAI, Anthropic, Google, etc.)
+- `all`: Includes everything (minimal + torch + commercial)
 - `development`: Adds development and testing tools
+- `custom_example`: Example custom profile (for reference)
 
 ### Examples
 
@@ -464,8 +471,8 @@ The installation script (`install.sh`) supports different dependency profiles to
 # Install minimal dependencies (default)
 ./install.sh
 
-# Install Hugging Face support
-./install.sh --profile huggingface
+# Install PyTorch support (GPU/CUDA optimized)
+./install.sh --profile torch
 
 # Install commercial providers
 ./install.sh --profile commercial
