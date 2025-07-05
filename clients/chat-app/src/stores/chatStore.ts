@@ -27,6 +27,13 @@ const generateUniqueMessageId = (role: 'user' | 'assistant'): string => {
   return `msg_${timestamp}_${counter}_${random}_${role}`;
 };
 
+// Generate unique session IDs for conversations
+const generateUniqueSessionId = (): string => {
+  const timestamp = Date.now();
+  const random = Math.random().toString(36).substr(2, 9);
+  return `session_${timestamp}_${random}`;
+};
+
 // Extended chat state for the store
 interface ExtendedChatState extends ChatState {
   sessionId: string;
@@ -58,8 +65,9 @@ function ensureApiConfigured(): boolean {
                 (window as any).CHATBOT_API_URL ||
                 'http://localhost:3000';
 
+  const apiKey = localStorage.getItem('chat-api-key') || 'orbit-123456789';
   const sessionId = getOrCreateSessionId();
-  configureApi(apiUrl, '', sessionId);
+  configureApi(apiUrl, apiKey, sessionId);
   currentApiUrl = apiUrl;
   apiConfigured = true;
   return true;
@@ -75,13 +83,18 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
   getSessionId: () => get().sessionId,
 
   configureApiSettings: (apiUrl: string, apiKey?: string, sessionId?: string) => {
-    const actualSessionId = sessionId || getOrCreateSessionId();
+    const state = get();
+    const currentConversation = state.conversations.find(conv => conv.id === state.currentConversationId);
+    
+    // Use the conversation's session ID if available, otherwise use the provided sessionId or generate one
+    const actualSessionId = currentConversation?.sessionId || sessionId || getOrCreateSessionId();
+    
     if (sessionId) {
       setSessionId(sessionId);
-      set({ sessionId: actualSessionId });
     }
+    set({ sessionId: actualSessionId });
     
-    // Configure the API with the provided URL and key
+    // Configure the API with the provided URL, key, and session ID
     configureApi(apiUrl, apiKey || '', actualSessionId);
     currentApiUrl = apiUrl;
     apiConfigured = true;
@@ -95,20 +108,29 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
 
   createConversation: () => {
     const id = `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const sessionId = get().sessionId;
+    const newSessionId = generateUniqueSessionId(); // Create unique session for this conversation
     const newConversation: Conversation = {
       id,
-      sessionId,
+      sessionId: newSessionId,
       title: 'New Chat',
       messages: [],
       createdAt: new Date(),
       updatedAt: new Date()
     };
 
+    // Update state with new conversation and switch to its session
     set((state: ExtendedChatState) => ({
       conversations: [newConversation, ...state.conversations],
-      currentConversationId: id
+      currentConversationId: id,
+      sessionId: newSessionId
     }));
+
+    // Reconfigure API with the new session ID
+    if (ensureApiConfigured()) {
+      const apiUrl = localStorage.getItem('chat-api-url') || 'http://localhost:3000';
+      const apiKey = localStorage.getItem('chat-api-key') || 'orbit-123456789';
+      configureApi(apiUrl, apiKey, newSessionId);
+    }
 
     // Save to localStorage
     setTimeout(() => {
@@ -123,7 +145,21 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
   },
 
   selectConversation: (id: string) => {
-    set({ currentConversationId: id });
+    const conversation = get().conversations.find(conv => conv.id === id);
+    if (conversation) {
+      // Switch to the conversation's session ID
+      set({ 
+        currentConversationId: id,
+        sessionId: conversation.sessionId
+      });
+      
+      // Reconfigure API with the conversation's session ID
+      if (ensureApiConfigured()) {
+        const apiUrl = localStorage.getItem('chat-api-url') || 'http://localhost:3000';
+        const apiKey = localStorage.getItem('chat-api-key') || 'orbit-123456789';
+        configureApi(apiUrl, apiKey, conversation.sessionId);
+      }
+    }
     
     // Save to localStorage
     setTimeout(() => {
@@ -231,11 +267,17 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       let receivedAnyText = false;
 
       try {
-        // Stream the response using chatbot-api
-        for await (const chunk of streamChat(content)) {
-          if (chunk.text) {
-            get().appendToLastMessage(chunk.text);
+        // Stream the response using chatbot-api with proper streaming handling
+        for await (const response of streamChat(content)) {
+          if (response.text) {
+            get().appendToLastMessage(response.text);
             receivedAnyText = true;
+            // Add a small delay to slow down the streaming effect
+            await new Promise(resolve => setTimeout(resolve, 30));
+          }
+          
+          if (response.done) {
+            break;
           }
         }
 
@@ -359,10 +401,16 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       let receivedAnyText = false;
 
       try {
-        for await (const chunk of streamChat(userMessage.content)) {
-          if (chunk.text) {
-            get().appendToLastMessage(chunk.text);
+        for await (const response of streamChat(userMessage.content)) {
+          if (response.text) {
+            get().appendToLastMessage(response.text);
             receivedAnyText = true;
+            // Add a small delay to slow down the streaming effect
+            await new Promise(resolve => setTimeout(resolve, 30));
+          }
+          
+          if (response.done) {
+            break;
           }
         }
 
@@ -441,21 +489,18 @@ const initializeStore = () => {
   // Initialize API configuration first
   const savedApiUrl = localStorage.getItem('chat-api-url') || 'http://localhost:3000';
   const savedApiKey = localStorage.getItem('chat-api-key') || 'orbit-123456789';
-  const sessionId = getOrCreateSessionId();
   
-  // Configure API with saved or default values
-  configureApi(savedApiUrl, '', sessionId);
-  currentApiUrl = savedApiUrl;
-  apiConfigured = true;
-
   // Then initialize the rest of the store
   const saved = localStorage.getItem('chat-state');
+  let sessionId = getOrCreateSessionId(); // Default session ID
+  
   if (saved) {
     try {
       const parsedState = JSON.parse(saved);
       // Restore Date objects and clean up any streaming messages
       parsedState.conversations = parsedState.conversations.map((conv: any) => ({
         ...conv,
+        sessionId: conv.sessionId || generateUniqueSessionId(), // Generate sessionId for existing conversations if missing
         createdAt: new Date(conv.createdAt),
         updatedAt: new Date(conv.updatedAt),
         messages: conv.messages
@@ -467,9 +512,20 @@ const initializeStore = () => {
           }))
       }));
       
+      // If there's a current conversation, use its session ID
+      if (parsedState.currentConversationId && parsedState.conversations) {
+        const currentConversation = parsedState.conversations.find(
+          (conv: any) => conv.id === parsedState.currentConversationId
+        );
+        if (currentConversation && currentConversation.sessionId) {
+          sessionId = currentConversation.sessionId;
+        }
+      }
+      
       useChatStore.setState({
         conversations: parsedState.conversations || [],
-        currentConversationId: parsedState.currentConversationId || null
+        currentConversationId: parsedState.currentConversationId || null,
+        sessionId: sessionId
       });
       
       // Clean up any residual streaming messages after initialization
@@ -480,6 +536,11 @@ const initializeStore = () => {
       console.error('Failed to load chat state:', error);
     }
   }
+  
+  // Configure API with saved or default values and the appropriate session ID
+  configureApi(savedApiUrl, savedApiKey, sessionId);
+  currentApiUrl = savedApiUrl;
+  apiConfigured = true;
 };
 
 // Initialize store on import
