@@ -11,7 +11,6 @@ import threading
 from queue import Queue
 
 from utils.text_utils import fix_text_formatting, mask_api_key
-from utils.language_detector import LanguageDetector
 from config.config_manager import _is_true_value
 
 # Configure logging
@@ -31,7 +30,6 @@ class ChatService:
     
     2. **LLM Processing** (only for safe messages):
        - Retrieve conversation context from chat history
-       - Apply language detection and enhancement
        - Send to LLM for inference
        - Get response from LLM
     
@@ -110,22 +108,6 @@ class ChatService:
             else:
                 logger.info("Moderator Service security checking disabled")
         
-        # Initialize language detector only if enabled
-        self.language_detection_enabled = _is_true_value(config.get('general', {}).get('language_detection', True))
-        if self.language_detection_enabled:
-            try:
-                self.language_detector = LanguageDetector(verbose=self.verbose)
-                if self.verbose:
-                    logger.info("Language detection enabled")
-            except Exception as e:
-                logger.warning(f"Failed to initialize language detector: {str(e)}, disabling language detection")
-                self.language_detection_enabled = False
-                self.language_detector = None
-        else:
-            self.language_detector = None
-            if self.verbose:
-                logger.info("Language detection disabled")
-                
         # Thread-safe queue for streaming responses
         self._stream_queues = {}
         self._stream_locks = {}
@@ -224,179 +206,7 @@ class ChatService:
         if self.verbose:
             logger.info(f"Generated response for {client_ip}")
             logger.info(f"Response: {response[:100]}...")  # Log just the beginning to avoid huge logs
-    
-    async def _detect_message_language(self, message: str) -> str:
-        """
-        Detect the language of a message
-        
-        Args:
-            message: The message to analyze
-            
-        Returns:
-            Language code (defaults to 'en' if detection fails)
-        """
-        # Skip language detection if disabled
-        if not self.language_detection_enabled or not self.language_detector:
-            return "en"
-            
-        try:
-            detected_lang = self.language_detector.detect(message)
-            if self.verbose:
-                logger.info(f"Language detection result: '{detected_lang}' for message: '{message[:50]}...'")
-            return detected_lang
-        except Exception as lang_error:
-            logger.warning(f"Language detection failed: {str(lang_error)}, defaulting to English")
-            return "en"
-    
-    def _get_language_name(self, language_code: str) -> str:
-        """
-        Get human-readable language name from ISO code
-        
-        Args:
-            language_code: Two-letter language code
-            
-        Returns:
-            Human-readable language name
-        """
-        try:
-            import pycountry
-            try:
-                language = pycountry.languages.get(alpha_2=language_code)
-                return language.name if language else f"the language with code '{language_code}'"
-            except (AttributeError, KeyError):
-                return f"the language with code '{language_code}'"
-        except ImportError:
-            language_names = {
-                'en': 'English', 'es': 'Spanish', 'fr': 'French', 'de': 'German',
-                'it': 'Italian', 'pt': 'Portuguese', 'ru': 'Russian', 'zh': 'Chinese',
-                'ja': 'Japanese', 'ko': 'Korean', 'ar': 'Arabic', 'hi': 'Hindi',
-                'mn': 'Mongolian'
-            }
-            return language_names.get(language_code, f"the language with code '{language_code}'")
-    
-    def _create_inference_only_language_instruction(self, language_name: str) -> str:
-        """
-        Create a strong language instruction for inference-only mode
-        
-        Args:
-            language_name: Human-readable language name
-            
-        Returns:
-            Language instruction text
-        """
-        return (
-            f"\n\n=== LANGUAGE OVERRIDE ===\n"
-            f"ATTENTION: The user has switched to {language_name}.\n"
-            f"MANDATORY INSTRUCTION: You MUST respond ONLY in {language_name}.\n"
-            f"IGNORE any previous conversation language patterns.\n"
-            f"The user expects and requires a response in {language_name}.\n"
-            f"Do NOT respond in English or any other language.\n"
-            f"=== END LANGUAGE OVERRIDE ===\n"
-        )
-    
-    def _create_full_mode_language_instruction(self, language_name: str) -> str:
-        """
-        Create a language instruction for full mode (system prompt enhancement)
-        
-        Args:
-            language_name: Human-readable language name
-            
-        Returns:
-            Language instruction text
-        """
-        return f"\n\nIMPORTANT: The user's message is in {language_name}. You MUST respond in {language_name} only."
-    
-    async def _enhance_system_prompt_with_language(self, system_prompt_id: ObjectId, language_instruction: str) -> bool:
-        """
-        Enhance a stored system prompt with language instruction
-        
-        Args:
-            system_prompt_id: ID of the system prompt to enhance
-            language_instruction: Language instruction to add
-            
-        Returns:
-            True if enhancement succeeded, False otherwise
-        """
-        if not (hasattr(self.llm_client, 'prompt_service') and self.llm_client.prompt_service):
-            return False
-            
-        try:
-            prompt_doc = await self.llm_client.prompt_service.get_prompt_by_id(system_prompt_id)
-            if prompt_doc and 'prompt' in prompt_doc:
-                enhanced_prompt = prompt_doc['prompt'] + language_instruction
-                self.llm_client.override_system_prompt = enhanced_prompt
-                
-                if self.verbose:
-                    logger.info(f"Enhanced stored system prompt with language instruction")
-                return True
-        except Exception as prompt_error:
-            logger.warning(f"Failed to retrieve/enhance system prompt: {str(prompt_error)}")
-        
-        return False
-    
-    async def _detect_and_enhance_prompt(self, message: str, system_prompt_id: Optional[ObjectId] = None) -> tuple[Optional[ObjectId], Optional[str]]:
-        """
-        Detect message language and prepare language enhancement
-        
-        Args:
-            message: The chat message to detect language from
-            system_prompt_id: Optional ID of the original system prompt
-            
-        Returns:
-            Tuple of (system_prompt_id, language_instruction):
-            - system_prompt_id: Original or None if enhanced in-place
-            - language_instruction: Language instruction to add, or None if not needed
-        """
-        try:
-            # Skip language detection if disabled
-            if not self.language_detection_enabled:
-                return system_prompt_id, None
-                
-            # Don't modify anything if the language detector is not available
-            if not self.language_detector:
-                if self.verbose:
-                    logger.warning("Language detector not available, skipping language enhancement")
-                return system_prompt_id, None
-            
-            # Detect the language of the message
-            detected_lang = await self._detect_message_language(message)
-            
-            # Only enhance if language is not English
-            if detected_lang == 'en':
-                return system_prompt_id, None
-            
-            # Get human-readable language name
-            language_name = self._get_language_name(detected_lang)
-            
-            # Check if we're in inference-only mode
-            inference_only = self.config.get('general', {}).get('inference_only', False)
-            
-            if inference_only:
-                # Inference-only mode: Create a very strong language instruction
-                language_instruction = self._create_inference_only_language_instruction(language_name)
-                
-                if self.verbose:
-                    logger.info(f"Inference-only mode: Creating language override for {language_name}")
-                return None, language_instruction
-            else:
-                # Full mode: language instruction goes to system prompt
-                language_instruction = self._create_full_mode_language_instruction(language_name)
-                
-                if self.verbose:
-                    logger.info(f"Full mode: Enhancing system prompt for {language_name}")
-                
-                # Try to enhance stored prompt if available
-                if system_prompt_id:
-                    if await self._enhance_system_prompt_with_language(system_prompt_id, language_instruction):
-                        return None, None
-                
-                # If no stored prompt available, return the language instruction
-                return system_prompt_id, language_instruction
-                
-        except Exception as e:
-            logger.error(f"Unexpected error in language detection: {str(e)}")
-            return system_prompt_id, None
-    
+
     async def _log_request_details(self, message: str, client_ip: str, collection_name: str, 
                                   system_prompt_id: Optional[ObjectId], api_key: Optional[str],
                                   session_id: Optional[str], user_id: Optional[str]):
@@ -442,7 +252,7 @@ class ChatService:
     async def _prepare_llm_request_data(self, message: str, system_prompt_id: Optional[ObjectId], 
                                        session_id: Optional[str]) -> tuple[str, List[Dict[str, str]], Optional[ObjectId]]:
         """
-        Prepare all data needed for the LLM request including context and language enhancements
+        Prepare all data needed for the LLM request including context
         
         Args:
             message: The original chat message
@@ -450,82 +260,24 @@ class ChatService:
             session_id: Optional session identifier for chat history
             
         Returns:
-            Tuple of (final_message, final_context_messages, enhanced_prompt_id)
+            Tuple of (final_message, final_context_messages, system_prompt_id)
         """
         # Get conversation context if session is provided
         context_messages = await self._get_conversation_context(session_id)
         
-        # Detect language and get enhancement instructions
-        enhanced_prompt_id, language_instruction = await self._detect_and_enhance_prompt(message, system_prompt_id)
-        
-        # Apply language enhancement if needed
-        final_message, final_context_messages = self._apply_language_enhancement(
-            message, context_messages, language_instruction
-        )
-        
-        return final_message, final_context_messages, enhanced_prompt_id
-    
-    def _apply_language_enhancement(self, message: str, context_messages: List[Dict[str, str]], 
-                                   language_instruction: Optional[str]) -> tuple[str, List[Dict[str, str]]]:
-        """
-        Apply language enhancement to message and context for inference-only mode
-        
-        Args:
-            message: The original chat message
-            context_messages: List of context messages
-            language_instruction: Optional language instruction to apply
-            
-        Returns:
-            Tuple of (final_message, final_context_messages)
-        """
-        final_message = message
-        final_context_messages = context_messages
-        
-        if language_instruction and self.config.get('general', {}).get('inference_only', False):
-            if self.verbose:
-                # Just log that we're applying language enhancement, not the full instruction
-                logger.info(f"Applying language override enhancement for inference-only mode")
-            
-            # In inference-only mode, we need to be strategic about language instruction placement
-            # Strategy 1: Prepend the language instruction to the user message for immediate impact
-            final_message = language_instruction + "\n\n" + message
-            
-            # Strategy 2: If we have conversation context, inject a language override message
-            # This helps override the established language pattern from history
-            if context_messages and len(context_messages) > 0:
-                # Create a copy of context messages to avoid modifying the original
-                final_context_messages = context_messages.copy()
-                
-                # Add a strategic language override message as the most recent context
-                # This appears right before the current user message, making it highly prominent
-                language_override_msg = {
-                    "role": "user",
-                    "content": f"Please note: I am now switching to a different language for my next question. Please respond in the same language I use in my next message, regardless of the language used in our previous conversation."
-                }
-                final_context_messages.append(language_override_msg)
-                
-                # Add assistant acknowledgment to reinforce the instruction
-                ack_msg = {
-                    "role": "assistant", 
-                    "content": "Understood. I will respond in whatever language you use in your next message."
-                }
-                final_context_messages.append(ack_msg)
-                
-                if self.verbose:
-                    logger.info(f"Added strategic language override context messages")
-        
-        return final_message, final_context_messages
+        # No language enhancement needed - return original message and context
+        return message, context_messages, system_prompt_id
     
     async def _generate_llm_response(self, final_message: str, collection_name: str, 
-                                    enhanced_prompt_id: Optional[ObjectId], 
+                                    system_prompt_id: Optional[ObjectId], 
                                     final_context_messages: List[Dict[str, str]]) -> Dict[str, Any]:
         """
-        Generate LLM response with proper prompt handling and cleanup
+        Generate LLM response with proper prompt handling
         
         Args:
             final_message: The processed message to send to LLM
             collection_name: Collection name for retrieval
-            enhanced_prompt_id: Optional enhanced prompt ID
+            system_prompt_id: Optional system prompt ID
             final_context_messages: Processed context messages
             
         Returns:
@@ -533,35 +285,17 @@ class ChatService:
         """
         try:
             # Generate response with appropriate prompt handling
-            if enhanced_prompt_id is None:
-                # Using override system prompt (full mode with language enhancement) or no system prompt (inference-only)
-                response_data = await self.llm_client.generate_response(
-                    message=final_message,
-                    collection_name=collection_name,
-                    context_messages=final_context_messages
-                )
-                # Clear any overrides after use
-                self._clear_prompt_overrides()
-            else:
-                # Using stored system prompt
-                response_data = await self.llm_client.generate_response(
-                    message=final_message,
-                    collection_name=collection_name,
-                    system_prompt_id=enhanced_prompt_id,
-                    context_messages=final_context_messages
-                )
+            response_data = await self.llm_client.generate_response(
+                message=final_message,
+                collection_name=collection_name,
+                system_prompt_id=system_prompt_id,
+                context_messages=final_context_messages
+            )
             
             return response_data
         except Exception as e:
             logger.error(f"Error generating LLM response: {str(e)}")
             return {"error": f"Failed to generate response: {str(e)}"}
-    
-    def _clear_prompt_overrides(self):
-        """Clear any prompt overrides after use"""
-        if hasattr(self.llm_client, 'clear_override_system_prompt'):
-            self.llm_client.clear_override_system_prompt()
-        elif hasattr(self.llm_client, 'override_system_prompt'):
-            self.llm_client.override_system_prompt = None
 
     async def _process_chat_base(self, message: str, client_ip: str, collection_name: str, 
                                  system_prompt_id: Optional[ObjectId] = None, api_key: Optional[str] = None,
@@ -579,7 +313,7 @@ class ChatService:
             user_id: Optional user identifier
             
         Returns:
-            Tuple of (enhanced_prompt_id, response_data, metadata)
+            Tuple of (system_prompt_id, response_data, metadata)
         """
         # 1. Log request details
         await self._log_request_details(message, client_ip, collection_name, system_prompt_id, 
@@ -614,14 +348,14 @@ class ChatService:
                     "security_check": security_result
                 }
         
-        # 3. Prepare LLM request data (context, language enhancement, etc.)
-        final_message, final_context_messages, enhanced_prompt_id = await self._prepare_llm_request_data(
+        # 3. Prepare LLM request data (context only, no language enhancement)
+        final_message, final_context_messages, system_prompt_id = await self._prepare_llm_request_data(
             message, system_prompt_id, session_id
         )
         
         # 4. Generate LLM response (only for safe messages)
         response_data = await self._generate_llm_response(
-            final_message, collection_name, enhanced_prompt_id, final_context_messages
+            final_message, collection_name, system_prompt_id, final_context_messages
         )
         
         # 5. Prepare metadata for storage
@@ -630,7 +364,7 @@ class ChatService:
             "client_ip": client_ip
         }
             
-        return enhanced_prompt_id, response_data, metadata
+        return system_prompt_id, response_data, metadata
 
     async def process_chat(self, message: str, client_ip: str, collection_name: str, 
                           system_prompt_id: Optional[ObjectId] = None, api_key: Optional[str] = None,
@@ -735,8 +469,8 @@ class ChatService:
                     yield f"data: {error_chunk}\n\n"
                     return
             
-            # Prepare LLM request data (context, language enhancement, etc.)
-            final_message, final_context_messages, enhanced_prompt_id = await self._prepare_llm_request_data(
+            # Prepare LLM request data (context only, no language enhancement)
+            final_message, final_context_messages, system_prompt_id = await self._prepare_llm_request_data(
                 message, system_prompt_id, session_id
             )
             
@@ -745,7 +479,6 @@ class ChatService:
                 "client_ip": client_ip,
                 "collection_name": collection_name,
                 "system_prompt_id": str(system_prompt_id) if system_prompt_id else None,
-                "enhanced_prompt_id": str(enhanced_prompt_id) if enhanced_prompt_id else None,
                 "context_messages_count": len(final_context_messages),
                 "blocked": False
             }
@@ -764,22 +497,12 @@ class ChatService:
             
             try:
                 # Start the stream generation
-                if enhanced_prompt_id:
-                    # Using enhanced prompt
-                    stream_generator = self.llm_client.generate_response_stream(
-                        message=final_message,
-                        collection_name=collection_name,
-                        system_prompt_id=enhanced_prompt_id,
-                        context_messages=final_context_messages
-                    )
-                else:
-                    # Using stored system prompt
-                    stream_generator = self.llm_client.generate_response_stream(
-                        message=final_message,
-                        collection_name=collection_name,
-                        system_prompt_id=enhanced_prompt_id,
-                        context_messages=final_context_messages
-                    )
+                stream_generator = self.llm_client.generate_response_stream(
+                    message=final_message,
+                    collection_name=collection_name,
+                    system_prompt_id=system_prompt_id,
+                    context_messages=final_context_messages
+                )
                 
                 # TRUST-THEN-VERIFY STREAMING: Stream immediately while buffering
                 async for chunk in stream_generator:

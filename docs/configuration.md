@@ -37,7 +37,6 @@ general:
     header_name: "X-Session-ID" # HTTP header name for session ID
     required: true              # Whether session ID is required
   inference_provider: "ollama"  # Default AI model provider
-  language_detection: false     # Enable language detection
   inference_only: true         # Run in inference-only mode
   adapter: "qa-sql"            # Default adapter to use
 ```

@@ -1,10 +1,10 @@
-# Chat Service System Prompts & Language Detection
+# Chat Service System Prompts
 
-This document explains how the Orbit chat service handles system prompts and language detection, including the priority order and fallback mechanisms.
+This document explains how the Orbit chat service handles system prompts, including the priority order and fallback mechanisms.
 
 ## Overview
 
-The chat service supports both **inference-only mode** (no database) and **full mode** (with MongoDB), providing flexible system prompt management with automatic language detection and enhancement.
+The chat service supports both **inference-only mode** (no database) and **full mode** (with MongoDB), providing flexible system prompt management.
 
 ## System Prompt Priority Order
 
@@ -12,15 +12,12 @@ The chat service follows a specific priority order when determining which system
 
 ```mermaid
 graph TD
-    A[User sends message] --> B[Detect language]
-    B --> C{Non-English detected?}
-    C -->|No| D[No enhancement needed]
-    C -->|Yes| E{inference_only mode?}
-    E -->|Yes| F[Add language instruction to USER message]
-    E -->|No| G[Add language instruction to SYSTEM prompt]
-    F --> H[Send: empty system + enhanced user message]
-    G --> I[Send: enhanced system + user message]
-    D --> J[Send: system + user message as-is]
+    A[User sends message] --> B[Process message]
+    B --> C{inference_only mode?}
+    C -->|Yes| D[Send: empty system + user message]
+    C -->|No| E[Send: system + user message]
+    D --> F[LLM processes request]
+    E --> F
 ```
 
 ## Priority Levels (Highest to Lowest)
@@ -28,13 +25,11 @@ graph TD
 ### 1. **Stored System Prompt** (Highest Priority)
 - **When**: `system_prompt_id` is provided AND `prompt_service` is available (full mode)
 - **Source**: Retrieved from MongoDB via `prompt_service`
-- **Enhancement**: Gets language-specific instructions appended if non-English detected
 
 ### 2. **No System Prompt** (Inference-Only Mode)
 - **When**: 
   - `inference_only: true` AND no `system_prompt_id` provided
-- **Behavior**: User message becomes the prompt directly with language instructions added
-- **Enhancement**: Language-specific instructions are appended to user message if non-English detected
+- **Behavior**: User message becomes the prompt directly
 
 ## Configuration
 
@@ -48,34 +43,11 @@ messages:
   # ... other message configs
 ```
 
-### Language Detection
+### General Configuration
 
 ```yaml
 general:
-  language_detection: true  # Enable/disable language detection
   inference_only: true     # Works in both modes
-```
-
-## How Language Detection Works
-
-### 1. Language Detection Process
-
-1. **Message Analysis**: User's message is analyzed by the language detector
-2. **Language Identification**: Detects the primary language (e.g., 'de', 'fr', 'es')
-3. **Prompt Enhancement**: If non-English, adds language-specific instructions
-
-### 2. Language Enhancement Example
-
-**Original Prompt:**
-```
-You are a helpful assistant that provides accurate information.
-```
-
-**Enhanced for German:**
-```
-You are a helpful assistant that provides accurate information.
-
-IMPORTANT: The user's message is in German. You MUST respond in German only.
 ```
 
 ## Deployment Modes
@@ -84,14 +56,12 @@ IMPORTANT: The user's message is in German. You MUST respond in German only.
 
 - **No Database Required**: Works without MongoDB
 - **System Prompts**: No system prompts used - user query becomes the prompt directly
-- **Language Detection**: ✅ Fully supported - language instructions are added to user message
 - **Use Case**: Simple deployments, testing, lightweight setups
 
 ### Full Mode (`inference_only: false`)
 
 - **Database Required**: Requires MongoDB for stored prompts
 - **System Prompts**: Can use stored prompts + fallback to default
-- **Language Detection**: ✅ Fully supported
 - **Use Case**: Production deployments with custom prompt management
 
 ## API Examples
@@ -101,16 +71,15 @@ IMPORTANT: The user's message is in German. You MUST respond in German only.
 ```json
 POST /chat
 {
-  "message": "Was ist der Preis für eine Anwohnerparkkarte?",
+  "message": "What is the price of a parking permit?",
   "collection_name": "default"
 }
 ```
 
 **Internal Flow (Inference-Only Mode):**
-1. Detects German language
-2. `inference_only: true` → adds language instruction to user message
-3. Sends to LLM: `system=""` + `user="Was ist der Preis für eine Anwohnerparkkarte?\n\nIMPORTANT: The user's message is in German. You MUST respond in German only."`
-4. Responds in German
+1. `inference_only: true` → no system prompt used
+2. Sends to LLM: `system=""` + `user="What is the price of a parking permit?"`
+3. Responds with information
 
 ### Request with Stored Prompt
 
@@ -124,36 +93,24 @@ POST /chat
 ```
 
 **Internal Flow:**
-1. Detects English language
-2. Retrieves stored prompt from MongoDB
-3. No enhancement needed (English)
-4. Uses stored prompt as-is
+1. Retrieves stored prompt from MongoDB
+2. Uses stored prompt as system prompt
+3. Sends to LLM with stored system prompt
 
 ## Implementation Details
 
-### System Prompt Override Mechanism
+### System Prompt Handling
 
-The chat service uses an `override_system_prompt` mechanism:
+The chat service handles system prompts based on the configuration:
 
 ```python
-# Language detection enhances prompts in memory
-self.llm_client.override_system_prompt = enhanced_prompt
-
-# LLM client checks for override before using stored/default prompts
-if hasattr(self, 'override_system_prompt') and self.override_system_prompt:
-    return self.override_system_prompt
+# In inference-only mode, no system prompt is used
+if inference_only:
+    system_prompt = ""
+else:
+    # Use stored system prompt if available
+    system_prompt = get_stored_prompt(system_prompt_id)
 ```
-
-### Supported Languages
-
-The language detector supports major languages including:
-
-- **English** (en) - Default, no enhancement
-- **German** (de) - Enhanced with German instructions
-- **Spanish** (es) - Enhanced with Spanish instructions  
-- **French** (fr) - Enhanced with French instructions
-- **Italian** (it) - Enhanced with Italian instructions
-- **And many more...**
 
 ## Configuration Examples
 
@@ -162,7 +119,6 @@ The language detector supports major languages including:
 ```yaml
 general:
   inference_only: true
-  language_detection: true
   inference_provider: "openai"
 
 messages:
@@ -174,7 +130,6 @@ messages:
 ```yaml
 general:
   inference_only: false
-  language_detection: true
   inference_provider: "openai"
 
 messages:
@@ -188,18 +143,6 @@ internal_services:
 
 ## Troubleshooting
 
-### Language Detection Not Working
-
-1. **Check Configuration**: Ensure `language_detection: true` in config
-2. **Check Dependencies**: Verify language detection libraries are installed
-3. **Check Logs**: Look for language detection warnings in logs
-
-### Language Enhancement Not Working
-
-1. **Check Mode**: Verify `inference_only` setting matches your intended behavior
-2. **Check Language Detection**: Ensure `language_detection: true` in config
-3. **Check Logs**: Look for language detection and enhancement messages in logs
-
 ### Stored Prompts Not Working
 
 1. **Check Mode**: Ensure `inference_only: false` for stored prompts
@@ -210,6 +153,5 @@ internal_services:
 
 1. **Choose the Right Mode**: Use `inference_only: true` for direct prompting, `inference_only: false` for RAG with stored prompts
 2. **Test Both Modes**: Test your setup in both inference-only and full modes
-3. **Language Testing**: Test with non-English messages to verify language detection
-4. **Prompt Management**: In full mode, ensure you have proper stored prompts in MongoDB
-5. **Monitoring**: Monitor logs for language detection and prompt selection behavior
+3. **Prompt Management**: In full mode, ensure you have proper stored prompts in MongoDB
+4. **Monitoring**: Monitor logs for prompt selection behavior

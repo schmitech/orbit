@@ -12,7 +12,6 @@ across different client components.
 import asyncio
 import aiohttp
 import logging
-from utils.language_detector import LanguageDetector
 from typing import Dict, Any, Tuple, Optional
 from moderators.base import ModeratorFactory
 from moderators import register_moderator
@@ -106,8 +105,6 @@ class ModeratorService:
         # Handle both string and boolean values for verbose setting
         verbose_value = config.get('general', {}).get('verbose', False)
         self.verbose = _is_true_value(verbose_value)
-
-        self.detector = LanguageDetector(self.verbose)
         
         if self.verbose:
             if self.use_moderator:
@@ -244,13 +241,6 @@ class ModeratorService:
         Returns:
             Tuple[bool, Optional[str]]: (is_safe, refusal_message)
         """
-        # Check if the query is in a non-English language
-        query_language = self.detector.detect(query)
-        is_non_english = query_language != "en"
-
-        if self.verbose:
-            logger.info(f"🌐 Language detection result: '{query[:50]}...' detected as '{query_language}'")
-
         for attempt in range(self.max_retries):
             try:
                 await self.initialize()  # Ensure session is initialized
@@ -258,22 +248,9 @@ class ModeratorService:
                 # Combine the loaded safety prompt with the query
                 prompt = self.safety_prompt + " Query: " + query
                 
-                # For non-English queries, add a specific instruction
-                if is_non_english:
-                    prompt = (
-                        "You are evaluating whether a query is safe to respond to. "
-                        "This query is in a non-English language. "
-                        "Evaluate the meaning and intent of the query regardless of language. "
-                        "If it is a safe, appropriate query about general information, knowledge, or assistance, respond with EXACTLY 'SAFE: true'. "
-                        "If it is NOT safe or appropriate, respond with EXACTLY 'SAFE: false'. "
-                        "Query: " + query
-                    )
-                
                 # Log the query being checked
                 if self.verbose:
                     logger.info(f"🔍 Performing LLM safety check for query: '{query[:50]}...' (attempt {attempt+1}/{self.max_retries})")
-                    if is_non_english:
-                        logger.info(f"🌍 Query detected as non-English, using specialized prompt")
                     logger.debug(f"📝 Using full safety prompt: '{prompt[:100]}...'")
                     logger.info(f"🤖 Sending safety check request to {self.provider} model: {self.model}")
 
@@ -314,7 +291,7 @@ class ModeratorService:
                         logger.info(f"🔄 Safety check raw response: '{model_response}'")
                     
                     # Process the response to determine safety
-                    is_safe, refusal_message = await self._process_safety_response(model_response, is_non_english)
+                    is_safe, refusal_message = await self._process_safety_response(model_response)
                     
                     # Add more visible logging with emojis
                     if self.verbose:
@@ -350,14 +327,12 @@ class ModeratorService:
                     logger.warning("🚫 Blocking query after error")
                     return False, "I cannot assist with that type of request."
     
-    async def _process_safety_response(self, model_response: str, is_non_english: bool = False) -> Tuple[bool, Optional[str]]:
+    async def _process_safety_response(self, model_response: str) -> Tuple[bool, Optional[str]]:
             """
             Process the LLM response to determine if the query is safe.
-            Enhanced to handle non-English responses.
             
             Args:
                 model_response: The raw response from the LLM
-                is_non_english: Whether the original query was in a non-English language
                 
             Returns:
                 Tuple[bool, Optional[str]]: (is_safe, refusal_message)
@@ -382,60 +357,10 @@ class ModeratorService:
                 # Since the model directly refused, treat this as unsafe
                 return False, model_response
             
-            # Enhanced pattern matching for multilingual support
+            # Pattern matching for safety responses
             expected_exact = "SAFE: true"
             alt_expected = '"SAFE: true"'  # With double quotes
             
-            # For non-English queries, be more flexible with the response format
-            if is_non_english:
-                # For non-English, focus on detecting if "true" appears in the response with "safe"
-                response_lower = model_response.lower()
-                # More permissive check for non-English - look for both "safe" and "true" anywhere
-                has_safe = "safe" in response_lower 
-                has_true = "true" in response_lower
-                has_false = "false" in response_lower
-                
-                if self.verbose:
-                    logger.info(f"Non-English safety check components - has_safe: {has_safe}, has_true: {has_true}, has_false: {has_false}")
-                    
-                # If response contains both "safe" and "true" but not "false", consider it safe
-                if has_safe and has_true and not has_false:
-                    if self.verbose:
-                        logger.info(f"Non-English query determined to be SAFE based on response: '{model_response}'")
-                    return True, None
-                    
-                # If contains "safe: false" explicitly, mark as unsafe
-                if "safe: false" in response_lower or "safe:false" in response_lower:
-                    if self.verbose:
-                        logger.info(f"Non-English query determined to be UNSAFE based on explicit 'safe: false' in response")
-                    return False, "I cannot assist with that type of request."
-                    
-                # More generic approach - if we see the word "safe" with "true" near it
-                safe_index = response_lower.find("safe")
-                true_index = response_lower.find("true")
-                false_index = response_lower.find("false")
-                
-                if safe_index != -1 and true_index != -1 and abs(safe_index - true_index) < 20:
-                    # If "true" is closer to "safe" than "false" is
-                    if false_index == -1 or abs(safe_index - true_index) < abs(safe_index - false_index):
-                        if self.verbose:
-                            logger.info(f"Non-English query determined to be SAFE based on proximity of 'safe' and 'true'")
-                        return True, None
-                
-                # If we got here and are in fuzzy mode, try the fuzzy check as a fallback
-                if self.safety_mode == "fuzzy":
-                    is_fuzzy_safe = self._is_likely_safe_response(model_response)
-                    if is_fuzzy_safe:
-                        if self.verbose:
-                            logger.info(f"Non-English query determined to be SAFE via fuzzy matching fallback")
-                        return True, None
-                        
-                # If we can't determine safety, default to considering it unsafe
-                if self.verbose:
-                    logger.warning(f"Could not determine safety for non-English query with response: '{model_response}', defaulting to UNSAFE")
-                return False, "I cannot assist with that type of request."
-            
-            # Standard processing for English queries
             # Check exact match first - allow for both quoted and unquoted versions
             is_safe_exact = model_response == expected_exact or model_response == alt_expected
             is_safe_fuzzy = False

@@ -220,10 +220,6 @@ class ConfigurationSummaryLogger:
     def _log_api_configurations(self) -> None:
         """Log API and security configuration details."""
         try:
-            # Get language detection configuration
-            language_detection_enabled = _is_true_value(self.config.get('general', {}).get('language_detection', True))
-            self._log_message(f"Language Detection: {'enabled' if language_detection_enabled else 'disabled'}")
-            
             # Get session ID configuration
             session_config = self.config.get('general', {}).get('session_id', {})
             session_enabled = _is_true_value(session_config.get('required', False))
@@ -325,7 +321,6 @@ class ConfigurationSummaryLogger:
                     }
                 },
                 'api': {
-                    'language_detection': _is_true_value(self.config.get('general', {}).get('language_detection', True)),
                     'session_id_required': _is_true_value(self.config.get('general', {}).get('session_id', {}).get('required', False)),
                     'api_key_enabled': _is_true_value(self.config.get('api_keys', {}).get('enabled', True))
                 },
