@@ -20,7 +20,7 @@ CREATE_DEFAULT_CONFIG=true
 CONFIG_FILE=""
 
 # GGUF model config file (.conf)
-GGUF_MODELS_CONFIG="../gguf-models.conf"
+GGUF_MODELS_CONFIG="../install/gguf-models.conf"
 GGUF_MODELS_TO_DOWNLOAD=()
 
 # Function to get URL for a model from config file

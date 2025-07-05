@@ -89,6 +89,23 @@ check_requirements() {
     fi
 }
 
+# Function to check if required directories exist
+check_required_directories() {
+    local missing_dirs=()
+    
+    for dir in server bin install docker examples; do
+        if [ ! -d "$dir" ]; then
+            missing_dirs+=("$dir")
+        fi
+    done
+    
+    if [ ${#missing_dirs[@]} -ne 0 ]; then
+        echo "Error: Missing required directories: ${missing_dirs[*]}"
+        echo "Please run this script from the project root directory."
+        exit 1
+    fi
+}
+
 # Function to clean up on exit
 cleanup() {
     local exit_code=$?
@@ -119,6 +136,9 @@ echo "Building ORBIT distributable package v${VERSION}..."
 # Check requirements
 check_requirements
 
+# Check required directories
+check_required_directories
+
 # Clean previous builds
 echo "Cleaning previous builds..."
 rm -rf dist
@@ -126,11 +146,11 @@ mkdir -p dist/build/${PACKAGE_NAME}
 
 # Create directory structure
 echo "Creating directory structure..."
-mkdir -p dist/build/${PACKAGE_NAME}/{bin,server,install,docs,logs,examples,docker}
+mkdir -p dist/build/${PACKAGE_NAME}/{bin,server,install,logs,examples,docker}
 
-# Copy core server files
+# Copy core server files (excluding tests directory)
 echo "Copying server files..."
-find server -type f -not -path "*/\.*" -not -path "*/__pycache__/*" -not -name "*.pyc" -not -name "*.pyo" -not -name "*.pyd" | while read file; do
+find server -type f -not -path "*/\.*" -not -path "*/__pycache__/*" -not -path "*/tests/*" -not -name "*.pyc" -not -name "*.pyo" -not -name "*.pyd" | while read file; do
     mkdir -p "dist/build/${PACKAGE_NAME}/$(dirname "$file")"
     cp "$file" "dist/build/${PACKAGE_NAME}/$file"
 done
@@ -156,11 +176,6 @@ find bin -type f -not -path "*/\.*" -not -path "*/__pycache__/*" -not -name "*.p
     cp "$file" "dist/build/${PACKAGE_NAME}/$file"
 done
 
-# Copy download_hf_gguf_model.py to bin directory
-echo "Copying download_hf_gguf_model.py to bin directory..."
-cp "utils/download_hf_gguf_model.py" "dist/build/${PACKAGE_NAME}/bin/"
-chmod +x "dist/build/${PACKAGE_NAME}/bin/download_hf_gguf_model.py"
-
 # Sample data and scripts
 echo "Copying sample databases and scripts..."
 find examples -type f -not -path "*/\.*" -not -path "*/__pycache__/*" -not -name "*.pyc" -not -name "*.pyo" -not -name "*.pyd" | while read file; do
@@ -168,24 +183,23 @@ find examples -type f -not -path "*/\.*" -not -path "*/__pycache__/*" -not -name
     cp "$file" "dist/build/${PACKAGE_NAME}/$file"
 done
 
-# Copy utils directory (sample data and tools)
-echo "Copying prompts..."
-find prompts -type f -not -path "*/\.*" -not -path "*/__pycache__/*" -not -name "*.pyc" -not -name "*.pyo" -not -name "*.pyd" | while read file; do
-    mkdir -p "dist/build/${PACKAGE_NAME}/$(dirname "$file")"
-    cp "$file" "dist/build/${PACKAGE_NAME}/$file"
-done
-
-# Copy root files
-echo "Copying root files..."
-cp README.md dist/build/${PACKAGE_NAME}/ 2>/dev/null || echo "Warning: README.md not found"
-
 # Create example configuration
 echo "Creating example configuration yaml file..."
-cp config.yaml.example dist/build/${PACKAGE_NAME}/config.yaml
+if [ -f "config.yaml.example" ]; then
+    cp config.yaml.example dist/build/${PACKAGE_NAME}/config.yaml
+else
+    echo "Warning: config.yaml.example not found, creating empty config.yaml..."
+    touch dist/build/${PACKAGE_NAME}/config.yaml
+fi
 
 # Create .env.example file
 echo "Creating .env.example..."
-cp .env.example dist/build/${PACKAGE_NAME}/.env.example
+if [ -f ".env.example" ]; then
+    cp .env.example dist/build/${PACKAGE_NAME}/.env.example
+else
+    echo "Warning: .env.example not found, creating empty .env.example..."
+    touch dist/build/${PACKAGE_NAME}/.env.example
+fi
 
 # Create metadata file
 echo "Creating metadata file..."
@@ -198,48 +212,6 @@ cat > dist/build/${PACKAGE_NAME}/meta.json << EOF
   "build": "$(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')",
   "python_version": "$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")"
 }
-EOF
-
-# Create documentation
-echo "Creating documentation..."
-cat > dist/build/${PACKAGE_NAME}/docs/QUICKSTART.md << 'EOF'
-# ORBIT Quick Start Guide
-
-This guide will help you get started with ORBIT server and CLI.
-
-## Prerequisites
-
-- Python 3.12 or higher
-- MongoDB (for API key management and system prompts)
-- Ollama (optional, for local LLM inference)
-
-## Installation
-
-1. Extract the ORBIT package:
-   ```
-   tar -xzf orbit-0.1.0.tar.gz
-   cd orbit-0.1.0
-   ```
-
-2. Run the installation script:
-   ```
-   ./install/setup.sh --profile minimal --download-gguf gguf-model.gguf
-   ```
-
-3. Configure your environment:
-   - Edit `.env` to set your API keys
-   - Edit `config/config.yaml` to configure the server
-
-## Starting the Server
-
-```
-orbit start
-```
-
-For development mode with auto-reload:
-```
-orbit start --reload
-```
 EOF
 
 # Make scripts executable
