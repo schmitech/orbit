@@ -38,7 +38,7 @@ class ServiceFactory:
         self.config = config
         self.logger = logger
         self.inference_only = _is_true_value(config.get('general', {}).get('inference_only', False))
-        self.chat_history_enabled = _is_true_value(config.get('chat_history', {}).get('enabled', True))
+        self.chat_history_enabled = _is_true_value(config.get('chat_history', {}).get('enabled', False))
         self.verbose = _is_true_value(config.get('general', {}).get('verbose', False))
         
         # Log the mode detection for debugging (only when verbose)
@@ -85,26 +85,53 @@ class ServiceFactory:
         auth_enabled = _is_true_value(self.config.get('auth', {}).get('enabled', False))
         
         # Initialize MongoDB service if needed
-        # MongoDB is required when:
-        # - auth is enabled (for user/session storage)
-        # - chat_history is enabled (for chat history storage)
-        # - inference_only is false (for full RAG mode)
-        if (not self.inference_only or 
-            (self.inference_only and self.chat_history_enabled) or
-            auth_enabled):
-            await self._initialize_mongodb_service(app)
-        else:
-            app.state.mongodb_service = None
-            self.logger.info("Skipping MongoDB initialization - inference_only=true, chat_history disabled, and auth disabled")
+        await self._initialize_mongodb_if_needed(app, auth_enabled)
         
         # Initialize Redis service if enabled
         await self._initialize_redis_service(app)
         
         # Initialize authentication service (requires MongoDB to be initialized first)
-        if hasattr(app.state, 'mongodb_service') and app.state.mongodb_service:
+        await self._initialize_auth_service_if_available(app, auth_enabled)
+    
+    async def _initialize_mongodb_if_needed(self, app: FastAPI, auth_enabled: bool) -> None:
+        """Initialize MongoDB service if required by current configuration."""
+        # MongoDB is required when:
+        # - inference_only is false (for retriever adapters)
+        # - OR auth is enabled (for authentication)
+        # - OR chat_history is enabled (for chat history storage)
+        mongodb_required = (
+            not self.inference_only or 
+            auth_enabled or 
+            self.chat_history_enabled
+        )
+        
+        if mongodb_required:
+            await self._initialize_mongodb_service(app)
+            
+            # Log the specific reason(s) for MongoDB initialization
+            reasons = []
+            if not self.inference_only:
+                reasons.append("retriever adapters")
+            if auth_enabled:
+                reasons.append("authentication")
+            if self.chat_history_enabled:
+                reasons.append("chat history")
+            
+            self.logger.info(f"MongoDB initialized for: {', '.join(reasons)}")
+        else:
+            app.state.mongodb_service = None
+            self.logger.info("Skipping MongoDB initialization - inference_only=true, auth disabled, and chat_history disabled")
+    
+    async def _initialize_auth_service_if_available(self, app: FastAPI, auth_enabled: bool) -> None:
+        """Initialize authentication service if MongoDB is available and auth is enabled."""
+        if app.state.mongodb_service is not None:
             await self._initialize_auth_service(app)
         else:
-            self.logger.warning("MongoDB service not available, skipping auth service initialization")
+            # Only log warning if auth is actually enabled but MongoDB is not available
+            if auth_enabled:
+                self.logger.warning("Auth is enabled but MongoDB service not available - auth service will be disabled")
+            else:
+                self.logger.info("Auth service disabled in configuration")
     
     async def _initialize_auth_service(self, app: FastAPI) -> None:
         """Initialize the authentication service"""
@@ -142,14 +169,18 @@ class ServiceFactory:
         app.state.prompt_service = None
         app.state.reranker_service = None
         
-        # Check if authentication is disabled - if so, initialize API key service for admin operations
+        # Initialize API key service only if MongoDB is available and auth is disabled
+        # (API key service is used for admin operations when auth is disabled but MongoDB is available)
         auth_enabled = _is_true_value(self.config.get('auth', {}).get('enabled', False))
-        if not auth_enabled:
-            self.logger.info("Authentication disabled - initializing API key service for admin operations")
+        if not auth_enabled and app.state.mongodb_service is not None:
+            self.logger.info("Authentication disabled but MongoDB available - initializing API key service for admin operations")
             await self._initialize_api_key_service(app)
         else:
             app.state.api_key_service = None
-            self.logger.info("Authentication enabled - API key service not needed in inference-only mode")
+            if not auth_enabled:
+                self.logger.info("Authentication disabled and MongoDB not available - skipping API key service")
+            else:
+                self.logger.info("Authentication enabled - API key service not needed in inference-only mode")
         
         # Initialize Chat History Service if enabled
         if self.chat_history_enabled:
@@ -160,7 +191,7 @@ class ServiceFactory:
             app.state.chat_history_service = None
             self.logger.info("Chat history is disabled")
         
-        self.logger.info("Keeping MongoDB, Redis, and Chat History services for chat history tracking")
+        self.logger.info("Inference-only mode service initialization complete")
     
     async def _initialize_full_mode_services(self, app: FastAPI) -> None:
         """Initialize services specific to full RAG mode."""
@@ -577,22 +608,29 @@ class ServiceFactory:
     
     async def _initialize_reranker_service(self, app: FastAPI) -> None:
         """Initialize Reranker Service if enabled."""
-        if _is_true_value(self.config.get('reranker', {}).get('enabled', False)):
-            from rerankers import RerankerFactory
-            app.state.reranker_service = RerankerFactory.create(self.config)
-            if app.state.reranker_service:
-                try:
-                    if await app.state.reranker_service.initialize():
-                        self.logger.info("Reranker Service initialized successfully")
-                    else:
-                        self.logger.error("Failed to initialize Reranker Service")
-                        app.state.reranker_service = None
-                except Exception as e:
-                    self.logger.error(f"Failed to initialize Reranker Service: {str(e)}")
-                    app.state.reranker_service = None
-            else:
-                self.logger.warning("No reranker provider configured or provider not supported")
-                app.state.reranker_service = None
-        else:
+        # Early return if reranker is disabled
+        if not _is_true_value(self.config.get('reranker', {}).get('enabled', False)):
             app.state.reranker_service = None
             self.logger.info("Reranker is disabled, skipping initialization")
+            return
+
+        # Create reranker service
+        from rerankers import RerankerFactory
+        app.state.reranker_service = RerankerFactory.create(self.config)
+        
+        # Early return if no reranker provider configured
+        if not app.state.reranker_service:
+            self.logger.warning("No reranker provider configured or provider not supported")
+            app.state.reranker_service = None
+            return
+
+        # Initialize the reranker service
+        try:
+            if await app.state.reranker_service.initialize():
+                self.logger.info("Reranker Service initialized successfully")
+            else:
+                self.logger.error("Failed to initialize Reranker Service")
+                app.state.reranker_service = None
+        except Exception as e:
+            self.logger.error(f"Failed to initialize Reranker Service: {str(e)}")
+            app.state.reranker_service = None

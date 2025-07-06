@@ -111,11 +111,20 @@ def _log_config_summary(config: Dict[str, Any], source_path: str):
         logger.info(f"  Watson AI: model={watson_config.get('model')}, api_base={_mask_url(watson_config.get('api_base'))}")
         logger.info(f"  Stream: {_is_true_value(watson_config.get('stream', True))}")
     
-    # Only log MongoDB settings if chat history is enabled
-    if _is_true_value(config.get('chat_history', {}).get('enabled', True)):
+    # Only log MongoDB settings if chat history is enabled OR auth is enabled
+    chat_history_enabled = _is_true_value(config.get('chat_history', {}).get('enabled', True))
+    auth_enabled = _is_true_value(config.get('auth', {}).get('enabled', False))
+    
+    if chat_history_enabled or auth_enabled:
         mongodb_config = config.get('internal_services', {}).get('mongodb', {})
         if mongodb_config:
-            logger.info(f"  MongoDB: host={mongodb_config.get('host')}, port={mongodb_config.get('port')}, db={mongodb_config.get('database')}")
+            usage_reasons = []
+            if chat_history_enabled:
+                usage_reasons.append("chat history")
+            if auth_enabled:
+                usage_reasons.append("authentication")
+            
+            logger.info(f"  MongoDB: host={mongodb_config.get('host')}, port={mongodb_config.get('port')}, db={mongodb_config.get('database')} (used for: {', '.join(usage_reasons)})")
     
     # Only log adapters if not in inference-only mode
     if not inference_only:
