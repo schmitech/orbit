@@ -87,12 +87,21 @@ export function Sidebar({}: SidebarProps) {
 
   return (
     <>
-      <div className="w-72 bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 flex flex-col h-full shadow-xl">
+      <div className="w-72 bg-gradient-to-br from-slate-50/95 via-white/90 to-blue-50/95 dark:from-slate-900/95 dark:via-slate-800/90 dark:to-slate-900/95 flex flex-col h-full relative backdrop-blur-md">
+        {/* Subtle gradient overlay for depth */}
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-blue-50/20 to-transparent dark:from-transparent dark:via-blue-900/10 dark:to-transparent pointer-events-none"></div>
+        
+        {/* Subtle right border for separation */}
+        <div className="absolute right-0 top-0 bottom-0 w-px bg-gradient-to-b from-transparent via-slate-200/40 to-transparent dark:via-slate-700/40"></div>
+        
+        {/* Soft shadow transition */}
+        <div className="absolute -right-4 top-0 bottom-0 w-8 bg-gradient-to-r from-transparent to-black/[0.02] dark:to-black/[0.05] pointer-events-none"></div>
+
         {/* Header */}
-        <div className="p-6 pb-4">
+        <div className="p-6 pb-4 relative z-10">
           <button
             onClick={handleNewChat}
-            className="w-full group flex items-center justify-center gap-3 px-6 py-4 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 dark:from-blue-500 dark:to-blue-600 dark:hover:from-blue-600 dark:hover:to-blue-700 text-white rounded-xl transition-all duration-200 font-medium text-sm shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+            className="w-full group flex items-center justify-center gap-3 px-6 py-4 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 dark:from-blue-500 dark:to-blue-600 dark:hover:from-blue-600 dark:hover:to-blue-700 text-white rounded-xl transition-all duration-200 font-medium text-sm shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 backdrop-blur-sm"
           >
             <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform duration-200" />
             New Conversation
@@ -100,7 +109,7 @@ export function Sidebar({}: SidebarProps) {
         </div>
 
         {/* Search */}
-        <div className="px-6 pb-4">
+        <div className="px-6 pb-4 relative z-10">
           <div className="relative">
             <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
             <input
@@ -108,13 +117,13 @@ export function Sidebar({}: SidebarProps) {
               placeholder="Search conversations..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-12 pr-4 py-3 bg-white dark:bg-slate-800 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-400/30 shadow-sm hover:shadow-md transition-all duration-200 placeholder-slate-400 dark:placeholder-slate-500"
+              className="w-full pl-12 pr-4 py-3 bg-white/60 dark:bg-slate-800/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-400/30 shadow-sm hover:shadow-md transition-all duration-200 placeholder-slate-400 dark:placeholder-slate-500 backdrop-blur-sm border border-slate-200/20 dark:border-slate-700/20"
             />
           </div>
         </div>
 
         {/* Conversations List */}
-        <div className="flex-1 overflow-y-auto px-4 pb-4">
+        <div className="flex-1 overflow-y-auto px-4 pb-4 relative z-10">
           {filteredConversations.length === 0 ? (
             <div className="p-8 text-center">
               <MessageSquare className="w-12 h-12 mx-auto mb-4 text-slate-300 dark:text-slate-600" />
@@ -131,16 +140,16 @@ export function Sidebar({}: SidebarProps) {
                 <div
                   key={conversation.id}
                   onClick={() => selectConversation(conversation.id)}
-                  className={`group flex items-center gap-3 p-4 rounded-xl cursor-pointer transition-all duration-200 ${
+                  className={`group flex items-center gap-3 p-4 rounded-xl cursor-pointer transition-all duration-200 backdrop-blur-sm border ${
                     currentConversationId === conversation.id
-                      ? 'bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/30 dark:to-indigo-900/30 shadow-md transform scale-[1.02]'
-                      : 'hover:bg-gradient-to-r hover:from-slate-50 hover:to-slate-100 dark:hover:from-slate-800 dark:hover:to-slate-700 hover:shadow-md hover:transform hover:scale-[1.01]'
+                      ? 'bg-gradient-to-r from-blue-50/80 to-indigo-50/80 dark:from-blue-900/40 dark:to-indigo-900/40 shadow-lg transform scale-[1.02] border-blue-200/30 dark:border-blue-700/30'
+                      : 'hover:bg-gradient-to-r hover:from-slate-50/60 hover:to-slate-100/60 dark:hover:from-slate-800/60 dark:hover:to-slate-700/60 hover:shadow-md hover:transform hover:scale-[1.01] border-slate-200/20 dark:border-slate-700/20'
                   }`}
                 >
                   <div className={`p-2 rounded-lg ${
                     currentConversationId === conversation.id
-                      ? 'bg-blue-100 dark:bg-blue-800/50 text-blue-600 dark:text-blue-400'
-                      : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 group-hover:bg-slate-200 dark:group-hover:bg-slate-600'
+                      ? 'bg-blue-100/80 dark:bg-blue-800/60 text-blue-600 dark:text-blue-400'
+                      : 'bg-slate-100/80 dark:bg-slate-700/60 text-slate-500 dark:text-slate-400 group-hover:bg-slate-200/80 dark:group-hover:bg-slate-600/60'
                   }`}>
                     <MessageSquare className="w-4 h-4" />
                   </div>
@@ -176,14 +185,14 @@ export function Sidebar({}: SidebarProps) {
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                     <button
                       onClick={(e) => handleEditStart(e, conversation)}
-                      className="p-2 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg transition-colors duration-200"
+                      className="p-2 hover:bg-slate-200/60 dark:hover:bg-slate-600/60 rounded-lg transition-colors duration-200 backdrop-blur-sm"
                       title="Edit title"
                     >
                       <Edit2 className="w-4 h-4 text-slate-500 dark:text-slate-400" />
                     </button>
                     <button
                       onClick={(e) => handleDeleteConversation(e, conversation)}
-                      className="p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors duration-200 text-red-500 dark:text-red-400"
+                      className="p-2 hover:bg-red-50/60 dark:hover:bg-red-900/30 rounded-lg transition-colors duration-200 text-red-500 dark:text-red-400 backdrop-blur-sm"
                       title="Delete conversation"
                     >
                       <Trash2 className="w-4 h-4" />

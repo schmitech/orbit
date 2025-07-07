@@ -9,7 +9,10 @@ function App() {
 
   return (
     <ThemeProvider>
-      <div className="h-screen flex bg-gradient-to-br from-slate-100 via-white to-blue-100 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
+      <div className="h-screen flex bg-gradient-to-br from-slate-50/90 via-white/95 to-blue-50/90 dark:from-slate-950/95 dark:via-slate-900/90 dark:to-slate-950/95 relative overflow-hidden">
+        {/* Subtle global overlay for depth */}
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-50/10 via-transparent to-indigo-50/10 dark:from-blue-950/20 dark:via-transparent dark:to-indigo-950/20 pointer-events-none"></div>
+        
         {/* Sidebar */}
         <Sidebar />
         

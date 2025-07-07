@@ -54,9 +54,15 @@ export function ChatInterface({ onOpenSettings }: ChatInterfaceProps) {
   };
 
   return (
-    <div className="flex-1 flex flex-col bg-gradient-to-br from-white via-slate-50 to-blue-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 relative overflow-hidden">
-      {/* Subtle overlay for better blending */}
-      <div className="absolute inset-0 bg-gradient-to-br from-blue-50/30 via-transparent to-indigo-50/30 dark:from-blue-900/10 dark:via-transparent dark:to-indigo-900/10 pointer-events-none"></div>
+    <div className="flex-1 flex flex-col bg-gradient-to-br from-white/90 via-slate-50/85 to-blue-50/90 dark:from-slate-900/90 dark:via-slate-800/85 dark:to-slate-900/90 relative overflow-hidden backdrop-blur-md">
+      {/* Enhanced gradient overlay for seamless blending */}
+      <div className="absolute inset-0 bg-gradient-to-br from-blue-50/20 via-transparent to-indigo-50/30 dark:from-blue-900/10 dark:via-transparent dark:to-indigo-900/15 pointer-events-none"></div>
+      
+      {/* Subtle left border to complement sidebar */}
+      <div className="absolute left-0 top-0 bottom-0 w-px bg-gradient-to-b from-transparent via-slate-200/30 to-transparent dark:via-slate-700/30"></div>
+      
+      {/* Soft shadow transition from sidebar */}
+      <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-black/[0.02] to-transparent dark:from-black/[0.05] pointer-events-none"></div>
       
       {/* API Configuration Modal */}
       {showConfig && (
