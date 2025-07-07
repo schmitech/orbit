@@ -142,7 +142,7 @@ fi
 
 # Create necessary directories (relative to script directory)
 echo -e "${YELLOW}📁 Creating required directories...${NC}"
-mkdir -p ../logs ../data ../config ../gguf ../install
+mkdir -p ../logs ../data ../gguf ../install
 
 # Handle config file
 if [ -n "$CONFIG_FILE" ]; then
@@ -151,24 +151,21 @@ if [ -n "$CONFIG_FILE" ]; then
         echo -e "${RED}❌ Specified config file not found: $CONFIG_FILE${NC}"
         exit 1
     fi
-    # Copy to default location
-    cp "$CONFIG_FILE" ../config.yaml
+    # Copy to docker directory for consistency with .env
+    cp "$CONFIG_FILE" config.yaml
     echo -e "${GREEN}✅ Using config file: $CONFIG_FILE${NC}"
-    
-    # Export for docker-compose
-    export ORBIT_CONFIG_PATH="$CONFIG_FILE"
 else
-    # Check for default config.yaml in parent directory
-    if [ ! -f "../config.yaml" ]; then
+    # Check for config.yaml in docker directory first, then parent directory
+    if [ ! -f "config.yaml" ]; then
         if [ "$CREATE_DEFAULT_CONFIG" = true ]; then
-            if [ -f "../config.yaml.example" ]; then
-                echo -e "${YELLOW}⚠️  config.yaml not found. Copying from config.yaml.example...${NC}"
-                cp ../config.yaml.example ../config.yaml
-                echo -e "${GREEN}✅ Created config.yaml from example template${NC}"
+            if [ -f "../config.yaml" ]; then
+                echo -e "${YELLOW}⚠️  config.yaml not found. Copying from config.yaml...${NC}"
+                cp ../config.yaml config.yaml
+                echo -e "${GREEN}✅ Created new config.yaml from ${NC}"
                 echo -e "${BLUE}ℹ️  You may want to review and customize the configuration in config.yaml${NC}"
             else
-                echo -e "${RED}❌ Neither config.yaml nor config.yaml.example found${NC}"
-                echo -e "${YELLOW}ℹ️  Please ensure config.yaml.example exists in the parent directory${NC}"
+                echo -e "${RED}❌ No config.yaml found${NC}"
+                echo -e "${YELLOW}ℹ️  Please ensure config.yaml exists in the parent directory${NC}"
                 exit 1
             fi
         else
@@ -181,12 +178,18 @@ else
 fi
 
 # Check for .env file in parent directory
-if [ ! -f "../.env" ]; then
+if [ ! -f ".env" ]; then
     echo -e "${YELLOW}⚠️  .env file not found. Creating...${NC}"
     if [ -f "../.env.example" ]; then
-        cp ../.env.example ../.env
-        echo -e "${GREEN}✅ Copied .env from .env.example${NC}"
-        echo -e "${BLUE}ℹ️  You may want to review and customize the environment variables in .env${NC}"
+        cp ../.env.example .env
+        
+        # Substitute Docker service hostnames for containerized environment
+        echo -e "${YELLOW}🔧 Configuring .env for Docker environment...${NC}"
+        sed -i 's/INTERNAL_SERVICES_MONGODB_HOST=.*/INTERNAL_SERVICES_MONGODB_HOST=mongodb/' .env
+        sed -i 's/INTERNAL_SERVICES_REDIS_HOST=.*/INTERNAL_SERVICES_REDIS_HOST=redis/' .env
+        
+        echo -e "${GREEN}✅ Created .env with Docker-specific configuration${NC}"
+        echo -e "${BLUE}ℹ️  You may want to review and customize other environment variables in .env${NC}"
     else
         echo -e "${RED}❌ .env.example not found${NC}"
         echo -e "${YELLOW}ℹ️  Please ensure .env.example exists in the parent directory${NC}"
@@ -256,16 +259,24 @@ else
     $DOCKER_COMPOSE up -d > /dev/null 2>&1
 fi
 
-# Sanity check: ensure config.yaml exists inside the container
-CONFIG_PATH_IN_CONTAINER="/app/config.yaml"
-echo -e "${YELLOW}🔍 Checking for config.yaml inside the container at $CONFIG_PATH_IN_CONTAINER...${NC}"
-if ! docker exec orbit-server test -f "$CONFIG_PATH_IN_CONTAINER"; then
-    echo -e "${RED}❌ config.yaml not found inside the container at $CONFIG_PATH_IN_CONTAINER!${NC}"
-    echo -e "${YELLOW}Check your docker-compose.yml volume mappings and config file location.${NC}"
-    $DOCKER_COMPOSE logs orbit-server
+# Sanity check: ensure .env exists locally and will be mounted
+echo -e "${YELLOW}🔍 Checking for .env in docker directory...${NC}"
+if [ ! -f ".env" ]; then
+    echo -e "${RED}❌ .env not found in docker directory!${NC}"
+    echo -e "${YELLOW}This file should have been created earlier in the initialization process.${NC}"
     exit 1
 else
-    echo -e "${GREEN}✅ config.yaml found inside the container.${NC}"
+    echo -e "${GREEN}✅ .env found in docker directory.${NC}"
+fi
+
+# Sanity check: ensure config.yaml exists locally and will be mounted
+echo -e "${YELLOW}🔍 Checking for config.yaml in docker directory...${NC}"
+if [ ! -f "config.yaml" ]; then
+    echo -e "${RED}❌ config.yaml not found in docker directory!${NC}"
+    echo -e "${YELLOW}This file should have been created earlier in the initialization process.${NC}"
+    exit 1
+else
+    echo -e "${GREEN}✅ config.yaml found in docker directory.${NC}"
 fi
 
 # Wait for services to be ready
