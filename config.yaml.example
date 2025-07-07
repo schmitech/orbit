@@ -443,8 +443,8 @@ inference:
     stream: true
     verbose: false
   cohere:
-    api_key: ${COHERE_API_KEY}
-    api_base: "https://api.cohere.ai/v1"
+    api_base: "https://api.cohere.ai/v2"
+    model: "command-r7b-12-2024"
     model: "command-r-plus"
     temperature: 0.1
     top_p: 0.8
