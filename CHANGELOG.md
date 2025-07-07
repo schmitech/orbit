@@ -1,5 +1,38 @@
 # Changelog
 
+## [1.2.0] - 2025-07-07
+
+### Authentication & Security
+- Introduced new authentication service with CLI integration
+- Improved CLI tools for better user experience with authentication operations
+- Added config-based authentication enable/disable controls
+
+### Chatbot Widget & UI Improvements
+- Chat Widget v0.4.11 with bug fixes and UX enhancements
+- Fixed suspended state issues after initial messages
+- Improved input field styling and border handling
+- Enhanced Widget Theming App with code highlighting and download functionality
+- Updated Node API client to version 0.5.1 with optimizations
+- Improved demo chat app UX and removed unused dependencies
+
+### Docker & Deployment
+- Enhanced docker deployment scripts and setup procedures
+- Added MongoDB initialization logic improvements
+- Fixed docker deployment issues with clean and test scripts
+- Improved tarball creation script with better sample data
+
+### Code Quality & Architecture
+- Removed language detection module due to complexity and ineffectiveness
+- Improved CLI code structure with direct command-to-handler mapping
+- Enhanced logging summary for better server startup feedback
+- Updated MongoDB service and reranker initialization logic
+
+### Documentation & Configuration
+- Updated README with improved diagrams and content
+- Enhanced widget documentation and usage instructions
+- Added theming app demonstration to documentation
+- Improved setup and configuration scripts
+
 ## [1.1.4] - 2025-06-27
 
 ### Docker & Deployment Scripts

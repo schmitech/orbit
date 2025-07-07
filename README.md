@@ -1,6 +1,10 @@
 ## Open Retrieval-Based Inference Toolkit (ORBIT)
 
-ORBIT is a middleware platform offering a unified API for AI inference, enabling anyone to deploy AI solutions without paying for subscriptions or token-based credits. ORBIT is particularly useful for organizations that require visibility, transparency, explainability, and auditability of their AI workflows when handling sensitive data. This project is actively maintained by [Remsy Schmilinsky](https://www.linkedin.com/in/remsy/). Check out the [Changelog](CHANGELOG.md) for the latest updates.
+ORBIT is a middleware platform offering a unified API for AI inference, enabling anyone to deploy AI solutions without paying for subscriptions or token-based credits.  ORBIT is particularly useful for organizations that require visibility, transparency, explainability, and auditability of their AI workflows when handling sensitive data.
+
+This project is actively maintained by [Remsy Schmilinsky](https://www.linkedin.com/in/remsy/). Check out the [Changelog](CHANGELOG.md) for the latest updates.
+
+**Need help?** If you require commercial support, hosting services, implementation of custom adapters, and any priority features or fixes, please contact [schmitech.ai](https://schmitech.ai/).
 
 ## High-Level Architecture
 <div align="left">
@@ -22,9 +26,9 @@ Integration with commercial AI platforms is optional and requires your own API k
 ### Deploying locally
 ```bash
 # Download and extract the latest release
-curl -L https://github.com/schmitech/orbit/releases/download/v1.1.4/orbit-1.1.4.tar.gz -o orbit-1.1.4.tar.gz
-tar -xzf orbit-1.1.4.tar.gz
-cd orbit-1.1.4
+curl -L https://github.com/schmitech/orbit/releases/download/v1.2.0/orbit-1.2.0.tar.gz -o orbit-1.2.0.tar.gz
+tar -xzf orbit-1.2.0.tar.gz
+cd orbit-1.2.0
 
 # Create environment file from template
 cp .env.example .env
@@ -41,18 +45,50 @@ source venv/bin/activate
 ./bin/orbit.sh start
 ```
 
+### Authentication
+
+Authentication is avaialble with simple role-based access control (RBAC). It uses PBKDF2-SHA256 password hashing and cryptographically secure bearer tokens for session management. Authentication is disabled by default and requires a MongoDB instance. To enable it, edit your `config.yaml`:
+
+```yaml
+auth:
+  enabled: true
+  session_duration_hours: 12
+  default_admin_username: "admin"
+  default_admin_password: "${ORBIT_DEFAULT_ADMIN_PASSWORD}"
+  credential_storage: file  # or "keyring"
+```
+
+#### Authentication Commmands
+```bash
+./bin/orbit.sh login --username admin --password admin123
+
+# Who am I
+./bin/orbit.sh me
+
+# Change password
+./bin/orbit.sh user change-password
+
+# Check authentication status
+./bin/orbit.sh auth-status
+
+# List all users
+./bin/orbit.sh user list
+
+# Logout
+./bin/orbit.sh logout
+```
+
+For detailed authentication configuration, security features, and advanced usage, see the [Authentication Documentation](docs/authentication.md).
+
 ### Deploying with Docker
 ```bash
 ./docker/docker-init.sh --build --profile minimal --download-gguf gemma3-1b.gguf
 
 # Check the logs
 ./docker/orbit-docker.sh logs --follow
-
-# Open terminal in container
-./docker/orbit-docker.sh exec bash
 ```
 
-For more details about deploying ORBIT using docker, see [Docker Deployment](docs/docker-deployment.md)
+For more details about deploying ORBIT using docker, see [Docker Deployment](docker/README.md)
 
 Run ORBIT client (default url is http://localhost:3000, use --help for options):
 ```bash

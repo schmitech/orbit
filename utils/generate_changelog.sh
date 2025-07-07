@@ -25,7 +25,7 @@
 #
 # Output:
 #   Prints formatted changelog to stdout. Redirect to file if needed:
-#   ./generate_changelog.sh 2024-01-01 2024-12-31 > CHANGELOG.md
+#   ./generate_changelog.sh 2025-01-01 2025-01-31 > CHANGELOG.md
 #
 # Requirements:
 #   - Git repository
