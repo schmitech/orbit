@@ -43,7 +43,6 @@ RUN cd /app/install && \
 # Copy the application code
 COPY server/ /app/server/
 COPY bin/ /app/bin/
-COPY README.md /app/
 COPY LICENSE* /app/
 
 # Make scripts executable

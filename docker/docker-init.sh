@@ -62,7 +62,7 @@ print_help() {
     echo "  --verbose                 Show verbose output"
     echo "  --help                    Show this help message"
     echo ""
-    echo "GGUF models .conf example (../gguf-models.conf):"
+    echo "GGUF models .conf example (../install/gguf-models.conf):"
     echo "gemma-3-1b=https://huggingface.co/unsloth/gemma-3-1b-it-GGUF/resolve/main/gemma-3-1b-it-Q4_0.gguf"
     echo "my-kaggle-model.gguf=https://www.kaggle.com/models/your/model/download/my-kaggle-model.gguf"
     echo ""

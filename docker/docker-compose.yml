@@ -30,11 +30,14 @@ services:
   mongodb:
     image: mongo:8.0
     container_name: orbit-mongodb
+    command: ["mongod", "--config", "/etc/mongo.conf", "--quiet", "--logpath", "/var/log/mongodb/mongod.log", "--logappend"]
     restart: unless-stopped
     ports:
       - "27017:27017"
     volumes:
       - mongodb-data:/data/db
+      - mongodb-logs:/var/log/mongodb
+      - ./mongo.conf:/etc/mongo.conf
     healthcheck:
       test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
       interval: 10s
@@ -76,6 +79,8 @@ services:
 
 volumes:
   mongodb-data:
+    driver: local
+  mongodb-logs:
     driver: local
   redis-data:
     driver: local

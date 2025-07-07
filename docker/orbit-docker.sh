@@ -2,6 +2,7 @@
 
 # ORBIT Docker Run Helper Script
 # This script helps run ORBIT in Docker with different configurations
+# Includes authentication commands that delegate to the orbit CLI inside the container
 
 set -e
 
@@ -52,6 +53,15 @@ print_help() {
     echo "  status            Show container status"
     echo "  cli               Run ORBIT CLI command"
     echo ""
+    echo "Authentication Commands:"
+    echo "  login             Login to ORBIT server"
+    echo "  logout            Logout from ORBIT server"
+    echo "  auth-status       Check authentication status"
+    echo "  me                Show current user information"
+    echo "  register          Register a new user (admin only)"
+    echo ""
+    echo "Note: Authentication commands require the ORBIT server to be running."
+    echo ""
     echo "Options:"
     echo "  --config <file>   Path to config.yaml file"
     echo "  --profile <name>  Dependency profile (minimal, torch, commercial, all)"
@@ -69,6 +79,12 @@ print_help() {
     echo ""
     echo "  # View logs"
     echo "  ./orbit-docker.sh logs --follow"
+    echo ""
+    echo "  # Authentication"
+    echo "  ./orbit-docker.sh login --username admin"
+    echo "  ./orbit-docker.sh auth-status"
+    echo "  ./orbit-docker.sh me"
+    echo "  ./orbit-docker.sh logout"
     echo ""
     echo "  # Run CLI command"
     echo "  ./orbit-docker.sh cli key create --name myapp"
@@ -207,7 +223,32 @@ case $COMMAND in
         
     cli)
         # Run orbit CLI command in container
-        docker exec -it $CONTAINER_NAME orbit "$@"
+        docker exec -it $CONTAINER_NAME python /app/bin/orbit.py "$@"
+        ;;
+        
+    login)
+        echo -e "${BLUE}🔐 Logging in to ORBIT...${NC}"
+        docker exec -it $CONTAINER_NAME python /app/bin/orbit.py login "$@"
+        ;;
+        
+    logout)
+        echo -e "${YELLOW}🔓 Logging out from ORBIT...${NC}"
+        docker exec -it $CONTAINER_NAME python /app/bin/orbit.py logout "$@"
+        ;;
+        
+    auth-status)
+        echo -e "${BLUE}🔍 Checking authentication status...${NC}"
+        docker exec -it $CONTAINER_NAME python /app/bin/orbit.py auth-status "$@"
+        ;;
+        
+    me)
+        echo -e "${BLUE}👤 Getting current user info...${NC}"
+        docker exec -it $CONTAINER_NAME python /app/bin/orbit.py me "$@"
+        ;;
+        
+    register)
+        echo -e "${BLUE}👥 Registering new user...${NC}"
+        docker exec -it $CONTAINER_NAME python /app/bin/orbit.py register "$@"
         ;;
         
     *)

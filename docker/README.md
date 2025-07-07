@@ -49,12 +49,23 @@ chmod +x docker-init.sh orbit-docker.sh
 cp .env.example .env
 ```
 
-Edit `.env` to add your API keys (only if using commercial providers):
+Edit `.env` to configure for Docker and add your API keys:
 ```bash
 # Edit with your preferred editor
 nano .env
 # or
 vim .env
+```
+
+**Required for Docker - Add these lines to your `.env` file:**
+```bash
+# Docker networking configuration (REQUIRED)
+INTERNAL_SERVICES_MONGODB_HOST=mongodb
+INTERNAL_SERVICES_REDIS_HOST=redis
+
+# API keys (only if using commercial providers)
+OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=sk-ant-...
 ```
 
 ### 4. Choose Your Setup Profile
@@ -63,7 +74,7 @@ ORBIT supports different dependency profiles:
 
 | Profile | Description | Use Case |
 |---------|-------------|----------|
-| `minimal` | Core dependencies only | Local Ollama inference |
+| `minimal` | Core dependencies only | Basic server setup |
 | `torch` | Includes PyTorch dependencies | GPU-accelerated inference |
 | `commercial` | Commercial provider SDKs | OpenAI, Anthropic, etc. |
 | `all` | Everything included | Maximum flexibility |
@@ -97,49 +108,52 @@ ORBIT uses YAML configuration files to control its behavior. The main sections a
 - **embeddings**: Embedding model configurations
 - **adapters**: Query processing pipelines
 
-### Config File Locations
-
-```
-orbit/
-├── config.yaml           # Default config file
-├── configs/              # Directory for multiple configs
-│   ├── minimal.yaml      # Minimal setup
-│   ├── development.yaml  # Development with verbose logging
-│   ├── production.yaml   # Production-ready config
-│   └── commercial.yaml   # Commercial providers config
-```
-
-### Using Custom Configs
-
-Start ORBIT with a specific config:
-```bash
-# During initialization
-./docker-init.sh --build --config configs/production.yaml
-
-# Or when running
-./orbit-docker.sh start --config configs/production.yaml
-```
-
 ### Important Docker Config Settings
 
 When using Docker, ensure your config uses Docker service names instead of `localhost`:
 
 ```yaml
 # Correct for Docker
-inference:
-  ollama:
-    base_url: "http://ollama:11434"  # NOT http://localhost:11434
-
-datasources:
-  chroma:
-    host: "chroma"  # NOT localhost
-    port: 8000
-
 internal_services:
   mongodb:
     host: "mongodb"  # NOT localhost
     port: 27017
+  redis:
+    host: "redis"  # NOT localhost
+    port: 6379
+
+# External services (if using external providers)
+inference:
+  openai:
+    base_url: "https://api.openai.com/v1"
+    
+datasources:
+  # Configure external vector databases here
+  # Example for external Chroma or other providers
 ```
+
+### Environment Variable Override (Required for Docker)
+
+**Important:** When using Docker, you must override the default localhost MongoDB host. Add this to your `.env` file:
+
+```bash
+# Required for Docker networking - replaces default localhost
+INTERNAL_SERVICES_MONGODB_HOST=mongodb
+
+# Optional: Override Redis host if needed
+INTERNAL_SERVICES_REDIS_HOST=redis
+```
+
+**Why this is needed:**
+- The default configuration uses `localhost` for internal services
+- In Docker, containers cannot reach each other via `localhost`
+- Container services must use Docker service names (`mongodb`, `redis`)
+- Environment variables override the default config values
+
+**Without this setting, you will see connection errors like:**
+- "Connection refused to localhost:27017"
+- "MongoDB connection failed"
+- ORBIT server failing to start
 
 ## Running ORBIT
 
@@ -185,6 +199,9 @@ curl http://localhost:3000/health
 
 # Using docker-compose directly
 docker compose logs -f orbit-server
+
+# MongoDB internal logs:
+docker exec orbit-mongodb cat /var/log/mongodb/mongod.log
 ```
 
 ### Stopping ORBIT
@@ -216,7 +233,7 @@ ORBIT supports API key authentication for secure access:
 
 ### Using the CLI
 
-Access ORBIT's CLI tools inside the container:
+Access ORBIT's CLI tools inside the container using the `cli` command. This is a passthrough that lets you run any orbit CLI command that isn't directly implemented as a shortcut:
 
 ```bash
 # Get CLI help
@@ -228,6 +245,105 @@ Access ORBIT's CLI tools inside the container:
 # Run any orbit command
 ./orbit-docker.sh cli <command> [options]
 ```
+
+#### Authentication Commands (Available as shortcuts and via CLI)
+
+```bash
+# Direct shortcuts (recommended for common operations)
+./orbit-docker.sh login --username admin
+./orbit-docker.sh auth-status
+./orbit-docker.sh me
+./orbit-docker.sh logout
+./orbit-docker.sh register --username newuser --role user
+
+# Or via CLI command
+./orbit-docker.sh cli login --username admin
+./orbit-docker.sh cli auth-status
+```
+
+#### User Management Commands (Via CLI only)
+
+```bash
+# List all users
+./orbit-docker.sh cli user list
+
+# List users with filters
+./orbit-docker.sh cli user list --role admin
+./orbit-docker.sh cli user list --active-only
+
+# Reset user password
+./orbit-docker.sh cli user reset-password --username admin
+./orbit-docker.sh cli user reset-password --user-id 507f1f77bcf86cd799439011
+
+# Activate/deactivate users
+./orbit-docker.sh cli user activate --user-id 507f1f77bcf86cd799439011
+./orbit-docker.sh cli user deactivate --user-id 507f1f77bcf86cd799439011
+
+# Delete users
+./orbit-docker.sh cli user delete --user-id 507f1f77bcf86cd799439011
+
+# Change your password (interactive)
+./orbit-docker.sh cli user change-password
+```
+
+#### API Key Management Commands
+
+```bash
+# Create API keys
+./orbit-docker.sh cli key create --collection docs --name "Support Team"
+./orbit-docker.sh cli key create --collection legal --name "Legal Team" --prompt-file legal.txt
+
+# List and manage keys
+./orbit-docker.sh cli key list
+./orbit-docker.sh cli key list --collection docs --active-only
+./orbit-docker.sh cli key test --key api_abcd1234
+./orbit-docker.sh cli key status --key api_abcd1234
+./orbit-docker.sh cli key deactivate --key api_abcd1234
+./orbit-docker.sh cli key delete --key api_abcd1234
+```
+
+#### System Prompt Management Commands
+
+```bash
+# Create and manage prompts
+./orbit-docker.sh cli prompt create --name "Assistant" --file prompt.txt
+./orbit-docker.sh cli prompt list
+./orbit-docker.sh cli prompt list --name-filter "Support"
+./orbit-docker.sh cli prompt get --id 612a4b3c... --save prompt.txt
+./orbit-docker.sh cli prompt update --id 612a4b3c... --file updated.txt
+./orbit-docker.sh cli prompt delete --id 612a4b3c...
+./orbit-docker.sh cli prompt associate --key api_123 --prompt-id 612a4b3c...
+```
+
+#### Configuration Management Commands
+
+```bash
+# View and manage CLI configuration
+./orbit-docker.sh cli config show
+./orbit-docker.sh cli config effective
+./orbit-docker.sh cli config set auth.credential_storage keyring
+./orbit-docker.sh cli config reset
+```
+
+#### How the CLI Command Works
+
+The `cli` command is a passthrough that executes any orbit CLI command inside the running container:
+
+```bash
+./orbit-docker.sh cli <command> [options]
+```
+
+This translates to:
+```bash
+docker exec -it orbit-server python /app/bin/orbit.py <command> [options]
+```
+
+**Key Points:**
+- All CLI commands require the ORBIT server to be running
+- Authentication commands work with the same secure credential storage
+- User management commands require admin privileges
+- Use `--output json` for machine-readable output
+- Use `--help` with any command for detailed options
 
 ### Accessing Container Shell
 
@@ -258,13 +374,19 @@ Create different configs for different scenarios:
 
 ORBIT stores data in Docker volumes:
 - `mongodb-data`: API keys and metadata
-- `ollama-data`: Downloaded models
-- `chroma-data`: Vector embeddings
+- `mongodb-logs`: MongoDB log files
+- `redis-data`: Redis cache data
 
 To backup data:
 ```bash
-# Backup volumes
+# Backup MongoDB data
 docker run --rm -v orbit_mongodb-data:/data -v $(pwd):/backup alpine tar czf /backup/mongodb-backup.tar.gz -C /data .
+
+# Backup MongoDB logs (optional)
+docker run --rm -v orbit_mongodb-logs:/logs -v $(pwd):/backup alpine tar czf /backup/mongodb-logs-backup.tar.gz -C /logs .
+
+# Backup Redis data
+docker run --rm -v orbit_redis-data:/data -v $(pwd):/backup alpine tar czf /backup/redis-backup.tar.gz -C /data .
 ```
 
 ### Using Commercial Providers
@@ -352,15 +474,15 @@ curl -X POST http://localhost:3000/v1/chat \
 Check logs for specific service:
 ```bash
 docker compose logs mongodb
-docker compose logs ollama
-docker compose logs chroma
+docker compose logs redis
+docker compose logs orbit-server
 ```
 
-#### 2. Ollama Model Not Found
+#### 2. API Key Authentication Issues
 
-Pull the model manually:
+If you're getting authentication errors, ensure you've created an API key:
 ```bash
-docker exec -it orbit-ollama ollama pull llama3.2
+./orbit-docker.sh cli key create --name "test-key"
 ```
 
 #### 3. Permission Errors
@@ -491,9 +613,12 @@ Monitor service health:
 # Check all services
 docker compose ps
 
+# Test ORBIT API
+curl http://localhost:3000/health
+
 # Test individual services
-curl http://localhost:11434/api/health  # Ollama
-curl http://localhost:8000/api/v1/heartbeat  # Chroma
+docker exec orbit-redis redis-cli ping  # Redis
+docker exec orbit-mongodb mongosh --eval "db.adminCommand('ping')"  # MongoDB
 ```
 
 ### Resetting Everything
