@@ -1,5 +1,6 @@
 """
 Enhanced SQL retriever abstract class with domain adapter support
+and adapter granularity strategy validation
 """
 
 import logging
@@ -45,6 +46,16 @@ class AbstractSQLRetriever(BaseRetriever):
         self.return_results = self.datasource_config.get('return_results', 3)
         self.connection = connection
         
+        # Adapter granularity strategy settings
+        self.query_timeout = self.datasource_config.get('query_timeout', 5000)  # Default 5 seconds
+        self.approved_by_admin = self.datasource_config.get('approved_by_admin', False)
+        self.security_filter = self.datasource_config.get('security_filter', None)
+        self.allowed_columns = self.datasource_config.get('allowed_columns', [])
+        
+        # Query monitoring and safety
+        self.enable_query_monitoring = self.datasource_config.get('enable_query_monitoring', True)
+        self.max_query_complexity = self.datasource_config.get('max_query_complexity', 'medium')
+        
         # Define standard stopwords for tokenization
         self.stopwords = {
             'the', 'a', 'an', 'and', 'is', 'are', 'in', 'on', 'at', 'to', 'for', 
@@ -57,7 +68,62 @@ class AbstractSQLRetriever(BaseRetriever):
         # Default fields to search
         self.default_search_fields = ['id', 'content']
         
+        # Initialize adapter validation service
+        self._init_adapter_validation()
+        
         logger.info(f"AbstractSQLRetriever initialized with relevance_threshold={self.relevance_threshold}")
+    
+    def _init_adapter_validation(self):
+        """Initialize SQL adapter validation service for granularity strategy."""
+        try:
+            from services.sql_adapter_validation_service import SQLAdapterValidationService
+            self.adapter_validator = SQLAdapterValidationService(self.config)
+            
+            # Validate current adapter configuration if query monitoring is enabled
+            if self.enable_query_monitoring:
+                self._validate_current_config()
+                
+        except ImportError:
+            logger.warning("SQLAdapterValidationService not available - query validation disabled")
+            self.adapter_validator = None
+        except Exception as e:
+            logger.error(f"Error initializing adapter validation: {str(e)}")
+            self.adapter_validator = None
+    
+    def _validate_current_config(self):
+        """Validate the current adapter configuration."""
+        if not self.adapter_validator:
+            return
+            
+        try:
+            # Create a mock adapter config for validation
+            mock_config = {
+                'name': f"{self._get_datasource_name()}_adapter",
+                'type': 'retriever',
+                'datasource': self._get_datasource_name(),
+                'config': {
+                    'max_results': self.max_results,
+                    'query_timeout': self.query_timeout,
+                    'security_filter': self.security_filter,
+                    'allowed_columns': self.allowed_columns,
+                    'approved_by_admin': self.approved_by_admin
+                }
+            }
+            
+            # Validate configuration
+            validation_result = self.adapter_validator.validate_adapter_config(mock_config)
+            
+            if not validation_result['is_valid']:
+                logger.warning(f"Adapter configuration validation failed: {validation_result['errors']}")
+                
+            if validation_result['warnings']:
+                logger.info(f"Adapter configuration warnings: {validation_result['warnings']}")
+                
+            if validation_result['recommendations']:
+                logger.info(f"Adapter configuration recommendations: {validation_result['recommendations']}")
+                
+        except Exception as e:
+            logger.error(f"Error validating adapter configuration: {str(e)}")
         
     def _tokenize_text(self, text: str) -> List[str]:
         """
@@ -135,9 +201,101 @@ class AbstractSQLRetriever(BaseRetriever):
         """
         raise NotImplementedError("Subclasses must implement close()")
     
+
+    
+    def _apply_granularity_strategy(self, search_config: Dict[str, Any], 
+                                   query: str, collection_name: str) -> Dict[str, Any]:
+        """
+        Apply adapter granularity strategy to search configuration.
+        
+        Args:
+            search_config: Original search configuration
+            query: User query
+            collection_name: Table name
+            
+        Returns:
+            Modified search configuration with safety measures
+        """
+        sql_query = search_config.get("sql", "")
+        
+        # Validate query pattern if custom SQL is used
+        if sql_query and sql_query != f"SELECT * FROM {collection_name} LIMIT ?":
+            query_analysis = self.adapter_validator._analyze_query_risk(sql_query)
+            
+            if query_analysis['risk_level'] == 'HIGH':
+                logger.warning(f"High-risk query detected: {sql_query}")
+                if not self.approved_by_admin:
+                    logger.error("High-risk query requires admin approval")
+                    raise ValueError("High-risk query requires admin approval")
+            
+            if query_analysis['warnings']:
+                logger.warning(f"Query analysis warnings: {query_analysis['warnings']}")
+        
+        # Apply security filters if configured
+        if self.security_filter:
+            sql_query = self._apply_security_filter(sql_query, collection_name)
+            search_config["sql"] = sql_query
+        
+        # Apply column restrictions if configured
+        if self.allowed_columns:
+            sql_query = self._apply_column_restrictions(sql_query, collection_name)
+            search_config["sql"] = sql_query
+        
+        # Ensure query timeout is applied
+        if "timeout" not in search_config:
+            search_config["timeout"] = self.query_timeout
+        
+        return search_config
+    
+    def _apply_security_filter(self, sql_query: str, collection_name: str) -> str:
+        """Apply security filter to SQL query."""
+        if not self.security_filter:
+            return sql_query
+        
+        # If query already has WHERE clause, add AND condition
+        if "WHERE" in sql_query.upper():
+            return sql_query.replace("WHERE", f"WHERE {self.security_filter} AND", 1)
+        else:
+            # Add WHERE clause before ORDER BY or LIMIT
+            if "ORDER BY" in sql_query.upper():
+                return sql_query.replace("ORDER BY", f"WHERE {self.security_filter} ORDER BY", 1)
+            elif "LIMIT" in sql_query.upper():
+                return sql_query.replace("LIMIT", f"WHERE {self.security_filter} LIMIT", 1)
+            else:
+                return f"{sql_query} WHERE {self.security_filter}"
+    
+    def _apply_column_restrictions(self, sql_query: str, collection_name: str) -> str:
+        """Apply column restrictions to SQL query."""
+        if not self.allowed_columns:
+            return sql_query
+        
+        # Replace SELECT * with specific columns
+        if "SELECT *" in sql_query:
+            allowed_cols = ", ".join(self.allowed_columns)
+            return sql_query.replace("SELECT *", f"SELECT {allowed_cols}", 1)
+        
+        return sql_query
+    
+    def _monitor_query_execution(self, sql_query: str, execution_time: float, row_count: int):
+        """Monitor query execution for performance and security."""
+        if not self.enable_query_monitoring:
+            return
+            
+        # Log slow queries
+        if execution_time > 5.0:  # 5 seconds
+            logger.warning(f"Slow query detected: {sql_query} ({execution_time:.2f}s)")
+        
+        # Log large result sets
+        if row_count > 1000:
+            logger.warning(f"Large result set: {sql_query} ({row_count} rows)")
+        
+        # Log successful query with basic stats
+        if self.verbose:
+            logger.info(f"Query executed: {execution_time:.2f}s, {row_count} rows")
+    
     def _get_search_query(self, query: str, collection_name: str) -> Dict[str, Any]:
         """
-        Get domain-specific SQL search query.
+        Get domain-specific SQL search query with granularity strategy validation.
         Can be overridden by subclasses for database-specific optimization.
         
         Args:
@@ -149,14 +307,20 @@ class AbstractSQLRetriever(BaseRetriever):
         """
         # Use domain adapter's SQL query generator if available
         if hasattr(self.domain_adapter, 'get_search_conditions'):
-            return self.domain_adapter.get_search_conditions(query, collection_name)
+            search_config = self.domain_adapter.get_search_conditions(query, collection_name)
+        else:
+            # Default simple search
+            search_config = {
+                "sql": f"SELECT * FROM {collection_name} LIMIT ?",
+                "params": [self.max_results],
+                "fields": self.default_search_fields
+            }
         
-        # Default simple search
-        return {
-            "sql": f"SELECT * FROM {collection_name} LIMIT ?",
-            "params": [self.max_results],
-            "fields": self.default_search_fields
-        }
+        # Apply granularity strategy validation
+        if self.adapter_validator and self.enable_query_monitoring:
+            search_config = self._apply_granularity_strategy(search_config, query, collection_name)
+        
+        return search_config
     
     async def get_relevant_context(self, 
                            query: str, 
@@ -197,8 +361,14 @@ class AbstractSQLRetriever(BaseRetriever):
                 logger.info(f"Search query: {sql_query}")
                 logger.info(f"Search params: {params}")
             
-            # 2. Execute the query
+            # 2. Execute the query with timing and monitoring
+            import time
+            start_time = time.time()
             rows = await self.execute_query(sql_query, params)
+            execution_time = time.time() - start_time
+            
+            # Monitor query execution
+            self._monitor_query_execution(sql_query, execution_time, len(rows))
             
             if debug_mode:
                 logger.info(f"Retrieved {len(rows)} initial rows from database")

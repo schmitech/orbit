@@ -36,6 +36,23 @@ api_keys:
   header_name: "X-API-Key"
   prefix: "orbit_"
 
+adapter_limits:
+  single_table:
+    max_results: 500
+    query_timeout: 5000
+    memory_limit: "100MB"
+    
+  materialized_view:
+    max_results: 1000
+    query_timeout: 10000
+    memory_limit: "200MB"
+    
+  multi_table:
+    max_results: 100
+    query_timeout: 15000
+    memory_limit: "50MB"
+    required_approval: true
+
 logging:
   level: "INFO"
   handlers:
@@ -176,9 +193,70 @@ adapters:
     adapter: "qa"
     implementation: "retrievers.implementations.qa.QASSQLRetriever"
     config:
+      # QA-specific settings
       confidence_threshold: 0.3
       max_results: 5
       return_results: 3
+      
+      # Adapter granularity strategy settings
+      query_timeout: 5000
+      enable_query_monitoring: true
+      
+      # Security and access control (recommended)
+      table: "qa_pairs"  # Specify the exact table for single-table access
+      allowed_columns: ["id", "question", "answer", "category", "confidence"]  # Limit accessible columns
+      security_filter: "active = 1"  # Only return active Q&A pairs
+      
+      # Performance optimization
+      cache_ttl: 1800  # Cache results for 30 minutes
+      
+  # Example: Single-table adapter (recommended pattern)
+  - name: "customer-profiles"
+    type: "retriever"
+    datasource: "postgres"
+    adapter: "sql"
+    implementation: "retrievers.implementations.relational.PostgreSQLRetriever"
+    config:
+      table: "customers"
+      max_results: 100
+      query_timeout: 3000
+      allowed_columns: ["id", "name", "email", "department"]
+      security_filter: "active = true"
+      enable_query_monitoring: true
+      
+  # Example: Materialized view adapter (for complex aggregations)
+  - name: "customer-order-summary"
+    type: "retriever"
+    datasource: "postgres"
+    adapter: "sql"
+    implementation: "retrievers.implementations.relational.PostgreSQLRetriever"
+    config:
+      table: "customer_order_summary_mv"
+      max_results: 200
+      query_timeout: 10000
+      cache_ttl: 3600
+      enable_query_monitoring: true
+      
+  # Example: Controlled multi-table adapter (requires approval)
+  - name: "recent-customer-activity"
+    type: "retriever"
+    datasource: "postgres"
+    adapter: "sql"
+    implementation: "retrievers.implementations.relational.PostgreSQLRetriever"
+    config:
+      query_template: |
+        SELECT c.name, o.order_date, o.total
+        FROM customers c
+        INNER JOIN orders o ON c.id = o.customer_id
+        WHERE o.created_at >= NOW() - INTERVAL '7 days'
+        AND c.id = {customer_id}
+        ORDER BY o.created_at DESC
+        LIMIT 20
+      max_results: 20
+      query_timeout: 15000
+      required_parameters: ["customer_id"]
+      approved_by_admin: true
+      enable_query_monitoring: true
 
   - name: "qa-vector-chroma"
     type: "retriever"
@@ -443,9 +521,9 @@ inference:
     stream: true
     verbose: false
   cohere:
+    api_key: ${COHERE_API_KEY}
     api_base: "https://api.cohere.ai/v2"
     model: "command-r7b-12-2024"
-    model: "command-r-plus"
     temperature: 0.1
     top_p: 0.8
     max_tokens: 1024

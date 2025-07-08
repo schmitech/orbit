@@ -1,0 +1,2 @@
+psycopg2-binary==2.9.10
+faker==37.4.0
