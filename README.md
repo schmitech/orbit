@@ -45,6 +45,20 @@ source venv/bin/activate
 ./bin/orbit.sh start
 ```
 
+Run ORBIT client (default url is http://localhost:3000, use --help for options):
+```bash
+orbit-chat
+```
+![ORBIT Chat Demo](docs/images/orbit-chat.gif)
+
+Or try the react web app under /clients/chat-app (this example uses Cohere as inference):
+```bash
+cd ./clients/chat-app
+nnpm install
+npm run dev
+```
+![ORBIT Chat App  Demo](docs/images/orbit-cohere.gif)
+
 ### Authentication
 
 Authentication is avaialble with simple role-based access control (RBAC). It uses PBKDF2-SHA256 password hashing and cryptographically secure bearer tokens for session management. Authentication is disabled by default and requires a MongoDB instance. To enable it, edit your `config.yaml`:
@@ -90,20 +104,6 @@ For detailed authentication configuration, security features, and advanced usage
 
 For more details about deploying ORBIT using docker, see [Docker Deployment](docker/README.md)
 
-Run ORBIT client (default url is http://localhost:3000, use --help for options):
-```bash
-orbit-chat
-```
-![ORBIT Chat Demo](docs/images/orbit-chat.gif)
-
-ORBIT uses YAML configuration files to control its behavior. The main sections are:
-
-- **general**: Server settings, ports, providers
-- **inference**: LLM provider configurations
-- **datasources**: Vector database settings
-- **embeddings**: Embedding model configurations
-- **adapters**: Query processing pipelines
-
 Edit config.yaml specify `llama_cpp` as inference provider and your GGUF model.
 ```yaml
 general:
@@ -119,14 +119,6 @@ inference:
 If you want to keep conversation history, you will need a MongoDB instance. This is configurable under the `internal_services` section in config.yaml.
 
 > **Note**: MongoDB and Redis are included when deployed using docker.
-
-```bash
-# Copy .env.example to .env and add your MongoDB connection parameters:
-INTERNAL_SERVICES_MONGODB_HOST=localhost
-INTERNAL_SERVICES_MONGODB_PORT=27017
-INTERNAL_SERVICES_MONGODB_USERNAME=mongo-user
-INTERNAL_SERVICES_MONGODB_PASSWORD=mongo-password
-```
 
 Enable in config.yaml:
 ```yaml
