@@ -31,9 +31,19 @@ DEFAULT_TIMEOUT = 120  # Increased timeout for local Ollama
 @pytest.fixture
 def config() -> Dict[str, Any]:
     """Load and return the configuration"""
-    config_path = os.path.join(project_root, 'config.yaml')
-    with open(config_path, 'r') as file:
-        return yaml.safe_load(file)
+    # Use the server's config loading function to handle the modular config structure
+    try:
+        from config.config_manager import load_config as load_server_config
+        return load_server_config()
+    except:
+        # Fallback to manual loading if that fails
+        # Look for config.yaml in the config directory first, then fallback to root
+        config_path = os.path.join(project_root, 'config', 'config.yaml')
+        if not os.path.exists(config_path):
+            config_path = os.path.join(project_root, 'config.yaml')
+        
+        with open(config_path, 'r') as file:
+            return yaml.safe_load(file)
 
 @pytest.fixture
 def ollama_config(config: Dict[str, Any]) -> Dict[str, Any]:

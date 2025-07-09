@@ -1,0 +1,172 @@
+inference:
+  ollama:
+    base_url: "http://localhost:11434"
+    temperature: 0.1
+    top_p: 0.8
+    top_k: 20
+    repeat_penalty: 1.1
+    num_predict: 1024
+    num_ctx: 8192
+    num_threads: 8
+    model: "gemma3:1b"
+    stream: true
+  vllm:
+    host: "localhost"
+    port: 8000
+    temperature: 0.1
+    top_p: 0.8
+    top_k: 20
+    max_tokens: 1024
+    stream: true
+  llama_cpp:
+    model_path: "gguf/gemma3-1b.gguf"
+    chat_format: "chatml"  # Chat format to use (chatml, llama-2, gemma, etc.)
+    verbose: false
+    temperature: 0.1
+    top_p: 0.8
+    top_k: 20
+    max_tokens: 1024
+    repeat_penalty: 1.1
+    n_ctx: 1024
+    n_threads: 4
+    stream: true
+    n_gpu_layers: 0  # For GPU/Metal support
+    main_gpu: 0
+    tensor_split: null
+    stop_tokens: [
+      "<|im_start|>", 
+      "<|im_end|>",
+      "<|endoftext|>"
+    ]
+  gemini:
+    api_key: ${GOOGLE_API_KEY}
+    model: "gemini-2.0-flash"
+    temperature: 0.1
+    top_p: 0.8
+    top_k: 20
+    max_tokens: 1024
+    stream: true
+  groq:
+    api_key: ${GROQ_API_KEY}
+    model: "llama3-8b-8192"
+    temperature: 0.1
+    top_p: 0.8
+    max_tokens: 1024
+    stream: true
+  deepseek:
+    api_key: ${DEEPSEEK_API_KEY}
+    api_base: "https://api.deepseek.com/v1"
+    model: "deepseek-chat"
+    temperature: 0.1
+    top_p: 0.8
+    max_tokens: 1024
+    stream: true
+  vertex:
+    project_id: ${GOOGLE_CLOUD_PROJECT}
+    location: "us-central1"
+    model: "gemini-1.5-pro"
+    temperature: 0.1
+    top_p: 0.8
+    top_k: 20
+    max_tokens: 1024
+    credentials_path: ""
+    stream: true
+  aws:
+    access_key: ${AWS_BEDROCK_ACCESS_KEY}
+    secret_access_key: ${AWS_SECRET_ACCESS_KEY}
+    region: "ca-central-1"
+    model: "anthropic.claude-3-sonnet-20240229-v1:0"
+    content_type: "application/json"
+    accept: "application/json"
+    max_tokens: 1024
+  azure:
+    base_url: http://azure-ai.endpoint.microsoft.com
+    deployment: "azure-ai-deployment"
+    api_key: ${AZURE_ACCESS_KEY}
+    temperature: 0.1
+    top_p: 0.8
+    max_tokens: 1024
+    stream: true
+    verbose: true
+  openai:
+    api_key: ${OPENAI_API_KEY}
+    model: "gpt-4.1-nano"
+    temperature: 0.1
+    top_p: 0.8
+    max_tokens: 1024
+    stream: true
+  mistral:
+    api_key: ${MISTRAL_API_KEY}
+    api_base: "https://api.mistral.ai/v1"
+    model: "mistral-small-latest"
+    temperature: 0.1
+    top_p: 0.8
+    max_tokens: 1024
+    stream: true
+  anthropic:
+    api_key: ${ANTHROPIC_API_KEY}
+    api_base: "https://api.anthropic.com/v1"
+    model: "claude-sonnet-4-20250514"
+    temperature: 0.1
+    top_p: 0.8
+    max_tokens: 1024
+    stream: true
+  together:
+    api_key: ${TOGETHER_API_KEY}
+    api_base: "https://api.together.xyz/v1"
+    model: "Qwen/Qwen3-235B-A22B-fp8-tput"
+    temperature: 0.1
+    top_p: 0.8
+    max_tokens: 1024
+    stream: true
+    show_thinking: false
+  xai:
+    api_key: ${XAI_API_KEY}
+    api_base: "https://api.x.ai/v1"
+    model: "grok-3-mini-beta"
+    temperature: 0.1
+    top_p: 0.8
+    max_tokens: 1024
+    stream: true
+    show_thinking: false
+  huggingface:
+    model_name: "HuggingFaceTB/SmolLM2-1.7B-Instruct"
+    device: "cpu"
+    max_length: 1024
+    temperature: 0.7
+    top_p: 0.9
+    stream: false,
+  openrouter:
+    api_key: ${OPENROUTER_API_KEY}
+    base_url: "https://openrouter.ai/api/v1"
+    model: "openai/gpt-4o"
+    temperature: 0.1
+    top_p: 0.8
+    max_tokens: 1024
+    stream: true
+    verbose: false
+  cohere:
+    api_key: ${COHERE_API_KEY}
+    api_base: "https://api.cohere.ai/v2"
+    model: "command-r7b-12-2024"
+    temperature: 0.1
+    top_p: 0.8
+    max_tokens: 1024
+    stream: true
+  watson:
+    api_key: ${WATSON_API_KEY}
+    api_base: "https://domain.region.cloud.ibm.com"
+    project_id: "your-project_id"
+    instance_id: "openshift"
+    model: "ibm/granite-3-8b-instruct"
+    temperature: 0.1
+    top_k: 20
+    top_p: 0.8
+    max_tokens: 1024
+    stream: true
+    show_thinking: false
+    space_id: ""
+    region: "your-region"
+    auth_type: "iam"
+    time_limit: 10000
+    verify: false

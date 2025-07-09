@@ -1,0 +1,41 @@
+embeddings:
+  llama_cpp:
+    model_path: "gguf/nomic-embed-text-v1.5-Q4_0.gguf"
+    model: "nomic-embed-text-v1.5-Q4_0"
+    n_ctx: 1024 
+    n_threads: 4
+    n_gpu_layers: 0
+    main_gpu: 0 
+    tensor_split: null  # Optional: GPU memory split for multi-GPU setups
+    batch_size: 8
+    dimensions: 768
+    embed_type: "llama_embedding"
+  ollama:
+    base_url: "http://localhost:11434"
+    model: "nomic-embed-text"
+    dimensions: 768
+  jina:
+    api_key: ${JINA_API_KEY}
+    base_url: "https://api.jina.ai/v1"
+    model: "jina-embeddings-v3"
+    task: "text-matching"
+    dimensions: 1024
+    batch_size: 10
+  openai:
+    api_key: ${OPENAI_API_KEY}
+    model: "text-embedding-3-large"
+    dimensions: 3072
+    batch_size: 10
+  cohere:
+    api_key: ${COHERE_API_KEY}
+    model: "embed-english-v3.0"
+    input_type: "search_document"
+    dimensions: 1024
+    batch_size: 32
+    truncate: "NONE"
+    embedding_types: ["float"]
+  mistral:
+    api_key: ${MISTRAL_API_KEY}
+    api_base: "https://api.mistral.ai/v1"
+    model: "mistral-embed"
+    dimensions: 1024

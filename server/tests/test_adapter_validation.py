@@ -22,37 +22,65 @@ from services.sql_adapter_validation_service import SQLAdapterValidationService,
 @pytest.fixture
 def test_config():
     """Load the actual config.yaml for testing."""
-    config_path = Path(__file__).parent.parent.parent / "config.yaml"
-    
-    if config_path.exists():
-        with open(config_path, 'r') as f:
-            config = yaml.safe_load(f)
-        return config
-    else:
-        # Fallback minimal config for testing
-        return {
-            "general": {
-                "verbose": False
-            },
-            "adapter_limits": {
-                "single_table": {
-                    "max_results": 500,
-                    "query_timeout": 5000,
-                    "memory_limit": "100MB"
+    # Try to use the server's config loading function which handles imports
+    try:
+        from config.config_manager import load_config as load_server_config
+        return load_server_config()
+    except Exception as e:
+        # Fallback to manual loading if server config loading fails
+        config_path = Path(__file__).parent.parent.parent / "config" / "config.yaml"
+        
+        if config_path.exists():
+            with open(config_path, 'r') as f:
+                config = yaml.safe_load(f)
+            
+            # Manually process imports if present
+            if 'import' in config:
+                import_files = config['import']
+                if isinstance(import_files, str):
+                    import_files = [import_files]
+                
+                # Remove the import key from config
+                del config['import']
+                
+                # Load and merge each imported file
+                config_dir = config_path.parent
+                for import_file in import_files:
+                    import_path = config_dir / import_file
+                    try:
+                        with open(import_path, 'r') as f:
+                            imported_config = yaml.safe_load(f)
+                            # Merge the imported config into the main config
+                            config.update(imported_config)
+                    except Exception as import_error:
+                        print(f"Warning: Failed to import {import_file}: {import_error}")
+            
+            return config
+        else:
+            # Fallback minimal config for testing
+            return {
+                "general": {
+                    "verbose": False
                 },
-                "materialized_view": {
-                    "max_results": 1000,
-                    "query_timeout": 10000,
-                    "memory_limit": "200MB"
-                },
-                "multi_table": {
-                    "max_results": 100,
-                    "query_timeout": 15000,
-                    "memory_limit": "50MB",
-                    "required_approval": True
+                "adapter_limits": {
+                    "single_table": {
+                        "max_results": 500,
+                        "query_timeout": 5000,
+                        "memory_limit": "100MB"
+                    },
+                    "materialized_view": {
+                        "max_results": 1000,
+                        "query_timeout": 10000,
+                        "memory_limit": "200MB"
+                    },
+                    "multi_table": {
+                        "max_results": 100,
+                        "query_timeout": 15000,
+                        "memory_limit": "50MB",
+                        "required_approval": True
+                    }
                 }
             }
-        }
 
 
 @pytest.fixture
@@ -381,13 +409,43 @@ class TestIntegrationWithRetriever:
 
 def test_validation_script_functionality():
     """Test that validates the core SQL adapter functionality works like the original script."""
-    config_path = Path(__file__).parent.parent.parent / "config.yaml"
-    
-    if not config_path.exists():
-        pytest.skip("config.yaml not found, skipping integration test")
-    
-    with open(config_path, 'r') as f:
-        config = yaml.safe_load(f)
+    # Try to use the server's config loading function which handles imports
+    try:
+        from config.config_manager import load_config as load_server_config
+        config = load_server_config()
+    except Exception as e:
+        # Fallback to manual loading if server config loading fails
+        config_path = Path(__file__).parent.parent.parent / "config" / "config.yaml"
+        if not config_path.exists():
+            # Fallback to old location for backward compatibility
+            config_path = Path(__file__).parent.parent.parent / "config.yaml"
+        
+        if not config_path.exists():
+            pytest.skip("config.yaml not found, skipping integration test")
+        
+        with open(config_path, 'r') as f:
+            config = yaml.safe_load(f)
+        
+        # Manually process imports if present
+        if 'import' in config:
+            import_files = config['import']
+            if isinstance(import_files, str):
+                import_files = [import_files]
+            
+            # Remove the import key from config
+            del config['import']
+            
+            # Load and merge each imported file
+            config_dir = config_path.parent
+            for import_file in import_files:
+                import_path = config_dir / import_file
+                try:
+                    with open(import_path, 'r') as f:
+                        imported_config = yaml.safe_load(f)
+                        # Merge the imported config into the main config
+                        config.update(imported_config)
+                except Exception as import_error:
+                    print(f"Warning: Failed to import {import_file}: {import_error}")
     
     validator = SQLAdapterValidationService(config)
     adapter_configs = config.get('adapters', [])

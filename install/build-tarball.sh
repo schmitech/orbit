@@ -93,7 +93,7 @@ check_requirements() {
 check_required_directories() {
     local missing_dirs=()
     
-    for dir in server bin install docker examples; do
+    for dir in server bin install docker examples config; do
         if [ ! -d "$dir" ]; then
             missing_dirs+=("$dir")
         fi
@@ -146,7 +146,7 @@ mkdir -p dist/build/${PACKAGE_NAME}
 
 # Create directory structure
 echo "Creating directory structure..."
-mkdir -p dist/build/${PACKAGE_NAME}/{bin,server,install,logs,examples,docker}
+mkdir -p dist/build/${PACKAGE_NAME}/{bin,server,install,logs,examples,docker,config}
 
 # Copy core server files (excluding tests directory)
 echo "Copying server files..."
@@ -183,13 +183,21 @@ find examples -type f -not -path "*/\.*" -not -path "*/__pycache__/*" -not -name
     cp "$file" "dist/build/${PACKAGE_NAME}/$file"
 done
 
-# Create example configuration
-echo "Creating example configuration yaml file..."
-if [ -f "config.yaml.example" ]; then
-    cp config.yaml.example dist/build/${PACKAGE_NAME}/config.yaml
+# Copy config files
+echo "Copying configuration files..."
+find config -type f -not -path "*/\.*" -not -path "*/__pycache__/*" -not -name "*.pyc" -not -name "*.pyo" -not -name "*.pyd" | while read file; do
+    mkdir -p "dist/build/${PACKAGE_NAME}/$(dirname "$file")"
+    cp "$file" "dist/build/${PACKAGE_NAME}/$file"
+done
+
+# Verify config files were copied
+echo "Verifying configuration files..."
+if [ -d "dist/build/${PACKAGE_NAME}/config" ]; then
+    echo "✅ Config directory created successfully"
+    echo "📁 Config files:"
+    ls -la dist/build/${PACKAGE_NAME}/config/
 else
-    echo "Warning: config.yaml.example not found, creating empty config.yaml..."
-    touch dist/build/${PACKAGE_NAME}/config.yaml
+    echo "⚠️ Warning: Config directory not found in build"
 fi
 
 # Create .env.example file

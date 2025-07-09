@@ -9,13 +9,13 @@ services:
     ports:
       - "${ORBIT_PORT:-3000}:${ORBIT_PORT:-3000}"
     volumes:
-      - ./config.yaml:/app/config.yaml
+      - ./config:/app/config
       - ../logs:/app/logs
       - ../gguf:/app/gguf
     env_file:
       - ./.env
     environment:
-      - CONFIG_PATH=/app/config.yaml
+      - CONFIG_PATH=/app/config/config.yaml
       - MONGODB_URL=mongodb://mongodb:27017
       - REDIS_URL=redis://redis:6379
       - INTERNAL_SERVICES_MONGODB_HOST=mongodb

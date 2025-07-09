@@ -20,6 +20,21 @@ The system looks for configuration in the following order:
 4. `config.yaml` in current directory
 5. Default configuration (if no file is found)
 
+### Import Support
+
+The configuration system supports importing external YAML files using the `import` directive:
+
+```yaml
+# Import external configuration files
+import: "adapters.yaml"
+# or multiple files
+import: 
+  - "adapters.yaml"
+  - "custom-config.yaml"
+```
+
+This allows you to separate large configuration sections (like adapters) into dedicated files for better maintainability. See [Adapter Configuration Management](adapter-configuration.md) for detailed information.
+
 ## Configuration Structure
 
 ### General Settings

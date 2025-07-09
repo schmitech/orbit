@@ -1,0 +1,56 @@
+datasources:
+  chroma:
+    use_local: true
+    db_path: "examples/chroma/chroma_db"
+    host: "localhost"
+    port: 8000
+    embedding_provider: null 
+  qdrant:
+    host: ${DATASOURCE_QDRANT_HOST}
+    port: ${DATASOURCE_QDRANT_PORT}
+    embedding_provider: null
+    collection_name: "orbit"
+  sqlite:
+    db_path: "examples/sqlite/sqlite_db"
+  postgres:
+    host: "localhost"
+    port: 5432
+    database: "retrieval"
+    username: ${DATASOURCE_POSTGRES_USERNAME}
+    password: ${DATASOURCE_POSTGRES_PASSWORD}
+  milvus:
+    host: "localhost"
+    port: 19530
+    dim: 768
+    metric_type: "IP"  # Options: L2, IP, COSINE
+    embedding_provider: null
+  pinecone:
+    api_key: ${DATASOURCE_PINECONE_API_KEY}
+    host: ${DATASOURCE_PINECONE_HOST}
+    namespace: "default"
+    embedding_provider: null
+  elasticsearch:
+    node: 'https://localhost:9200'
+    auth:
+      username: ${DATASOURCE_ELASTICSEARCH_USERNAME}
+      password: ${DATASOURCE_ELASTICSEARCH_PASSWORD}
+      vector_field: "embedding"
+      text_field: "content"
+      verify_certs: true
+      embedding_provider: null
+  redis:
+    host: ${DATASOURCE_REDIS_HOST}
+    port: ${DATASOURCE_REDIS_PORT}
+    password: ${DATASOURCE_REDIS_PASSWORD}
+    db: 0
+    use_ssl: false
+    vector_field: "embedding"
+    text_field: "content"
+    distance_metric: "COSINE"  # Options: L2, IP, COSINE
+  mongodb:
+    host: "localhost"
+    port: 27017
+    database: "orbit"
+    apikey_collection: "api_keys"
+    username: ${DATASOURCE_MONGODB_USERNAME}
+    password: ${DATASOURCE_MONGODB_PASSWORD}

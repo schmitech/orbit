@@ -1,0 +1,171 @@
+import:
+  - "adapters.yaml"
+  - "inference.yaml"
+  - "datasources.yaml"
+  - "embeddings.yaml"
+  - "rerankers.yaml"
+
+general:
+  port: 3000
+  verbose: false
+  https:
+    enabled: false
+    port: 3443
+    cert_file: "./cert.pem"
+    key_file: "./key.pem"
+  session_id:
+    header_name: "X-Session-ID"
+    required: true
+  inference_provider: "ollama"
+  inference_only: true
+  adapter: "qa-vector-chroma"
+
+messages:
+  no_results_response: "I'm sorry, but I don't have any specific information about that topic in my knowledge base."
+  collection_not_found: "I couldn't find the requested collection. Please make sure the collection exists before querying it."
+
+auth:
+  enabled: false
+  session_duration_hours: 12
+  default_admin_username: admin
+  default_admin_password: ${ORBIT_DEFAULT_ADMIN_PASSWORD}
+  pbkdf2_iterations: 600000
+  # Credential storage method: "keyring" (default) or "file"
+  # - keyring: Uses system keychain (macOS Keychain, Linux Secret Service)
+  # - file: Uses plain text file in ~/.orbit/.env (less secure but visible)
+  credential_storage: file
+
+embedding:
+  provider: "ollama"
+  enabled: false
+
+api_keys:
+  header_name: "X-API-Key"
+  prefix: "orbit_"
+
+logging:
+  level: "INFO"
+  handlers:
+    file:
+      enabled: true
+      directory: "logs"
+      filename: "orbit.log"
+      max_size_mb: 10
+      backup_count: 30
+      rotation: "midnight"
+      format: "text"
+    console:
+      enabled: false
+      format: "text"
+  capture_warnings: true
+  propagate: false
+  loggers:
+    inference.clients.llama_cpp:
+      level: "ERROR"
+    llama_cpp:
+      level: "ERROR"
+    llama_cpp.llama:
+      level: "ERROR"
+    ggml:
+      level: "ERROR"
+    metal:
+      level: "ERROR"
+
+internal_services:
+  elasticsearch:
+    enabled: false
+    node: ${INTERNAL_SERVICES_ELASTICSEARCH_NODE}
+    index: 'orbit'
+    username: ${INTERNAL_SERVICES_ELASTICSEARCH_USERNAME}
+    password: ${INTERNAL_SERVICES_ELASTICSEARCH_PASSWORD}
+
+  mongodb:
+    host: ${INTERNAL_SERVICES_MONGODB_HOST}
+    port: ${INTERNAL_SERVICES_MONGODB_PORT}
+    username: ${INTERNAL_SERVICES_MONGODB_USERNAME}
+    password: ${INTERNAL_SERVICES_MONGODB_PASSWORD}
+    database: "orbit"
+    users_collection: users
+    sessions_collection: sessions
+    apikey_collection: api_keys
+    prompts_collection: system_prompts
+
+  redis:
+    enabled: false
+    host: ${INTERNAL_SERVICES_REDIS_HOST}
+    port: ${INTERNAL_SERVICES_REDIS_PORT}
+    db: 0
+    username: ${INTERNAL_SERVICES_REDIS_USERNAME}
+    password: ${INTERNAL_SERVICES_REDIS_PASSWORD}
+    use_ssl: false
+    ttl: 3600  # 1 hour, matching temp_key_expiry
+
+chat_history:
+  enabled: false
+  collection_name: "chat_history"
+  store_metadata: true
+  retention_days: 90
+  max_tracked_sessions: 10000
+  session:
+    auto_generate: false
+    required: true
+    header_name: "X-Session-ID"
+  user:
+    header_name: "X-User-ID"
+    required: false
+
+file_upload:
+  enabled: true
+  max_size_mb: 10
+  max_files_per_batch: 10
+  allowed_extensions:
+    - ".txt"
+    - ".pdf"
+    - ".docx"
+    - ".doc"
+    - ".xlsx"
+    - ".xls"
+    - ".csv"
+    - ".md"
+    - ".json"
+  upload_directory: "uploads"
+  save_to_disk: true
+  auto_store_in_vector_db: true
+  chunk_size: 1000
+  chunk_overlap: 200
+
+safety:
+  enabled: false
+  mode: "fuzzy"
+  moderator: "openai"
+  max_retries: 3
+  retry_delay: 1.0
+  request_timeout: 10
+  allow_on_timeout: false
+
+llm_guard:
+  enabled: false
+  service:
+    base_url: "http://localhost:8000"
+    timeout: 30
+  security:
+    risk_threshold: 0.6
+    # Scanner configurations for different content types
+    scanners:
+      prompt:  # Scanners for user input (prompts)
+        - "ban_substrings"
+        - "ban_topics" 
+        - "prompt_injection"
+        - "toxicity"
+        - "secrets"
+      response:  # Scanners for AI output (responses)
+        - "no_refusal"
+        - "sensitive"
+        - "bias"
+        - "relevance"
+  fallback:
+    on_error: "allow"
+
+reranker:
+  provider: "ollama"
+  enabled: false

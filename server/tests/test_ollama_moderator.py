@@ -59,7 +59,10 @@ def load_config():
         return load_server_config()
     except:
         # Fall back to manual loading if that fails
-        config_path = SERVER_DIR / 'config.yaml'
+        # Look for config.yaml in the config directory first, then fallback to server directory
+        config_path = PROJECT_ROOT / 'config' / 'config.yaml'
+        if not config_path.exists():
+            config_path = SERVER_DIR / 'config.yaml'
         
         with open(config_path, 'r') as file:
             return yaml.safe_load(file)

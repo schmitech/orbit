@@ -57,7 +57,10 @@ def load_config():
         return load_server_config()
     except:
         # Fall back to manual loading if that fails
-        config_path = SERVER_DIR / 'config.yaml'
+        # Look for config.yaml in the config directory first, then fallback to server directory
+        config_path = PROJECT_ROOT / 'config' / 'config.yaml'
+        if not config_path.exists():
+            config_path = SERVER_DIR / 'config.yaml'
         
         with open(config_path, 'r') as file:
             return yaml.safe_load(file)
@@ -66,6 +69,33 @@ def load_config():
 async def moderator_service():
     """Fixture to provide a ModeratorService instance"""
     config = load_config()
+    
+    # Check if safety is enabled
+    safety_enabled = config.get('safety', {}).get('enabled', False)
+    if not safety_enabled:
+        pytest.skip("Safety/moderator service is disabled in config")
+    
+    # Check if we have a valid moderator configuration
+    moderator_name = config.get('safety', {}).get('moderator', 'openai')
+    moderator_config = config.get('moderators', {}).get(moderator_name, {})
+    
+    # Skip if the moderator requires API keys that aren't set
+    if moderator_name == 'openai' and not moderator_config.get('api_key'):
+        pytest.skip(f"OpenAI API key not configured for {moderator_name} moderator")
+    elif moderator_name == 'anthropic' and not moderator_config.get('api_key'):
+        pytest.skip(f"Anthropic API key not configured for {moderator_name} moderator")
+    elif moderator_name == 'ollama':
+        # For Ollama, we can test if the service is available
+        base_url = moderator_config.get('base_url', 'http://localhost:11434')
+        try:
+            import aiohttp
+            async with aiohttp.ClientSession() as session:
+                async with session.get(f"{base_url}/api/tags", timeout=5) as response:
+                    if response.status != 200:
+                        pytest.skip(f"Ollama service not available at {base_url}")
+        except Exception:
+            pytest.skip(f"Ollama service not available at {base_url}")
+    
     service = ModeratorService(config)
     await service.initialize()
     yield service
@@ -140,6 +170,53 @@ async def test_multilingual_query(moderator_service, test_config):
     is_safe, message = await moderator_service.check_safety(multilingual_query)
     assert isinstance(is_safe, bool)
     assert isinstance(message, (str, type(None)))
+
+@pytest.mark.asyncio
+async def test_disabled_safety():
+    """Test that safety checks are properly disabled when configured"""
+    config = load_config()
+    
+    # Create a config with safety disabled
+    test_config = config.copy()
+    test_config['safety'] = {'enabled': False}
+    
+    service = ModeratorService(test_config)
+    await service.initialize()
+    
+    try:
+        # Test that safety checks return safe when disabled
+        is_safe, message = await service.check_safety("This should be safe when moderation is disabled")
+        assert is_safe == True, "Safety check should return True when disabled"
+        assert message is None, "Message should be None when safety is disabled"
+        
+        # Test with potentially unsafe content
+        is_safe, message = await service.check_safety("How to hack into a system?")
+        assert is_safe == True, "Safety check should return True when disabled, even for unsafe content"
+        assert message is None, "Message should be None when safety is disabled"
+        
+    finally:
+        await service.close()
+
+@pytest.mark.asyncio
+async def test_safety_mode_disabled():
+    """Test that safety checks are properly disabled when mode is 'disabled'"""
+    config = load_config()
+    
+    # Create a config with safety mode disabled
+    test_config = config.copy()
+    test_config['safety'] = {'enabled': True, 'mode': 'disabled'}
+    
+    service = ModeratorService(test_config)
+    await service.initialize()
+    
+    try:
+        # Test that safety checks return safe when mode is disabled
+        is_safe, message = await service.check_safety("This should be safe when mode is disabled")
+        assert is_safe == True, "Safety check should return True when mode is disabled"
+        assert message is None, "Message should be None when mode is disabled"
+        
+    finally:
+        await service.close()
 
 # If you want to run specific test cases from a JSON file, you can add a test like this:
 @pytest.mark.asyncio

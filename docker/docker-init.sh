@@ -54,8 +54,8 @@ print_help() {
     echo "  --build                   Build containers before starting"
     echo "  --rebuild                 Force rebuild of Docker images"
     echo "  --profile <name>          Dependency profile (minimal, torch, commercial, all)"
-    echo "  --config <file>           Use specific config file"
-    echo "  --no-default-config       Don't create default config if none exists"
+    echo "  --config <file>           Use specific config file (overrides config directory)"
+    echo "  --no-default-config       Don't create default config directory if none exists"
     echo "  --download-gguf [model]   Download GGUF model(s) by name (can be used multiple times)"
     echo "  --gguf-models-config <f>  Path to GGUF models .conf config (default: ../gguf-models.conf)"
     echo "  --no-pull-model           Don't pull Ollama model"
@@ -71,7 +71,8 @@ print_help() {
     echo "  ./docker-init.sh --rebuild --profile all --download-gguf gemma-3-1b"
     echo "  ./docker-init.sh --download-gguf my-kaggle-model.gguf --gguf-models-config ../my-gguf-list.conf"
     echo "  ./docker-init.sh --download-gguf gemma-3-1b --download-gguf another-model.gguf"
-    echo "  ./docker-init.sh --config /path/to/config.yaml"
+    echo "  ./docker-init.sh --config /path/to/config.yaml  # Use specific config file"
+    echo "  ./docker-init.sh  # Use config directory structure from ../config/"
     exit 0
 }
 
@@ -144,7 +145,7 @@ fi
 echo -e "${YELLOW}📁 Creating required directories...${NC}"
 mkdir -p ../logs ../data ../gguf ../install
 
-# Handle config file
+# Handle config files
 if [ -n "$CONFIG_FILE" ]; then
     # User specified a config file
     if [ ! -f "$CONFIG_FILE" ]; then
@@ -155,25 +156,25 @@ if [ -n "$CONFIG_FILE" ]; then
     cp "$CONFIG_FILE" config.yaml
     echo -e "${GREEN}✅ Using config file: $CONFIG_FILE${NC}"
 else
-    # Check for config.yaml in docker directory first, then parent directory
-    if [ ! -f "config.yaml" ]; then
+    # Check for config directory structure
+    if [ ! -d "config" ]; then
         if [ "$CREATE_DEFAULT_CONFIG" = true ]; then
-            if [ -f "../config.yaml" ]; then
-                echo -e "${YELLOW}⚠️  config.yaml not found. Copying from config.yaml...${NC}"
-                cp ../config.yaml config.yaml
-                echo -e "${GREEN}✅ Created new config.yaml from ${NC}"
-                echo -e "${BLUE}ℹ️  You may want to review and customize the configuration in config.yaml${NC}"
+            if [ -d "../config" ]; then
+                echo -e "${YELLOW}⚠️  config directory not found. Copying from ../config...${NC}"
+                cp -r ../config .
+                echo -e "${GREEN}✅ Created config directory from ../config${NC}"
+                echo -e "${BLUE}ℹ️  You may want to review and customize the configuration files${NC}"
             else
-                echo -e "${RED}❌ No config.yaml found${NC}"
-                echo -e "${YELLOW}ℹ️  Please ensure config.yaml exists in the parent directory${NC}"
+                echo -e "${RED}❌ No config directory found${NC}"
+                echo -e "${YELLOW}ℹ️  Please ensure config directory exists in the parent directory${NC}"
                 exit 1
             fi
         else
-            echo -e "${RED}❌ config.yaml not found and --no-default-config was specified${NC}"
+            echo -e "${RED}❌ config directory not found and --no-default-config was specified${NC}"
             exit 1
         fi
     else
-        echo -e "${GREEN}✅ Found existing config.yaml${NC}"
+        echo -e "${GREEN}✅ Found existing config directory${NC}"
     fi
 fi
 
@@ -269,14 +270,16 @@ else
     echo -e "${GREEN}✅ .env found in docker directory.${NC}"
 fi
 
-# Sanity check: ensure config.yaml exists locally and will be mounted
-echo -e "${YELLOW}🔍 Checking for config.yaml in docker directory...${NC}"
-if [ ! -f "config.yaml" ]; then
-    echo -e "${RED}❌ config.yaml not found in docker directory!${NC}"
-    echo -e "${YELLOW}This file should have been created earlier in the initialization process.${NC}"
+# Sanity check: ensure config directory exists locally and will be mounted
+echo -e "${YELLOW}🔍 Checking for config directory in docker directory...${NC}"
+if [ ! -d "config" ]; then
+    echo -e "${RED}❌ config directory not found in docker directory!${NC}"
+    echo -e "${YELLOW}This directory should have been created earlier in the initialization process.${NC}"
     exit 1
 else
-    echo -e "${GREEN}✅ config.yaml found in docker directory.${NC}"
+    echo -e "${GREEN}✅ config directory found in docker directory.${NC}"
+    echo -e "${BLUE}📁 Config files:${NC}"
+    ls -la config/
 fi
 
 # Wait for services to be ready

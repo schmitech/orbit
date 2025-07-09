@@ -279,7 +279,12 @@ class ConfigManager:
         
         try:
             import yaml
-            config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config.yaml')
+            # Look for config.yaml in the config directory first, then fallback to root
+            config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config', 'config.yaml')
+            if not os.path.exists(config_path):
+                # Fallback to old location for backward compatibility
+                config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config.yaml')
+            
             if os.path.exists(config_path):
                 with open(config_path, 'r') as f:
                     server_config = yaml.safe_load(f)
@@ -753,9 +758,9 @@ class ServerController:
         else:
             # Try to find config file in common locations
             possible_configs = [
+                self.project_root / "config" / "config.yaml",  # New location first
                 self.project_root / "server" / "config.yaml",
-                self.project_root / "config.yaml",
-                self.project_root / "config" / "config.yaml"
+                self.project_root / "config.yaml"  # Old location for backward compatibility
             ]
             for config in possible_configs:
                 if config.exists():

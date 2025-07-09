@@ -1,7 +1,6 @@
 # Environment and config files
 .env
 .api_keys
-config.yaml
 
 # Python related
 __pycache__
@@ -53,7 +52,6 @@ Thumbs.db
 *.db
 .vscode/launch.json
 gguf
-*.yaml.working
 *.pid
 *.pickle
 *.sqlite3

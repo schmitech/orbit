@@ -45,11 +45,14 @@ COPY server/ /app/server/
 COPY bin/ /app/bin/
 COPY LICENSE* /app/
 
+# Copy config directory
+COPY config/ /app/config/
+
 # Make scripts executable
 RUN chmod +x /app/bin/orbit.py /app/bin/orbit.sh
 
 # Create necessary directories
-RUN mkdir -p /app/logs /app/data /app/config /app/gguf
+RUN mkdir -p /app/logs /app/data /app/gguf
 
 # Set environment variables
 ENV PYTHONPATH=/app
@@ -63,4 +66,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
   CMD curl -f http://localhost:3000/health || exit 1
 
 # Run the server with configurable config path
-CMD ["sh", "-c", "python /app/server/main.py --config ${CONFIG_PATH:-/app/config.yaml}"]
+CMD ["sh", "-c", "python /app/server/main.py --config ${CONFIG_PATH:-/app/config/config.yaml}"]
