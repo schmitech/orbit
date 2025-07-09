@@ -1,0 +1,281 @@
+# Query Templates for Semantic RAG System
+# These templates will be embedded and stored in ChromaDB
+
+templates:
+  - id: "customer_recent_orders"
+    description: "Show recent orders for a specific customer within a time period"
+    nl_examples:
+      - "What did customer 123 buy last week?"
+      - "Show me recent orders for customer John Doe"
+      - "List the last 10 orders for customer 42"
+      - "What has customer 5 ordered recently?"
+      - "Show customer 1's recent activity"
+    parameters:
+      - name: "customer_id"
+        type: "integer"
+        required: true
+        description: "The ID of the customer"
+        example: 123
+      - name: "days_back"
+        type: "integer"
+        required: false
+        default: 7
+        description: "Number of days back to look for orders"
+        example: 30
+      - name: "limit"
+        type: "integer"
+        required: false
+        default: 20
+        description: "Maximum number of results to return"
+        example: 10
+    sql_template: |
+      SELECT 
+        c.id as customer_id,
+        c.name as customer_name,
+        c.email as customer_email,
+        o.id as order_id,
+        o.order_date,
+        o.total,
+        o.status,
+        o.payment_method,
+        o.created_at
+      FROM customers c
+      INNER JOIN orders o ON c.id = o.customer_id
+      WHERE c.id = {customer_id}
+        AND o.created_at >= NOW() - INTERVAL '{days_back} days'
+      ORDER BY o.created_at DESC
+      LIMIT {limit}
+    result_format: "table"
+    tags: ["customer", "orders", "recent", "activity"]
+    approved: true
+
+  - id: "high_value_orders"
+    description: "Find orders above a certain amount within a time period"
+    nl_examples:
+      - "Show me all orders over $500 from last month"
+      - "Find expensive orders above $1000"
+      - "List high-value orders from the last 30 days"
+      - "What are the biggest orders recently?"
+      - "Show orders worth more than $750"
+    parameters:
+      - name: "min_amount"
+        type: "decimal"
+        required: true
+        description: "Minimum order amount to filter by"
+        example: 500.00
+      - name: "days_back"
+        type: "integer"
+        required: false
+        default: 30
+        description: "Number of days back to look for orders"
+        example: 60
+      - name: "limit"
+        type: "integer"
+        required: false
+        default: 20
+        description: "Maximum number of results to return"
+        example: 15
+    sql_template: |
+      SELECT 
+        c.id as customer_id,
+        c.name as customer_name,
+        c.email as customer_email,
+        o.id as order_id,
+        o.order_date,
+        o.total,
+        o.status,
+        o.payment_method,
+        o.created_at
+      FROM customers c
+      INNER JOIN orders o ON c.id = o.customer_id
+      WHERE o.total >= {min_amount}
+        AND o.created_at >= NOW() - INTERVAL '{days_back} days'
+      ORDER BY o.total DESC, o.created_at DESC
+      LIMIT {limit}
+    result_format: "table"
+    tags: ["orders", "amount", "high_value", "expensive"]
+    approved: true
+
+  - id: "orders_by_status"
+    description: "Find orders with a specific status within a time period"
+    nl_examples:
+      - "Show me all pending orders"
+      - "Find delivered orders from last week"
+      - "List cancelled orders from the last month"
+      - "What orders are still processing?"
+      - "Show shipped orders from yesterday"
+    parameters:
+      - name: "status"
+        type: "string"
+        required: true
+        description: "Order status to filter by"
+        allowed_values: ["pending", "processing", "shipped", "delivered", "cancelled"]
+        example: "delivered"
+      - name: "days_back"
+        type: "integer"
+        required: false
+        default: 7
+        description: "Number of days back to look for orders"
+        example: 14
+      - name: "limit"
+        type: "integer"
+        required: false
+        default: 20
+        description: "Maximum number of results to return"
+        example: 25
+    sql_template: |
+      SELECT 
+        c.id as customer_id,
+        c.name as customer_name,
+        c.email as customer_email,
+        o.id as order_id,
+        o.order_date,
+        o.total,
+        o.status,
+        o.payment_method,
+        o.created_at
+      FROM customers c
+      INNER JOIN orders o ON c.id = o.customer_id
+      WHERE o.status = '{status}'
+        AND o.created_at >= NOW() - INTERVAL '{days_back} days'
+      ORDER BY o.created_at DESC
+      LIMIT {limit}
+    result_format: "table"
+    tags: ["orders", "status", "filter"]
+    approved: true
+
+  - id: "customer_summary"
+    description: "Get a summary of customer order statistics"
+    nl_examples:
+      - "Give me a summary for customer 123"
+      - "What's the total spent by customer John Doe?"
+      - "Show customer 5's order history summary"
+      - "How much has customer 42 spent in total?"
+      - "Customer summary for ID 10"
+    parameters:
+      - name: "customer_id"
+        type: "integer"
+        required: true
+        description: "The ID of the customer"
+        example: 123
+      - name: "days_back"
+        type: "integer"
+        required: false
+        default: 365
+        description: "Number of days back to include in summary"
+        example: 90
+    sql_template: |
+      SELECT 
+        c.id as customer_id,
+        c.name as customer_name,
+        c.email as customer_email,
+        COUNT(o.id) as total_orders,
+        COALESCE(SUM(o.total), 0) as total_spent,
+        COALESCE(AVG(o.total), 0) as avg_order_value,
+        MIN(o.order_date) as first_order_date,
+        MAX(o.order_date) as last_order_date,
+        STRING_AGG(DISTINCT o.status, ', ') as order_statuses
+      FROM customers c
+      LEFT JOIN orders o ON c.id = o.customer_id
+        AND o.created_at >= NOW() - INTERVAL '{days_back} days'
+      WHERE c.id = {customer_id}
+      GROUP BY c.id, c.name, c.email
+    result_format: "summary"
+    tags: ["customer", "summary", "statistics", "analytics"]
+    approved: true
+
+  - id: "orders_by_city"
+    description: "Find orders from customers in a specific city"
+    nl_examples:
+      - "Show orders from New York customers"
+      - "Find orders from customers in Los Angeles"
+      - "What orders came from Chicago?"
+      - "Orders from San Francisco customers"
+      - "Show me orders from Boston"
+    parameters:
+      - name: "city"
+        type: "string"
+        required: true
+        description: "City name to filter by (partial match)"
+        example: "New York"
+      - name: "days_back"
+        type: "integer"
+        required: false
+        default: 30
+        description: "Number of days back to look for orders"
+        example: 60
+      - name: "limit"
+        type: "integer"
+        required: false
+        default: 20
+        description: "Maximum number of results to return"
+        example: 15
+    sql_template: |
+      SELECT 
+        c.id as customer_id,
+        c.name as customer_name,
+        c.email as customer_email,
+        c.city as customer_city,
+        o.id as order_id,
+        o.order_date,
+        o.total,
+        o.status,
+        o.payment_method,
+        o.created_at
+      FROM customers c
+      INNER JOIN orders o ON c.id = o.customer_id
+      WHERE c.city ILIKE '%{city}%'
+        AND o.created_at >= NOW() - INTERVAL '{days_back} days'
+      ORDER BY o.created_at DESC
+      LIMIT {limit}
+    result_format: "table"
+    tags: ["customer", "orders", "city", "location"]
+    approved: true
+
+  - id: "payment_method_analysis"
+    description: "Analyze orders by payment method"
+    nl_examples:
+      - "Show me orders paid with credit card"
+      - "Find PayPal orders from last month"
+      - "What orders used bank transfer?"
+      - "Show cash payments"
+      - "Credit card orders analysis"
+    parameters:
+      - name: "payment_method"
+        type: "string"
+        required: true
+        description: "Payment method to filter by"
+        allowed_values: ["credit_card", "debit_card", "paypal", "bank_transfer", "cash"]
+        example: "credit_card"
+      - name: "days_back"
+        type: "integer"
+        required: false
+        default: 30
+        description: "Number of days back to look for orders"
+        example: 90
+      - name: "limit"
+        type: "integer"
+        required: false
+        default: 20
+        description: "Maximum number of results to return"
+        example: 25
+    sql_template: |
+      SELECT 
+        c.id as customer_id,
+        c.name as customer_name,
+        c.email as customer_email,
+        o.id as order_id,
+        o.order_date,
+        o.total,
+        o.status,
+        o.payment_method,
+        o.created_at
+      FROM customers c
+      INNER JOIN orders o ON c.id = o.customer_id
+      WHERE o.payment_method = '{payment_method}'
+        AND o.created_at >= NOW() - INTERVAL '{days_back} days'
+      ORDER BY o.created_at DESC
+      LIMIT {limit}
+    result_format: "table"
+    tags: ["orders", "payment", "analysis"]
+    approved: true 

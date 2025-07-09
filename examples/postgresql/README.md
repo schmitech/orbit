@@ -17,6 +17,8 @@ The PostgreSQL adapter demonstrates a **multi-table** adapter pattern that follo
 |------|---------|
 | `customer-order.sql` | Database schema with optimized indexes |
 | `customer-order.py` | Test data generator and query testing |
+| `test_connection.py` | Simple database connection test |
+| `diagnose_connection.py` | Advanced connection troubleshooting |
 | `test_adapter_integration.py` | Comprehensive adapter validation suite |
 | `requirements.txt` | Python dependencies |
 
@@ -28,9 +30,41 @@ pip install -r requirements.txt
 ```
 
 ### 2. Set Environment Variables
+
+Create a `.env` file in this directory with your database configuration:
+
+```bash
+# Copy the example file
+cp env.example .env
+
+# Edit the .env file with your actual database settings
+# The connection string will be constructed dynamically from these values
+
+# For local PostgreSQL
+DATASOURCE_POSTGRES_USERNAME=postgres
+DATASOURCE_POSTGRES_PASSWORD=your_password
+DATASOURCE_POSTGRES_HOST=localhost
+DATASOURCE_POSTGRES_PORT=5432
+DATASOURCE_POSTGRES_DATABASE=test_db
+
+# For Supabase or other cloud databases
+# DATASOURCE_POSTGRES_USERNAME=postgres
+# DATASOURCE_POSTGRES_PASSWORD=your_supabase_password
+# DATASOURCE_POSTGRES_HOST=db.lkyihqptgeqeaoyoantn.supabase.co
+# DATASOURCE_POSTGRES_PORT=5432
+# DATASOURCE_POSTGRES_DATABASE=postgres
+
+# SSL Mode for cloud databases (require, verify-ca, verify-full, prefer, allow, disable)
+DATASOURCE_POSTGRES_SSL_MODE=prefer
+```
+
+Alternatively, you can set environment variables directly:
 ```bash
 export DATASOURCE_POSTGRES_USERNAME=postgres
-export DATASOURCE_POSTGRES_PASSWORD=postgres
+export DATASOURCE_POSTGRES_PASSWORD=your_password
+export DATASOURCE_POSTGRES_HOST=localhost
+export DATASOURCE_POSTGRES_PORT=5432
+export DATASOURCE_POSTGRES_DATABASE=test_db
 ```
 
 ### 3. Create Database and Schema
@@ -42,12 +76,17 @@ createdb retrieval
 psql -d retrieval -f customer-order.sql
 ```
 
-### 4. Generate Test Data
+### 4. Test Database Connection
+```bash
+python test_connection.py
+```
+
+### 5. Generate Test Data
 ```bash
 python customer-order.py --action insert --customers 100 --orders 500
 ```
 
-### 5. Test the Adapter
+### 6. Test the Adapter
 ```bash
 python test_adapter_integration.py
 ```
@@ -118,12 +157,18 @@ The adapter is configured in `config.yaml` as:
 
 ## 🛠️ Usage Examples
 
+### Test Database Connection
+```bash
+# Test connection using .env file
+python test_connection.py
+```
+
 ### Generate Test Data
 ```bash
-# Insert 50 customers and 200 orders
+# Insert 50 customers and 200 orders (uses .env file or environment variables)
 python customer-order.py --action insert --customers 50 --orders 200
 
-# Insert with custom database settings
+# Insert with custom database settings (overrides .env values)
 python customer-order.py --action insert --customers 10 --orders 20 \
   --host localhost --port 5432 --database retrieval --user postgres
 ```
@@ -241,6 +286,33 @@ If you want to migrate to single-table adapters (recommended pattern):
 ## 🐛 Troubleshooting
 
 ### Common Issues
+
+**Cloud Database Connection Issues (Supabase, AWS RDS, etc.)**
+```bash
+# Run the diagnostic tool for comprehensive troubleshooting
+python diagnose_connection.py
+
+# For Supabase and other cloud databases:
+# 1. Set individual environment variables in your .env file:
+#    DATASOURCE_POSTGRES_USERNAME=postgres
+#    DATASOURCE_POSTGRES_PASSWORD=your_password
+#    DATASOURCE_POSTGRES_HOST=db.lkyihqptgeqeaoyoantn.supabase.co
+#    DATASOURCE_POSTGRES_PORT=5432
+#    DATASOURCE_POSTGRES_DATABASE=postgres
+# 2. Ensure SSL is enabled (usually required)
+# 3. Verify IP whitelist if applicable
+
+# Test with SSL enabled
+DATASOURCE_POSTGRES_SSL_MODE=require python test_connection.py
+
+# Common SSL modes:
+# - require: Always use SSL (recommended for cloud)
+# - verify-ca: Verify server certificate
+# - verify-full: Verify server certificate and hostname
+# - prefer: Use SSL if available
+# - allow: Allow SSL but don't require it
+# - disable: No SSL
+```
 
 **Database Connection Failed**
 ```bash

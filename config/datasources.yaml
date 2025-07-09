@@ -13,11 +13,12 @@ datasources:
   sqlite:
     db_path: "examples/sqlite/sqlite_db"
   postgres:
-    host: "localhost"
-    port: 5432
-    database: "retrieval"
+    host: ${DATASOURCE_POSTGRES_HOST}
+    port: ${DATASOURCE_POSTGRES_PORT}
+    database: ${DATASOURCE_POSTGRES_DATABASE}
     username: ${DATASOURCE_POSTGRES_USERNAME}
     password: ${DATASOURCE_POSTGRES_PASSWORD}
+    sslmode: ${DATASOURCE_POSTGRES_SSL_MODE}
   milvus:
     host: "localhost"
     port: 19530

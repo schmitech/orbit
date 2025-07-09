@@ -15,23 +15,55 @@ import random
 from datetime import datetime, timedelta
 import json
 from decimal import Decimal
+import os
+from dotenv import load_dotenv, find_dotenv
+
+def reload_env_variables():
+    """Reload environment variables from .env file"""
+    env_file = find_dotenv()
+    if env_file:
+        load_dotenv(env_file, override=True)
+        print(f"🔄 Reloaded environment variables from: {env_file}")
+    else:
+        print("⚠️  No .env file found")
 
 # Initialize Faker
 fake = Faker()
 
-# Database configuration
-DB_CONFIG = {
-    'host': 'localhost',
-    'port': 5432,
-    'database': 'test_db',
-    'user': 'postgres',
-    'password': 'postgres'
-}
+# Database configuration from environment variables
+def get_db_config():
+    """Get database configuration from environment variables and construct connection string."""
+    # Reload environment variables to get latest values
+    reload_env_variables()
+    
+    # Get individual environment variables
+    host = os.getenv('DATASOURCE_POSTGRES_HOST', 'localhost')
+    port = int(os.getenv('DATASOURCE_POSTGRES_PORT', '5432'))
+    database = os.getenv('DATASOURCE_POSTGRES_DATABASE', 'test_db')
+    user = os.getenv('DATASOURCE_POSTGRES_USERNAME', 'postgres')
+    password = os.getenv('DATASOURCE_POSTGRES_PASSWORD', 'postgres')
+    sslmode = os.getenv('DATASOURCE_POSTGRES_SSL_MODE', 'require')
+    
+    # Construct connection string dynamically
+    connection_string = f"postgresql://{user}:{password}@{host}:{port}/{database}"
+    print(f"🔗 Using connection string: postgresql://{user}:{'*' * len(password)}@{host}:{port}/{database}")
+    print(f"🔒 SSL Mode: {sslmode}")
+    
+    return {
+        'host': host,
+        'port': port,
+        'database': database,
+        'user': user,
+        'password': password,
+        'sslmode': sslmode
+    }
 
 
 def get_connection():
     """Create and return a database connection."""
-    return psycopg2.connect(**DB_CONFIG)
+    # Get fresh configuration each time
+    config = get_db_config()
+    return psycopg2.connect(**config)
 
 
 def insert_customers(conn, count=100):
@@ -208,27 +240,30 @@ def main():
                        help='Customer ID for querying')
     parser.add_argument('--confirm', action='store_true', 
                        help='Confirm deletion')
-    parser.add_argument('--host', default='localhost', 
-                       help='Database host')
-    parser.add_argument('--port', type=int, default=5432, 
-                       help='Database port')
-    parser.add_argument('--database', default='test_db', 
-                       help='Database name')
-    parser.add_argument('--user', default='postgres', 
-                       help='Database user')
-    parser.add_argument('--password', default='postgres', 
-                       help='Database password')
+    parser.add_argument('--host', 
+                       help='Database host (defaults to DATASOURCE_POSTGRES_HOST env var)')
+    parser.add_argument('--port', type=int, 
+                       help='Database port (defaults to DATASOURCE_POSTGRES_PORT env var)')
+    parser.add_argument('--database', 
+                       help='Database name (defaults to DATASOURCE_POSTGRES_DATABASE env var)')
+    parser.add_argument('--user', 
+                       help='Database user (defaults to DATASOURCE_POSTGRES_USERNAME env var)')
+    parser.add_argument('--password', 
+                       help='Database password (defaults to DATASOURCE_POSTGRES_PASSWORD env var)')
     
     args = parser.parse_args()
     
-    # Update DB config with command line args
-    DB_CONFIG.update({
-        'host': args.host,
-        'port': args.port,
-        'database': args.database,
-        'user': args.user,
-        'password': args.password
-    })
+    # Set environment variables from command line args if provided
+    if args.host:
+        os.environ['DATASOURCE_POSTGRES_HOST'] = args.host
+    if args.port:
+        os.environ['DATASOURCE_POSTGRES_PORT'] = str(args.port)
+    if args.database:
+        os.environ['DATASOURCE_POSTGRES_DATABASE'] = args.database
+    if args.user:
+        os.environ['DATASOURCE_POSTGRES_USERNAME'] = args.user
+    if args.password:
+        os.environ['DATASOURCE_POSTGRES_PASSWORD'] = args.password
     
     try:
         conn = get_connection()

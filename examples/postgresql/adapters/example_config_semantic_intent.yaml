@@ -1,0 +1,94 @@
+# Example Configuration for Semantic Intent Adapter
+# This shows how to integrate the semantic intent system with existing ORBIT architecture
+
+adapters:
+  # Semantic Intent SQL Adapter - The new intelligent adapter
+  - name: "semantic-intent-postgres"
+    type: "retriever"
+    datasource: "postgres"
+    adapter: "semantic_intent"
+    implementation: "retrievers.implementations.relational.PostgreSQLRetriever"
+    config:
+      # Template Configuration
+      templates_file: "examples/postgresql/query_templates.yaml"
+      templates_collection: "query_templates"
+      
+      # Ollama Configuration  
+      inference_url: "http://localhost:11434"
+      embedding_model: "nomic-embed-text"
+      inference_model: "gemma3:1b"
+      
+      # ChromaDB Configuration
+      chroma_persist_directory: "./chroma_db"
+      
+      # Semantic Search Configuration
+      confidence_threshold: 0.7
+      
+      # SQL Security Configuration (inherited from existing system)
+      max_results: 100
+      query_timeout: 15000
+      approved_by_admin: true
+      security_filter: "active = true"
+      
+      # Performance Configuration
+      cache_ttl: 1800
+      enable_query_monitoring: true
+      
+      # Logging
+      verbose: true
+
+  # Fallback: Traditional QA SQL Adapter
+  - name: "fallback-qa-postgres"
+    type: "retriever"
+    datasource: "postgres"
+    adapter: "qa"
+    implementation: "retrievers.implementations.relational.PostgreSQLRetriever"
+    config:
+      confidence_threshold: 0.5
+      max_results: 100
+      query_timeout: 5000
+      table: "qa_pairs"
+      allowed_columns: ["id", "question", "answer", "category"]
+      security_filter: "active = 1"
+
+# General Configuration
+general:
+  # Use semantic intent as primary adapter
+  adapter: "semantic-intent-postgres"
+  
+  # Fallback to traditional QA if semantic fails
+  fallback_adapter: "fallback-qa-postgres"
+  
+  # Other settings
+  verbose: true
+  inference_provider: "ollama"
+
+# Database Configuration
+datasources:
+  postgres:
+    host: "localhost"
+    port: 5432
+    database: "orbit"
+    username: "postgres"
+    password: "postgres"
+    ssl_mode: "require"
+
+# Usage Examples:
+# 
+# Traditional Query (still works):
+# - "Find questions about customer orders"
+# 
+# Semantic Intent Queries (new capability):
+# - "What did customer 123 buy last week?"
+# - "Show me all orders over $500 from last month"
+# - "Find delivered orders from yesterday"
+# - "Give me a summary for customer John Doe"
+# - "Show orders from New York customers"
+# - "What orders were paid with credit card?"
+#
+# The system will:
+# 1. Use semantic search to find the best matching template
+# 2. Extract parameters using LLM (customer_id: 123, days_back: 7)
+# 3. Execute the templated SQL query safely
+# 4. Generate a natural language response
+# 5. Fall back to traditional QA if semantic fails 
