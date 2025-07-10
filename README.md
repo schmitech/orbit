@@ -1,6 +1,6 @@
 ## Open Retrieval-Based Inference Toolkit (ORBIT)
 
-ORBIT is a middleware platform offering a unified API for AI inference, enabling anyone to deploy AI solutions without paying for subscriptions or token-based credits.  ORBIT is particularly useful for organizations that require visibility, transparency, explainability, and auditability of their AI workflows when handling sensitive data.
+ORBIT is a middleware platform providing a unified API for AI inference, allowing organizations to deploy AI solutions without incurring subscription or token-based credit costs. ORBIT is especially beneficial for organizations that require visibility, transparency, explainability, and auditability of their AI workflows when processing sensitive data.
 
 This project is actively maintained by [Remsy Schmilinsky](https://www.linkedin.com/in/remsy/). Check out the [Changelog](CHANGELOG.md) for the latest updates.
 
