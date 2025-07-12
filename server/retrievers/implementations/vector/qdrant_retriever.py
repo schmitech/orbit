@@ -47,6 +47,16 @@ class QdrantRetriever(AbstractVectorRetriever):
         # Store collection
         self.collection_name = None
         
+        # Get collection name from adapter config during initialization
+        adapter_config = config.get('adapter_config', {})
+        if adapter_config and 'collection' in adapter_config:
+            self.collection_name = adapter_config['collection']
+            logger.info(f"QdrantRetriever using collection from adapter config: {self.collection_name}")
+        elif 'collection' in self.datasource_config:
+            # Fallback to datasource config
+            self.collection_name = self.datasource_config['collection']
+            logger.info(f"QdrantRetriever using collection from datasource config: {self.collection_name}")
+        
         # Qdrant client
         self.qdrant_client = None
 
@@ -79,6 +89,15 @@ class QdrantRetriever(AbstractVectorRetriever):
             except Exception as e:
                 logger.error(f"Failed to connect to Qdrant: {str(e)}")
                 raise
+            
+            # Set collection if we have a collection name from config
+            if self.collection_name:
+                try:
+                    await self.set_collection(self.collection_name)
+                    logger.info(f"QdrantRetriever initialized with collection: {self.collection_name}")
+                except Exception as e:
+                    logger.error(f"Failed to set collection during initialization: {str(e)}")
+                    # Don't raise here - let it be handled during actual usage
             
         except ImportError:
             error_msg = "qdrant-client package is required for Qdrant retriever. Install with: pip install qdrant-client"

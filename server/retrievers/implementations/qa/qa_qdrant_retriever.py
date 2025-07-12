@@ -64,6 +64,10 @@ class QAQdrantRetriever(QdrantRetriever):
             self.max_results = merged_datasource_config['max_results']
         if 'return_results' in merged_datasource_config:
             self.return_results = merged_datasource_config['return_results']
+            
+        # Override collection_name if set in adapter config (for new API key system)
+        if hasattr(self, 'collection_name') and self.collection_name:
+            logger.info(f"QAQdrantRetriever using collection from adapter config: {self.collection_name}")
         
         # QA-specific settings from adapter config
         self.confidence_threshold = adapter_config.get('confidence_threshold', 0.3) if adapter_config else 0.3

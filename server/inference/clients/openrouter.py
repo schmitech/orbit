@@ -85,12 +85,12 @@ class OpenRouterClient(BaseLLMClient, LLMClientCommon):
     async def generate_response(
         self,
         message: str,
-        collection_name: str,
+        adapter_name: str,
         system_prompt_id: Optional[str] = None,
         context_messages: Optional[List[Dict[str, str]]] = None
     ) -> Dict[str, Any]:
         """Non-streaming chat completion using OpenRouter.ai."""
-        docs = await self._retrieve_and_rerank_docs(message, collection_name)
+        docs = await self._retrieve_and_rerank_docs(message, adapter_name)
         system_prompt = await self._get_system_prompt(system_prompt_id)
         context = self._format_context(docs)
 
@@ -156,25 +156,25 @@ class OpenRouterClient(BaseLLMClient, LLMClientCommon):
     async def generate_response_stream(
         self,
         message: str,
-        collection_name: str,
+        adapter_name: str,
         system_prompt_id: Optional[str] = None,
         context_messages: Optional[List[Dict[str, str]]] = None
     ) -> AsyncGenerator[str, None]:
         # Wrap the entire streaming response with security checking
         async for chunk in self._secure_response_stream(
-            self._generate_response_stream_internal(message, collection_name, system_prompt_id, context_messages)
+            self._generate_response_stream_internal(message, adapter_name, system_prompt_id, context_messages)
         ):
             yield chunk
     
     async def _generate_response_stream_internal(
         self,
         message: str,
-        collection_name: str,
+        adapter_name: str,
         system_prompt_id: Optional[str] = None,
         context_messages: Optional[List[Dict[str, str]]] = None
     ) -> AsyncGenerator[str, None]:
         """Streaming chat completion using OpenRouter.ai."""
-        docs = await self._retrieve_and_rerank_docs(message, collection_name)
+        docs = await self._retrieve_and_rerank_docs(message, adapter_name)
         system_prompt = await self._get_system_prompt(system_prompt_id)
         context = self._format_context(docs)
 

@@ -195,10 +195,10 @@ class ChatService:
         except Exception as e:
             logger.error(f"Error logging conversation: {str(e)}", exc_info=True)
     
-    async def _log_request(self, message: str, client_ip: str, collection_name: str):
+    async def _log_request(self, message: str, client_ip: str, adapter_name: str):
         """Log an incoming request"""
         if self.verbose:
-            logger.info(f"Processing chat message from {client_ip}, collection: {collection_name}")
+            logger.info(f"Processing chat message from {client_ip}, adapter: {adapter_name}")
             logger.info(f"Message: {message}")
     
     async def _log_response(self, response: str, client_ip: str):
@@ -207,7 +207,7 @@ class ChatService:
             logger.info(f"Generated response for {client_ip}")
             logger.info(f"Response: {response[:100]}...")  # Log just the beginning to avoid huge logs
 
-    async def _log_request_details(self, message: str, client_ip: str, collection_name: str, 
+    async def _log_request_details(self, message: str, client_ip: str, adapter_name: str, 
                                   system_prompt_id: Optional[ObjectId], api_key: Optional[str],
                                   session_id: Optional[str], user_id: Optional[str]):
         """
@@ -216,13 +216,13 @@ class ChatService:
         Args:
             message: The chat message
             client_ip: Client IP address  
-            collection_name: Collection name to use for retrieval
+            adapter_name: Adapter name to use for retrieval
             system_prompt_id: Optional system prompt ID
             api_key: Optional API key
             session_id: Optional session identifier
             user_id: Optional user identifier
         """
-        await self._log_request(message, client_ip, collection_name)
+        await self._log_request(message, client_ip, adapter_name)
         
         if not self.verbose:
             return
@@ -268,7 +268,7 @@ class ChatService:
         # No language enhancement needed - return original message and context
         return message, context_messages, system_prompt_id
     
-    async def _generate_llm_response(self, final_message: str, collection_name: str, 
+    async def _generate_llm_response(self, final_message: str, adapter_name: str, 
                                     system_prompt_id: Optional[ObjectId], 
                                     final_context_messages: List[Dict[str, str]]) -> Dict[str, Any]:
         """
@@ -276,7 +276,7 @@ class ChatService:
         
         Args:
             final_message: The processed message to send to LLM
-            collection_name: Collection name for retrieval
+            adapter_name: Adapter name for retrieval
             system_prompt_id: Optional system prompt ID
             final_context_messages: Processed context messages
             
@@ -287,7 +287,7 @@ class ChatService:
             # Generate response with appropriate prompt handling
             response_data = await self.llm_client.generate_response(
                 message=final_message,
-                collection_name=collection_name,
+                adapter_name=adapter_name,
                 system_prompt_id=system_prompt_id,
                 context_messages=final_context_messages
             )
@@ -297,7 +297,7 @@ class ChatService:
             logger.error(f"Error generating LLM response: {str(e)}")
             return {"error": f"Failed to generate response: {str(e)}"}
 
-    async def _process_chat_base(self, message: str, client_ip: str, collection_name: str, 
+    async def _process_chat_base(self, message: str, client_ip: str, adapter_name: str, 
                                  system_prompt_id: Optional[ObjectId] = None, api_key: Optional[str] = None,
                                  session_id: Optional[str] = None, user_id: Optional[str] = None):
         """
@@ -306,7 +306,7 @@ class ChatService:
         Args:
             message: The chat message
             client_ip: Client IP address
-            collection_name: Collection name to use for retrieval
+            adapter_name: Adapter name to use for retrieval
             system_prompt_id: Optional system prompt ID to use
             api_key: Optional API key for authentication
             session_id: Optional session identifier for chat history
@@ -316,7 +316,7 @@ class ChatService:
             Tuple of (system_prompt_id, response_data, metadata)
         """
         # 1. Log request details
-        await self._log_request_details(message, client_ip, collection_name, system_prompt_id, 
+        await self._log_request_details(message, client_ip, adapter_name, system_prompt_id, 
                                        api_key, session_id, user_id)
         
         # 2. FIRST LINE OF DEFENSE: Check incoming message security BEFORE any LLM processing
@@ -342,7 +342,7 @@ class ChatService:
                 
                 # Return error response - NO LLM PROCESSING, NO STORAGE
                 return None, {"error": error_response["error"], "blocked": True}, {
-                    "collection_name": collection_name,
+                    "adapter_name": adapter_name,
                     "client_ip": client_ip,
                     "blocked": True,
                     "security_check": security_result
@@ -355,18 +355,18 @@ class ChatService:
         
         # 4. Generate LLM response (only for safe messages)
         response_data = await self._generate_llm_response(
-            final_message, collection_name, system_prompt_id, final_context_messages
+            final_message, adapter_name, system_prompt_id, final_context_messages
         )
         
         # 5. Prepare metadata for storage
         metadata = {
-            "collection_name": collection_name,
+            "adapter_name": adapter_name,
             "client_ip": client_ip
         }
             
         return system_prompt_id, response_data, metadata
 
-    async def process_chat(self, message: str, client_ip: str, collection_name: str, 
+    async def process_chat(self, message: str, client_ip: str, adapter_name: str, 
                           system_prompt_id: Optional[ObjectId] = None, api_key: Optional[str] = None,
                           session_id: Optional[str] = None, user_id: Optional[str] = None) -> Dict[str, Any]:
         """
@@ -375,7 +375,7 @@ class ChatService:
         Args:
             message: The chat message
             client_ip: Client IP address
-            collection_name: Collection name to use for retrieval
+            adapter_name: Adapter name to use for retrieval
             system_prompt_id: Optional system prompt ID to use
             api_key: Optional API key for authentication
             session_id: Optional session identifier for chat history
@@ -384,7 +384,7 @@ class ChatService:
         try:
             # Use base processing
             _, response_data, metadata = await self._process_chat_base(
-                message, client_ip, collection_name, system_prompt_id, api_key, session_id, user_id
+                message, client_ip, adapter_name, system_prompt_id, api_key, session_id, user_id
             )
             
             # Check if this was a blocked incoming message
@@ -435,7 +435,7 @@ class ChatService:
             logger.error(f"Error processing chat: {str(e)}")
             return {"error": str(e)}
     
-    async def process_chat_stream(self, message: str, client_ip: str, collection_name: str, 
+    async def process_chat_stream(self, message: str, client_ip: str, adapter_name: str, 
                                  system_prompt_id: Optional[ObjectId] = None, api_key: Optional[str] = None,
                                  session_id: Optional[str] = None, user_id: Optional[str] = None):
         try:
@@ -477,7 +477,7 @@ class ChatService:
             # Prepare metadata for tracking
             metadata = {
                 "client_ip": client_ip,
-                "collection_name": collection_name,
+                "adapter_name": adapter_name,
                 "system_prompt_id": str(system_prompt_id) if system_prompt_id else None,
                 "context_messages_count": len(final_context_messages),
                 "blocked": False
@@ -499,7 +499,7 @@ class ChatService:
                 # Start the stream generation
                 stream_generator = self.llm_client.generate_response_stream(
                     message=final_message,
-                    collection_name=collection_name,
+                    adapter_name=adapter_name,
                     system_prompt_id=system_prompt_id,
                     context_messages=final_context_messages
                 )

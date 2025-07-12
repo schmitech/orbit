@@ -16,10 +16,9 @@ general:
   session_id:
     header_name: "X-Session-ID"
     required: true
-  inference_provider: "ollama"
+  inference_provider: "llama_cpp"
   inference_only: true
-  adapter: "qa-vector-chroma"
-
+  
 messages:
   no_results_response: "I'm sorry, but I don't have any specific information about that topic in my knowledge base."
   collection_not_found: "I couldn't find the requested collection. Please make sure the collection exists before querying it."

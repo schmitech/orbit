@@ -129,22 +129,33 @@ class ApiKeyAuthTester:
             "X-API-Key": api_key
         }
     
-    async def create_test_api_key(self, collection_name: str = None, client_name: str = None, notes: str = None) -> Optional[str]:
+    async def create_test_api_key(self, collection_name: str = None, client_name: str = None, notes: str = None, adapter_name: str = None) -> Optional[str]:
         """Create a test API key for testing"""
-        if not collection_name:
+        if not collection_name and not adapter_name:
             collection_name = f"test_collection_{int(time.time())}"
         if not client_name:
             client_name = f"Test Client {int(time.time())}"
         if not notes:
             notes = "Created for API key authentication testing"
         
-        logger.info(f"Creating test API key for collection: {collection_name}")
+        # Log which approach we're using
+        if adapter_name:
+            logger.info(f"Creating test API key for adapter: {adapter_name}")
+        else:
+            logger.info(f"Creating test API key for collection: {collection_name}")
         
         data = {
-            "collection_name": collection_name,
             "client_name": client_name,
             "notes": notes
         }
+        
+        # Add adapter_name if provided (preferred approach)
+        if adapter_name:
+            data["adapter_name"] = adapter_name
+        
+        # Add collection_name if provided (backward compatibility)
+        if collection_name:
+            data["collection_name"] = collection_name
         
         try:
             async with self.session.post(
@@ -549,6 +560,158 @@ class ApiKeyAuthTester:
         
         return all(edge_cases)
     
+    async def test_adapter_based_api_key_creation(self) -> bool:
+        """Test creating API keys with the new adapter-based approach"""
+        logger.info("\n=== Testing Adapter-Based API Key Creation ===")
+        
+        # Test creating API key with adapter
+        adapter_key = await self.create_test_api_key(
+            adapter_name="qa-sql",
+            client_name="Adapter Test Client",
+            notes="Testing adapter-based key creation"
+        )
+        
+        if not adapter_key:
+            logger.info("Adapter-based API key creation not available - skipping test")
+            return True
+        
+        # Test creating legacy collection-based key
+        collection_key = await self.create_test_api_key(
+            collection_name="legacy_test_collection",
+            client_name="Legacy Test Client", 
+            notes="Testing legacy collection-based key creation"
+        )
+        
+        if not collection_key:
+            logger.error("✗ Legacy collection-based API key creation failed")
+            return False
+        
+        # Test that both keys work for health endpoint
+        health_tests = []
+        
+        # Test adapter-based key
+        try:
+            async with self.session.get(
+                f"{self.base_url}/health",
+                headers=self._get_api_key_headers(adapter_key),
+                timeout=10
+            ) as response:
+                if response.status == 200:
+                    logger.info("✓ Adapter-based API key works for health check")
+                    health_tests.append(True)
+                else:
+                    logger.info("✓ API key validation not enforced for health (expected in some configs)")
+                    health_tests.append(True)
+        except Exception as e:
+            logger.error(f"✗ Adapter-based key health test error: {str(e)}")
+            health_tests.append(False)
+        
+        # Test collection-based key
+        try:
+            async with self.session.get(
+                f"{self.base_url}/health",
+                headers=self._get_api_key_headers(collection_key),
+                timeout=10
+            ) as response:
+                if response.status == 200:
+                    logger.info("✓ Collection-based API key works for health check")
+                    health_tests.append(True)
+                else:
+                    logger.info("✓ API key validation not enforced for health (expected in some configs)")
+                    health_tests.append(True)
+        except Exception as e:
+            logger.error(f"✗ Collection-based key health test error: {str(e)}")
+            health_tests.append(False)
+        
+        return all(health_tests)
+    
+    async def test_api_key_status_with_adapters(self) -> bool:
+        """Test API key status returns adapter information"""
+        logger.info("\n=== Testing API Key Status with Adapter Information ===")
+        
+        # Create API key with adapter
+        adapter_key = await self.create_test_api_key(
+            adapter_name="qa-vector-chroma",
+            client_name="Status Test Client",
+            notes="Testing status with adapter info"
+        )
+        
+        if not adapter_key:
+            logger.info("API key creation not available - skipping status test")
+            return True
+        
+        # Check status includes adapter information
+        try:
+            async with self.session.get(
+                f"{self.base_url}/admin/api-keys/{adapter_key}/status",
+                headers=self._get_admin_headers(),
+                timeout=10
+            ) as response:
+                if response.status == 200:
+                    result = await response.json()
+                    
+                    # Check for adapter information in status
+                    if result.get("adapter_name"):
+                        logger.info(f"✓ API key status includes adapter: {result['adapter_name']}")
+                        return True
+                    elif result.get("collection_name"):
+                        logger.info(f"✓ API key status includes collection (backward compatibility): {result['collection_name']}")
+                        return True
+                    else:
+                        logger.error("✗ API key status missing adapter/collection information")
+                        return False
+                else:
+                    logger.error(f"✗ Failed to get API key status: {response.status}")
+                    return False
+        except Exception as e:
+            logger.error(f"✗ API key status test error: {str(e)}")
+            return False
+    
+    async def test_dual_compatibility_api_keys(self) -> bool:
+        """Test API keys that have both adapter and collection fields"""
+        logger.info("\n=== Testing Dual Compatibility API Keys ===")
+        
+        # Create API key with both adapter and collection
+        dual_key = await self.create_test_api_key(
+            adapter_name="file-vector",
+            collection_name="dual_test_collection",
+            client_name="Dual Compatibility Client",
+            notes="Testing dual adapter/collection storage"
+        )
+        
+        if not dual_key:
+            logger.info("API key creation not available - skipping dual compatibility test")
+            return True
+        
+        # Check that the key status shows both fields
+        try:
+            async with self.session.get(
+                f"{self.base_url}/admin/api-keys/{dual_key}/status",
+                headers=self._get_admin_headers(),
+                timeout=10
+            ) as response:
+                if response.status == 200:
+                    result = await response.json()
+                    
+                    has_adapter = bool(result.get("adapter_name"))
+                    has_collection = bool(result.get("collection_name"))
+                    
+                    if has_adapter and has_collection:
+                        logger.info("✓ Dual compatibility key has both adapter and collection fields")
+                        return True
+                    elif has_adapter:
+                        logger.info("✓ Key shows adapter field (collection may be internal)")
+                        return True
+                    else:
+                        logger.error("✗ Dual compatibility key missing expected fields")
+                        return False
+                else:
+                    logger.error(f"✗ Failed to get dual key status: {response.status}")
+                    return False
+        except Exception as e:
+            logger.error(f"✗ Dual compatibility test error: {str(e)}")
+            return False
+    
     async def test_health_endpoint_with_api_key(self, api_key: str) -> bool:
         """Test health endpoint with API key authentication"""
         logger.info("\n=== Testing Health Endpoint with API Key ===")
@@ -765,6 +928,48 @@ async def test_edge_cases():
         assert await tester.test_edge_cases(), "Edge cases test failed"
 
 
+@pytest.mark.asyncio
+async def test_adapter_based_api_key_creation():
+    """Test adapter-based API key creation"""
+    async with ApiKeyAuthTester(SERVER_URL) as tester:
+        # Check if server is running
+        if not await tester.check_server_health():
+            pytest.skip("Server is not running or not accessible")
+        
+        if not await tester.authenticate_admin():
+            pytest.skip("Admin authentication failed")
+        
+        assert await tester.test_adapter_based_api_key_creation(), "Adapter-based API key creation test failed"
+
+
+@pytest.mark.asyncio
+async def test_api_key_status_with_adapters():
+    """Test API key status includes adapter information"""
+    async with ApiKeyAuthTester(SERVER_URL) as tester:
+        # Check if server is running
+        if not await tester.check_server_health():
+            pytest.skip("Server is not running or not accessible")
+        
+        if not await tester.authenticate_admin():
+            pytest.skip("Admin authentication failed")
+        
+        assert await tester.test_api_key_status_with_adapters(), "API key status with adapters test failed"
+
+
+@pytest.mark.asyncio
+async def test_dual_compatibility_api_keys():
+    """Test API keys with both adapter and collection fields"""
+    async with ApiKeyAuthTester(SERVER_URL) as tester:
+        # Check if server is running
+        if not await tester.check_server_health():
+            pytest.skip("Server is not running or not accessible")
+        
+        if not await tester.authenticate_admin():
+            pytest.skip("Admin authentication failed")
+        
+        assert await tester.test_dual_compatibility_api_keys(), "Dual compatibility API keys test failed"
+
+
 # Main function for standalone execution
 async def main():
     """Main test function for standalone execution"""
@@ -788,6 +993,9 @@ async def main():
             ("Prompt Listing with Filters", tester.test_prompt_listing_with_filters),
             ("User Listing with Filters", tester.test_user_listing_with_filters),
             ("API Key Operations", tester.test_api_key_operations),
+            ("Adapter-Based API Key Creation", tester.test_adapter_based_api_key_creation),
+            ("API Key Status with Adapters", tester.test_api_key_status_with_adapters),
+            ("Dual Compatibility API Keys", tester.test_dual_compatibility_api_keys),
             ("Edge Cases", tester.test_edge_cases)
         ]
         

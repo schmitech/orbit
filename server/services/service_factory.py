@@ -165,6 +165,7 @@ class ServiceFactory:
         
         # Set services to None for inference-only mode
         app.state.retriever = None
+        app.state.adapter_manager = None
         app.state.embedding_service = None
         app.state.prompt_service = None
         app.state.reranker_service = None
@@ -201,8 +202,8 @@ class ServiceFactory:
         # Initialize Prompt Service
         await self._initialize_prompt_service(app)
         
-        # Initialize Retriever Service
-        await self._initialize_retriever_service(app)
+        # Initialize Dynamic Adapter Manager
+        await self._initialize_adapter_manager(app)
         
         # Chat history is not initialized in full mode
         app.state.chat_history_service = None
@@ -383,165 +384,33 @@ class ServiceFactory:
             self.logger.error(f"Failed to initialize Prompt Service: {str(e)}")
             raise
     
-    async def _initialize_retriever_service(self, app: FastAPI) -> None:
-        """Initialize Retriever Service with lazy loading."""
+    async def _initialize_adapter_manager(self, app: FastAPI) -> None:
+        """Initialize Dynamic Adapter Manager for adapter-based routing."""
         try:
-            # Import retriever components
-            global RetrieverFactory, ADAPTER_REGISTRY
-            from retrievers.base.base_retriever import RetrieverFactory
-            from retrievers.adapters.registry import ADAPTER_REGISTRY
+            # Import the dynamic adapter manager
+            from services.dynamic_adapter_manager import DynamicAdapterManager, AdapterProxy
             
-            # Get the adapter configuration
-            adapter_configs = self.config.get('adapters', [])
-            if not adapter_configs:
-                raise ValueError("No adapter configurations found in config")
+            # Create the dynamic adapter manager
+            adapter_manager = DynamicAdapterManager(self.config, app.state)
             
-            # Get the configured adapter name from general settings
-            configured_adapter_name = self.config['general'].get('adapter', '')
-            if not configured_adapter_name:
-                raise ValueError("No adapter specified in general.adapter")
+            # Create an adapter proxy that provides a retriever-like interface
+            adapter_proxy = AdapterProxy(adapter_manager)
             
-            # Find the matching adapter configuration by name
-            retriever_config = next(
-                (cfg for cfg in adapter_configs 
-                 if cfg.get('name') == configured_adapter_name),
-                None
-            )
+            # Store both the manager and proxy in app state
+            app.state.adapter_manager = adapter_manager
+            app.state.retriever = adapter_proxy  # LLM clients expect 'retriever'
             
-            if not retriever_config:
-                raise ValueError(f"No matching adapter configuration found for {configured_adapter_name}")
+            self.logger.info("Dynamic Adapter Manager initialized successfully")
             
-            # Extract adapter details
-            implementation = retriever_config.get('implementation')
-            datasource = retriever_config.get('datasource')
-            adapter_type = retriever_config.get('adapter')
-            
-            if not implementation or not datasource or not adapter_type:
-                raise ValueError("Missing required adapter fields (implementation, datasource, or adapter)")
-            
-            self.logger.info(f"Setting up lazy loading for {datasource} retriever with {adapter_type} adapter")
-            
-            # Create retriever factory function
-            retriever_factory = self._create_retriever_factory(
-                retriever_config, implementation, datasource, adapter_type, app
-            )
-            
-            # Register the factory function with the RetrieverFactory
-            RetrieverFactory.register_lazy_retriever(datasource, retriever_factory)
-            
-            # Create lazy retriever accessor
-            app.state.retriever = self._create_lazy_retriever_accessor(datasource)
-            self.logger.info(f"Successfully set up lazy loading for {datasource} retriever")
+            # Log available adapters
+            available_adapters = adapter_manager.get_available_adapters()
+            self.logger.info(f"Available adapters: {available_adapters}")
             
         except Exception as e:
-            self.logger.error(f"Error setting up lazy loading for retriever: {str(e)}")
-            self.logger.warning("Will attempt to initialize default retriever on first request")
-            app.state.retriever = self._create_fallback_retriever_accessor(app)
+            self.logger.error(f"Failed to initialize Dynamic Adapter Manager: {str(e)}")
+            raise
     
-    def _create_retriever_factory(self, retriever_config, implementation, datasource, adapter_type, app):
-        """Create a factory function for retriever initialization."""
-        def create_configured_retriever():
-            """Factory function to create the properly configured retriever when needed"""
-            # Import the specific retriever class
-            try:
-                module_path, class_name = implementation.rsplit('.', 1)
-                module = __import__(module_path, fromlist=[class_name])
-                retriever_class = getattr(module, class_name)
-            except (ImportError, AttributeError) as e:
-                self.logger.error(f"Could not load retriever class from {implementation}: {str(e)}")
-                raise ValueError(f"Failed to load retriever implementation: {str(e)}")
-            
-            # Create the domain adapter using the registry
-            try:
-                from retrievers.adapters.registry import ADAPTER_REGISTRY
-                adapter_config = retriever_config.get('config', {})
-                domain_adapter = ADAPTER_REGISTRY.create(
-                    adapter_type='retriever',
-                    datasource=datasource,
-                    adapter_name=adapter_type,
-                    **adapter_config
-                )
-                self.logger.info(f"Successfully created {adapter_type} domain adapter with config: {adapter_config}")
-            except Exception as adapter_error:
-                self.logger.error(f"Error creating domain adapter: {str(adapter_error)}")
-                raise ValueError(f"Failed to create domain adapter: {str(adapter_error)}")
-            
-            # Prepare appropriate arguments based on the provider type
-            retriever_kwargs = {
-                'config': self.config, 
-                'domain_adapter': domain_adapter
-            }
-            
-            # Add appropriate client/connection based on the provider type
-            if datasource == 'chroma':
-                if hasattr(app.state, 'embedding_service'):
-                    retriever_kwargs['embeddings'] = app.state.embedding_service
-                if hasattr(app.state, 'chroma_client'):
-                    retriever_kwargs['collection'] = app.state.chroma_client
-            elif datasource == 'sqlite':
-                if hasattr(app.state, 'datasource_client'):
-                    retriever_kwargs['connection'] = app.state.datasource_client
-            
-            # Create and return the retriever instance
-            self.logger.info(f"Creating {datasource} retriever instance")
-            return retriever_class(**retriever_kwargs)
-        
-        return create_configured_retriever
-    
-    def _create_lazy_retriever_accessor(self, datasource):
-        """Create a lazy retriever accessor."""
-        class LazyRetrieverAccessor:
-            def __init__(self, retriever_type):
-                self.retriever_type = retriever_type
-                self._retriever = None
-            
-            def __getattr__(self, name):
-                # Initialize the retriever on first access
-                if self._retriever is None:
-                    from retrievers.base.base_retriever import RetrieverFactory
-                    self._retriever = RetrieverFactory.create_retriever(self.retriever_type)
-                # Delegate attribute access to the actual retriever
-                return getattr(self._retriever, name)
-        
-        return LazyRetrieverAccessor(datasource)
-    
-    def _create_fallback_retriever_accessor(self, app):
-        """Create a fallback retriever accessor."""
-        def create_fallback_retriever():
-            try:
-                from retrievers.implementations.qa.qa_chroma_retriever import ChromaRetriever
-                from retrievers.adapters.registry import ADAPTER_REGISTRY
-                
-                # Create a default QA adapter
-                domain_adapter = ADAPTER_REGISTRY.create(
-                    adapter_type='qa',
-                    config=self.config
-                )
-                
-                return ChromaRetriever(
-                    config=self.config,
-                    embeddings=getattr(app.state, 'embedding_service', None),
-                    domain_adapter=domain_adapter
-                )
-            except Exception as fallback_error:
-                self.logger.error(f"Failed to initialize fallback retriever: {str(fallback_error)}")
-                raise
-        
-        # Register the fallback retriever factory
-        from retrievers.base.base_retriever import RetrieverFactory
-        RetrieverFactory.register_lazy_retriever('fallback', create_fallback_retriever)
-        
-        # Create a lazy accessor that uses the fallback retriever
-        class FallbackRetrieverAccessor:
-            def __init__(self):
-                self._retriever = None
-            
-            def __getattr__(self, name):
-                if self._retriever is None:
-                    self._retriever = RetrieverFactory.create_retriever('fallback')
-                return getattr(self._retriever, name)
-        
-        return FallbackRetrieverAccessor()
+
     
     async def _initialize_logger_service(self, app: FastAPI) -> None:
         """Initialize Logger Service."""

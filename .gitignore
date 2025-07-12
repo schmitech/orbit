@@ -59,3 +59,4 @@ uploads/
 .next/
 yarn.lock
 package-lock.json
+sqlite_db

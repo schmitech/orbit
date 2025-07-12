@@ -234,7 +234,7 @@ class RouteConfigurator:
                 request: The incoming request
                 
             Returns:
-                Tuple of (collection_name, system_prompt_id) associated with the API key
+                Tuple of (adapter_name, system_prompt_id) associated with the API key
             """
             # Check if inference_only is enabled
             inference_only = _is_true_value(request.app.state.config.get('general', {}).get('inference_only', False))
@@ -263,10 +263,10 @@ class RouteConfigurator:
                 else:
                     raise HTTPException(status_code=503, detail="API key service is not available")
             
-            # Validate API key and get collection name and system prompt ID
+            # Validate API key and get adapter name and system prompt ID
             try:
-                collection_name, system_prompt_id = await request.app.state.api_key_service.get_collection_for_api_key(api_key)
-                return collection_name, system_prompt_id
+                adapter_name, system_prompt_id = await request.app.state.api_key_service.get_adapter_for_api_key(api_key)
+                return adapter_name, system_prompt_id
             except HTTPException as e:
                 # Allow health check without API key if configured
                 if (request.url.path == "/health" and 
@@ -339,7 +339,7 @@ class RouteConfigurator:
         user_id: Optional[str]
     ):
         """Process MCP protocol requests."""
-        collection_name, system_prompt_id = api_key_result
+        adapter_name, system_prompt_id = api_key_result
         
         # Extract the API key and client info
         api_key = request.headers.get("X-API-Key")
@@ -348,7 +348,7 @@ class RouteConfigurator:
         
         # Enhanced verbose logging
         if _is_true_value(self.config.get('general', {}).get('verbose', False)):
-            self._log_request_details(session_id, client_ip, collection_name, system_prompt_id, masked_api_key, request.method, user_id, request.headers)
+            self._log_request_details(session_id, client_ip, adapter_name, system_prompt_id, masked_api_key, request.method, user_id, request.headers)
         
         # Get request body
         try:
@@ -379,11 +379,11 @@ class RouteConfigurator:
             raise HTTPException(status_code=400, detail=f"Invalid request format: {str(e)}")
         
         return await self._handle_mcp_method(
-            jsonrpc_request, chat_service, client_ip, collection_name, 
+            jsonrpc_request, chat_service, client_ip, adapter_name, 
             system_prompt_id, api_key, session_id, user_id
         )
     
-    def _log_request_details(self, session_id: str, client_ip: str, collection_name: str, 
+    def _log_request_details(self, session_id: str, client_ip: str, adapter_name: str, 
                            system_prompt_id: Optional[ObjectId], masked_api_key: str, 
                            method: str, user_id: Optional[str], headers) -> None:
         """Log detailed request information for debugging."""
@@ -391,7 +391,7 @@ class RouteConfigurator:
         self.logger.debug("Incoming MCP Request Details:")
         self.logger.debug(f"Session ID: {session_id}")
         self.logger.debug(f"Client IP: {client_ip}")
-        self.logger.debug(f"Collection: {collection_name}")
+        self.logger.debug(f"Adapter: {adapter_name}")
         self.logger.debug(f"System Prompt ID: {system_prompt_id}")
         self.logger.debug(f"API Key: {masked_api_key}")
         self.logger.debug(f"Request Method: {method}")
@@ -409,7 +409,7 @@ class RouteConfigurator:
         jsonrpc_request: MCPJsonRpcRequest, 
         chat_service, 
         client_ip: str, 
-        collection_name: str, 
+        adapter_name: str, 
         system_prompt_id: Optional[ObjectId], 
         api_key: str, 
         session_id: str, 
@@ -420,7 +420,7 @@ class RouteConfigurator:
             # Handle the tools/call method for chat
             if jsonrpc_request.method == "tools/call":
                 return await self._handle_chat_tool(
-                    jsonrpc_request, chat_service, client_ip, collection_name,
+                    jsonrpc_request, chat_service, client_ip, adapter_name,
                     system_prompt_id, api_key, session_id, user_id
                 )
             else:
@@ -449,7 +449,7 @@ class RouteConfigurator:
         jsonrpc_request: MCPJsonRpcRequest, 
         chat_service, 
         client_ip: str, 
-        collection_name: str, 
+        adapter_name: str, 
         system_prompt_id: Optional[ObjectId], 
         api_key: str, 
         session_id: str, 
@@ -523,17 +523,17 @@ class RouteConfigurator:
         if stream:
             return await self._handle_streaming_chat(
                 jsonrpc_request, chat_service, last_user_message, client_ip,
-                collection_name, system_prompt_id, api_key, session_id, user_id
+                adapter_name, system_prompt_id, api_key, session_id, user_id
             )
         else:
             return await self._handle_non_streaming_chat(
                 jsonrpc_request, chat_service, last_user_message, client_ip,
-                collection_name, system_prompt_id, api_key, session_id, user_id
+                adapter_name, system_prompt_id, api_key, session_id, user_id
             )
     
     async def _handle_streaming_chat(
         self, jsonrpc_request: MCPJsonRpcRequest, chat_service, message: str,
-        client_ip: str, collection_name: str, system_prompt_id: Optional[ObjectId],
+        client_ip: str, adapter_name: str, system_prompt_id: Optional[ObjectId],
         api_key: str, session_id: str, user_id: Optional[str]
     ):
         """Handle streaming chat responses."""
@@ -554,7 +554,7 @@ class RouteConfigurator:
                 async for chunk in chat_service.process_chat_stream(
                     message=message,
                     client_ip=client_ip,
-                    collection_name=collection_name,
+                    adapter_name=adapter_name,
                     system_prompt_id=system_prompt_id,
                     api_key=api_key,
                     session_id=session_id,
@@ -674,7 +674,7 @@ class RouteConfigurator:
     
     async def _handle_non_streaming_chat(
         self, jsonrpc_request: MCPJsonRpcRequest, chat_service, message: str,
-        client_ip: str, collection_name: str, system_prompt_id: Optional[ObjectId],
+        client_ip: str, adapter_name: str, system_prompt_id: Optional[ObjectId],
         api_key: str, session_id: str, user_id: Optional[str]
     ):
         """Handle non-streaming chat responses."""
@@ -682,7 +682,7 @@ class RouteConfigurator:
         result = await chat_service.process_chat(
             message=message,
             client_ip=client_ip,
-            collection_name=collection_name,
+            adapter_name=adapter_name,
             system_prompt_id=system_prompt_id,
             api_key=api_key,
             session_id=session_id,

@@ -51,75 +51,7 @@ API Key → Adapter Configuration → Dynamic Storage + Settings
 }
 ```
 
-### Phase 2: Enhanced Adapter Configuration
-
-#### Extended Adapter Definitions
-```yaml
-adapters:
-  # Multi-tenant legal documents in PostgreSQL
-  - name: "legal-documents-sql"
-    type: "retriever"
-    datasource: "postgres"
-    adapter: "qa"
-    implementation: "retrievers.implementations.qa.QAPostgresRetriever"
-    config:
-      confidence_threshold: 0.4
-      max_results: 10
-      return_results: 5
-      # Database-specific settings
-      database: "legal_db"
-      schema: "documents"
-      table: "case_documents"
-      # Security settings
-      row_level_security: true
-      tenant_field: "department_id"
-
-  # Customer support knowledge base in ChromaDB
-  - name: "support-kb-vector"
-    type: "retriever"
-    datasource: "chroma"
-    adapter: "qa"
-    implementation: "retrievers.implementations.qa.QAChromaRetriever"
-    config:
-      confidence_threshold: 0.3
-      max_results: 8
-      return_results: 4
-      # Vector-specific settings
-      collection: "support_knowledge"
-      embedding_provider: "openai"
-      # Custom prompt for support context
-      context_prompt: "You are a customer support assistant..."
-
-  # Financial data in Elasticsearch
-  - name: "financial-data-elastic"
-    type: "retriever"
-    datasource: "elasticsearch"
-    adapter: "financial"  # Custom adapter for financial data
-    implementation: "retrievers.implementations.financial.FinancialElasticRetriever"
-    config:
-      confidence_threshold: 0.5
-      max_results: 15
-      return_results: 6
-      # Elasticsearch-specific settings
-      index: "financial_reports"
-      # Financial-specific settings
-      date_range_boost: true
-      currency_normalization: true
-      
-  # Multi-source legal research (combines multiple sources)
-  - name: "legal-research-multi"
-    type: "multi_retriever"
-    sources:
-      - adapter: "legal-documents-sql"
-        weight: 0.6
-      - adapter: "legal-precedents-vector" 
-        weight: 0.4
-    config:
-      merge_strategy: "weighted_confidence"
-      max_total_results: 10
-```
-
-### Phase 3: Service Layer Updates
+### Phase 2: Service Layer Updates
 
 #### Enhanced API Key Service
 ```python
@@ -246,76 +178,24 @@ class ApiKeyMigration:
                 logger.info(f"Migrated API key {key_doc['api_key']} from collection '{collection_name}' to adapter '{adapter_name}'")
 ```
 
-## Organizational Benefits
-
-### Multi-Tenant Support
-```yaml
-# Different departments with isolated data
-adapters:
-  - name: "hr-documents"
-    datasource: "postgres"
-    config:
-      database: "hr_db"
-      tenant_filter: "department = 'HR'"
-      
-  - name: "finance-documents"  
-    datasource: "postgres"
-    config:
-      database: "finance_db"
-      tenant_filter: "department = 'Finance'"
-```
-
-### Environment-Specific Configurations
-```yaml
-# Development vs Production
-adapters:
-  - name: "qa-sql-dev"
-    datasource: "sqlite"
-    config:
-      db_path: "dev_data/qa.db"
-      
-  - name: "qa-sql-prod"
-    datasource: "postgres" 
-    config:
-      database: "production_qa"
-      connection_pool_size: 20
-```
-
-### Custom Domain Adapters
-```yaml
-# Industry-specific adapters
-adapters:
-  - name: "medical-records"
-    adapter: "medical"  # Custom medical document adapter
-    config:
-      hipaa_compliance: true
-      anonymization: true
-      
-  - name: "legal-contracts"
-    adapter: "legal"    # Custom legal document adapter
-    config:
-      jurisdiction_filtering: true
-      contract_type_classification: true
-```
-
 ## Implementation Timeline
 
-### Week 1-2: Schema and Configuration
+### Schema and Configuration
 - [ ] Update MongoDB schema
 - [ ] Extend adapter configuration format
 - [ ] Create migration scripts
 
-### Week 3-4: Service Layer
+### Service Layer
 - [ ] Update ApiKeyService
 - [ ] Create AdapterAwareRetrieverService
 - [ ] Implement backward compatibility
 
-### Week 5-6: API and CLI Updates
+### API and CLI Updates
 - [ ] Update CLI commands
 - [ ] Update REST API endpoints
 - [ ] Add adapter validation
 
-### Week 7-8: Testing and Migration
+### Testing and Migration
 - [ ] Comprehensive testing
 - [ ] Migration of existing API keys
 - [ ] Documentation updates

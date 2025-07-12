@@ -35,18 +35,30 @@ class QASSQLRetriever(SQLiteRetriever):
         """
         # Get QA-specific adapter config if available
         adapter_config = None
-        for adapter in config.get('adapters', []):
-            if (adapter.get('type') == 'retriever' and 
-                adapter.get('datasource') == 'sqlite' and 
-                adapter.get('adapter') == 'qa'):
-                adapter_config = adapter.get('config', {})
-                break
+        
+        # First try to get adapter config from the new direct method
+        if 'adapter_config' in config:
+            adapter_config = config.get('adapter_config', {})
+        else:
+            # Fallback to searching through adapters list (backward compatibility)
+            for adapter in config.get('adapters', []):
+                if (adapter.get('type') == 'retriever' and 
+                    adapter.get('datasource') == 'sqlite' and 
+                    adapter.get('adapter') == 'qa'):
+                    adapter_config = adapter.get('config', {})
+                    break
         
         # Call parent constructor (SQLiteRetriever)
         super().__init__(config=config, connection=connection, domain_adapter=domain_adapter, **kwargs)
         
         # QA-specific settings
         self.confidence_threshold = adapter_config.get('confidence_threshold', 0.3) if adapter_config else 0.3
+        
+        # Set the table/collection name from adapter config
+        if adapter_config and adapter_config.get('table'):
+            self.collection = adapter_config.get('table')
+            if self.verbose:
+                logger.info(f"QASSQLRetriever using table from adapter config: {self.collection}")
         
         # Flag to track if search_tokens table exists (QA-specific optimization)
         self.has_token_table = False
@@ -210,12 +222,12 @@ class QASSQLRetriever(SQLiteRetriever):
             # Prepare placeholders for query
             placeholders = ','.join(['?'] * len(query_tokens))
             
-            # Search for matching tokens
+            # Search for matching tokens - use question_id instead of doc_id to match actual schema
             sql = f"""
-                SELECT doc_id, COUNT(*) as match_count 
+                SELECT question_id, COUNT(*) as match_count 
                 FROM search_tokens 
                 WHERE token IN ({placeholders})
-                GROUP BY doc_id 
+                GROUP BY question_id 
                 ORDER BY match_count DESC
                 LIMIT ?
             """
@@ -224,13 +236,13 @@ class QASSQLRetriever(SQLiteRetriever):
             
             results = []
             for row in rows:
-                doc_id = row["doc_id"]
+                question_id = row["question_id"]  # Use question_id instead of doc_id
                 match_count = row["match_count"]
                 
                 # Get the actual document
                 doc_rows = await self.execute_query(
                     f"SELECT * FROM {self.collection} WHERE id = ?", 
-                    [doc_id]
+                    [question_id]
                 )
                 
                 if doc_rows:
@@ -294,14 +306,22 @@ class QASSQLRetriever(SQLiteRetriever):
             A list of QA context items filtered by relevance
         """
         try:
-            # Resolve the collection
+            # Resolve the collection with improved logic for adapter-based system
             if collection_name:
+                # Explicit collection name provided
                 await self.set_collection(collection_name)
             elif api_key:
+                # Try to resolve from API key (legacy behavior)
                 collection = await self._resolve_collection(api_key)
                 await self.set_collection(collection)
-            elif not self.collection:
-                raise ValueError("No collection specified")
+            elif self.collection:
+                # Use table from adapter config (new adapter system)
+                if self.verbose:
+                    logger.info(f"Using table from adapter config: {self.collection}")
+                # No need to call set_collection since it's already set from config
+            else:
+                # No collection available - this should not happen in properly configured adapters
+                raise ValueError("No collection specified and no table configured in adapter")
             
             debug_mode = self.verbose
             

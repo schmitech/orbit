@@ -23,7 +23,7 @@
 # The script will:
 # 1. Set up the specified database type (SQLite or Chroma)
 # 2. Create sample QA collections
-# 3. Optionally create API keys for the collections
+# 3. Optionally create API keys for the adapters (uses new adapter-based approach)
 # 4. Display setup instructions and API keys if created
 
 set -e
@@ -166,27 +166,72 @@ echo "✅ Sample QA collections created."
 
 if [ "$CREATE_API_KEYS" = true ]; then
     echo ""
-    echo "🔑 Creating API keys for collections..."
+    echo "🔑 Creating API keys using new adapter-based approach..."
+    
+    # Determine which adapter to use based on datasource
+    if [ "$DATASOURCE" = "sqlite" ]; then
+        ADAPTER_NAME="qa-sql"
+        echo "  • Using adapter '$ADAPTER_NAME' for SQLite Q&A data"
+    else
+        ADAPTER_NAME="qa-vector-chroma"
+        echo "  • Using adapter '$ADAPTER_NAME' for Chroma Q&A data"
+    fi
+    
     echo "  • Connecting to server on port $PORT"
-    echo "  • Using collection 'city'"
     echo "  • Using prompt file '$PROJECT_ROOT/examples/prompts/examples/city/city-assistant-normal-prompt.txt'"
     echo ""
 
-    # Create API key for 'city' collection and capture full output
+    # Create API key using new adapter-based approach
     SERVER_URL="${PROTOCOL}://localhost:${PORT}"
     echo "Debug: Connecting to server at $SERVER_URL"
     
     # Check if server is running before attempting to create API keys
     echo "Checking if server is running..."
-    if ! curl -s --connect-timeout 5 "${SERVER_URL}/health" > /dev/null; then
-        echo "❌ Error: Server is not running at ${SERVER_URL}"
-        echo "Please start the ORBIT server first:"
-        echo "  cd $PROJECT_ROOT"
-        echo "  python bin/orbit.py start"
-        echo "Then run this script again."
+    
+    # Function to check if server is responding
+    check_server_health() {
+        local max_attempts=12  # Try for up to 60 seconds (12 * 5 seconds)
+        local attempt=1
+        
+        while [ $attempt -le $max_attempts ]; do
+            echo "Attempt $attempt/$max_attempts: Checking server health..."
+            
+            # Try the health endpoint first (preferred)
+            if curl -s --connect-timeout 10 --max-time 15 "${SERVER_URL}/health" > /dev/null 2>&1; then
+                echo "✅ Server health endpoint responded successfully"
+                return 0
+            fi
+            
+            # If health endpoint fails, try a simpler endpoint
+            if curl -s --connect-timeout 5 --max-time 10 "${SERVER_URL}/favicon.ico" > /dev/null 2>&1; then
+                echo "✅ Server is responding (favicon endpoint)"
+                return 0
+            fi
+            
+            # If both fail, wait and try again
+            if [ $attempt -lt $max_attempts ]; then
+                echo "Server not ready yet, waiting 5 seconds... ($attempt/$max_attempts)"
+                sleep 5
+            fi
+            
+            attempt=$((attempt + 1))
+        done
+        
+        return 1
+    }
+    
+    if ! check_server_health; then
+        echo "❌ Error: Server is not responding at ${SERVER_URL}"
+        echo "The server may still be starting up or there may be an issue."
+        echo ""
+        echo "Please check:"
+        echo "  1. Server is running: python $PROJECT_ROOT/bin/orbit.py start"
+        echo "  2. Server logs for any startup errors: tail -f $PROJECT_ROOT/logs/orbit.log"
+        echo "  3. Server is accessible at: ${SERVER_URL}"
+        echo ""
+        echo "Once the server is fully started, run this script again."
         exit 1
     fi
-    echo "✅ Server is running"
     
     # Check if we need to authenticate first
     echo "Checking authentication status..."
@@ -201,35 +246,37 @@ if [ "$CREATE_API_KEYS" = true ]; then
         exit 1
     fi
     
+    # Create API key using new --adapter flag instead of deprecated --collection flag
     API_KEY_OUTPUT=$(python3 "$PROJECT_ROOT/bin/orbit.py" key create \
-      --collection city \
+      --adapter "$ADAPTER_NAME" \
       --name "City Assistant" \
-      --notes "This is a sample API key for the City Assistant collection." \
+      --notes "This is a sample API key for the City Assistant using adapter '$ADAPTER_NAME'." \
       --prompt-file "$PROJECT_ROOT/examples/prompts/examples/city/city-assistant-normal-prompt.txt" \
       --prompt-name "Municipal Assistant Prompt")
 
     # Extract just the API key - properly capture orbit_ format keys
     CITY_API_KEY=$(echo "$API_KEY_OUTPUT" | grep -o 'orbit_[A-Za-z0-9]\+' | head -1)
 
-    echo "✅ API key created successfully!"
+    echo "✅ API key created successfully using adapter approach!"
 
     # If using Chroma, create additional API key for activity collection
     if [ "$DATASOURCE" = "chroma" ]; then
         echo ""
         echo "🔑 Creating API key for activity collection..."
-        echo "  • Using collection 'activity'"
+        echo "  • Using adapter 'qa-vector-chroma' for activity data"
         echo "  • Using prompt file '$PROJECT_ROOT/examples/prompts/examples/activity/activity-assistant-normal-prompt.txt'"
         echo ""
 
-        # Uncomment to generate an API Key for the activity collection
-        # ACTIVITY_API_KEY_OUTPUT=$(python3 "$PROJECT_ROOT/bin/orbit.py" --server-url "$SERVER_URL" key create \
-        #   --collection activity \
+        # Uncomment to generate an API Key for the activity collection using new adapter approach
+        # ACTIVITY_API_KEY_OUTPUT=$(python3 "$PROJECT_ROOT/bin/orbit.py" key create \
+        #   --adapter qa-vector-chroma \
         #   --name "Activity Assistant" \
+        #   --notes "This is a sample API key for the Activity Assistant using adapter 'qa-vector-chroma'." \
         #   --prompt-file "$PROJECT_ROOT/examples/prompts/examples/activity/activity-assistant-normal-prompt.txt" \
         #   --prompt-name "Activity Assistant Prompt")
 
-        # ACTIVITY_API_KEY=$(echo "$ACTIVITY_API_KEY_OUTPUT" | grep -o '"api_key": "orbit_[A-Za-z0-9]\+"' | cut -d'"' -f4)
-        # echo "✅ Activity API key created successfully!"
+        # ACTIVITY_API_KEY=$(echo "$ACTIVITY_API_KEY_OUTPUT" | grep -o 'orbit_[A-Za-z0-9]\+' | head -1)
+        # echo "✅ Activity API key created successfully using adapter approach!"
     fi
 else
     echo ""
@@ -263,13 +310,16 @@ if [ "$CREATE_API_KEYS" = true ]; then
     echo "  orbit-chat --url $SERVER_URL --api-key $CITY_API_KEY"
     echo ""
     echo "================================================================"
-    echo "API KEYS:"
+    echo "ADAPTER-BASED API KEYS:"
     echo "================================================================"
-    echo "City API KEY: $CITY_API_KEY"
+    echo "City API KEY (using adapter '$ADAPTER_NAME'): $CITY_API_KEY"
     # if [ "$DATASOURCE" = "chroma" ]; then
     #     echo ""
-    #     echo "Activity API KEY: $ACTIVITY_API_KEY"
+    #     echo "Activity API KEY (using adapter 'qa-vector-chroma'): $ACTIVITY_API_KEY"
     # fi
+    echo ""
+    echo "Note: This script now uses the new adapter-based approach."
+    echo "      The old --collection method is deprecated but still supported."
     echo "================================================================"
 fi
 

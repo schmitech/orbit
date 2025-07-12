@@ -90,13 +90,13 @@ class LLMClientCommon:
                 
         return system_prompt
     
-    async def _retrieve_and_rerank_docs(self, message: str, collection_name: str) -> List[Dict[str, Any]]:
+    async def _retrieve_and_rerank_docs(self, message: str, adapter_name: str) -> List[Dict[str, Any]]:
         """
         Retrieve documents and rerank them if a reranker is available.
         
         Args:
             message: The user's message
-            collection_name: Name of the collection to query for context
+            adapter_name: Name of the adapter to use for retrieval
             
         Returns:
             List of retrieved and optionally reranked documents
@@ -107,12 +107,12 @@ class LLMClientCommon:
         
         # Log if verbose mode is enabled
         if getattr(self, 'verbose', False):
-            self.logger.info(f"Retrieving context from collection: {collection_name}")
+            self.logger.info(f"Retrieving context using adapter: {adapter_name}")
             
-        # Query for relevant documents
+        # Query for relevant documents using the adapter proxy
         retrieved_docs = await self.retriever.get_relevant_context(
             query=message,
-            collection_name=collection_name
+            adapter_name=adapter_name
         )
         
         if getattr(self, 'verbose', False):

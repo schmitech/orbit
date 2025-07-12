@@ -63,23 +63,42 @@ print(f"Loading environment variables from: {dotenv_path}")
 from embeddings.base import EmbeddingServiceFactory
 
 def load_config():
-    """Load configuration file from project root"""
+    """Load configuration files from project root"""
     # Get the directory of this script
     script_dir = Path(__file__).resolve().parent
     
     # Get the project root (2 levels up: scripts -> chroma -> project_root)
     project_root = script_dir.parents[1]
     
-    # Try to find config.yaml in project root first, then in config subdirectory
-    config_path = project_root / "config.yaml"
+    # Load main config.yaml
+    config_path = project_root / "config" / "config.yaml"
     if not config_path.exists():
-        config_path = project_root / "config" / "config.yaml"
-    
-    if not config_path.exists():
-        raise FileNotFoundError(f"Config file not found in {project_root} or {project_root}/config/")
+        raise FileNotFoundError(f"Config file not found at {config_path}")
     
     print(f"Loading config from: {config_path}")
-    return yaml.safe_load(config_path.read_text())
+    config = yaml.safe_load(config_path.read_text())
+    
+    # Load datasources.yaml
+    datasources_path = project_root / "config" / "datasources.yaml"
+    if not datasources_path.exists():
+        raise FileNotFoundError(f"Datasources config file not found at {datasources_path}")
+    
+    print(f"Loading datasources config from: {datasources_path}")
+    datasources_config = yaml.safe_load(datasources_path.read_text())
+    
+    # Load embeddings.yaml
+    embeddings_path = project_root / "config" / "embeddings.yaml"
+    if not embeddings_path.exists():
+        raise FileNotFoundError(f"Embeddings config file not found at {embeddings_path}")
+    
+    print(f"Loading embeddings config from: {embeddings_path}")
+    embeddings_config = yaml.safe_load(embeddings_path.read_text())
+    
+    # Merge datasources and embeddings into main config
+    config['datasources'] = datasources_config['datasources']
+    config['embeddings'] = embeddings_config['embeddings']
+    
+    return config
 
 async def ingest_to_chroma(
     json_file_path: str,

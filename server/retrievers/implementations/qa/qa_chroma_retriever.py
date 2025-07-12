@@ -75,6 +75,10 @@ class QAChromaRetriever(ChromaRetriever):
         # Store collection if provided
         if collection is not None:
             self.collection = collection
+            
+        # Override collection_name if set in adapter config (for new API key system)
+        if hasattr(self, 'collection_name') and self.collection_name:
+            logger.info(f"QAChromaRetriever using collection from adapter config: {self.collection_name}")
         
         # QA-specific settings from adapter config
         self.confidence_threshold = adapter_config.get('confidence_threshold', 0.3) if adapter_config else 0.3

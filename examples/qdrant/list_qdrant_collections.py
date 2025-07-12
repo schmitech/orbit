@@ -29,8 +29,42 @@ from dotenv import load_dotenv
 from qdrant_client import QdrantClient
 
 def load_config():
-    CONFIG_PATH = Path(__file__).resolve().parents[2] / "config.yaml"
-    return yaml.safe_load(CONFIG_PATH.read_text())
+    """Load configuration files from project root"""
+    # Get the directory of this script
+    script_dir = Path(__file__).resolve().parent
+    
+    # Get the project root (2 levels up: scripts -> qdrant -> project_root)
+    project_root = script_dir.parents[1]
+    
+    # Load main config.yaml
+    config_path = project_root / "config" / "config.yaml"
+    if not config_path.exists():
+        raise FileNotFoundError(f"Config file not found at {config_path}")
+    
+    print(f"Loading config from: {config_path}")
+    config = yaml.safe_load(config_path.read_text())
+    
+    # Load datasources.yaml
+    datasources_path = project_root / "config" / "datasources.yaml"
+    if not datasources_path.exists():
+        raise FileNotFoundError(f"Datasources config file not found at {datasources_path}")
+    
+    print(f"Loading datasources config from: {datasources_path}")
+    datasources_config = yaml.safe_load(datasources_path.read_text())
+    
+    # Load embeddings.yaml
+    embeddings_path = project_root / "config" / "embeddings.yaml"
+    if not embeddings_path.exists():
+        raise FileNotFoundError(f"Embeddings config file not found at {embeddings_path}")
+    
+    print(f"Loading embeddings config from: {embeddings_path}")
+    embeddings_config = yaml.safe_load(embeddings_path.read_text())
+    
+    # Merge datasources and embeddings into main config
+    config['datasources'] = datasources_config['datasources']
+    config['embeddings'] = embeddings_config['embeddings']
+    
+    return config
 
 def resolve_env_placeholder(value):
     """Resolve environment variable placeholders like ${VAR_NAME}"""

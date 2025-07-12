@@ -38,6 +38,17 @@ class ChromaRetriever(AbstractVectorRetriever):
         
         # Store collection
         self.collection = None
+        self.collection_name = None
+        
+        # Get collection name from adapter config during initialization
+        adapter_config = config.get('adapter_config', {})
+        if adapter_config and 'collection' in adapter_config:
+            self.collection_name = adapter_config['collection']
+            logger.info(f"ChromaRetriever using collection from adapter config: {self.collection_name}")
+        elif 'collection' in self.datasource_config:
+            # Fallback to datasource config
+            self.collection_name = self.datasource_config['collection']
+            logger.info(f"ChromaRetriever using collection from datasource config: {self.collection_name}")
         
         # Create a lazy loader for the ChromaDB client
         def create_chroma_client():
@@ -85,6 +96,15 @@ class ChromaRetriever(AbstractVectorRetriever):
         # The client is lazily loaded, so we just ensure it's accessible
         _ = self.chroma_client
         logger.info("ChromaDB client initialized")
+        
+        # Set collection if we have a collection name from config
+        if self.collection_name:
+            try:
+                await self.set_collection(self.collection_name)
+                logger.info(f"ChromaRetriever initialized with collection: {self.collection_name}")
+            except Exception as e:
+                logger.error(f"Failed to set collection during initialization: {str(e)}")
+                # Don't raise here - let it be handled during actual usage
 
     async def close_client(self) -> None:
         """Close the ChromaDB client."""
@@ -105,6 +125,7 @@ class ChromaRetriever(AbstractVectorRetriever):
         try:
             # Try to get the collection using the lazy-loaded client
             self.collection = self.chroma_client.get_collection(name=collection_name)
+            self.collection_name = collection_name
             if self.verbose:
                 logger.info(f"Switched to collection: {collection_name}")
         except Exception as e:
@@ -114,6 +135,7 @@ class ChromaRetriever(AbstractVectorRetriever):
                 try:
                     logger.info(f"Collection '{collection_name}' does not exist. Attempting to create it...")
                     self.collection = self.chroma_client.create_collection(name=collection_name)
+                    self.collection_name = collection_name
                     logger.info(f"Successfully created collection: {collection_name}")
                 except Exception as create_error:
                     # If creation fails, return a helpful error message

@@ -3,7 +3,7 @@ Pydantic models for the API
 """
 
 from typing import Dict, Any, Optional, List
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class ChatMessage(BaseModel):
@@ -19,21 +19,33 @@ class HealthStatus(BaseModel):
 
 class ApiKeyCreate(BaseModel):
     """API key creation request model"""
-    collection_name: str
     client_name: str
     notes: Optional[str] = None
     system_prompt_id: Optional[str] = None
+    adapter_name: Optional[str] = None  # Preferred approach
+    collection_name: Optional[str] = None  # Backward compatibility
+    
+    @model_validator(mode='before')
+    @classmethod
+    def validate_adapter_or_collection(cls, values):
+        """Validate that either adapter_name or collection_name is provided"""
+        if isinstance(values, dict):
+            if not values.get('adapter_name') and not values.get('collection_name'):
+                raise ValueError('Either adapter_name or collection_name must be provided')
+        return values
 
 
 class ApiKeyResponse(BaseModel):
     """API key response model"""
     api_key: str
     client_name: str
-    collection: str  # This must match what's returned from the service
     notes: Optional[str] = None
     created_at: float  # This expects a Unix timestamp
     active: bool = True
     system_prompt_id: Optional[str] = None
+    adapter_name: Optional[str] = None  # Preferred approach
+    collection: Optional[str] = None  # Backward compatibility
+    collection_name: Optional[str] = None  # Backward compatibility
 
 
 class ApiKeyDeactivate(BaseModel):

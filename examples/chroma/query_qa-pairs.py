@@ -18,14 +18,8 @@ Arguments:
                          Default: "./chroma_db"
 
 Examples:
-    # Query remote Chroma server (basic usage)
-    python query_qa-pairs.py "What are the parking rules?"
-    
     # Query specific collection on remote server
     python query_qa-pairs.py city_faq "What are the parking rules?"
-    
-    # Query local filesystem database
-    python query_qa-pairs.py city_faq "What are the parking rules?" --local
     
     # Query from a specific local database path
     python query_qa-pairs.py city_faq "What are the parking rules?" --local --db-path /path/to/my/chroma_db
@@ -55,22 +49,54 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 # Add server directory to path for importing embedding services
-server_path = Path(__file__).resolve().parents[3] / "server"
+server_path = Path(__file__).resolve().parents[2] / "server"
 sys.path.append(str(server_path))
 
-# Load environment variables from server's .env file
-server_env_path = server_path / ".env"
-if server_env_path.exists():
-    load_dotenv(server_env_path)
-else:
-    print(f"Warning: .env file not found at {server_env_path}")
+# Load environment variables from .env file in the project root directory
+dotenv_path = Path(__file__).resolve().parents[2] / ".env"
+load_dotenv(dotenv_path=dotenv_path)
+print(f"Loading environment variables from: {dotenv_path}")
 
 # Import the same embedding factory used during creation
 from embeddings.base import EmbeddingServiceFactory
 
 def load_config():
-    CONFIG_PATH = Path(__file__).resolve().parents[3] / "server" / "config.yaml"
-    return yaml.safe_load(CONFIG_PATH.read_text())
+    """Load configuration files from project root"""
+    # Get the directory of this script
+    script_dir = Path(__file__).resolve().parent
+    
+    # Get the project root (2 levels up: scripts -> chroma -> project_root)
+    project_root = script_dir.parents[1]
+    
+    # Load main config.yaml
+    config_path = project_root / "config" / "config.yaml"
+    if not config_path.exists():
+        raise FileNotFoundError(f"Config file not found at {config_path}")
+    
+    print(f"Loading config from: {config_path}")
+    config = yaml.safe_load(config_path.read_text())
+    
+    # Load datasources.yaml
+    datasources_path = project_root / "config" / "datasources.yaml"
+    if not datasources_path.exists():
+        raise FileNotFoundError(f"Datasources config file not found at {datasources_path}")
+    
+    print(f"Loading datasources config from: {datasources_path}")
+    datasources_config = yaml.safe_load(datasources_path.read_text())
+    
+    # Load embeddings.yaml
+    embeddings_path = project_root / "config" / "embeddings.yaml"
+    if not embeddings_path.exists():
+        raise FileNotFoundError(f"Embeddings config file not found at {embeddings_path}")
+    
+    print(f"Loading embeddings config from: {embeddings_path}")
+    embeddings_config = yaml.safe_load(embeddings_path.read_text())
+    
+    # Merge datasources and embeddings into main config
+    config['datasources'] = datasources_config['datasources']
+    config['embeddings'] = embeddings_config['embeddings']
+    
+    return config
 
 async def test_chroma_query(test_query: str, collection_name: str = None, use_local: bool = False, db_path: str = "./chroma_db"):
     config = load_config()

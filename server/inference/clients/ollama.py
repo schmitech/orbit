@@ -106,7 +106,7 @@ class OllamaClient(BaseLLMClient, LLMClientCommon):
     async def generate_response(
         self, 
         message: str, 
-        collection_name: str,
+        adapter_name: str,
         system_prompt_id: Optional[str] = None,
         context_messages: Optional[List[Dict[str, str]]] = None
     ) -> Dict[str, Any]:
@@ -115,7 +115,7 @@ class OllamaClient(BaseLLMClient, LLMClientCommon):
         
         Args:
             message: The user's message
-            collection_name: Name of the collection to query for context
+            adapter_name: Name of the adapter to use for context retrieval
             system_prompt_id: Optional ID of a system prompt to use
             context_messages: Optional list of previous conversation messages
             
@@ -124,7 +124,7 @@ class OllamaClient(BaseLLMClient, LLMClientCommon):
         """
         try:
             # Retrieve and rerank documents
-            retrieved_docs = await self._retrieve_and_rerank_docs(message, collection_name)
+            retrieved_docs = await self._retrieve_and_rerank_docs(message, adapter_name)
             
             # Format the context from retrieved documents
             context = self._format_context(retrieved_docs)
@@ -203,7 +203,7 @@ class OllamaClient(BaseLLMClient, LLMClientCommon):
     async def generate_response_stream(
         self, 
         message: str, 
-        collection_name: str,
+        adapter_name: str,
         system_prompt_id: Optional[str] = None,
         context_messages: Optional[List[Dict[str, str]]] = None
     ) -> AsyncGenerator[str, None]:
@@ -212,7 +212,7 @@ class OllamaClient(BaseLLMClient, LLMClientCommon):
         
         Args:
             message: The user's message
-            collection_name: Name of the collection to query for context
+            adapter_name: Name of the adapter to use for context retrieval
             system_prompt_id: Optional ID of a system prompt to use
             context_messages: Optional list of previous conversation messages
             
@@ -221,7 +221,7 @@ class OllamaClient(BaseLLMClient, LLMClientCommon):
         """
         try:
             # Retrieve and rerank documents
-            retrieved_docs = await self._retrieve_and_rerank_docs(message, collection_name)
+            retrieved_docs = await self._retrieve_and_rerank_docs(message, adapter_name)
             
             # Format the context from retrieved documents
             context = self._format_context(retrieved_docs)

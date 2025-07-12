@@ -121,14 +121,23 @@ async def create_api_key(
     check_service_availability(api_key_service, "API key service")
     
     api_key_response = await api_key_service.create_api_key(
-        api_key_data.collection_name,
-        api_key_data.client_name,
-        api_key_data.notes
+        client_name=api_key_data.client_name,
+        notes=api_key_data.notes,
+        system_prompt_id=api_key_data.system_prompt_id,
+        adapter_name=api_key_data.adapter_name,
+        collection_name=api_key_data.collection_name
     )
     
     # Log with masked API key
     masked_api_key = f"***{api_key_response['api_key'][-4:]}" if api_key_response.get('api_key') else "***"
-    logger.info(f"Created API key for collection '{api_key_data.collection_name}': {masked_api_key}")
+    
+    # Log creation with appropriate identifier
+    if api_key_data.adapter_name:
+        logger.info(f"Created API key for adapter '{api_key_data.adapter_name}': {masked_api_key}")
+    elif api_key_data.collection_name:
+        logger.info(f"Created API key for collection '{api_key_data.collection_name}': {masked_api_key}")
+    else:
+        logger.info(f"Created API key: {masked_api_key}")
     
     return api_key_response
 

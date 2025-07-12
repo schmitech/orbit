@@ -95,8 +95,10 @@ Examples:
     orbit status --watch --interval 10                  # Monitor with custom interval
 
     # API Key Management
-    orbit key create --collection docs --name "Customer Support"
-    orbit key create --collection legal --name "Legal Team" --prompt-file legal.txt --prompt-name "Legal Assistant"
+    orbit key list-adapters                             # List available adapters
+    orbit key create --adapter qa-vector-chroma --name "Customer Support"  # Create key with adapter (preferred)
+    orbit key create --adapter qa-sql --name "Legal Team" --prompt-file legal.txt --prompt-name "Legal Assistant"
+    orbit key create --collection docs --name "Legacy Support"  # Legacy collection-based (deprecated)
     orbit key list                                      # List all API keys
     orbit key list --active-only                        # List only active keys
     orbit key list --collection docs                    # List keys for specific collection
@@ -135,7 +137,7 @@ Examples:
     orbit status --log-file /tmp/orbit.log              # Log to specific file
 
     # Combined Operations
-    orbit key create --collection legal --name "Legal Team" \\
+    orbit key create --adapter qa-sql --name "Legal Team" \\
       --prompt-file legal_prompt.txt --prompt-name "Legal Assistant"
 
 Configuration Precedence:
@@ -1962,23 +1964,25 @@ class ApiManager:
     # API Key methods
     def create_api_key(
         self, 
-        collection_name: str, 
         client_name: str, 
         notes: Optional[str] = None,
         prompt_id: Optional[str] = None,
         prompt_name: Optional[str] = None,
-        prompt_file: Optional[str] = None
+        prompt_file: Optional[str] = None,
+        adapter_name: Optional[str] = None,
+        collection_name: Optional[str] = None  # Keep for backward compatibility
     ) -> Dict[str, Any]:
         """
         Create a new API key for a client, optionally with an associated system prompt
         
         Args:
-            collection_name: The name of the Chroma collection to associate with this key
             client_name: The name of the client
             notes: Optional notes about this API key
             prompt_id: Optional existing system prompt ID to associate
             prompt_name: Optional name for a new system prompt
             prompt_file: Optional path to a file containing a system prompt
+            adapter_name: The name of the adapter to associate with this key (preferred)
+            collection_name: The name of the collection to associate with this key (deprecated)
             
         Returns:
             Dictionary containing the created API key details
@@ -2009,9 +2013,16 @@ class ApiManager:
         }
         
         data = {
-            "collection_name": collection_name,
             "client_name": client_name
         }
+        
+        # Add adapter_name if provided (preferred)
+        if adapter_name:
+            data["adapter_name"] = adapter_name
+        
+        # Add collection_name if provided (for backward compatibility)
+        if collection_name:
+            data["collection_name"] = collection_name
         
         if notes:
             data["notes"] = notes
@@ -2708,7 +2719,10 @@ Report issues at: https://github.com/schmitech/orbit/issues
             help='Create a new API key',
             description='Create a new API key with optional system prompt'
         )
-        create_parser.add_argument('--collection', required=True, help='Collection name to associate with the key')
+        # Add adapter option (preferred)
+        create_parser.add_argument('--adapter', help='Adapter name to associate with the key (preferred)')
+        # Keep collection option for backward compatibility but make it optional
+        create_parser.add_argument('--collection', help='Collection name to associate with the key (deprecated, use --adapter)')
         create_parser.add_argument('--name', required=True, help='Client name for identification')
         create_parser.add_argument('--notes', help='Optional notes about this API key')
         create_parser.add_argument('--prompt-id', help='Existing system prompt ID to associate')
@@ -2766,6 +2780,16 @@ Report issues at: https://github.com/schmitech/orbit/issues
         delete_parser.add_argument('--key', required=True, help='API key to delete')
         delete_parser.add_argument('--force', action='store_true', help='Skip confirmation prompt')
         delete_parser.set_defaults(func=self.handle_key_delete_command)
+        
+        # List adapters command
+        list_adapters_parser = key_subparsers.add_parser(
+            'list-adapters', 
+            help='List available adapters',
+            description='Display all configured adapters that can be used for API keys'
+        )
+        list_adapters_parser.add_argument('--output', choices=['table', 'json'], help='Output format')
+        list_adapters_parser.add_argument('--no-color', action='store_true', help='Disable colored output')
+        list_adapters_parser.set_defaults(func=self.handle_key_list_adapters_command)
     
     def _add_prompt_commands(self, subparsers):
         """Add system prompt management commands to the subparsers."""
@@ -3145,13 +3169,25 @@ Report issues at: https://github.com/schmitech/orbit/issues
     def handle_key_create_command(self, args):
         """Handler for the 'key create' command."""
         api_manager = self.get_api_manager(args.server_url)
+        
+        # Validate that either adapter or collection is provided
+        if not args.adapter and not args.collection:
+            self.formatter.error("Either --adapter or --collection must be provided")
+            self.formatter.info("Recommended: Use --adapter with one of the configured adapters")
+            return 1
+        
+        # Show deprecation warning if collection is used
+        if args.collection and not args.adapter:
+            self.formatter.warning("--collection is deprecated, please use --adapter instead")
+            
         result = api_manager.create_api_key(
-            args.collection,
             args.name,
             args.notes,
             args.prompt_id,
             args.prompt_name,
-            args.prompt_file
+            args.prompt_file,
+            args.adapter,
+            args.collection
         )
         if args.output == 'json':
             self.formatter.format_json(result)
@@ -3159,7 +3195,13 @@ Report issues at: https://github.com/schmitech/orbit/issues
             self.formatter.success("API key created successfully")
             console.print(f"[bold]API Key:[/bold] {result.get('api_key', 'N/A')}")
             console.print(f"[bold]Client:[/bold] {result.get('client_name', 'N/A')}")
-            console.print(f"[bold]Collection:[/bold] {result.get('collection', result.get('collection_name', 'N/A'))}")
+            
+            # Display adapter or collection info
+            if result.get('adapter_name'):
+                console.print(f"[bold]Adapter:[/bold] {result['adapter_name']}")
+            if result.get('collection', result.get('collection_name')):
+                console.print(f"[bold]Collection:[/bold] {result.get('collection', result.get('collection_name', 'N/A'))}")
+            
             if result.get('system_prompt_id'):
                 console.print(f"[bold]Prompt ID:[/bold] {result['system_prompt_id']}")
         return 0
@@ -3177,7 +3219,7 @@ Report issues at: https://github.com/schmitech/orbit/issues
             self.formatter.format_json(result)
         else:
             if result:
-                headers = ['API Key', 'Client', 'Collection', 'Active', 'Created']
+                headers = ['API Key', 'Client', 'Adapter', 'Collection', 'Active', 'Created']
                 data = []
                 for key in result:
                     created_at = key.get('created_at', 'N/A')
@@ -3188,10 +3230,15 @@ Report issues at: https://github.com/schmitech/orbit/issues
                     elif isinstance(created_at, str):
                         created_at = created_at[:10]
                     
+                    # Show adapter name if available, otherwise show "Legacy"
+                    adapter_name = key.get('adapter_name', 'Legacy' if key.get('collection_name') else 'N/A')
+                    collection_name = key.get('collection', key.get('collection_name', 'N/A'))
+                    
                     data.append({
                         'API Key': key.get('api_key', 'N/A')[:20] + '...',
                         'Client': key.get('client_name', 'N/A'),
-                        'Collection': key.get('collection', key.get('collection_name', 'N/A')),
+                        'Adapter': adapter_name,
+                        'Collection': collection_name,
                         'Active': '✓' if key.get('active', True) else '✗',
                         'Created': created_at
                     })
@@ -3250,6 +3297,34 @@ Report issues at: https://github.com/schmitech/orbit/issues
             self.formatter.format_json(result)
         else:
             self.formatter.success("API key deleted successfully")
+        return 0
+    
+    def handle_key_list_adapters_command(self, args):
+        """Handler for the 'key list-adapters' command."""
+        # Get adapters from configuration
+        config_manager = self.config_manager
+        adapters = config_manager._load_server_config().get('adapters', []) if config_manager._load_server_config() else []
+        
+        if getattr(args, 'output', None) == 'json':
+            self.formatter.format_json(adapters)
+        else:
+            if adapters:
+                headers = ['Name', 'Type', 'Datasource', 'Adapter', 'Implementation']
+                data = []
+                for adapter in adapters:
+                    data.append({
+                        'Name': adapter.get('name', 'N/A'),
+                        'Type': adapter.get('type', 'N/A'),
+                        'Datasource': adapter.get('datasource', 'N/A'),
+                        'Adapter': adapter.get('adapter', 'N/A'),
+                        'Implementation': adapter.get('implementation', 'N/A')[:40] + '...' if len(adapter.get('implementation', '')) > 40 else adapter.get('implementation', 'N/A')
+                    })
+                self.formatter.format_table(data, headers)
+                console.print(f"Found {len(adapters)} configured adapters")
+                console.print("\n[bold]Usage:[/bold] orbit key create --adapter <name> --name \"Client Name\"")
+            else:
+                console.print("No adapters configured")
+                console.print("Check config/adapters.yaml for adapter configuration")
         return 0
     
     def handle_prompt_create_command(self, args):
@@ -3720,7 +3795,15 @@ Report issues at: https://github.com/schmitech/orbit/issues
             self.formatter.warning("API key is inactive")
         
         console.print(f"[bold]Client:[/bold] {status.get('client_name', 'N/A')}")
+        
+        # Display adapter information if available
+        if status.get('adapter_name'):
+            console.print(f"[bold]Adapter:[/bold] {status['adapter_name']}")
+        elif status.get('collection', status.get('collection_name')):
+            console.print(f"[bold]Adapter:[/bold] Legacy (collection-based)")
+            
         console.print(f"[bold]Collection:[/bold] {status.get('collection', status.get('collection_name', 'N/A'))}")
+        
         if 'created_at' in status:
             console.print(f"[bold]Created:[/bold] {status['created_at']}")
         if 'last_used' in status:

@@ -18,65 +18,18 @@ adapters:
       enable_query_monitoring: true
       
       # Security and access control (recommended)
-      table: "qa_pairs"  # Specify the exact table for single-table access
+      table: "city"  # Specify the exact table for single-table access
       allowed_columns: ["id", "question", "answer", "category", "confidence"]  # Limit accessible columns
       security_filter: "active = 1"  # Only return active Q&A pairs
       
       # Performance optimization
       cache_ttl: 1800  # Cache results for 30 minutes
       
-  # Example: Single-table adapter (recommended pattern)
-  - name: "customer-profiles"
-    type: "retriever"
-    datasource: "postgres"
-    adapter: "sql"
-    implementation: "retrievers.implementations.relational.PostgreSQLRetriever"
-    config:
-      table: "customers"
-      max_results: 100
-      query_timeout: 3000
-      allowed_columns: ["id", "name", "email", "department"]
-      security_filter: "active = true"
-      enable_query_monitoring: true
-      
-  # Example: Materialized view adapter (for complex aggregations)
-  - name: "customer-order-summary"
-    type: "retriever"
-    datasource: "postgres"
-    adapter: "sql"
-    implementation: "retrievers.implementations.relational.PostgreSQLRetriever"
-    config:
-      table: "customer_order_summary_mv"
-      max_results: 200
-      query_timeout: 10000
-      cache_ttl: 3600
-      enable_query_monitoring: true
-      
-  # Example: Controlled multi-table adapter (requires approval)
-  - name: "recent-customer-activity"
-    type: "retriever"
-    datasource: "postgres"
-    adapter: "sql"
-    implementation: "retrievers.implementations.relational.PostgreSQLRetriever"
-    config:
-      query_template: |
-        SELECT c.name, o.order_date, o.total
-        FROM customers c
-        INNER JOIN orders o ON c.id = o.customer_id
-        WHERE o.created_at >= NOW() - INTERVAL '7 days'
-        AND c.id = {customer_id}
-        ORDER BY o.created_at DESC
-        LIMIT 20
-      max_results: 20
-      query_timeout: 15000
-      required_parameters: ["customer_id"]
-      approved_by_admin: true
-      enable_query_monitoring: true
-
   - name: "qa-vector-chroma"
     type: "retriever"
     datasource: "chroma"
     adapter: "qa"
+    collection: "city"
     implementation: "retrievers.implementations.qa.QAChromaRetriever"
     config:
       confidence_threshold: 0.3
@@ -89,6 +42,7 @@ adapters:
     type: "retriever"
     datasource: "qdrant"
     adapter: "qa"
+    collection: "city"
     implementation: "retrievers.implementations.qa.QAQdrantRetriever"
     config:
       confidence_threshold: 0.3

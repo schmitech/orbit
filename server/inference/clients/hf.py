@@ -78,13 +78,13 @@ class HuggingFaceClient(BaseLLMClient, LLMClientCommon):
     async def generate_response(
         self,
         message: str,
-        collection_name: str,
+        adapter_name: str,
         system_prompt_id: Optional[str] = None,
         context_messages: Optional[List[Dict[str, str]]] = None
     ) -> AsyncGenerator[dict, None]:
         """Generate response using Hugging Face model."""
         try:
-            retrieved_docs = await self._retrieve_and_rerank_docs(message, collection_name)
+            retrieved_docs = await self._retrieve_and_rerank_docs(message, adapter_name)
             system_prompt = await self._get_system_prompt(system_prompt_id)
             context = self._format_context(retrieved_docs)
 
@@ -192,26 +192,26 @@ class HuggingFaceClient(BaseLLMClient, LLMClientCommon):
     async def generate_response_stream(
         self,
         message: str,
-        collection_name: str,
+        adapter_name: str,
         system_prompt_id: Optional[str] = None,
         context_messages: Optional[List[Dict[str, str]]] = None
     ) -> AsyncGenerator[str, None]:
         # Wrap the entire streaming response with security checking
         async for chunk in self._secure_response_stream(
-            self._generate_response_stream_internal(message, collection_name, system_prompt_id, context_messages)
+            self._generate_response_stream_internal(message, adapter_name, system_prompt_id, context_messages)
         ):
             yield chunk
     
     async def _generate_response_stream_internal(
         self,
         message: str,
-        collection_name: str,
+        adapter_name: str,
         system_prompt_id: Optional[str] = None,
         context_messages: Optional[List[Dict[str, str]]] = None
     ) -> AsyncGenerator[str, None]:
         """Stream response using Hugging Face model."""
         try:
-            retrieved_docs = await self._retrieve_and_rerank_docs(message, collection_name)
+            retrieved_docs = await self._retrieve_and_rerank_docs(message, adapter_name)
             system_prompt = await self._get_system_prompt(system_prompt_id)
             context = self._format_context(retrieved_docs)
 
@@ -227,7 +227,7 @@ class HuggingFaceClient(BaseLLMClient, LLMClientCommon):
                 return
 
             await self.initialize()
-            async for result in self.generate_response(message, collection_name, system_prompt_id, context_messages):
+            async for result in self.generate_response(message, adapter_name, system_prompt_id, context_messages):
                 if "error" in result:
                     yield json.dumps({
                         "error": result["error"],

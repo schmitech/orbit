@@ -1,6 +1,5 @@
 """
 Enhanced SQL retriever abstract class with domain adapter support
-and adapter granularity strategy validation
 """
 
 import logging
@@ -68,62 +67,9 @@ class AbstractSQLRetriever(BaseRetriever):
         # Default fields to search
         self.default_search_fields = ['id', 'content']
         
-        # Initialize adapter validation service
-        self._init_adapter_validation()
-        
         logger.info(f"AbstractSQLRetriever initialized with relevance_threshold={self.relevance_threshold}")
     
-    def _init_adapter_validation(self):
-        """Initialize SQL adapter validation service for granularity strategy."""
-        try:
-            from services.sql_adapter_validation_service import SQLAdapterValidationService
-            self.adapter_validator = SQLAdapterValidationService(self.config)
-            
-            # Validate current adapter configuration if query monitoring is enabled
-            if self.enable_query_monitoring:
-                self._validate_current_config()
-                
-        except ImportError:
-            logger.warning("SQLAdapterValidationService not available - query validation disabled")
-            self.adapter_validator = None
-        except Exception as e:
-            logger.error(f"Error initializing adapter validation: {str(e)}")
-            self.adapter_validator = None
-    
-    def _validate_current_config(self):
-        """Validate the current adapter configuration."""
-        if not self.adapter_validator:
-            return
-            
-        try:
-            # Create a mock adapter config for validation
-            mock_config = {
-                'name': f"{self._get_datasource_name()}_adapter",
-                'type': 'retriever',
-                'datasource': self._get_datasource_name(),
-                'config': {
-                    'max_results': self.max_results,
-                    'query_timeout': self.query_timeout,
-                    'security_filter': self.security_filter,
-                    'allowed_columns': self.allowed_columns,
-                    'approved_by_admin': self.approved_by_admin
-                }
-            }
-            
-            # Validate configuration
-            validation_result = self.adapter_validator.validate_adapter_config(mock_config)
-            
-            if not validation_result['is_valid']:
-                logger.warning(f"Adapter configuration validation failed: {validation_result['errors']}")
-                
-            if validation_result['warnings']:
-                logger.info(f"Adapter configuration warnings: {validation_result['warnings']}")
-                
-            if validation_result['recommendations']:
-                logger.info(f"Adapter configuration recommendations: {validation_result['recommendations']}")
-                
-        except Exception as e:
-            logger.error(f"Error validating adapter configuration: {str(e)}")
+
         
     def _tokenize_text(self, text: str) -> List[str]:
         """
@@ -203,10 +149,10 @@ class AbstractSQLRetriever(BaseRetriever):
     
 
     
-    def _apply_granularity_strategy(self, search_config: Dict[str, Any], 
-                                   query: str, collection_name: str) -> Dict[str, Any]:
+    def _apply_safety_measures(self, search_config: Dict[str, Any], 
+                              query: str, collection_name: str) -> Dict[str, Any]:
         """
-        Apply adapter granularity strategy to search configuration.
+        Apply safety measures to search configuration.
         
         Args:
             search_config: Original search configuration
@@ -217,19 +163,6 @@ class AbstractSQLRetriever(BaseRetriever):
             Modified search configuration with safety measures
         """
         sql_query = search_config.get("sql", "")
-        
-        # Validate query pattern if custom SQL is used
-        if sql_query and sql_query != f"SELECT * FROM {collection_name} LIMIT ?":
-            query_analysis = self.adapter_validator._analyze_query_risk(sql_query)
-            
-            if query_analysis['risk_level'] == 'HIGH':
-                logger.warning(f"High-risk query detected: {sql_query}")
-                if not self.approved_by_admin:
-                    logger.error("High-risk query requires admin approval")
-                    raise ValueError("High-risk query requires admin approval")
-            
-            if query_analysis['warnings']:
-                logger.warning(f"Query analysis warnings: {query_analysis['warnings']}")
         
         # Apply security filters if configured
         if self.security_filter:
@@ -316,9 +249,9 @@ class AbstractSQLRetriever(BaseRetriever):
                 "fields": self.default_search_fields
             }
         
-        # Apply granularity strategy validation
-        if self.adapter_validator and self.enable_query_monitoring:
-            search_config = self._apply_granularity_strategy(search_config, query, collection_name)
+        # Apply safety measures
+        if self.enable_query_monitoring:
+            search_config = self._apply_safety_measures(search_config, query, collection_name)
         
         return search_config
     

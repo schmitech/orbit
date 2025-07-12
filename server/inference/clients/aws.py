@@ -59,7 +59,7 @@ class AWSBedrockClient(BaseLLMClient, LLMClientCommon):
     async def generate_response(
         self,
         message: str,
-        collection_name: str,
+        adapter_name: str,
         system_prompt_id: Optional[str] = None,
         context_messages: Optional[List[Dict[str, str]]] = None
     ) -> Dict[str, Any]:
@@ -68,7 +68,7 @@ class AWSBedrockClient(BaseLLMClient, LLMClientCommon):
         
         Args:
             message: The user's message
-            collection_name: Name of the collection to query for context
+            adapter_name: Name of the adapter to use for retrieval
             system_prompt_id: Optional ID of a system prompt to use
             context_messages: Optional list of previous conversation messages
             
@@ -79,8 +79,8 @@ class AWSBedrockClient(BaseLLMClient, LLMClientCommon):
             if self.verbose:
                 self.logger.info(f"Generating response for message: {message[:100]}...")
             
-            # Retrieve and rerank documents
-            retrieved_docs = await self._retrieve_and_rerank_docs(message, collection_name)
+            # Retrieve and rerank documents using adapter name
+            retrieved_docs = await self._retrieve_and_rerank_docs(message, adapter_name)
             
             # Get the system prompt
             system_prompt = await self._get_system_prompt(system_prompt_id)
@@ -186,20 +186,20 @@ class AWSBedrockClient(BaseLLMClient, LLMClientCommon):
     async def generate_response_stream(
         self,
         message: str,
-        collection_name: str,
+        adapter_name: str,
         system_prompt_id: Optional[str] = None,
         context_messages: Optional[List[Dict[str, str]]] = None
     ) -> AsyncGenerator[str, None]:
         # Wrap the entire streaming response with security checking
         async for chunk in self._secure_response_stream(
-            self._generate_response_stream_internal(message, collection_name, system_prompt_id, context_messages)
+            self._generate_response_stream_internal(message, adapter_name, system_prompt_id, context_messages)
         ):
             yield chunk
     
     async def _generate_response_stream_internal(
         self,
         message: str,
-        collection_name: str,
+        adapter_name: str,
         system_prompt_id: Optional[str] = None,
         context_messages: Optional[List[Dict[str, str]]] = None
     ) -> AsyncGenerator[str, None]:
@@ -208,7 +208,7 @@ class AWSBedrockClient(BaseLLMClient, LLMClientCommon):
         
         Args:
             message: The user's message
-            collection_name: Name of the collection to query for context
+            adapter_name: Name of the adapter to use for retrieval
             system_prompt_id: Optional ID of a system prompt to use
             context_messages: Optional list of previous conversation messages
             
@@ -219,8 +219,8 @@ class AWSBedrockClient(BaseLLMClient, LLMClientCommon):
             if self.verbose:
                 self.logger.info(f"Starting streaming response for message: {message[:100]}...")
             
-            # Retrieve and rerank documents
-            retrieved_docs = await self._retrieve_and_rerank_docs(message, collection_name)
+            # Retrieve and rerank documents using adapter name
+            retrieved_docs = await self._retrieve_and_rerank_docs(message, adapter_name)
             
             # Get the system prompt
             system_prompt = await self._get_system_prompt(system_prompt_id)
