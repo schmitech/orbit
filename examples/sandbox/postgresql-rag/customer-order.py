@@ -2,9 +2,9 @@
 """
 PostgreSQL test data management script for adapter testing.
 Usage:
-    python postgres_utils.py --action insert --customers 100 --orders 500
-    python postgres_utils.py --action query --customer-id 1
-    python postgres_utils.py --action delete --confirm
+    python customer-order.py --action insert --customers 100 --orders 500
+    python customer-order.py --action query --customer-id 1
+    python customer-order.py --action delete --confirm
 """
 
 import argparse

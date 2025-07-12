@@ -2,6 +2,7 @@
 # These templates will be embedded and stored in ChromaDB
 
 templates:
+  # CUSTOMER QUERIES
   - id: "customer_recent_orders"
     description: "Show recent orders for a specific customer within a time period"
     nl_examples:
@@ -10,6 +11,11 @@ templates:
       - "List the last 10 orders for customer 42"
       - "What has customer 5 ordered recently?"
       - "Show customer 1's recent activity"
+      - "Can you pull up what customer 89 purchased this month?"
+      - "I need to see customer 456's latest purchases"
+      - "What's been ordered by customer 12 lately?"
+      - "Recent shopping history for customer 234"
+      - "Display the latest transactions for customer 567"
     parameters:
       - name: "customer_id"
         type: "integer"
@@ -46,9 +52,102 @@ templates:
       ORDER BY o.created_at DESC
       LIMIT {limit}
     result_format: "table"
-    tags: ["customer", "orders", "recent", "activity"]
+    tags: ["customer", "orders", "recent", "activity", "history", "purchases", "transactions"]
     approved: true
 
+  - id: "customer_orders_by_name"
+    description: "Show orders for a specific customer by name within a time period"
+    nl_examples:
+      - "Show me orders from Maria Smith"
+      - "Find orders for John Doe"
+      - "What did Jessica Johnson order?"
+      - "Show orders from customer Anthony Green"
+      - "List orders for Teresa Lyons"
+      - "Find all orders by Thomas Howell"
+      - "I'm looking for purchases made by Sarah Connor"
+      - "Can you check what Robert Williams bought?"
+      - "Orders placed by Jennifer Lopez please"
+      - "Show me everything ordered by Michael Jordan"
+      - "What has Jane Smith been buying?"
+      - "Pull up David Chen's order history"
+    parameters:
+      - name: "customer_name"
+        type: "string"
+        required: true
+        description: "The name of the customer (partial match)"
+        example: "Maria Smith"
+      - name: "days_back"
+        type: "integer"
+        required: false
+        default: 30
+        description: "Number of days back to look for orders"
+        example: 60
+      - name: "limit"
+        type: "integer"
+        required: false
+        default: 20
+        description: "Maximum number of results to return"
+        example: 15
+    sql_template: |
+      SELECT 
+        c.id as customer_id,
+        c.name as customer_name,
+        c.email as customer_email,
+        o.id as order_id,
+        o.order_date,
+        o.total,
+        o.status,
+        o.payment_method,
+        o.created_at
+      FROM customers c
+      INNER JOIN orders o ON c.id = o.customer_id
+      WHERE c.name ILIKE '%{customer_name}%'
+        AND o.created_at >= NOW() - INTERVAL '{days_back} days'
+      ORDER BY o.created_at DESC
+      LIMIT {limit}
+    result_format: "table"
+    tags: ["customer", "orders", "name", "search", "person", "buyer", "purchaser"]
+    approved: true
+
+  - id: "customer_lifetime_value"
+    description: "Calculate total lifetime value and statistics for a customer"
+    nl_examples:
+      - "What's the lifetime value of customer 123?"
+      - "How much has customer 456 spent in total?"
+      - "Show me the total revenue from customer 89"
+      - "Calculate customer 12's lifetime spending"
+      - "What's customer 567's total purchase amount?"
+      - "How valuable is customer 234 to us?"
+      - "Total sales to customer 890"
+      - "Customer 345 lifetime statistics"
+    parameters:
+      - name: "customer_id"
+        type: "integer"
+        required: true
+        description: "The ID of the customer"
+        example: 123
+    sql_template: |
+      SELECT 
+        c.id as customer_id,
+        c.name as customer_name,
+        c.email as customer_email,
+        COUNT(DISTINCT o.id) as total_orders,
+        COALESCE(SUM(o.total), 0) as lifetime_value,
+        COALESCE(AVG(o.total), 0) as avg_order_value,
+        COALESCE(MAX(o.total), 0) as largest_order,
+        COALESCE(MIN(o.total), 0) as smallest_order,
+        MIN(o.order_date) as first_order_date,
+        MAX(o.order_date) as last_order_date,
+        DATE_PART('day', NOW() - MAX(o.order_date)) as days_since_last_order
+      FROM customers c
+      LEFT JOIN orders o ON c.id = o.customer_id
+      WHERE c.id = {customer_id}
+      GROUP BY c.id, c.name, c.email
+    result_format: "summary"
+    tags: ["customer", "lifetime", "value", "statistics", "revenue", "spending", "total"]
+    approved: true
+
+  # ORDER VALUE QUERIES
   - id: "high_value_orders"
     description: "Find orders above a certain amount within a time period"
     nl_examples:
@@ -57,6 +156,12 @@ templates:
       - "List high-value orders from the last 30 days"
       - "What are the biggest orders recently?"
       - "Show orders worth more than $750"
+      - "Which orders exceeded $2000?"
+      - "Give me the premium orders over $1500"
+      - "Large transactions above $800 please"
+      - "Find all big ticket items over $600"
+      - "Orders greater than $1200"
+      - "Show me purchases exceeding $900"
     parameters:
       - name: "min_amount"
         type: "decimal"
@@ -93,9 +198,119 @@ templates:
       ORDER BY o.total DESC, o.created_at DESC
       LIMIT {limit}
     result_format: "table"
-    tags: ["orders", "amount", "high_value", "expensive"]
+    tags: ["orders", "amount", "high_value", "expensive", "premium", "large", "big"]
     approved: true
 
+  - id: "low_value_orders"
+    description: "Find orders below a certain amount within a time period"
+    nl_examples:
+      - "Show me all orders under $500 from last month"
+      - "Find cheap orders below $100"
+      - "List low-value orders from the last 30 days"
+      - "What are the smallest orders recently?"
+      - "Show orders worth less than $250"
+      - "Find all orders below $500 in the last 20 days"
+      - "Small purchases under $50"
+      - "Budget orders less than $75"
+      - "Show me the tiny transactions below $25"
+      - "Orders smaller than $150"
+      - "Which orders are beneath $200?"
+    parameters:
+      - name: "max_amount"
+        type: "decimal"
+        required: true
+        description: "Maximum order amount to filter by"
+        example: 500.00
+      - name: "days_back"
+        type: "integer"
+        required: false
+        default: 30
+        description: "Number of days back to look for orders"
+        example: 60
+      - name: "limit"
+        type: "integer"
+        required: false
+        default: 20
+        description: "Maximum number of results to return"
+        example: 15
+    sql_template: |
+      SELECT 
+        c.id as customer_id,
+        c.name as customer_name,
+        c.email as customer_email,
+        o.id as order_id,
+        o.order_date,
+        o.total,
+        o.status,
+        o.payment_method,
+        o.created_at
+      FROM customers c
+      INNER JOIN orders o ON c.id = o.customer_id
+      WHERE o.total < {max_amount}
+        AND o.created_at >= NOW() - INTERVAL '{days_back} days'
+      ORDER BY o.total ASC, o.created_at DESC
+      LIMIT {limit}
+    result_format: "table"
+    tags: ["orders", "amount", "low_value", "cheap", "small", "budget", "tiny"]
+    approved: true
+
+  - id: "orders_in_range"
+    description: "Find orders within a specific price range"
+    nl_examples:
+      - "Show orders between $100 and $500"
+      - "Find purchases from $50 to $200"
+      - "Orders in the $300-$800 range"
+      - "What orders fall between $150 and $600?"
+      - "Show me mid-range orders $200-$700"
+      - "Transactions between $75 and $300 please"
+      - "Orders priced from $400 to $1000"
+      - "Find orders in the $100 to $250 bracket"
+    parameters:
+      - name: "min_amount"
+        type: "decimal"
+        required: true
+        description: "Minimum order amount"
+        example: 100.00
+      - name: "max_amount"
+        type: "decimal"
+        required: true
+        description: "Maximum order amount"
+        example: 500.00
+      - name: "days_back"
+        type: "integer"
+        required: false
+        default: 30
+        description: "Number of days back to look for orders"
+        example: 30
+      - name: "limit"
+        type: "integer"
+        required: false
+        default: 20
+        description: "Maximum number of results to return"
+        example: 20
+    sql_template: |
+      SELECT 
+        c.id as customer_id,
+        c.name as customer_name,
+        c.email as customer_email,
+        o.id as order_id,
+        o.order_date,
+        o.total,
+        o.status,
+        o.payment_method,
+        o.created_at
+      FROM customers c
+      INNER JOIN orders o ON c.id = o.customer_id
+      WHERE o.total >= {min_amount}
+        AND o.total <= {max_amount}
+        AND o.created_at >= NOW() - INTERVAL '{days_back} days'
+      ORDER BY o.total DESC, o.created_at DESC
+      LIMIT {limit}
+    result_format: "table"
+    tags: ["orders", "range", "between", "price", "bracket", "mid-range"]
+    approved: true
+
+  # STATUS QUERIES
   - id: "orders_by_status"
     description: "Find orders with a specific status within a time period"
     nl_examples:
@@ -104,6 +319,13 @@ templates:
       - "List cancelled orders from the last month"
       - "What orders are still processing?"
       - "Show shipped orders from yesterday"
+      - "Which orders are waiting to be processed?"
+      - "Orders that have been delivered"
+      - "Show me the cancelled transactions"
+      - "What's in pending status?"
+      - "Find all shipped packages"
+      - "Orders currently being processed"
+      - "Show completed deliveries"
     parameters:
       - name: "status"
         type: "string"
@@ -141,9 +363,63 @@ templates:
       ORDER BY o.created_at DESC
       LIMIT {limit}
     result_format: "table"
-    tags: ["orders", "status", "filter"]
+    tags: ["orders", "status", "filter", "state", "condition", "stage"]
     approved: true
 
+  - id: "problematic_orders"
+    description: "Find orders that might need attention (cancelled or long pending)"
+    nl_examples:
+      - "Show me problematic orders"
+      - "Which orders need attention?"
+      - "Find troubled transactions"
+      - "Orders that might have issues"
+      - "Show cancelled or stuck orders"
+      - "What orders are having problems?"
+      - "Find orders requiring intervention"
+      - "Show me orders that need to be looked at"
+      - "Problem orders report"
+    parameters:
+      - name: "days_back"
+        type: "integer"
+        required: false
+        default: 30
+        description: "Number of days back to look for orders"
+        example: 30
+      - name: "pending_threshold_days"
+        type: "integer"
+        required: false
+        default: 3
+        description: "Days before a pending order is considered problematic"
+        example: 3
+    sql_template: |
+      SELECT 
+        c.id as customer_id,
+        c.name as customer_name,
+        c.email as customer_email,
+        o.id as order_id,
+        o.order_date,
+        o.total,
+        o.status,
+        o.payment_method,
+        o.created_at,
+        CASE 
+          WHEN o.status = 'cancelled' THEN 'Cancelled Order'
+          WHEN o.status = 'pending' AND o.created_at < NOW() - INTERVAL '{pending_threshold_days} days' THEN 'Long Pending'
+          ELSE 'Other Issue'
+        END as issue_type
+      FROM customers c
+      INNER JOIN orders o ON c.id = o.customer_id
+      WHERE o.created_at >= NOW() - INTERVAL '{days_back} days'
+        AND (
+          o.status = 'cancelled' 
+          OR (o.status = 'pending' AND o.created_at < NOW() - INTERVAL '{pending_threshold_days} days')
+        )
+      ORDER BY o.created_at DESC
+    result_format: "table"
+    tags: ["orders", "problems", "issues", "attention", "cancelled", "stuck", "troubled"]
+    approved: true
+
+  # SUMMARY QUERIES
   - id: "customer_summary"
     description: "Get a summary of customer order statistics"
     nl_examples:
@@ -152,6 +428,11 @@ templates:
       - "Show customer 5's order history summary"
       - "How much has customer 42 spent in total?"
       - "Customer summary for ID 10"
+      - "Quick stats on customer 789"
+      - "Overview of customer 234's activity"
+      - "Summarize customer 567's purchases"
+      - "Customer 890 at a glance"
+      - "Profile summary for customer 345"
     parameters:
       - name: "customer_id"
         type: "integer"
@@ -181,9 +462,64 @@ templates:
       WHERE c.id = {customer_id}
       GROUP BY c.id, c.name, c.email
     result_format: "summary"
-    tags: ["customer", "summary", "statistics", "analytics"]
+    tags: ["customer", "summary", "statistics", "analytics", "overview", "profile"]
     approved: true
 
+  - id: "daily_sales_summary"
+    description: "Get sales summary for a specific date or date range"
+    nl_examples:
+      - "What were yesterday's sales?"
+      - "Show me today's revenue"
+      - "Sales summary for last Monday"
+      - "How much did we sell on 2024-12-25?"
+      - "Daily sales report for this week"
+      - "What's our revenue today?"
+      - "Show sales for December 15th"
+      - "Yesterday's sales figures"
+      - "How did we do last Friday?"
+      - "Sales total for the 20th"
+    parameters:
+      - name: "target_date"
+        type: "date"
+        required: false
+        default: "TODAY"
+        description: "Specific date for sales summary (defaults to today)"
+        example: "2024-12-25"
+      - name: "days_range"
+        type: "integer"
+        required: false
+        default: 1
+        description: "Number of days to include in summary"
+        example: 7
+    sql_template: |
+      SELECT 
+        DATE(o.order_date) as sale_date,
+        COUNT(DISTINCT o.id) as total_orders,
+        COUNT(DISTINCT o.customer_id) as unique_customers,
+        SUM(o.total) as total_revenue,
+        AVG(o.total) as avg_order_value,
+        MAX(o.total) as largest_order,
+        MIN(o.total) as smallest_order
+      FROM orders o
+      WHERE o.order_date >= COALESCE(
+        CASE 
+          WHEN '{target_date}' = 'TODAY' THEN CURRENT_DATE
+          WHEN '{target_date}' = 'YESTERDAY' THEN CURRENT_DATE - INTERVAL '1 day'
+          ELSE '{target_date}'::DATE
+        END, CURRENT_DATE) - INTERVAL '{days_range} days'
+        AND o.order_date <= COALESCE(
+        CASE 
+          WHEN '{target_date}' = 'TODAY' THEN CURRENT_DATE
+          WHEN '{target_date}' = 'YESTERDAY' THEN CURRENT_DATE - INTERVAL '1 day'
+          ELSE '{target_date}'::DATE
+        END, CURRENT_DATE)
+      GROUP BY DATE(o.order_date)
+      ORDER BY sale_date DESC
+    result_format: "summary"
+    tags: ["sales", "daily", "revenue", "summary", "report", "today", "yesterday"]
+    approved: true
+
+  # LOCATION QUERIES
   - id: "orders_by_city"
     description: "Find orders from customers in a specific city"
     nl_examples:
@@ -192,6 +528,12 @@ templates:
       - "What orders came from Chicago?"
       - "Orders from San Francisco customers"
       - "Show me orders from Boston"
+      - "Which customers from Seattle ordered?"
+      - "Dallas customer orders"
+      - "Find Miami purchases"
+      - "Orders originating from Denver"
+      - "Show Houston customer transactions"
+      - "Portland buyer orders"
     parameters:
       - name: "city"
         type: "string"
@@ -229,9 +571,64 @@ templates:
       ORDER BY o.created_at DESC
       LIMIT {limit}
     result_format: "table"
-    tags: ["customer", "orders", "city", "location"]
+    tags: ["customer", "orders", "city", "location", "geographic", "place", "from"]
     approved: true
 
+  - id: "orders_by_country"
+    description: "Find orders from customers in a specific country"
+    nl_examples:
+      - "Show orders from USA"
+      - "Canadian customer orders"
+      - "What did UK customers buy?"
+      - "Orders from customers in France"
+      - "Show German customer purchases"
+      - "Find all orders from Australia"
+      - "Mexican customer transactions"
+      - "Orders coming from Japan"
+      - "Show me Brazil purchases"
+      - "Indian customer orders please"
+    parameters:
+      - name: "country"
+        type: "string"
+        required: true
+        description: "Country name to filter by (partial match)"
+        example: "United States"
+      - name: "days_back"
+        type: "integer"
+        required: false
+        default: 30
+        description: "Number of days back to look for orders"
+        example: 90
+      - name: "limit"
+        type: "integer"
+        required: false
+        default: 20
+        description: "Maximum number of results to return"
+        example: 25
+    sql_template: |
+      SELECT 
+        c.id as customer_id,
+        c.name as customer_name,
+        c.email as customer_email,
+        c.country as customer_country,
+        c.city as customer_city,
+        o.id as order_id,
+        o.order_date,
+        o.total,
+        o.status,
+        o.payment_method,
+        o.created_at
+      FROM customers c
+      INNER JOIN orders o ON c.id = o.customer_id
+      WHERE c.country ILIKE '%{country}%'
+        AND o.created_at >= NOW() - INTERVAL '{days_back} days'
+      ORDER BY o.created_at DESC
+      LIMIT {limit}
+    result_format: "table"
+    tags: ["customer", "orders", "country", "location", "international", "global"]
+    approved: true
+
+  # PAYMENT METHOD QUERIES
   - id: "payment_method_analysis"
     description: "Analyze orders by payment method"
     nl_examples:
@@ -240,6 +637,12 @@ templates:
       - "What orders used bank transfer?"
       - "Show cash payments"
       - "Credit card orders analysis"
+      - "How many debit card transactions?"
+      - "Orders paid via PayPal"
+      - "Bank transfer purchases"
+      - "Show me all cash sales"
+      - "Which orders used credit cards?"
+      - "Payment by debit card"
     parameters:
       - name: "payment_method"
         type: "string"
@@ -277,5 +680,295 @@ templates:
       ORDER BY o.created_at DESC
       LIMIT {limit}
     result_format: "table"
-    tags: ["orders", "payment", "analysis"]
-    approved: true 
+    tags: ["orders", "payment", "analysis", "method", "paid", "transaction"]
+    approved: true
+
+  - id: "payment_method_summary"
+    description: "Summary of payment methods usage and revenue"
+    nl_examples:
+      - "Payment method breakdown"
+      - "How are customers paying?"
+      - "Payment type analysis"
+      - "Show payment method statistics"
+      - "Which payment methods are most popular?"
+      - "Payment preference summary"
+      - "Revenue by payment type"
+      - "Payment method distribution"
+      - "How much revenue per payment method?"
+    parameters:
+      - name: "days_back"
+        type: "integer"
+        required: false
+        default: 30
+        description: "Number of days back to analyze"
+        example: 90
+    sql_template: |
+      SELECT 
+        o.payment_method,
+        COUNT(DISTINCT o.id) as order_count,
+        COUNT(DISTINCT o.customer_id) as unique_customers,
+        SUM(o.total) as total_revenue,
+        AVG(o.total) as avg_order_value,
+        ROUND((COUNT(*)::numeric / (SELECT COUNT(*) FROM orders WHERE created_at >= NOW() - INTERVAL '{days_back} days')) * 100, 2) as percentage_of_orders
+      FROM orders o
+      WHERE o.created_at >= NOW() - INTERVAL '{days_back} days'
+      GROUP BY o.payment_method
+      ORDER BY total_revenue DESC
+    result_format: "summary"
+    tags: ["payment", "summary", "statistics", "breakdown", "analysis", "revenue"]
+    approved: true
+
+  # TRENDING AND ANALYTICS QUERIES
+  - id: "top_customers"
+    description: "Find top customers by total spending or order count"
+    nl_examples:
+      - "Who are our top 10 customers?"
+      - "Show me the biggest spenders"
+      - "Which customers order the most?"
+      - "Top customers by revenue"
+      - "Best customers list"
+      - "Who spends the most money?"
+      - "Highest value customers"
+      - "VIP customer list"
+      - "Show our most valuable customers"
+      - "Top 20 buyers"
+    parameters:
+      - name: "metric"
+        type: "string"
+        required: false
+        default: "spending"
+        description: "Metric to rank by"
+        allowed_values: ["spending", "order_count"]
+        example: "spending"
+      - name: "days_back"
+        type: "integer"
+        required: false
+        default: 90
+        description: "Number of days back to analyze"
+        example: 180
+      - name: "limit"
+        type: "integer"
+        required: false
+        default: 10
+        description: "Number of top customers to return"
+        example: 20
+    sql_template: |
+      SELECT 
+        c.id as customer_id,
+        c.name as customer_name,
+        c.email as customer_email,
+        c.city,
+        c.country,
+        COUNT(DISTINCT o.id) as total_orders,
+        COALESCE(SUM(o.total), 0) as total_spent,
+        COALESCE(AVG(o.total), 0) as avg_order_value,
+        MAX(o.order_date) as last_order_date
+      FROM customers c
+      LEFT JOIN orders o ON c.id = o.customer_id
+        AND o.created_at >= NOW() - INTERVAL '{days_back} days'
+      GROUP BY c.id, c.name, c.email, c.city, c.country
+      HAVING COUNT(o.id) > 0
+      ORDER BY 
+        CASE 
+          WHEN '{metric}' = 'spending' THEN COALESCE(SUM(o.total), 0)
+          WHEN '{metric}' = 'order_count' THEN COUNT(DISTINCT o.id)::numeric
+        END DESC
+      LIMIT {limit}
+    result_format: "table"
+    tags: ["customers", "top", "best", "valuable", "VIP", "ranking", "leaders"]
+    approved: true
+
+  - id: "recent_new_customers"
+    description: "Find customers who made their first order recently"
+    nl_examples:
+      - "Show me new customers from this week"
+      - "Who are our newest customers?"
+      - "Recent first-time buyers"
+      - "New customer acquisitions"
+      - "First-time purchasers this month"
+      - "Latest customer signups with orders"
+      - "Who just started buying from us?"
+      - "Fresh customers list"
+      - "Newly acquired buyers"
+    parameters:
+      - name: "days_back"
+        type: "integer"
+        required: false
+        default: 7
+        description: "Number of days back to look for new customers"
+        example: 30
+      - name: "limit"
+        type: "integer"
+        required: false
+        default: 20
+        description: "Maximum number of results to return"
+        example: 50
+    sql_template: |
+      WITH first_orders AS (
+        SELECT 
+          customer_id,
+          MIN(order_date) as first_order_date,
+          MIN(created_at) as first_order_created
+        FROM orders
+        GROUP BY customer_id
+      )
+      SELECT 
+        c.id as customer_id,
+        c.name as customer_name,
+        c.email as customer_email,
+        c.city,
+        c.country,
+        fo.first_order_date,
+        o.id as first_order_id,
+        o.total as first_order_amount,
+        o.payment_method as first_payment_method
+      FROM customers c
+      INNER JOIN first_orders fo ON c.id = fo.customer_id
+      INNER JOIN orders o ON c.id = o.customer_id 
+        AND o.order_date = fo.first_order_date
+      WHERE fo.first_order_created >= NOW() - INTERVAL '{days_back} days'
+      ORDER BY fo.first_order_created DESC
+      LIMIT {limit}
+    result_format: "table"
+    tags: ["customers", "new", "recent", "first-time", "acquisition", "fresh"]
+    approved: true
+
+  - id: "order_trends"
+    description: "Analyze order trends over time periods"
+    nl_examples:
+      - "Show me order trends this month"
+      - "How are sales trending?"
+      - "Order volume over the last 30 days"
+      - "Daily order patterns"
+      - "Sales trend analysis"
+      - "Are orders increasing or decreasing?"
+      - "Show order growth"
+      - "Transaction volume trends"
+      - "Order frequency patterns"
+    parameters:
+      - name: "days_back"
+        type: "integer"
+        required: false
+        default: 30
+        description: "Number of days back to analyze"
+        example: 60
+      - name: "group_by"
+        type: "string"
+        required: false
+        default: "day"
+        description: "Time period to group by"
+        allowed_values: ["day", "week", "month"]
+        example: "week"
+    sql_template: |
+      SELECT 
+        CASE 
+          WHEN '{group_by}' = 'day' THEN DATE(o.order_date)::text
+          WHEN '{group_by}' = 'week' THEN DATE_TRUNC('week', o.order_date)::date::text
+          WHEN '{group_by}' = 'month' THEN DATE_TRUNC('month', o.order_date)::date::text
+        END as period,
+        COUNT(DISTINCT o.id) as order_count,
+        COUNT(DISTINCT o.customer_id) as unique_customers,
+        SUM(o.total) as total_revenue,
+        AVG(o.total) as avg_order_value
+      FROM orders o
+      WHERE o.created_at >= NOW() - INTERVAL '{days_back} days'
+      GROUP BY 1
+      ORDER BY 1 DESC
+    result_format: "table"
+    tags: ["orders", "trends", "analytics", "patterns", "growth", "volume", "frequency"]
+    approved: true
+
+  # SEARCH QUERIES
+  - id: "search_customer_email"
+    description: "Find customers by email address"
+    nl_examples:
+      - "Find customer with email john@example.com"
+      - "Search for user@gmail.com"
+      - "Who has the email address sarah@company.com?"
+      - "Customer with email mike@domain.org"
+      - "Look up buyer@email.net"
+      - "Find the customer using admin@site.com"
+      - "Email search for contact@business.com"
+    parameters:
+      - name: "email"
+        type: "string"
+        required: true
+        description: "Email address to search for (partial match)"
+        example: "john@example.com"
+    sql_template: |
+      SELECT 
+        c.id as customer_id,
+        c.name as customer_name,
+        c.email as customer_email,
+        c.phone,
+        c.city,
+        c.country,
+        c.created_at as customer_since,
+        COUNT(o.id) as total_orders,
+        COALESCE(SUM(o.total), 0) as lifetime_value
+      FROM customers c
+      LEFT JOIN orders o ON c.id = o.customer_id
+      WHERE c.email ILIKE '%{email}%'
+      GROUP BY c.id, c.name, c.email, c.phone, c.city, c.country, c.created_at
+    result_format: "summary"
+    tags: ["customer", "search", "email", "find", "lookup", "contact"]
+    approved: true
+
+  - id: "inactive_customers"
+    description: "Find customers who haven't ordered in a while"
+    nl_examples:
+      - "Show inactive customers"
+      - "Who hasn't ordered in 90 days?"
+      - "Find dormant customers"
+      - "Customers not buying recently"
+      - "Show me who stopped ordering"
+      - "Lapsed customer list"
+      - "Which customers went quiet?"
+      - "Customers we're losing"
+      - "Who needs re-engagement?"
+    parameters:
+      - name: "inactive_days"
+        type: "integer"
+        required: false
+        default: 90
+        description: "Days without orders to consider inactive"
+        example: 60
+      - name: "min_previous_orders"
+        type: "integer"
+        required: false
+        default: 1
+        description: "Minimum previous orders to be considered"
+        example: 2
+      - name: "limit"
+        type: "integer"
+        required: false
+        default: 20
+        description: "Maximum number of results to return"
+        example: 30
+    sql_template: |
+      WITH customer_last_order AS (
+        SELECT 
+          customer_id,
+          MAX(order_date) as last_order_date,
+          COUNT(*) as total_orders,
+          SUM(total) as lifetime_value
+        FROM orders
+        GROUP BY customer_id
+        HAVING COUNT(*) >= {min_previous_orders}
+      )
+      SELECT 
+        c.id as customer_id,
+        c.name as customer_name,
+        c.email as customer_email,
+        clo.last_order_date,
+        DATE_PART('day', NOW() - clo.last_order_date) as days_inactive,
+        clo.total_orders,
+        clo.lifetime_value
+      FROM customers c
+      INNER JOIN customer_last_order clo ON c.id = clo.customer_id
+      WHERE clo.last_order_date < NOW() - INTERVAL '{inactive_days} days'
+      ORDER BY clo.lifetime_value DESC
+      LIMIT {limit}
+    result_format: "table"
+    tags: ["customers", "inactive", "dormant", "lapsed", "retention", "churn"]
+    approved: true

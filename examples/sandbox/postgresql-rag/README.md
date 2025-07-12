@@ -20,7 +20,13 @@ The PostgreSQL adapter demonstrates a **multi-table** adapter pattern that follo
 | `test_connection.py` | Simple database connection test |
 | `diagnose_connection.py` | Advanced connection troubleshooting |
 | `test_adapter_integration.py` | Comprehensive adapter validation suite |
+| `semantic_rag_system.py` | Enhanced RAG system with ChromaDB and Ollama |
+| `interactive_demo.py` | Command-line interactive demo |
+| `streamlit_app.py` | Web-based Streamlit UI for the RAG system |
+| `query_templates.yaml` | Query templates for semantic matching |
+| `env_utils.py` | Environment variable utilities |
 | `requirements.txt` | Python dependencies |
+| `requirements_streamlit.txt` | Streamlit-specific dependencies |
 
 ## 🚀 Quick Start
 
@@ -31,31 +37,27 @@ pip install -r requirements.txt
 
 ### 2. Set Environment Variables
 
-Create a `.env` file in this directory with your database configuration:
+Create a `.env` file in this directory with your database and Ollama configuration:
 
 ```bash
 # Copy the example file
 cp env.example .env
 
-# Edit the .env file with your actual database settings
-# The connection string will be constructed dynamically from these values
+# Edit the .env file with your actual database and Ollama settings
 
-# For local PostgreSQL
+# PostgreSQL Database Configuration
 DATASOURCE_POSTGRES_USERNAME=postgres
 DATASOURCE_POSTGRES_PASSWORD=your_password
 DATASOURCE_POSTGRES_HOST=localhost
 DATASOURCE_POSTGRES_PORT=5432
 DATASOURCE_POSTGRES_DATABASE=test_db
-
-# For Supabase or other cloud databases
-# DATASOURCE_POSTGRES_USERNAME=postgres
-# DATASOURCE_POSTGRES_PASSWORD=your_supabase_password
-# DATASOURCE_POSTGRES_HOST=db.lkyihqptgeqeaoyoantn.supabase.co
-# DATASOURCE_POSTGRES_PORT=5432
-# DATASOURCE_POSTGRES_DATABASE=postgres
-
-# SSL Mode for cloud databases (require, verify-ca, verify-full, prefer, allow, disable)
 DATASOURCE_POSTGRES_SSL_MODE=prefer
+
+# Ollama Configuration
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_EMBEDDING_MODEL=bge-m3
+OLLAMA_INFERENCE_MODEL=gemma3:1b
+
 ```
 
 Alternatively, you can set environment variables directly:
@@ -89,6 +91,57 @@ python customer-order.py --action insert --customers 100 --orders 500
 ### 6. Test the Adapter
 ```bash
 python test_adapter_integration.py
+```
+
+### 7. Try the Interactive Demos
+
+#### Command-Line Demo
+```bash
+python interactive_demo.py
+```
+
+#### Web-Based Streamlit UI
+```bash
+# Install Streamlit dependencies
+pip install -r requirements_streamlit.txt
+
+# Launch the Streamlit app
+python -m streamlit run streamlit_app.py
+```
+
+## 🤖 Semantic RAG System
+
+This directory includes an enhanced **Semantic RAG (Retrieval-Augmented Generation)** system that combines:
+
+- **ChromaDB**: Vector database for semantic template matching
+- **Ollama**: Local LLM for embeddings and inference
+- **PostgreSQL**: Structured data storage
+- **Natural Language Processing**: Advanced parameter extraction
+
+### Key Features
+
+- **Semantic Template Matching**: Uses embeddings to find the best query template for natural language queries
+- **Intelligent Parameter Extraction**: Extracts parameters from natural language using pattern matching and LLM assistance
+- **Conversation Context**: Maintains conversation history for better understanding
+- **Multiple Interfaces**: Both command-line and web-based Streamlit UI
+- **Configurable Models**: Environment-based configuration for Ollama models and endpoints
+
+### Architecture
+
+```mermaid
+flowchart TD
+    A[User Query<br/>Natural Language] --> B[Semantic Search<br/>ChromaDB]
+    B --> C[Template Matching<br/>Query Templates]
+    C --> D[Parameter Extraction<br/>LLM + Patterns]
+    D --> E[SQL Execution<br/>PostgreSQL]
+    E --> F[Response Generation<br/>Formatted Response]
+    
+    style A fill:#e1f5fe
+    style B fill:#f3e5f5
+    style C fill:#e8f5e8
+    style D fill:#fff3e0
+    style E fill:#fce4ec
+    style F fill:#f1f8e9
 ```
 
 ## 🔧 Database Schema
@@ -187,6 +240,66 @@ python customer-order.py --action query
 # Delete all test data (requires confirmation)
 python customer-order.py --action delete --confirm
 ```
+
+### Interactive RAG System
+
+#### Command-Line Interface
+```bash
+# Start the interactive demo
+python interactive_demo.py
+
+# Example queries you can try:
+# - "Show me orders from customer 1"
+# - "Find orders over $500"
+# - "What did Maria Smith buy?"
+# - "Show me pending orders"
+```
+
+#### Web Interface (Streamlit)
+```bash
+# Launch the web UI
+streamlit run streamlit_app.py
+
+# Features:
+# - Natural language query input
+# - Example queries for quick testing
+# - Real-time results with formatting
+# - Query history tracking
+# - Configuration display
+# - Parameter visualization
+```
+
+### Example Queries for the RAG System
+
+The semantic RAG system supports various natural language queries:
+
+**Customer Queries:**
+- "Show me orders from customer 1"
+- "What did Maria Smith buy?"
+- "Find customer with email john@example.com"
+
+**Amount Queries:**
+- "Show me orders over $500"
+- "Find orders between $100 and $500"
+- "What are the smallest orders?"
+
+**Status Queries:**
+- "Show me all pending orders"
+- "Which orders need attention?"
+
+**Location Queries:**
+- "Show orders from New York customers"
+- "Orders from customers in France"
+
+**Time-based Queries:**
+- "What were yesterday's sales?"
+- "Show me today's revenue"
+- "Orders from last week"
+
+**Analytics Queries:**
+- "Who are our top 10 customers?"
+- "How are sales trending?"
+- "Show me new customers from this week"
 
 ## 🧪 Testing Suite
 
@@ -287,6 +400,41 @@ If you want to migrate to single-table adapters (recommended pattern):
 
 ### Common Issues
 
+**Ollama Connection Issues**
+```bash
+# Check if Ollama is running
+curl http://localhost:11434/api/tags
+
+# Start Ollama if not running
+ollama serve
+
+# Pull required models
+ollama pull bge-m3
+ollama pull gemma3:1b
+
+# Test embedding generation
+python -c "
+import requests
+response = requests.post('http://localhost:11434/api/embeddings', 
+                        json={'model': 'bge-m3', 'prompt': 'test'})
+print(f'Embedding dimensions: {len(response.json()[\"embedding\"])}')
+"
+```
+
+**ChromaDB Issues**
+```bash
+# Clear ChromaDB if you get dimension mismatch errors
+rm -rf ./chroma_db
+
+# Or use the built-in clearing function
+python -c "
+from semantic_rag_system import SemanticRAGSystem
+rag = SemanticRAGSystem()
+rag.clear_chromadb()
+rag.populate_chromadb('query_templates.yaml', clear_first=False)
+"
+```
+
 **Cloud Database Connection Issues (Supabase, AWS RDS, etc.)**
 ```bash
 # Run the diagnostic tool for comprehensive troubleshooting
@@ -369,21 +517,3 @@ INNER JOIN orders o ON c.id = o.customer_id
 WHERE o.created_at >= NOW() - INTERVAL '7 days'
 AND c.id = 1;
 ```
-
-## 🤝 Integration with ORBIT
-
-This adapter integrates seamlessly with ORBIT's retrieval system:
-
-1. **Automatic Validation**: Adapter config is validated on startup
-2. **Performance Monitoring**: Query execution is monitored and logged
-3. **Security Controls**: Parameter validation prevents injection attacks
-4. **Resource Management**: Timeout and result limits prevent resource exhaustion
-5. **Extensibility**: Easy to add new query patterns following the same structure
-
-## 📝 Next Steps
-
-1. **Add More Query Patterns**: Extend with additional business-specific queries
-2. **Implement Materialized Views**: For frequently accessed complex queries
-3. **Add Security Filters**: Implement row-level security for multi-tenant access
-4. **Performance Monitoring**: Set up alerts for slow queries
-5. **Test with Real Data**: Validate performance with production-sized datasets 
