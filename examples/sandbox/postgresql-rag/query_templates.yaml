@@ -4,6 +4,7 @@
 templates:
   # CUSTOMER QUERIES
   - id: "customer_recent_orders"
+    version: "1.2.0"
     description: "Show recent orders for a specific customer within a time period"
     nl_examples:
       - "What did customer 123 buy last week?"
@@ -47,10 +48,10 @@ templates:
         o.created_at
       FROM customers c
       INNER JOIN orders o ON c.id = o.customer_id
-      WHERE c.id = {customer_id}
-        AND o.created_at >= NOW() - INTERVAL '{days_back} days'
+      WHERE c.id = %(customer_id)s
+        AND o.created_at >= NOW() - INTERVAL '%(days_back)s days'
       ORDER BY o.created_at DESC
-      LIMIT {limit}
+      LIMIT %(limit)s
     result_format: "table"
     tags: ["customer", "orders", "recent", "activity", "history", "purchases", "transactions"]
     approved: true
@@ -101,12 +102,12 @@ templates:
         o.created_at
       FROM customers c
       INNER JOIN orders o ON c.id = o.customer_id
-      WHERE c.name ILIKE '%{customer_name}%'
-        AND o.created_at >= NOW() - INTERVAL '{days_back} days'
+      WHERE c.name ILIKE %(customer_name)s
+        AND o.created_at >= NOW() - INTERVAL '%(days_back)s days'
       ORDER BY o.created_at DESC
-      LIMIT {limit}
+      LIMIT %(limit)s
     result_format: "table"
-    tags: ["customer", "orders", "name", "search", "person", "buyer", "purchaser"]
+    tags: ["customer", "orders", "name", "search", "person", "buyer", "purchaser", "individual", "customer_name"]
     approved: true
 
   - id: "customer_lifetime_value"
@@ -141,7 +142,7 @@ templates:
         DATE_PART('day', NOW() - MAX(o.order_date)) as days_since_last_order
       FROM customers c
       LEFT JOIN orders o ON c.id = o.customer_id
-      WHERE c.id = {customer_id}
+      WHERE c.id = %(customer_id)s
       GROUP BY c.id, c.name, c.email
     result_format: "summary"
     tags: ["customer", "lifetime", "value", "statistics", "revenue", "spending", "total"]
@@ -193,10 +194,10 @@ templates:
         o.created_at
       FROM customers c
       INNER JOIN orders o ON c.id = o.customer_id
-      WHERE o.total >= {min_amount}
-        AND o.created_at >= NOW() - INTERVAL '{days_back} days'
+      WHERE o.total >= %(min_amount)s
+        AND o.created_at >= NOW() - INTERVAL '%(days_back)s days'
       ORDER BY o.total DESC, o.created_at DESC
-      LIMIT {limit}
+      LIMIT %(limit)s
     result_format: "table"
     tags: ["orders", "amount", "high_value", "expensive", "premium", "large", "big"]
     approved: true
@@ -246,10 +247,10 @@ templates:
         o.created_at
       FROM customers c
       INNER JOIN orders o ON c.id = o.customer_id
-      WHERE o.total < {max_amount}
-        AND o.created_at >= NOW() - INTERVAL '{days_back} days'
+      WHERE o.total < %(max_amount)s
+        AND o.created_at >= NOW() - INTERVAL '%(days_back)s days'
       ORDER BY o.total ASC, o.created_at DESC
-      LIMIT {limit}
+      LIMIT %(limit)s
     result_format: "table"
     tags: ["orders", "amount", "low_value", "cheap", "small", "budget", "tiny"]
     approved: true
@@ -301,11 +302,11 @@ templates:
         o.created_at
       FROM customers c
       INNER JOIN orders o ON c.id = o.customer_id
-      WHERE o.total >= {min_amount}
-        AND o.total <= {max_amount}
-        AND o.created_at >= NOW() - INTERVAL '{days_back} days'
+      WHERE o.total >= %(min_amount)s
+        AND o.total <= %(max_amount)s
+        AND o.created_at >= NOW() - INTERVAL '%(days_back)s days'
       ORDER BY o.total DESC, o.created_at DESC
-      LIMIT {limit}
+      LIMIT %(limit)s
     result_format: "table"
     tags: ["orders", "range", "between", "price", "bracket", "mid-range"]
     approved: true
@@ -358,10 +359,10 @@ templates:
         o.created_at
       FROM customers c
       INNER JOIN orders o ON c.id = o.customer_id
-      WHERE o.status = '{status}'
-        AND o.created_at >= NOW() - INTERVAL '{days_back} days'
+      WHERE o.status = %(status)s
+        AND o.created_at >= NOW() - INTERVAL '%(days_back)s days'
       ORDER BY o.created_at DESC
-      LIMIT {limit}
+      LIMIT %(limit)s
     result_format: "table"
     tags: ["orders", "status", "filter", "state", "condition", "stage"]
     approved: true
@@ -404,15 +405,15 @@ templates:
         o.created_at,
         CASE 
           WHEN o.status = 'cancelled' THEN 'Cancelled Order'
-          WHEN o.status = 'pending' AND o.created_at < NOW() - INTERVAL '{pending_threshold_days} days' THEN 'Long Pending'
+          WHEN o.status = 'pending' AND o.created_at < NOW() - INTERVAL '%(pending_threshold_days)s days' THEN 'Long Pending'
           ELSE 'Other Issue'
         END as issue_type
       FROM customers c
       INNER JOIN orders o ON c.id = o.customer_id
-      WHERE o.created_at >= NOW() - INTERVAL '{days_back} days'
+      WHERE o.created_at >= NOW() - INTERVAL '%(days_back)s days'
         AND (
           o.status = 'cancelled' 
-          OR (o.status = 'pending' AND o.created_at < NOW() - INTERVAL '{pending_threshold_days} days')
+          OR (o.status = 'pending' AND o.created_at < NOW() - INTERVAL '%(pending_threshold_days)s days')
         )
       ORDER BY o.created_at DESC
     result_format: "table"
@@ -458,8 +459,8 @@ templates:
         STRING_AGG(DISTINCT o.status, ', ') as order_statuses
       FROM customers c
       LEFT JOIN orders o ON c.id = o.customer_id
-        AND o.created_at >= NOW() - INTERVAL '{days_back} days'
-      WHERE c.id = {customer_id}
+        AND o.created_at >= NOW() - INTERVAL '%(days_back)s days'
+      WHERE c.id = %(customer_id)s
       GROUP BY c.id, c.name, c.email
     result_format: "summary"
     tags: ["customer", "summary", "statistics", "analytics", "overview", "profile"]
@@ -503,15 +504,15 @@ templates:
       FROM orders o
       WHERE o.order_date >= COALESCE(
         CASE 
-          WHEN '{target_date}' = 'TODAY' THEN CURRENT_DATE
-          WHEN '{target_date}' = 'YESTERDAY' THEN CURRENT_DATE - INTERVAL '1 day'
-          ELSE '{target_date}'::DATE
-        END, CURRENT_DATE) - INTERVAL '{days_range} days'
+          WHEN %(target_date)s = 'TODAY' THEN CURRENT_DATE
+          WHEN %(target_date)s = 'YESTERDAY' THEN CURRENT_DATE - INTERVAL '1 day'
+          ELSE %(target_date)s::DATE
+        END, CURRENT_DATE) - INTERVAL '%(days_range)s days'
         AND o.order_date <= COALESCE(
         CASE 
-          WHEN '{target_date}' = 'TODAY' THEN CURRENT_DATE
-          WHEN '{target_date}' = 'YESTERDAY' THEN CURRENT_DATE - INTERVAL '1 day'
-          ELSE '{target_date}'::DATE
+          WHEN %(target_date)s = 'TODAY' THEN CURRENT_DATE
+          WHEN %(target_date)s = 'YESTERDAY' THEN CURRENT_DATE - INTERVAL '1 day'
+          ELSE %(target_date)s::DATE
         END, CURRENT_DATE)
       GROUP BY DATE(o.order_date)
       ORDER BY sale_date DESC
@@ -534,6 +535,11 @@ templates:
       - "Orders originating from Denver"
       - "Show Houston customer transactions"
       - "Portland buyer orders"
+      - "Show orders from Toronto customers"
+      - "Orders from Vancouver customers"
+      - "Find orders from Montreal customers"
+      - "Show me Calgary customer orders"
+      - "Orders from Ottawa customers"
     parameters:
       - name: "city"
         type: "string"
@@ -566,12 +572,12 @@ templates:
         o.created_at
       FROM customers c
       INNER JOIN orders o ON c.id = o.customer_id
-      WHERE c.city ILIKE '%{city}%'
-        AND o.created_at >= NOW() - INTERVAL '{days_back} days'
+      WHERE c.city ILIKE %(city)s
+        AND o.created_at >= NOW() - INTERVAL '%(days_back)s days'
       ORDER BY o.created_at DESC
-      LIMIT {limit}
+      LIMIT %(limit)s
     result_format: "table"
-    tags: ["customer", "orders", "city", "location", "geographic", "place", "from"]
+    tags: ["customer", "orders", "city", "location", "geographic", "place"]
     approved: true
 
   - id: "orders_by_country"
@@ -587,6 +593,9 @@ templates:
       - "Orders coming from Japan"
       - "Show me Brazil purchases"
       - "Indian customer orders please"
+      - "Orders from customers in Canada"
+      - "Canadian customer transactions"
+      - "Show me Canadian orders"
     parameters:
       - name: "country"
         type: "string"
@@ -620,10 +629,10 @@ templates:
         o.created_at
       FROM customers c
       INNER JOIN orders o ON c.id = o.customer_id
-      WHERE c.country ILIKE '%{country}%'
-        AND o.created_at >= NOW() - INTERVAL '{days_back} days'
+      WHERE c.country ILIKE %(country)s
+        AND o.created_at >= NOW() - INTERVAL '%(days_back)s days'
       ORDER BY o.created_at DESC
-      LIMIT {limit}
+      LIMIT %(limit)s
     result_format: "table"
     tags: ["customer", "orders", "country", "location", "international", "global"]
     approved: true
@@ -675,10 +684,10 @@ templates:
         o.created_at
       FROM customers c
       INNER JOIN orders o ON c.id = o.customer_id
-      WHERE o.payment_method = '{payment_method}'
-        AND o.created_at >= NOW() - INTERVAL '{days_back} days'
+      WHERE o.payment_method = %(payment_method)s
+        AND o.created_at >= NOW() - INTERVAL '%(days_back)s days'
       ORDER BY o.created_at DESC
-      LIMIT {limit}
+      LIMIT %(limit)s
     result_format: "table"
     tags: ["orders", "payment", "analysis", "method", "paid", "transaction"]
     approved: true
@@ -709,9 +718,9 @@ templates:
         COUNT(DISTINCT o.customer_id) as unique_customers,
         SUM(o.total) as total_revenue,
         AVG(o.total) as avg_order_value,
-        ROUND((COUNT(*)::numeric / (SELECT COUNT(*) FROM orders WHERE created_at >= NOW() - INTERVAL '{days_back} days')) * 100, 2) as percentage_of_orders
+        ROUND((COUNT(*)::numeric / (SELECT COUNT(*) FROM orders WHERE created_at >= NOW() - INTERVAL '%(days_back)s days')) * 100, 2) as percentage_of_orders
       FROM orders o
-      WHERE o.created_at >= NOW() - INTERVAL '{days_back} days'
+      WHERE o.created_at >= NOW() - INTERVAL '%(days_back)s days'
       GROUP BY o.payment_method
       ORDER BY total_revenue DESC
     result_format: "summary"
@@ -765,15 +774,15 @@ templates:
         MAX(o.order_date) as last_order_date
       FROM customers c
       LEFT JOIN orders o ON c.id = o.customer_id
-        AND o.created_at >= NOW() - INTERVAL '{days_back} days'
+        AND o.created_at >= NOW() - INTERVAL '%(days_back)s days'
       GROUP BY c.id, c.name, c.email, c.city, c.country
       HAVING COUNT(o.id) > 0
       ORDER BY 
         CASE 
-          WHEN '{metric}' = 'spending' THEN COALESCE(SUM(o.total), 0)
-          WHEN '{metric}' = 'order_count' THEN COUNT(DISTINCT o.id)::numeric
+          WHEN %(metric)s = 'spending' THEN COALESCE(SUM(o.total), 0)
+          WHEN %(metric)s = 'order_count' THEN COUNT(DISTINCT o.id)::numeric
         END DESC
-      LIMIT {limit}
+      LIMIT %(limit)s
     result_format: "table"
     tags: ["customers", "top", "best", "valuable", "VIP", "ranking", "leaders"]
     approved: true
@@ -826,9 +835,9 @@ templates:
       INNER JOIN first_orders fo ON c.id = fo.customer_id
       INNER JOIN orders o ON c.id = o.customer_id 
         AND o.order_date = fo.first_order_date
-      WHERE fo.first_order_created >= NOW() - INTERVAL '{days_back} days'
+      WHERE fo.first_order_created >= NOW() - INTERVAL '%(days_back)s days'
       ORDER BY fo.first_order_created DESC
-      LIMIT {limit}
+      LIMIT %(limit)s
     result_format: "table"
     tags: ["customers", "new", "recent", "first-time", "acquisition", "fresh"]
     approved: true
@@ -862,16 +871,16 @@ templates:
     sql_template: |
       SELECT 
         CASE 
-          WHEN '{group_by}' = 'day' THEN DATE(o.order_date)::text
-          WHEN '{group_by}' = 'week' THEN DATE_TRUNC('week', o.order_date)::date::text
-          WHEN '{group_by}' = 'month' THEN DATE_TRUNC('month', o.order_date)::date::text
+          WHEN %(group_by)s = 'day' THEN DATE(o.order_date)::text
+          WHEN %(group_by)s = 'week' THEN DATE_TRUNC('week', o.order_date)::date::text
+          WHEN %(group_by)s = 'month' THEN DATE_TRUNC('month', o.order_date)::date::text
         END as period,
         COUNT(DISTINCT o.id) as order_count,
         COUNT(DISTINCT o.customer_id) as unique_customers,
         SUM(o.total) as total_revenue,
         AVG(o.total) as avg_order_value
       FROM orders o
-      WHERE o.created_at >= NOW() - INTERVAL '{days_back} days'
+      WHERE o.created_at >= NOW() - INTERVAL '%(days_back)s days'
       GROUP BY 1
       ORDER BY 1 DESC
     result_format: "table"
@@ -908,7 +917,7 @@ templates:
         COALESCE(SUM(o.total), 0) as lifetime_value
       FROM customers c
       LEFT JOIN orders o ON c.id = o.customer_id
-      WHERE c.email ILIKE '%{email}%'
+      WHERE c.email ILIKE %(email)s
       GROUP BY c.id, c.name, c.email, c.phone, c.city, c.country, c.created_at
     result_format: "summary"
     tags: ["customer", "search", "email", "find", "lookup", "contact"]
@@ -954,7 +963,7 @@ templates:
           SUM(total) as lifetime_value
         FROM orders
         GROUP BY customer_id
-        HAVING COUNT(*) >= {min_previous_orders}
+        HAVING COUNT(*) >= %(min_previous_orders)s
       )
       SELECT 
         c.id as customer_id,
@@ -966,9 +975,189 @@ templates:
         clo.lifetime_value
       FROM customers c
       INNER JOIN customer_last_order clo ON c.id = clo.customer_id
-      WHERE clo.last_order_date < NOW() - INTERVAL '{inactive_days} days'
+      WHERE clo.last_order_date < NOW() - INTERVAL '%(inactive_days)s days'
       ORDER BY clo.lifetime_value DESC
-      LIMIT {limit}
+      LIMIT %(limit)s
     result_format: "table"
     tags: ["customers", "inactive", "dormant", "lapsed", "retention", "churn"]
+    approved: true
+
+  # INTERNATIONAL SHIPPING QUERIES
+  - id: "international_orders"
+    description: "Find orders shipped to international destinations"
+    nl_examples:
+      - "Show orders shipped to the United States"
+      - "Orders delivered to European countries"
+      - "International orders over $200"
+      - "Shipping to Asian countries"
+      - "Canadian customers shipping abroad"
+      - "Orders with international shipping addresses"
+      - "Show me international shipments"
+      - "Orders shipped outside Canada"
+      - "International delivery orders"
+      - "Cross-border orders"
+    parameters:
+      - name: "destination_country"
+        type: "string"
+        required: false
+        description: "Specific destination country to filter by"
+        example: "United States"
+      - name: "min_amount"
+        type: "decimal"
+        required: false
+        description: "Minimum order amount for international orders"
+        example: 200.00
+      - name: "days_back"
+        type: "integer"
+        required: false
+        default: 30
+        description: "Number of days back to look for orders"
+        example: 60
+      - name: "limit"
+        type: "integer"
+        required: false
+        default: 20
+        description: "Maximum number of results to return"
+        example: 25
+    sql_template: |
+      SELECT 
+        c.id as customer_id,
+        c.name as customer_name,
+        c.email as customer_email,
+        c.city as customer_city,
+        c.country as customer_country,
+        o.id as order_id,
+        o.order_date,
+        o.total,
+        o.status,
+        o.payment_method,
+        o.shipping_address,
+        o.created_at
+      FROM customers c
+      INNER JOIN orders o ON c.id = o.customer_id
+      WHERE o.created_at >= NOW() - INTERVAL '%(days_back)s days'
+        AND o.shipping_address ILIKE '%Canada%'
+        AND (
+          %(destination_country)s IS NULL 
+          OR o.shipping_address ILIKE %(destination_country)s
+        )
+        AND (
+          %(min_amount)s IS NULL 
+          OR o.total >= %(min_amount)s
+        )
+      ORDER BY o.created_at DESC
+      LIMIT %(limit)s
+    result_format: "table"
+    tags: ["orders", "international", "shipping", "destination", "cross-border", "global"]
+    approved: true
+
+  - id: "revenue_by_shipping_destination"
+    description: "Analyze revenue by shipping destination country"
+    nl_examples:
+      - "Revenue by shipping destination"
+      - "Which countries order the most?"
+      - "Sales by destination country"
+      - "International revenue breakdown"
+      - "Revenue from different countries"
+      - "Sales performance by region"
+      - "Which markets are most profitable?"
+      - "Revenue analysis by shipping location"
+      - "International sales summary"
+    parameters:
+      - name: "days_back"
+        type: "integer"
+        required: false
+        default: 90
+        description: "Number of days back to analyze"
+        example: 180
+      - name: "min_revenue"
+        type: "decimal"
+        required: false
+        description: "Minimum revenue threshold to include"
+        example: 1000.00
+    sql_template: |
+      SELECT 
+        CASE 
+          WHEN o.shipping_address ILIKE '%United States%' THEN 'United States'
+          WHEN o.shipping_address ILIKE '%United Kingdom%' THEN 'United Kingdom'
+          WHEN o.shipping_address ILIKE '%Germany%' THEN 'Germany'
+          WHEN o.shipping_address ILIKE '%France%' THEN 'France'
+          WHEN o.shipping_address ILIKE '%Japan%' THEN 'Japan'
+          WHEN o.shipping_address ILIKE '%Australia%' THEN 'Australia'
+          WHEN o.shipping_address ILIKE '%Spain%' THEN 'Spain'
+          WHEN o.shipping_address ILIKE '%Italy%' THEN 'Italy'
+          WHEN o.shipping_address ILIKE '%South Korea%' THEN 'South Korea'
+          WHEN o.shipping_address ILIKE '%Canada%' THEN 'Canada'
+          ELSE 'Other'
+        END as destination_country,
+        COUNT(DISTINCT o.id) as order_count,
+        COUNT(DISTINCT o.customer_id) as unique_customers,
+        SUM(o.total) as total_revenue,
+        AVG(o.total) as avg_order_value,
+        ROUND((COUNT(*)::numeric / (SELECT COUNT(*) FROM orders WHERE created_at >= NOW() - INTERVAL '%(days_back)s days')) * 100, 2) as percentage_of_orders
+      FROM orders o
+      WHERE o.created_at >= NOW() - INTERVAL '%(days_back)s days'
+        AND (
+          %(min_revenue)s IS NULL 
+          OR SUM(o.total) >= %(min_revenue)s
+        )
+      GROUP BY 1
+      HAVING COUNT(*) > 0
+      ORDER BY total_revenue DESC
+    result_format: "summary"
+    tags: ["revenue", "international", "shipping", "destination", "country", "analysis", "global"]
+    approved: true
+
+  - id: "international_payment_methods"
+    description: "Analyze payment methods used for international orders"
+    nl_examples:
+      - "International payment methods used"
+      - "How do international customers pay?"
+      - "Payment methods by country"
+      - "Cross-border payment analysis"
+      - "International transaction methods"
+      - "Payment preferences by region"
+      - "Which payment methods work internationally?"
+      - "Global payment method breakdown"
+    parameters:
+      - name: "days_back"
+        type: "integer"
+        required: false
+        default: 90
+        description: "Number of days back to analyze"
+        example: 180
+      - name: "destination_country"
+        type: "string"
+        required: false
+        description: "Specific destination country to filter by"
+        example: "United States"
+    sql_template: |
+      SELECT 
+        o.payment_method,
+        CASE 
+          WHEN o.shipping_address ILIKE '%United States%' THEN 'United States'
+          WHEN o.shipping_address ILIKE '%United Kingdom%' THEN 'United Kingdom'
+          WHEN o.shipping_address ILIKE '%Germany%' THEN 'Germany'
+          WHEN o.shipping_address ILIKE '%France%' THEN 'France'
+          WHEN o.shipping_address ILIKE '%Japan%' THEN 'Japan'
+          WHEN o.shipping_address ILIKE '%Australia%' THEN 'Australia'
+          WHEN o.shipping_address ILIKE '%Spain%' THEN 'Spain'
+          WHEN o.shipping_address ILIKE '%Italy%' THEN 'Italy'
+          WHEN o.shipping_address ILIKE '%South Korea%' THEN 'South Korea'
+          WHEN o.shipping_address ILIKE '%Canada%' THEN 'Canada'
+          ELSE 'Other'
+        END as destination_country,
+        COUNT(DISTINCT o.id) as order_count,
+        SUM(o.total) as total_revenue,
+        AVG(o.total) as avg_order_value
+      FROM orders o
+      WHERE o.created_at >= NOW() - INTERVAL '%(days_back)s days'
+        AND (
+          %(destination_country)s IS NULL 
+          OR o.shipping_address ILIKE %(destination_country)s
+        )
+      GROUP BY o.payment_method, 2
+      ORDER BY destination_country, total_revenue DESC
+    result_format: "table"
+    tags: ["payment", "international", "methods", "cross-border", "global", "analysis"]
     approved: true

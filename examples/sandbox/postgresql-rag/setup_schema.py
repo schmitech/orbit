@@ -60,6 +60,23 @@ def setup_schema():
         # Execute the SQL
         cursor = connection.cursor()
         
+        # Check if tables exist and drop them first
+        print("🧹 Checking for existing tables...")
+        cursor.execute("""
+            SELECT table_name 
+            FROM information_schema.tables 
+            WHERE table_schema = 'public' 
+            AND table_name IN ('customers', 'orders')
+        """)
+        
+        existing_tables = cursor.fetchall()
+        if existing_tables:
+            print(f"🗑️  Dropping existing tables: {[table[0] for table in existing_tables]}")
+            cursor.execute("DROP TABLE IF EXISTS orders CASCADE")
+            cursor.execute("DROP TABLE IF EXISTS customers CASCADE")
+            connection.commit()
+            print("✅ Existing tables dropped")
+        
         # Execute the entire SQL content as one statement
         print("🔨 Setting up database schema...")
         cursor.execute(sql_content)

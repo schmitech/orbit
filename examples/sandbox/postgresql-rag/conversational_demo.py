@@ -4,7 +4,7 @@ Enhanced Interactive Demo for Semantic RAG System
 Features conversation memory, query suggestions, and improved UX
 """
 
-from semantic_rag_system import SemanticRAGSystem
+from customer_order_rag import SemanticRAGSystem
 import sys
 import readline  # For better input handling
 from typing import List, Dict
@@ -23,8 +23,16 @@ class ConversationalDemo:
     
     def setup_readline(self):
         """Setup readline for better input experience"""
-        # Enable tab completion and history
+        # Configure readline for proper input handling
         readline.parse_and_bind('tab: complete')
+        readline.parse_and_bind('bind ^I rl_complete')
+        
+        # Set input mode for proper backspace handling
+        readline.parse_and_bind('set input-meta on')
+        readline.parse_and_bind('set output-meta on')
+        readline.parse_and_bind('set convert-meta off')
+        
+        # Enable history
         readline.set_completer(self.completer)
         
         # Load history if exists
@@ -46,6 +54,13 @@ class ConversationalDemo:
             "Show inactive customers",
             "Payment method",
             "Orders by status",
+            "Show orders shipped to",
+            "International orders",
+            "Orders from Toronto",
+            "Canadian customers",
+            "Revenue by country",
+            "Shipping to Europe",
+            "Asian market orders",
         ]
         
         matches = [s for s in suggestions if s.lower().startswith(text.lower())]
@@ -70,15 +85,20 @@ class ConversationalDemo:
         print("This system allows you to query your database using natural language!")
         print("\nFeatures:")
         print("✨ Natural language understanding")
+        print("🔌 Plugin architecture for extensibility")
         print("💬 Conversational context")
         print("🔍 Intelligent parameter extraction")
         print("📊 Smart result formatting")
         print("💡 Query suggestions")
+        print("🛡️ Security validation")
+        print("⚡ Performance optimization")
+        print("📈 Business intelligence")
         print("\nSystem Components:")
         print("- ChromaDB for semantic search")
         print(f"- Ollama ({os.getenv('OLLAMA_EMBEDDING_MODEL', 'nomic-embed-text')}) for embeddings")
         print(f"- Ollama ({os.getenv('OLLAMA_INFERENCE_MODEL', 'gemma3:1b')}) for natural language generation")
         print("- PostgreSQL for data storage")
+        print("- Plugin system for enhanced functionality")
         print(f"\nConfiguration:")
         print(f"- Ollama Server: {os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434')}")
         print("="*80)
@@ -91,13 +111,17 @@ class ConversationalDemo:
         print("  help     - Show this help menu")
         print("  examples - Show example queries")
         print("  stats    - Show session statistics")
+        print("  plugins  - Show plugin status")
         print("  clear    - Clear conversation history")
         print("  quit     - Exit the demo")
+        print("  exit     - Exit the demo")
+        print("  bye      - Exit the demo")
         print("\nTips:")
         print("- Use natural language to query your database")
         print("- Be specific about what you want")
         print("- Include time periods, amounts, names, etc.")
         print("- Press TAB for query suggestions")
+        print("- Plugins enhance results with additional insights")
     
     def print_examples(self):
         """Print categorized example queries"""
@@ -106,36 +130,66 @@ class ConversationalDemo:
                 "What did customer 123 buy last week?",
                 "Show me orders from John Smith",
                 "Give me a summary for customer 5",
-                "What's the lifetime value of customer 42?"
+                "What's the lifetime value of customer 42?",
+                "Show customer segmentation for all customers",
+                "Find customers with more than 5 orders"
             ],
             "💰 Order Value Queries": [
                 "Show me all orders over $500",
                 "Find orders between $100 and $500",
                 "What are the biggest orders this month?",
-                "Show small orders under $50"
+                "Show small orders under $50",
+                "Revenue analytics for high-value orders",
+                "Average order value by customer"
             ],
             "📦 Order Status": [
                 "Show me all pending orders",
                 "Which orders are delivered?",
                 "Find cancelled orders from last week",
-                "What orders need attention?"
+                "What orders need attention?",
+                "Business rules analysis for order status",
+                "Orders shipped to international destinations"
+            ],
+            "🌍 International Shipping": [
+                "Show orders shipped to the United States",
+                "Orders delivered to European countries",
+                "International orders over $200",
+                "Shipping to Asian countries",
+                "Canadian customers shipping abroad",
+                "Orders with international shipping addresses"
             ],
             "📍 Location-Based": [
-                "Show orders from New York customers",
+                "Show orders from Toronto customers",
                 "Orders from customers in Canada",
-                "Which cities are ordering the most?"
+                "Which cities are ordering the most?",
+                "Geographic analysis of customer distribution",
+                "Customers from Vancouver",
+                "Orders shipped to specific countries"
             ],
             "💳 Payment Analysis": [
                 "How are customers paying?",
                 "Show me credit card orders",
-                "PayPal transactions from last month"
+                "PayPal transactions from last month",
+                "Payment method distribution",
+                "High-value credit card orders",
+                "International payment methods"
             ],
             "📈 Analytics & Trends": [
                 "Who are our top 10 customers?",
                 "Show me new customers this week",
                 "How are sales trending?",
                 "What were yesterday's sales?",
-                "Show inactive customers"
+                "Show inactive customers",
+                "Time-based insights for recent orders",
+                "Revenue by shipping destination"
+            ],
+            "🔌 Plugin-Specific Queries": [
+                "Customer segmentation analysis",
+                "Revenue analytics breakdown",
+                "Geographic insights for orders",
+                "Time-based order patterns",
+                "Business rules recommendations",
+                "International shipping analytics"
             ]
         }
         
@@ -157,6 +211,19 @@ class ConversationalDemo:
             successful = sum(1 for q in self.query_history if q['success'])
             print(f"Successful queries: {successful}")
             print(f"Failed queries: {len(self.query_history) - successful}")
+            print(f"Success rate: {(successful/len(self.query_history))*100:.1f}%")
+            
+            # Plugin usage statistics
+            plugin_usage = {}
+            for q in self.query_history:
+                if q['success'] and 'plugins_used' in q:
+                    for plugin in q['plugins_used']:
+                        plugin_usage[plugin] = plugin_usage.get(plugin, 0) + 1
+            
+            if plugin_usage:
+                print(f"\n🔌 Plugin Usage:")
+                for plugin, count in sorted(plugin_usage.items(), key=lambda x: x[1], reverse=True):
+                    print(f"   {plugin}: {count} times")
             
             # Most used templates
             template_counts = {}
@@ -166,7 +233,7 @@ class ConversationalDemo:
                     template_counts[template_id] = template_counts.get(template_id, 0) + 1
             
             if template_counts:
-                print("\nMost used query types:")
+                print(f"\n📋 Most used query types:")
                 for template, count in sorted(template_counts.items(), 
                                             key=lambda x: x[1], reverse=True)[:5]:
                     print(f"  • {template}: {count} times")
@@ -178,6 +245,11 @@ class ConversationalDemo:
             print(f"📋 Query type: {result['template_id']}")
             print(f"🎯 Confidence: {result['similarity']:.1%}")
             
+            # Show plugins used
+            plugins_used = result.get('plugins_used', [])
+            if plugins_used:
+                print(f"🔌 Plugins used: {', '.join(plugins_used)}")
+            
             # Show parameters in a nice format
             if result['parameters']:
                 print(f"🔍 Extracted parameters:")
@@ -185,6 +257,25 @@ class ConversationalDemo:
                     print(f"   • {key}: {value}")
             
             print(f"📊 Found {result['result_count']} results")
+            
+            # Show enhanced results if available
+            if result.get('results'):
+                first_result = result['results'][0]
+                enhanced_fields = []
+                
+                if 'customer_segment' in first_result:
+                    enhanced_fields.append(f"Customer Segment: {first_result['customer_segment']}")
+                if 'revenue_analytics' in first_result:
+                    enhanced_fields.append("Revenue Analytics: Available")
+                if 'time_insights' in first_result:
+                    enhanced_fields.append("Time Insights: Available")
+                if 'geographic_insights' in first_result:
+                    enhanced_fields.append("Geographic Insights: Available")
+                if 'business_flags' in first_result:
+                    enhanced_fields.append("Business Rules: Applied")
+                
+                if enhanced_fields:
+                    print(f"🎯 Enhanced data: {', '.join(enhanced_fields)}")
             
             # Show the response
             print(f"\n💬 Response:")
@@ -216,19 +307,36 @@ class ConversationalDemo:
                 suggestions.extend([
                     "Show me their lifetime value",
                     "What's their average order size?",
-                    "When was their last order?"
+                    "When was their last order?",
+                    "Show their international shipping history"
                 ])
             elif 'orders' in template_id:
                 suggestions.extend([
                     "Show me the top customers from these results",
                     "What's the average order value?",
-                    "Break this down by payment method"
+                    "Break this down by payment method",
+                    "Show shipping destinations for these orders"
                 ])
             elif 'payment' in template_id:
                 suggestions.extend([
                     "Which payment method is most popular?",
                     "Show trends over time",
-                    "Compare with last month"
+                    "Compare with last month",
+                    "Payment methods by country"
+                ])
+            elif 'international' in template_id or 'shipping' in template_id:
+                suggestions.extend([
+                    "Show revenue by shipping destination",
+                    "Which countries order the most?",
+                    "International payment methods used",
+                    "Shipping costs by region"
+                ])
+            elif 'location' in template_id or 'city' in template_id:
+                suggestions.extend([
+                    "Show international shipping from this location",
+                    "Compare with other cities",
+                    "Revenue by geographic region",
+                    "Shipping patterns by location"
                 ])
         
         return suggestions[:3]  # Return top 3 suggestions
@@ -237,10 +345,13 @@ class ConversationalDemo:
         """Run the interactive demo"""
         self.print_header()
         
-        # Initialize the RAG system
-        print("\n🚀 Initializing system...")
+        # Initialize the RAG system with plugins
+        print("\n🚀 Initializing system with plugins...")
         try:
-            self.rag_system = SemanticRAGSystem()
+            self.rag_system = SemanticRAGSystem(
+                enable_default_plugins=True,
+                enable_postgresql_plugins=True
+            )
             print("✅ System initialized successfully!")
         except Exception as e:
             print(f"❌ Error initializing system: {e}")
@@ -261,9 +372,15 @@ class ConversationalDemo:
             print(f"❌ Error loading templates: {e}")
             return
         
+        # Show plugin status
+        plugins = self.rag_system.list_plugins()
+        enabled_plugins = [p['name'] for p in plugins if p['enabled']]
+        print(f"🔌 Enabled plugins: {', '.join(enabled_plugins)}")
+        
         print("\n💡 Type 'help' for commands or 'examples' for query examples")
         print("🎯 Press TAB for query suggestions")
-        print("\nReady to answer your questions about the database!\n")
+        print("🔌 Type 'plugins' to show plugin status")
+        print("\nReady to answer your questions about the database with enhanced plugin features!\n")
         
         # Main interaction loop
         last_result = None
@@ -286,7 +403,7 @@ class ConversationalDemo:
                     continue
                 
                 # Handle commands
-                if user_input.lower() == 'quit':
+                if user_input.lower() in ['quit', 'exit', 'bye']:
                     print("\n👋 Thank you for using the Semantic RAG System!")
                     self.save_history()
                     break
@@ -299,8 +416,16 @@ class ConversationalDemo:
                 elif user_input.lower() == 'stats':
                     self.print_stats()
                     continue
+                elif user_input.lower() == 'plugins':
+                    plugins = self.rag_system.list_plugins()
+                    print(f"\n🔌 Plugin Status:")
+                    for plugin in plugins:
+                        status = "✅" if plugin['enabled'] else "❌"
+                        print(f"   {status} {plugin['name']} v{plugin['version']} ({plugin['priority']})")
+                    continue
                 elif user_input.lower() == 'clear':
                     self.rag_system.clear_conversation()
+                    self.query_history = []
                     print("✅ Conversation history cleared")
                     continue
                 
@@ -313,7 +438,8 @@ class ConversationalDemo:
                     'timestamp': datetime.now().isoformat(),
                     'query': user_input,
                     'success': result['success'],
-                    'template_id': result.get('template_id')
+                    'template_id': result.get('template_id'),
+                    'plugins_used': result.get('plugins_used', [])
                 })
                 
                 # Format and display response

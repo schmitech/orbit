@@ -20,13 +20,11 @@ The PostgreSQL adapter demonstrates a **multi-table** adapter pattern that follo
 | `test_connection.py` | Simple database connection test |
 | `diagnose_connection.py` | Advanced connection troubleshooting |
 | `test_adapter_integration.py` | Comprehensive adapter validation suite |
-| `semantic_rag_system.py` | Enhanced RAG system with ChromaDB and Ollama |
+| `customer_order_rag.py` | Enhanced RAG system with ChromaDB and Ollama |
 | `interactive_demo.py` | Command-line interactive demo |
-| `streamlit_app.py` | Web-based Streamlit UI for the RAG system |
 | `query_templates.yaml` | Query templates for semantic matching |
 | `env_utils.py` | Environment variable utilities |
 | `requirements.txt` | Python dependencies |
-| `requirements_streamlit.txt` | Streamlit-specific dependencies |
 
 ## 🚀 Quick Start
 
@@ -100,15 +98,6 @@ python test_adapter_integration.py
 python interactive_demo.py
 ```
 
-#### Web-Based Streamlit UI
-```bash
-# Install Streamlit dependencies
-pip install -r requirements_streamlit.txt
-
-# Launch the Streamlit app
-python -m streamlit run streamlit_app.py
-```
-
 ## 🤖 Semantic RAG System
 
 This directory includes an enhanced **Semantic RAG (Retrieval-Augmented Generation)** system that combines:
@@ -117,14 +106,6 @@ This directory includes an enhanced **Semantic RAG (Retrieval-Augmented Generati
 - **Ollama**: Local LLM for embeddings and inference
 - **PostgreSQL**: Structured data storage
 - **Natural Language Processing**: Advanced parameter extraction
-
-### Key Features
-
-- **Semantic Template Matching**: Uses embeddings to find the best query template for natural language queries
-- **Intelligent Parameter Extraction**: Extracts parameters from natural language using pattern matching and LLM assistance
-- **Conversation Context**: Maintains conversation history for better understanding
-- **Multiple Interfaces**: Both command-line and web-based Streamlit UI
-- **Configurable Models**: Environment-based configuration for Ollama models and endpoints
 
 ### Architecture
 
@@ -253,20 +234,6 @@ python interactive_demo.py
 # - "Find orders over $500"
 # - "What did Maria Smith buy?"
 # - "Show me pending orders"
-```
-
-#### Web Interface (Streamlit)
-```bash
-# Launch the web UI
-streamlit run streamlit_app.py
-
-# Features:
-# - Natural language query input
-# - Example queries for quick testing
-# - Real-time results with formatting
-# - Query history tracking
-# - Configuration display
-# - Parameter visualization
 ```
 
 ### Example Queries for the RAG System
@@ -428,7 +395,7 @@ rm -rf ./chroma_db
 
 # Or use the built-in clearing function
 python -c "
-from semantic_rag_system import SemanticRAGSystem
+from customer_order_rag import SemanticRAGSystem
 rag = SemanticRAGSystem()
 rag.clear_chromadb()
 rag.populate_chromadb('query_templates.yaml', clear_first=False)
