@@ -40,7 +40,7 @@ from plugin_system import (
     SecurityPlugin,
     LoggingPlugin
 )
-from query_expansion_plugin import QueryExpansionPlugin
+
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -641,7 +641,6 @@ class SemanticRAGSystem(BaseRAGSystem):
         default_plugins = [
             SecurityPlugin(),
             QueryNormalizationPlugin(),
-            QueryExpansionPlugin(),
             ResultFilteringPlugin(max_results=50),
             DataEnrichmentPlugin(),
             ResponseEnhancementPlugin(),

@@ -154,40 +154,7 @@ class QueryNormalizationPlugin(BaseRAGPlugin):
         return normalized
 
 
-class QueryExpansionPlugin(BaseRAGPlugin):
-    """Plugin for expanding queries with synonyms and related terms"""
-    
-    def __init__(self):
-        super().__init__("QueryExpansion", "1.0.0", PluginPriority.NORMAL)
-        self.synonyms = {
-            'customer': ['client', 'buyer', 'user', 'purchaser'],
-            'order': ['purchase', 'transaction', 'sale'],
-            'revenue': ['sales', 'income', 'earnings', 'money'],
-            'recent': ['latest', 'new', 'fresh', 'current'],
-            'expensive': ['high-value', 'premium', 'costly', 'pricey'],
-            'cheap': ['low-value', 'budget', 'affordable', 'inexpensive'],
-            'pending': ['waiting', 'processing', 'in-progress'],
-            'delivered': ['shipped', 'completed', 'fulfilled'],
-            'cancelled': ['canceled', 'void', 'abandoned']
-        }
-    
-    def pre_process_query(self, query: str, context: PluginContext) -> str:
-        """Expand query with synonyms"""
-        if not query:
-            return query
-        
-        expanded_terms = []
-        words = query.split()
-        
-        for word in words:
-            expanded_terms.append(word)
-            # Add synonyms if available
-            if word.lower() in self.synonyms:
-                expanded_terms.extend(self.synonyms[word.lower()])
-        
-        expanded_query = " ".join(expanded_terms)
-        logger.debug(f"Query expanded: '{query}' -> '{expanded_query}'")
-        return expanded_query
+
 
 
 class ResultFilteringPlugin(BaseRAGPlugin):

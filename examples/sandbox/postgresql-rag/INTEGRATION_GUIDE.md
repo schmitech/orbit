@@ -40,7 +40,6 @@ from plugin_system import (
     PluginContext, 
     RAGPlugin,
     QueryNormalizationPlugin,
-    QueryExpansionPlugin,
     ResultFilteringPlugin,
     DataEnrichmentPlugin,
     ResponseEnhancementPlugin,
@@ -74,7 +73,6 @@ class SemanticRAGSystem(BaseRAGSystem):
         default_plugins = [
             SecurityPlugin(),
             QueryNormalizationPlugin(),
-            QueryExpansionPlugin(),
             ResultFilteringPlugin(max_results=50),
             DataEnrichmentPlugin(),
             ResponseEnhancementPlugin(),
