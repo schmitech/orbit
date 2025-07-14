@@ -22,16 +22,15 @@ class ApiKeyCreate(BaseModel):
     client_name: str
     notes: Optional[str] = None
     system_prompt_id: Optional[str] = None
-    adapter_name: Optional[str] = None  # Preferred approach
-    collection_name: Optional[str] = None  # Backward compatibility
+    adapter_name: str  # Required adapter name
     
     @model_validator(mode='before')
     @classmethod
-    def validate_adapter_or_collection(cls, values):
-        """Validate that either adapter_name or collection_name is provided"""
+    def validate_adapter(cls, values):
+        """Validate that adapter_name is provided"""
         if isinstance(values, dict):
-            if not values.get('adapter_name') and not values.get('collection_name'):
-                raise ValueError('Either adapter_name or collection_name must be provided')
+            if not values.get('adapter_name'):
+                raise ValueError('adapter_name must be provided')
         return values
 
 
@@ -43,9 +42,7 @@ class ApiKeyResponse(BaseModel):
     created_at: float  # This expects a Unix timestamp
     active: bool = True
     system_prompt_id: Optional[str] = None
-    adapter_name: Optional[str] = None  # Preferred approach
-    collection: Optional[str] = None  # Backward compatibility
-    collection_name: Optional[str] = None  # Backward compatibility
+    adapter_name: Optional[str] = None
 
 
 class ApiKeyDeactivate(BaseModel):

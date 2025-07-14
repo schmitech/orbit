@@ -124,25 +124,31 @@ class QAChromaRetriever(ChromaRetriever):
 
     async def set_collection(self, collection_name: str) -> None:
         """Set the current collection for retrieval."""
+        if self.verbose:
+            logger.info(f"[QAChromaRetriever] set_collection called with collection_name='{collection_name}'")
         if not collection_name:
             raise ValueError("Collection name cannot be empty")
         try:
             # Try to get the collection using the lazy-loaded client
             self.collection = self.chroma_client.get_collection(name=collection_name)
+            self.collection_name = collection_name
             if self.verbose:
-                logger.info(f"Switched to collection: {collection_name}")
+                logger.info(f"[QAChromaRetriever] Switched to collection: {collection_name}")
         except Exception as e:
             # Check if this is a "collection does not exist" error
             if "does not exist" in str(e):
                 # Try to create the collection
                 try:
-                    logger.info(f"Collection '{collection_name}' does not exist. Attempting to create it...")
+                    if self.verbose:
+                        logger.info(f"[QAChromaRetriever] Collection '{collection_name}' does not exist. Attempting to create it...")
                     self.collection = self.chroma_client.create_collection(name=collection_name)
-                    logger.info(f"Successfully created collection: {collection_name}")
+                    self.collection_name = collection_name
+                    if self.verbose:
+                        logger.info(f"[QAChromaRetriever] Successfully created collection: {collection_name}")
                 except Exception as create_error:
                     # If creation fails, return a helpful error message
                     error_msg = f"Collection '{collection_name}' does not exist and could not be created: {str(create_error)}"
-                    logger.error(error_msg)
+                    logger.error(f"[QAChromaRetriever] {error_msg}")
                     # Access configuration directly
                     custom_msg = self.config.get('messages', {}).get('collection_not_found', 
                                 "Collection not found. Please ensure the collection exists before querying.")
@@ -150,7 +156,7 @@ class QAChromaRetriever(ChromaRetriever):
             else:
                 # For other errors, preserve the original behavior
                 error_msg = f"Failed to switch collection: {str(e)}"
-                logger.error(error_msg)
+                logger.error(f"[QAChromaRetriever] {error_msg}")
                 raise HTTPException(status_code=500, detail=error_msg)
 
     def format_document(self, doc: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
@@ -194,7 +200,7 @@ class QAChromaRetriever(ChromaRetriever):
 
     async def get_relevant_context(self, 
                            query: str, 
-                           api_key: Optional[str] = None, 
+                           api_key: Optional[str] = None,
                            collection_name: Optional[str] = None,
                            **kwargs) -> List[Dict[str, Any]]:
         """
@@ -203,25 +209,40 @@ class QAChromaRetriever(ChromaRetriever):
         Args:
             query: The user's query.
             api_key: Optional API key for accessing the collection.
-            collection_name: Optional explicit collection name.
+            collection_name: Optional collection name (falls back to config)
             **kwargs: Additional parameters, including domain-specific options
             
         Returns:
             A list of context items filtered by relevance.
         """
         try:
-            # Call the parent implementation first which resolves collection
-            # and handles common logging/error handling
-            await super().get_relevant_context(query, api_key, collection_name, **kwargs)
+            # Check initialization status
+            if not self.initialized:
+                await self.initialize()
             
-            debug_mode = self.verbose
+            if self.verbose:
+                logger.info(f"[QAChromaRetriever] get_relevant_context called with query='{query}', api_key='{api_key}', collection_name='{collection_name}'")
+                logger.info(f"[QAChromaRetriever] self.collection_name before resolution: {self.collection_name}")
+                logger.info(f"[QAChromaRetriever] self.datasource_config.get('collection'): {self.datasource_config.get('collection')}")
+            
+            # Resolve collection: use provided collection_name or fall back to config
+            resolved_collection = collection_name or self.collection_name or self.datasource_config.get('collection')
+            
+            if self.verbose:
+                logger.info(f"[QAChromaRetriever] Resolved collection: {resolved_collection}")
+            
+            # Set the collection
+            if resolved_collection:
+                await self.set_collection(resolved_collection)
+            else:
+                logger.error("[QAChromaRetriever] No collection could be resolved! Not calling set_collection.")
             
             # Check if embeddings are available
             if not self.embeddings:
                 logger.warning("Embeddings are disabled, no vector search can be performed")
                 return []
             
-            if debug_mode:
+            if self.verbose:
                 logger.info(f"Using embedding service: {type(self.embeddings).__name__}")
             
             # Ensure collection is properly set
@@ -231,7 +252,7 @@ class QAChromaRetriever(ChromaRetriever):
             
             # Generate an embedding for the query
             try:
-                if debug_mode:
+                if self.verbose:
                     logger.info("Generating embedding for query...")
                 
                 # Use the embed_query method from the parent class
@@ -242,7 +263,7 @@ class QAChromaRetriever(ChromaRetriever):
                     return []
                 
                 # Query ChromaDB for multiple results to enable filtering
-                if debug_mode:
+                if self.verbose:
                     logger.info(f"Querying ChromaDB with {len(query_embedding)}-dimensional embedding")
                     logger.info(f"Max results: {self.max_results}")
                     logger.info(f"Confidence threshold: {self.confidence_threshold}")
@@ -259,7 +280,7 @@ class QAChromaRetriever(ChromaRetriever):
                         logger.error("Collection object does not have a query method - likely incorrect object type")
                         return []
                     
-                    if debug_mode:
+                    if self.verbose:
                         doc_count = len(results['documents'][0]) if results['documents'] else 0
                         logger.info(f"ChromaDB query returned {doc_count} documents")
                         if doc_count > 0:
@@ -288,7 +309,7 @@ class QAChromaRetriever(ChromaRetriever):
                 # Using a sigmoid-like function that gives higher scores for larger distances
                 similarity = 1.0 / (1.0 + (distance / self.distance_scaling_factor))  # Scale down the distance to get higher similarity scores
                 
-                if debug_mode:
+                if self.verbose:
                     logger.info("\n=== Processing Results ===")
                     logger.info(f"Raw distance: {distance:.4f}")
                     logger.info(f"Converted similarity score: {similarity:.4f}")
@@ -308,19 +329,19 @@ class QAChromaRetriever(ChromaRetriever):
                         context_item["metadata"] = {}
                     
                     context_item["metadata"]["source"] = self._get_datasource_name()
-                    context_item["metadata"]["collection"] = collection_name
+                    context_item["metadata"]["collection"] = self.collection.name # Use the collection name from the adapter config
                     context_item["metadata"]["similarity"] = similarity
                     context_item["metadata"]["distance"] = distance  # Keep original distance for debugging
                     
                     context_items.append(context_item)
                     
-                    if debug_mode:
+                    if self.verbose:
                         logger.info("\n=== Accepted Document ===")
                         logger.info(f"Confidence: {similarity:.4f}")
                         logger.info(f"Content (truncated): {context_item.get('content', '')[:200]}...")
                         logger.info(f"Metadata: {context_item.get('metadata', {})}")
                 else:
-                    if debug_mode:
+                    if self.verbose:
                         logger.info("\n=== Rejected Document ===")
                         logger.info(f"Confidence: {similarity:.4f} (below threshold: {self.confidence_threshold})")
                         logger.info(f"Content (truncated): {results['documents'][0][0][:200]}...")
@@ -331,7 +352,7 @@ class QAChromaRetriever(ChromaRetriever):
                 
                 # Apply domain-specific filtering/reranking if available
                 if self.domain_adapter and hasattr(self.domain_adapter, 'apply_domain_filtering'):
-                    if debug_mode:
+                    if self.verbose:
                         logger.info("\n=== Before Domain Filtering ===")
                         logger.info(f"Number of items: {len(context_items)}")
                         for i, item in enumerate(context_items):
@@ -341,7 +362,7 @@ class QAChromaRetriever(ChromaRetriever):
                     
                     context_items = self.domain_adapter.apply_domain_filtering(context_items, query)
                     
-                    if debug_mode:
+                    if self.verbose:
                         logger.info("\n=== After Domain Filtering ===")
                         logger.info(f"Number of items: {len(context_items)}")
                         for i, item in enumerate(context_items):
@@ -352,7 +373,7 @@ class QAChromaRetriever(ChromaRetriever):
                 # Apply final limit
                 context_items = context_items[:self.return_results]
                 
-                if debug_mode:
+                if self.verbose:
                     logger.info("\n=== Final Results ===")
                     logger.info(f"Retrieved {len(context_items)} relevant context items")
                     if context_items:

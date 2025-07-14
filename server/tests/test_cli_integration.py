@@ -561,10 +561,10 @@ class CLITester:
     def test_api_key_create(self) -> bool:
         """Test API key creation command"""
         logger.info("\n=== Testing API Key Creation ===")
-        collection_name = f"cli_test_{int(time.time())}"
+        adapter_name = "qa-sql"
         result = self.run_command([
             "key", "create",
-            "--collection", collection_name,
+            "--adapter", adapter_name,
             "--name", "CLI Test Client",
             "--notes", "Created by CLI integration test"
         ])
@@ -641,12 +641,12 @@ class CLITester:
         
         prompt_content = "You are a helpful assistant for API key prompt integration test."
         prompt_file = self.create_temp_prompt_file(prompt_content)
-        collection_name = f"cli_integration_{int(time.time())}"
+        adapter_name = "qa-vector-chroma"
         prompt_name = f"CLI Integration Prompt {int(time.time())}"
         
         result = self.run_command([
             "key", "create",
-            "--collection", collection_name,
+            "--adapter", adapter_name,
             "--name", "CLI Integration Client",
             "--prompt-file", prompt_file,
             "--prompt-name", prompt_name
@@ -754,10 +754,9 @@ class CLITester:
         filter_tests = [
             (["key", "list"], "Basic API key list"),
             (["key", "list", "--active-only"], "Filter active keys only"),
-            (["key", "list", "--collection", "test"], "Filter by collection"),
             (["key", "list", "--limit", "5"], "Limit results"),
             (["key", "list", "--offset", "0"], "Offset results"),
-            (["key", "list", "--collection", "test", "--active-only", "--limit", "10"], "Combined filters"),
+            (["key", "list", "--active-only", "--limit", "10"], "Combined filters"),
             (["key", "list", "--output", "json"], "JSON output format"),
             (["key", "list", "--no-color"], "No color output")
         ]
@@ -860,10 +859,10 @@ class CLITester:
             return True
         
         # Create a test API key first
-        collection_name = f"cli_comprehensive_{int(time.time())}"
+        adapter_name = "file-vector"
         create_result = self.run_command([
             "key", "create",
-            "--collection", collection_name,
+            "--adapter", adapter_name,
             "--name", "CLI Comprehensive Test Client",
             "--notes", "Created for comprehensive testing"
         ])
@@ -886,7 +885,6 @@ class CLITester:
         operations = [
             (["key", "list"], "List API keys"),
             (["key", "list", "--active-only"], "List active keys"),
-            (["key", "list", "--collection", collection_name], "List keys by collection"),
         ]
         
         passed = 0
@@ -1571,10 +1569,10 @@ class CLITester:
             return True
         
         # Create a test API key
-        collection_name = f"advanced_test_{int(time.time())}"
+        adapter_name = "qa-sql"
         create_result = self.run_command([
             "key", "create",
-            "--collection", collection_name,
+            "--adapter", adapter_name,
             "--name", "Advanced Test Client",
             "--notes", "For advanced operations testing"
         ])

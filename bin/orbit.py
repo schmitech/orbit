@@ -40,8 +40,8 @@ User Management Commands:
     orbit user delete --user-id ID [--force]
 
 API Key Management Commands:
-    orbit key create --collection COLLECTION --name NAME [--notes NOTES] [--prompt-id ID] [--prompt-name NAME] [--prompt-file FILE]
-    orbit key list [--active-only] [--collection COLLECTION]
+    orbit key create --adapter ADAPTER --name NAME [--notes NOTES] [--prompt-id ID] [--prompt-name NAME] [--prompt-file FILE]
+    orbit key list [--active-only]
     orbit key status --key KEY
     orbit key test --key KEY
     orbit key deactivate --key KEY
@@ -96,12 +96,10 @@ Examples:
 
     # API Key Management
     orbit key list-adapters                             # List available adapters
-    orbit key create --adapter qa-vector-chroma --name "Customer Support"  # Create key with adapter (preferred)
+    orbit key create --adapter qa-vector-chroma --name "Customer Support"  # Create key with adapter
     orbit key create --adapter qa-sql --name "Legal Team" --prompt-file legal.txt --prompt-name "Legal Assistant"
-    orbit key create --collection docs --name "Legacy Support"  # Legacy collection-based (deprecated)
     orbit key list                                      # List all API keys
     orbit key list --active-only                        # List only active keys
-    orbit key list --collection docs                    # List keys for specific collection
     orbit key test --key api_abcd1234                   # Test an API key
     orbit key status --key api_abcd1234                 # Get detailed status
     orbit key deactivate --key api_abcd1234             # Deactivate an API key
@@ -1969,8 +1967,7 @@ class ApiManager:
         prompt_id: Optional[str] = None,
         prompt_name: Optional[str] = None,
         prompt_file: Optional[str] = None,
-        adapter_name: Optional[str] = None,
-        collection_name: Optional[str] = None  # Keep for backward compatibility
+        adapter_name: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Create a new API key for a client, optionally with an associated system prompt
@@ -1981,8 +1978,7 @@ class ApiManager:
             prompt_id: Optional existing system prompt ID to associate
             prompt_name: Optional name for a new system prompt
             prompt_file: Optional path to a file containing a system prompt
-            adapter_name: The name of the adapter to associate with this key (preferred)
-            collection_name: The name of the collection to associate with this key (deprecated)
+            adapter_name: The name of the adapter to associate with this key
             
         Returns:
             Dictionary containing the created API key details
@@ -2016,13 +2012,9 @@ class ApiManager:
             "client_name": client_name
         }
         
-        # Add adapter_name if provided (preferred)
+        # Add adapter_name if provided
         if adapter_name:
             data["adapter_name"] = adapter_name
-        
-        # Add collection_name if provided (for backward compatibility)
-        if collection_name:
-            data["collection_name"] = collection_name
         
         if notes:
             data["notes"] = notes
@@ -2050,12 +2042,11 @@ class ApiManager:
         except Exception as e:
             raise OrbitError(f"Error creating API key: {str(e)}")
     
-    def list_api_keys(self, collection: Optional[str] = None, active_only: bool = False, limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
+    def list_api_keys(self, active_only: bool = False, limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
         """
         List all API keys with optional server-side filtering
         
         Args:
-            collection: Optional collection name filter
             active_only: If True, only return active keys
             limit: Maximum number of keys to return (default: 100, max: 1000)
             offset: Number of keys to skip for pagination (default: 0)
@@ -2067,8 +2058,6 @@ class ApiManager:
         
         # Build query parameters
         params = {}
-        if collection:
-            params['collection'] = collection
         if active_only:
             params['active_only'] = 'true'
         if limit != 100:
@@ -2719,10 +2708,7 @@ Report issues at: https://github.com/schmitech/orbit/issues
             help='Create a new API key',
             description='Create a new API key with optional system prompt'
         )
-        # Add adapter option (preferred)
-        create_parser.add_argument('--adapter', help='Adapter name to associate with the key (preferred)')
-        # Keep collection option for backward compatibility but make it optional
-        create_parser.add_argument('--collection', help='Collection name to associate with the key (deprecated, use --adapter)')
+        create_parser.add_argument('--adapter', required=True, help='Adapter name to associate with the key')
         create_parser.add_argument('--name', required=True, help='Client name for identification')
         create_parser.add_argument('--notes', help='Optional notes about this API key')
         create_parser.add_argument('--prompt-id', help='Existing system prompt ID to associate')
@@ -2737,7 +2723,6 @@ Report issues at: https://github.com/schmitech/orbit/issues
             description='Display all API keys with their details and optional filtering'
         )
         list_parser.add_argument('--active-only', action='store_true', help='Show only active keys')
-        list_parser.add_argument('--collection', help='Filter by collection name')
         list_parser.add_argument('--limit', type=int, default=100, help='Maximum number of keys to return (default: 100, max: 1000)')
         list_parser.add_argument('--offset', type=int, default=0, help='Number of keys to skip for pagination (default: 0)')
         list_parser.add_argument('--output', choices=['table', 'json'], help='Output format')
@@ -3170,24 +3155,13 @@ Report issues at: https://github.com/schmitech/orbit/issues
         """Handler for the 'key create' command."""
         api_manager = self.get_api_manager(args.server_url)
         
-        # Validate that either adapter or collection is provided
-        if not args.adapter and not args.collection:
-            self.formatter.error("Either --adapter or --collection must be provided")
-            self.formatter.info("Recommended: Use --adapter with one of the configured adapters")
-            return 1
-        
-        # Show deprecation warning if collection is used
-        if args.collection and not args.adapter:
-            self.formatter.warning("--collection is deprecated, please use --adapter instead")
-            
         result = api_manager.create_api_key(
             args.name,
             args.notes,
             args.prompt_id,
             args.prompt_name,
             args.prompt_file,
-            args.adapter,
-            args.collection
+            args.adapter
         )
         if args.output == 'json':
             self.formatter.format_json(result)
@@ -3196,11 +3170,9 @@ Report issues at: https://github.com/schmitech/orbit/issues
             console.print(f"[bold]API Key:[/bold] {result.get('api_key', 'N/A')}")
             console.print(f"[bold]Client:[/bold] {result.get('client_name', 'N/A')}")
             
-            # Display adapter or collection info
+            # Display adapter info
             if result.get('adapter_name'):
                 console.print(f"[bold]Adapter:[/bold] {result['adapter_name']}")
-            if result.get('collection', result.get('collection_name')):
-                console.print(f"[bold]Collection:[/bold] {result.get('collection', result.get('collection_name', 'N/A'))}")
             
             if result.get('system_prompt_id'):
                 console.print(f"[bold]Prompt ID:[/bold] {result['system_prompt_id']}")
@@ -3210,7 +3182,6 @@ Report issues at: https://github.com/schmitech/orbit/issues
         """Handler for the 'key list' command."""
         api_manager = self.get_api_manager(args.server_url)
         result = api_manager.list_api_keys(
-            collection=args.collection,
             active_only=args.active_only,
             limit=args.limit,
             offset=args.offset
@@ -3219,7 +3190,7 @@ Report issues at: https://github.com/schmitech/orbit/issues
             self.formatter.format_json(result)
         else:
             if result:
-                headers = ['API Key', 'Client', 'Adapter', 'Collection', 'Active', 'Created']
+                headers = ['API Key', 'Client', 'Adapter', 'Active', 'Created']
                 data = []
                 for key in result:
                     created_at = key.get('created_at', 'N/A')
@@ -3230,15 +3201,13 @@ Report issues at: https://github.com/schmitech/orbit/issues
                     elif isinstance(created_at, str):
                         created_at = created_at[:10]
                     
-                    # Show adapter name if available, otherwise show "Legacy"
-                    adapter_name = key.get('adapter_name', 'Legacy' if key.get('collection_name') else 'N/A')
-                    collection_name = key.get('collection', key.get('collection_name', 'N/A'))
+                    # Show adapter name
+                    adapter_name = key.get('adapter_name', 'N/A')
                     
                     data.append({
                         'API Key': key.get('api_key', 'N/A')[:20] + '...',
                         'Client': key.get('client_name', 'N/A'),
                         'Adapter': adapter_name,
-                        'Collection': collection_name,
                         'Active': '✓' if key.get('active', True) else '✗',
                         'Created': created_at
                     })
@@ -3799,10 +3768,6 @@ Report issues at: https://github.com/schmitech/orbit/issues
         # Display adapter information if available
         if status.get('adapter_name'):
             console.print(f"[bold]Adapter:[/bold] {status['adapter_name']}")
-        elif status.get('collection', status.get('collection_name')):
-            console.print(f"[bold]Adapter:[/bold] Legacy (collection-based)")
-            
-        console.print(f"[bold]Collection:[/bold] {status.get('collection', status.get('collection_name', 'N/A'))}")
         
         if 'created_at' in status:
             console.print(f"[bold]Created:[/bold] {status['created_at']}")

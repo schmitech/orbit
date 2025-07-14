@@ -154,18 +154,20 @@ async def test_collection_resolution(test_config, mock_api_key_service):
     retriever = MockRetriever(config=test_config)
     await retriever.initialize()
     
-    # Collection from API key
-    collection = await retriever._resolve_collection(api_key="valid_key")
-    assert collection == "api_collection"
-    mock_api_key_service.validate_api_key.assert_called_once_with("valid_key")
-    
+    # Test collection resolution through get_relevant_context
     # Collection from parameter
-    collection = await retriever._resolve_collection(collection_name="param_collection")
-    assert collection == "param_collection"
+    context = await retriever.get_relevant_context("test query", collection_name="param_collection")
+    assert context[0]["question"] == "Test question?"
+    assert retriever.collection == "param_collection"
     
     # Default collection
-    collection = await retriever._resolve_collection()
-    assert collection == "test_collection"
+    context = await retriever.get_relevant_context("test query")
+    assert context[0]["question"] == "Test question?"
+    assert retriever.collection == "test_collection"
+    
+    # Test with API key (base retriever doesn't validate, but should pass through)
+    context = await retriever.get_relevant_context("test query", api_key="valid_key")
+    assert context[0]["question"] == "Test question?"
 
 # Test direct answers
 @pytest.mark.asyncio

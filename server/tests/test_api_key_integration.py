@@ -129,35 +129,27 @@ class ApiKeyAuthTester:
             "X-API-Key": api_key
         }
     
-    async def create_test_api_key(self, collection_name: str = None, client_name: str = None, notes: str = None, adapter_name: str = None) -> Optional[str]:
-        """Create a test API key for testing"""
-        if not collection_name and not adapter_name:
-            collection_name = f"test_collection_{int(time.time())}"
+    async def create_test_api_key(self, client_name: str = None, notes: str = None, adapter_name: str = None) -> Optional[str]:
+        """Create a test API key for testing purposes"""
+        if not adapter_name:
+            adapter_name = "qa-vector-chroma"  # Default test adapter
+            
         if not client_name:
-            client_name = f"Test Client {int(time.time())}"
+            client_name = f"test_client_{int(time.time())}"
+            
         if not notes:
-            notes = "Created for API key authentication testing"
-        
-        # Log which approach we're using
-        if adapter_name:
-            logger.info(f"Creating test API key for adapter: {adapter_name}")
-        else:
-            logger.info(f"Creating test API key for collection: {collection_name}")
-        
-        data = {
-            "client_name": client_name,
-            "notes": notes
-        }
-        
-        # Add adapter_name if provided (preferred approach)
-        if adapter_name:
-            data["adapter_name"] = adapter_name
-        
-        # Add collection_name if provided (backward compatibility)
-        if collection_name:
-            data["collection_name"] = collection_name
+            notes = "Test API key created by integration test"
+            
+        logger.info(f"Creating test API key for adapter: {adapter_name}")
         
         try:
+            # Create API key using the service
+            data = {
+                "client_name": client_name,
+                "notes": notes,
+                "adapter_name": adapter_name
+            }
+            
             async with self.session.post(
                 f"{self.base_url}/admin/api-keys",
                 json=data,
@@ -169,16 +161,17 @@ class ApiKeyAuthTester:
                     api_key = result.get("api_key")
                     if api_key:
                         self.created_api_keys.append(api_key)
-                        logger.info(f"✓ Test API key created: ***{api_key[-4:]}")
+                        logger.info(f"✓ Created test API key: {api_key[:20]}...")
                         return api_key
-                elif response.status == 503:
-                    logger.info("✓ API key creation not available (inference-only mode)")
-                    return None
+                    else:
+                        logger.error("✗ API key not found in response")
+                        return None
                 else:
-                    logger.error(f"✗ API key creation failed: {response.status}")
+                    logger.error(f"✗ Failed to create API key: {response.status} {await response.text()}")
                     return None
+                
         except Exception as e:
-            logger.error(f"✗ API key creation error: {str(e)}")
+            logger.error(f"✗ Error creating test API key: {str(e)}")
             return None
     
     async def create_test_prompt(self, name: str = None, prompt_text: str = None) -> Optional[str]:
@@ -233,7 +226,7 @@ class ApiKeyAuthTester:
         
         created_keys = []
         for collection, client, notes in keys_data:
-            key = await self.create_test_api_key(collection, client, notes)
+            key = await self.create_test_api_key(client, notes)
             if key:
                 created_keys.append((key, collection, client))
         
@@ -394,7 +387,7 @@ class ApiKeyAuthTester:
             return True
         
         # Create API key
-        api_key = await self.create_test_api_key("test_association_collection", "Association Test Client")
+        api_key = await self.create_test_api_key("Association Test Client")
         if not api_key:
             logger.info("Could not create test API key - skipping association test")
             return True
@@ -439,7 +432,7 @@ class ApiKeyAuthTester:
         logger.info("\n=== Testing API Key Operations ===")
         
         # Create a test API key
-        api_key = await self.create_test_api_key("test_operations_collection", "Operations Test Client")
+        api_key = await self.create_test_api_key("Operations Test Client")
         if not api_key:
             logger.info("Could not create test API key - skipping operations test")
             return True
@@ -566,7 +559,6 @@ class ApiKeyAuthTester:
         
         # Test creating API key with adapter
         adapter_key = await self.create_test_api_key(
-            adapter_name="qa-sql",
             client_name="Adapter Test Client",
             notes="Testing adapter-based key creation"
         )
@@ -575,11 +567,11 @@ class ApiKeyAuthTester:
             logger.info("Adapter-based API key creation not available - skipping test")
             return True
         
-        # Test creating legacy collection-based key
+        # Test creating another adapter-based key
         collection_key = await self.create_test_api_key(
-            collection_name="legacy_test_collection",
+            adapter_name="qa-vector-chroma",
             client_name="Legacy Test Client", 
-            notes="Testing legacy collection-based key creation"
+            notes="Testing adapter-based key creation"
         )
         
         if not collection_key:
@@ -654,11 +646,8 @@ class ApiKeyAuthTester:
                     if result.get("adapter_name"):
                         logger.info(f"✓ API key status includes adapter: {result['adapter_name']}")
                         return True
-                    elif result.get("collection_name"):
-                        logger.info(f"✓ API key status includes collection (backward compatibility): {result['collection_name']}")
-                        return True
                     else:
-                        logger.error("✗ API key status missing adapter/collection information")
+                        logger.error("✗ API key status missing adapter information")
                         return False
                 else:
                     logger.error(f"✗ Failed to get API key status: {response.status}")
@@ -667,16 +656,15 @@ class ApiKeyAuthTester:
             logger.error(f"✗ API key status test error: {str(e)}")
             return False
     
-    async def test_dual_compatibility_api_keys(self) -> bool:
-        """Test API keys that have both adapter and collection fields"""
-        logger.info("\n=== Testing Dual Compatibility API Keys ===")
+    async def test_adapter_based_api_keys(self) -> bool:
+        """Test API keys that use adapter-based routing"""
+        logger.info("\n=== Testing Adapter-Based API Keys ===")
         
-        # Create API key with both adapter and collection
+        # Create API key with adapter
         dual_key = await self.create_test_api_key(
             adapter_name="file-vector",
-            collection_name="dual_test_collection",
             client_name="Dual Compatibility Client",
-            notes="Testing dual adapter/collection storage"
+            notes="Testing adapter-based storage"
         )
         
         if not dual_key:
@@ -694,16 +682,12 @@ class ApiKeyAuthTester:
                     result = await response.json()
                     
                     has_adapter = bool(result.get("adapter_name"))
-                    has_collection = bool(result.get("collection_name"))
                     
-                    if has_adapter and has_collection:
-                        logger.info("✓ Dual compatibility key has both adapter and collection fields")
-                        return True
-                    elif has_adapter:
-                        logger.info("✓ Key shows adapter field (collection may be internal)")
+                    if has_adapter:
+                        logger.info("✓ Key shows adapter field")
                         return True
                     else:
-                        logger.error("✗ Dual compatibility key missing expected fields")
+                        logger.error("✗ Key missing adapter information")
                         return False
                 else:
                     logger.error(f"✗ Failed to get dual key status: {response.status}")
@@ -771,9 +755,9 @@ class ApiKeyAuthTester:
                     timeout=10
                 ) as response:
                     if response.status == 200:
-                        logger.info(f"✓ Cleaned up API key: ***{api_key[-4:]}")
+                        logger.info(f"✓ Cleaned up API key: {api_key[:20]}...")
                     else:
-                        logger.warning(f"Failed to clean up API key: ***{api_key[-4:]}")
+                        logger.warning(f"Failed to clean up API key: {api_key[:20]}...")
             except Exception as e:
                 logger.warning(f"Error cleaning up API key: {str(e)}")
         
@@ -957,8 +941,8 @@ async def test_api_key_status_with_adapters():
 
 
 @pytest.mark.asyncio
-async def test_dual_compatibility_api_keys():
-    """Test API keys with both adapter and collection fields"""
+async def test_adapter_based_api_keys():
+    """Test API keys with adapter-based routing"""
     async with ApiKeyAuthTester(SERVER_URL) as tester:
         # Check if server is running
         if not await tester.check_server_health():
@@ -967,7 +951,7 @@ async def test_dual_compatibility_api_keys():
         if not await tester.authenticate_admin():
             pytest.skip("Admin authentication failed")
         
-        assert await tester.test_dual_compatibility_api_keys(), "Dual compatibility API keys test failed"
+        assert await tester.test_adapter_based_api_keys(), "Adapter-based API keys test failed"
 
 
 # Main function for standalone execution
@@ -995,7 +979,7 @@ async def main():
             ("API Key Operations", tester.test_api_key_operations),
             ("Adapter-Based API Key Creation", tester.test_adapter_based_api_key_creation),
             ("API Key Status with Adapters", tester.test_api_key_status_with_adapters),
-            ("Dual Compatibility API Keys", tester.test_dual_compatibility_api_keys),
+            ("Adapter-Based API Keys", tester.test_adapter_based_api_keys),
             ("Edge Cases", tester.test_edge_cases)
         ]
         

@@ -148,43 +148,6 @@ class BaseRetriever(ABC):
         if self.api_key_service:
             await self.api_key_service.close()
     
-    async def _resolve_collection(self, api_key: Optional[str] = None, collection_name: Optional[str] = None) -> str:
-        """
-        Determine and set the appropriate collection.
-        
-        Priority:
-          1. If an API key is provided, validate it and use its collection.
-          2. If a collection name is provided directly, use it.
-          3. If none is provided, try the default from config.
-        
-        Returns:
-            The resolved collection name to use
-            
-        Raises:
-            HTTPException: If no valid collection can be determined.
-        """
-        if not self.api_key_service:
-            raise ValueError("API key service not initialized")
-            
-        if api_key:
-            is_valid, resolved_collection_name = await self.api_key_service.validate_api_key(api_key)
-            if not is_valid:
-                raise ValueError("Invalid API key")
-            if resolved_collection_name:
-                return resolved_collection_name
-        elif collection_name:
-            return collection_name
-
-        # Fallback to the default collection
-        if self.collection:
-            return self.collection
-            
-        # No collection available
-        error_msg = ("No collection available. Ensure a default collection is configured "
-                     "or a valid API key is provided.")
-        logger.error(error_msg)
-        raise HTTPException(status_code=500, detail=error_msg)
-    
     @abstractmethod
     async def set_collection(self, collection_name: str) -> None:
         """
@@ -208,7 +171,7 @@ class BaseRetriever(ABC):
         # Use the domain adapter to extract a direct answer
         return self.domain_adapter.extract_direct_answer(context)
 
-    def format_document(self, raw_doc: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
+    def format_document(self, raw_doc: str, metadata: Dict[str, Any]) -> Dict[str,Any]:
         """
         Format document using the domain adapter.
         
@@ -246,9 +209,9 @@ class BaseRetriever(ABC):
         Args:
             query: The user's query
             api_key: Optional API key for accessing resources
-            collection_name: Optional collection/database/index name
+            collection_name: Optional collection name (falls back to config)
             **kwargs: Additional parameters specific to each retriever implementation
-            
+        
         Returns:
             A list of context items filtered by relevance
         """
@@ -263,17 +226,18 @@ class BaseRetriever(ABC):
             if debug_mode:
                 logger.info(f"=== Starting retrieval for query: '{query}' ===")
                 logger.info(f"API Key: {'Provided' if api_key else 'None'}")
-                logger.info(f"Collection name: {collection_name or 'Not specified'}")
+                logger.info(f"Collection name: {collection_name or 'From config'}")
                 logger.info(f"Domain adapter: {type(self.domain_adapter).__name__}")
             
-            # Resolve collection (subclasses should use this value)
-            resolved_collection = await self._resolve_collection(api_key, collection_name)
+            # Resolve collection: use provided collection_name or fall back to config
+            resolved_collection = collection_name or self.datasource_config.get('collection')
             
             if debug_mode:
                 logger.info(f"Resolved collection: {resolved_collection}")
                 
             # Set the collection
-            await self.set_collection(resolved_collection)
+            if resolved_collection:
+                await self.set_collection(resolved_collection)
             
             # Subclasses should implement the actual retrieval logic
             return []

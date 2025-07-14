@@ -88,34 +88,6 @@ class ApiKeyService:
         adapters = self.config.get('adapters', [])
         return next((cfg for cfg in adapters if cfg.get('name') == adapter_name), None)
     
-    def _get_default_adapter_for_collection(self, collection_name: str) -> str:
-        """
-        Convert legacy collection name to default adapter name for backward compatibility
-        
-        Args:
-            collection_name: Legacy collection name
-            
-        Returns:
-            Default adapter name to use
-        """
-        # Collection-to-adapter mapping for common cases
-        collection_adapter_map = {
-            'legal_docs': 'qa-vector-chroma',
-            'support_kb': 'qa-vector-chroma',
-            'file_docs': 'file-vector',
-            'customer_data': 'qa-sql',
-        }
-        
-        # Use the first available adapter from config as fallback
-        available_adapters = self.config.get('adapters', [])
-        fallback_adapter = 'qa-vector-chroma'  # Sensible default
-        
-        if available_adapters and len(available_adapters) > 0:
-            # Use the first configured adapter as fallback
-            fallback_adapter = available_adapters[0].get('name', 'qa-vector-chroma')
-        
-        return collection_adapter_map.get(collection_name, fallback_adapter)
-
     async def get_api_key_status(self, api_key: str) -> Dict[str, Any]:
         """
         Get the full status of an API key
@@ -134,7 +106,6 @@ class ApiKeyService:
                     "exists": False,
                     "active": False,
                     "adapter_name": None,
-                    "collection": None,
                     "message": "API key does not exist"
                 }
             
@@ -150,19 +121,10 @@ class ApiKeyService:
             # For adapter-based keys, prefer adapter_name
             adapter_name = key_doc.get("adapter_name")
             
-            # For backward compatibility, ensure both collection and collection_name are available
-            collection = key_doc.get("collection_name") or key_doc.get("collection")
-            
-            # If no adapter but has collection, map to default adapter
-            if not adapter_name and collection:
-                adapter_name = self._get_default_adapter_for_collection(collection)
-                
             return {
                 "exists": True,
                 "active": bool(key_doc.get("active")),  # Convert to boolean
                 "adapter_name": adapter_name,
-                "collection": collection,  # Use collection for compatibility
-                "collection_name": collection,  # Keep collection_name too
                 "client_name": key_doc.get("client_name"),
                 "created_at": key_doc.get("created_at"),
                 "system_prompt": system_prompt_info
@@ -187,7 +149,8 @@ class ApiKeyService:
             allow_default = self.config.get('api_keys', {}).get('allow_default', False)
             if allow_default:
                 # Return the first available adapter as default
-                default_adapter = self._get_default_adapter_for_collection("default")
+                available_adapters = self.config.get('adapters', [])
+                default_adapter = available_adapters[0].get('name', 'qa-vector-chroma') if available_adapters else 'qa-vector-chroma'
                 if self.verbose:
                     logger.info(f"No API key provided, using default adapter: {default_adapter}")
                 return True, default_adapter, None
@@ -232,24 +195,8 @@ class ApiKeyService:
                         
                 return True, adapter_name, system_prompt_id
             
-            # Fallback to legacy collection-based approach
-            collection_name = key_doc.get("collection_name")
-            if collection_name:
-                # Convert legacy collection to default adapter
-                adapter_name = self._get_default_adapter_for_collection(collection_name)
-                
-                # Get the system prompt ID if it exists
-                system_prompt_id = key_doc.get("system_prompt_id")
-                
-                if self.verbose:
-                    logger.warning(f"API key {masked_key} using legacy collection '{collection_name}', mapped to adapter: {adapter_name}")
-                    if system_prompt_id:
-                        logger.info(f"API key {masked_key} has associated system prompt ID: {system_prompt_id}")
-                
-                return True, adapter_name, system_prompt_id
-            
-            # No adapter or collection found
-            logger.warning(f"API key {masked_key} has no associated adapter or collection")
+            # No adapter found
+            logger.warning(f"API key {masked_key} has no associated adapter")
             return False, None, None
             
         except Exception as e:
@@ -274,8 +221,8 @@ class ApiKeyService:
         if not is_valid:
             # Check if this is an empty API key and defaults are allowed
             if not api_key and self.config.get('api_keys', {}).get('allow_default', False):
-                # Return default adapter for empty API key when allowed
-                default_adapter = self._get_default_adapter_for_collection("default")
+                available_adapters = self.config.get('adapters', [])
+                default_adapter = available_adapters[0].get('name', 'qa-vector-chroma') if available_adapters else 'qa-vector-chroma'
                 return default_adapter, None
             raise HTTPException(status_code=401, detail="Invalid or missing API key")
         
@@ -284,74 +231,34 @@ class ApiKeyService:
             
         return adapter_name, system_prompt_id
     
-    # Keep the legacy method for backward compatibility
-    async def get_collection_for_api_key(self, api_key: str) -> Tuple[str, Optional[ObjectId]]:
-        """
-        Get the collection name and system prompt ID for a given API key (legacy method)
-        
-        Args:
-            api_key: The API key to look up
-            
-        Returns:
-            Tuple of (collection_name, system_prompt_id)
-            
-        Raises:
-            HTTPException: If the API key is invalid or has no associated collection
-            
-        Note:
-            This method is deprecated. Use get_adapter_for_api_key instead.
-        """
-        # For backward compatibility, we still return collection info if available
-        is_valid, adapter_name, system_prompt_id = await self.validate_api_key(api_key)
-        
-        if not is_valid:
-            raise HTTPException(status_code=401, detail="Invalid or missing API key")
-        
-        # Try to get the actual collection name from the key document
-        try:
-            key_doc = await self.mongodb.find_one(self.collection_name, {"api_key": api_key})
-            collection_name = key_doc.get("collection_name") if key_doc else None
-            
-            # If no collection name but we have an adapter, return the adapter name
-            if not collection_name and adapter_name:
-                collection_name = adapter_name
-                
-            return collection_name, system_prompt_id
-        except Exception as e:
-            logger.error(f"Error getting collection for API key: {str(e)}")
-            return adapter_name, system_prompt_id  # Fallback to adapter name
-    
     async def create_api_key(
         self, 
         client_name: str, 
         notes: Optional[str] = None,
         system_prompt_id: Optional[ObjectId] = None,
-        adapter_name: Optional[str] = None,
-        collection_name: Optional[str] = None  # Keep for backward compatibility
+        adapter_name: Optional[str] = None
     ) -> Dict[str, Any]:
         """
-        Create a new API key for a specific adapter or collection (legacy)
+        Create a new API key for a specific adapter
         
         Args:
             client_name: Name of the client/organization
             notes: Optional notes about this API key
             system_prompt_id: Optional ID of the system prompt to associate
-            adapter_name: Name of the adapter this key will access (preferred)
-            collection_name: Legacy collection name (deprecated, use adapter_name)
+            adapter_name: Name of the adapter this key will access (required)
             
         Returns:
             Dictionary containing the new API key and metadata
         """
         try:
-            # Validate that either adapter_name or collection_name is provided
-            if not adapter_name and not collection_name:
-                raise HTTPException(status_code=400, detail="Either adapter_name or collection_name must be provided")
+            # Validate that adapter_name is provided
+            if not adapter_name:
+                raise HTTPException(status_code=400, detail="adapter_name must be provided")
             
-            # If adapter_name provided, validate it exists
-            if adapter_name:
-                adapter_config = self._get_adapter_config(adapter_name)
-                if not adapter_config:
-                    raise HTTPException(status_code=400, detail=f"Adapter '{adapter_name}' not found in configuration")
+            # Validate adapter exists
+            adapter_config = self._get_adapter_config(adapter_name)
+            if not adapter_config:
+                raise HTTPException(status_code=400, detail=f"Adapter '{adapter_name}' not found in configuration")
             
             # Generate a new API key
             api_key = self._generate_api_key()
@@ -365,23 +272,9 @@ class ApiKeyService:
                 "client_name": client_name,
                 "notes": notes,
                 "active": True,
-                "created_at": now
+                "created_at": now,
+                "adapter_name": adapter_name
             }
-            
-            # Add adapter_name if provided (preferred approach)
-            if adapter_name:
-                key_doc["adapter_name"] = adapter_name
-                
-            # Add collection_name if provided (for backward compatibility)
-            if collection_name:
-                key_doc["collection_name"] = collection_name
-            
-            # If only collection_name provided, also set adapter_name for forward compatibility
-            if collection_name and not adapter_name:
-                mapped_adapter = self._get_default_adapter_for_collection(collection_name)
-                key_doc["adapter_name"] = mapped_adapter
-                if self.verbose:
-                    logger.info(f"Mapped collection '{collection_name}' to adapter '{mapped_adapter}'")
             
             # Add system prompt ID if provided
             if system_prompt_id:
@@ -398,40 +291,20 @@ class ApiKeyService:
             await self.mongodb.insert_one(self.collection_name, key_doc)
             
             if self.verbose:
-                if adapter_name:
-                    logger.info(f"Created new API key for adapter: {adapter_name}")
-                else:
-                    logger.info(f"Created new API key for collection: {collection_name}")
+                logger.info(f"Created new API key for adapter: {adapter_name}")
                 if system_prompt_id:
                     logger.info(f"Associated with system prompt ID: {system_prompt_id}")
             
             # Return the API key and metadata
-            # Include both collection and collection_name for compatibility
             result = {
                 "api_key": api_key,
                 "client_name": client_name,
                 "notes": notes,
                 "active": True,
                 "created_at": now.timestamp(),  # Convert datetime to timestamp
-                "system_prompt_id": str(system_prompt_id) if system_prompt_id else None
+                "system_prompt_id": str(system_prompt_id) if system_prompt_id else None,
+                "adapter_name": adapter_name
             }
-            
-            # Include adapter_name if set
-            if adapter_name:
-                result["adapter_name"] = adapter_name
-                
-            # Include collection fields for backward compatibility
-            if collection_name:
-                result["collection"] = collection_name
-                result["collection_name"] = collection_name
-            elif adapter_name:
-                # For API compatibility, also set collection to adapter name
-                result["collection"] = adapter_name
-                result["collection_name"] = adapter_name
-                
-            # Always include adapter_name if it was set (either directly or through mapping)
-            if key_doc.get("adapter_name"):
-                result["adapter_name"] = key_doc["adapter_name"]
             
             return result
             

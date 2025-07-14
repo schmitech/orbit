@@ -190,16 +190,16 @@ def ensure_object_id(id_value):
 @pytest.mark.asyncio
 async def test_create_api_key(api_key_service):
     """Test API key creation"""
-    # Create API key with collection_name (legacy approach)
+    # Create API key with adapter_name
     result = await api_key_service.create_api_key(
         client_name="test_client",
-        collection_name="test_collection",
+        adapter_name="qa-sql",
         notes="Test API key"
     )
     
     assert result is not None
     assert "api_key" in result
-    assert result["collection_name"] == "test_collection"
+    assert result["adapter_name"] == "qa-sql"
     assert result["client_name"] == "test_client"
     assert result["notes"] == "Test API key"
     assert result["active"] is True
@@ -211,7 +211,7 @@ async def test_list_api_keys(api_key_service):
     for i in range(3):
         await api_key_service.create_api_key(
             client_name=f"client_{i}",
-            collection_name=f"collection_{i}",
+            adapter_name="qa-sql",
             notes=f"Test key {i}"
         )
     
@@ -224,7 +224,7 @@ async def test_list_api_keys(api_key_service):
     assert len(api_keys) >= 3
     for key in api_keys:
         assert "api_key" in key
-        assert "collection_name" in key
+        assert "adapter_name" in key
         assert "client_name" in key
         assert "active" in key
 
@@ -234,7 +234,7 @@ async def test_get_api_key_status(api_key_service):
     # Create an API key
     result = await api_key_service.create_api_key(
         client_name="test_client",
-        collection_name="test_collection",
+        adapter_name="qa-sql",
         notes="Test API key"
     )
     
@@ -245,7 +245,7 @@ async def test_get_api_key_status(api_key_service):
     
     assert status is not None
     assert status.get("active") is True
-    assert status.get("collection", status.get("collection_name")) == "test_collection"
+    assert status.get("adapter_name") == "qa-sql"
     assert status.get("client_name") == "test_client"
 
 @pytest.mark.asyncio
@@ -254,7 +254,7 @@ async def test_deactivate_api_key(api_key_service):
     # Create an API key
     result = await api_key_service.create_api_key(
         client_name="test_client",
-        collection_name="test_collection",
+        adapter_name="qa-sql",
         notes="Test API key"
     )
     
@@ -274,7 +274,7 @@ async def test_delete_api_key(api_key_service):
     # Create an API key
     result = await api_key_service.create_api_key(
         client_name="test_client",
-        collection_name="test_collection",
+        adapter_name="qa-sql",
         notes="Test API key"
     )
     
@@ -404,7 +404,7 @@ async def test_associate_prompt_with_api_key(api_key_service, prompt_service):
     # Create an API key
     result = await api_key_service.create_api_key(
         client_name="test_client",
-        collection_name="test_collection",
+        adapter_name="qa-sql",
         notes="Test API key"
     )
     
@@ -426,38 +426,7 @@ async def test_associate_prompt_with_api_key(api_key_service, prompt_service):
     else:
         pytest.fail("Prompt ID not found in API key status")
 
-@pytest.mark.asyncio
-async def test_get_collection_for_api_key(api_key_service, prompt_service):
-    """Test getting collection and prompt ID for an API key"""
-    # Create a prompt
-    prompt_id = await prompt_service.create_prompt(
-        "Test Prompt for Collection",
-        "This is a test system prompt",
-        "1.0"
-    )
-    
-    # Create an API key
-    result = await api_key_service.create_api_key(
-        client_name="test_client",
-        collection_name="test_collection_special",
-        notes="Test API key"
-    )
-    
-    api_key = result["api_key"]
-    
-    # Associate prompt with API key
-    prompt_id_obj = ensure_object_id(prompt_id)
-    await api_key_service.update_api_key_system_prompt(api_key, prompt_id_obj)
-    
-    # Get collection and prompt ID
-    collection_name, system_prompt_id = await api_key_service.get_collection_for_api_key(api_key)
-    
-    assert collection_name == "test_collection_special"
-    if system_prompt_id:
-        # Convert both to string for comparison
-        assert str(system_prompt_id) == str(prompt_id)
-    else:
-        pytest.fail("System prompt ID not returned from get_collection_for_api_key")
+
 
 # Error Cases
 @pytest.mark.asyncio
@@ -501,7 +470,7 @@ async def test_invalid_prompt_association(api_key_service, prompt_service):
     # Create an API key
     result = await api_key_service.create_api_key(
         client_name="test_client",
-        collection_name="test_collection",
+        adapter_name="qa-sql",
         notes="Test API key"
     )
     
@@ -528,14 +497,14 @@ async def test_create_api_key_with_string_prompt_id(api_key_service, prompt_serv
     # Create API key with string prompt ID
     result = await api_key_service.create_api_key(
         client_name="test_client",
-        collection_name="test_collection",
+        adapter_name="qa-sql",
         notes="Test API key",
         system_prompt_id=string_prompt_id
     )
     
     assert result is not None
     assert "api_key" in result
-    assert result["collection_name"] == "test_collection"
+    assert result["adapter_name"] == "qa-sql"
     assert result["client_name"] == "test_client"
     assert result["system_prompt_id"] == string_prompt_id
     
@@ -561,22 +530,7 @@ async def test_adapter_config_lookup(api_key_service):
     config = api_key_service._get_adapter_config("non-existent-adapter")
     assert config is None
 
-@pytest.mark.asyncio
-async def test_collection_to_adapter_mapping(api_key_service):
-    """Test collection to adapter mapping for backward compatibility"""
-    # Test known mappings
-    adapter = api_key_service._get_default_adapter_for_collection("legal_docs")
-    assert adapter == "qa-vector-chroma"
-    
-    adapter = api_key_service._get_default_adapter_for_collection("file_docs")
-    assert adapter == "file-vector"
-    
-    adapter = api_key_service._get_default_adapter_for_collection("customer_data")
-    assert adapter == "qa-sql"
-    
-    # Test unknown collection - should return default (first available adapter)
-    adapter = api_key_service._get_default_adapter_for_collection("unknown_collection")
-    assert adapter == "qa-sql"  # First adapter in the list
+
 
 @pytest.mark.asyncio
 async def test_create_adapter_based_api_key(api_key_service):
@@ -600,26 +554,7 @@ async def test_create_adapter_based_api_key(api_key_service):
     assert adapter_name == "qa-sql"
     assert prompt_id is None
 
-@pytest.mark.asyncio
-async def test_create_legacy_collection_based_api_key(api_key_service):
-    """Test creating a legacy collection-based API key"""
-    result = await api_key_service.create_api_key(
-        client_name="Legacy Client",
-        notes="Test legacy key",
-        collection_name="legacy_docs"
-    )
-    
-    assert result is not None
-    assert "api_key" in result
-    assert result["collection_name"] == "legacy_docs"
-    assert result["client_name"] == "Legacy Client"
-    # Should also have mapped adapter
-    assert "adapter_name" in result
-    
-    # Test validation - should map to default adapter
-    is_valid, adapter_name, prompt_id = await api_key_service.validate_api_key(result['api_key'])
-    assert is_valid is True
-    assert adapter_name is not None  # Should be mapped to default
+
 
 @pytest.mark.asyncio
 async def test_adapter_validation_error(api_key_service):
@@ -632,24 +567,7 @@ async def test_adapter_validation_error(api_key_service):
     
     assert "not found in configuration" in str(exc_info.value)
 
-@pytest.mark.asyncio
-async def test_backward_compatibility_methods(api_key_service):
-    """Test backward compatibility methods"""
-    # Create an adapter-based key
-    result = await api_key_service.create_api_key(
-        client_name="Compat Test Client",
-        adapter_name="file-vector"
-    )
-    
-    api_key = result["api_key"]
-    
-    # Test new method
-    adapter_name, prompt_id = await api_key_service.get_adapter_for_api_key(api_key)
-    assert adapter_name == "file-vector"
-    
-    # Test legacy method still works
-    collection_name, prompt_id = await api_key_service.get_collection_for_api_key(api_key)
-    assert collection_name is not None  # Should return adapter name or collection name
+
 
 @pytest.mark.asyncio
 async def test_api_key_status_with_adapter(api_key_service):
@@ -670,23 +588,7 @@ async def test_api_key_status_with_adapter(api_key_service):
     assert status.get('active') is True
     assert status.get('client_name') == "Status Test Client"
 
-@pytest.mark.asyncio
-async def test_legacy_key_status_with_mapping(api_key_service):
-    """Test that legacy keys show mapped adapter in status"""
-    # Create legacy collection-based key
-    result = await api_key_service.create_api_key(
-        client_name="Legacy Status Client",
-        collection_name="legal_docs"
-    )
-    
-    api_key = result["api_key"]
-    status = await api_key_service.get_api_key_status(api_key)
-    
-    assert status is not None
-    assert status.get('exists') is True
-    assert status.get('collection_name') == "legal_docs"
-    # Should show mapped adapter
-    assert status.get('adapter_name') is not None
+
 
 @pytest.mark.asyncio
 async def test_validate_api_key_with_adapter_config_check(api_key_service):
@@ -713,33 +615,17 @@ async def test_validate_api_key_with_adapter_config_check(api_key_service):
     api_key_service.config['adapters'] = original_adapters
 
 @pytest.mark.asyncio
-async def test_create_api_key_requires_adapter_or_collection(api_key_service):
-    """Test that creating API key requires either adapter_name or collection_name"""
+async def test_create_api_key_requires_adapter_name(api_key_service):
+    """Test that creating API key requires adapter_name"""
     with pytest.raises(Exception) as exc_info:
         await api_key_service.create_api_key(
             client_name="Invalid Client"
-            # Neither adapter_name nor collection_name provided
+            # No adapter_name provided
         )
     
-    assert "Either adapter_name or collection_name must be provided" in str(exc_info.value)
+    assert "adapter_name must be provided" in str(exc_info.value)
 
-@pytest.mark.asyncio
-async def test_dual_storage_compatibility(api_key_service):
-    """Test that keys can have both adapter_name and collection_name"""
-    result = await api_key_service.create_api_key(
-        client_name="Dual Storage Client",
-        adapter_name="qa-vector-chroma",
-        collection_name="dual_docs"
-    )
-    
-    assert result is not None
-    assert result["adapter_name"] == "qa-vector-chroma"
-    assert result["collection_name"] == "dual_docs"
-    
-    # Validation should prefer adapter
-    is_valid, adapter_name, prompt_id = await api_key_service.validate_api_key(result['api_key'])
-    assert is_valid is True
-    assert adapter_name == "qa-vector-chroma"
+
 
 @pytest.mark.asyncio
 async def test_api_key_with_system_prompt_adapter_based(api_key_service):

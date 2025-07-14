@@ -181,7 +181,7 @@ class QAQdrantRetriever(QdrantRetriever):
 
     async def get_relevant_context(self, 
                            query: str, 
-                           api_key: Optional[str] = None, 
+                           api_key: Optional[str] = None,
                            collection_name: Optional[str] = None,
                            **kwargs) -> List[Dict[str, Any]]:
         """
@@ -190,25 +190,39 @@ class QAQdrantRetriever(QdrantRetriever):
         Args:
             query: The user's query.
             api_key: Optional API key for accessing the collection.
-            collection_name: Optional explicit collection name.
+            collection_name: Optional collection name (falls back to config)
             **kwargs: Additional parameters, including domain-specific options
             
         Returns:
             A list of context items filtered by relevance.
         """
         try:
-            # Call the parent implementation first which resolves collection
-            # and handles common logging/error handling
-            await super().get_relevant_context(query, api_key, collection_name, **kwargs)
+            # Check initialization status
+            if not self.initialized:
+                await self.initialize()
             
-            debug_mode = self.verbose
+            if self.verbose:
+                logger.info(f"=== Starting QA Qdrant retrieval for query: '{query}' ===")
+                logger.info(f"API Key: {'Provided' if api_key else 'None'}")
+                logger.info(f"Collection name: {collection_name or 'From config'}")
+                logger.info(f"Domain adapter: {type(self.domain_adapter).__name__}")
+            
+            # Resolve collection: use provided collection_name or fall back to config
+            resolved_collection = collection_name or self.collection_name or self.datasource_config.get('collection')
+            
+            if self.verbose:
+                logger.info(f"Resolved collection: {resolved_collection}")
+                
+            # Set the collection
+            if resolved_collection:
+                self.collection_name = resolved_collection
             
             # Check if embeddings are available
             if not self.embeddings:
                 logger.warning("Embeddings are disabled, no vector search can be performed")
                 return []
             
-            if debug_mode:
+            if self.verbose:
                 logger.info(f"Using embedding service: {type(self.embeddings).__name__}")
             
             # Ensure collection is properly set
@@ -218,7 +232,7 @@ class QAQdrantRetriever(QdrantRetriever):
             
             # Generate an embedding for the query
             try:
-                if debug_mode:
+                if self.verbose:
                     logger.info("Generating embedding for query...")
                 
                 # Use the embed_query method from the parent class
@@ -229,7 +243,7 @@ class QAQdrantRetriever(QdrantRetriever):
                     return []
                 
                 # Query Qdrant for multiple results to enable filtering
-                if debug_mode:
+                if self.verbose:
                     logger.info(f"Querying Qdrant with {len(query_embedding)}-dimensional embedding")
                     logger.info(f"Max results: {self.max_results}")
                     logger.info(f"Confidence threshold: {self.confidence_threshold}")
@@ -243,7 +257,7 @@ class QAQdrantRetriever(QdrantRetriever):
                         with_payload=True
                     )
                     
-                    if debug_mode:
+                    if self.verbose:
                         logger.info(f"Qdrant query returned {len(search_results)} documents")
                         
                 except Exception as qdrant_error:
@@ -276,7 +290,7 @@ class QAQdrantRetriever(QdrantRetriever):
                         context_items.append(context_item)
                 
                 # Log how many docs passed filtering
-                if debug_mode:
+                if self.verbose:
                     logger.info(f"{len(context_items)} documents passed score threshold filtering")
                 
                 # Sort and filter as before
@@ -284,7 +298,7 @@ class QAQdrantRetriever(QdrantRetriever):
                 if self.domain_adapter and hasattr(self.domain_adapter, 'apply_domain_filtering'):
                     context_items = self.domain_adapter.apply_domain_filtering(context_items, query)
                 context_items = context_items[:self.return_results]
-                if debug_mode:
+                if self.verbose:
                     logger.info("\n=== Final Results ===")
                     logger.info(f"Retrieved {len(context_items)} relevant context items")
                     if context_items:

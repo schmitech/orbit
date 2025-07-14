@@ -29,9 +29,9 @@ adapters:
     type: "retriever"
     datasource: "chroma"
     adapter: "qa"
-    collection: "city"
     implementation: "retrievers.implementations.qa.QAChromaRetriever"
     config:
+      collection: "city"
       confidence_threshold: 0.3
       distance_scaling_factor: 200.0
       embedding_provider: null
@@ -42,9 +42,9 @@ adapters:
     type: "retriever"
     datasource: "qdrant"
     adapter: "qa"
-    collection: "city"
     implementation: "retrievers.implementations.qa.QAQdrantRetriever"
     config:
+      collection: "city"
       confidence_threshold: 0.3
       score_scaling_factor: 200.0
       embedding_provider: null

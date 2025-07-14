@@ -187,16 +187,16 @@ class AdminTester:
             logger.error("✗ No authentication token available (auth is enabled)")
             return False
         
-        # Use unique collection name with timestamp
-        unique_collection = f"test_collection_{int(time.time())}"
+        # Use an existing adapter from the configuration
+        existing_adapter = "qa-vector-chroma"
         
         data = {
-            "collection_name": unique_collection,
+            "adapter_name": existing_adapter,
             "client_name": "Test Client",
             "notes": "Created by integration test"
         }
         
-        logger.info(f"Creating API key for collection: {unique_collection}")
+        logger.info(f"Creating API key for adapter: {existing_adapter}")
         
         try:
             async with self.session.post(
@@ -210,7 +210,7 @@ class AdminTester:
                     api_key = result.get("api_key")
                     if api_key:
                         self.created_api_keys.append(api_key)
-                        logger.info(f"✓ API key created: ***{api_key[-4:]} for collection '{unique_collection}'")
+                        logger.info(f"✓ API key created: ***{api_key[-4:]} for adapter '{existing_adapter}'")
                         return True
                     else:
                         logger.error("✗ API key creation response missing api_key")
@@ -250,7 +250,7 @@ class AdminTester:
                     # Verify response format
                     if isinstance(result, list):
                         for key in result:
-                            if not all(field in key for field in ["_id", "api_key", "collection_name"]):
+                            if not all(field in key for field in ["_id", "api_key", "adapter_name"]):
                                 logger.warning("API key response missing expected fields")
                                 break
                         else:

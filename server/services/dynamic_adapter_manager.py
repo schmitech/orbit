@@ -189,18 +189,14 @@ class DynamicAdapterManager:
         # at the top level for easier access by the retriever
         modified_config = self.config.copy()
         
-        # Add adapter-specific config including collection name
+        # Add adapter-specific config
         full_adapter_config = adapter_specific_config.copy()
         
-        # Add collection name from adapter config if present
-        if 'collection' in adapter_config:
-            full_adapter_config['collection'] = adapter_config['collection']
-            
         if full_adapter_config:
             modified_config['adapter_config'] = full_adapter_config
             # Also add the adapter config in the expected location for backward compatibility
             modified_config['adapters'] = [adapter_config]
-            
+        
         retriever_kwargs['config'] = modified_config
         
         # Add appropriate client/connection based on the provider type
@@ -368,7 +364,6 @@ class AdapterProxy:
             return await adapter.get_relevant_context(
                 query=query,
                 api_key=api_key,
-                collection_name=None,  # Not used in adapter-based routing
                 **kwargs
             )
         except Exception as e:

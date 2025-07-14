@@ -124,8 +124,7 @@ async def create_api_key(
         client_name=api_key_data.client_name,
         notes=api_key_data.notes,
         system_prompt_id=api_key_data.system_prompt_id,
-        adapter_name=api_key_data.adapter_name,
-        collection_name=api_key_data.collection_name
+        adapter_name=api_key_data.adapter_name
     )
     
     # Log with masked API key
@@ -134,8 +133,6 @@ async def create_api_key(
     # Log creation with appropriate identifier
     if api_key_data.adapter_name:
         logger.info(f"Created API key for adapter '{api_key_data.adapter_name}': {masked_api_key}")
-    elif api_key_data.collection_name:
-        logger.info(f"Created API key for collection '{api_key_data.collection_name}': {masked_api_key}")
     else:
         logger.info(f"Created API key: {masked_api_key}")
     
@@ -146,6 +143,7 @@ async def create_api_key(
 async def list_api_keys(
     request: Request,
     collection: Optional[str] = None,
+    adapter: Optional[str] = None,
     active_only: bool = False,
     limit: int = 100,
     offset: int = 0,
@@ -156,7 +154,7 @@ async def list_api_keys(
     
     This endpoint provides a list of all API keys with:
     - Masked key values
-    - Collection associations
+    - Adapter associations
     - Client information
     - Creation timestamps
     - Status information
@@ -168,7 +166,8 @@ async def list_api_keys(
     - Limited to 1000 keys per request
     
     Args:
-        collection: Optional collection name filter
+        collection: Optional collection name filter (legacy support)
+        adapter: Optional adapter name filter
         active_only: If True, only return active keys
         limit: Maximum number of keys to return (default: 100, max: 1000)
         offset: Number of keys to skip for pagination (default: 0)
@@ -201,7 +200,10 @@ async def list_api_keys(
         
         # Build filter query
         filter_query = {}
-        if collection:
+        if adapter:
+            filter_query["adapter_name"] = adapter
+        elif collection:
+            # Legacy support for collection-based filtering
             filter_query["collection_name"] = collection
         if active_only:
             filter_query["active"] = True
@@ -217,7 +219,8 @@ async def list_api_keys(
             key_dict = {
                 "_id": str(key["_id"]),
                 "api_key": f"***{key['api_key'][-4:]}" if key.get("api_key") else "***",
-                "collection_name": key.get("collection_name"),
+                "adapter_name": key.get("adapter_name"),
+                "collection_name": key.get("collection_name"),  # Legacy support
                 "client_name": key.get("client_name"),
                 "notes": key.get("notes"),
                 "active": key.get("active", True),
