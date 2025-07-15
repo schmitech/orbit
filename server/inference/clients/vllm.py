@@ -31,6 +31,7 @@ class QAVLLMClient(BaseLLMClient, LLMClientCommon):
         self.host = vllm_config.get('host', 'localhost')
         self.port = vllm_config.get('port', 8000)
         self.base_url = f"http://{self.host}:{self.port}"
+        self.model = vllm_config.get('model', 'Qwen/Qwen2.5-1.5B-Instruct')
         self.temperature = vllm_config.get('temperature', 0.1)
         self.top_p = vllm_config.get('top_p', 0.8)
         self.top_k = vllm_config.get('top_k', 20)
@@ -99,6 +100,7 @@ class QAVLLMClient(BaseLLMClient, LLMClientCommon):
                     async with session.post(
                         f"{self.base_url}/v1/chat/completions",
                         json={
+                            "model": self.model,
                             "messages": [{"role": "user", "content": "Hello"}],
                             "max_tokens": 1
                         },
@@ -189,6 +191,7 @@ class QAVLLMClient(BaseLLMClient, LLMClientCommon):
                 async with session.post(
                     f"{self.base_url}/v1/chat/completions",
                     json={
+                        "model": self.model,
                         "messages": messages,
                         "temperature": self.temperature,
                         "top_p": self.top_p,
@@ -366,6 +369,7 @@ class QAVLLMClient(BaseLLMClient, LLMClientCommon):
                 async with session.post(
                     f"{self.base_url}/v1/chat/completions",
                     json={
+                        "model": self.model,
                         "messages": messages,
                         "temperature": self.temperature,
                         "top_p": self.top_p,

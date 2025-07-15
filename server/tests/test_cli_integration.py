@@ -202,7 +202,7 @@ class CLITester:
                     result = self.run_command(["user", "list", "--output", "json"])
                     if result["success"]:
                         # Parse the JSON output to find the user
-                        users_data = self.extract_json_from_output(result["stdout"], [])
+                        users_data = self.extract_json_from_output(result["stdout"])
                         if users_data and isinstance(users_data, list):
                             for user in users_data:
                                 if user.get('username') == username:
@@ -230,7 +230,7 @@ class CLITester:
                 logger.info("Cleaning up any remaining test users with test patterns...")
                 result = self.run_command(["user", "list", "--output", "json"])
                 if result["success"]:
-                    users_data = self.extract_json_from_output(result["stdout"], [])
+                    users_data = self.extract_json_from_output(result["stdout"])
                     if users_data and isinstance(users_data, list):
                         test_patterns = ["testuser_", "cli_comprehensive_", "pwd_test_", "defaultuser_"]
                         for user in users_data:
@@ -1510,6 +1510,9 @@ class CLITester:
         
         self.test_users.append(test_username)
         
+        # Wait a moment for user to be available in database
+        time.sleep(1)
+        
         # Get user ID for activation/deactivation
         list_result = self.run_command(["user", "list", "--output", "json"])
         if not list_result["success"]:
@@ -1526,7 +1529,15 @@ class CLITester:
                     break
         
         if not user_id:
-            logger.error("✗ Could not find test user ID")
+            logger.error(f"✗ Could not find test user ID for username: {test_username}")
+            if users_data:
+                logger.debug(f"Found {len(users_data)} users, but {test_username} not among them")
+                # Print first few usernames for debugging
+                usernames = [u.get('username', 'N/A') for u in users_data[:5]]
+                logger.debug(f"First 5 usernames: {usernames}")
+            else:
+                logger.debug("No users data extracted from JSON output")
+                logger.debug(f"Raw stdout: {list_result['stdout'][:200]}...")
             return False
         
         # Test deactivation

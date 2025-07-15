@@ -13,6 +13,7 @@ inference:
   vllm:
     host: "localhost"
     port: 8000
+    model: "Qwen/Qwen2.5-1.5B-Instruct"
     temperature: 0.1
     top_p: 0.8
     top_k: 20
@@ -135,7 +136,7 @@ inference:
     max_length: 1024
     temperature: 0.7
     top_p: 0.9
-    stream: false,
+    stream: false
   openrouter:
     api_key: ${OPENROUTER_API_KEY}
     base_url: "https://openrouter.ai/api/v1"

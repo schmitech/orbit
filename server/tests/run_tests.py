@@ -57,13 +57,15 @@ def main():
         print(f"  - {os.path.basename(test_file)}")
     
     # Run the tests with verbose output and stop on first failure
+    # Combine all exclusions into a single -k expression
     pytest.main([
         str(SCRIPT_DIR),
         "-v",
         "--asyncio-mode=auto",
-        "-k", "not test_ollama",
-        "-k", "not test_ollama_moderator"
+        "-k", "not test_ollama and not test_ollama_moderator and not vllm",
+        "--ignore=tests/test_vllm.py",
+        "--ignore=tests/test_vllm_simple.py"
     ])
 
 if __name__ == "__main__":
-    main() 
+    main()

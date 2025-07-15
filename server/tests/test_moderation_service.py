@@ -52,18 +52,44 @@ def load_config():
     Returns:
         dict: Configuration dictionary
     """
+    config = None
+    
     # Try to use the server's config loading function
     try:
-        return load_server_config()
-    except:
-        # Fall back to manual loading if that fails
-        # Look for config.yaml in the config directory first, then fallback to server directory
-        config_path = PROJECT_ROOT / 'config' / 'config.yaml'
-        if not config_path.exists():
-            config_path = SERVER_DIR / 'config.yaml'
-        
-        with open(config_path, 'r') as file:
-            return yaml.safe_load(file)
+        config = load_server_config()
+        if config is not None:
+            return config
+    except Exception as e:
+        logger.debug(f"Failed to load config using server function: {e}")
+    
+    # Fall back to manual loading if that fails
+    config_paths = [
+        PROJECT_ROOT / 'config' / 'config.yaml',
+        SERVER_DIR / 'config.yaml',
+        PROJECT_ROOT / 'config.yaml'
+    ]
+    
+    for config_path in config_paths:
+        try:
+            if config_path.exists():
+                logger.debug(f"Attempting to load config from: {config_path}")
+                with open(config_path, 'r') as file:
+                    config = yaml.safe_load(file)
+                    if config is not None:
+                        logger.debug(f"Successfully loaded config from: {config_path}")
+                        return config
+        except Exception as e:
+            logger.debug(f"Failed to load config from {config_path}: {e}")
+            continue
+    
+    # If all attempts fail, return a minimal default config
+    logger.warning("Could not load configuration file, using default config")
+    return {
+        'safety': {
+            'enabled': False
+        },
+        'moderators': {}
+    }
 
 @pytest_asyncio.fixture
 async def moderator_service():
@@ -176,6 +202,10 @@ async def test_disabled_safety():
     """Test that safety checks are properly disabled when configured"""
     config = load_config()
     
+    # Ensure we have a valid config dict
+    if config is None:
+        config = {'safety': {'enabled': False}, 'moderators': {}}
+    
     # Create a config with safety disabled
     test_config = config.copy()
     test_config['safety'] = {'enabled': False}
@@ -201,6 +231,10 @@ async def test_disabled_safety():
 async def test_safety_mode_disabled():
     """Test that safety checks are properly disabled when mode is 'disabled'"""
     config = load_config()
+    
+    # Ensure we have a valid config dict
+    if config is None:
+        config = {'safety': {'enabled': False}, 'moderators': {}}
     
     # Create a config with safety mode disabled
     test_config = config.copy()
