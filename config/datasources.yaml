@@ -8,6 +8,9 @@ datasources:
   qdrant:
     host: ${DATASOURCE_QDRANT_HOST}
     port: ${DATASOURCE_QDRANT_PORT}
+    timeout: 60
+    prefer_grpc: false
+    https: false
     embedding_provider: null
     collection_name: "orbit"
   sqlite:

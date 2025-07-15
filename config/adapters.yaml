@@ -67,20 +67,3 @@ adapters:
       boost_file_uploads: true
       file_content_weight: 1.5
       metadata_weight: 0.8
-
-  - name: "file-vector-qdrant"
-    type: "retriever"
-    datasource: "qdrant"
-    adapter: "file"
-    implementation: "retrievers.implementations.file.FileQdrantRetriever"
-    config:
-      confidence_threshold: 0.1
-      score_scaling_factor: 150.0
-      embedding_provider: null
-      max_results: 10
-      return_results: 5
-      # File-specific settings
-      include_file_metadata: true
-      boost_file_uploads: true
-      file_content_weight: 1.5
-      metadata_weight: 0.8 

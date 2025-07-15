@@ -69,6 +69,8 @@ class QdrantRetriever(AbstractVectorRetriever):
         try:
             from qdrant_client import QdrantClient
             
+            logger.info(f"Attempting to connect to Qdrant at {self.host}:{self.port} with timeout={self.timeout}")
+            
             # Initialize Qdrant client
             self.qdrant_client = QdrantClient(
                 host=self.host,
@@ -80,10 +82,11 @@ class QdrantRetriever(AbstractVectorRetriever):
                 https=self.https
             )
             
-            logger.info(f"Connected to Qdrant at {self.host}:{self.port}")
+            logger.info(f"Qdrant client created successfully at {self.host}:{self.port}")
             
             # Test connection
             try:
+                logger.info("Testing Qdrant connection by fetching collections...")
                 collections = self.qdrant_client.get_collections()
                 logger.info(f"Successfully connected to Qdrant. Found {len(collections.collections)} collections")
             except Exception as e:
