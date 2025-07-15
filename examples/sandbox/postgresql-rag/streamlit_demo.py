@@ -140,62 +140,478 @@ def main():
     # Initialize demo helper
     demo = StreamlitRAGDemo()
     
-    # Custom CSS for better styling
+    # Custom CSS for light blue theme with Mona Sans
     st.markdown("""
     <style>
+    @import url('https://fonts.googleapis.com/css2?family=Mona+Sans:wght@300;400;500;600;700&display=swap');
+    
+    /* Global font and theme */
+    .stApp {
+        font-family: 'Mona Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+        background: #ffffff;
+        color: #1f2937;
+    }
+    
+    /* Main header */
     .main-header {
         font-size: 2.5rem;
-        font-weight: bold;
-        color: #1f77b4;
+        font-weight: 600;
+        color: #1e40af;
         text-align: center;
         margin-bottom: 1rem;
+        font-family: 'Mona Sans', sans-serif;
+        width: 100%;
+        display: block;
+        margin-left: auto;
+        margin-right: auto;
     }
+    
+    /* Sub header */
     .sub-header {
         font-size: 1.2rem;
-        color: #666;
+        color: #374151;
         text-align: center;
-        margin-bottom: 2rem;
+        margin-bottom: 1.5rem;
+        margin-top: 0.5rem;
+        font-family: 'Mona Sans', sans-serif;
+        font-weight: 400;
+        width: 100%;
+        display: block;
+        margin-left: auto;
+        margin-right: auto;
     }
+    
+    /* Example categories */
     .example-category {
-        background: #f8f9fa;
+        background: #ffffff;
         padding: 1rem;
-        border-radius: 8px;
+        border-radius: 12px;
         margin: 0.5rem 0;
-        border-left: 4px solid #1f77b4;
+        border-left: 4px solid #3b82f6;
+        box-shadow: 0 2px 8px rgba(59, 130, 246, 0.1);
+        font-family: 'Mona Sans', sans-serif;
+        color: #1f2937;
     }
+    
+    /* Followup suggestions */
     .followup-suggestion {
-        background: #e8f4f8;
+        background: #eff6ff;
         padding: 0.8rem;
-        border-radius: 6px;
+        border-radius: 8px;
         margin: 0.3rem 0;
-        border-left: 3px solid #17a2b8;
+        border-left: 3px solid #3b82f6;
+        font-family: 'Mona Sans', sans-serif;
+        color: #1f2937;
     }
+    
+    /* Response container */
     .response-container {
-        background: #f8f9fa;
+        background: #ffffff;
         padding: 1.5rem;
-        border-radius: 10px;
-        border-left: 4px solid #28a745;
+        border-radius: 12px;
+        border-left: 4px solid #10b981;
         margin: 1rem 0;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        font-family: 'Mona Sans', sans-serif;
+        color: #1f2937;
     }
+    
+    /* Error container */
     .error-container {
-        background: #fff5f5;
+        background: #fef2f2;
         padding: 1.5rem;
-        border-radius: 10px;
-        border-left: 4px solid #dc3545;
+        border-radius: 12px;
+        border-left: 4px solid #ef4444;
         margin: 1rem 0;
+        box-shadow: 0 4px 12px rgba(239, 68, 68, 0.1);
+        font-family: 'Mona Sans', sans-serif;
+        color: #1f2937;
     }
+    
+    /* Stats container */
     .stats-container {
-        background: #f8f9fa;
+        background: #ffffff;
         padding: 1rem;
         border-radius: 8px;
         margin: 0.5rem 0;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        font-family: 'Mona Sans', sans-serif;
+        color: #1f2937;
+    }
+    
+    /* Custom button styling */
+    .stButton > button {
+        background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        padding: 0.5rem 1.5rem;
+        font-family: 'Mona Sans', sans-serif;
+        font-weight: 500;
+        transition: all 0.2s ease;
+        box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+        width: auto !important;
+        min-width: 120px !important;
+        max-width: 200px !important;
+    }
+    
+    .stButton > button:hover {
+        background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+        transform: translateY(-1px);
+    }
+    
+    /* Sidebar styling - Light theme */
+    .css-1d391kg, .css-1lcbmhc, .css-1d391kg > div {
+        background: #ffffff !important;
+        border-right: 1px solid #e2e8f0 !important;
+        color: #1f2937 !important;
+    }
+    
+    /* Sidebar text styling */
+    .css-1d391kg h1, .css-1d391kg h2, .css-1d391kg h3, 
+    .css-1d391kg p, .css-1d391kg div, .css-1d391kg span {
+        color: #1f2937 !important;
+        font-family: 'Mona Sans', sans-serif !important;
+    }
+    
+    /* Sidebar success message */
+    .css-1d391kg .stSuccess {
+        background: #d1fae5 !important;
+        color: #065f46 !important;
+        border: 1px solid #10b981 !important;
+    }
+    
+    /* Input fields */
+    .stTextInput > div > div > input {
+        border-radius: 8px;
+        border: 2px solid #e2e8f0;
+        font-family: 'Mona Sans', sans-serif;
+        color: #1f2937;
+        background-color: #ffffff !important;
+    }
+    
+    .stTextInput > div > div > input:focus {
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        background-color: #ffffff !important;
+    }
+    
+    /* Dataframe styling */
+    .stDataFrame {
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    }
+    
+    /* General text color override */
+    .stMarkdown, .stText, .stWrite {
+        color: #1f2937 !important;
+    }
+    
+    /* Expander styling */
+    .streamlit-expanderHeader {
+        background: #ffffff !important;
+        color: #1f2937 !important;
+        font-family: 'Mona Sans', sans-serif !important;
+        border-radius: 8px !important;
+        border: 1px solid #e2e8f0 !important;
+    }
+    
+    .streamlit-expanderContent {
+        background: #f8fafc !important;
+        color: #1f2937 !important;
+        font-family: 'Mona Sans', sans-serif !important;
+    }
+    
+    /* Dataframe/Table styling - Light theme */
+    .stDataFrame, .stDataFrame > div, .stDataFrame table {
+        background: #ffffff !important;
+        color: #1f2937 !important;
+    }
+    
+    .stDataFrame th {
+        background: #f8fafc !important;
+        color: #1f2937 !important;
+        border: 1px solid #e2e8f0 !important;
+        font-family: 'Mona Sans', sans-serif !important;
+        font-weight: 600 !important;
+    }
+    
+    .stDataFrame td {
+        background: #ffffff !important;
+        color: #1f2937 !important;
+        border: 1px solid #e2e8f0 !important;
+        font-family: 'Mona Sans', sans-serif !important;
+    }
+    
+    .stDataFrame tr:nth-child(even) {
+        background: #f8fafc !important;
+    }
+    
+    .stDataFrame tr:hover {
+        background: #eff6ff !important;
+    }
+    
+    /* Comprehensive sidebar and menu styling */
+    .css-1d391kg, .css-1lcbmhc, .css-1d391kg > div, 
+    .css-1d391kg section, .css-1d391kg .block-container,
+    .css-1d391kg .main .block-container {
+        background: #ffffff !important;
+        color: #1f2937 !important;
+    }
+    
+    /* Sidebar headers and text */
+    .css-1d391kg h1, .css-1d391kg h2, .css-1d391kg h3,
+    .css-1d391kg h4, .css-1d391kg h5, .css-1d391kg h6,
+    .css-1d391kg p, .css-1d391kg div, .css-1d391kg span,
+    .css-1d391kg label, .css-1d391kg strong, .css-1d391kg em {
+        color: #1f2937 !important;
+        font-family: 'Mona Sans', sans-serif !important;
+    }
+    
+    /* Sidebar success button */
+    .css-1d391kg .stSuccess, .css-1d391kg .stSuccess > div {
+        background: #d1fae5 !important;
+        color: #065f46 !important;
+        border: 1px solid #10b981 !important;
+        font-family: 'Mona Sans', sans-serif !important;
+        font-weight: 600 !important;
+    }
+    
+    /* Make System Ready text darker and more readable */
+    .css-1d391kg .stSuccess, .css-1d391kg .stSuccess > div,
+    .css-1d391kg .stSuccess p, .css-1d391kg .stSuccess span,
+    .css-1d391kg .stSuccess div, .stSuccess, .stSuccess > div,
+    .stSuccess p, .stSuccess span, .stSuccess div,
+    .stSuccess strong, .stSuccess em {
+        color: #064e3b !important;
+        font-weight: 600 !important;
+        font-size: 1.1rem !important;
+    }
+    
+    /* Override any Streamlit success styling */
+    .stSuccess, .stSuccess * {
+        color: #064e3b !important;
+        font-weight: 600 !important;
+    }
+    
+    /* Sidebar button styling */
+    .css-1d391kg .stButton > button {
+        background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%) !important;
+        color: white !important;
+        border: none !important;
+        border-radius: 8px !important;
+        padding: 0.5rem 1.5rem !important;
+        font-family: 'Mona Sans', sans-serif !important;
+        font-weight: 500 !important;
+        transition: all 0.2s ease !important;
+        box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3) !important;
+    }
+    
+    .css-1d391kg .stButton > button:hover {
+        background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%) !important;
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4) !important;
+        transform: translateY(-1px) !important;
+    }
+    
+    /* Override any remaining dark elements */
+    [data-testid="stSidebar"], [data-testid="stSidebar"] > div,
+    [data-testid="stSidebar"] section, [data-testid="stSidebar"] .block-container {
+        background: #ffffff !important;
+        color: #1f2937 !important;
+    }
+    
+    /* Main content area styling */
+    .main .block-container {
+        background: transparent !important;
+    }
+    
+    /* Override any Streamlit default dark themes */
+    .stApp > div > div > div > div {
+        background: transparent !important;
+    }
+    
+    /* Ensure all text elements are dark */
+    .stMarkdown, .stText, .stWrite, .stHeader, .stSubheader {
+        color: #1f2937 !important;
+    }
+    
+    /* Make example dropdown text bigger */
+    .streamlit-expanderHeader, .streamlit-expanderHeader *,
+    [data-testid="stExpander"] .streamlit-expanderHeader {
+        font-size: 1.1rem !important;
+        font-weight: 500 !important;
+        color: #1f2937 !important;
+    }
+    
+    /* Example query buttons - make text bigger and equal width */
+    .css-1d391kg .stButton > button,
+    .main .stButton > button,
+    .stButton > button,
+    [data-testid="stButton"] > button {
+        font-size: 1rem !important;
+        font-weight: 500 !important;
+        width: 100% !important;
+        min-width: 280px !important;
+        max-width: 320px !important;
+        text-align: center !important;
+        white-space: normal !important;
+        word-wrap: break-word !important;
+        padding: 0.75rem 1rem !important;
+    }
+    
+    /* Force all expander content to have larger text */
+    .streamlit-expanderContent, .streamlit-expanderContent *,
+    [data-testid="stExpander"] .streamlit-expanderContent {
+        font-size: 1rem !important;
+        font-weight: 400 !important;
+        color: #1f2937 !important;
+    }
+    
+    /* Force table to be light with dark text - Enhanced styling */
+    .stDataFrame, .stDataFrame > div, .stDataFrame table,
+    .stDataFrame thead, .stDataFrame tbody, .stDataFrame tr,
+    .stDataFrame th, .stDataFrame td,
+    [data-testid="stDataFrame"], [data-testid="stDataFrame"] > div,
+    [data-testid="stDataFrame"] table, [data-testid="stDataFrame"] thead,
+    [data-testid="stDataFrame"] tbody, [data-testid="stDataFrame"] tr,
+    [data-testid="stDataFrame"] th, [data-testid="stDataFrame"] td {
+        background: #ffffff !important;
+        background-color: #ffffff !important;
+        color: #1f2937 !important;
+        border-color: #e2e8f0 !important;
+        font-family: 'Mona Sans', sans-serif !important;
+    }
+    
+    /* Table header styling - Light background with dark text */
+    .stDataFrame thead th,
+    [data-testid="stDataFrame"] thead th {
+        background: #f1f5f9 !important;
+        background-color: #f1f5f9 !important;
+        color: #0f172a !important;
+        font-weight: 600 !important;
+        border: 1px solid #cbd5e1 !important;
+        font-family: 'Mona Sans', sans-serif !important;
+        font-size: 0.95rem !important;
+    }
+    
+    /* Table body styling - White background with dark text */
+    .stDataFrame tbody tr,
+    [data-testid="stDataFrame"] tbody tr {
+        background: #ffffff !important;
+        background-color: #ffffff !important;
+    }
+    
+    .stDataFrame tbody tr:nth-child(even),
+    [data-testid="stDataFrame"] tbody tr:nth-child(even) {
+        background: #f8fafc !important;
+        background-color: #f8fafc !important;
+    }
+    
+    .stDataFrame tbody tr:hover,
+    [data-testid="stDataFrame"] tbody tr:hover {
+        background: #e2e8f0 !important;
+        background-color: #e2e8f0 !important;
+    }
+    
+    .stDataFrame tbody td,
+    [data-testid="stDataFrame"] tbody td {
+        background: inherit !important;
+        color: #1f2937 !important;
+        border: 1px solid #e2e8f0 !important;
+        font-family: 'Mona Sans', sans-serif !important;
+        font-size: 0.9rem !important;
+    }
+    
+    /* Override any Streamlit dark table themes */
+    .stDataFrame [data-testid="stDataFrame"],
+    [data-testid="stDataFrame"] {
+        background: #ffffff !important;
+        background-color: #ffffff !important;
+        color: #1f2937 !important;
+    }
+    
+    /* Additional overrides for table container */
+    .stDataFrame > div:first-child,
+    [data-testid="stDataFrame"] > div:first-child {
+        background: #ffffff !important;
+        background-color: #ffffff !important;
+        border-radius: 8px !important;
+        border: 1px solid #e2e8f0 !important;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05) !important;
+    }
+    
+    /* Comprehensive table overrides to force light theme */
+    .stDataFrame table tbody tr td,
+    .stDataFrame div[data-testid="stDataFrame"] table tbody tr td,
+    div[data-testid="stDataFrame"] table tbody tr td,
+    .stDataFrame .dataframe tbody tr td,
+    .stDataFrame .dataframe thead tr th,
+    .dataframe tbody tr td,
+    .dataframe thead tr th {
+        background-color: #ffffff !important;
+        background: #ffffff !important;
+        color: #1f2937 !important;
+        border: 1px solid #e2e8f0 !important;
+        font-family: 'Mona Sans', sans-serif !important;
+    }
+    
+    /* Header cells specific styling */
+    .stDataFrame table thead tr th,
+    .stDataFrame div[data-testid="stDataFrame"] table thead tr th,
+    div[data-testid="stDataFrame"] table thead tr th,
+    .dataframe thead tr th {
+        background-color: #f1f5f9 !important;
+        background: #f1f5f9 !important;
+        color: #0f172a !important;
+        font-weight: 600 !important;
+        border: 1px solid #cbd5e1 !important;
+        font-family: 'Mona Sans', sans-serif !important;
+    }
+    
+    /* Table container and wrapper overrides */
+    .stDataFrame,
+    .stDataFrame > div,
+    .stDataFrame > div > div,
+    div[data-testid="stDataFrame"],
+    div[data-testid="stDataFrame"] > div,
+    div[data-testid="stDataFrame"] > div > div {
+        background: #ffffff !important;
+        background-color: #ffffff !important;
+    }
+    
+    /* Override any dark theme classes */
+    .stDataFrame .stDataFrame,
+    .stDataFrame [class*="dark"],
+    div[data-testid="stDataFrame"] [class*="dark"],
+    .stDataFrame [class*="Dark"],
+    div[data-testid="stDataFrame"] [class*="Dark"] {
+        background: #ffffff !important;
+        background-color: #ffffff !important;
+        color: #1f2937 !important;
+    }
+    
+    /* Force alternating row colors */
+    .stDataFrame table tbody tr:nth-child(odd),
+    div[data-testid="stDataFrame"] table tbody tr:nth-child(odd),
+    .dataframe tbody tr:nth-child(odd) {
+        background: #ffffff !important;
+        background-color: #ffffff !important;
+    }
+    
+    .stDataFrame table tbody tr:nth-child(even),
+    div[data-testid="stDataFrame"] table tbody tr:nth-child(even),
+    .dataframe tbody tr:nth-child(even) {
+        background: #f8fafc !important;
+        background-color: #f8fafc !important;
     }
     </style>
     """, unsafe_allow_html=True)
     
     # Header
     st.markdown('<h1 class="main-header">🤖 ORBIT Database Chat PoC</h1>', unsafe_allow_html=True)
-    st.markdown('<p class="sub-header">Natural Language Database Queries with AI-Powered Insights</p>', unsafe_allow_html=True)
+    st.markdown('<h3 class="sub-header">Natural Language Database Queries</h3>', unsafe_allow_html=True)
     
     # Initialize system
     if 'rag_system' not in st.session_state:
@@ -227,16 +643,13 @@ def main():
         st.header("⚙️ System Control")
         
         # System status
-        st.success("✅ System Ready")
+        st.markdown("""
+        <div style="background-color: transparent; color: #1f2937; padding: 0.5rem 0; font-family: 'Mona Sans', sans-serif; font-weight: 600; font-size: 1.1rem; border: none;">
+            ✅ System Ready
+        </div>
+        """, unsafe_allow_html=True)
         
-        # Plugin information
-        if st.session_state.rag_system:
-            plugins = st.session_state.rag_system.list_plugins()
-            enabled_plugins = [p['name'] for p in plugins if p['enabled']]
-            
-            st.subheader("🔌 Active Plugins")
-            for plugin in enabled_plugins:
-                st.write(f"• {plugin}")
+        # Plugin information removed as requested
         
         # System configuration
         st.subheader("🔧 Configuration")
@@ -254,13 +667,7 @@ def main():
             st.write(f"**Successful:** {successful_queries}")
             st.write(f"**Success Rate:** {(successful_queries/total_queries)*100:.1f}%")
         
-        # Clear history button
-        if st.button("🗑️ Clear History"):
-            st.session_state.query_history = []
-            st.session_state.last_result = None
-            if st.session_state.rag_system:
-                st.session_state.rag_system.clear_conversation()
-            st.rerun()
+
     
     # Main content
     col1, col2 = st.columns([3, 1])
@@ -276,8 +683,46 @@ def main():
             key="main_query_input"
         )
         
-        # Process query button
-        if st.button("🚀 Process Query", type="primary"):
+        # Process query button and clear history button in compact symmetric layout
+        st.markdown("""
+        <style>
+        .compact-button-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 1rem;
+            margin: 1rem 0;
+        }
+        .compact-button-container .stButton {
+            width: 200px !important;
+            flex-shrink: 0;
+        }
+        .compact-button-container .stButton > button {
+            width: 100% !important;
+            max-width: 200px !important;
+            min-width: 200px !important;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+        
+        col_spacer1, col_btn1, col_gap, col_btn2, col_spacer2 = st.columns([1, 2, 0.5, 2, 1])
+        
+        with col_btn1:
+            process_clicked = st.button("🚀 Process Query", type="primary", use_container_width=True)
+        
+        with col_btn2:
+            clear_clicked = st.button("🔄 Clear History", use_container_width=True)
+        
+        # Handle clear history button
+        if clear_clicked:
+            st.session_state.query_history = []
+            st.session_state.last_result = None
+            if st.session_state.rag_system:
+                st.session_state.rag_system.clear_conversation()
+            st.rerun()
+        
+        # Handle process query button
+        if process_clicked:
             # Clear selected query after button is clicked
             st.session_state.selected_query = ""
             
@@ -297,13 +742,21 @@ def main():
                 
                 # Display result
                 if result['success']:
-                    # Success response with native Streamlit components
-                    st.success("✅ **Query Processed Successfully!**")
+                    # Success response with custom styling for better readability
+                    st.markdown("""
+                    <div style="background-color: #d1fae5; color: #065f46; padding: 0.75rem 1rem; border-radius: 8px; border: 1px solid #10b981; font-family: 'Mona Sans', sans-serif; font-weight: 500; margin-bottom: 1.5rem;">
+                        ✅ <strong>Query Processed Successfully!</strong>
+                    </div>
+                    """, unsafe_allow_html=True)
                     
-                    # Show confidence
+                    # Show confidence with extra spacing
                     confidence = result['similarity']
                     confidence_emoji = "🟢" if confidence > 0.8 else "🟡" if confidence > 0.6 else "🔴"
-                    st.write(f"{confidence_emoji} **Confidence:** {confidence:.1%}")
+                    st.markdown(f"""
+                    <div style="margin-top: 1rem; margin-bottom: 1rem; font-family: 'Mona Sans', sans-serif; font-size: 1.1rem; color: #1f2937;">
+                        {confidence_emoji} <strong>Confidence:</strong> {confidence:.1%}
+                    </div>
+                    """, unsafe_allow_html=True)
                     
                     # Show query details
                     col_a, col_b = st.columns(2)
@@ -347,7 +800,7 @@ def main():
                     # Convert markdown to HTML and display with proper styling
                     html_content = markdown.markdown(result['response'])
                     st.markdown(f"""
-                    <div style="background-color: #2d3748; color: #e2e8f0; padding: 1.5rem; border-radius: 0.5rem; border-left: 4px solid #28a745; margin: 1rem 0; line-height: 1.6;">
+                    <div style="background-color: #ffffff; color: #1f2937; padding: 1.5rem; border-radius: 12px; border-left: 4px solid #10b981; margin: 1rem 0; line-height: 1.6; border: 1px solid #e5e7eb; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); font-family: 'Mona Sans', sans-serif;">
                         {html_content}
                     </div>
                     """, unsafe_allow_html=True)
@@ -360,6 +813,28 @@ def main():
                         
                         # Show download button
                         csv = df.to_csv(index=False)
+                        st.markdown("""
+                        <style>
+                        .stDownloadButton > button {
+                            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%) !important;
+                            color: #1f2937 !important;
+                            border: 2px solid #cbd5e1 !important;
+                            border-radius: 8px !important;
+                            padding: 0.5rem 1.5rem !important;
+                            font-family: 'Mona Sans', sans-serif !important;
+                            font-weight: 500 !important;
+                            transition: all 0.2s ease !important;
+                            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05) !important;
+                        }
+                        
+                        .stDownloadButton > button:hover {
+                            background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%) !important;
+                            border-color: #94a3b8 !important;
+                            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1) !important;
+                            transform: translateY(-1px) !important;
+                        }
+                        </style>
+                        """, unsafe_allow_html=True)
                         st.download_button(
                             label="📥 Download Results as CSV",
                             data=csv,
@@ -438,7 +913,7 @@ def main():
     st.markdown("---")
     st.markdown("""
     <div style="text-align: center; color: #666; margin-top: 2rem;">
-        <strong>ORBIT Database Chat PoC</strong> - Natural language database queries with AI-powered insights and plugin enhancements
+        <strong>ORBIT Database Chat PoC</strong> - Natural Language Database Queries.
     </div>
     """, unsafe_allow_html=True)
 
