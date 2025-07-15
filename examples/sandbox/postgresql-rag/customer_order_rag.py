@@ -40,6 +40,7 @@ from plugin_system import (
     SecurityPlugin,
     LoggingPlugin
 )
+from intent_analysis_plugin import IntentAnalysisPlugin
 
 
 # Configure logging
@@ -544,12 +545,12 @@ Important: Give ONLY the direct response."""
     
     def _generate_summary_response(self, user_query: str, results: List[Dict], template: Dict) -> str:
         """Generate response for summary queries"""
-        # Format results for better readability
+        # Format results for better readability with proper Unicode handling
         if len(results) == 1:
             result = results[0]
-            formatted_result = json.dumps(result, indent=2, default=str)
+            formatted_result = json.dumps(result, indent=2, default=str, ensure_ascii=False)
         else:
-            formatted_result = json.dumps(results[:5], indent=2, default=str)  # Limit to 5 for prompt
+            formatted_result = json.dumps(results[:5], indent=2, default=str, ensure_ascii=False)  # Limit to 5 for prompt
         
         prompt = f"""The user asked: "{user_query}"
 
@@ -568,10 +569,10 @@ Important: Give ONLY the direct response. No explanations about why the response
         """Generate response for table/list queries"""
         result_count = len(results)
         
-        # Show sample of results for context
+        # Show sample of results for context with proper Unicode handling
         sample_size = min(5, result_count)
         sample_results = results[:sample_size]
-        formatted_sample = json.dumps(sample_results, indent=2, default=str)
+        formatted_sample = json.dumps(sample_results, indent=2, default=str, ensure_ascii=False)
         
         # Create a more detailed prompt with examples
         prompt = f"""The user asked: "{user_query}"
@@ -640,6 +641,7 @@ class SemanticRAGSystem(BaseRAGSystem):
         """Register default plugins for enhanced functionality"""
         default_plugins = [
             SecurityPlugin(),
+            IntentAnalysisPlugin(self.inference_client),  # Add intent analysis plugin
             QueryNormalizationPlugin(),
             ResultFilteringPlugin(max_results=50),
             DataEnrichmentPlugin(),
@@ -744,11 +746,11 @@ class SemanticRAGSystem(BaseRAGSystem):
                     'plugins_used': self._get_used_plugins_info()
                 }
             
-            # Rerank templates
-            templates = self.rerank_templates(templates, processed_query)
+            # Rerank templates with intent analysis
+            templates = self.rerank_templates(templates, processed_query, context)
             
             # Try templates in order until one works
-            for template_info in templates:
+            for i, template_info in enumerate(templates):
                 template = template_info['template']
                 similarity = template_info['similarity']
                 
@@ -795,6 +797,35 @@ class SemanticRAGSystem(BaseRAGSystem):
                             'similarity': similarity,
                             'plugins_used': self._get_used_plugins_info()
                         }
+                    continue
+                
+                # VERIFICATION STEP: Ask LLM to verify template matches user intent
+                logger.debug(f"Verifying template {template['id']} with parameters {parameters}")
+                verification_result = self._verify_template_match(processed_query, template, parameters, context)
+                logger.debug(f"Verification result: {verification_result}")
+                
+                if verification_result['should_proceed']:
+                    logger.info(f"Template {template['id']} verified by LLM - proceeding with execution")
+                else:
+                    logger.info(f"Template {template['id']} rejected by LLM verification: {verification_result['reason']}")
+                    
+                    # If this is the last template or similarity is very low, ask for clarification
+                    if i == len(templates) - 1 or similarity < 0.5:
+                        clarification_response = self._generate_clarification_request(
+                            processed_query, template, verification_result['reason'], templates
+                        )
+                        return {
+                            'success': False,
+                            'error': 'Template verification failed',
+                            'response': clarification_response,
+                            'template_id': template['id'],
+                            'similarity': similarity,
+                            'verification_failed': True,
+                            'verification_reason': verification_result['reason'],
+                            'plugins_used': self._get_used_plugins_info()
+                        }
+                    
+                    # Try next template
                     continue
                 
                 # Execute query
@@ -877,51 +908,287 @@ class SemanticRAGSystem(BaseRAGSystem):
                 'plugins_used': self._get_used_plugins_info()
             }
     
+    def _verify_template_match(self, user_query: str, template: Dict, parameters: Dict[str, Any], context: PluginContext) -> Dict[str, Any]:
+        """Verify if the selected template matches the user's intent using LLM analysis"""
+        try:
+            # Create verification prompt
+            verification_prompt = f"""You are a database query verification expert. Your task is to determine if the selected query template matches the user's intent.
+
+USER QUERY: "{user_query}"
+
+SELECTED TEMPLATE:
+- ID: {template['id']}
+- Description: {template['description']}
+- SQL Template: {template['sql_template']}
+- Natural Language Examples: {template.get('nl_examples', [])}
+- Extracted Parameters: {parameters}
+
+VERIFICATION TASK:
+Analyze if this template correctly captures the user's intent. Consider:
+1. Does the template's purpose match what the user is asking for?
+2. Are the extracted parameters appropriate for this query?
+3. Would this template produce the results the user expects?
+
+Respond with ONLY "YES" or "NO" followed by a brief reason.
+
+Examples:
+- "YES - Template correctly identifies customer lookup by ID"
+- "NO - User wants order details but template is for customer info"
+- "YES - Template matches user's request for recent orders"
+- "NO - User asked about payments but template queries orders"
+
+Your response:"""
+
+            # Get LLM verification
+            llm_response = self.inference_client.generate_response(
+                verification_prompt, 
+                temperature=0.1  # Low temperature for consistent verification
+            )
+            
+            # Parse response
+            response_text = llm_response.strip().upper()
+            
+            if response_text.startswith("YES"):
+                return {
+                    'should_proceed': True,
+                    'reason': llm_response.strip(),
+                    'llm_response': llm_response.strip()
+                }
+            elif response_text.startswith("NO"):
+                # Extract reason (everything after "NO")
+                reason = llm_response.strip()
+                if " - " in reason:
+                    reason = reason.split(" - ", 1)[1]
+                elif len(reason) > 2:
+                    reason = reason[2:].strip()
+                else:
+                    reason = "Template doesn't match user intent"
+                
+                return {
+                    'should_proceed': False,
+                    'reason': reason,
+                    'llm_response': llm_response.strip()
+                }
+            else:
+                # Ambiguous response - default to proceeding but log warning
+                logger.warning(f"Ambiguous LLM verification response: {llm_response}")
+                return {
+                    'should_proceed': True,
+                    'reason': "Ambiguous verification response - proceeding with caution",
+                    'llm_response': llm_response.strip()
+                }
+                
+        except Exception as e:
+            logger.error(f"Error in template verification: {e}")
+            # On error, default to proceeding
+            return {
+                'should_proceed': True,
+                'reason': f"Verification failed due to error: {str(e)} - proceeding with caution",
+                'llm_response': None
+            }
+    
+    def _generate_clarification_request(self, user_query: str, failed_template: Dict, verification_reason: str, all_templates: List[Dict]) -> str:
+        """Generate a helpful clarification request when template verification fails"""
+        try:
+            # Get alternative templates for suggestions
+            alternative_templates = []
+            for template_info in all_templates[:3]:  # Top 3 alternatives
+                if template_info['template']['id'] != failed_template['id']:
+                    alternative_templates.append(template_info['template'])
+            
+            clarification_prompt = f"""The user asked: "{user_query}"
+
+I initially selected a template for "{failed_template['description']}" but the verification step determined this doesn't match your intent.
+
+Verification reason: {verification_reason}
+
+Available alternative query types:
+{chr(10).join([f"- {t['description']}" for t in alternative_templates])}
+
+Please help the user rephrase their question more clearly. Be specific about what information they're looking for and suggest 2-3 alternative ways to ask the same question.
+
+Keep the response conversational and helpful. Don't mention the technical verification process."""
+
+            return self.inference_client.generate_response(clarification_prompt)
+            
+        except Exception as e:
+            logger.error(f"Error generating clarification request: {e}")
+            return f"I'm not sure I understood your question correctly. Could you rephrase it? You might be looking for: {', '.join([t['description'] for t in all_templates[:3]])}"
+    
     def _get_used_plugins_info(self) -> List[str]:
         """Get list of enabled plugin names"""
         return [p.get_name() for p in self.plugin_manager.get_enabled_plugins()]
     
-    def rerank_templates(self, templates: List[Dict], user_query: str) -> List[Dict]:
-        """Rerank templates using PostgreSQL-specific heuristics"""
+    def rerank_templates(self, templates: List[Dict], user_query: str, context: PluginContext = None) -> List[Dict]:
+        """Enhanced template reranking using semantic similarity, intent analysis, and business rules"""
+        if not templates:
+            return templates
+        
+        # Get intent analysis from context if available
+        intent_analysis = None
+        if context and context.metadata:
+            intent_analysis = context.metadata.get('intent_analysis')
+        
         query_lower = user_query.lower()
         
         for template_info in templates:
             template = template_info['template']
-            boost = 0.0
+            score = template_info['similarity']
             
-            # Boost for exact keyword matches (but be more specific)
-            for tag in template['tags']:
-                tag_lower = tag.lower()
-                if tag_lower in query_lower:
-                    # Give higher boost for more specific matches
-                    if tag_lower in ['customer', 'name', 'person', 'buyer', 'purchaser']:
-                        boost += 0.2  # High boost for customer-related tags
-                    elif tag_lower in ['city', 'location', 'geographic', 'place']:
-                        # Only boost if query actually mentions a city/location
-                        if any(word in query_lower for word in ['city', 'town', 'location', 'place', 'area']):
-                            boost += 0.1
-                    else:
-                        boost += 0.05  # Lower boost for generic tags like "from"
+            # Apply intent analysis bonuses (highest priority)
+            if intent_analysis:
+                score = self._apply_intent_analysis_bonuses(template, score, intent_analysis)
             
-            # Specific customer name detection
-            if any(word in query_lower for word in ['maria', 'john', 'jessica', 'anthony', 'teresa', 'thomas', 'sarah', 'robert', 'jennifer', 'michael', 'jane', 'david']):
-                if template['id'] == 'customer_orders_by_name':
-                    boost += 0.3  # High boost for customer name template
-                elif template['id'] == 'orders_by_city':
-                    boost -= 0.2  # Penalize city template for person names
+            # Apply business rule bonuses
+            score = self._apply_business_rule_bonuses(template, score, user_query)
             
-            # PostgreSQL-specific parameter type matches
-            if 'customer' in query_lower and any(p['name'] == 'customer_id' for p in template['parameters']):
-                boost += 0.05
-            if 'amount' in user_query or 'dollar' in query_lower:
-                if any(p['name'] in ['min_amount', 'max_amount'] for p in template['parameters']):
-                    boost += 0.05
+            # Apply template quality bonuses
+            score = self._apply_template_quality_bonuses(template, score)
             
-            # Apply boost
-            template_info['similarity'] = min(1.0, template_info['similarity'] + boost)
+            # Apply specificity bonuses
+            score = self._apply_specificity_bonuses(template, score, user_query)
+            
+            # Ensure score stays within bounds
+            template_info['similarity'] = min(1.0, max(0.0, score))
         
-        # Re-sort by adjusted similarity
+        # Sort by final similarity score
         return sorted(templates, key=lambda x: x['similarity'], reverse=True)
+    
+    def _apply_intent_analysis_bonuses(self, template: Dict, score: float, intent_analysis: Dict) -> float:
+        """Apply bonuses based on intent analysis"""
+        template_tags = template.get('semantic_tags', {})
+        
+        # Match primary action/intent
+        template_action = template_tags.get('action')
+        user_intent = intent_analysis.get('intent')
+        
+        if template_action and user_intent:
+            # Map intents to actions
+            intent_to_action = {
+                "find_list": "find_list",
+                "calculate_summary": "calculate_summary", 
+                "rank_list": "rank_list",
+                "search_find": "search_find",
+                "filter_by": "find_list",
+                "compare_data": "find_list"
+            }
+            
+            expected_action = intent_to_action.get(user_intent)
+            if expected_action and template_action == expected_action:
+                score += 0.3  # Major boost for correct action
+                logger.debug(f"Intent match: {user_intent} -> {template_action} (+0.3)")
+        
+        # Match primary entity
+        template_entity = template_tags.get('primary_entity')
+        user_entity = intent_analysis.get('primary_entity')
+        
+        if template_entity and user_entity and template_entity == user_entity:
+            score += 0.2  # Major boost for correct entity
+            logger.debug(f"Entity match: {user_entity} -> {template_entity} (+0.2)")
+        
+        # Match qualifiers
+        user_qualifiers = intent_analysis.get('qualifiers', [])
+        template_qualifiers = template_tags.get('qualifiers', [])
+        
+        for qualifier in user_qualifiers:
+            if qualifier in template_qualifiers:
+                score += 0.1  # Boost for each matching qualifier
+                logger.debug(f"Qualifier match: {qualifier} (+0.1)")
+        
+        # Match mentioned parameters
+        mentioned_params = intent_analysis.get('mentioned_parameters', {})
+        template_params = {p['name']: p for p in template.get('parameters', [])}
+        
+        for param_name, param_value in mentioned_params.items():
+            if param_name in template_params:
+                score += 0.05  # Small boost for parameter match
+                logger.debug(f"Parameter match: {param_name} (+0.05)")
+        
+        return score
+    
+    def _apply_business_rule_bonuses(self, template: Dict, score: float, user_query: str) -> float:
+        """Apply business rule bonuses"""
+        query_lower = user_query.lower()
+        boost = 0.0
+        
+        # Boost for exact keyword matches (but be more specific)
+        for tag in template['tags']:
+            tag_lower = tag.lower()
+            if tag_lower in query_lower:
+                # Give higher boost for more specific matches
+                if tag_lower in ['customer', 'name', 'person', 'buyer', 'purchaser']:
+                    boost += 0.2  # High boost for customer-related tags
+                elif tag_lower in ['city', 'location', 'geographic', 'place']:
+                    # Only boost if query actually mentions a city/location
+                    if any(word in query_lower for word in ['city', 'town', 'location', 'place', 'area']):
+                        boost += 0.1
+                else:
+                    boost += 0.05  # Lower boost for generic tags like "from"
+        
+        # Specific customer name detection
+        if any(word in query_lower for word in ['maria', 'john', 'jessica', 'anthony', 'teresa', 'thomas', 'sarah', 'robert', 'jennifer', 'michael', 'jane', 'david']):
+            if template['id'] == 'customer_orders_by_name':
+                boost += 0.3  # High boost for customer name template
+            elif template['id'] == 'orders_by_city':
+                boost -= 0.2  # Penalize city template for person names
+        
+        # PostgreSQL-specific parameter type matches
+        if 'customer' in query_lower and any(p['name'] == 'customer_id' for p in template['parameters']):
+            boost += 0.05
+        if 'amount' in user_query or 'dollar' in query_lower:
+            if any(p['name'] in ['min_amount', 'max_amount'] for p in template['parameters']):
+                boost += 0.05
+        
+        return score + boost
+    
+    def _apply_template_quality_bonuses(self, template: Dict, score: float) -> float:
+        """Apply bonuses based on template quality"""
+        boost = 0.0
+        
+        # Boost for approved templates
+        if template.get('approved', False):
+            boost += 0.05
+        
+        # Boost for templates with semantic tags
+        if template.get('semantic_tags'):
+            boost += 0.05
+        
+        # Boost for templates with negative examples (better disambiguation)
+        if template.get('negative_examples'):
+            boost += 0.03
+        
+        # Boost for templates with parameter aliases
+        has_aliases = any(p.get('aliases') for p in template.get('parameters', []))
+        if has_aliases:
+            boost += 0.02
+        
+        return score + boost
+    
+    def _apply_specificity_bonuses(self, template: Dict, score: float, user_query: str) -> float:
+        """Apply bonuses based on query specificity"""
+        boost = 0.0
+        query_lower = user_query.lower()
+        
+        # Boost for specific parameter matches
+        template_params = {p['name'] for p in template.get('parameters', [])}
+        
+        # Check for specific customer ID
+        if 'customer_id' in template_params and re.search(r'customer\s+\d+', query_lower):
+            boost += 0.1
+        
+        # Check for specific amounts
+        if any(p in template_params for p in ['min_amount', 'max_amount']) and re.search(r'\$\d+', user_query):
+            boost += 0.1
+        
+        # Check for specific status
+        if 'status' in template_params and any(status in query_lower for status in ['pending', 'delivered', 'cancelled', 'shipped']):
+            boost += 0.1
+        
+        # Check for specific payment method
+        if 'payment_method' in template_params and any(method in query_lower for method in ['credit card', 'paypal', 'cash']):
+            boost += 0.1
+        
+        return score + boost
     
     def print_configuration(self):
         """Print PostgreSQL-specific configuration"""

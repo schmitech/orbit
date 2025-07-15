@@ -4,13 +4,31 @@ Enhanced Interactive Demo for Semantic RAG System
 Features conversation memory, query suggestions, and improved UX
 """
 
-from customer_order_rag import SemanticRAGSystem
 import sys
+import os
+
+# Ensure proper Unicode handling for terminal output
+if sys.platform.startswith('win'):
+    # Windows Unicode support
+    import codecs
+    sys.stdout = codecs.getwriter('utf-8')(sys.stdout.detach())
+    sys.stderr = codecs.getwriter('utf-8')(sys.stderr.detach())
+else:
+    # Unix-like systems
+    import locale
+    try:
+        locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
+    except locale.Error:
+        try:
+            locale.setlocale(locale.LC_ALL, 'C.UTF-8')
+        except locale.Error:
+            pass  # Use default locale
+
+from customer_order_rag import SemanticRAGSystem
 import readline  # For better input handling
 from typing import List, Dict
 import json
 from datetime import datetime
-import os
 
 
 class ConversationalDemo:
@@ -277,15 +295,28 @@ class ConversationalDemo:
                 if enhanced_fields:
                     print(f"🎯 Enhanced data: {', '.join(enhanced_fields)}")
             
-            # Show the response
+            # Show the response with proper Unicode handling
             print(f"\n💬 Response:")
             print("-" * 60)
-            print(result['response'])
+            # Ensure proper Unicode output
+            response_text = result['response']
+            if isinstance(response_text, str):
+                print(response_text)
+            else:
+                print(str(response_text))
             print("-" * 60)
             
         else:
             print(f"\n❌ Query failed")
             print(f"Reason: {result.get('error', 'Unknown error')}")
+            
+            # If verification failed, show the LLM's reason
+            if result.get('verification_failed'):
+                print(f"\n⚠️  Template verification failed.")
+                if result.get('verification_reason'):
+                    print(f"LLM reason: {result['verification_reason']}")
+                else:
+                    print(f"The system determined the selected template did not match your intent.")
             
             if 'validation_errors' in result:
                 print(f"\n⚠️ Missing information:")
@@ -294,7 +325,12 @@ class ConversationalDemo:
             
             if 'response' in result:
                 print(f"\n💡 Suggestion:")
-                print(result['response'])
+                # Ensure proper Unicode output
+                response_text = result['response']
+                if isinstance(response_text, str):
+                    print(response_text)
+                else:
+                    print(str(response_text))
     
     def suggest_followup(self, last_result: Dict) -> List[str]:
         """Suggest follow-up queries based on the last result"""

@@ -153,7 +153,7 @@ class BaseRAGSystem:
             'tags': ' '.join(template.get('tags', [])),
             'nl_examples': ' | '.join(template.get('nl_examples', [])),
             'sql_template': template.get('sql_template', ''),
-            'parameters': json.dumps(template.get('parameters', []))
+            'parameters': json.dumps(template.get('parameters', []), ensure_ascii=False)
         }
     
     def clear_chromadb(self):

@@ -416,7 +416,7 @@ def print_results(results, title="Query Results"):
             if isinstance(value, Decimal):
                 result[key] = float(value)
     
-    print(json.dumps(results, indent=2, default=str))
+    print(json.dumps(results, indent=2, default=str, ensure_ascii=False))
     print(f"\nTotal records: {len(results)}")
 
 
