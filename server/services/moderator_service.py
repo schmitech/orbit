@@ -67,29 +67,29 @@ class ModeratorService:
             
         # If using a recognized moderator
         if self.moderator_name and self.moderator_name in ModeratorFactory._registry:
-            self.use_moderator = True
-            self.moderator = ModeratorFactory.create_moderator(config, self.moderator_name)
-            logger.info(f"Safety service using moderator: {self.moderator_name}")
+            try:
+                self.use_moderator = True
+                self.moderator = ModeratorFactory.create_moderator(config, self.moderator_name)
+                logger.info(f"Safety service using moderator: {self.moderator_name}")
+            except ValueError as e:
+                # If moderator initialization fails (e.g., missing API key), try to fall back
+                logger.warning(f"Failed to initialize {self.moderator_name} moderator: {str(e)}")
+                self._fallback_to_alternative_moderator(config, safety_config)
         else:
             # If no valid moderator, fall back to using the general inference provider
-            self.use_moderator = False
-            # Get the general inference provider instead of using moderator name as provider
-            self.provider = config.get('general', {}).get('inference_provider', 'ollama')
-            self.model = safety_config.get('model', config.get('inference', {}).get(self.provider, {}).get('model', 'gemma3:1b'))
-            self.base_url = config.get('inference', {}).get(self.provider, {}).get('base_url', 'http://localhost:11434')
-            
-            if self.moderator_name and self.moderator_name not in ModeratorFactory._registry:
-                logger.warning(f"Configured moderator '{self.moderator_name}' not found in registry. Falling back to {self.provider}.")
-            
-            logger.info(f"Safety service using inference provider: {self.provider}")
-            logger.info(f"Safety service using model: {self.model}")
-            logger.info(f"Safety service using base URL: {self.base_url}")
+            self._fallback_to_inference_provider(config, safety_config)
         
         # Get retry configuration
         self.max_retries = safety_config.get('max_retries', 3)
         self.retry_delay = safety_config.get('retry_delay', 1.0)
         self.request_timeout = safety_config.get('request_timeout', 15)
         self.allow_on_timeout = safety_config.get('allow_on_timeout', False)
+        
+        # Initialize session as None (lazy initialization)
+        self.session = None
+        # Handle both string and boolean values for verbose setting
+        verbose_value = config.get('general', {}).get('verbose', False)
+        self.verbose = _is_true_value(verbose_value)
         
         # Model parameters (used only when not using a dedicated moderator)
         if not self.use_moderator:
@@ -99,22 +99,134 @@ class ModeratorService:
             self.num_predict = safety_config.get('num_predict', 20)
             self.stream = _is_true_value(safety_config.get('stream', False))
             self.repeat_penalty = safety_config.get('repeat_penalty', 1.1)
-        
-        # Initialize session as None (lazy initialization)
-        self.session = None
-        # Handle both string and boolean values for verbose setting
-        verbose_value = config.get('general', {}).get('verbose', False)
-        self.verbose = _is_true_value(verbose_value)
+            
+            # Load safety prompt for LLM-based approach
+            self.safety_prompt = self._load_safety_prompt(safety_config)
         
         if self.verbose:
             if self.use_moderator:
                 logger.info(f"ModeratorService initialized with moderator {self.moderator_name}, enabled={self.enabled}, mode={self.safety_mode}")
             else:
-                logger.info(f"ModeratorService initialized with provider {self.provider}, model {self.model}, enabled={self.enabled}, mode={self.safety_mode}")
+                provider = getattr(self, 'provider', 'unknown')
+                model = getattr(self, 'model', 'unknown')
+                logger.info(f"ModeratorService initialized with provider {provider}, model {model}, enabled={self.enabled}, mode={self.safety_mode}")
+
+    def _fallback_to_alternative_moderator(self, config: Dict[str, Any], safety_config: Dict[str, Any]):
+        """
+        Try to fall back to an alternative moderator when the primary one fails.
+        
+        Args:
+            config: Application configuration dictionary
+            safety_config: Safety configuration dictionary
+        """
+        # Try to find an alternative moderator that doesn't require API keys
+        alternative_moderators = ['ollama']  # Ollama doesn't require API keys
+        
+        for alt_moderator in alternative_moderators:
+            if alt_moderator in ModeratorFactory._registry:
+                try:
+                    self.moderator_name = alt_moderator
+                    self.use_moderator = True
+                    self.moderator = ModeratorFactory.create_moderator(config, alt_moderator)
+                    logger.info(f"Successfully fell back to {alt_moderator} moderator")
+                    return
+                except Exception as e:
+                    logger.warning(f"Failed to initialize {alt_moderator} moderator: {str(e)}")
+                    continue
+        
+        # If no alternative moderator works, check if we should disable safety
+        if safety_config.get('disable_on_fallback', False):
+            logger.warning("No moderators available and disable_on_fallback is enabled, disabling safety checks")
+            self.enabled = False
+            self.use_moderator = False
+            return
+        
+        # Otherwise fall back to inference provider
+        logger.warning("No alternative moderators available, falling back to inference provider")
+        self._fallback_to_inference_provider(config, safety_config)
+
+    def _fallback_to_inference_provider(self, config: Dict[str, Any], safety_config: Dict[str, Any]):
+        """
+        Fall back to using the general inference provider for safety checks.
+        
+        Args:
+            config: Application configuration dictionary
+            safety_config: Safety configuration dictionary
+        """
+        self.use_moderator = False
+        # Get the general inference provider instead of using moderator name as provider
+        self.provider = config.get('general', {}).get('inference_provider', 'ollama')
+        self.model = safety_config.get('model', config.get('inference', {}).get(self.provider, {}).get('model', 'gemma3:1b'))
+        self.base_url = config.get('inference', {}).get(self.provider, {}).get('base_url', 'http://localhost:11434')
+        
+        if self.moderator_name and self.moderator_name not in ModeratorFactory._registry:
+            logger.warning(f"Configured moderator '{self.moderator_name}' not found in registry. Falling back to {self.provider}.")
+        
+        logger.info(f"Safety service using inference provider: {self.provider}")
+        logger.info(f"Safety service using model: {self.model}")
+        logger.info(f"Safety service using base URL: {self.base_url}")
+
+    def _load_safety_prompt(self, safety_config: Dict[str, Any]) -> str:
+        """
+        Load the safety prompt from file or use default.
+        
+        Args:
+            safety_config: Safety configuration dictionary
+            
+        Returns:
+            str: The safety prompt text
+        """
+        import os
+        
+        # Try to load from configured path
+        prompt_path = safety_config.get('safety_prompt_path', 'prompts/safety_prompt.txt')
+        
+        # If it's a relative path, make it relative to the project root
+        if not os.path.isabs(prompt_path):
+            # Try to find the project root (where config.yaml is located)
+            project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+            prompt_path = os.path.join(project_root, prompt_path)
+        
+        try:
+            if os.path.exists(prompt_path):
+                with open(prompt_path, 'r', encoding='utf-8') as f:
+                    prompt = f.read().strip()
+                if self.verbose:
+                    logger.info(f"Loaded safety prompt from: {prompt_path}")
+                return prompt
+            else:
+                logger.warning(f"Safety prompt file not found at: {prompt_path}")
+        except Exception as e:
+            logger.warning(f"Failed to load safety prompt from {prompt_path}: {str(e)}")
+        
+        # Fallback to default safety prompt
+        default_prompt = """You are a safety checker. Analyze the following query and determine if it's safe to respond to.
+
+A query is considered SAFE if it:
+- Asks for factual information
+- Requests help with legitimate tasks
+- Seeks educational content
+- Asks for creative writing or analysis
+- Requests programming help for legitimate purposes
+
+A query is considered UNSAFE if it:
+- Requests harmful or illegal activities
+- Asks for personal information about others
+- Seeks to bypass security measures
+- Requests content that could cause harm
+- Asks for instructions on dangerous activities
+
+Respond with exactly "SAFE: true" if the query is safe, or "SAFE: false" if it's unsafe.
+
+Query: """
+        
+        if self.verbose:
+            logger.info("Using default safety prompt")
+        return default_prompt
 
     async def initialize(self):
         """Initialize the service and required connections"""
-        if self.use_moderator:
+        if self.use_moderator and hasattr(self, 'moderator') and self.moderator is not None:
             # Initialize the moderator
             await self.moderator.initialize()
         else:
@@ -126,7 +238,7 @@ class ModeratorService:
             
     async def close(self):
         """Close connections and release resources"""
-        if self.use_moderator:
+        if self.use_moderator and hasattr(self, 'moderator') and self.moderator is not None:
             await self.moderator.close()
         elif self.session:
             await self.session.close()
@@ -188,6 +300,12 @@ class ModeratorService:
         Returns:
             Tuple[bool, Optional[str]]: (is_safe, refusal_message)
         """
+        # If moderator doesn't exist, fall back to LLM-based approach
+        if not hasattr(self, 'moderator') or self.moderator is None:
+            if self.verbose:
+                logger.warning("Moderator not available, falling back to LLM-based safety check")
+            return await self._check_safety_with_llm(query)
+        
         for attempt in range(self.max_retries):
             try:
                 if self.verbose:

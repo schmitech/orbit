@@ -32,7 +32,7 @@ class OpenAIModerator(ModeratorService):
         
         self.api_key = openai_config.get('api_key')
         if not self.api_key:
-            raise ValueError("OpenAI API key is required for moderation")
+            raise ValueError("OpenAI API key is required for moderation. Please set the OPENAI_API_KEY environment variable or configure it in moderators.yaml")
         
         self.model = openai_config.get('model', 'omni-moderation-latest')
         

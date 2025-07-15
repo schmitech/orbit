@@ -62,7 +62,7 @@ def main():
         str(SCRIPT_DIR),
         "-v",
         "--asyncio-mode=auto",
-        "-k", "not test_ollama and not test_ollama_moderator and not vllm",
+        "-k", "not test_ollama and not vllm",
         "--ignore=tests/test_vllm.py",
         "--ignore=tests/test_vllm_simple.py"
     ])
