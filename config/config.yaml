@@ -136,7 +136,7 @@ file_upload:
 safety:
   enabled: false
   mode: "fuzzy"
-  moderator: "openai"
+  moderator: "ollama"
   max_retries: 3
   retry_delay: 1.0
   request_timeout: 10
