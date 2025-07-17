@@ -289,12 +289,28 @@ def main():
         font-family: 'Mona Sans', sans-serif;
         color: #1f2937;
         background-color: #ffffff !important;
+        caret-color: #3b82f6 !important;
+        caret-shape: block !important;
     }
     
     .stTextInput > div > div > input:focus {
         border-color: #3b82f6;
         box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
         background-color: #ffffff !important;
+        outline: none !important;
+        caret-color: #3b82f6 !important;
+        caret-shape: block !important;
+    }
+    
+    /* Ensure cursor is visible and blinking */
+    .stTextInput input {
+        caret-color: #3b82f6 !important;
+        caret-shape: block !important;
+    }
+    
+    .stTextInput input:focus {
+        caret-color: #3b82f6 !important;
+        caret-shape: block !important;
     }
     
     /* Dataframe styling */
@@ -713,29 +729,8 @@ def main():
             key="main_query_input"
         )
         
-        # Process query button and clear history button in compact symmetric layout
-        st.markdown("""
-        <style>
-        .compact-button-container {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 1rem;
-            margin: 1rem 0;
-        }
-        .compact-button-container .stButton {
-            width: 200px !important;
-            flex-shrink: 0;
-        }
-        .compact-button-container .stButton > button {
-            width: 100% !important;
-            max-width: 200px !important;
-            min-width: 200px !important;
-        }
-        </style>
-        """, unsafe_allow_html=True)
-        
-        col_spacer1, col_btn1, col_gap, col_btn2, col_spacer2 = st.columns([1, 2, 0.5, 2, 1])
+        # Process query button and clear history button - left aligned and shorter with separation
+        col_btn1, col_gap, col_btn2, col_spacer = st.columns([1, 0.5, 1, 2.5])  # Left align buttons with gap between them
         
         with col_btn1:
             process_clicked = st.button("🚀 Process Query", type="primary", use_container_width=True)
@@ -745,10 +740,23 @@ def main():
         
         # Handle clear history button
         if clear_clicked:
+            # Clear all session state variables
             st.session_state.query_history = []
             st.session_state.last_result = None
-            if st.session_state.rag_system:
-                st.session_state.rag_system.clear_conversation()
+            st.session_state.selected_query = ""
+            
+            # Clear the input field by resetting its key
+            if 'main_query_input' in st.session_state:
+                del st.session_state['main_query_input']
+            
+            # Clear RAG system conversation if available
+            if st.session_state.rag_system and hasattr(st.session_state.rag_system, 'clear_conversation'):
+                try:
+                    st.session_state.rag_system.clear_conversation()
+                except:
+                    pass  # Ignore if method doesn't exist
+            
+            # Force a complete page rerun
             st.rerun()
         
         # Handle process query button

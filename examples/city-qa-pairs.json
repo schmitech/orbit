@@ -652,10 +652,6 @@
         "answer": "Broken park benches can be reported to the Parks and Recreation Department."
     },
     {
-        "question": "Where can I find the city's stormwater management plan?",
-        "answer": "The stormwater management plan is on the Public Works website."
-    },
-    {
         "question": "What are the fees for a pet adoption?",
         "answer": "Pet adoption fees start at $50 at the Animal Shelter."
     },
@@ -1014,10 +1010,6 @@
     {
         "question": "How do I register to vote in local elections?",
         "answer": "You can register to vote at the City Clerk's office, at the DMV when renewing your license, or online through the Secretary of State's website."
-    },
-    {
-        "question": "Where can I find the city's annual budget report?",
-        "answer": "The city's annual budget report is available on the Finance Department page of the city website or in print at the City Clerk's office."
     },
     {
         "question": "How do I apply for a block party permit?",
@@ -1470,5 +1462,341 @@
     {
         "question": "How do I sign out of the Resident Portal?",
         "answer": "Click the 'Sign Out' button in the top right corner of the Resident Portal dashboard to securely log out of your account."
+    },
+    {
+        "question": "What is the fee for a commercial building permit?",
+        "answer": "Commercial building permit fees are calculated based on construction value, starting at $200 for projects under $10,000 and increasing by 1% of project value."
+    },
+    {
+        "question": "How do I apply for a street vendor license?",
+        "answer": "Street vendor licenses can be applied for through the Business Licensing Department with proof of insurance, health certification, and payment of the $150 annual fee."
+    },
+    {
+        "question": "What are the requirements for installing a swimming pool?",
+        "answer": "Swimming pool installations require a building permit, electrical permit, and must comply with setback requirements of at least 10 feet from property lines."
+    },
+    {
+        "question": "How can I report a malfunctioning elevator in a building?",
+        "answer": "Elevator malfunctions should be reported to the Building Safety Division immediately by calling 555-456-7890 or through the online complaint form."
+    },
+    {
+        "question": "What is the cost of a cemetery plot?",
+        "answer": "Cemetery plots cost $1,200 for residents and $1,800 for non-residents, with additional fees for opening and closing services."
+    },
+    {
+        "question": "How do I request a copy of city council meeting minutes?",
+        "answer": "City council meeting minutes can be requested from the City Clerk's office or downloaded from the city's legislative database online."
+    },
+    {
+        "question": "What are the regulations for installing a satellite dish?",
+        "answer": "Satellite dishes under 1 meter in diameter are generally permitted without a permit, but must be installed in compliance with setback requirements."
+    },
+    {
+        "question": "How can I apply for a scholarship for city recreation programs?",
+        "answer": "Recreation program scholarships are available for low-income families and can be applied for at any community center with proof of income."
+    },
+    {
+        "question": "What is the fee for a special event permit?",
+        "answer": "Special event permit fees range from $50 for small gatherings to $500 for large events, depending on expected attendance and city services required."
+    },
+    {
+        "question": "How do I report a broken fire hydrant?",
+        "answer": "Broken fire hydrants should be reported immediately to the Water Department at 555-789-0123 or through the emergency services hotline."
+    },
+    {
+        "question": "What are the requirements for a tattoo parlor license?",
+        "answer": "Tattoo parlors require a special business license, health department inspection, and compliance with state health and safety regulations."
+    },
+    {
+        "question": "How can I find information about city-sponsored job fairs?",
+        "answer": "City-sponsored job fairs are listed on the Economic Development Department's website and typically held quarterly at the convention center."
+    },
+    {
+        "question": "How do I apply for a reduced-fare transit pass?",
+        "answer": "Reduced-fare transit passes are available for seniors, students, and disabled individuals with proper documentation from the Transit Authority."
+    },
+    {
+        "question": "What are the regulations for keeping bees in residential areas?",
+        "answer": "Beekeeping is permitted in residential areas with a $25 annual permit, maximum of 2 hives, and compliance with setback requirements."
+    },
+    {
+        "question": "How can I report a suspected building code violation?",
+        "answer": "Building code violations can be reported anonymously through the Code Enforcement Division's online complaint system or by phone."
+    },
+    {
+        "question": "How do I request a copy of my property assessment?",
+        "answer": "Property assessment records can be obtained from the Assessor's Office or viewed online through the property information portal."
+    },
+    {
+        "question": "What are the requirements for a daycare center license?",
+        "answer": "Daycare centers require state licensing, city business license, fire safety inspection, and compliance with zoning regulations."
+    },
+    {
+        "question": "How can I find information about city-sponsored health screenings?",
+        "answer": "Free health screening schedules are posted on the Public Health Department's website and at community centers throughout the city."
+    },
+    {
+        "question": "How do I apply for a sidewalk cafe permit?",
+        "answer": "Sidewalk cafe permits require application to the Business Licensing Department, proof of insurance, and payment of the $200 annual fee."
+    },
+    {
+        "question": "What are the regulations for political campaign signs?",
+        "answer": "Political signs may be displayed 60 days before an election, must be removed within 7 days after, and cannot exceed 32 square feet."
+    },
+    {
+        "question": "How can I report a water quality concern?",
+        "answer": "Water quality concerns can be reported to the Water Quality Division at 555-234-5678 or through the online complaint form."
+    },
+    {
+        "question": "What is the fee for a residential electrical permit?",
+        "answer": "Residential electrical permit fees start at $75 for basic work and increase based on the number of circuits and complexity of the project."
+    },
+    {
+        "question": "How do I request a traffic signal installation?",
+        "answer": "Traffic signal installation requests require a traffic study, neighborhood petition, and approval by the Traffic Engineering Division."
+    },
+    {
+        "question": "What are the requirements for a massage therapy license?",
+        "answer": "Massage therapy businesses require state certification, city business license, and compliance with health and safety regulations."
+    },
+    {
+        "question": "How can I find information about city-sponsored art classes?",
+        "answer": "City-sponsored art classes are offered at community centers and the cultural arts center, with schedules posted on the Parks and Recreation website."
+    },
+    {
+        "question": "How do I apply for a food truck permit?",
+        "answer": "Food truck permits require application to the Business Licensing Department, health department certification, and payment of the $300 annual fee."
+    },
+    {
+        "question": "What are the regulations for temporary storage units?",
+        "answer": "Temporary storage units may be placed on residential property for up to 30 days with a $25 permit from the Code Enforcement Division."
+    },
+    {
+        "question": "How can I report a broken playground equipment?",
+        "answer": "Broken playground equipment can be reported to the Parks and Recreation Department by phone or through the online service request system."
+    },
+    {
+        "question": "What is the fee for a commercial plumbing permit?",
+        "answer": "Commercial plumbing permit fees are calculated based on fixture count, starting at $150 for up to 5 fixtures and increasing by $25 per additional fixture."
+    },
+    {
+        "question": "How do I request a copy of city ordinances?",
+        "answer": "City ordinances are available online through the City Clerk's legislative database or can be purchased in print for $25."
+    },
+    {
+        "question": "How can I find information about city-sponsored computer classes?",
+        "answer": "Computer classes are offered at public libraries and community centers, with schedules available on the Library Department's website."
+    },
+    {
+        "question": "What is the process for appealing a property tax assessment?",
+        "answer": "Property tax assessment appeals must be filed with the Board of Assessment Appeals within 30 days of receiving your assessment notice."
+    },
+    {
+        "question": "How can I report a broken water fountain?",
+        "answer": "Broken water fountains can be reported to the Parks and Recreation Department or Public Works Department depending on location."
+    },
+    {
+        "question": "What is the fee for a residential HVAC permit?",
+        "answer": "Residential HVAC permit fees start at $100 for basic installations and increase based on system capacity and complexity."
+    },
+    {
+        "question": "How do I request a speed limit change on my street?",
+        "answer": "Speed limit change requests require a traffic study, neighborhood petition, and approval by the Traffic Engineering Division."
+    },
+    {
+        "question": "What are the requirements for a pet grooming business license?",
+        "answer": "Pet grooming businesses require a standard business license and compliance with animal welfare regulations and zoning requirements."
+    },
+    {
+        "question": "How can I find information about city-sponsored language classes?",
+        "answer": "Language classes are offered at community centers and libraries, with schedules posted on the Community Education Department's website."
+    },
+    {
+        "question": "How do I apply for a temporary event alcohol permit?",
+        "answer": "Temporary event alcohol permits require application 30 days in advance, proof of insurance, and payment of the $200 permit fee."
+    },
+    {
+        "question": "What are the regulations for keeping goats in residential areas?",
+        "answer": "Goats are not permitted in residential areas within city limits, with the exception of registered therapy animals."
+    },
+    {
+        "question": "How can I report a broken bench in a city park?",
+        "answer": "Broken park benches can be reported to the Parks and Recreation Department through the online service request system or by phone."
+    },
+    {
+        "question": "What is the fee for a commercial mechanical permit?",
+        "answer": "Commercial mechanical permit fees are based on equipment value, starting at $200 for systems under $10,000 and increasing by 1% of value."
+    },
+    {
+        "question": "How do I request a copy of city planning documents?",
+        "answer": "City planning documents can be obtained from the Planning Department or viewed online through the city's planning portal."
+    },
+    {
+        "question": "What are the requirements for a nail salon license?",
+        "answer": "Nail salons require a business license, health department inspection, and compliance with state cosmetology regulations."
+    },
+    {
+        "question": "How can I find information about city-sponsored fitness classes?",
+        "answer": "Fitness class schedules are available at community centers and the recreation department's website, with classes offered year-round."
+    },
+    {
+        "question": "What is the process for appealing a code violation citation?",
+        "answer": "Code violation citations can be appealed by requesting a hearing with the Code Enforcement Board within 15 days of receiving the citation."
+    },
+    {
+        "question": "How do I apply for a parade permit?",
+        "answer": "Parade permits require application 60 days in advance, route approval, and payment of fees based on expected attendance and city services required."
+    },
+    {
+        "question": "What is the fine for illegal parking in a handicapped space?",
+        "answer": "The fine for parking in a handicapped space without proper authorization is $250, plus towing and storage fees."
+    },
+    {
+        "question": "How much does it cost to replace a lost library card?",
+        "answer": "Replacement library cards cost $5 for residents and $10 for non-residents."
+    },
+    {
+        "question": "What is the penalty for late payment of property taxes?",
+        "answer": "Late property tax payments incur a 10% penalty after 30 days, with an additional 1.5% interest per month thereafter."
+    },
+    {
+        "question": "How much does it cost to reserve a city park pavilion?",
+        "answer": "Park pavilion reservations cost $75 for residents and $125 for non-residents for a full day rental."
+    },
+    {
+        "question": "What is the fine for not cleaning up after your dog?",
+        "answer": "The fine for not cleaning up after your dog in public areas is $100 for the first offense and $200 for subsequent violations."
+    },
+    {
+        "question": "How much does it cost to get a copy of a police report?",
+        "answer": "Police report copies cost $15 for standard reports and $25 for accident reports."
+    },
+    {
+        "question": "What is the penalty for operating a business without a license?",
+        "answer": "Operating a business without a license results in a fine of $500 per day, plus potential closure until proper licensing is obtained."
+    },
+    {
+        "question": "How much does it cost to rent a community center room?",
+        "answer": "Community center room rentals cost $50 per hour for residents and $75 per hour for non-residents, with a 4-hour minimum."
+    },
+    {
+        "question": "What is the fine for excessive noise after 10 PM?",
+        "answer": "Excessive noise violations after 10 PM carry a fine of $150 for the first offense and $300 for repeat violations."
+    },
+    {
+        "question": "How much does it cost to get a certified copy of a birth certificate?",
+        "answer": "Certified birth certificate copies cost $25 for the first copy and $15 for each additional copy ordered at the same time."
+    },
+    {
+        "question": "What is the penalty for illegal dumping of construction debris?",
+        "answer": "Illegal dumping of construction debris carries a fine of $1,000 per cubic yard, plus cleanup costs and potential criminal charges."
+    },
+    {
+        "question": "How much does it cost to reserve a tennis court?",
+        "answer": "Tennis court reservations cost $15 per hour for residents and $25 per hour for non-residents."
+    },
+    {
+        "question": "What is the fine for not registering a rental property?",
+        "answer": "Failure to register a rental property results in a fine of $300 for the first offense and $500 for subsequent violations."
+    },
+    {
+        "question": "How much does it cost to get a copy of city ordinances?",
+        "answer": "Printed copies of city ordinances cost $50 for the complete set, while individual ordinances are $5 each."
+    },
+    {
+        "question": "What is the penalty for not maintaining a rental property?",
+        "answer": "Failure to maintain rental properties can result in fines of $200 per violation, with daily penalties until compliance is achieved."
+    },
+    {
+        "question": "How much does it cost to reserve a softball field?",
+        "answer": "Softball field reservations cost $30 per game for residents and $50 per game for non-residents."
+    },
+    {
+        "question": "What is the fine for illegal burning without a permit?",
+        "answer": "Illegal burning without a permit carries a fine of $200 for the first offense and $500 for repeat violations."
+    },
+    {
+        "question": "How much does it cost to get a copy of a marriage license?",
+        "answer": "Marriage license copies cost $20 for certified copies and $10 for informational copies."
+    },
+    {
+        "question": "What is the penalty for not shoveling snow from sidewalks?",
+        "answer": "Failure to clear snow from sidewalks within 24 hours results in a fine of $50, with the city clearing it and billing the property owner $100."
+    },
+    {
+        "question": "How much does it cost to reserve a basketball court?",
+        "answer": "Basketball court reservations cost $20 per hour for residents and $35 per hour for non-residents."
+    },
+    {
+        "question": "How much does it cost to get a copy of a death certificate?",
+        "answer": "Death certificate copies cost $25 for certified copies and $15 for informational copies."
+    },
+    {
+        "question": "What is the penalty for illegal parking in a fire lane?",
+        "answer": "Parking in a fire lane carries a fine of $300, plus immediate towing and storage fees."
+    },
+    {
+        "question": "How much does it cost to reserve a soccer field?",
+        "answer": "Soccer field reservations cost $40 per game for residents and $60 per game for non-residents."
+    },
+    {
+        "question": "What is the fine for not maintaining a vacant property?",
+        "answer": "Failure to maintain vacant properties can result in fines of $250 per violation, with daily penalties until the property is properly secured and maintained."
+    },
+    {
+        "question": "How much does it cost to get a copy of city council meeting minutes?",
+        "answer": "City council meeting minutes cost $5 per page for printed copies, with a $10 processing fee for each request."
+    },
+    {
+        "question": "What is the penalty for illegal parking in a loading zone?",
+        "answer": "Parking in a loading zone without proper authorization carries a fine of $150, with towing possible after 30 minutes."
+    },
+    {
+        "question": "How much does it cost to reserve a volleyball court?",
+        "answer": "Volleyball court reservations cost $25 per hour for residents and $40 per hour for non-residents."
+    },
+    {
+        "question": "What is the fine for not registering an alarm system?",
+        "answer": "Failure to register an alarm system results in a fine of $100, plus any false alarm fees that would have been avoided with proper registration."
+    },
+    {
+        "question": "How much does it cost to get a copy of a property deed?",
+        "answer": "Property deed copies cost $30 for certified copies from the County Recorder's Office."
+    },
+    {
+        "question": "What is the penalty for illegal parking in a bus stop?",
+        "answer": "Parking in a bus stop carries a fine of $200, with immediate towing to ensure public transit access."
+    },
+    {
+        "question": "How much does it cost to reserve a baseball field?",
+        "answer": "Baseball field reservations cost $35 per game for residents and $55 per game for non-residents."
+    },
+    {
+        "question": "What is the fine for not maintaining stormwater drainage?",
+        "answer": "Failure to maintain stormwater drainage on private property can result in fines of $150 per violation, with daily penalties until compliance."
+    },
+    {
+        "question": "How much does it cost to get a copy of zoning regulations?",
+        "answer": "Zoning regulation copies cost $25 for the complete set or $3 per individual section."
+    },
+    {
+        "question": "What is the penalty for illegal parking in a taxi stand?",
+        "answer": "Parking in a taxi stand carries a fine of $175, with towing possible after 15 minutes."
+    },
+    {
+        "question": "How much does it cost to reserve a swimming pool lane?",
+        "answer": "Swimming pool lane reservations cost $10 per hour for residents and $20 per hour for non-residents during designated lap swim times."
+    },
+    {
+        "question": "What is the fine for not maintaining a commercial sign?",
+        "answer": "Failure to maintain commercial signs can result in fines of $100 per violation, with daily penalties until the sign is repaired or removed."
+    },
+    {
+        "question": "How much does it cost to get a copy of building codes?",
+        "answer": "Building code copies cost $40 for the complete set or $5 per individual chapter."
+    },
+    {
+        "question": "What is the penalty for illegal parking in a carpool lane?",
+        "answer": "Parking in a carpool lane carries a fine of $250, with immediate towing to maintain traffic flow."
     }
 ]
