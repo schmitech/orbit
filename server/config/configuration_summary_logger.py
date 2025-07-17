@@ -198,6 +198,9 @@ class ConfigurationSummaryLogger:
             inference_only = _is_true_value(self.config.get('general', {}).get('inference_only', False))
             if inference_only:
                 self._log_chat_history_configuration()
+            
+            # Log fault tolerance configuration
+            self._log_fault_tolerance_configuration()
         except Exception as e:
             self._log_message(f"Error logging service configurations: {str(e)}", level='error')
     
@@ -216,6 +219,40 @@ class ConfigurationSummaryLogger:
                 self._log_message("Max conversation messages: dynamically calculated based on inference provider context window", indent=2)
         except Exception as e:
             self._log_message(f"Error logging chat history configuration: {str(e)}", level='error')
+    
+    def _log_fault_tolerance_configuration(self) -> None:
+        """Log fault tolerance service configuration."""
+        try:
+            fault_tolerance_config = self.config.get('fault_tolerance', {})
+            fault_tolerance_enabled = _is_true_value(fault_tolerance_config.get('enabled', False))
+            self._log_message(f"Fault Tolerance: {'enabled' if fault_tolerance_enabled else 'disabled'}")
+            
+            if fault_tolerance_enabled:
+                circuit_breaker_config = fault_tolerance_config.get('circuit_breaker', {})
+                isolation_config = fault_tolerance_config.get('isolation', {})
+                execution_config = fault_tolerance_config.get('execution', {})
+                health_monitoring_config = fault_tolerance_config.get('health_monitoring', {})
+                
+                self._log_message(f"Circuit Breaker - Failure threshold: {circuit_breaker_config.get('failure_threshold', 5)}", indent=2)
+                self._log_message(f"Circuit Breaker - Recovery timeout: {circuit_breaker_config.get('recovery_timeout', 30)}s", indent=2)
+                self._log_message(f"Circuit Breaker - Operation timeout: {circuit_breaker_config.get('timeout', 30)}s", indent=2)
+                self._log_message(f"Execution strategy: {execution_config.get('strategy', 'all')}", indent=2)
+                self._log_message(f"Total execution timeout: {execution_config.get('timeout', 35)}s", indent=2)
+                self._log_message(f"Max concurrent adapters: {execution_config.get('max_concurrent_adapters', 10)}", indent=2)
+                self._log_message(f"Isolation strategy: {isolation_config.get('strategy', 'thread')}", indent=2)
+                self._log_message(f"Health monitoring: {'enabled' if health_monitoring_config.get('enabled', True) else 'disabled'}", indent=2)
+                
+                # Log adapter-specific configurations
+                adapters_config = self.config.get('adapters', [])
+                if adapters_config:
+                    fault_tolerant_adapters = [
+                        adapter['name'] for adapter in adapters_config 
+                        if adapter.get('fault_tolerance', {}).get('operation_timeout')
+                    ]
+                    if fault_tolerant_adapters:
+                        self._log_message(f"Adapters with custom fault tolerance: {', '.join(fault_tolerant_adapters)}", indent=2)
+        except Exception as e:
+            self._log_message(f"Error logging fault tolerance configuration: {str(e)}", level='error')
     
     def _log_api_configurations(self) -> None:
         """Log API and security configuration details."""

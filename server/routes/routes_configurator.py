@@ -313,7 +313,7 @@ class RouteConfigurator:
             return health
     
     def _include_admin_routes(self, app: FastAPI) -> None:
-        """Include admin routes, auth routes, and file upload routes."""
+        """Include admin routes, auth routes, file upload routes, and health routes."""
         from routes.admin_routes import admin_router
         from routes.file_routes import file_router
         from routes.auth_routes import auth_router
@@ -329,6 +329,16 @@ class RouteConfigurator:
             self.logger.info("Authentication routes registered")
         else:
             self.logger.info("Authentication routes skipped (auth disabled)")
+        
+        # Include health routes if fault tolerance is enabled
+        fault_tolerance_enabled = _is_true_value(self.config.get('fault_tolerance', {}).get('enabled', False))
+        if fault_tolerance_enabled:
+            from routes.health_routes import create_health_router
+            health_router = create_health_router()
+            app.include_router(health_router)
+            self.logger.info("Health routes registered")
+        else:
+            self.logger.info("Health routes skipped (fault tolerance disabled)")
     
     async def _process_mcp_request(
         self, 

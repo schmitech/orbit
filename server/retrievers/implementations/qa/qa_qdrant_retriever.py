@@ -63,8 +63,8 @@ class QAQdrantRetriever(QAVectorRetrieverBase, QdrantRetriever):
         # Initialize parent services (including embeddings)
         await super().initialize()
         
-        # Initialize the Qdrant client
-        await self.initialize_client()
+        # Initialize the Qdrant client without testing connection (for faster startup)
+        await self.initialize_client(test_connection=True)
         
         # Initialize domain adapter
         await self.initialize_domain_adapter()
@@ -93,7 +93,7 @@ class QAQdrantRetriever(QAVectorRetrieverBase, QdrantRetriever):
             # Ensure client is initialized
             if not self.qdrant_client:
                 logger.error("Qdrant client is not initialized")
-                await self.initialize_client()
+                await self.initialize_client(test_connection=True)
                 
             if not self.qdrant_client:
                 logger.error("Failed to initialize Qdrant client")
@@ -134,7 +134,7 @@ class QAQdrantRetriever(QAVectorRetrieverBase, QdrantRetriever):
         # For Qdrant, we need to ensure both client and collection_name are set
         if not self.qdrant_client:
             try:
-                await self.initialize_client()
+                await self.initialize_client(test_connection=True)
             except Exception as e:
                 logger.error(f"Failed to initialize Qdrant client during validation: {str(e)}")
                 return False
@@ -154,7 +154,7 @@ class QAQdrantRetriever(QAVectorRetrieverBase, QdrantRetriever):
         
         # Ensure client is initialized
         if not self.qdrant_client:
-            await self.initialize_client()
+            await self.initialize_client(test_connection=True)
         
         self.collection_name = collection_name
         

@@ -127,41 +127,27 @@ class DynamicAdapterManager:
                 self._initializing_adapters.discard(adapter_name)
     
     async def _load_adapter(self, adapter_name: str) -> Any:
-        """
-        Load and initialize an adapter.
-        
-        Args:
-            adapter_name: Name of the adapter to load
-            
-        Returns:
-            The initialized adapter instance
-        """
+        """Load and initialize an adapter asynchronously"""
         # Get adapter configuration
         adapter_config = self._adapter_configs.get(adapter_name)
         if not adapter_config:
             raise ValueError(f"No adapter configuration found for: {adapter_name}")
         
-        # Extract adapter details
-        implementation = adapter_config.get('implementation')
-        datasource = adapter_config.get('datasource')
-        adapter_type = adapter_config.get('adapter')
+        # Run the import and initialization in a thread pool to prevent blocking
+        loop = asyncio.get_event_loop()
         
-        if not implementation or not datasource or not adapter_type:
-            raise ValueError(f"Missing required adapter fields for {adapter_name}")
-        
-        self.logger.info(f"Loading adapter {adapter_name}: {datasource} retriever with {adapter_type} adapter")
-        
-        try:
-            # Import the specific retriever class
+        def _sync_load():
+            # This runs in a thread, so it won't block the event loop
+            implementation = adapter_config.get('implementation')
+            datasource = adapter_config.get('datasource')
+            adapter_type = adapter_config.get('adapter')
+            
+            # Import the retriever class
             module_path, class_name = implementation.rsplit('.', 1)
             module = __import__(module_path, fromlist=[class_name])
             retriever_class = getattr(module, class_name)
-        except (ImportError, AttributeError) as e:
-            self.logger.error(f"Could not load retriever class from {implementation}: {str(e)}")
-            raise ValueError(f"Failed to load retriever implementation: {str(e)}")
-        
-        # Create the domain adapter using the registry
-        try:
+            
+            # Create domain adapter
             from retrievers.adapters.registry import ADAPTER_REGISTRY
             adapter_config_params = adapter_config.get('config', {})
             domain_adapter = ADAPTER_REGISTRY.create(
@@ -170,54 +156,25 @@ class DynamicAdapterManager:
                 adapter_name=adapter_type,
                 **adapter_config_params
             )
-            self.logger.info(f"Successfully created {adapter_type} domain adapter for {adapter_name}")
-        except Exception as adapter_error:
-            self.logger.error(f"Error creating domain adapter for {adapter_name}: {str(adapter_error)}")
-            raise ValueError(f"Failed to create domain adapter: {str(adapter_error)}")
+            
+            # Create retriever instance
+            retriever = retriever_class(
+                config=self.config,
+                domain_adapter=domain_adapter
+            )
+            
+            return retriever
         
-        # Prepare appropriate arguments based on the provider type
-        retriever_kwargs = {
-            'config': self.config,
-            'domain_adapter': domain_adapter
-        }
+        # Load adapter in thread pool
+        retriever = await loop.run_in_executor(self._thread_pool, _sync_load)
         
-        # Add adapter-specific config to the retriever kwargs
-        # This allows the retriever to access its specific configuration (like table name, collection name)
-        adapter_specific_config = adapter_config.get('config', {})
+        # Initialize the retriever (if it's async)
+        if hasattr(retriever, 'initialize'):
+            if asyncio.iscoroutinefunction(retriever.initialize):
+                await retriever.initialize()
+            else:
+                await loop.run_in_executor(self._thread_pool, retriever.initialize)
         
-        # Create a modified config that includes the adapter-specific settings
-        # at the top level for easier access by the retriever
-        modified_config = self.config.copy()
-        
-        # Add adapter-specific config
-        full_adapter_config = adapter_specific_config.copy()
-        
-        if full_adapter_config:
-            modified_config['adapter_config'] = full_adapter_config
-            # Also add the adapter config in the expected location for backward compatibility
-            modified_config['adapters'] = [adapter_config]
-        
-        retriever_kwargs['config'] = modified_config
-        
-        # Add appropriate client/connection based on the provider type
-        if self.app_state:
-            if datasource == 'chroma':
-                if hasattr(self.app_state, 'embedding_service'):
-                    retriever_kwargs['embeddings'] = self.app_state.embedding_service
-                if hasattr(self.app_state, 'chroma_client'):
-                    retriever_kwargs['collection'] = self.app_state.chroma_client
-            elif datasource == 'sqlite':
-                if hasattr(self.app_state, 'datasource_client'):
-                    retriever_kwargs['connection'] = self.app_state.datasource_client
-        
-        # Create and initialize the retriever instance
-        self.logger.info(f"Creating {datasource} retriever instance for {adapter_name}")
-        retriever = retriever_class(**retriever_kwargs)
-        
-        # Initialize the retriever
-        await retriever.initialize()
-        
-        self.logger.info(f"Successfully initialized adapter: {adapter_name}")
         return retriever
     
     def get_available_adapters(self) -> list[str]:
@@ -250,6 +207,75 @@ class DynamicAdapterManager:
             self.logger.info(f"Preloaded adapter: {adapter_name}")
         except Exception as e:
             self.logger.error(f"Failed to preload adapter {adapter_name}: {str(e)}")
+    
+    async def preload_all_adapters(self, timeout_per_adapter: float = 30.0) -> Dict[str, Any]:
+        """
+        Preload all adapters in parallel with timeout protection.
+        
+        Args:
+            timeout_per_adapter: Maximum time to wait for each adapter to load
+            
+        Returns:
+            Dict with preload results for each adapter
+        """
+        available_adapters = self.get_available_adapters()
+        if not available_adapters:
+            return {}
+        
+        self.logger.info(f"Preloading {len(available_adapters)} adapters in parallel...")
+        
+        # Create tasks for parallel loading
+        async def load_adapter_with_timeout(adapter_name: str):
+            try:
+                # Load adapter with timeout
+                adapter = await asyncio.wait_for(
+                    self.get_adapter(adapter_name),
+                    timeout=timeout_per_adapter
+                )
+                return {
+                    "adapter_name": adapter_name,
+                    "success": True,
+                    "message": "Preloaded successfully"
+                }
+            except asyncio.TimeoutError:
+                return {
+                    "adapter_name": adapter_name,
+                    "success": False,
+                    "error": f"Timeout after {timeout_per_adapter}s"
+                }
+            except Exception as e:
+                return {
+                    "adapter_name": adapter_name,
+                    "success": False,
+                    "error": str(e)
+                }
+        
+        # Run all adapter loading tasks in parallel
+        tasks = [load_adapter_with_timeout(name) for name in available_adapters]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # Process results
+        preload_results = {}
+        successful_count = 0
+        
+        for result in results:
+            if isinstance(result, Exception):
+                # This shouldn't happen due to exception handling in load_adapter_with_timeout
+                self.logger.error(f"Unexpected exception in adapter preloading: {result}")
+                continue
+                
+            adapter_name = result["adapter_name"]
+            preload_results[adapter_name] = result
+            
+            if result["success"]:
+                successful_count += 1
+                self.logger.info(f"✅ {adapter_name}: {result['message']}")
+            else:
+                self.logger.warning(f"❌ {adapter_name}: {result['error']}")
+        
+        self.logger.info(f"Adapter preloading completed: {successful_count}/{len(available_adapters)} successful")
+        
+        return preload_results
     
     async def remove_adapter(self, adapter_name: str) -> bool:
         """

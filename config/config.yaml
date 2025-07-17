@@ -19,6 +19,30 @@ general:
     required: true
   inference_provider: "llama_cpp"
   inference_only: true
+
+# Fault Tolerance Configuration
+fault_tolerance:
+  enabled: true
+  circuit_breaker:
+    failure_threshold: 5
+    recovery_timeout: 30
+    success_threshold: 3
+    timeout: 30
+  isolation:
+    enabled: true
+    strategy: "thread"  # "thread" or "process"
+    max_threads: 10
+    max_processes: 5
+  execution:
+    strategy: "all"  # "all", "first_success", "best_effort"
+    timeout: 35  # Reduced from 60 to work better with circuit breaker timeout
+    max_retries: 3
+    retry_delay: 1
+  health_monitoring:
+    enabled: true
+    check_interval: 30
+    history_size: 100
+    alert_threshold: 0.8
   
 messages:
   no_results_response: "I'm sorry, but I don't have any specific information about that topic in my knowledge base."

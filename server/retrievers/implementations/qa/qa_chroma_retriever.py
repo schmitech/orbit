@@ -40,6 +40,11 @@ class QAChromaRetriever(QAVectorRetrieverBase, ChromaRetriever):
         self._domain_adapter = domain_adapter
         self._collection = collection
         
+        # Ensure collection name is set from adapter config after both parents are initialized
+        if self.adapter_config and 'collection' in self.adapter_config:
+            self.collection_name = self.adapter_config['collection']
+            logger.info(f"QAChromaRetriever using collection from adapter config: {self.collection_name}")
+        
         # Chroma-specific parameters
         self.distance_scaling_factor = self.adapter_config.get(
             'distance_scaling_factor', 200.0
@@ -56,7 +61,7 @@ class QAChromaRetriever(QAVectorRetrieverBase, ChromaRetriever):
         # Initialize parent services (including embeddings)
         await super().initialize()
         
-        # Initialize the ChromaDB client
+        # Initialize the ChromaDB client and set collection
         await self.initialize_client()
         
         # Initialize domain adapter
@@ -88,8 +93,10 @@ class QAChromaRetriever(QAVectorRetrieverBase, ChromaRetriever):
                 logger.error("ChromaDB collection is not initialized")
                 await self.initialize_client()
                 
-                # Try to set the collection if we have a name
-                if collection_name:
+                # Try to set the collection using the configured collection name
+                if self.collection_name:
+                    await self.set_collection(self.collection_name)
+                elif collection_name:
                     await self.set_collection(collection_name)
                     
             if not self.collection:

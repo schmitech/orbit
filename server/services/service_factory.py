@@ -41,9 +41,12 @@ class ServiceFactory:
         self.chat_history_enabled = _is_true_value(config.get('chat_history', {}).get('enabled', False))
         self.verbose = _is_true_value(config.get('general', {}).get('verbose', False))
         
+        # Check if fault tolerance is enabled
+        self.fault_tolerance_enabled = _is_true_value(config.get('fault_tolerance', {}).get('enabled', False))
+        
         # Log the mode detection for debugging (only when verbose)
         if self.verbose:
-            self.logger.info(f"ServiceFactory initialized - inference_only={self.inference_only}, chat_history_enabled={self.chat_history_enabled}")
+            self.logger.info(f"ServiceFactory initialized - inference_only={self.inference_only}, chat_history_enabled={self.chat_history_enabled}, fault_tolerance_enabled={self.fault_tolerance_enabled}")
     
     async def initialize_all_services(self, app: FastAPI) -> None:
         """Initialize all services required by the application."""
@@ -66,6 +69,12 @@ class ServiceFactory:
             
             # Initialize shared services (Logger, LLM Guard, Reranker)
             await self._initialize_shared_services(app)
+            
+            # Initialize fault tolerance services if enabled
+            if self.fault_tolerance_enabled:
+                if self.verbose:
+                    self.logger.info("Initializing fault tolerance services")
+                await self._initialize_fault_tolerance_services(app)
             
             # Initialize LLM client (after LLM Guard service)
             await self._initialize_llm_client(app)
@@ -387,30 +396,99 @@ class ServiceFactory:
     async def _initialize_adapter_manager(self, app: FastAPI) -> None:
         """Initialize Dynamic Adapter Manager for adapter-based routing."""
         try:
-            # Import the dynamic adapter manager
-            from services.dynamic_adapter_manager import DynamicAdapterManager, AdapterProxy
+            if self.fault_tolerance_enabled:
+                # Use the new simplified fault tolerant adapter manager
+                from services.fault_tolerant_adapter_manager import FaultTolerantAdapterManager
+                from services.dynamic_adapter_manager import AdapterProxy
+                
+                # Create the fault tolerant adapter manager
+                adapter_manager = FaultTolerantAdapterManager(self.config, app.state)
+                
+                # Create an adapter proxy that provides a retriever-like interface
+                adapter_proxy = AdapterProxy(adapter_manager)
+                
+                # Store both the manager and proxy in app state
+                app.state.adapter_manager = adapter_manager
+                app.state.retriever = adapter_proxy  # LLM clients expect 'retriever'
+                
+                self.logger.info("Simplified Fault Tolerant Adapter Manager initialized successfully")
+            else:
+                # Use regular dynamic adapter manager
+                from services.dynamic_adapter_manager import DynamicAdapterManager, AdapterProxy
+                
+                # Create the dynamic adapter manager
+                adapter_manager = DynamicAdapterManager(self.config, app.state)
+                
+                # Create an adapter proxy that provides a retriever-like interface
+                adapter_proxy = AdapterProxy(adapter_manager)
+                
+                # Store both the manager and proxy in app state
+                app.state.adapter_manager = adapter_manager
+                app.state.retriever = adapter_proxy  # LLM clients expect 'retriever'
+                
+                self.logger.info("Dynamic Adapter Manager initialized successfully")
             
-            # Create the dynamic adapter manager
-            adapter_manager = DynamicAdapterManager(self.config, app.state)
-            
-            # Create an adapter proxy that provides a retriever-like interface
-            adapter_proxy = AdapterProxy(adapter_manager)
-            
-            # Store both the manager and proxy in app state
-            app.state.adapter_manager = adapter_manager
-            app.state.retriever = adapter_proxy  # LLM clients expect 'retriever'
-            
-            self.logger.info("Dynamic Adapter Manager initialized successfully")
-            
-            # Log available adapters
-            available_adapters = adapter_manager.get_available_adapters()
+            # Log available adapters - use the base adapter manager for both types
+            base_adapter_manager = adapter_manager.base_adapter_manager if hasattr(adapter_manager, 'base_adapter_manager') else adapter_manager
+            available_adapters = base_adapter_manager.get_available_adapters()
             self.logger.info(f"Available adapters: {available_adapters}")
+            
+            # Preload all adapters in parallel to prevent sequential blocking
+            if available_adapters:
+                self.logger.info("Starting parallel adapter preloading...")
+                preload_results = await base_adapter_manager.preload_all_adapters(timeout_per_adapter=25.0)
+                
+                # Log preloading results
+                successful_adapters = [name for name, result in preload_results.items() if result["success"]]
+                failed_adapters = [name for name, result in preload_results.items() if not result["success"]]
+                
+                self.logger.info(f"Adapter preloading completed: {len(successful_adapters)}/{len(available_adapters)} successful")
+                if failed_adapters:
+                    self.logger.warning(f"Failed to preload adapters: {failed_adapters}")
+            
+            # Health service registration is no longer needed with simplified fault tolerance system
             
         except Exception as e:
             self.logger.error(f"Failed to initialize Dynamic Adapter Manager: {str(e)}")
             raise
     
+    async def _initialize_fault_tolerance_services(self, app: FastAPI) -> None:
+        """Initialize fault tolerance services."""
+        try:
+            # Import required classes for simplified fault tolerance
+            from services.circuit_breaker import CircuitBreakerService
+            from services.fault_tolerant_adapter_manager import FaultTolerantAdapterManager
+            
+            # Initialize Circuit Breaker Service
+            app.state.circuit_breaker_service = CircuitBreakerService(self.config)
+            
+            # Note: FaultTolerantAdapterManager is now initialized in _initialize_adapter_manager method
+            
+            self.logger.info("Simplified fault tolerance services initialized successfully")
+            
+        except Exception as e:
+            self.logger.error(f"Failed to initialize fault tolerance services: {str(e)}")
+            raise
 
+    # Old health service registration method removed - no longer needed with simplified fault tolerance system
+    async def _shutdown_fault_tolerance_services(self, app: FastAPI) -> None:
+        """Shutdown fault tolerance services."""
+        try:
+            # Shutdown circuit breaker service
+            if hasattr(app.state, 'circuit_breaker_service'):
+                await app.state.circuit_breaker_service.cleanup()
+                
+            # Shutdown fault tolerant adapter manager
+            if hasattr(app.state, 'fault_tolerant_adapter_manager'):
+                # FaultTolerantAdapterManager doesn't have cleanup method, but parallel executor might
+                if hasattr(app.state.fault_tolerant_adapter_manager, 'parallel_executor'):
+                    if app.state.fault_tolerant_adapter_manager.parallel_executor:
+                        await app.state.fault_tolerant_adapter_manager.parallel_executor.cleanup()
+                
+            self.logger.info("Simplified fault tolerance services shutdown successfully")
+            
+        except Exception as e:
+            self.logger.error(f"Error shutting down fault tolerance services: {str(e)}")
     
     async def _initialize_logger_service(self, app: FastAPI) -> None:
         """Initialize Logger Service."""

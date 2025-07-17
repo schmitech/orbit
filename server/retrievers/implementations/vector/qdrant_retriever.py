@@ -35,7 +35,7 @@ class QdrantRetriever(AbstractVectorRetriever):
         # Qdrant-specific settings
         self.host = self.datasource_config.get('host', 'localhost')
         self.port = int(self.datasource_config.get('port', 6333))
-        self.timeout = int(self.datasource_config.get('timeout', 30))
+        self.timeout = int(self.datasource_config.get('timeout', 5))  # Reduced from 30 to 5 seconds
         self.grpc_port = self.datasource_config.get('grpc_port', None)
         self.prefer_grpc = self.datasource_config.get('prefer_grpc', False)
         self.api_key = self.datasource_config.get('api_key', None)
@@ -64,14 +64,19 @@ class QdrantRetriever(AbstractVectorRetriever):
         """Return the name of this datasource for config lookup"""
         return 'qdrant'
 
-    async def initialize_client(self) -> None:
-        """Initialize the Qdrant client."""
+    async def initialize_client(self, test_connection: bool = False) -> None:
+        """Initialize the Qdrant client.
+        
+        Args:
+            test_connection: Whether to test the connection during initialization.
+                           Set to False during server startup to avoid blocking.
+        """
         try:
             from qdrant_client import QdrantClient
             
-            logger.info(f"Attempting to connect to Qdrant at {self.host}:{self.port} with timeout={self.timeout}")
+            logger.info(f"Initializing Qdrant client for {self.host}:{self.port} with timeout={self.timeout}")
             
-            # Initialize Qdrant client
+            # Initialize Qdrant client (this is fast, doesn't actually connect)
             self.qdrant_client = QdrantClient(
                 host=self.host,
                 port=self.port,
@@ -84,23 +89,26 @@ class QdrantRetriever(AbstractVectorRetriever):
             
             logger.info(f"Qdrant client created successfully at {self.host}:{self.port}")
             
-            # Test connection
-            try:
-                logger.info("Testing Qdrant connection by fetching collections...")
-                collections = self.qdrant_client.get_collections()
-                logger.info(f"Successfully connected to Qdrant. Found {len(collections.collections)} collections")
-            except Exception as e:
-                logger.error(f"Failed to connect to Qdrant: {str(e)}")
-                raise
-            
-            # Set collection if we have a collection name from config
-            if self.collection_name:
+            # Only test connection if explicitly requested
+            if test_connection:
                 try:
-                    await self.set_collection(self.collection_name)
-                    logger.info(f"QdrantRetriever initialized with collection: {self.collection_name}")
+                    logger.info("Testing Qdrant connection by fetching collections...")
+                    collections = self.qdrant_client.get_collections()
+                    logger.info(f"Successfully connected to Qdrant. Found {len(collections.collections)} collections")
                 except Exception as e:
-                    logger.error(f"Failed to set collection during initialization: {str(e)}")
-                    # Don't raise here - let it be handled during actual usage
+                    logger.error(f"Failed to connect to Qdrant: {str(e)}")
+                    raise
+                
+                # Set collection if we have a collection name from config
+                if self.collection_name:
+                    try:
+                        await self.set_collection(self.collection_name)
+                        logger.info(f"QdrantRetriever initialized with collection: {self.collection_name}")
+                    except Exception as e:
+                        logger.error(f"Failed to set collection during initialization: {str(e)}")
+                        # Don't raise here - let it be handled during actual usage
+            else:
+                logger.info("Qdrant client initialized (connection will be tested on first use)")
             
         except ImportError:
             error_msg = "qdrant-client package is required for Qdrant retriever. Install with: pip install qdrant-client"
@@ -119,6 +127,21 @@ class QdrantRetriever(AbstractVectorRetriever):
             logger.info("Qdrant client closed")
         except Exception as e:
             logger.error(f"Error closing Qdrant client: {str(e)}")
+    
+    async def _ensure_connection(self) -> None:
+        """Ensure the connection is valid and test it if needed."""
+        if not self.qdrant_client:
+            await self.initialize_client(test_connection=True)
+            return
+        
+        # Test connection if we haven't done so yet
+        try:
+            # Quick test - just get collections count
+            collections = self.qdrant_client.get_collections()
+            logger.debug(f"Connection verified - found {len(collections.collections)} collections")
+        except Exception as e:
+            logger.warning(f"Connection test failed: {str(e)}, reinitializing...")
+            await self.initialize_client(test_connection=True)
 
     async def set_collection(self, collection_name: str) -> None:
         """
@@ -131,6 +154,9 @@ class QdrantRetriever(AbstractVectorRetriever):
             raise ValueError("Collection name cannot be empty")
             
         try:
+            # Ensure connection is available
+            await self._ensure_connection()
+            
             # Check if collection exists
             try:
                 collection_info = self.qdrant_client.get_collection(collection_name)
@@ -174,6 +200,9 @@ class QdrantRetriever(AbstractVectorRetriever):
             return []
         
         try:
+            # Ensure connection is available
+            await self._ensure_connection()
+            
             # Perform the search
             search_results = self.qdrant_client.search(
                 collection_name=self.collection_name,

@@ -427,9 +427,39 @@ def main():
         background: transparent !important;
     }
     
+    /* Ensure the main content starts at the top without header interference */
+    .main .block-container > div:first-child {
+        margin-top: 0 !important;
+        padding-top: 0 !important;
+    }
+    
+    /* Remove any top margin/padding that might be causing spacing issues */
+    .stApp > div > div > div > div > div:first-child {
+        margin-top: 0 !important;
+        padding-top: 0 !important;
+    }
+    
     /* Override any Streamlit default dark themes */
     .stApp > div > div > div > div {
         background: transparent !important;
+    }
+    
+    /* Fix the dark header bar at the top */
+    .stApp > header {
+        background: transparent !important;
+        background-color: transparent !important;
+    }
+    
+    /* Override Streamlit's default header styling */
+    .stApp > header > div {
+        background: transparent !important;
+        background-color: transparent !important;
+    }
+    
+    /* Remove any header background */
+    header, header * {
+        background: transparent !important;
+        background-color: transparent !important;
     }
     
     /* Ensure all text elements are dark */
