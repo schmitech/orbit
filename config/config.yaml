@@ -22,12 +22,13 @@ general:
 
 # Fault Tolerance Configuration
 fault_tolerance:
-  enabled: true
   circuit_breaker:
     failure_threshold: 5
     recovery_timeout: 30
     success_threshold: 3
     timeout: 30
+    max_recovery_timeout: 300.0      # Maximum recovery timeout (5 minutes)
+    enable_exponential_backoff: true # Enable exponential backoff by default
   isolation:
     enabled: true
     strategy: "thread"  # "thread" or "process"
@@ -60,8 +61,8 @@ auth:
   credential_storage: file
 
 embedding:
-  provider: "ollama"
-  enabled: false
+  provider: "openai"
+  enabled: true
 
 api_keys:
   header_name: "X-API-Key"

@@ -27,24 +27,18 @@ class FaultTolerantAdapterManager:
         self.config = config
         self.app_state = app_state
         
-        # Check if fault tolerance is enabled
-        self.fault_tolerance_enabled = self._is_enabled(
-            config.get('fault_tolerance', {}).get('enabled', False)
-        )
+        # Fault tolerance is always enabled as core functionality
+        self.fault_tolerance_enabled = True
         
         # Initialize base adapter manager
         self.base_adapter_manager = DynamicAdapterManager(config, app_state)
         
-        # Initialize parallel executor if fault tolerance is enabled
-        self.parallel_executor = None
-        if self.fault_tolerance_enabled:
-            self.parallel_executor = ParallelAdapterExecutor(
-                self.base_adapter_manager, 
-                config
-            )
-            logger.info("Fault tolerance enabled with parallel execution")
-        else:
-            logger.info("Fault tolerance disabled, using standard adapter manager")
+        # Initialize parallel executor (always enabled)
+        self.parallel_executor = ParallelAdapterExecutor(
+            self.base_adapter_manager, 
+            config
+        )
+        logger.info("Fault tolerance enabled with parallel execution")
     
     def _is_enabled(self, value) -> bool:
         """Check if a config value is true"""
@@ -83,8 +77,9 @@ class FaultTolerantAdapterManager:
             logger.warning("No adapters specified")
             return []
         
-        # If fault tolerance is disabled, use simple sequential execution
-        if not self.fault_tolerance_enabled or not self.parallel_executor:
+        # Fault tolerance is always enabled - use parallel executor
+        if not self.parallel_executor:
+            logger.error("Parallel executor not initialized!")
             return await self._sequential_execution(query, target_adapters[0], api_key, **kwargs)
         
         # Use parallel executor for fault-tolerant execution
@@ -136,7 +131,7 @@ class FaultTolerantAdapterManager:
         if self.parallel_executor:
             self.parallel_executor.reset_circuit_breaker(adapter_name)
         else:
-            logger.warning("Fault tolerance is disabled, cannot reset circuit breaker")
+            logger.warning("Parallel executor not available, cannot reset circuit breaker")
     
     async def preload_all_adapters(self, timeout_per_adapter: float = 30.0) -> Dict[str, Any]:
         """Preload all adapters"""

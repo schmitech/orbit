@@ -41,12 +41,12 @@ class ServiceFactory:
         self.chat_history_enabled = _is_true_value(config.get('chat_history', {}).get('enabled', False))
         self.verbose = _is_true_value(config.get('general', {}).get('verbose', False))
         
-        # Check if fault tolerance is enabled
-        self.fault_tolerance_enabled = _is_true_value(config.get('fault_tolerance', {}).get('enabled', False))
+        # Fault tolerance is always enabled as core functionality
+        self.fault_tolerance_enabled = True
         
         # Log the mode detection for debugging (only when verbose)
         if self.verbose:
-            self.logger.info(f"ServiceFactory initialized - inference_only={self.inference_only}, chat_history_enabled={self.chat_history_enabled}, fault_tolerance_enabled={self.fault_tolerance_enabled}")
+            self.logger.info(f"ServiceFactory initialized - inference_only={self.inference_only}, chat_history_enabled={self.chat_history_enabled}")
     
     async def initialize_all_services(self, app: FastAPI) -> None:
         """Initialize all services required by the application."""
@@ -70,11 +70,10 @@ class ServiceFactory:
             # Initialize shared services (Logger, LLM Guard, Reranker)
             await self._initialize_shared_services(app)
             
-            # Initialize fault tolerance services if enabled
-            if self.fault_tolerance_enabled:
-                if self.verbose:
-                    self.logger.info("Initializing fault tolerance services")
-                await self._initialize_fault_tolerance_services(app)
+            # Initialize fault tolerance services (always enabled)
+            if self.verbose:
+                self.logger.info("Initializing fault tolerance services")
+            await self._initialize_fault_tolerance_services(app)
             
             # Initialize LLM client (after LLM Guard service)
             await self._initialize_llm_client(app)
@@ -396,37 +395,21 @@ class ServiceFactory:
     async def _initialize_adapter_manager(self, app: FastAPI) -> None:
         """Initialize Dynamic Adapter Manager for adapter-based routing."""
         try:
-            if self.fault_tolerance_enabled:
-                # Use the new simplified fault tolerant adapter manager
-                from services.fault_tolerant_adapter_manager import FaultTolerantAdapterManager
-                from services.dynamic_adapter_manager import AdapterProxy
-                
-                # Create the fault tolerant adapter manager
-                adapter_manager = FaultTolerantAdapterManager(self.config, app.state)
-                
-                # Create an adapter proxy that provides a retriever-like interface
-                adapter_proxy = AdapterProxy(adapter_manager)
-                
-                # Store both the manager and proxy in app state
-                app.state.adapter_manager = adapter_manager
-                app.state.retriever = adapter_proxy  # LLM clients expect 'retriever'
-                
-                self.logger.info("Simplified Fault Tolerant Adapter Manager initialized successfully")
-            else:
-                # Use regular dynamic adapter manager
-                from services.dynamic_adapter_manager import DynamicAdapterManager, AdapterProxy
-                
-                # Create the dynamic adapter manager
-                adapter_manager = DynamicAdapterManager(self.config, app.state)
-                
-                # Create an adapter proxy that provides a retriever-like interface
-                adapter_proxy = AdapterProxy(adapter_manager)
-                
-                # Store both the manager and proxy in app state
-                app.state.adapter_manager = adapter_manager
-                app.state.retriever = adapter_proxy  # LLM clients expect 'retriever'
-                
-                self.logger.info("Dynamic Adapter Manager initialized successfully")
+            # Always use fault tolerant adapter manager (core functionality)
+            from services.fault_tolerant_adapter_manager import FaultTolerantAdapterManager
+            from services.dynamic_adapter_manager import AdapterProxy
+            
+            # Create the fault tolerant adapter manager
+            adapter_manager = FaultTolerantAdapterManager(self.config, app.state)
+            
+            # Create an adapter proxy that provides a retriever-like interface
+            adapter_proxy = AdapterProxy(adapter_manager)
+            
+            # Store both the manager and proxy in app state
+            app.state.adapter_manager = adapter_manager
+            app.state.retriever = adapter_proxy  # LLM clients expect 'retriever'
+            
+            self.logger.info("Fault Tolerant Adapter Manager initialized successfully")
             
             # Log available adapters - use the base adapter manager for both types
             base_adapter_manager = adapter_manager.base_adapter_manager if hasattr(adapter_manager, 'base_adapter_manager') else adapter_manager

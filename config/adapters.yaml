@@ -29,10 +29,18 @@ adapters:
     fault_tolerance:
       operation_timeout: 15.0          # Lower timeout for local database operations
       failure_threshold: 10            # Higher threshold for local operations (more reliable)
+      recovery_timeout: 30.0           # Short base timeout for local DB
+      success_threshold: 5             # Multiple successes to close circuit
+      max_recovery_timeout: 120.0      # Max 2 minutes for local DB
+      enable_exponential_backoff: true # Enable backoff for local DB
       enable_thread_isolation: false   # No isolation needed for local SQLite operations
       enable_process_isolation: false  # SQLite is lightweight, no process isolation needed
       max_retries: 3                   # Retry failed queries
       retry_delay: 0.5                 # Short delay between retries for local DB
+      cleanup_interval: 3600.0         # Clean up stats every hour
+      retention_period: 86400.0        # Keep stats for 24 hours
+      event_handler:
+        type: "default"                # Use default filesystem logger
       
   - name: "qa-vector-chroma"
     type: "retriever"
@@ -51,10 +59,18 @@ adapters:
     fault_tolerance:
       operation_timeout: 25.0          # Longer timeout for network operations
       failure_threshold: 3             # Lower threshold for external service
+      recovery_timeout: 60.0           # Longer base timeout for network service
+      success_threshold: 2             # Fewer successes to close circuit
+      max_recovery_timeout: 600.0      # Max 10 minutes for network service
+      enable_exponential_backoff: true # Enable backoff for network service
       enable_thread_isolation: true    # Use thread isolation for network operations
       enable_process_isolation: false  # Thread isolation sufficient for most cases
       max_retries: 2                   # Fewer retries for network operations
       retry_delay: 1.0                 # Longer delay between retries
+      cleanup_interval: 1800.0         # Clean up stats every 30 minutes (more frequent for network ops)
+      retention_period: 43200.0        # Keep stats for 12 hours
+      event_handler:
+        type: "default"                # Use default filesystem logger
       
   - name: "qa-vector-qdrant"
     type: "retriever"
@@ -73,10 +89,18 @@ adapters:
     fault_tolerance:
       operation_timeout: 10.0          # Reduced timeout for faster failure detection
       failure_threshold: 2             # Lower threshold for external service
+      recovery_timeout: 45.0           # Moderate base timeout for Qdrant
+      success_threshold: 1             # Single success to close circuit (aggressive)
+      max_recovery_timeout: 300.0      # Max 5 minutes for Qdrant
+      enable_exponential_backoff: true # Enable backoff for Qdrant
       enable_thread_isolation: true    # Use thread isolation for network operations
       enable_process_isolation: false  # Thread isolation sufficient
       max_retries: 1                   # Fewer retries for network operations
       retry_delay: 1.0                 # Shorter delay for Qdrant
+      cleanup_interval: 1800.0         # Clean up stats every 30 minutes
+      retention_period: 43200.0        # Keep stats for 12 hours
+      event_handler:
+        type: "default"                # Use default filesystem logger
       
   - name: "file-vector"
     type: "retriever"
@@ -99,7 +123,15 @@ adapters:
     fault_tolerance:
       operation_timeout: 35.0          # Longer timeout for file operations (larger datasets)
       failure_threshold: 5             # More tolerance for file operations
+      recovery_timeout: 45.0           # Moderate base timeout for file operations
+      success_threshold: 3             # Multiple successes to close circuit
+      max_recovery_timeout: 300.0      # Max 5 minutes for file operations
+      enable_exponential_backoff: true # Enable backoff for file operations
       enable_thread_isolation: true    # Use thread isolation for file processing
       enable_process_isolation: false  # Thread isolation sufficient for file operations
       max_retries: 3                   # More retries for file operations
       retry_delay: 2.0                 # Longer delay for file operations
+      cleanup_interval: 7200.0         # Clean up stats every 2 hours (less frequent for file ops)
+      retention_period: 172800.0       # Keep stats for 48 hours (longer retention for file ops)
+      event_handler:
+        type: "default"                # Use default filesystem logger

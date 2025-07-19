@@ -330,15 +330,11 @@ class RouteConfigurator:
         else:
             self.logger.info("Authentication routes skipped (auth disabled)")
         
-        # Include health routes if fault tolerance is enabled
-        fault_tolerance_enabled = _is_true_value(self.config.get('fault_tolerance', {}).get('enabled', False))
-        if fault_tolerance_enabled:
-            from routes.health_routes import create_health_router
-            health_router = create_health_router()
-            app.include_router(health_router)
-            self.logger.info("Health routes registered")
-        else:
-            self.logger.info("Health routes skipped (fault tolerance disabled)")
+        # Include health routes (always enabled as core functionality)
+        from routes.health_routes import create_health_router
+        health_router = create_health_router()
+        app.include_router(health_router)
+        self.logger.info("Health routes registered")
     
     async def _process_mcp_request(
         self, 

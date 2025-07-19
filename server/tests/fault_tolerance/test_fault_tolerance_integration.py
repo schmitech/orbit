@@ -11,18 +11,12 @@ import logging
 import os
 import sys
 import time
-from pathlib import Path
 from unittest.mock import Mock, AsyncMock, patch, MagicMock
 import pytest
-import pytest_asyncio
 from copy import deepcopy
 
-# Get the directory of this script
-SCRIPT_DIR = Path(__file__).parent.absolute()
-
 # Add server directory to Python path
-SERVER_DIR = SCRIPT_DIR.parent
-sys.path.append(str(SERVER_DIR))
+sys.path.append(os.path.join(os.path.dirname(__file__), '../../'))
 
 from services.circuit_breaker import CircuitBreakerService
 from services.fault_tolerant_adapter_manager import FaultTolerantAdapterManager
@@ -568,37 +562,37 @@ class TestFaultToleranceConfigurationVariations:
         await executor.cleanup()
     
     @pytest.mark.asyncio
-    async def test_disabled_fault_tolerance(self, mock_app_state):
-        """Test behavior when fault tolerance is disabled"""
+    async def test_fault_tolerance_always_enabled(self, mock_app_state):
+        """Test that fault tolerance is always enabled"""
         config = INTEGRATION_TEST_CONFIG.copy()
-        config['fault_tolerance']['enabled'] = False
+        # Remove the enabled setting - fault tolerance should still be enabled
+        config['fault_tolerance'].pop('enabled', None)
         
-        with patch('services.fault_tolerant_adapter_manager.DynamicAdapterManager') as mock_dam:
+        with patch('services.fault_tolerant_adapter_manager.DynamicAdapterManager') as mock_dam, \
+             patch('services.fault_tolerant_adapter_manager.ParallelAdapterExecutor') as mock_pae:
+            
             mock_base_manager = Mock()
-            
-            # Mock the get_relevant_context method to return a list
-            mock_base_manager.get_relevant_context = AsyncMock(return_value=["fallback result"])
             mock_base_manager.get_available_adapters = Mock(return_value=["fast-adapter"])
-            
-            # Mock get_adapter to return an adapter with get_relevant_context method
-            mock_adapter = Mock()
-            mock_adapter.get_relevant_context = AsyncMock(return_value=["fallback result"])
-            mock_base_manager.get_adapter = AsyncMock(return_value=mock_adapter)
-            
             mock_dam.return_value = mock_base_manager
+            
+            mock_parallel_executor = Mock()
+            mock_parallel_executor.execute_adapters = AsyncMock(return_value=[
+                Mock(success=True, data=["result from parallel"], adapter_name="fast-adapter")
+            ])
+            mock_pae.return_value = mock_parallel_executor
             
             manager = FaultTolerantAdapterManager(config, mock_app_state)
             
-            # Should not have parallel executor
-            assert manager.fault_tolerance_enabled is False
-            assert manager.parallel_executor is None
+            # Should always have fault tolerance enabled
+            assert manager.fault_tolerance_enabled is True
+            assert manager.parallel_executor == mock_parallel_executor
             
-            # Should use base manager directly
-            result = await manager.get_relevant_context("disabled test")
-            assert result == ["fallback result"]
-            # When fault tolerance is disabled, it calls get_adapter and then the adapter's get_relevant_context
-            mock_base_manager.get_adapter.assert_called_once()
-            mock_adapter.get_relevant_context.assert_called_once()
+            # Should use parallel executor
+            result = await manager.get_relevant_context("always enabled test")
+            assert len(result) == 1
+            assert result[0]["content"] == "result from parallel"
+            assert result[0]["source_adapter"] == "fast-adapter"
+            mock_parallel_executor.execute_adapters.assert_called_once()
 
 
 if __name__ == "__main__":

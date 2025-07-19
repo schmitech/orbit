@@ -324,8 +324,8 @@ class InferenceServer:
         if hasattr(app.state, 'chat_history_service'):
             add_shutdown_task(app.state.chat_history_service, 'Chat History Service')
         
-        # Close fault tolerance services if enabled
-        if hasattr(self.service_factory, 'fault_tolerance_enabled') and self.service_factory.fault_tolerance_enabled:
+        # Close fault tolerance services
+        if hasattr(self.service_factory, '_shutdown_fault_tolerance_services'):
             try:
                 await self.service_factory._shutdown_fault_tolerance_services(app)
             except Exception as e:

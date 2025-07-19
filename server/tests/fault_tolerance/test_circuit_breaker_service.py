@@ -14,13 +14,12 @@ import time
 from pathlib import Path
 from unittest.mock import Mock, AsyncMock, patch
 import pytest
-import pytest_asyncio
 
 # Get the directory of this script
 SCRIPT_DIR = Path(__file__).parent.absolute()
 
-# Add server directory to Python path
-SERVER_DIR = SCRIPT_DIR.parent
+# Add server directory to Python path (go up two levels: fault_tolerance -> tests -> server)
+SERVER_DIR = SCRIPT_DIR.parent.parent
 sys.path.append(str(SERVER_DIR))
 
 from services.circuit_breaker import (

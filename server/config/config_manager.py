@@ -82,17 +82,13 @@ def _log_config_summary(config: Dict[str, Any], source_path: str):
     else:
         logger.info(f"Inference: {inference_provider}")
     
-    # Log fault tolerance configuration
+    # Log fault tolerance configuration (always enabled)
     fault_tolerance_config = config.get('fault_tolerance', {})
-    fault_tolerance_enabled = _is_true_value(fault_tolerance_config.get('enabled', False))
-    if fault_tolerance_enabled:
-        circuit_breaker_config = fault_tolerance_config.get('circuit_breaker', {})
-        execution_config = fault_tolerance_config.get('execution', {})
-        logger.info(f"Fault Tolerance: enabled - strategy={execution_config.get('strategy', 'all')}, "
-                   f"circuit_breaker_threshold={circuit_breaker_config.get('failure_threshold', 5)}, "
-                   f"timeout={execution_config.get('timeout', 35)}s")
-    else:
-        logger.info("Fault Tolerance: disabled")
+    circuit_breaker_config = fault_tolerance_config.get('circuit_breaker', {})
+    execution_config = fault_tolerance_config.get('execution', {})
+    logger.info(f"Fault Tolerance: enabled - strategy={execution_config.get('strategy', 'all')}, "
+               f"circuit_breaker_threshold={circuit_breaker_config.get('failure_threshold', 5)}, "
+               f"timeout={execution_config.get('timeout', 35)}s")
 
 
 def _mask_url(url: str) -> str:
