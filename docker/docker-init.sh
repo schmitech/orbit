@@ -19,27 +19,32 @@ PULL_MODEL=true
 CREATE_DEFAULT_CONFIG=true
 CONFIG_FILE=""
 
-# GGUF model config file (.conf)
-GGUF_MODELS_CONFIG="../install/gguf-models.conf"
+# GGUF model config file (.json)
+GGUF_MODELS_CONFIG="../install/gguf-models.json"
 GGUF_MODELS_TO_DOWNLOAD=()
 
-# Function to get URL for a model from config file
-get_model_url() {
+# Function to get model info from JSON config file
+get_model_info() {
     local model_name="$1"
     local config_file="$2"
-    
     if [ ! -f "$config_file" ]; then
         return 1
     fi
-    
-    while IFS='=' read -r model url; do
-        [[ "$model" =~ ^#.*$ || -z "$model" ]] && continue  # skip comments/empty
-        if [ "$model" = "$model_name" ]; then
-            echo "$url"
-            return 0
-        fi
-    done < "$config_file"
-    return 1
+    python3 -c "
+import json
+import sys
+try:
+    with open('$config_file', 'r') as f:
+        config = json.load(f)
+    if '$model_name' in config['models']:
+        model_info = config['models']['$model_name']
+        print(f\"{model_info['repo_id']}\")
+        print(f\"{model_info['filename']}\")
+    else:
+        sys.exit(1)
+except Exception as e:
+    sys.exit(1)
+"
 }
 
 # Get the directory where this script is located
@@ -57,20 +62,26 @@ print_help() {
     echo "  --config <file>           Use specific config file (overrides config directory)"
     echo "  --no-default-config       Don't create default config directory if none exists"
     echo "  --download-gguf [model]   Download GGUF model(s) by name (can be used multiple times)"
-    echo "  --gguf-models-config <f>  Path to GGUF models .conf config (default: ../gguf-models.conf)"
+    echo "  --gguf-models-config <f>  Path to GGUF models .json config (default: ../gguf-models.json)"
     echo "  --no-pull-model           Don't pull Ollama model"
     echo "  --verbose                 Show verbose output"
     echo "  --help                    Show this help message"
     echo ""
-    echo "GGUF models .conf example (../install/gguf-models.conf):"
-    echo "gemma-3-1b=https://huggingface.co/unsloth/gemma-3-1b-it-GGUF/resolve/main/gemma-3-1b-it-Q4_0.gguf"
-    echo "my-kaggle-model.gguf=https://www.kaggle.com/models/your/model/download/my-kaggle-model.gguf"
+    echo "GGUF models .json example (../install/gguf-models.json):"
+    echo "{"
+    echo "  \"models\": {"
+    echo "    \"gemma3-1b.gguf\": {"
+    echo "      \"repo_id\": \"unsloth/gemma-3-1b-it-GGUF\","
+    echo "      \"filename\": \"gemma-3-1b-it-Q4_0.gguf\""
+    echo "    }"
+    echo "  }"
+    echo "}"
     echo ""
     echo "Examples:"
     echo "  ./docker-init.sh --build --profile minimal"
-    echo "  ./docker-init.sh --rebuild --profile all --download-gguf gemma-3-1b"
-    echo "  ./docker-init.sh --download-gguf my-kaggle-model.gguf --gguf-models-config ../my-gguf-list.conf"
-    echo "  ./docker-init.sh --download-gguf gemma-3-1b --download-gguf another-model.gguf"
+    echo "  ./docker-init.sh --rebuild --profile all --download-gguf gemma3-1b.gguf"
+    echo "  ./docker-init.sh --download-gguf tinyllama-1b.gguf --gguf-models-config ../my-gguf-list.json"
+    echo "  ./docker-init.sh --download-gguf gemma3-1b.gguf --download-gguf mistral-7b.gguf"
     echo "  ./docker-init.sh --config /path/to/config.yaml  # Use specific config file"
     echo "  ./docker-init.sh  # Use config directory structure from ../config/"
     exit 0
@@ -143,7 +154,7 @@ fi
 
 # Create necessary directories (relative to script directory)
 echo -e "${YELLOW}📁 Creating required directories...${NC}"
-mkdir -p ../logs ../data ../gguf ../install
+mkdir -p ../logs ../data ../models ../install
 
 # Handle config files
 if [ -n "$CONFIG_FILE" ]; then
@@ -214,17 +225,25 @@ if [ "$DOWNLOAD_GGUF" = true ]; then
     fi
 
     echo -e "${YELLOW}📥 Downloading GGUF model(s)...${NC}"
-    mkdir -p ../gguf
+    mkdir -p ../models
 
     for model in "${GGUF_MODELS_TO_DOWNLOAD[@]}"; do
-        url=$(get_model_url "$model" "$GGUF_MODELS_CONFIG")
-        if [ -z "$url" ]; then
+        model_info=$(get_model_info "$model" "$GGUF_MODELS_CONFIG")
+        if [ $? -ne 0 ]; then
             echo -e "${RED}❌ Unknown GGUF model: $model (not found in $GGUF_MODELS_CONFIG)${NC}"
             continue
         fi
-        if [ ! -f "../gguf/$model" ]; then
-            echo -e "${BLUE}ℹ️  Downloading $model...${NC}"
-            if curl -L "$url" -o "../gguf/$model" --progress-bar; then
+        
+        # Parse the model info (repo_id and filename)
+        repo_id=$(echo "$model_info" | head -n 1)
+        filename=$(echo "$model_info" | tail -n 1)
+        
+        if [ ! -f "../models/$model" ]; then
+            echo -e "${BLUE}ℹ️  Downloading $model from $repo_id...${NC}"
+            if python3 "../install/download_hf_gguf_model.py" \
+                --repo-id "$repo_id" \
+                --filename "$filename" \
+                --output-dir "../models"; then
                 echo -e "${GREEN}✅ $model downloaded successfully${NC}"
             else
                 echo -e "${RED}❌ Failed to download $model${NC}"

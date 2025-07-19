@@ -93,12 +93,21 @@ dependencies = [
 
 ## Model Configuration
 
-GGUF models are configured in the `gguf-models.conf` file:
+GGUF models are configured in the `gguf-models.json` file:
 
-```bash
-# Example gguf-models.conf
-gemma3-1b.gguf=https://huggingface.co/unsloth/gemma-3-1b-it-GGUF/resolve/main/gemma-3-1b-it-Q4_0.gguf
-my-kaggle-model.gguf=https://www.kaggle.com/models/your/model/download/my-kaggle-model.gguf
+```json
+{
+  "models": {
+    "gemma3-1b.gguf": {
+      "repo_id": "unsloth/gemma-3-1b-it-GGUF",
+      "filename": "gemma-3-1b-it-Q4_0.gguf"
+    },
+    "tinyllama-1b.gguf": {
+      "repo_id": "TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF",
+      "filename": "tinyllama-1.1b-chat-v1.0.q4_0.gguf"
+    }
+  }
+}
 ```
 
 ## 📦 ORBIT Packaging and Distribution Guide

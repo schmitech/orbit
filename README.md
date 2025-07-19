@@ -33,7 +33,7 @@ cd orbit-1.2.0
 # Create environment file from template
 cp .env.example .env
 
-# Models are defined in gguf-models.conf - add your preferred model to the config file
+# Models are defined in gguf-models.json - add your preferred model to the config file
 # Default uses gemma3-1b.gguf for quick testing on low-resource devices
 # You may also use /utils/download_hf_gguf_model.py to download GGUF files
 ./install/setup.sh --profile minimal --download-gguf gemma3-1b.gguf

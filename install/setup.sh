@@ -27,18 +27,26 @@
 #
 #   With GGUF model:
 #     ./setup.sh --profile minimal --download-gguf gemma3-1b.gguf
-#     ./setup.sh --download-gguf my-kaggle-model.gguf --gguf-models-config ./gguf-models.conf
-#     ./setup.sh --download-gguf gemma3-1b.gguf --download-gguf another-model.gguf
+#     ./setup.sh --download-gguf gemma3-1b.gguf  # Download only, no dependency installation
+#     ./setup.sh --download-gguf tinyllama-1b.gguf --gguf-models-config ./gguf-models.json
+#     ./setup.sh --download-gguf gemma3-1b.gguf --download-gguf mistral-7b.gguf
 #
 #   Custom profile from TOML:
 #     ./setup.sh --profile custom_example
 #
 # GGUF Model Download Options:
 #   --download-gguf [model]    Download GGUF model(s) by name (can be used multiple times)
-#   --gguf-models-config <f>   Path to GGUF models .conf config (default: ./gguf-models.conf)
+#   --gguf-models-config <f>   Path to GGUF models .json config (default: ./gguf-models.json)
 #
 # The GGUF model(s) to download must be defined in the config file as:
-#   model-name.gguf=https://url/to/model.gguf
+#   {
+#     "models": {
+#       "model-name.gguf": {
+#         "repo_id": "username/repository-name",
+#         "filename": "model-file.gguf"
+#       }
+#     }
+#   }
 #
 # If --download-gguf is used without a value, it defaults to gemma3-1b.gguf if present in the config.
 # =============================================================================
@@ -239,32 +247,36 @@ get_model_info() {
     echo "$result"
 }
 
-# Function to get URL for a model from config file
-get_model_url() {
+# Function to get model info from JSON config file
+get_model_info() {
     local model_name="$1"
     local config_file="$2"
     if [ ! -f "$config_file" ]; then
         return 1
     fi
-    while IFS='=' read -r model url; do
-        [[ "$model" =~ ^#.*$ || -z "$model" ]] && continue  # skip comments/empty
-        if [ "$model" = "$model_name" ]; then
-            echo "$url"
-            return 0
-        fi
-    done < "$config_file"
-    return 1
+    python3 -c "
+import json
+import sys
+try:
+    with open('$config_file', 'r') as f:
+        config = json.load(f)
+    if '$model_name' in config['models']:
+        model_info = config['models']['$model_name']
+        print(f\"{model_info['repo_id']}\")
+        print(f\"{model_info['filename']}\")
+    else:
+        sys.exit(1)
+except Exception as e:
+    sys.exit(1)
+"
 }
 
-# Refactored GGUF model download function
-# Downloads all models in GGUF_MODELS_TO_DOWNLOAD using GGUF_MODELS_CONFIG
-# If GGUF_MODELS_TO_DOWNLOAD is empty, downloads default model (gemma3-1b.gguf) if present in config
-
+# Function to download GGUF models using the Python script
 download_gguf_model() {
     PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-    GGUF_DIR="$PROJECT_ROOT/gguf"
-    mkdir -p "$GGUF_DIR"
-    print_message "blue" "GGUF directory: $GGUF_DIR"
+    MODELS_DIR="$PROJECT_ROOT/models"
+    mkdir -p "$MODELS_DIR"
+    print_message "blue" "Models directory: $MODELS_DIR"
 
     if [ ! -f "$GGUF_MODELS_CONFIG" ]; then
         print_message "red" "GGUF models config file not found: $GGUF_MODELS_CONFIG"
@@ -276,24 +288,33 @@ download_gguf_model() {
         GGUF_MODELS_TO_DOWNLOAD+=("gemma3-1b.gguf")
     fi
 
-    print_message "yellow" "Downloading GGUF model(s)..."
+    print_message "yellow" "Downloading GGUF model(s) using download_hf_gguf_model.py..."
     for model in "${GGUF_MODELS_TO_DOWNLOAD[@]}"; do
-        url=$(get_model_url "$model" "$GGUF_MODELS_CONFIG")
-        if [ -z "$url" ]; then
+        model_info=$(get_model_info "$model" "$GGUF_MODELS_CONFIG")
+        if [ $? -ne 0 ]; then
             print_message "red" "Unknown GGUF model: $model (not found in $GGUF_MODELS_CONFIG)"
             continue
         fi
-        if [ ! -f "$GGUF_DIR/$model" ]; then
-            print_message "blue" "Downloading $model..."
-            if curl -L "$url" -o "$GGUF_DIR/$model" --progress-bar; then
-                print_message "green" "$model downloaded successfully to: $GGUF_DIR/$model"
-                print_message "blue" "File size: $(du -h "$GGUF_DIR/$model" | cut -f1)"
+        
+        # Parse the model info (repo_id and filename)
+        repo_id=$(echo "$model_info" | head -n 1)
+        filename=$(echo "$model_info" | tail -n 1)
+        
+        # Check if the actual downloaded file exists (using the filename from config)
+        if [ ! -f "$MODELS_DIR/$filename" ]; then
+            print_message "blue" "Downloading $model from $repo_id..."
+            if python3 "$SCRIPT_DIR/download_hf_gguf_model.py" \
+                --repo-id "$repo_id" \
+                --filename "$filename" \
+                --output-dir "$MODELS_DIR"; then
+                print_message "green" "$model downloaded successfully to: $MODELS_DIR/$filename"
+                print_message "blue" "File size: $(du -h "$MODELS_DIR/$filename" | cut -f1)"
             else
                 print_message "red" "Failed to download $model"
                 exit 1
             fi
         else
-            print_message "blue" "$model already exists at $GGUF_DIR/$model"
+            print_message "blue" "$model already exists at $MODELS_DIR/$filename"
         fi
     done
 }
@@ -303,7 +324,7 @@ DOWNLOAD_GGUF=false
 PROFILES=()
 LIST_PROFILES=false
 GGUF_MODELS_TO_DOWNLOAD=()
-GGUF_MODELS_CONFIG="$SCRIPT_DIR/gguf-models.conf"
+GGUF_MODELS_CONFIG="$SCRIPT_DIR/gguf-models.json"
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -347,7 +368,7 @@ while [[ $# -gt 0 ]]; do
             echo "                          Can be used multiple times"
             echo "  --list-profiles, --list List available dependency profiles"
             echo "  --download-gguf         Download GGUF model(s) as specified by --gguf-model"
-            echo "  --gguf-models-config <f>Path to GGUF models .conf config (default: ./gguf-models.conf)"
+            echo "  --gguf-models-config <f>Path to GGUF models .json config (default: ./gguf-models.json)"
             echo "  --help, -h              Show this help message"
             echo ""
             echo "Examples:"
@@ -355,7 +376,8 @@ while [[ $# -gt 0 ]]; do
             echo "  $0 --profile minimal"
             echo "  $0 --profile torch --profile commercial"
             echo "  $0 --profile all --download-gguf gemma3-1b.gguf"
-            echo "  $0 --download-gguf my-kaggle-model.gguf --gguf-models-config ./gguf-models.conf"
+            echo "  $0 --download-gguf gemma3-1b.gguf  # Download only, no dependency installation"
+            echo "  $0 --download-gguf tinyllama-1b.gguf --gguf-models-config ./gguf-models.json"
             exit 0
             ;;
         *)
@@ -382,6 +404,50 @@ fi
 if [ "$LIST_PROFILES" = true ]; then
     print_message "blue" "Available dependency profiles:"
     list_profiles
+    exit 0
+fi
+
+# Check if only GGUF download is requested (no profiles specified)
+if [ ${#PROFILES[@]} -eq 0 ] && [ "$DOWNLOAD_GGUF" = true ]; then
+    print_message "blue" "GGUF model download only mode - skipping dependency installation"
+    
+    # Create virtual environment if it doesn't exist (needed for download script)
+    if [ ! -d "venv" ]; then
+        print_message "yellow" "Creating Python virtual environment for download script..."
+        if ! python3 -m venv venv; then
+            print_message "red" "Error: Failed to create virtual environment."
+            exit 1
+        fi
+        print_message "green" "Virtual environment created successfully."
+    fi
+    
+    # Activate virtual environment (needed for download script dependencies)
+    print_message "yellow" "Activating virtual environment..."
+    source venv/bin/activate
+    
+    # Install minimal dependencies needed for download script
+    print_message "yellow" "Installing minimal dependencies for download script..."
+    if ! pip install requests tqdm pyyaml; then
+        print_message "red" "Error: Failed to install download script dependencies."
+        exit 1
+    fi
+    
+    # Download GGUF model if requested
+    if [ "$DOWNLOAD_GGUF" = true ]; then
+        download_gguf_model
+    fi
+    
+    # Handle .env files in server directory
+    if [ -f "server/.env.example" ] && [ ! -f "server/.env" ]; then
+        cp server/.env.example server/.env
+        print_message "green" "Created .env from template in server directory."
+    fi
+    
+    # Summary for download-only mode
+    print_message "green" "\n=== GGUF model download completed! ==="
+    if [ "$DOWNLOAD_GGUF" = true ]; then
+        print_message "blue" "  ✓ GGUF model downloaded"
+    fi
     exit 0
 fi
 
