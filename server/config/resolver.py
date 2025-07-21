@@ -7,7 +7,7 @@ including inference, embedding, datasource, and reranker providers.
 
 import logging
 from typing import Dict, Any
-from config.config_manager import _is_true_value
+from utils import is_true_value
 
 
 class ConfigResolver:
@@ -62,7 +62,7 @@ class ConfigResolver:
             Other providers are skipped to minimize resource usage.
         """
         # Check if inference_only is enabled
-        inference_only = _is_true_value(self.config.get('general', {}).get('inference_only', False))
+        inference_only = is_true_value(self.config.get('general', {}).get('inference_only', False))
         
         # Get selected providers
         inference_provider = self.config['general'].get('inference_provider', 'ollama')

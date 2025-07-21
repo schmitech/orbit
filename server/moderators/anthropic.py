@@ -10,7 +10,7 @@ from typing import Dict, Any, Optional
 logger = logging.getLogger(__name__)
 
 from .base import ModeratorService, ModerationResult
-from config.config_manager import _is_true_value
+from utils import is_true_value
 
 class AnthropicModerator(ModeratorService):
     """
@@ -86,7 +86,7 @@ class AnthropicModerator(ModeratorService):
             # Check if verbose mode is enabled in config
             verbose = self.config.get('general', {}).get('verbose', False)
             
-            if _is_true_value(verbose):
+            if is_true_value(verbose):
                 logger.info(f"🔍 Moderating content with Anthropic: {content[:50]}...")
             
             # Simpler system prompt to ensure valid JSON response
@@ -157,7 +157,7 @@ class AnthropicModerator(ModeratorService):
                 categories = result["categories"]
                 
                 # Only log high confidence categories in verbose mode
-                if _is_true_value(verbose):
+                if is_true_value(verbose):
                     # Log high confidence categories
                     high_confidence_categories = {k: v for k, v in categories.items() if v > 0.5}
                     if high_confidence_categories:

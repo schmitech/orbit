@@ -15,7 +15,6 @@ __all__ = [
     'PromptService',
     'HealthService',
     'LLMGuardService',
-    'CircuitBreakerService',
     'FaultTolerantAdapterManager',
     'ParallelAdapterExecutor',
     'DynamicAdapterManager'

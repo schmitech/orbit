@@ -10,7 +10,7 @@ import logging
 from typing import Dict, Any, Optional
 from fastapi import FastAPI
 
-from config.config_manager import _is_true_value
+from utils import is_true_value
 from inference import LLMClientFactory
 from services.auth_service import AuthService
 
@@ -37,9 +37,9 @@ class ServiceFactory:
         """
         self.config = config
         self.logger = logger
-        self.inference_only = _is_true_value(config.get('general', {}).get('inference_only', False))
-        self.chat_history_enabled = _is_true_value(config.get('chat_history', {}).get('enabled', False))
-        self.verbose = _is_true_value(config.get('general', {}).get('verbose', False))
+        self.inference_only = is_true_value(config.get('general', {}).get('inference_only', False))
+        self.chat_history_enabled = is_true_value(config.get('chat_history', {}).get('enabled', False))
+        self.verbose = is_true_value(config.get('general', {}).get('verbose', False))
         
         # Fault tolerance is always enabled as core functionality
         self.fault_tolerance_enabled = True
@@ -73,7 +73,7 @@ class ServiceFactory:
             # Initialize fault tolerance services (always enabled)
             if self.verbose:
                 self.logger.info("Initializing fault tolerance services")
-            await self._initialize_fault_tolerance_services(app)
+            # Fault tolerance is now handled by FaultTolerantAdapterManager directly
             
             # Initialize LLM client (after LLM Guard service)
             await self._initialize_llm_client(app)
@@ -90,7 +90,7 @@ class ServiceFactory:
     async def _initialize_core_services(self, app: FastAPI) -> None:
         """Initialize core services that are always needed."""
         # Check if authentication is enabled
-        auth_enabled = _is_true_value(self.config.get('auth', {}).get('enabled', False))
+        auth_enabled = is_true_value(self.config.get('auth', {}).get('enabled', False))
         
         # Initialize MongoDB service if needed
         await self._initialize_mongodb_if_needed(app, auth_enabled)
@@ -143,7 +143,7 @@ class ServiceFactory:
     
     async def _initialize_auth_service(self, app: FastAPI) -> None:
         """Initialize the authentication service"""
-        auth_enabled = _is_true_value(self.config.get('auth', {}).get('enabled', False))
+        auth_enabled = is_true_value(self.config.get('auth', {}).get('enabled', False))
         
         if not auth_enabled:
             self.logger.info("Authentication service disabled in configuration")
@@ -180,7 +180,7 @@ class ServiceFactory:
         
         # Initialize API key service only if MongoDB is available and auth is disabled
         # (API key service is used for admin operations when auth is disabled but MongoDB is available)
-        auth_enabled = _is_true_value(self.config.get('auth', {}).get('enabled', False))
+        auth_enabled = is_true_value(self.config.get('auth', {}).get('enabled', False))
         if not auth_enabled and app.state.mongodb_service is not None:
             self.logger.info("Authentication disabled but MongoDB available - initializing API key service for admin operations")
             await self._initialize_api_key_service(app)
@@ -229,7 +229,7 @@ class ServiceFactory:
         await self._initialize_llm_guard_service(app)
         
         # Initialize Reranker Service if enabled and not in inference-only mode
-        if not self.inference_only and _is_true_value(self.config.get('reranker', {}).get('enabled', False)):
+        if not self.inference_only and is_true_value(self.config.get('reranker', {}).get('enabled', False)):
             await self._initialize_reranker_service(app)
         else:
             app.state.reranker_service = None
@@ -304,7 +304,7 @@ class ServiceFactory:
     
     async def _initialize_redis_service(self, app: FastAPI) -> None:
         """Initialize Redis service if enabled."""
-        redis_enabled = _is_true_value(self.config.get('internal_services', {}).get('redis', {}).get('enabled', False))
+        redis_enabled = is_true_value(self.config.get('internal_services', {}).get('redis', {}).get('enabled', False))
         if redis_enabled:
             from services.redis_service import RedisService
             
@@ -315,7 +315,7 @@ class ServiceFactory:
             self.logger.info("Redis configuration:")
             self.logger.info(f"  Host: {redis_config.get('host', 'localhost')}")
             self.logger.info(f"  Port: {redis_config.get('port', 6379)}")
-            self.logger.info(f"  SSL: {'enabled' if _is_true_value(redis_config.get('use_ssl', False)) else 'disabled'}")
+            self.logger.info(f"  SSL: {'enabled' if is_true_value(redis_config.get('use_ssl', False)) else 'disabled'}")
             self.logger.info(f"  Username: {'set' if redis_config.get('username') else 'not set'}")
             self.logger.info(f"  Password: {'set' if redis_config.get('password') else 'not set'}")
             
@@ -435,32 +435,10 @@ class ServiceFactory:
             self.logger.error(f"Failed to initialize Dynamic Adapter Manager: {str(e)}")
             raise
     
-    async def _initialize_fault_tolerance_services(self, app: FastAPI) -> None:
-        """Initialize fault tolerance services."""
-        try:
-            # Import required classes for simplified fault tolerance
-            from services.circuit_breaker import CircuitBreakerService
-            from services.fault_tolerant_adapter_manager import FaultTolerantAdapterManager
-            
-            # Initialize Circuit Breaker Service
-            app.state.circuit_breaker_service = CircuitBreakerService(self.config)
-            
-            # Note: FaultTolerantAdapterManager is now initialized in _initialize_adapter_manager method
-            
-            self.logger.info("Simplified fault tolerance services initialized successfully")
-            
-        except Exception as e:
-            self.logger.error(f"Failed to initialize fault tolerance services: {str(e)}")
-            raise
-
-    # Old health service registration method removed - no longer needed with simplified fault tolerance system
+    # Fault tolerance services initialization removed - now handled by FaultTolerantAdapterManager directly
     async def _shutdown_fault_tolerance_services(self, app: FastAPI) -> None:
         """Shutdown fault tolerance services."""
         try:
-            # Shutdown circuit breaker service
-            if hasattr(app.state, 'circuit_breaker_service'):
-                await app.state.circuit_breaker_service.cleanup()
-                
             # Shutdown fault tolerant adapter manager
             if hasattr(app.state, 'fault_tolerant_adapter_manager'):
                 # FaultTolerantAdapterManager doesn't have cleanup method, but parallel executor might
@@ -468,7 +446,7 @@ class ServiceFactory:
                     if app.state.fault_tolerant_adapter_manager.parallel_executor:
                         await app.state.fault_tolerant_adapter_manager.parallel_executor.cleanup()
                 
-            self.logger.info("Simplified fault tolerance services shutdown successfully")
+            self.logger.info("Fault tolerance services shutdown successfully")
             
         except Exception as e:
             self.logger.error(f"Error shutting down fault tolerance services: {str(e)}")
@@ -486,7 +464,7 @@ class ServiceFactory:
         safety_config = self.config.get('safety', {})
         
         # Check if safety is enabled
-        safety_enabled = _is_true_value(safety_config.get('enabled', False))
+        safety_enabled = is_true_value(safety_config.get('enabled', False))
         
         if safety_enabled:
             from services.moderator_service import ModeratorService
@@ -539,7 +517,7 @@ class ServiceFactory:
     async def _initialize_reranker_service(self, app: FastAPI) -> None:
         """Initialize Reranker Service if enabled."""
         # Early return if reranker is disabled
-        if not _is_true_value(self.config.get('reranker', {}).get('enabled', False)):
+        if not is_true_value(self.config.get('reranker', {}).get('enabled', False)):
             app.state.reranker_service = None
             self.logger.info("Reranker is disabled, skipping initialization")
             return

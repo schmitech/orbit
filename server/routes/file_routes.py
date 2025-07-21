@@ -7,7 +7,7 @@ from typing import Optional, List
 from fastapi import APIRouter, File, UploadFile, Form, Request, HTTPException, Depends
 from fastapi.responses import JSONResponse
 
-from config.config_manager import _is_true_value
+from utils import is_true_value
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +17,7 @@ file_router = APIRouter(prefix="/files", tags=["files"])
 def get_file_service(request: Request):
     """Get the file service from app state"""
     # Check if file upload is enabled
-    if not _is_true_value(request.app.state.config.get('file_upload', {}).get('enabled', True)):
+    if not is_true_value(request.app.state.config.get('file_upload', {}).get('enabled', True)):
         raise HTTPException(status_code=403, detail="File upload service is disabled")
 
     # Check for API key
@@ -25,7 +25,7 @@ def get_file_service(request: Request):
     api_key = request.headers.get(header_name)
     
     # Check if we're in inference-only mode
-    inference_only = _is_true_value(request.app.state.config.get('general', {}).get('inference_only', False))
+    inference_only = is_true_value(request.app.state.config.get('general', {}).get('inference_only', False))
     
     if not inference_only and not api_key:
         raise HTTPException(status_code=401, detail="API key required for file operations")
@@ -90,7 +90,7 @@ async def upload_file(
             metadata['tags'] = [tag.strip() for tag in metadata_tags.split(',') if tag.strip()]
         
         # Log upload attempt
-        if _is_true_value(request.app.state.config.get('general', {}).get('verbose', False)):
+        if is_true_value(request.app.state.config.get('general', {}).get('verbose', False)):
             logger.info(f"File upload attempt: {file.filename} ({len(file_content)} bytes)")
         
         # Process the file

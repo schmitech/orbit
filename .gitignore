@@ -60,3 +60,4 @@ uploads/
 yarn.lock
 package-lock.json
 sqlite_db
+CLAUDE.md

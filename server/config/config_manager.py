@@ -232,17 +232,7 @@ def _process_env_vars(config: Dict[str, Any]) -> Dict[str, Any]:
 # Removed _load_defaults_file() - no longer needed since config files are complete
 
 
-def _is_true_value(value) -> bool:
-    """Helper function to check if a value (string or boolean) is equivalent to True"""
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, str):
-        return value.lower() in ('true', 'yes', 'y', '1', 'on')
-    # Numeric values - 0 is False, anything else is True
-    if isinstance(value, (int, float)):
-        return bool(value)
-    # Default for anything else
-    return False
+
 
 
 # Removed get_default_config() - now using defaults.yaml file instead

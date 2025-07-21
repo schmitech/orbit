@@ -18,7 +18,7 @@ from copy import deepcopy
 # Add server directory to Python path
 sys.path.append(os.path.join(os.path.dirname(__file__), '../../'))
 
-from services.circuit_breaker import CircuitBreakerService
+# CircuitBreakerService removed - fault tolerance handled by ParallelAdapterExecutor
 from services.fault_tolerant_adapter_manager import FaultTolerantAdapterManager
 from services.parallel_adapter_executor import ParallelAdapterExecutor
 from services.dynamic_adapter_manager import DynamicAdapterManager
@@ -203,34 +203,7 @@ def mock_adapter_manager(mock_adapters):
 class TestFaultToleranceSystemIntegration:
     """Test complete fault tolerance system integration"""
     
-    @pytest.mark.asyncio
-    async def test_circuit_breaker_service_integration(self):
-        """Test CircuitBreakerService integration"""
-        service = CircuitBreakerService(INTEGRATION_TEST_CONFIG)
-        
-        # Test circuit breaker creation
-        cb1 = service.get_circuit_breaker("test-adapter-1")
-        cb2 = service.get_circuit_breaker("test-adapter-2")
-        
-        assert cb1.adapter_name == "test-adapter-1"
-        assert cb2.adapter_name == "test-adapter-2"
-        assert len(service.circuit_breakers) == 2
-        
-        # Test health status
-        health_status = service.get_health_status()
-        assert health_status["total_adapters"] == 2
-        assert health_status["healthy_adapters"] == 2
-        assert health_status["system_health"] == "healthy"
-        
-        # Test reset functionality
-        cb1.force_open()
-        assert cb1.state.state.value == "open"
-        
-        service.reset_circuit_breaker("test-adapter-1")
-        assert cb1.state.state.value == "closed"
-        
-        # Cleanup
-        await service.cleanup()
+    # Circuit breaker service test removed - functionality now in ParallelAdapterExecutor
     
     @pytest.mark.asyncio
     async def test_parallel_executor_integration(self, mock_adapter_manager):
@@ -418,7 +391,7 @@ class TestFaultToleranceSystemIntegration:
     async def test_health_monitoring_integration(self, mock_adapter_manager):
         """Test health monitoring across the system"""
         # Create services
-        circuit_breaker_service = CircuitBreakerService(INTEGRATION_TEST_CONFIG)
+        # Circuit breaker service removed - using ParallelAdapterExecutor directly
         executor = ParallelAdapterExecutor(mock_adapter_manager, INTEGRATION_TEST_CONFIG)
         
         # Execute some operations to generate health data
@@ -426,9 +399,10 @@ class TestFaultToleranceSystemIntegration:
         await executor.execute_adapters("health test 2", ["failing-adapter"])
         
         # Check circuit breaker service health
-        cb_health = circuit_breaker_service.get_health_status()
+        # Get health from parallel executor instead
+        cb_health = executor.get_health_status()
         assert "total_adapters" in cb_health
-        assert "system_health" in cb_health
+        assert "healthy_adapters" in cb_health
         
         # Check executor health
         executor_health = executor.get_health_status()
@@ -440,7 +414,7 @@ class TestFaultToleranceSystemIntegration:
         assert "fast-adapter" in cb_states or "failing-adapter" in cb_states
         
         # Cleanup
-        await circuit_breaker_service.cleanup()
+        # Cleanup handled by parallel executor
         await executor.cleanup()
     
     @pytest.mark.asyncio
@@ -525,7 +499,8 @@ class TestFaultToleranceConfigurationVariations:
         
         # Execute adapters with first_success strategy
         results = await executor.execute_adapters(
-            "first success test",            ["fast-adapter", "slow-adapter"]
+            "first success test", 
+            ["fast-adapter", "slow-adapter"]
         )
         
         # Should return as soon as first adapter succeeds
@@ -550,7 +525,8 @@ class TestFaultToleranceConfigurationVariations:
         
         # Execute adapters with best_effort strategy
         results = await executor.execute_adapters(
-            "best effort test",            ["fast-adapter", "slow-adapter", "failing-adapter"]
+            "best effort test", 
+            ["fast-adapter", "slow-adapter", "failing-adapter"]
         )
         
         # Should return whatever completes successfully within timeout

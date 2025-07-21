@@ -15,7 +15,7 @@ import logging
 import logging.handlers
 from typing import Dict, Any
 from pythonjsonlogger import jsonlogger
-from config.config_manager import _is_true_value
+from utils import is_true_value
 
 
 class LoggingConfigurator:
@@ -107,7 +107,7 @@ class LoggingConfigurator:
         
         # Configure console logging
         handlers = log_config.get('handlers', {})
-        console_enabled = _is_true_value(handlers.get('console', {}).get('enabled', True))
+        console_enabled = is_true_value(handlers.get('console', {}).get('enabled', True))
         if console_enabled:
             console_handler = logging.StreamHandler()
             console_format = handlers.get('console', {}).get('format', 'text')
@@ -116,7 +116,7 @@ class LoggingConfigurator:
             root_logger.addHandler(console_handler)
         
         # Configure file logging
-        file_enabled = _is_true_value(handlers.get('file', {}).get('enabled', True))
+        file_enabled = is_true_value(handlers.get('file', {}).get('enabled', True))
         if file_enabled:
             LoggingConfigurator._setup_file_logging(
                 root_logger, handlers.get('file', {}), 
@@ -128,20 +128,20 @@ class LoggingConfigurator:
             LoggingConfigurator._configure_specific_loggers(log_config)
         
         # Set propagation for root logger
-        root_logger.propagate = _is_true_value(log_config.get('propagate', False))
+        root_logger.propagate = is_true_value(log_config.get('propagate', False))
         
         # Capture warnings if configured
-        if _is_true_value(log_config.get('capture_warnings', True)):
+        if is_true_value(log_config.get('capture_warnings', True)):
             logging.captureWarnings(True)
         
         # Get a new logger instance for the calling module
         logger = logging.getLogger(__name__)
-        logger.propagate = _is_true_value(log_config.get('propagate', False))
+        logger.propagate = is_true_value(log_config.get('propagate', False))
         logger.info("Logging configuration completed")
         
         # Handle verbose setting consistently
         verbose_value = config.get('general', {}).get('verbose', False)
-        if _is_true_value(verbose_value):
+        if is_true_value(verbose_value):
             logger.debug("Verbose logging enabled")
         
         return logger
@@ -203,4 +203,4 @@ class LoggingConfigurator:
             logger = logging.getLogger(logger_name)
             logger_level = getattr(logging, logger_config.get('level', 'INFO').upper())
             logger.setLevel(logger_level)
-            logger.propagate = _is_true_value(log_config.get('propagate', False))
+            logger.propagate = is_true_value(log_config.get('propagate', False))

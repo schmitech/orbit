@@ -16,6 +16,7 @@ from elasticsearch.exceptions import ConnectionError, TransportError, NotFoundEr
 from fastapi import HTTPException
 
 from utils.text_utils import mask_api_key
+from utils import is_true_value
 
 # Configure basic logging
 logging.basicConfig(
@@ -23,24 +24,6 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
-
-
-def _is_true_value(value: Union[str, bool]) -> bool:
-    """
-    Convert a string or boolean value to a boolean.
-    
-    Args:
-        value: The value to check.
-        
-    Returns:
-        True if the value represents a true value, otherwise False.
-    """
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, str):
-        return value.lower() in ('true', 'yes', '1')
-    return False
-
 
 class IPMetadata(TypedDict):
     """Type definition for IP address metadata."""
@@ -58,7 +41,7 @@ class LoggerService:
         self.config = config
         self.es_client: Optional[AsyncElasticsearch] = None
         verbose_value = config.get('general', {}).get('verbose', False)
-        self.verbose = _is_true_value(verbose_value)
+        self.verbose = is_true_value(verbose_value)
         self._has_logged_es_disabled = False  # Add flag to track if we've logged ES disabled message
         
         # Get the inference provider from config

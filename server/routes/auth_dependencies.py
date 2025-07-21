@@ -10,7 +10,7 @@ import logging
 from typing import Optional, Dict, Any
 from fastapi import Request, HTTPException, Header, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from config.config_manager import _is_true_value
+from utils import is_true_value
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +21,7 @@ bearer_scheme = HTTPBearer(auto_error=False)
 async def get_auth_service(request: Request):
     """Get the authentication service from app state"""
     # Check if authentication is disabled in configuration
-    auth_enabled = _is_true_value(request.app.state.config.get('auth', {}).get('enabled', False))
+    auth_enabled = is_true_value(request.app.state.config.get('auth', {}).get('enabled', False))
     
     if not auth_enabled:
         logger.info("Authentication service disabled in configuration")
@@ -218,7 +218,7 @@ async def check_admin_or_api_key(
         HTTPException: If neither admin auth nor valid API key (only when auth is enabled)
     """
     # Check if authentication is disabled in configuration
-    auth_enabled = _is_true_value(request.app.state.config.get('auth', {}).get('enabled', False))
+    auth_enabled = is_true_value(request.app.state.config.get('auth', {}).get('enabled', False))
     
     # If authentication is disabled, allow access without any requirements
     if not auth_enabled:

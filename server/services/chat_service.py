@@ -11,7 +11,7 @@ import threading
 from queue import Queue
 
 from utils.text_utils import fix_text_formatting, mask_api_key
-from config.config_manager import _is_true_value
+from utils import is_true_value
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -82,11 +82,11 @@ class ChatService:
         self.chat_history_service = chat_history_service
         self.llm_guard_service = llm_guard_service
         self.moderator_service = moderator_service
-        self.verbose = _is_true_value(config.get('general', {}).get('verbose', False))
+        self.verbose = is_true_value(config.get('general', {}).get('verbose', False))
         
         # Chat history configuration
         self.chat_history_config = config.get('chat_history', {})
-        self.chat_history_enabled = _is_true_value(self.chat_history_config.get('enabled', True))
+        self.chat_history_enabled = is_true_value(self.chat_history_config.get('enabled', True))
         
         # Messages configuration
         self.messages_config = config.get('messages', {})

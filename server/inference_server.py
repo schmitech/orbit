@@ -14,7 +14,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Import local modules (ensure these exist in your project structure)
-from config.config_manager import load_config, _is_true_value
+from config.config_manager import load_config
+from utils import is_true_value
 from config.resolver import ConfigResolver
 from config.logging_configurator import LoggingConfigurator
 from config.middleware_configurator import MiddlewareConfigurator
@@ -177,7 +178,7 @@ class InferenceServer:
         """
         Initialize retrievers package and its dependencies only if not in inference_only mode.
         """
-        inference_only = _is_true_value(self.config.get('general', {}).get('inference_only', False))
+        inference_only = is_true_value(self.config.get('general', {}).get('inference_only', False))
         
         if not inference_only:
             global RetrieverFactory, ADAPTER_REGISTRY
@@ -354,7 +355,7 @@ class InferenceServer:
         Returns:
             An SSL context if HTTPS is enabled, None otherwise
         """
-        if not _is_true_value(self.config.get('general', {}).get('https', {}).get('enabled', False)):
+        if not is_true_value(self.config.get('general', {}).get('https', {}).get('enabled', False)):
             return None
         
         try:
@@ -402,7 +403,7 @@ class InferenceServer:
         host = self.config.get('general', {}).get('host', '0.0.0.0')
 
         # Use HTTPS if enabled in config
-        https_enabled = _is_true_value(self.config.get('general', {}).get('https', {}).get('enabled', False))
+        https_enabled = is_true_value(self.config.get('general', {}).get('https', {}).get('enabled', False))
         
         # Set SSL params based on config
         ssl_keyfile = None

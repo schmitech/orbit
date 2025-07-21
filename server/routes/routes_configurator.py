@@ -16,7 +16,7 @@ from fastapi import FastAPI, Request, Depends, HTTPException, Response
 from fastapi.responses import StreamingResponse
 from bson import ObjectId
 
-from config.config_manager import _is_true_value
+from utils import is_true_value
 from models.schema import MCPJsonRpcRequest, MCPJsonRpcResponse
 
 
@@ -148,12 +148,12 @@ class RouteConfigurator:
                 HTTPException: If session ID is missing or empty when session validation is enabled
             """
             # Check if session ID validation is enabled
-            session_enabled = _is_true_value(request.app.state.config.get('general', {}).get('session_id', {}).get('required', False))
+            session_enabled = is_true_value(request.app.state.config.get('general', {}).get('session_id', {}).get('required', False))
             
             if not session_enabled:
                 # Check if chat history requires session ID
                 chat_history_config = request.app.state.config.get('chat_history', {})
-                chat_history_enabled = _is_true_value(chat_history_config.get('enabled', True))
+                chat_history_enabled = is_true_value(chat_history_config.get('enabled', True))
                 session_required = chat_history_config.get('session', {}).get('required', True)
                 
                 if chat_history_enabled and session_required:
@@ -237,7 +237,7 @@ class RouteConfigurator:
                 Tuple of (adapter_name, system_prompt_id) associated with the API key
             """
             # Check if inference_only is enabled
-            inference_only = _is_true_value(request.app.state.config.get('general', {}).get('inference_only', False))
+            inference_only = is_true_value(request.app.state.config.get('general', {}).get('inference_only', False))
             
             if inference_only:
                 # In inference_only mode, return default values without validation
@@ -249,7 +249,7 @@ class RouteConfigurator:
             
             # For health endpoint, only require API key if explicitly configured
             if request.url.path == "/health":
-                require_for_health = _is_true_value(request.app.state.config.get('api_keys', {}).get('require_for_health', False))
+                require_for_health = is_true_value(request.app.state.config.get('api_keys', {}).get('require_for_health', False))
                 if not require_for_health:
                     return "default", None
             
@@ -257,8 +257,8 @@ class RouteConfigurator:
             if not hasattr(request.app.state, 'api_key_service') or request.app.state.api_key_service is None:
                 # If no API key service is available, allow access with default collection
                 # This handles the case where API keys are disabled in config
-                api_keys_enabled = _is_true_value(request.app.state.config.get('api_keys', {}).get('enabled', True))
-                if not api_keys_enabled or (request.url.path == "/health" and not _is_true_value(request.app.state.config.get('api_keys', {}).get('require_for_health', False))):
+                api_keys_enabled = is_true_value(request.app.state.config.get('api_keys', {}).get('enabled', True))
+                if not api_keys_enabled or (request.url.path == "/health" and not is_true_value(request.app.state.config.get('api_keys', {}).get('require_for_health', False))):
                     return "default", None
                 else:
                     raise HTTPException(status_code=503, detail="API key service is not available")
@@ -323,7 +323,7 @@ class RouteConfigurator:
         app.include_router(file_router)
         
         # Include auth router if auth is enabled
-        auth_enabled = _is_true_value(self.config.get('auth', {}).get('enabled', False))
+        auth_enabled = is_true_value(self.config.get('auth', {}).get('enabled', False))
         if auth_enabled:
             app.include_router(auth_router)
             self.logger.info("Authentication routes registered")
@@ -353,13 +353,13 @@ class RouteConfigurator:
         client_ip = request.headers.get("X-Forwarded-For", request.client.host if request.client else "unknown")
         
         # Enhanced verbose logging
-        if _is_true_value(self.config.get('general', {}).get('verbose', False)):
+        if is_true_value(self.config.get('general', {}).get('verbose', False)):
             self._log_request_details(session_id, client_ip, adapter_name, system_prompt_id, masked_api_key, request.method, user_id, request.headers)
         
         # Get request body
         try:
             body = await request.json()
-            if _is_true_value(self.config.get('general', {}).get('verbose', False)):
+            if is_true_value(self.config.get('general', {}).get('verbose', False)):
                 self.logger.debug("Request Body:")
                 self.logger.debug(json.dumps(body, indent=2))
         except Exception as e:
@@ -374,7 +374,7 @@ class RouteConfigurator:
         try:
             jsonrpc_request = MCPJsonRpcRequest(**body)
             # Enhanced verbose logging for JSON-RPC request
-            if _is_true_value(self.config.get('general', {}).get('verbose', False)):
+            if is_true_value(self.config.get('general', {}).get('verbose', False)):
                 self.logger.debug("JSON-RPC Request Details:")
                 self.logger.debug(f"  Method: {jsonrpc_request.method}")
                 self.logger.debug(f"  ID: {jsonrpc_request.id}")
@@ -465,7 +465,7 @@ class RouteConfigurator:
         # Validate tool name is "chat"
         tool_name = jsonrpc_request.params.get("name", "")
         if tool_name != "chat":
-            if _is_true_value(self.config.get('general', {}).get('verbose', False)):
+            if is_true_value(self.config.get('general', {}).get('verbose', False)):
                 self.logger.debug(f"Unsupported tool requested: {tool_name}")
             return MCPJsonRpcResponse(
                 jsonrpc="2.0",
@@ -480,7 +480,7 @@ class RouteConfigurator:
         arguments = jsonrpc_request.params.get("arguments", {})
         messages = arguments.get("messages", [])
         
-        if _is_true_value(self.config.get('general', {}).get('verbose', False)):
+        if is_true_value(self.config.get('general', {}).get('verbose', False)):
             self.logger.debug("Chat Arguments:")
             self.logger.debug(f"  Stream: {arguments.get('stream', False)}")
             self.logger.debug(f"  Message Count: {len(messages)}")
@@ -516,13 +516,13 @@ class RouteConfigurator:
         # Get the last user message content
         last_user_message = user_messages[-1].get("content", "")
         
-        if _is_true_value(self.config.get('general', {}).get('verbose', False)):
+        if is_true_value(self.config.get('general', {}).get('verbose', False)):
             self.logger.debug(f"Processing user message (length: {len(last_user_message)})")
         
         # Check for streaming parameter
         stream = arguments.get("stream", False)
         
-        if _is_true_value(self.config.get('general', {}).get('verbose', False)):
+        if is_true_value(self.config.get('general', {}).get('verbose', False)):
             self.logger.debug(f"Streaming mode: {'enabled' if stream else 'disabled'}")
 
         # Handle streaming vs non-streaming

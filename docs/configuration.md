@@ -26,14 +26,16 @@ The configuration system supports importing external YAML files using the `impor
 
 ```yaml
 # Import external configuration files
-import: "adapters.yaml"
-# or multiple files
-import: 
+import:
   - "adapters.yaml"
-  - "custom-config.yaml"
+  - "inference.yaml"
+  - "datasources.yaml"
+  - "embeddings.yaml"
+  - "rerankers.yaml"
+  - "moderators.yaml"
 ```
 
-This allows you to separate large configuration sections (like adapters) into dedicated files for better maintainability. See [Adapter Configuration Management](adapter-configuration.md) for detailed information.
+This allows you to separate large configuration sections into dedicated files for better maintainability. The main `config.yaml` file imports all the specialized configuration files.
 
 ## Configuration Structure
 
@@ -52,8 +54,25 @@ general:
     header_name: "X-Session-ID" # HTTP header name for session ID
     required: true              # Whether session ID is required
   inference_provider: "ollama"  # Default AI model provider
-  inference_only: true         # Run in inference-only mode
-  adapter: "qa-sql"            # Default adapter to use
+  inference_only: false         # Run in inference-only mode
+```
+
+### Fault Tolerance Configuration
+
+```yaml
+fault_tolerance:
+  circuit_breaker:
+    failure_threshold: 5
+    recovery_timeout: 30
+    success_threshold: 3
+    timeout: 30
+    max_recovery_timeout: 300.0      # Maximum recovery timeout (5 minutes)
+    enable_exponential_backoff: true # Enable exponential backoff by default
+  execution:
+    strategy: "all"  # "all", "first_success", "best_effort"
+    timeout: 35  # Reduced from 60 to work better with circuit breaker timeout
+    max_retries: 3
+    retry_delay: 1
 ```
 
 ### Messages Configuration
@@ -64,12 +83,27 @@ messages:
   collection_not_found: "I couldn't find the requested collection. Please make sure the collection exists before querying it."
 ```
 
+### Authentication Configuration
+
+```yaml
+auth:
+  enabled: true
+  session_duration_hours: 12
+  default_admin_username: admin
+  default_admin_password: ${ORBIT_DEFAULT_ADMIN_PASSWORD}
+  pbkdf2_iterations: 600000
+  # Credential storage method: "keyring" (default) or "file"
+  # - keyring: Uses system keychain (macOS Keychain, Linux Secret Service)
+  # - file: Uses plain text file in ~/.orbit/.env (less secure but visible)
+  credential_storage: file
+```
+
 ### Embedding Configuration
 
 ```yaml
 embedding:
   provider: "ollama"            # Default embedding provider
-  enabled: false                # Enable embedding functionality
+  enabled: true                 # Enable embedding functionality
 ```
 
 ### API Key Management
@@ -85,7 +119,7 @@ api_keys:
 ```yaml
 logging:
   level: "INFO"                # Logging level (DEBUG, INFO, WARNING, ERROR)
-  handlers:                    # Note: structure is different from documentation
+  handlers:                    # Logging handlers configuration
     file:
       enabled: true              # Enable logging to file
       directory: "logs"          # Directory for log files
@@ -160,18 +194,21 @@ file_upload:
 internal_services:
   elasticsearch:
     enabled: false
-    node: ${INTERNAL_SERVICES_ELASTICSEARCH_NODE}      # Note: different from docs
+    node: ${INTERNAL_SERVICES_ELASTICSEARCH_NODE}
     index: 'orbit'
-    username: ${INTERNAL_SERVICES_ELASTICSEARCH_USERNAME}  # Note: different from docs
-    password: ${INTERNAL_SERVICES_ELASTICSEARCH_PASSWORD}  # Note: different from docs
+    username: ${INTERNAL_SERVICES_ELASTICSEARCH_USERNAME}
+    password: ${INTERNAL_SERVICES_ELASTICSEARCH_PASSWORD}
 
   mongodb:
     host: ${INTERNAL_SERVICES_MONGODB_HOST}
     port: ${INTERNAL_SERVICES_MONGODB_PORT}
-    database: "orbit"
-    apikey_collection: "api_keys"
     username: ${INTERNAL_SERVICES_MONGODB_USERNAME}
     password: ${INTERNAL_SERVICES_MONGODB_PASSWORD}
+    database: "orbit"
+    users_collection: users
+    sessions_collection: sessions
+    apikey_collection: api_keys
+    prompts_collection: system_prompts
 
   redis:
     enabled: false
@@ -181,181 +218,80 @@ internal_services:
     username: ${INTERNAL_SERVICES_REDIS_USERNAME}
     password: ${INTERNAL_SERVICES_REDIS_PASSWORD}
     use_ssl: false
-    ttl: 604800
+    ttl: 3600  # 1 hour, matching temp_key_expiry
 ```
 
-### Embeddings Configuration
+### Safety Configuration
 
 ```yaml
-embeddings:
-  llama_cpp:
-    model_path: "gguf/nomic-embed-text-v1.5-Q4_0.gguf"
-    model: "nomic-embed-text-v1.5-Q4_0"
-    n_ctx: 512                    # Note: different default value
-    n_threads: 4
-    n_gpu_layers: 0
-    main_gpu: 0 
-    tensor_split: null
-    batch_size: 8
-    dimensions: 768
-    embed_type: "llama_embedding"
-  ollama:
-    base_url: "http://localhost:11434"
-    model: "nomic-embed-text"
-    dimensions: 768
-  jina:
-    api_key: ${JINA_API_KEY}
-    base_url: "https://api.jina.ai/v1"
-    model: "jina-embeddings-v3"
-    task: "text-matching"
-    dimensions: 1024
-    batch_size: 10
-  openai:
-    api_key: ${OPENAI_API_KEY}
-    model: "text-embedding-3-large"
-    dimensions: 1024
-    batch_size: 10
-  cohere:
-    api_key: ${COHERE_API_KEY}
-    model: "embed-english-v3.0"
-    input_type: "search_document"
-    dimensions: 1024
-    batch_size: 32
-    truncate: "NONE"
-    embedding_types: ["float"]
-  mistral:
-    api_key: ${MISTRAL_API_KEY}
-    api_base: "https://api.mistral.ai/v1"
-    model: "mistral-embed"
-    dimensions: 1024
+safety:
+  enabled: false
+  mode: "fuzzy"
+  moderator: "ollama"
+  max_retries: 3
+  retry_delay: 1.0
+  request_timeout: 10
+  allow_on_timeout: false
+  disable_on_fallback: true  # Disable safety if no moderators are available
+
+llm_guard:
+  enabled: false
+  service:
+    base_url: "http://localhost:8000"
+    timeout: 30
+  security:
+    risk_threshold: 0.6
+    # Scanner configurations for different content types
+    scanners:
+      prompt:  # Scanners for user input (prompts)
+        - "ban_substrings"
+        - "ban_topics" 
+        - "prompt_injection"
+        - "toxicity"
+        - "secrets"
+      response:  # Scanners for AI output (responses)
+        - "no_refusal"
+        - "sensitive"
+        - "bias"
+        - "relevance"
+  fallback:
+    on_error: "allow"
 ```
 
-### Adapters Configuration
+### Reranker Configuration
 
 ```yaml
-adapters:
-  - name: "qa-sql"
-    type: "retriever"
-    datasource: "sqlite"
-    adapter: "qa"
-    implementation: "retrievers.implementations.qa.QASSQLRetriever"    # Note: different path
-    config:
-      confidence_threshold: 0.3
-      max_results: 5
-      return_results: 3
-
-  - name: "qa-vector"
-    type: "retriever"
-    datasource: "chroma"
-    adapter: "qa"
-    implementation: "retrievers.implementations.qa.QAChromaRetriever"  # Note: different path
-    config:
-      confidence_threshold: 0.3
-      distance_scaling_factor: 200.0
-      embedding_provider: null
-      max_results: 5
-      return_results: 3
-
-  - name: "file-vector"                                                # Note: new adapter
-    type: "retriever"
-    datasource: "chroma"
-    adapter: "file"
-    implementation: "retrievers.implementations.file.FileChromaRetriever"
-    config:
-      confidence_threshold: 0.1
-      distance_scaling_factor: 150.0
-      embedding_provider: null
-      max_results: 10
-      return_results: 5
-      # File-specific settings
-      include_file_metadata: true
-      boost_file_uploads: true
-      file_content_weight: 1.5
-      metadata_weight: 0.8
+reranker:
+  provider: "ollama"
+  enabled: false
 ```
 
-### Data Sources Configuration
-
-```yaml
-datasources:
-  chroma:
-    use_local: true
-    db_path: "examples/chroma/chroma_db"
-    host: "localhost"
-    port: 8000
-    embedding_provider: null 
-  sqlite:
-    db_path: "examples/sqlite/sqlite_db"
-  postgres:
-    host: "localhost"
-    port: 5432
-    database: "retrieval"
-    username: ${DATASOURCE_POSTGRES_USERNAME}
-    password: ${DATASOURCE_POSTGRES_PASSWORD}
-  milvus:
-    host: "localhost"
-    port: 19530
-    dim: 768
-    metric_type: "IP"  # Options: L2, IP, COSINE
-    embedding_provider: null
-  pinecone:
-    api_key: ${DATASOURCE_PINECONE_API_KEY}
-    host: ${DATASOURCE_PINECONE_HOST}                   # Note: different from docs
-    namespace: "default"                                # Note: new field
-    embedding_provider: null
-  elasticsearch:
-    node: 'https://localhost:9200'
-    auth:
-      username: ${DATASOURCE_ELASTICSEARCH_USERNAME}
-      password: ${DATASOURCE_ELASTICSEARCH_PASSWORD}
-      vector_field: "embedding"                         # Note: new field
-      text_field: "content"                             # Note: new field
-      verify_certs: true                                # Note: new field
-      embedding_provider: null                          # Note: new field
-  redis:                                                # Note: new datasource
-    host: "localhost"
-    port: 6379
-    password: ${DATASOURCE_REDIS_PASSWORD}
-    db: 0
-    use_ssl: false
-    vector_field: "embedding"
-    text_field: "content"
-    distance_metric: "COSINE"  # Options: L2, IP, COSINE
-  mongodb:
-    host: "localhost"
-    port: 27017
-    database: "orbit"
-    apikey_collection: "api_keys"
-    username: ${DATASOURCE_MONGODB_USERNAME}
-    password: ${DATASOURCE_MONGODB_PASSWORD}
-```
-
-### Inference Providers
+## Inference Providers (inference.yaml)
 
 ```yaml
 inference:
   ollama:
-    base_url: "http://localhost:11434"
+    base_url: "http://3.97.13.5:11434"
     temperature: 0.1
     top_p: 0.8
     top_k: 20
     repeat_penalty: 1.1
     num_predict: 1024
-    num_ctx: 128                    # Note: different default value
+    num_ctx: 8192
     num_threads: 8
-    model: "gemma3:1b"
+    model: "gemma3:12b"
     stream: true
   vllm:
     host: "localhost"
-    port: 5000
+    port: 8000
+    model: "Qwen/Qwen2.5-1.5B-Instruct"
     temperature: 0.1
     top_p: 0.8
     top_k: 20
     max_tokens: 1024
-    model: "Qwen2.5-14B"
     stream: true
   llama_cpp:
-    model_path: "gguf/tinyllama-1.1b-chat-v1.0.Q4_0.gguf"   # Note: different default model
+    model_path: "models/gemma-3-1b-it-Q4_0.gguf"
     chat_format: "chatml"  # Chat format to use (chatml, llama-2, gemma, etc.)
     verbose: false
     temperature: 0.1
@@ -363,13 +299,13 @@ inference:
     top_k: 20
     max_tokens: 1024
     repeat_penalty: 1.1
-    n_ctx: 256                      # Note: different default value
+    n_ctx: 1024
     n_threads: 4
     stream: true
-    n_gpu_layers: 0  # Disable GPU/Metal support
+    n_gpu_layers: 0  # For GPU/Metal support
     main_gpu: 0
     tensor_split: null
-    stop_tokens: [                  # Note: different default tokens
+    stop_tokens: [
       "<|im_start|>", 
       "<|im_end|>",
       "<|endoftext|>"
@@ -426,7 +362,7 @@ inference:
     verbose: true
   openai:
     api_key: ${OPENAI_API_KEY}
-    model: "gpt-4.1"
+    model: "gpt-4.1-nano"
     temperature: 0.1
     top_p: 0.8
     max_tokens: 1024
@@ -442,7 +378,7 @@ inference:
   anthropic:
     api_key: ${ANTHROPIC_API_KEY}
     api_base: "https://api.anthropic.com/v1"
-    model: "claude-sonnet-4-20250514"    # Note: different default model
+    model: "claude-sonnet-4-20250514"
     temperature: 0.1
     top_p: 0.8
     max_tokens: 1024
@@ -481,21 +417,286 @@ inference:
     max_tokens: 1024
     stream: true
     verbose: false
+  cohere:
+    api_key: ${COHERE_API_KEY}
+    api_base: "https://api.cohere.ai/v2"
+    model: "command-r7b-12-2024"
+    temperature: 0.1
+    top_p: 0.8
+    max_tokens: 1024
+    stream: true
+  watson:
+    api_key: ${WATSON_API_KEY}
+    api_base: "https://domain.region.cloud.ibm.com"
+    project_id: "your-project_id"
+    instance_id: "openshift"
+    model: "ibm/granite-3-8b-instruct"
+    temperature: 0.1
+    top_k: 20
+    top_p: 0.8
+    max_tokens: 1024
+    stream: true
+    show_thinking: false
+    space_id: ""
+    region: "your-region"
+    auth_type: "iam"
+    time_limit: 10000
+    verify: false
 ```
 
-### Safety/Moderation Configuration
+## Embeddings Configuration (embeddings.yaml)
 
 ```yaml
-safety:
-  enabled: false
-  mode: "fuzzy"
-  moderator: "ollama"
-  max_retries: 3
-  retry_delay: 1.0
-  request_timeout: 10
-  allow_on_timeout: false
-  safety_prompt_path: "prompts/safety_prompt.txt"
+embeddings:
+  llama_cpp:
+    model_path: "gguf/nomic-embed-text-v1.5-Q4_0.gguf"
+    model: "nomic-embed-text-v1.5-Q4_0"
+    n_ctx: 1024 
+    n_threads: 4
+    n_gpu_layers: 0
+    main_gpu: 0 
+    tensor_split: null  # Optional: GPU memory split for multi-GPU setups
+    batch_size: 8
+    dimensions: 768
+    embed_type: "llama_embedding"
+  ollama:
+    base_url: "http://localhost:11434"
+    model: "nomic-embed-text"
+    dimensions: 768
+  jina:
+    api_key: ${JINA_API_KEY}
+    base_url: "https://api.jina.ai/v1"
+    model: "jina-embeddings-v3"
+    task: "text-matching"
+    dimensions: 1024
+    batch_size: 10
+  openai:
+    api_key: ${OPENAI_API_KEY}
+    model: "text-embedding-3-large"
+    dimensions: 3072
+    batch_size: 10
+  cohere:
+    api_key: ${COHERE_API_KEY}
+    model: "embed-english-v3.0"
+    input_type: "search_document"
+    dimensions: 1024
+    batch_size: 32
+    truncate: "NONE"
+    embedding_types: ["float"]
+  mistral:
+    api_key: ${MISTRAL_API_KEY}
+    api_base: "https://api.mistral.ai/v1"
+    model: "mistral-embed"
+    dimensions: 1024
+```
 
+## Adapters Configuration (adapters.yaml)
+
+```yaml
+adapters:
+  - name: "qa-sql"
+    type: "retriever"
+    datasource: "sqlite"
+    adapter: "qa"
+    implementation: "retrievers.implementations.qa.QASSQLRetriever"
+    config:
+      # QA-specific settings
+      confidence_threshold: 0.3
+      max_results: 5
+      return_results: 3
+      
+      # Adapter granularity strategy settings
+      query_timeout: 5000
+      enable_query_monitoring: true
+      
+      # Security and access control (recommended)
+      table: "city"  # Specify the exact table for single-table access
+      allowed_columns: ["id", "question", "answer", "category", "confidence"]  # Limit accessible columns
+      security_filter: "active = 1"  # Only return active Q&A pairs
+      
+      # Performance optimization
+      cache_ttl: 1800  # Cache results for 30 minutes
+      
+    # Fault tolerance settings for this adapter
+    fault_tolerance:
+      operation_timeout: 15.0          # Lower timeout for local database operations
+      failure_threshold: 10            # Higher threshold for local operations (more reliable)
+      recovery_timeout: 30.0           # Short base timeout for local DB
+      success_threshold: 5             # Multiple successes to close circuit
+      max_recovery_timeout: 120.0      # Max 2 minutes for local DB
+      enable_exponential_backoff: true # Enable backoff for local DB
+      enable_thread_isolation: false   # No isolation needed for local SQLite operations
+      enable_process_isolation: false  # SQLite is lightweight, no process isolation needed
+      max_retries: 3                   # Retry failed queries
+      retry_delay: 0.5                 # Short delay between retries for local DB
+      cleanup_interval: 3600.0         # Clean up stats every hour
+      retention_period: 86400.0        # Keep stats for 24 hours
+      event_handler:
+        type: "default"                # Use default filesystem logger
+      
+  - name: "qa-vector-chroma"
+    type: "retriever"
+    datasource: "chroma"
+    adapter: "qa"
+    implementation: "retrievers.implementations.qa.QAChromaRetriever"
+    config:
+      collection: "city"
+      confidence_threshold: 0.3
+      distance_scaling_factor: 200.0
+      embedding_provider: null
+      max_results: 5
+      return_results: 3
+      
+    # Fault tolerance settings for this adapter
+    fault_tolerance:
+      operation_timeout: 25.0          # Longer timeout for network operations
+      failure_threshold: 3             # Lower threshold for external service
+      recovery_timeout: 60.0           # Longer base timeout for network service
+      success_threshold: 2             # Fewer successes to close circuit
+      max_recovery_timeout: 600.0      # Max 10 minutes for network service
+      enable_exponential_backoff: true # Enable backoff for network service
+      enable_thread_isolation: true    # Use thread isolation for network operations
+      enable_process_isolation: false  # Thread isolation sufficient for most cases
+      max_retries: 2                   # Fewer retries for network operations
+      retry_delay: 1.0                 # Longer delay between retries
+      cleanup_interval: 1800.0         # Clean up stats every 30 minutes (more frequent for network ops)
+      retention_period: 43200.0        # Keep stats for 12 hours
+      event_handler:
+        type: "default"                # Use default filesystem logger
+      
+  - name: "qa-vector-qdrant"
+    type: "retriever"
+    datasource: "qdrant"
+    adapter: "qa"
+    implementation: "retrievers.implementations.qa.QAQdrantRetriever"
+    config:
+      collection: "city"
+      confidence_threshold: 0.3
+      score_scaling_factor: 200.0
+      embedding_provider: null
+      max_results: 5
+      return_results: 3
+      
+    # Fault tolerance settings for this adapter
+    fault_tolerance:
+      operation_timeout: 10.0          # Reduced timeout for faster failure detection
+      failure_threshold: 2             # Lower threshold for external service
+      recovery_timeout: 45.0           # Moderate base timeout for Qdrant
+      success_threshold: 1             # Single success to close circuit (aggressive)
+      max_recovery_timeout: 300.0      # Max 5 minutes for Qdrant
+      enable_exponential_backoff: true # Enable backoff for Qdrant
+      enable_thread_isolation: true    # Use thread isolation for network operations
+      enable_process_isolation: false  # Thread isolation sufficient
+      max_retries: 1                   # Fewer retries for network operations
+      retry_delay: 1.0                 # Shorter delay for Qdrant
+      cleanup_interval: 1800.0         # Clean up stats every 30 minutes
+      retention_period: 43200.0        # Keep stats for 12 hours
+      event_handler:
+        type: "default"                # Use default filesystem logger
+      
+  - name: "file-vector"
+    type: "retriever"
+    datasource: "chroma"
+    adapter: "file"
+    implementation: "retrievers.implementations.file.FileChromaRetriever"
+    config:
+      confidence_threshold: 0.1
+      distance_scaling_factor: 150.0
+      embedding_provider: null
+      max_results: 10
+      return_results: 5
+      # File-specific settings
+      include_file_metadata: true
+      boost_file_uploads: true
+      file_content_weight: 1.5
+      metadata_weight: 0.8
+      
+    # Fault tolerance settings for this adapter
+    fault_tolerance:
+      operation_timeout: 35.0          # Longer timeout for file operations (larger datasets)
+      failure_threshold: 5             # More tolerance for file operations
+      recovery_timeout: 45.0           # Moderate base timeout for file operations
+      success_threshold: 3             # Multiple successes to close circuit
+      max_recovery_timeout: 300.0      # Max 5 minutes for file operations
+      enable_exponential_backoff: true # Enable backoff for file operations
+      enable_thread_isolation: true    # Use thread isolation for file processing
+      enable_process_isolation: false  # Thread isolation sufficient for file operations
+      max_retries: 3                   # More retries for file operations
+      retry_delay: 2.0                 # Longer delay for file operations
+      cleanup_interval: 7200.0         # Clean up stats every 2 hours (less frequent for file ops)
+      retention_period: 172800.0       # Keep stats for 48 hours (longer retention for file ops)
+      event_handler:
+        type: "default"                # Use default filesystem logger
+```
+
+## Data Sources Configuration (datasources.yaml)
+
+```yaml
+datasources:
+  chroma:
+    use_local: true
+    db_path: "examples/chroma/chroma_db"
+    host: "localhost"
+    port: 8000
+    embedding_provider: null 
+  qdrant:
+    host: ${DATASOURCE_QDRANT_HOST}
+    port: ${DATASOURCE_QDRANT_PORT}
+    timeout: 5
+    prefer_grpc: false
+    https: false
+    embedding_provider: null
+    collection_name: "orbit"
+  sqlite:
+    db_path: "examples/sqlite/sqlite_db"
+  postgres:
+    host: ${DATASOURCE_POSTGRES_HOST}
+    port: ${DATASOURCE_POSTGRES_PORT}
+    database: ${DATASOURCE_POSTGRES_DATABASE}
+    username: ${DATASOURCE_POSTGRES_USERNAME}
+    password: ${DATASOURCE_POSTGRES_PASSWORD}
+    sslmode: ${DATASOURCE_POSTGRES_SSL_MODE}
+  milvus:
+    host: "localhost"
+    port: 19530
+    dim: 768
+    metric_type: "IP"  # Options: L2, IP, COSINE
+    embedding_provider: null
+  pinecone:
+    api_key: ${DATASOURCE_PINECONE_API_KEY}
+    host: ${DATASOURCE_PINECONE_HOST}
+    namespace: "default"
+    embedding_provider: null
+  elasticsearch:
+    node: 'https://localhost:9200'
+    auth:
+      username: ${DATASOURCE_ELASTICSEARCH_USERNAME}
+      password: ${DATASOURCE_ELASTICSEARCH_PASSWORD}
+      vector_field: "embedding"
+      text_field: "content"
+      verify_certs: true
+      embedding_provider: null
+  redis:
+    host: ${DATASOURCE_REDIS_HOST}
+    port: ${DATASOURCE_REDIS_PORT}
+    password: ${DATASOURCE_REDIS_PASSWORD}
+    db: 0
+    use_ssl: false
+    vector_field: "embedding"
+    text_field: "content"
+    distance_metric: "COSINE"  # Options: L2, IP, COSINE
+  mongodb:
+    host: "localhost"
+    port: 27017
+    database: "orbit"
+    apikey_collection: "api_keys"
+    username: ${DATASOURCE_MONGODB_USERNAME}
+    password: ${DATASOURCE_MONGODB_PASSWORD}
+```
+
+## Moderators Configuration (moderators.yaml)
+
+```yaml
 moderators:
   openai:
     api_key: ${OPENAI_API_KEY}
@@ -508,24 +709,20 @@ moderators:
     batch_size: 5
   ollama:
     base_url: "http://localhost:11434"
-    model: "granite3.3:2b"              # Note: different default model
+    model: "llama-guard3:1b"
     temperature: 0.0
     top_p: 1.0
     max_tokens: 50
     batch_size: 1
 ```
 
-### Reranker Configuration
+## Rerankers Configuration (rerankers.yaml)
 
 ```yaml
-reranker:
-  provider: "ollama"                    # Note: simplified structure
-  enabled: false
-
 rerankers:
   ollama:
     base_url: "http://localhost:11434"
-    model: "xitao/bge-reranker-v2-m3:latest"    # Note: different default model
+    model: "xitao/bge-reranker-v2-m3:latest"
     temperature: 0.0
     batch_size: 5
 ```
@@ -534,6 +731,7 @@ rerankers:
 
 The configuration system supports environment variable substitution using the `${VARIABLE_NAME}` syntax. Common variables include:
 
+### API Keys
 - `${OPENAI_API_KEY}`: OpenAI API key
 - `${ANTHROPIC_API_KEY}`: Anthropic API key
 - `${GOOGLE_API_KEY}`: Google API key
@@ -545,10 +743,15 @@ The configuration system supports environment variable substitution using the `$
 - `${TOGETHER_API_KEY}`: Together API key
 - `${XAI_API_KEY}`: XAI API key
 - `${OPENROUTER_API_KEY}`: OpenRouter API key
+- `${WATSON_API_KEY}`: IBM Watson API key
+
+### Cloud Services
 - `${GOOGLE_CLOUD_PROJECT}`: Google Cloud project ID
 - `${AWS_BEDROCK_ACCESS_KEY}`: AWS Bedrock access key
 - `${AWS_SECRET_ACCESS_KEY}`: AWS secret access key
 - `${AZURE_ACCESS_KEY}`: Azure API key
+
+### Internal Services
 - `${INTERNAL_SERVICES_ELASTICSEARCH_NODE}`: Elasticsearch node URL
 - `${INTERNAL_SERVICES_ELASTICSEARCH_USERNAME}`: Elasticsearch username
 - `${INTERNAL_SERVICES_ELASTICSEARCH_PASSWORD}`: Elasticsearch password
@@ -560,15 +763,28 @@ The configuration system supports environment variable substitution using the `$
 - `${INTERNAL_SERVICES_REDIS_PORT}`: Redis port
 - `${INTERNAL_SERVICES_REDIS_USERNAME}`: Redis username
 - `${INTERNAL_SERVICES_REDIS_PASSWORD}`: Redis password
+
+### Data Sources
+- `${DATASOURCE_QDRANT_HOST}`: Qdrant host
+- `${DATASOURCE_QDRANT_PORT}`: Qdrant port
+- `${DATASOURCE_POSTGRES_HOST}`: PostgreSQL host
+- `${DATASOURCE_POSTGRES_PORT}`: PostgreSQL port
+- `${DATASOURCE_POSTGRES_DATABASE}`: PostgreSQL database name
 - `${DATASOURCE_POSTGRES_USERNAME}`: PostgreSQL username
 - `${DATASOURCE_POSTGRES_PASSWORD}`: PostgreSQL password
+- `${DATASOURCE_POSTGRES_SSL_MODE}`: PostgreSQL SSL mode
 - `${DATASOURCE_PINECONE_API_KEY}`: Pinecone API key
 - `${DATASOURCE_PINECONE_HOST}`: Pinecone host URL
 - `${DATASOURCE_ELASTICSEARCH_USERNAME}`: Elasticsearch username
 - `${DATASOURCE_ELASTICSEARCH_PASSWORD}`: Elasticsearch password
+- `${DATASOURCE_REDIS_HOST}`: Redis host for datasource
+- `${DATASOURCE_REDIS_PORT}`: Redis port for datasource
 - `${DATASOURCE_REDIS_PASSWORD}`: Redis password for datasource
 - `${DATASOURCE_MONGODB_USERNAME}`: MongoDB username for datasource
 - `${DATASOURCE_MONGODB_PASSWORD}`: MongoDB password for datasource
+
+### Authentication
+- `${ORBIT_DEFAULT_ADMIN_PASSWORD}`: Default admin password
 
 ## Configuration Management
 
@@ -625,6 +841,12 @@ The system automatically:
    - Enable caching where appropriate
    - Configure appropriate thread counts
 
+5. **Fault Tolerance**
+   - Configure circuit breakers for external services
+   - Set appropriate timeouts and retry limits
+   - Enable exponential backoff for network operations
+   - Use thread isolation for network operations
+
 ## Troubleshooting
 
 Common issues and solutions:
@@ -648,3 +870,8 @@ Common issues and solutions:
    - Check batch sizes
    - Verify thread counts
    - Review timeout settings
+
+5. **Fault Tolerance Issues**
+   - Check circuit breaker settings
+   - Verify timeout configurations
+   - Review retry policies

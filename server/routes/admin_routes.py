@@ -13,7 +13,7 @@ from typing import Optional
 from fastapi import APIRouter, Request, Depends, HTTPException
 from bson import ObjectId
 
-from config.config_manager import _is_true_value
+from utils import is_true_value
 from models.schema import (
     ApiKeyCreate, ApiKeyResponse, ApiKeyDeactivate, 
     SystemPromptCreate, SystemPromptUpdate, SystemPromptResponse, 
@@ -42,8 +42,8 @@ def get_prompt_service(request: Request):
 
 def check_inference_only_mode(request: Request, feature_name: str):
     """Check if we're in inference-only mode and raise error if feature is not available"""
-    inference_only = _is_true_value(request.app.state.config.get('general', {}).get('inference_only', False))
-    auth_enabled = _is_true_value(request.app.state.config.get('auth', {}).get('enabled', False))
+    inference_only = is_true_value(request.app.state.config.get('general', {}).get('inference_only', False))
+    auth_enabled = is_true_value(request.app.state.config.get('auth', {}).get('enabled', False))
     
     # If we're in inference-only mode but auth is disabled, allow API key management
     if inference_only and not auth_enabled and "API key" in feature_name:
@@ -494,7 +494,7 @@ async def get_chat_history(
 ):
     """Get chat history for a session"""
     # Check if inference_only is enabled (this feature is only available in inference-only mode)
-    inference_only = _is_true_value(request.app.state.config.get('general', {}).get('inference_only', False))
+    inference_only = is_true_value(request.app.state.config.get('general', {}).get('inference_only', False))
     if not inference_only:
         raise HTTPException(
             status_code=503, 

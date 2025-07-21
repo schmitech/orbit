@@ -13,7 +13,7 @@ import logging
 import sys
 from typing import Dict, Any, Optional, NoReturn
 from fastapi import FastAPI
-from config.config_manager import _is_true_value
+from utils import is_true_value
 
 
 class ConfigurationSummaryLogger:
@@ -106,7 +106,7 @@ class ConfigurationSummaryLogger:
     def _log_server_mode(self) -> None:
         """Log server mode and operational settings."""
         try:
-            inference_only = _is_true_value(self.config.get('general', {}).get('inference_only', False))
+            inference_only = is_true_value(self.config.get('general', {}).get('inference_only', False))
             self._log_message(f"Mode: {'INFERENCE-ONLY' if inference_only else 'FULL'} (RAG {'disabled' if inference_only else 'enabled'})")
             self._log_message("-" * 50)
         except Exception as e:
@@ -117,7 +117,7 @@ class ConfigurationSummaryLogger:
         try:
             # Authentication Configuration
             auth_config = self.config.get('auth', {})
-            auth_enabled = _is_true_value(auth_config.get('enabled', False))
+            auth_enabled = is_true_value(auth_config.get('enabled', False))
             self._log_message(f"🔐 Authentication Service: {'ENABLED' if auth_enabled else 'DISABLED'}")
             
             if auth_enabled:
@@ -143,7 +143,7 @@ class ConfigurationSummaryLogger:
             
             # Safety Configuration
             safety_config = self.config.get('safety', {})
-            safety_enabled = _is_true_value(safety_config.get('enabled', False))
+            safety_enabled = is_true_value(safety_config.get('enabled', False))
             self._log_message(f"Safety: {'enabled' if safety_enabled else 'disabled'}")
             
             if safety_enabled:
@@ -173,11 +173,11 @@ class ConfigurationSummaryLogger:
             self._log_message(f"Inference provider: {inference_provider}")
             
             # Only log embedding info if not in inference_only mode
-            inference_only = _is_true_value(self.config.get('general', {}).get('inference_only', False))
+            inference_only = is_true_value(self.config.get('general', {}).get('inference_only', False))
             if not inference_only:
                 # Get embedding configuration
                 embedding_config = self.config.get('embedding', {})
-                embedding_enabled = _is_true_value(embedding_config.get('enabled', True))
+                embedding_enabled = is_true_value(embedding_config.get('enabled', True))
                 embedding_provider = embedding_config.get('provider', 'ollama')
                 
                 self._log_message(f"Embedding: {'enabled' if embedding_enabled else 'disabled'}")
@@ -195,7 +195,7 @@ class ConfigurationSummaryLogger:
         """Log service configuration details."""
         try:
             # Log chat history information if in inference_only mode
-            inference_only = _is_true_value(self.config.get('general', {}).get('inference_only', False))
+            inference_only = is_true_value(self.config.get('general', {}).get('inference_only', False))
             if inference_only:
                 self._log_chat_history_configuration()
             
@@ -208,7 +208,7 @@ class ConfigurationSummaryLogger:
         """Log chat history service configuration."""
         try:
             chat_history_config = self.config.get('chat_history', {})
-            chat_history_enabled = _is_true_value(chat_history_config.get('enabled', True))
+            chat_history_enabled = is_true_value(chat_history_config.get('enabled', True))
             self._log_message(f"Chat History: {'enabled' if chat_history_enabled else 'disabled'}")
             
             if chat_history_enabled:
@@ -257,13 +257,13 @@ class ConfigurationSummaryLogger:
         try:
             # Get session ID configuration
             session_config = self.config.get('general', {}).get('session_id', {})
-            session_enabled = _is_true_value(session_config.get('required', False))
+            session_enabled = is_true_value(session_config.get('required', False))
             session_header = session_config.get('header_name', 'X-Session-ID')
             self._log_message(f"Session ID: {'enabled' if session_enabled else 'disabled'} (header: {session_header})")
             
             # Get API key configuration
             api_key_config = self.config.get('api_keys', {})
-            api_key_enabled = _is_true_value(api_key_config.get('enabled', True))
+            api_key_enabled = is_true_value(api_key_config.get('enabled', True))
             api_key_header = api_key_config.get('header_name', 'X-API-Key')
             self._log_message(f"API Key: {'enabled' if api_key_enabled else 'disabled'} (header: {api_key_header})")
         except Exception as e:
@@ -284,7 +284,7 @@ class ConfigurationSummaryLogger:
         """Log runtime-specific information when available."""
         try:
             # Log retriever information only if not in inference_only mode and retriever exists
-            inference_only = _is_true_value(self.config.get('general', {}).get('inference_only', False))
+            inference_only = is_true_value(self.config.get('general', {}).get('inference_only', False))
             if not inference_only and hasattr(app.state, 'retriever') and app.state.retriever is not None:
                 try:
                     self._log_message(f"Confidence threshold: {app.state.retriever.confidence_threshold}")
@@ -317,7 +317,7 @@ class ConfigurationSummaryLogger:
     def _log_system_settings(self) -> None:
         """Log system-level settings."""
         try:
-            verbose_enabled = _is_true_value(self.config.get('general', {}).get('verbose', False))
+            verbose_enabled = is_true_value(self.config.get('general', {}).get('verbose', False))
             self._log_message(f"Verbose mode: {verbose_enabled}")
         except Exception as e:
             self._log_message(f"Error logging system settings: {str(e)}", level='error')
@@ -330,7 +330,7 @@ class ConfigurationSummaryLogger:
             A dictionary containing structured configuration information
         """
         try:
-            inference_only = _is_true_value(self.config.get('general', {}).get('inference_only', False))
+            inference_only = is_true_value(self.config.get('general', {}).get('inference_only', False))
             
             report = {
                 'server_mode': {
@@ -342,7 +342,7 @@ class ConfigurationSummaryLogger:
                 },
                 'services': {
                     'auth': {
-                        'enabled': _is_true_value(self.config.get('auth', {}).get('enabled', False)),
+                        'enabled': is_true_value(self.config.get('auth', {}).get('enabled', False)),
                         'session_duration_hours': self.config.get('auth', {}).get('session_duration_hours', 12),
                         'default_admin_username': self.config.get('auth', {}).get('default_admin_username', 'admin'),
                         'pbkdf2_iterations': self.config.get('auth', {}).get('pbkdf2_iterations', 600000),
@@ -356,11 +356,11 @@ class ConfigurationSummaryLogger:
                     }
                 },
                 'api': {
-                    'session_id_required': _is_true_value(self.config.get('general', {}).get('session_id', {}).get('required', False)),
-                    'api_key_enabled': _is_true_value(self.config.get('api_keys', {}).get('enabled', True))
+                    'session_id_required': is_true_value(self.config.get('general', {}).get('session_id', {}).get('required', False)),
+                    'api_key_enabled': is_true_value(self.config.get('api_keys', {}).get('enabled', True))
                 },
                 'system': {
-                    'verbose': _is_true_value(self.config.get('general', {}).get('verbose', False))
+                    'verbose': is_true_value(self.config.get('general', {}).get('verbose', False))
                 }
             }
             
@@ -368,7 +368,7 @@ class ConfigurationSummaryLogger:
             if not inference_only:
                 embedding_config = self.config.get('embedding', {})
                 report['providers']['embedding'] = {
-                    'enabled': _is_true_value(embedding_config.get('enabled', True)),
+                    'enabled': is_true_value(embedding_config.get('enabled', True)),
                     'provider': embedding_config.get('provider', 'ollama')
                 }
             
@@ -376,7 +376,7 @@ class ConfigurationSummaryLogger:
             if inference_only:
                 chat_history_config = self.config.get('chat_history', {})
                 report['services']['chat_history'] = {
-                    'enabled': _is_true_value(chat_history_config.get('enabled', True)),
+                    'enabled': is_true_value(chat_history_config.get('enabled', True)),
                     'default_limit': chat_history_config.get('default_limit', 50),
                     'retention_days': chat_history_config.get('retention_days', 90)
                 }

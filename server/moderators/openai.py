@@ -8,7 +8,7 @@ from typing import Dict, Any, Optional
 from openai import OpenAI
 
 from .base import ModeratorService, ModerationResult
-from config.config_manager import _is_true_value
+from utils import is_true_value
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -89,7 +89,7 @@ class OpenAIModerator(ModeratorService):
             
             # Check if verbose mode is enabled in config
             verbose = self.config.get('general', {}).get('verbose', False)
-            if _is_true_value(verbose):
+            if is_true_value(verbose):
                 # Log any high confidence categories only in verbose mode
                 for category, score in categories.items():
                     if score > 0.5:  # Log categories with >50% confidence

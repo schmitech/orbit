@@ -6,10 +6,44 @@ Provides a health monitoring endpoints for the fault-tolerant system.
 
 import logging
 from typing import Dict, Any
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Depends
 from fastapi.responses import JSONResponse
 
 logger = logging.getLogger(__name__)
+
+def get_adapter_manager(request: Request):
+    """
+    Dependency to get the adapter manager from the application state.
+    
+    First tries to get the fault tolerant adapter manager, then falls back to regular adapter manager.
+    
+    Returns:
+        The adapter manager instance
+        
+    Raises:
+        HTTPException: If no adapter manager is available (503 Service Unavailable)
+    """
+    manager = getattr(request.app.state, 'fault_tolerant_adapter_manager', None)
+    if not manager:
+        manager = getattr(request.app.state, 'adapter_manager', None)
+    if not manager:
+        raise HTTPException(status_code=503, detail="Adapter manager not available")
+    return manager
+
+def get_adapter_manager_optional(request: Request):
+    """
+    Optional dependency to get the adapter manager from the application state.
+    
+    Returns None if no adapter manager is available instead of raising an exception.
+    Used for health check endpoints that need to handle the case gracefully.
+    
+    Returns:
+        The adapter manager instance or None
+    """
+    manager = getattr(request.app.state, 'fault_tolerant_adapter_manager', None)
+    if not manager:
+        manager = getattr(request.app.state, 'adapter_manager', None)
+    return manager
 
 def create_health_router() -> APIRouter:
     """Create health monitoring router"""
@@ -22,20 +56,9 @@ def create_health_router() -> APIRouter:
         return {"status": "healthy"}
     
     @router.get("/adapters")
-    async def get_adapter_health(request: Request):
+    async def get_adapter_health(adapter_manager = Depends(get_adapter_manager)):
         """Get adapter health status"""
         try:
-            # Try to get fault tolerant adapter manager first, then fall back to regular adapter manager
-            adapter_manager = getattr(request.app.state, 'fault_tolerant_adapter_manager', None)
-            if not adapter_manager:
-                adapter_manager = getattr(request.app.state, 'adapter_manager', None)
-            
-            if not adapter_manager:
-                return JSONResponse(
-                    status_code=503,
-                    content={"error": "Adapter manager not available"}
-                )
-            
             # Get health status from the adapter manager
             if hasattr(adapter_manager, 'get_health_status'):
                 health_status = adapter_manager.get_health_status()
@@ -59,17 +82,9 @@ def create_health_router() -> APIRouter:
             )
     
     @router.post("/adapters/{adapter_name}/reset")
-    async def reset_adapter_circuit(adapter_name: str, request: Request):
+    async def reset_adapter_circuit(adapter_name: str, adapter_manager = Depends(get_adapter_manager)):
         """Reset circuit breaker for a specific adapter"""
         try:
-            # Try to get fault tolerant adapter manager first, then fall back to regular adapter manager
-            adapter_manager = getattr(request.app.state, 'fault_tolerant_adapter_manager', None)
-            if not adapter_manager:
-                adapter_manager = getattr(request.app.state, 'adapter_manager', None)
-            
-            if not adapter_manager:
-                raise HTTPException(status_code=503, detail="Adapter manager not available")
-            
             # Try to reset circuit breaker through different paths
             reset_successful = False
             
@@ -82,12 +97,7 @@ def create_health_router() -> APIRouter:
                 if hasattr(adapter_manager.parallel_executor, 'reset_circuit_breaker'):
                     adapter_manager.parallel_executor.reset_circuit_breaker(adapter_name)
                     reset_successful = True
-            # Method 3: Through circuit breaker service
-            elif hasattr(request.app.state, 'circuit_breaker_service'):
-                cb_service = request.app.state.circuit_breaker_service
-                if hasattr(cb_service, 'reset_circuit_breaker'):
-                    cb_service.reset_circuit_breaker(adapter_name)
-                    reset_successful = True
+            # Circuit breaker service removed - fault tolerance handled by ParallelAdapterExecutor
             
             if reset_successful:
                 return {
@@ -102,14 +112,9 @@ def create_health_router() -> APIRouter:
             raise HTTPException(status_code=500, detail=str(e))
     
     @router.get("/ready")
-    async def readiness_check(request: Request):
+    async def readiness_check(adapter_manager = Depends(get_adapter_manager_optional)):
         """Simple readiness check for load balancers - returns UP/DOWN status"""
         try:
-            # Try to get fault tolerant adapter manager first, then fall back to regular adapter manager
-            adapter_manager = getattr(request.app.state, 'fault_tolerant_adapter_manager', None)
-            if not adapter_manager:
-                adapter_manager = getattr(request.app.state, 'adapter_manager', None)
-            
             if not adapter_manager:
                 return JSONResponse(
                     status_code=503,
@@ -145,17 +150,7 @@ def create_health_router() -> APIRouter:
                         # Count healthy adapters (closed circuits)
                         healthy_adapters = sum(1 for cb in circuit_breakers.values() if cb.get("state") == "closed")
             
-            # Also check circuit breaker service if available
-            if hasattr(request.app.state, 'circuit_breaker_service'):
-                cb_service = request.app.state.circuit_breaker_service
-                if hasattr(cb_service, 'get_health_status'):
-                    cb_health = cb_service.get_health_status()
-                    cb_total = cb_health.get("total_adapters", 0)
-                    cb_healthy = cb_health.get("healthy_adapters", 0)
-                    # Use circuit breaker service data if it has more adapters
-                    if cb_total > total_adapters:
-                        total_adapters = cb_total
-                        healthy_adapters = cb_healthy
+            # Circuit breaker service removed - all health data comes from ParallelAdapterExecutor
             
             if total_adapters == 0:
                 # No adapters configured, consider ready
@@ -179,7 +174,7 @@ def create_health_router() -> APIRouter:
             )
     
     @router.get("/system")
-    async def get_system_status(request: Request):
+    async def get_system_status(adapter_manager = Depends(get_adapter_manager_optional)):
         """Get overall system status"""
         try:
             status = {
@@ -189,11 +184,6 @@ def create_health_router() -> APIRouter:
                     "adapters": {}
                 }
             }
-            
-            # Try to get fault tolerant adapter manager first, then fall back to regular adapter manager
-            adapter_manager = getattr(request.app.state, 'fault_tolerant_adapter_manager', None)
-            if not adapter_manager:
-                adapter_manager = getattr(request.app.state, 'adapter_manager', None)
             
             if adapter_manager:
                 # Try to get health status from the adapter manager
@@ -209,12 +199,7 @@ def create_health_router() -> APIRouter:
                         if hasattr(adapter_manager.parallel_executor, 'get_circuit_breaker_states'):
                             status["fault_tolerance"]["adapters"] = adapter_manager.parallel_executor.get_circuit_breaker_states()
             
-            # Also try to get status from circuit breaker service
-            if hasattr(request.app.state, 'circuit_breaker_service'):
-                cb_service = request.app.state.circuit_breaker_service
-                if hasattr(cb_service, 'get_health_status'):
-                    cb_health = cb_service.get_health_status()
-                    status["fault_tolerance"]["circuit_breaker_service"] = cb_health
+            # Circuit breaker service removed - all fault tolerance data comes from ParallelAdapterExecutor
             
             return status
             
@@ -223,6 +208,156 @@ def create_health_router() -> APIRouter:
             return JSONResponse(
                 status_code=500,
                 content={"status": "error", "message": str(e)}
+            )
+    
+    @router.get("/adapters/{adapter_name}/history")
+    async def get_adapter_history(adapter_name: str, adapter_manager = Depends(get_adapter_manager)):
+        """
+        Get detailed circuit breaker history for a specific adapter.
+        
+        This endpoint provides detailed observability data including:
+        - Call history with timestamps, outcomes, and execution times
+        - State transitions with reasons and timestamps
+        - Statistical summaries for debugging intermittent issues
+        
+        Args:
+            adapter_name: Name of the adapter to get history for
+            adapter_manager: Adapter manager dependency
+            
+        Returns:
+            Detailed history and metrics for the specified adapter
+            
+        Raises:
+            HTTPException: If adapter not found or no circuit breaker data available
+        """
+        try:
+            # Try to get the parallel executor from the adapter manager
+            parallel_executor = None
+            if hasattr(adapter_manager, 'parallel_executor') and adapter_manager.parallel_executor:
+                parallel_executor = adapter_manager.parallel_executor
+            else:
+                raise HTTPException(
+                    status_code=503, 
+                    detail="Parallel executor not available for history retrieval"
+                )
+            
+            # Get the circuit breaker for the specific adapter
+            if not hasattr(parallel_executor, 'circuit_breakers') or adapter_name not in parallel_executor.circuit_breakers:
+                raise HTTPException(
+                    status_code=404, 
+                    detail=f"Circuit breaker not found for adapter: {adapter_name}"
+                )
+            
+            circuit_breaker = parallel_executor.circuit_breakers[adapter_name]
+            
+            # Extract detailed history and statistics
+            history_data = {
+                "adapter_name": adapter_name,
+                "current_state": circuit_breaker.state.value,
+                "statistics": {
+                    "total_calls": circuit_breaker.stats.total_calls,
+                    "total_successes": circuit_breaker.stats.total_successes,
+                    "total_failures": circuit_breaker.stats.total_failures,
+                    "timeout_calls": circuit_breaker.stats.timeout_calls,
+                    "success_rate": circuit_breaker.stats.total_successes / circuit_breaker.stats.total_calls if circuit_breaker.stats.total_calls > 0 else 0.0,
+                    "consecutive_failures": circuit_breaker.stats.consecutive_failures,
+                    "consecutive_successes": circuit_breaker.stats.consecutive_successes,
+                    "last_success_time": circuit_breaker.stats.last_success_time,
+                    "last_failure_time": circuit_breaker.stats.last_failure_time
+                },
+                "call_history": circuit_breaker.stats.call_history[-50:],  # Last 50 calls to prevent huge responses
+                "state_transitions": circuit_breaker.stats.state_transitions[-20:],  # Last 20 state changes
+                "configuration": {
+                    "failure_threshold": circuit_breaker.failure_threshold,
+                    "recovery_timeout": circuit_breaker.base_recovery_timeout,
+                    "success_threshold": circuit_breaker.success_threshold,
+                    "max_recovery_timeout": circuit_breaker.max_recovery_timeout
+                }
+            }
+            
+            return history_data
+            
+        except HTTPException:
+            # Re-raise HTTP exceptions as-is
+            raise
+        except Exception as e:
+            logger.error(f"Error getting adapter history for {adapter_name}: {e}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Internal server error while retrieving adapter history: {str(e)}"
+            )
+    
+    @router.get("/adapters/{adapter_name}/history/full")
+    async def get_adapter_full_history(adapter_name: str, adapter_manager = Depends(get_adapter_manager)):
+        """
+        Get complete circuit breaker history for a specific adapter (admin/debug use).
+        
+        WARNING: This endpoint can return large amounts of data and should be used carefully.
+        Use the regular /history endpoint for most debugging purposes.
+        
+        Args:
+            adapter_name: Name of the adapter to get full history for
+            adapter_manager: Adapter manager dependency
+            
+        Returns:
+            Complete history and metrics for the specified adapter
+        """
+        try:
+            # Try to get the parallel executor from the adapter manager
+            parallel_executor = None
+            if hasattr(adapter_manager, 'parallel_executor') and adapter_manager.parallel_executor:
+                parallel_executor = adapter_manager.parallel_executor
+            else:
+                raise HTTPException(
+                    status_code=503, 
+                    detail="Parallel executor not available for history retrieval"
+                )
+            
+            # Get the circuit breaker for the specific adapter
+            if not hasattr(parallel_executor, 'circuit_breakers') or adapter_name not in parallel_executor.circuit_breakers:
+                raise HTTPException(
+                    status_code=404, 
+                    detail=f"Circuit breaker not found for adapter: {adapter_name}"
+                )
+            
+            circuit_breaker = parallel_executor.circuit_breakers[adapter_name]
+            
+            # Extract complete history (be careful with size)
+            history_data = {
+                "adapter_name": adapter_name,
+                "current_state": circuit_breaker.state.value,
+                "statistics": {
+                    "total_calls": circuit_breaker.stats.total_calls,
+                    "total_successes": circuit_breaker.stats.total_successes,
+                    "total_failures": circuit_breaker.stats.total_failures,
+                    "timeout_calls": circuit_breaker.stats.timeout_calls,
+                    "success_rate": circuit_breaker.stats.total_successes / circuit_breaker.stats.total_calls if circuit_breaker.stats.total_calls > 0 else 0.0,
+                    "consecutive_failures": circuit_breaker.stats.consecutive_failures,
+                    "consecutive_successes": circuit_breaker.stats.consecutive_successes,
+                    "last_success_time": circuit_breaker.stats.last_success_time,
+                    "last_failure_time": circuit_breaker.stats.last_failure_time
+                },
+                "call_history": circuit_breaker.stats.call_history,  # Complete history
+                "state_transitions": circuit_breaker.stats.state_transitions,  # Complete history
+                "configuration": {
+                    "failure_threshold": circuit_breaker.failure_threshold,
+                    "recovery_timeout": circuit_breaker.base_recovery_timeout,
+                    "success_threshold": circuit_breaker.success_threshold,
+                    "max_recovery_timeout": circuit_breaker.max_recovery_timeout
+                },
+                "warning": "This is the complete history and may contain large amounts of data"
+            }
+            
+            return history_data
+            
+        except HTTPException:
+            # Re-raise HTTP exceptions as-is
+            raise
+        except Exception as e:
+            logger.error(f"Error getting full adapter history for {adapter_name}: {e}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Internal server error while retrieving full adapter history: {str(e)}"
             )
     
     return router

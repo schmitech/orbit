@@ -468,5 +468,3 @@ async def test_circuit_breaker_with_failing_adapter():
     fast_fail_results = [r for r in results[-3:] if "circuit" in str(r[0].error).lower()]
     assert len(fast_fail_results) > 0
 ```
-
-This circuit breaker implementation provides robust failure isolation while maintaining system responsiveness and enabling quick recovery when services become healthy again.

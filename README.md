@@ -1,354 +1,201 @@
-## Open Retrieval-Based Inference Toolkit (ORBIT)
+<h1 align="center">ORBIT - Open Retrieval-Based Inference Toolkit</h1>
 
-ORBIT is a middleware platform providing a unified API for AI inference, allowing organizations to deploy AI solutions without incurring subscription or token-based credit costs. ORBIT is especially beneficial for organizations that require visibility, transparency, explainability, and auditability of their AI workflows when processing sensitive data.
+<div align="center">
+  
+<p align="center">
+  <a href="https://opensource.org/licenses/Apache-2.0"><img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg" alt="License"></a>
+  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.12+-blue.svg" alt="Python"></a>
+  <a href="https://www.docker.com/"><img src="https://img.shields.io/badge/docker-%230db7ed.svg?logo=docker&logoColor=white" alt="Docker"></a>
+  <a href="https://github.com/schmitech/orbit/releases"><img src="https://img.shields.io/github/v/release/schmitech/orbit" alt="Release"></a>
+</p>
 
-This project is actively maintained by [Remsy Schmilinsky](https://www.linkedin.com/in/remsy/). Check out the [Changelog](CHANGELOG.md) for the latest updates.
+**Deploy AI solutions without subscription fees. Run locally, maintain control.**
 
-**Need help?** If you require commercial support, hosting services, implementation of custom adapters, and any priority features or fixes, please contact [schmitech.ai](https://schmitech.ai/).
+[Documentation](docs/) • [Quick Start](#-quick-start) • [Features](#-key-features) • [Demo](#-see-it-in-action) • [Support](https://schmitech.ai/)
 
-## High-Level Architecture
-<div align="left">
-  <img src="docs/images/orbit-architecture.png" width="800" alt="ORBIT Architecture" />
 </div>
 
-Integration with commercial AI platforms is optional and requires your own API keys. Currently, ORBIT supports SQL, Vector, and File-based retrieval systems. Support for additional data sources is planned for future releases. See [roadmap](https://github.com/schmitech/orbit/tree/main/docs/roadmap) for further details. ORBIT is fast evolving, so feel free to [add a request](https://github.com/schmitech/orbit/issues) if you have a specific requirement that's not currently supported.
+## 🛰️ What is ORBIT?
 
-## Minimum Requirements
+ORBIT is a middleware platform that provides a unified API for AI inference, allowing you to:
 
-- A device (Windows/Linux or Mac) with 16GB memory, GPU preferred
-- Python 3.12+
-- MongoDB (required for authentication, RAG and conversation history)
-- Redis (optional)
-- Elasticsearch (optional)
+- **Run AI models locally** - No cloud dependencies or per-token costs
+- **Connect your data** - SQL databases, vector stores, and files
+- **Deploy anywhere** - Locally, on-premise, or in the cloud. VM or Container.
+- **Stay secure** - Built-in authentication and content moderation
 
-## Quick Start
+Perfect for organizations seeking full transparency, control, and regulatory compliance when combining inference with sensitive data.
 
-### Deploying locally
+<div align="center">
+  <img src="docs/images/orbit-architecture.png" width="700" alt="ORBIT Architecture" />
+</div>
+
+## ✨ Key Features
+
+- 🤖 **Model-serving options** - Ollama, vLLM, llama.ccp, and more
+- 🔍 **RAG Support** - SQL, Vector DB, and Files
+- 🔐 **Security** - Authentication, content moderation, and audit trails
+- 🚀 **High Performance** - Async architecture with fault tolerance
+
+## 🚀 Quick Start
+
+Get ORBIT running in under 5 minutes:
+
 ```bash
-# Download and extract the latest release
+# Download latest release
 curl -L https://github.com/schmitech/orbit/releases/download/v1.2.0/orbit-1.2.0.tar.gz -o orbit-1.2.0.tar.gz
 tar -xzf orbit-1.2.0.tar.gz
 cd orbit-1.2.0
 
-# Create environment file from template
+# Quick setup with a small model
 cp .env.example .env
-
-# Models are defined in gguf-models.json - add your preferred model to the config file
-# Default uses gemma3-1b.gguf for quick testing on low-resource devices
-# You may also use /utils/download_hf_gguf_model.py to download GGUF files
 ./install/setup.sh --profile minimal --download-gguf gemma3-1b.gguf
 
-# Activate virtual environment
+# Start ORBIT (Default is http://localhost:3000)
 source venv/bin/activate
-
-# Star the server Logs under ./logs/orbit.log, use --help for options.
 ./bin/orbit.sh start
-```
 
-Run ORBIT client (default url is http://localhost:3000, use --help for options):
-```bash
+# Try the chat interface
 orbit-chat
 ```
-![ORBIT Chat Demo](docs/images/orbit-chat.gif)
 
-Or try the react web app under /clients/chat-app (this example uses Cohere as inference):
-```bash
-cd ./clients/chat-app
-nnpm install
-npm run dev
-```
-![ORBIT Chat App  Demo](docs/images/orbit-cohere.gif)
+### 🐳 Docker Option
 
-### Authentication
+Prefer Docker? Even easier:
 
-Authentication is avaialble with simple role-based access control (RBAC). It uses PBKDF2-SHA256 password hashing and cryptographically secure bearer tokens for session management. Authentication is disabled by default and requires a MongoDB instance. To enable it, edit your `config.yaml`:
-
-```yaml
-auth:
-  enabled: true
-  session_duration_hours: 12
-  default_admin_username: "admin"
-  default_admin_password: "${ORBIT_DEFAULT_ADMIN_PASSWORD}"
-  credential_storage: file  # or "keyring"
-```
-
-#### Authentication Commmands
-```bash
-./bin/orbit.sh login --username admin --password admin123
-
-# Who am I
-./bin/orbit.sh me
-
-# Change password
-./bin/orbit.sh user change-password
-
-# Check authentication status
-./bin/orbit.sh auth-status
-
-# List all users
-./bin/orbit.sh user list
-
-# Logout
-./bin/orbit.sh logout
-```
-
-For detailed authentication configuration, security features, and advanced usage, see the [Authentication Documentation](docs/authentication.md).
-
-### Deploying with Docker
 ```bash
 ./docker/docker-init.sh --build --profile minimal --download-gguf gemma3-1b.gguf
-
-# Check the logs
-./docker/orbit-docker.sh logs --follow
 ```
 
-For more details about deploying ORBIT using docker, see [Docker Deployment](docker/README.md)
+## 🏗️ Architecture Overview
 
-Edit config.yaml specify `llama_cpp` as inference provider and your GGUF model.
-```yaml
-general:
-  port: 3000
-  verbose: false
-  inference_provider: "llama_cpp"
-inference:
-  llama_cpp:
-    model_path: "gguf/tinyllama-1.1b-chat-v1.0.Q4_0.gguf"
-    chat_format: "chatml"
-```
+### Core Components
 
-If you want to keep conversation history, you will need a MongoDB instance. This is configurable under the `internal_services` section in config.yaml.
+**ORBIT Server** (`/server/`): FastAPI-based inference middleware
+- **Inference Layer**: Supports multiple LLM providers (OpenAI, Anthropic, Cohere, Ollama, etc.) via unified interface
+- **RAG System**: Retrieval-Augmented Generation with SQL, Vector DB, and file-based adapters
+- **Authentication**: PBKDF2-SHA256 with bearer tokens, MongoDB-backed sessions
+- **Fault Tolerance**: Circuit breaker pattern with exponential backoff for provider failures
+- **Content Moderation**: Multi-layered safety with LLM Guard and configurable moderators
 
-> **Note**: MongoDB and Redis are included when deployed using docker.
+**Configuration** (`/config/`): YAML-based modular configuration
+- Main config in `config.yaml` with environment variable support
+- Separate configs for adapters, datasources, embeddings, inference, moderators, and rerankers
+- Dynamic loading with validation and resolver system
 
-Enable in config.yaml:
-```yaml
-chat_history:
-  enabled: true
-```
+**Client Libraries**:
+- React-based chat application with Zustand state management
+- Embeddable chat widget with theming support
+- Node.js and Python API client libraries
 
-For more details about conversation history configuration and usage, see [Conversation History Documentation](docs/conversation_history.md)
+### Key Design Patterns
 
-### Running ORBIT in RAG Mode with Sample SQLite Adapter
+1. **Provider Abstraction**: All AI services (LLMs, embeddings, rerankers) implement common interfaces allowing hot-swapping
+2. **Adapter Pattern**: Retrieval adapters provide unified interface for diverse data sources
+3. **Session Management**: Conversation history and context maintained via MongoDB with configurable retention
+4. **Async Architecture**: FastAPI async endpoints with proper connection pooling and resource management
 
-RAG (Retrieval-Augmented Generation) mode enhances the model's responses by integrating your knowledge base into the context. This enriches the pre-trained foundation model with your specific data. 
+### Dependencies
 
-The sample SQLite adapter showcases how ORBIT can be used for:
-- FAQ systems
-- Knowledge base queries
-- Question-answering applications
-- Document-based Q&A
+- **MongoDB** (Required): Authentication, RAG storage, conversation history
+- **Redis** (Optional): Caching layer
+- **Vector DBs** (Optional): Chroma, Qdrant, Pinecone, Milvus for semantic search
+- **SQL DBs** (Optional): PostgreSQL, MySQL, SQLite for structured data retrieval
 
-You need an instance of MongoDB for this work. MongoDB is required when using ORBIT with retrieval adapters. Change config.yaml as follows:
-```yaml
-general:
-  port: 3000
-  verbose: false
-  inference_provider: "llama_cpp"
-  inference_only: false
-  adapter: "qa-sql"
+## 📸 See It in Action
 
-# Make sure adapter exists
-adapters:
-  - name: "qa-sql"
-    type: "retriever"
-    datasource: "sqlite"
-    adapter: "qa"
-    implementation: "retrievers.implementations.qa.QASSQLRetriever"
-    config:
-      confidence_threshold: 0.3
-      max_results: 5
-      return_results: 3
+<details>
+<summary><b>Terminal Chat Interface</b></summary>
 
-# Specify DB location location
-datasources:
-  sqlite:
-    db_path: "examples/sqlite/sqlite_db"      
-```
+![ORBIT Chat Demo](docs/images/orbit-chat.gif)
 
-Restart the server:
-```bash
-./bin/orbit.sh restart --delete-logs
-```
-Load the sample question/answers sets from `./examples/city-qa-pairs.json`. RAG mode requires MongoDB enabled. Use the same settings described in the previous section to set up the MongoDB service.
+</details>
 
-```bash
-# The DB creation scripts are located under /examples/sqlite/
-./examples/setup-demo-db.sh sqlite
+<details>
+<summary><b>Web Application with Cohere</b></summary>
 
-# Use the key generated from the previous command
-orbit-chat --url http://localhost:3000 --api-key orbit_1234567ABCDE
-```
+![ORBIT Web App Demo](docs/images/orbit-cohere.gif)
 
-### Running ORBIT in RAG Mode with Sample Chroma Vector DB Adapter
-As the previous example, you need an instance of MongoDB. For this example, we'll use Ollama for both inference and embedding service.
+</details>
 
-**Prerequisites:** Make sure Ollama is installed. For installation instructions, visit [https://ollama.com/download](https://ollama.com/download).
-
-Once Ollama is installed, run these commands to pull these models:
-
-```bash
-ollama pull nomic-embed-text
-ollama pull gemma3:1b
-
-# Make sure models exist
-ollama list
-
-NAME                       ID              SIZE      MODIFIED     
-nomic-embed-text:latest    0a109f422b47    274 MB    2 months ago    
-gemma3:1b                  8648f39daa8f    815 MB    2 months ago
-```
-
-Enable the chroma adapter in config.yaml:
-```yaml
-general:
-  port: 3000
-  verbose: true # More logging so you can undersatnd what's happening under the hood
-  session_id:
-    header_name: "X-Session-ID"
-    required: true
-  inference_provider: "ollama"
-  inference_only: false
-  adapter: "qa-vector-chroma"
-
-# Enable embedding service needed to index documents in Chroma vector database
-embedding:
-  provider: "ollama"
-  enabled: true
-
-# Make sure adapter exists
-adapters:
-  - name: "qa-vector-chroma"
-    type: "retriever"
-    datasource: "chroma"
-    adapter: "qa"
-    implementation: "retrievers.implementations.qa.QAChromaRetriever"
-    config:
-      confidence_threshold: 0.3
-      distance_scaling_factor: 200.0
-      embedding_provider: null
-      max_results: 5
-      return_results: 3
-
-# Specify DB location location
-datasources:
-  chroma:
-    use_local: true
-    db_path: "examples/chroma/chroma_db"
-    host: "localhost"
-    port: 8000
-    embedding_provider: null # change if you want to override default Ollama embedding
-
-# Ollama inference service settings
-inference:
-  ollama:
-    base_url: "http://localhost:11434"
-    temperature: 0.1
-    top_p: 0.8
-    top_k: 20
-    repeat_penalty: 1.1
-    num_predict: 1024
-    num_ctx: 1024
-    num_threads: 8
-    model: "gemma3:1b"
-    stream: true    
-```
-
-Restart the server:
-```bash
-./bin/orbit.sh restart --delete-logs
-```
-Load the sample question/answers sets from `./examples/city-qa-pairs.json`. RAG mode requires MongoDB enabled. Use the same settings described in the previous section to set up the MongoDB service.
-
-```bash
-# The DB creation scripts are located under /examples/sqlite/
-./examples/setup-demo-db.sh chroma
-```
-
-![Creating Chroma Collection](docs/images/chroma-embedding.gif)
-
-Test with a few queries usinf orbit-chat client:
-```bash
-orbit-chat --url http://localhost:3000 --api-key orbit_1234567ABCDE
-```
-
-![ORBIT Chat Chroma Test](docs/images/chroma-test.gif)
-
-### **Content Moderation**
-
-ORBIT's multi-layered safety system actively prevents abusive behavior and harmful content. The system combines **LLM Guard Service** for advanced threat detection and **Moderator Service** for content filtering, working together to ensure safe interactions.
-
-**How it works:**
-- **Real-time Scanning**: Every user input is analyzed before processing
-- **Configurable Thresholds**: Adjustable safety levels for different use cases
-- **Automatic Blocking**: Harmful content is intercepted and blocked with clear feedback
-
-**Safety Features:**
-- **Abuse Prevention**: Blocks harassment, hate speech, and harmful content
-- **Prompt Injection Protection**: Prevents malicious prompt manipulation
-- **Content Filtering**: Filters inappropriate or unsafe material
-- **Risk Scoring**: Provides detailed risk assessment for each interaction
-
-Follow this instructions to run this client:
-```bash
-cd clients/chat-app
-npm install
-npm run dev
-```
+<details>
+<summary><b>Content Moderation in Action</b></summary>
 
 ![ORBIT Moderation](docs/images/moderation.gif)
 
-**Example Security Log Output:**
+</details>
+
+<details>
+<summary><b>Customizable Chat Widget</b></summary>
+
+![ORBIT Widget Theming](docs/images/theming.gif)
+
+</details>
+
+## 🔧 Common Use Cases
+
+### 💬 Local AI Assistant
+Run AI models on your hardware without cloud dependencies:
+```bash
+# Already done in quick start!
+orbit-chat
 ```
-Performing LLM Guard security check for prompt: 'Hello....'
-Risk threshold: 0.5
-LLM Guard security check completed in 123.45ms
-LLM GUARD PASSED: Content was deemed SAFE
-Performing moderator safety check for query: 'Hello....' (attempt 1/3)
-MODERATION PASSED: Query was deemed SAFE by openai moderator
+
+### 📚 Knowledge Base Q&A
+Connect your data for intelligent responses:
+```bash
+# Set up with SQLite (see docs for full config)
+./examples/setup-demo-db.sh sqlite
+orbit-chat --api-key orbit_YOUR_KEY
 ```
 
-## Web Chatbot Widget
+### 🌐 Website Chatbot
+Add an AI assistant to your website:
+```bash
+npm install @schmitech/chatbot-widget
+```
+See the [widget documentation](clients/chat-widget/README.md) for integration details.
 
-ORBIT provides a customizable chatbot widget that can be easily integrated into any website. The widget offers a responsive interface with theming options and features. The widget is available as an npm package at [@schmitech/chatbot-widget](https://www.npmjs.com/package/@schmitech/chatbot-widget). Project details and build instructions can be found at [ORBIT Chat Widget](https://github.com/schmitech/orbit/tree/main/clients/chat-widget).
+## 📖 Documentation
 
-Build instructions for the the theming app can be found under the [chat widget theming project](clients/chat-widget/theming-app/README.md).
+### Getting Started
+- [Installation Guide](docs/server.md) - Detailed setup instructions
+- [Configuration](docs/configuration.md) - Essential settings
+- [Docker Deployment](docker/README.md) - Container setup
 
-Here's a preview of the theming tool:
+### Core Features
+- [Authentication](docs/authentication.md) - User management and security
+- [RAG & Adapters](docs/adapters.md) - Connect your data sources
+- [Content Moderation](docs/llm-guard-service.md) - Safety features
 
-![Theming](docs/images/theming.gif)
+### Advanced Topics
+- [API Reference](docs/api-reference.md) - Complete API documentation
+- [Development Roadmap](docs/roadmap/README.md) - What's coming next
+- [Contributing Guide](CONTRIBUTING.md) - Join the project
 
-## Documentation
+## 🤝 Community & Support
 
-For more detailed information, please refer to the following documentation in the [Docs](docs/) folder.
+- **Questions?** Open an [issue](https://github.com/schmitech/orbit/issues)
+- **Updates:** Check the [changelog](CHANGELOG.md)
+- **Commercial Support:** Contact [schmitech.ai](https://schmitech.ai/)
+- **Maintained by:** [Remsy Schmilinsky](https://www.linkedin.com/in/remsy/)
 
-### Getting Started & Configuration
-- [Server Configuration](docs/server.md) - Server setup and configuration guide
-- [Configuration Reference](docs/configuration.md) - Complete configuration options and settings
-- [API Keys Management](docs/api-keys.md) - Authentication and API key setup
-- [Docker Deployment](docs/docker-deployment.md) - Containerized deployment guide
-- [Chroma Setup](docs/chroma-setup.md) - Vector database configuration
+## 🌟 Why ORBIT?
 
-### Retrieval & Adapters  
-- [Adapters Overview](docs/adapters.md) - Understanding ORBIT's adapter system
-- [SQL Retriever Architecture](docs/sql-retriever-architecture.md) - Database-agnostic SQL retrieval system
-- [Vector Retriever Architecture](docs/vector-retriever-architecture.md) - Vector-based semantic search
-- [File Adapter Architecture](docs/file-adapter-architecture.md) - File-based knowledge integration
+Unlike cloud-based AI services, ORBIT gives you:
 
-### Features & Capabilities
-- [Conversation History](docs/conversation_history.md) - Chat history and session management
-- [LLM Guard Service](docs/llm-guard-service.md) - Advanced security scanning and content sanitization
-- [MCP Protocol](docs/mcp_protocol.md) - Model Context Protocol implementation
+- **No recurring costs** - Pay for hardware, not tokens
+- **Complete privacy** - Your data never leaves your infrastructure  
+- **Full control** - Customize everything to your needs
+- **Compliance ready** - Built for regulated industries
 
-### Roadmap & Future Development
-- [Development Roadmap](docs/roadmap/README.md) - Strategic direction and planned enhancements
-- [Concurrency & Performance](docs/roadmap/concurrency-performance.md) - Scaling to handle thousands of concurrent requests
-- [Async Messaging & Multi-Modal](docs/roadmap/async-messaging-integration.md) - Message queues and multi-modal processing
-- [Notification Service](docs/roadmap/notification-service-integration.md) - Multi-channel communication system
+## 📋 Minimum Requirements
 
-## Contributing
+- Python 3.12+
+- CPU & 16GB RAM (GPU recommended for 3b+ models)
+- MongoDB (for authentication and RAG features)
+- Optional: Redis, Elasticsearch
 
-see the [CONTRIBUTING](CONTRIBUTING) file for details.
+## 📄 License
 
-## License
-
-This project is licensed under the Apache 2.0 License - see the [LICENSE](LICENSE) file for details.
+Apache 2.0 - See [LICENSE](LICENSE) for details.

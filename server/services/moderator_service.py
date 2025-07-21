@@ -16,7 +16,7 @@ from typing import Dict, Any, Tuple, Optional
 from moderators.base import ModeratorFactory
 from moderators import register_moderator
 
-from config.config_manager import _is_true_value
+from utils import is_true_value
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -38,7 +38,7 @@ class ModeratorService:
         safety_config = config.get('safety', {})
         
         # Initialize safety check configuration
-        self.enabled = _is_true_value(safety_config.get('enabled', True))
+        self.enabled = is_true_value(safety_config.get('enabled', True))
         self.safety_mode = safety_config.get('mode', 'strict')
         if self.safety_mode not in ['strict', 'fuzzy', 'disabled']:
             logger.warning(f"Unknown safety mode '{self.safety_mode}', defaulting to 'strict'")
@@ -89,7 +89,7 @@ class ModeratorService:
         self.session = None
         # Handle both string and boolean values for verbose setting
         verbose_value = config.get('general', {}).get('verbose', False)
-        self.verbose = _is_true_value(verbose_value)
+        self.verbose = is_true_value(verbose_value)
         
         # Model parameters (used only when not using a dedicated moderator)
         if not self.use_moderator:
@@ -97,7 +97,7 @@ class ModeratorService:
             self.top_p = safety_config.get('top_p', 1.0)
             self.top_k = safety_config.get('top_k', 1)
             self.num_predict = safety_config.get('num_predict', 20)
-            self.stream = _is_true_value(safety_config.get('stream', False))
+            self.stream = is_true_value(safety_config.get('stream', False))
             self.repeat_penalty = safety_config.get('repeat_penalty', 1.1)
             
             # Load safety prompt for LLM-based approach

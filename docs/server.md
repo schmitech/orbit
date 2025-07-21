@@ -1,42 +1,14 @@
 # 🚀 ORBIT Server
 
-## 🌟 Core Capabilities
-
-- **🤖 Conversational AI**
-  - Local model inference
-  - Streaming responses with Server-Sent Events (SSE)
-  - Context-aware chat with RAG
-  - Support for multiple model providers
-
-- **🔍 Knowledge Retrieval**
-  - ChromaDB integration for vector search
-  - Efficient document embedding
-  - Configurable retrieval strategies
-  - Support for multiple vector stores
-
-- **🛡️ Security**
-  - API key authentication
-  - MongoDB-based key management
-  - Configurable safety guardrails
-  - HTTPS/TLS support
-
-- **📊 Monitoring**
-  - Elasticsearch integration
-  - Detailed request logging
-  - Performance metrics
-  - Health check endpoints
-
----
-
 ## 🛠️ Installation
 
 Follow the main installation guide in the project root:
 
 ```bash
 # Download and extract the latest release
-curl -L https://github.com/schmitech/orbit/releases/download/v1.1.0/orbit-1.1.0.tar.gz -o orbit.tar.gz
-tar -xzf orbit.tar.gz
-cd orbit-1.1.0
+curl -L https://github.com/schmitech/orbit/releases/download/v1.2.0/orbit-1.2.0.tar.gz -o orbit-1.2.0.tar.gz
+tar -xzf orbit-1.2.0.tar.gz
+cd orbit-1.2.0
 
 # Activate virtual environment
 source venv/bin/activate
@@ -49,7 +21,7 @@ source venv/bin/activate
 
 ## ▶️ Server Management
 
-ORBIT uses a unified CLI tool for all server management operations. The `orbit` command provides server control, API key management, and system prompt management.
+ORBIT uses a unified CLI tool for all server management operations. The `orbit` command provides server control, API key management, user management, system prompt management, and configuration management.
 
 ### Starting the Server
 
@@ -81,6 +53,9 @@ ORBIT uses a unified CLI tool for all server management operations. The `orbit` 
 
 # Stop and delete logs
 ./bin/orbit.sh stop --delete-logs
+
+# Force stop without graceful shutdown
+./bin/orbit.sh stop --force
 ```
 
 ### Restarting the Server
@@ -101,6 +76,12 @@ ORBIT uses a unified CLI tool for all server management operations. The `orbit` 
 ```bash
 # Get detailed server status
 ./bin/orbit.sh status
+
+# Continuously monitor status
+./bin/orbit.sh status --watch
+
+# Monitor with custom interval (seconds)
+./bin/orbit.sh status --watch --interval 10
 ```
 
 Example status output:
@@ -117,25 +98,98 @@ Example status output:
 
 ---
 
+## 🔐 Authentication & User Management
+
+### Login and Authentication
+
+```bash
+# Login with username and password
+./bin/orbit.sh login --username admin --password secret
+
+# Login with interactive prompts
+./bin/orbit.sh login
+
+# Login without saving credentials
+./bin/orbit.sh login --no-save
+
+# Check authentication status
+./bin/orbit.sh auth-status
+
+# Logout and clear credentials
+./bin/orbit.sh logout
+
+# Logout from all sessions
+./bin/orbit.sh logout --all
+
+# Show current user information
+./bin/orbit.sh me
+```
+
+### User Registration (Admin Only)
+
+```bash
+# Register a new user
+./bin/orbit.sh register --username newuser --password secret
+
+# Register with specific role
+./bin/orbit.sh register --username admin2 --password secret --role admin
+
+# Register with email
+./bin/orbit.sh register --username user1 --password secret --email user1@example.com
+```
+
+### User Management (Admin Only)
+
+```bash
+# List all users
+./bin/orbit.sh user list
+
+# List users with filtering
+./bin/orbit.sh user list --role admin --active-only --limit 50
+
+# Reset user password
+./bin/orbit.sh user reset-password --user-id 12345 --password newpass
+
+# Reset password by username
+./bin/orbit.sh user reset-password --username john --password newpass
+
+# Delete a user
+./bin/orbit.sh user delete --user-id 12345
+
+# Delete user without confirmation
+./bin/orbit.sh user delete --user-id 12345 --force
+
+# Deactivate a user
+./bin/orbit.sh user deactivate --user-id 12345
+
+# Activate a user
+./bin/orbit.sh user activate --user-id 12345
+
+# Change your own password
+./bin/orbit.sh user change-password --current-password old --new-password new
+```
+
+---
+
 ## 🔑 API Key Management
 
-The orbit CLI provides comprehensive API key management:
+The orbit CLI provides comprehensive API key management with adapter support:
 
 ### Creating API Keys
 
 ```bash
-# Basic API key creation
-./bin/orbit.sh key create --collection docs --name "Customer Support"
+# Basic API key creation with adapter
+./bin/orbit.sh key create --adapter docs --name "Customer Support"
 
 # Create with notes
-./bin/orbit.sh key create --collection legal --name "Legal Team" --notes "Internal legal document access"
+./bin/orbit.sh key create --adapter legal --name "Legal Team" --notes "Internal legal document access"
 
 # Create with system prompt from file
-./bin/orbit.sh key create --collection support --name "Support Bot" \
+./bin/orbit.sh key create --adapter support --name "Support Bot" \
   --prompt-file prompts/support.txt --prompt-name "Support Assistant"
 
 # Create with existing prompt
-./bin/orbit.sh key create --collection sales --name "Sales Team" --prompt-id 612a4b3c78e9f25d3e1f42a7
+./bin/orbit.sh key create --adapter sales --name "Sales Team" --prompt-id 612a4b3c78e9f25d3e1f42a7
 ```
 
 ### Managing API Keys
@@ -143,6 +197,12 @@ The orbit CLI provides comprehensive API key management:
 ```bash
 # List all API keys
 ./bin/orbit.sh key list
+
+# List with filtering and pagination
+./bin/orbit.sh key list --active-only --limit 50 --offset 0
+
+# List in JSON format
+./bin/orbit.sh key list --output json
 
 # Check API key status
 ./bin/orbit.sh key status --key orbit_abcd1234
@@ -155,6 +215,12 @@ The orbit CLI provides comprehensive API key management:
 
 # Delete an API key
 ./bin/orbit.sh key delete --key orbit_abcd1234
+
+# Delete without confirmation
+./bin/orbit.sh key delete --key orbit_abcd1234 --force
+
+# List available adapters
+./bin/orbit.sh key list-adapters
 ```
 
 ---
@@ -172,8 +238,14 @@ Manage system prompts that define AI behavior:
 # List all prompts
 ./bin/orbit.sh prompt list
 
+# List with filtering
+./bin/orbit.sh prompt list --name-filter "support" --limit 50
+
 # Get specific prompt details
 ./bin/orbit.sh prompt get --id 612a4b3c78e9f25d3e1f42a7
+
+# Save prompt to file
+./bin/orbit.sh prompt get --id 612a4b3c78e9f25d3e1f42a7 --save prompt.txt
 
 # Update an existing prompt
 ./bin/orbit.sh prompt update --id 612a4b3c78e9f25d3e1f42a7 --file prompts/updated_support.txt --version "1.1"
@@ -181,8 +253,71 @@ Manage system prompts that define AI behavior:
 # Delete a prompt
 ./bin/orbit.sh prompt delete --id 612a4b3c78e9f25d3e1f42a7
 
+# Delete without confirmation
+./bin/orbit.sh prompt delete --id 612a4b3c78e9f25d3e1f42a7 --force
+
 # Associate a prompt with an API key
 ./bin/orbit.sh prompt associate --key orbit_abcd1234 --prompt-id 612a4b3c78e9f25d3e1f42a7
+```
+
+---
+
+## ⚙️ Configuration Management
+
+The CLI provides comprehensive configuration management:
+
+### Viewing Configuration
+
+```bash
+# Show current configuration
+./bin/orbit.sh config show
+
+# Show specific configuration key
+./bin/orbit.sh config show --key server_url
+
+# Show effective configuration (CLI vs server config)
+./bin/orbit.sh config effective
+
+# Show only configuration sources
+./bin/orbit.sh config effective --sources-only
+
+# Show specific effective configuration key
+./bin/orbit.sh config effective --key timeout
+```
+
+### Modifying Configuration
+
+```bash
+# Set a configuration value
+./bin/orbit.sh config set server_url http://localhost:3000
+
+# Set nested configuration
+./bin/orbit.sh config set auth.storage_method keychain
+
+# Reset configuration to defaults
+./bin/orbit.sh config reset
+```
+
+### Global CLI Options
+
+```bash
+# Use specific server URL
+./bin/orbit.sh --server-url http://remote-server:3000 status
+
+# Use specific configuration file
+./bin/orbit.sh --config custom-config.yaml start
+
+# Enable verbose output
+./bin/orbit.sh -v key list
+
+# Set output format
+./bin/orbit.sh --output json key list
+
+# Disable colored output
+./bin/orbit.sh --no-color key list
+
+# Specify log file
+./bin/orbit.sh --log-file orbit.log start
 ```
 
 ---
@@ -275,6 +410,22 @@ Manage system prompts that define AI behavior:
 - **List API Keys**: `GET /admin/api-keys`
 - **API Key Status**: `GET /admin/api-keys/{api_key}/status`
 - **Deactivate API Key**: `POST /admin/api-keys/deactivate`
+
+### User Management (Admin)
+- **List Users**: `GET /admin/users`
+- **Register User**: `POST /admin/users`
+- **Reset Password**: `POST /admin/users/{user_id}/reset-password`
+- **Delete User**: `DELETE /admin/users/{user_id}`
+- **Deactivate User**: `POST /admin/users/{user_id}/deactivate`
+- **Activate User**: `POST /admin/users/{user_id}/activate`
+
+### System Prompt Management (Admin)
+- **Create Prompt**: `POST /admin/prompts`
+- **List Prompts**: `GET /admin/prompts`
+- **Get Prompt**: `GET /admin/prompts/{prompt_id}`
+- **Update Prompt**: `PUT /admin/prompts/{prompt_id}`
+- **Delete Prompt**: `DELETE /admin/prompts/{prompt_id}`
+- **Associate with API Key**: `POST /admin/api-keys/{api_key}/prompt`
 
 ---
 
@@ -449,14 +600,14 @@ The ORBIT CLI provides comprehensive system prompt management:
 ```bash
 # Create API key with a new prompt
 ./bin/orbit.sh key create \
-  --collection support_docs \
+  --adapter support_docs \
   --name "Support Team" \
   --prompt-file prompts/support_prompt.txt \
   --prompt-name "Support Assistant"
 
 # Create API key with an existing prompt
 ./bin/orbit.sh key create \
-  --collection legal_docs \
+  --adapter legal_docs \
   --name "Legal Team" \
   --prompt-id 65a4f21cbdf84a789c056e23
 ```
@@ -496,7 +647,7 @@ EOF
 
 ```bash
 ./bin/orbit.sh key create \
-  --collection support_docs \
+  --adapter support_docs \
   --name "Support Team" \
   --prompt-id 65a4f21cbdf84a789c056e23
 ```
