@@ -28,6 +28,35 @@ This document contains 100 diverse test queries to thoroughly test the conversat
 
 ---
 
+```mermaid
+erDiagram
+    CUSTOMERS {
+        SERIAL id PK
+        VARCHAR(255) name
+        VARCHAR(255) email UK
+        VARCHAR(20) phone
+        TEXT address
+        VARCHAR(100) city
+        VARCHAR(100) country
+        TIMESTAMP created_at
+        TIMESTAMP updated_at
+    }
+    
+    ORDERS {
+        SERIAL id PK
+        INTEGER customer_id FK
+        DATE order_date
+        DECIMAL(10_2) total
+        VARCHAR(50) status
+        TEXT shipping_address
+        VARCHAR(50) payment_method
+        TIMESTAMP created_at
+        TIMESTAMP updated_at
+    }
+    
+    CUSTOMERS ||--o{ ORDERS : "has many"
+```
+
 ## 🛍️ Customer Queries (1-20)
 
 ### Basic Customer Lookups
@@ -319,6 +348,19 @@ This document contains 100 diverse test queries to thoroughly test the conversat
 198. "Orders from yesterday"
 199. "Show me today's orders"
 200. "Find orders from this year"
+
+### Other Queries
+
+I'm looking for all orders from Shelia Olson within the last 3 days.
+What orders came from Dresden?
+I'm looking for recent orders from Angela Howard in the past 6 days.
+Provide all email addresses for orders above $200.
+What orders used bank transfer?
+I'm looking for recent orders between $245 and $571.50 in the last 2 days.
+I'm looking for credit card orders within the last 6 days.
+Orders from customers in Canada
+Can you please find  orders from customers from city Havelberg?
+Show me all PayPal transactions within the last 3 days.
 
 ---
 

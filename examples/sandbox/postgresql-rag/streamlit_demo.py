@@ -699,7 +699,7 @@ def main():
         
         # System configuration
         st.subheader("🔧 Configuration")
-        st.write(f"**Ollama:** {os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434')}")
+        st.write(f"**Inference:** {os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434')}")
         st.write(f"**Embedding:** {os.getenv('OLLAMA_EMBEDDING_MODEL', 'nomic-embed-text')}")
         st.write(f"**Inference:** {os.getenv('OLLAMA_INFERENCE_MODEL', 'gemma3:1b')}")
         

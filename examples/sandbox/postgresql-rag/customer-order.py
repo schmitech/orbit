@@ -56,8 +56,8 @@ def reload_env_variables():
     else:
         print("⚠️  No .env file found")
 
-# Initialize Faker with multiple locales for international data
-fake = Faker(['en_CA', 'en_US', 'en_GB', 'fr_FR', 'de_DE', 'es_ES', 'it_IT', 'ja_JP', 'ko_KR', 'zh_CN'])
+# Initialize Faker with Western locales only (avoiding Asian characters)
+fake = Faker(['en_CA', 'en_US', 'en_GB', 'fr_FR', 'de_DE', 'es_ES', 'it_IT'])
 # Set seed for reproducible results (optional)
 # fake.seed_instance(12345)
 
@@ -180,8 +180,8 @@ def insert_orders(conn, customer_ids, count=500):
     ]
     
     for i in range(count):
-        # Random date within the last 30 days
-        days_ago = random.randint(0, 30)
+        # Random date within the last week (7 days) to today for more recent diversity
+        days_ago = random.randint(0, 7)
         order_date = datetime.now() - timedelta(days=days_ago)
         
         # Random total between $10 and $1000
