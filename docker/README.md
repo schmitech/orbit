@@ -33,8 +33,8 @@ docker compose version  # or docker-compose --version
 ### 1. Clone the Repository
 
 ```bash
-git clone <your-repo-url>
-cd orbit
+git clone https://github.com/schmitech/orbit.git
+cd orbit/docker
 ```
 
 ### 2. Make Scripts Executable
@@ -93,7 +93,7 @@ Setup with all features:
 
 Setup with GGUF model download:
 ```bash
-./docker-init.sh --build --profile minimal --download-gguf
+./docker-init.sh --build --profile minimal --download-gguf gemma3-1b
 ```
 
 ## Configuration
@@ -186,6 +186,25 @@ Use the `orbit-docker.sh` helper script:
 
 # Check health endpoint
 curl http://localhost:3000/health
+```
+
+### Testing inference MCP endpoint
+Non-streaming:
+
+```bash
+ curl -X POST http://localhost:3000/v1/chat -H "Content-Type: application/json" -H "X-Session-ID: test-sanity-check" -d '{"jsonrpc": "2.0", "method": "tools/call", "params": {"name": "chat", "arguments": {"messages": [{"role": "user", "content": "What is 2+2?"}], "stream": false}}, "id": "test-123"}' | jq .
+```
+
+Streaming:
+```bash
+curl -X POST http://localhost:3000/v1/chat -H "Content-Type: application/json" -H "X-Session-ID: test-streaming" -d '{"jsonrpc": "2.0", "method": "tools/call", "params": {"name": "chat", "arguments": {"messages": [{"role": "user", "content": "Explain quantum computing in one sentence"}], "stream": true}}, "id": "test-stream-123"}' --no-buffer
+```
+
+### Other sanity checks
+```bash
+docker exec orbit-server ls -la /app/models/
+docker exec orbit-mongodb mongosh --eval "db.adminCommand('ping')"
+docker exec orbit-redis redis-cli ping
 ```
 
 ### Viewing Logs

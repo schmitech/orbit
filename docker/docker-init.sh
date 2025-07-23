@@ -238,19 +238,21 @@ if [ "$DOWNLOAD_GGUF" = true ]; then
         repo_id=$(echo "$model_info" | head -n 1)
         filename=$(echo "$model_info" | tail -n 1)
         
-        if [ ! -f "../models/$model" ]; then
+        # Check if the actual downloaded file exists (using the filename from config)
+        if [ ! -f "../models/$filename" ]; then
             echo -e "${BLUE}ℹ️  Downloading $model from $repo_id...${NC}"
             if python3 "../install/download_hf_gguf_model.py" \
                 --repo-id "$repo_id" \
                 --filename "$filename" \
                 --output-dir "../models"; then
-                echo -e "${GREEN}✅ $model downloaded successfully${NC}"
+                echo -e "${GREEN}✅ $model downloaded successfully to: ../models/$filename${NC}"
+                echo -e "${BLUE}ℹ️  File size: $(du -h "../models/$filename" | cut -f1)${NC}"
             else
                 echo -e "${RED}❌ Failed to download $model${NC}"
                 exit 1
             fi
         else
-            echo -e "${BLUE}ℹ️  $model already exists${NC}"
+            echo -e "${BLUE}ℹ️  $model already exists at ../models/$filename${NC}"
         fi
     done
 fi

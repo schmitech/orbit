@@ -11,7 +11,7 @@ services:
     volumes:
       - ./config:/app/config
       - ../logs:/app/logs
-      - ../gguf:/app/gguf
+      - ../models:/app/models
     env_file:
       - ./.env
     environment:
