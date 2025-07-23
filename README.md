@@ -43,9 +43,9 @@ Get ORBIT running in under 5 minutes:
 
 ```bash
 # Download latest release
-curl -L https://github.com/schmitech/orbit/releases/download/v1.2.0/orbit-1.2.0.tar.gz -o orbit-1.2.0.tar.gz
-tar -xzf orbit-1.2.0.tar.gz
-cd orbit-1.2.0
+curl -L https://github.com/schmitech/orbit/releases/download/v1.2.1/orbit-1.2.1.tar.gz -o orbit-1.2.1.tar.gz
+tar -xzf orbit-1.2.1.tar.gz
+cd orbit-1.2.1
 
 # Quick setup with a small model
 cp .env.example .env
@@ -59,13 +59,8 @@ source venv/bin/activate
 orbit-chat
 ```
 
-### 🐳 Docker Option
-
-Prefer Docker? Even easier:
-
-```bash
-./docker/docker-init.sh --build --profile minimal --download-gguf gemma3-1b.gguf
-```
+### 🐳 Docker
+See [Docker Setup Guide](docker/README.md) for details.
 
 ## 🏗️ Architecture Overview
 

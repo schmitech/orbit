@@ -1,5 +1,53 @@
 # Changelog
 
+## [1.2.1] - 2025-07-23
+
+### Fault Tolerance & Architecture
+- Implemented new circuit breaker pattern and fault tolerance mechanisms
+- Added new fault tolerance service with comprehensive error handling
+- Improved fault tolerance architecture with additional test coverage
+- Added adapters health endpoints for better monitoring
+- Enhanced abstraction and reusability with additional generic classes
+- Refactored and cleaned up redundant code for better maintainability
+
+### API & Authentication
+- New API Key Adapter Association feature - associate adapters with API keys
+- API keys now point to specific retriever behavior instead of single collection
+- Removed collection_name field references throughout the codebase
+- Updated adapter configuration to use adapter-specific settings
+
+### Vector Retrievers & RAG
+- Refactored Chroma and QDrant QA retrievers with base class extraction
+- Improved Intent RAG PoC with enhanced SQL template configuration
+- Added Streamlit UI app for Intent RAG demonstration
+- Enhanced PostgreSQL semantic RAG system with improved examples
+- Updated RAG examples and removed sentence transformers dependencies
+
+### Inference & Moderation
+- Fixed issues with vLLM inference client and improved unit tests
+- Added comprehensive test coverage for vLLM functionality
+- Fixed moderator service issues and improved unit tests
+- Updated default moderator configuration to use Ollama
+- Removed unused unit tests for cleaner codebase
+
+### UI & Demo Applications
+- Enhanced Streamlit PoC with UX improvements
+- Added additional script for Chroma example demonstration
+- Expanded QA sets for city-qa-pairs.json with more comprehensive data
+- Updated orbit architecture diagram to reflect current system design
+
+### Docker & Deployment
+- Updated docker scripts for improved deployment process
+- Enhanced setup.sh with model location updates and GGUF download script
+- Moved scripts to install directory and removed utils folder
+- Improved deployment configuration and script organization
+
+### Documentation & Configuration
+- Updated configuration files with improved settings
+- Enhanced documentation for fault tolerance features
+- Updated architecture diagrams to reflect current system design
+- Improved configuration management and deployment documentation
+
 ## [1.2.0] - 2025-07-07
 
 ### Authentication & Security
