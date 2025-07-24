@@ -396,10 +396,11 @@ def create_example_plugins() -> List[BaseRAGPlugin]:
 
 if __name__ == "__main__":
     # Example of how to use these plugins
-    from customer_order_rag import SemanticRAGSystem
+    from base_rag_system import RAGSystem
+    from clients import OllamaEmbeddingClient, OllamaInferenceClient, PostgreSQLDatabaseClient
     
-    # Create RAG system with custom plugins
-    rag_system = SemanticRAGSystem(enable_default_plugins=False)
+    # Note: To use these plugins, create a RAGSystem instance
+    # and register these plugins using the plugin manager
     
     # Register example plugins
     example_plugins = create_example_plugins()

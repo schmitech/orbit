@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Enhanced test script for customer activity queries with multiple parameters.
+Test script for customer activity queries with multiple parameters.
 Supports comprehensive testing of RAG system query capabilities.
 
 Usage:
@@ -45,7 +45,7 @@ def get_db_config():
     }
 
 def build_query(params):
-    """Build the enhanced query with parameters"""
+    """Build the query with parameters"""
     query = """
         SELECT 
           c.id as customer_id,
@@ -129,8 +129,8 @@ def build_query(params):
     
     return query, query_params
 
-def test_enhanced_query(params, description, show_query=True, show_details=True):
-    """Test the enhanced query with given parameters"""
+def test_query(params, description, show_query=True, show_details=True):
+    """Test the query with given parameters"""
     connection = None
     start_time = time.time()
     
@@ -177,65 +177,65 @@ def test_enhanced_query(params, description, show_query=True, show_details=True)
 
 def run_demo_queries():
     """Run various demo queries to show RAG capabilities"""
-    print("🚀 Enhanced Customer Activity Query Demo")
+    print("🚀 Customer Activity Query Demo")
     print("=" * 60)
     
     # Test 1: Recent orders (default behavior)
-    test_enhanced_query(
+    test_query(
         {},
         "Recent orders (last 7 days)"
     )
     
     # Test 2: High-value orders
-    test_enhanced_query(
+    test_query(
         {"min_amount": 500, "days_back": 30},
         "High-value orders (>$500) from last 30 days"
     )
     
     # Test 3: Orders by status
-    test_enhanced_query(
+    test_query(
         {"status": "delivered", "days_back": 60},
         "Delivered orders from last 60 days"
     )
     
     # Test 4: Orders by city (Canadian cities)
-    test_enhanced_query(
+    test_query(
         {"city": "Toronto", "limit": 10},
         "Orders from Toronto customers"
     )
     
     # Test 5: Specific customer
-    test_enhanced_query(
+    test_query(
         {"customer_id": 1, "limit": 5},
         "All orders for customer ID 1"
     )
     
     # Test 6: Amount range
-    test_enhanced_query(
+    test_query(
         {"min_amount": 100, "max_amount": 500, "days_back": 14},
         "Orders between $100-$500 from last 14 days"
     )
     
     # Test 7: Payment method analysis
-    test_enhanced_query(
+    test_query(
         {"payment_method": "credit_card", "days_back": 30},
         "Credit card orders from last 30 days"
     )
     
     # Test 8: Orders by country
-    test_enhanced_query(
+    test_query(
         {"country": "Canada", "limit": 15},
         "Orders from Canadian customers"
     )
     
     # Test 9: Customer name search
-    test_enhanced_query(
+    test_query(
         {"customer_name": "Smith", "limit": 10},
         "Orders from customers with 'Smith' in name"
     )
     
     # Test 10: High-value pending orders
-    test_enhanced_query(
+    test_query(
         {"status": "pending", "min_amount": 200, "order_by": "o.total DESC"},
         "High-value pending orders (sorted by amount)"
     )
@@ -341,7 +341,7 @@ def run_performance_tests():
     
     results = []
     for params, description in test_cases:
-        _, execution_time = test_enhanced_query(params, description, show_query=False, show_details=False)
+        _, execution_time = test_query(params, description, show_query=False, show_details=False)
         results.append((description, execution_time))
     
     print(f"\n📊 Performance Summary:")
@@ -359,32 +359,32 @@ def run_customer_analysis(customer_id):
     print("=" * 50)
     
     # Customer profile
-    test_enhanced_query(
+    test_query(
         {"customer_id": customer_id, "limit": 1},
         "Customer Profile",
         show_details=False
     )
     
     # All orders for this customer
-    test_enhanced_query(
+    test_query(
         {"customer_id": customer_id, "order_by": "o.order_date DESC"},
         "All Orders (chronological)"
     )
     
     # High-value orders
-    test_enhanced_query(
+    test_query(
         {"customer_id": customer_id, "min_amount": 200, "order_by": "o.total DESC"},
         "High-Value Orders (>$200)"
     )
     
     # Recent activity
-    test_enhanced_query(
+    test_query(
         {"customer_id": customer_id, "days_back": 7},
         "Recent Activity (last 7 days)"
     )
     
     # Payment method analysis
-    test_enhanced_query(
+    test_query(
         {"customer_id": customer_id, "order_by": "o.payment_method"},
         "Orders by Payment Method"
     )
@@ -403,12 +403,12 @@ def run_stress_tests():
     ]
     
     for params, description in complex_queries:
-        test_enhanced_query(params, description, show_details=False)
+        test_query(params, description, show_details=False)
 
 
 def main():
     """Main function with command line argument parsing"""
-    parser = argparse.ArgumentParser(description='Enhanced customer activity query testing')
+    parser = argparse.ArgumentParser(description='Customer activity query testing')
     parser.add_argument('--data', action='store_true', help='Show available data summary')
     parser.add_argument('--customer', type=int, help='Run analysis for specific customer ID')
     parser.add_argument('--performance', action='store_true', help='Run performance tests')

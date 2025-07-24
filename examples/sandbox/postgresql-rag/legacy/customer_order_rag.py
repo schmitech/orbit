@@ -29,6 +29,10 @@ from base_rag_system import (
     BaseResponseGenerator
 )
 
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from plugin_system import (
     PluginManager, 
     PluginContext, 

@@ -14,7 +14,7 @@ from datetime import datetime, timedelta
 
 from plugin_system import BaseRAGPlugin, PluginContext, PluginPriority
 from domain_configuration import DomainConfiguration, DataType
-from base_rag_system import BaseInferenceClient
+from base_classes import BaseInferenceClient
 
 logger = logging.getLogger(__name__)
 

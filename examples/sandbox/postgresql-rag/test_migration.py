@@ -4,7 +4,7 @@ Migration Testing Script
 ========================
 
 This script helps test the migration from the old SemanticRAGSystem 
-to the new EnhancedRAGSystem to ensure compatibility.
+to the new RAGSystem to ensure compatibility.
 """
 
 import os
@@ -12,16 +12,15 @@ import json
 from typing import Dict, List
 from datetime import datetime
 
-# Import both systems for comparison
-from customer_order_rag import SemanticRAGSystem
-from enhanced_base_rag_system import EnhancedRAGSystem
+# Import RAG system
+from base_rag_system import RAGSystem
 from domain_configuration import DomainConfiguration
 from template_library import TemplateLibrary
 from domain_plugin import DomainSpecificPlugin, DomainAnalyticsPlugin
 from template_generator import DomainTemplateGenerator
 
 # Import clients
-from customer_order_rag import (
+from clients import (
     OllamaEmbeddingClient, 
     OllamaInferenceClient, 
     PostgreSQLDatabaseClient
@@ -145,8 +144,8 @@ class MigrationTester:
             return False
     
     def setup_new_system(self):
-        """Setup the new EnhancedRAGSystem"""
-        print("🔄 Setting up enhanced RAG system...")
+        """Setup the new RAGSystem"""
+        print("🔄 Setting up RAG system...")
         try:
             # Create domain
             self.domain = create_customer_order_domain()
@@ -165,8 +164,8 @@ class MigrationTester:
             inference_client = OllamaInferenceClient()
             db_client = PostgreSQLDatabaseClient()
             
-            # Create enhanced system
-            self.new_system = EnhancedRAGSystem(
+            # Create RAG system
+            self.new_system = RAGSystem(
                 domain=self.domain,
                 template_library=template_library,
                 embedding_client=embedding_client,
@@ -182,10 +181,10 @@ class MigrationTester:
             # For now, just populate ChromaDB
             self.new_system.populate_chromadb_from_library(clear_first=True)
             
-            print("✅ Enhanced system ready")
+            print("✅ RAG system ready")
             return True
         except Exception as e:
-            print(f"❌ Error setting up enhanced system: {e}")
+            print(f"❌ Error setting up RAG system: {e}")
             return False
     
     def test_query(self, query: str) -> Dict:
@@ -222,7 +221,7 @@ class MigrationTester:
         
         # Test new system
         try:
-            print("  🚀 Testing enhanced system...")
+            print("  🚀 Testing RAG system...")
             new_result = self.new_system.process_query(query)
             test_result['new_system'] = {
                 'success': new_result['success'],
@@ -307,7 +306,7 @@ class MigrationTester:
             return
         
         if not self.setup_new_system():
-            print("❌ Cannot test without enhanced system")
+            print("❌ Cannot test without RAG system")
             return
         
         print(f"\n🚀 Testing {len(test_queries)} queries...")

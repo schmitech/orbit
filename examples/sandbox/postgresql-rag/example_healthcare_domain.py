@@ -3,12 +3,12 @@
 Example: Healthcare Domain Implementation
 ========================================
 
-This example demonstrates how to use the enhanced RAG system for a 
+This example demonstrates how to use the RAG system for a 
 healthcare domain with patients, appointments, and medical records.
 """
 
 from datetime import datetime, date
-from enhanced_base_rag_system import EnhancedRAGSystem
+from base_rag_system import RAGSystem
 from domain_configuration import (
     DomainConfiguration, DomainEntity, DomainField, 
     DomainRelationship, DataType, EntityType, RelationType
@@ -16,10 +16,10 @@ from domain_configuration import (
 from template_library import TemplateLibrary, QueryTemplateBuilder, TemplateType, ParameterType
 from domain_plugin import DomainSpecificPlugin, DomainAnalyticsPlugin
 from plugin_system import PluginManager
-from base_rag_system import BaseEmbeddingClient, BaseInferenceClient, BaseDatabaseClient
+from base_classes import BaseEmbeddingClient, BaseInferenceClient, BaseDatabaseClient
 
 # Import the actual implementations
-from customer_order_rag import OllamaEmbeddingClient, OllamaInferenceClient, PostgreSQLDatabaseClient
+from clients import OllamaEmbeddingClient, OllamaInferenceClient, PostgreSQLDatabaseClient
 
 
 def create_healthcare_domain() -> DomainConfiguration:
@@ -603,8 +603,8 @@ def main():
     inference_client = OllamaInferenceClient()
     db_client = PostgreSQLDatabaseClient()
     
-    # Create enhanced RAG system
-    rag_system = EnhancedRAGSystem(
+    # Create RAG system
+    rag_system = RAGSystem(
         domain=healthcare_domain,
         template_library=template_library,
         embedding_client=embedding_client,

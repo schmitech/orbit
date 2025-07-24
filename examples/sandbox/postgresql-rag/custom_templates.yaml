@@ -1,0 +1,73 @@
+templates:
+  - id: find_order_by_customer_name
+    version: "1.0.0"
+    description: "Find orders for a customer by their name"
+    nl_examples:
+      - "Show me orders from John Smith"
+      - "What did Jane Doe order?"
+      - "Find all orders from customer Bob Johnson"
+      - "Orders placed by Alice Wilson"
+      - "Show me all orders from Shelia Olson"
+    parameters:
+      - name: customer_name
+        type: string
+        description: "Customer name to search for"
+        required: true
+        aliases: ["name", "client_name", "buyer_name"]
+      - name: days_back
+        type: integer
+        description: "Number of days to look back"
+        required: false
+        default: 365
+    sql_template: |
+      SELECT o.*, c.name as customer_name, c.email as customer_email
+      FROM orders o
+      JOIN customers c ON o.customer_id = c.id
+      WHERE LOWER(c.name) LIKE LOWER(%(customer_name)s)
+        AND o.order_date >= CURRENT_DATE - INTERVAL '%(days_back)s days'
+      ORDER BY o.order_date DESC
+      LIMIT 100
+    result_format: "table"
+    tags: ["order", "customer", "name", "search"]
+    semantic_tags:
+      action: "find_list"
+      primary_entity: "order"
+      secondary_entity: "customer"
+      qualifiers: ["by_name"]
+    approved: true
+
+  - id: find_order_by_customer_name_recent
+    version: "1.0.0"
+    description: "Find recent orders for a customer by their name within a specific time period"
+    nl_examples:
+      - "Show me orders from John Smith in the last 3 days"
+      - "What did Jane Doe order this week?"
+      - "Find all orders from Bob Johnson within the last 7 days"
+      - "Recent orders from Alice Wilson"
+      - "I'm looking for all orders from Shelia Olson within the last 3 days"
+    parameters:
+      - name: customer_name
+        type: string
+        description: "Customer name to search for"
+        required: true
+        aliases: ["name", "client_name", "buyer_name"]
+      - name: days_back
+        type: integer
+        description: "Number of days to look back"
+        required: true
+    sql_template: |
+      SELECT o.*, c.name as customer_name, c.email as customer_email, c.city as customer_city
+      FROM orders o
+      JOIN customers c ON o.customer_id = c.id
+      WHERE LOWER(c.name) LIKE LOWER(%(customer_name)s)
+        AND o.order_date >= CURRENT_DATE - INTERVAL '%(days_back)s days'
+      ORDER BY o.order_date DESC
+      LIMIT 100
+    result_format: "table"
+    tags: ["order", "customer", "name", "search", "recent", "time"]
+    semantic_tags:
+      action: "find_list"
+      primary_entity: "order"
+      secondary_entity: "customer"
+      qualifiers: ["by_name", "recent"]
+    approved: true

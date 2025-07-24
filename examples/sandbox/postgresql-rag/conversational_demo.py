@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Enhanced Interactive Demo for Semantic RAG System
-Features conversation memory, query suggestions, and improved UX
+Interactive Demo for Domain-Agnostic RAG System
+Features conversation memory, query suggestions, and domain configuration support
 """
 
 import sys
@@ -24,18 +24,265 @@ else:
         except locale.Error:
             pass  # Use default locale
 
-from customer_order_rag import SemanticRAGSystem
+from base_rag_system import RAGSystem
+from domain_configuration import DomainConfiguration
+from template_library import TemplateLibrary
+from domain_plugin import DomainSpecificPlugin, DomainAnalyticsPlugin
+from template_generator import DomainTemplateGenerator
+from plugin_system import PluginManager
+
+# Import the actual implementations
+from clients import (
+    OllamaEmbeddingClient, 
+    OllamaInferenceClient, 
+    PostgreSQLDatabaseClient
+)
+
+from plugin_system import (
+    SecurityPlugin,
+    QueryNormalizationPlugin,
+    ResultFilteringPlugin,
+    DataEnrichmentPlugin,
+    ResponseEnhancementPlugin,
+    LoggingPlugin
+)
+
+# Import example plugins if available
+try:
+    from example_plugins import (
+        CustomerSegmentationPlugin,
+        RevenueAnalyticsPlugin,
+        TimeBasedInsightsPlugin,
+        GeographicInsightsPlugin,
+        BusinessRulesPlugin
+    )
+    EXAMPLE_PLUGINS_AVAILABLE = True
+except ImportError:
+    EXAMPLE_PLUGINS_AVAILABLE = False
+
 import readline  # For better input handling
-from typing import List, Dict
+from typing import List, Dict, Optional
 import json
 from datetime import datetime
+import yaml
+
+
+def create_customer_order_domain() -> DomainConfiguration:
+    """Create customer order domain configuration (same as existing system)"""
+    from domain_configuration import DomainEntity, DomainField, DomainRelationship
+    from domain_configuration import DataType, EntityType, RelationType
+    
+    domain = DomainConfiguration(
+        domain_name="E-Commerce",
+        description="Customer order management system"
+    )
+    
+    # Customer entity
+    customer_entity = DomainEntity(
+        name="customer",
+        entity_type=EntityType.PRIMARY,
+        table_name="customers",
+        description="Customer information",
+        primary_key="id",
+        display_name_field="name",
+        searchable_fields=["name", "email", "phone"],
+        common_filters=["city", "country", "created_at"],
+        default_sort_field="created_at"
+    )
+    domain.add_entity(customer_entity)
+    
+    # Order entity
+    order_entity = DomainEntity(
+        name="order",
+        entity_type=EntityType.TRANSACTION,
+        table_name="orders",
+        description="Customer orders",
+        primary_key="id",
+        display_name_field="id",
+        searchable_fields=["id", "status"],
+        common_filters=["status", "payment_method", "order_date", "total"],
+        default_sort_field="order_date"
+    )
+    domain.add_entity(order_entity)
+    
+    # Customer fields
+    domain.add_field("customer", DomainField(
+        name="id",
+        data_type=DataType.INTEGER,
+        db_column="id",
+        description="Customer ID",
+        required=True,
+        searchable=True
+    ))
+    
+    domain.add_field("customer", DomainField(
+        name="name",
+        data_type=DataType.STRING,
+        db_column="name",
+        description="Customer name",
+        required=True,
+        searchable=True,
+        aliases=["customer name", "client name", "buyer name"]
+    ))
+    
+    domain.add_field("customer", DomainField(
+        name="email",
+        data_type=DataType.STRING,
+        db_column="email",
+        description="Customer email",
+        required=True,
+        searchable=True,
+        display_format="email"
+    ))
+    
+    domain.add_field("customer", DomainField(
+        name="phone",
+        data_type=DataType.STRING,
+        db_column="phone",
+        description="Phone number",
+        searchable=True,
+        display_format="phone"
+    ))
+    
+    domain.add_field("customer", DomainField(
+        name="city",
+        data_type=DataType.STRING,
+        db_column="city",
+        description="City",
+        filterable=True
+    ))
+    
+    domain.add_field("customer", DomainField(
+        name="country",
+        data_type=DataType.STRING,
+        db_column="country",
+        description="Country",
+        filterable=True
+    ))
+    
+    # Order fields
+    domain.add_field("order", DomainField(
+        name="id",
+        data_type=DataType.INTEGER,
+        db_column="id",
+        description="Order ID",
+        required=True,
+        searchable=True
+    ))
+    
+    domain.add_field("order", DomainField(
+        name="customer_id",
+        data_type=DataType.INTEGER,
+        db_column="customer_id",
+        description="Customer ID",
+        required=True
+    ))
+    
+    domain.add_field("order", DomainField(
+        name="order_date",
+        data_type=DataType.DATETIME,
+        db_column="order_date",
+        description="Order date",
+        required=True,
+        filterable=True,
+        sortable=True,
+        display_format="date"
+    ))
+    
+    domain.add_field("order", DomainField(
+        name="total",
+        data_type=DataType.DECIMAL,
+        db_column="total",
+        description="Order total amount",
+        required=True,
+        filterable=True,
+        display_format="currency"
+    ))
+    
+    domain.add_field("order", DomainField(
+        name="status",
+        data_type=DataType.ENUM,
+        db_column="status",
+        description="Order status",
+        required=True,
+        searchable=True,
+        filterable=True,
+        enum_values=["pending", "processing", "shipped", "delivered", "cancelled"]
+    ))
+    
+    domain.add_field("order", DomainField(
+        name="payment_method",
+        data_type=DataType.ENUM,
+        db_column="payment_method",
+        description="Payment method",
+        filterable=True,
+        enum_values=["credit_card", "debit_card", "paypal", "bank_transfer", "cash"]
+    ))
+    
+    domain.add_field("order", DomainField(
+        name="shipping_address",
+        data_type=DataType.STRING,
+        db_column="shipping_address",
+        description="Shipping address"
+    ))
+    
+    domain.add_field("order", DomainField(
+        name="shipping_city",
+        data_type=DataType.STRING,
+        db_column="shipping_city",
+        description="Shipping city"
+    ))
+    
+    domain.add_field("order", DomainField(
+        name="shipping_country",
+        data_type=DataType.STRING,
+        db_column="shipping_country",
+        description="Shipping country"
+    ))
+    
+    # Relationship
+    domain.add_relationship(DomainRelationship(
+        name="customer_orders",
+        from_entity="customer",
+        to_entity="order",
+        relation_type=RelationType.ONE_TO_MANY,
+        from_field="id",
+        to_field="customer_id",
+        description="Customer has many orders"
+    ))
+    
+    # Vocabulary
+    domain.vocabulary.entity_synonyms = {
+        "customer": ["client", "buyer", "user", "purchaser", "shopper"],
+        "order": ["purchase", "transaction", "sale", "invoice"]
+    }
+    
+    domain.vocabulary.action_verbs = {
+        "find": ["show", "list", "get", "find", "display", "retrieve"],
+        "calculate": ["sum", "total", "calculate", "compute", "aggregate"],
+        "filter": ["filter", "only", "just", "where", "with"]
+    }
+    
+    domain.vocabulary.time_expressions = {
+        "today": "0",
+        "yesterday": "1",
+        "this week": "7",
+        "last week": "14",
+        "this month": "30",
+        "last month": "60",
+        "this year": "365"
+    }
+    
+    return domain
 
 
 class ConversationalDemo:
-    """Enhanced demo with conversation features and better UX"""
+    """Demo with domain configuration support"""
     
     def __init__(self):
         self.rag_system = None
+        self.domain = None
+        self.template_library = None
         self.query_history = []
         self.setup_readline()
     
@@ -98,25 +345,27 @@ class ConversationalDemo:
     def print_header(self):
         """Print welcome header"""
         print("\n" + "="*80)
-        print("🤖 Semantic RAG System - Conversational Database Interface")
+        print("🤖 Domain-Agnostic RAG System - Conversational Database Interface")
         print("="*80)
-        print("This system allows you to query your database using natural language!")
+        print("This system uses domain configuration for flexibility!")
         print("\nFeatures:")
-        print("✨ Natural language understanding")
+        print("✨ Domain configuration driven")
+        print("📋 Template SDK for query generation")
         print("🔌 Plugin architecture for extensibility")
         print("💬 Conversational context")
-        print("🔍 Intelligent parameter extraction")
+        print("🔍 Domain-aware parameter extraction")
         print("📊 Smart result formatting")
         print("💡 Query suggestions")
         print("🛡️ Security validation")
         print("⚡ Performance optimization")
-        print("📈 Business intelligence")
         print("\nSystem Components:")
+        print("- Domain Configuration for business logic")
+        print("- Template Library for query management")
         print("- ChromaDB for semantic search")
         print(f"- Ollama ({os.getenv('OLLAMA_EMBEDDING_MODEL', 'nomic-embed-text')}) for embeddings")
         print(f"- Ollama ({os.getenv('OLLAMA_INFERENCE_MODEL', 'gemma3:1b')}) for natural language generation")
         print("- PostgreSQL for data storage")
-        print("- Plugin system for enhanced functionality")
+        print("- Plugin system for functionality")
         print(f"\nConfiguration:")
         print(f"- Ollama Server: {os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434')}")
         print("="*80)
@@ -126,19 +375,22 @@ class ConversationalDemo:
         print("\n📚 Help Menu")
         print("-" * 40)
         print("Commands:")
-        print("  help     - Show this help menu")
-        print("  examples - Show example queries")
-        print("  stats    - Show session statistics")
-        print("  plugins  - Show plugin status")
-        print("  clear    - Clear conversation history")
-        print("  quit     - Exit the demo")
-        print("  exit     - Exit the demo")
-        print("  bye      - Exit the demo")
+        print("  help        - Show this help menu")
+        print("  examples    - Show example queries")
+        print("  stats       - Show session statistics")
+        print("  plugins     - Show plugin status")
+        print("  domain      - Show domain configuration")
+        print("  templates   - Show available templates")
+        print("  clear       - Clear conversation history")
+        print("  quit        - Exit the demo")
+        print("  exit        - Exit the demo")
+        print("  bye         - Exit the demo")
         print("\nTips:")
         print("- Use natural language to query your database")
         print("- Be specific about what you want")
         print("- Include time periods, amounts, names, etc.")
         print("- Press TAB for query suggestions")
+        print("- Domain configuration defines entities and relationships")
         print("- Plugins enhance results with additional insights")
     
     def print_examples(self):
@@ -219,6 +471,61 @@ class ConversationalDemo:
             for query in queries:
                 print(f"  • {query}")
     
+    def print_domain_info(self):
+        """Print domain configuration information"""
+        if not self.domain:
+            print("❌ No domain loaded")
+            return
+        
+        print(f"\n🏢 Domain: {self.domain.domain_name}")
+        print(f"Description: {self.domain.description}")
+        print("\n📊 Entities:")
+        for entity_name, entity in self.domain.entities.items():
+            print(f"\n  {entity_name} ({entity.entity_type.value}):")
+            print(f"    Table: {entity.table_name}")
+            print(f"    Primary Key: {entity.primary_key}")
+            print(f"    Searchable: {', '.join(entity.searchable_fields)}")
+            print(f"    Filters: {', '.join(entity.common_filters)}")
+            
+            # Show fields
+            fields = self.domain.fields.get(entity_name, {})
+            if fields:
+                print(f"    Fields:")
+                for field_name, field in fields.items():
+                    print(f"      - {field_name} ({field.data_type.value})")
+        
+        print("\n🔗 Relationships:")
+        for rel in self.domain.relationships:
+            print(f"  {rel.name}: {rel.from_entity} -> {rel.to_entity} ({rel.relation_type.value})")
+    
+    def print_templates_info(self):
+        """Print template library information"""
+        if not self.template_library:
+            print("❌ No templates loaded")
+            return
+        
+        print(f"\n📋 Template Library")
+        print(f"Total templates: {len(self.template_library.templates)}")
+        
+        # Group by category
+        categories = {}
+        for template_id, template in self.template_library.templates.items():
+            if 'semantic_tags' in template:
+                action = template['semantic_tags'].get('action', 'other')
+            else:
+                action = 'other'
+            
+            if action not in categories:
+                categories[action] = []
+            categories[action].append(template)
+        
+        for category, templates in sorted(categories.items()):
+            print(f"\n{category.replace('_', ' ').title()}:")
+            for template in templates[:5]:  # Show first 5
+                print(f"  - {template['id']}: {template['description']}")
+            if len(templates) > 5:
+                print(f"  ... and {len(templates) - 5} more")
+    
     def print_stats(self):
         """Print session statistics"""
         print("\n📊 Session Statistics")
@@ -276,25 +583,6 @@ class ConversationalDemo:
             
             print(f"📊 Found {result['result_count']} results")
             
-            # Show enhanced results if available
-            if result.get('results'):
-                first_result = result['results'][0]
-                enhanced_fields = []
-                
-                if 'customer_segment' in first_result:
-                    enhanced_fields.append(f"Customer Segment: {first_result['customer_segment']}")
-                if 'revenue_analytics' in first_result:
-                    enhanced_fields.append("Revenue Analytics: Available")
-                if 'time_insights' in first_result:
-                    enhanced_fields.append("Time Insights: Available")
-                if 'geographic_insights' in first_result:
-                    enhanced_fields.append("Geographic Insights: Available")
-                if 'business_flags' in first_result:
-                    enhanced_fields.append("Business Rules: Applied")
-                
-                if enhanced_fields:
-                    print(f"🎯 Enhanced data: {', '.join(enhanced_fields)}")
-            
             # Show the response with proper Unicode handling
             print(f"\n💬 Response:")
             print("-" * 60)
@@ -309,14 +597,6 @@ class ConversationalDemo:
         else:
             print(f"\n❌ Query failed")
             print(f"Reason: {result.get('error', 'Unknown error')}")
-            
-            # If verification failed, show the LLM's reason
-            if result.get('verification_failed'):
-                print(f"\n⚠️  Template verification failed.")
-                if result.get('verification_reason'):
-                    print(f"LLM reason: {result['verification_reason']}")
-                else:
-                    print(f"The system determined the selected template did not match your intent.")
             
             if 'validation_errors' in result:
                 print(f"\n⚠️ Missing information:")
@@ -377,20 +657,43 @@ class ConversationalDemo:
         
         return suggestions[:3]  # Return top 3 suggestions
     
+    def load_or_generate_templates(self) -> TemplateLibrary:
+        """Generate templates from domain configuration"""
+        print("🔨 Generating templates from domain configuration...")
+        generator = DomainTemplateGenerator(self.domain)
+        library = generator.generate_standard_templates()
+        
+        # Also load any custom templates if they exist
+        if os.path.exists("custom_templates.yaml"):
+            print("📚 Loading custom templates...")
+            library.import_from_yaml("custom_templates.yaml")
+        
+        return library
+    
     def run(self):
         """Run the interactive demo"""
         self.print_header()
         
-        # Initialize the RAG system with plugins
-        print("\n🚀 Initializing system with plugins...")
+        # Initialize domain configuration
+        print("\n🏢 Initializing domain configuration...")
         try:
-            self.rag_system = SemanticRAGSystem(
-                enable_default_plugins=True,
-                enable_postgresql_plugins=True
-            )
-            print("✅ System initialized successfully!")
+            self.domain = create_customer_order_domain()
+            # Save for reference
+            self.domain.to_yaml("customer_order_domain.yaml")
+            print("✅ Domain configuration created")
         except Exception as e:
-            print(f"❌ Error initializing system: {e}")
+            print(f"❌ Error creating domain: {e}")
+            return
+        
+        # Initialize clients
+        print("\n🔧 Initializing system components...")
+        try:
+            embedding_client = OllamaEmbeddingClient()
+            inference_client = OllamaInferenceClient()
+            db_client = PostgreSQLDatabaseClient()
+            print("✅ Clients initialized")
+        except Exception as e:
+            print(f"❌ Error initializing clients: {e}")
             print("\nTroubleshooting:")
             print(f"1. Ensure Ollama is running ({os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434')})")
             print("2. Pull required models:")
@@ -399,24 +702,85 @@ class ConversationalDemo:
             print("3. Check PostgreSQL connection settings in .env")
             return
         
-        # Load templates
+        # Load or generate templates
         try:
-            print("📚 Loading query templates...")
-            self.rag_system.populate_chromadb("query_templates.yaml", clear_first=True)
-            print("✅ Templates loaded successfully!")
+            self.template_library = self.load_or_generate_templates()
+            print(f"✅ Loaded {len(self.template_library.templates)} templates")
         except Exception as e:
             print(f"❌ Error loading templates: {e}")
             return
         
-        # Show plugin status
-        plugins = self.rag_system.list_plugins()
-        enabled_plugins = [p['name'] for p in plugins if p['enabled']]
-        print(f"🔌 Enabled plugins: {', '.join(enabled_plugins)}")
+        # Initialize the RAG system
+        print("\n🚀 Initializing RAG system...")
+        try:
+            self.rag_system = RAGSystem(
+                domain=self.domain,
+                template_library=self.template_library,
+                embedding_client=embedding_client,
+                inference_client=inference_client,
+                db_client=db_client
+            )
+            print("✅ RAG system initialized")
+        except Exception as e:
+            print(f"❌ Error initializing RAG system: {e}")
+            return
+        
+        # Register plugins
+        print("\n🔌 Registering plugins...")
+        plugin_manager = PluginManager()
+        
+        # Register default plugins
+        default_plugins = [
+            SecurityPlugin(),
+            QueryNormalizationPlugin(),
+            ResultFilteringPlugin(max_results=50),
+            DataEnrichmentPlugin(),
+            ResponseEnhancementPlugin(),
+            LoggingPlugin()
+        ]
+        
+        for plugin in default_plugins:
+            plugin_manager.register_plugin(plugin)
+        
+        # Register domain-specific plugin
+        domain_plugin = DomainSpecificPlugin(self.domain, inference_client)
+        plugin_manager.register_plugin(domain_plugin)
+        
+        analytics_plugin = DomainAnalyticsPlugin(self.domain)
+        plugin_manager.register_plugin(analytics_plugin)
+        
+        # Register example plugins if available
+        if EXAMPLE_PLUGINS_AVAILABLE:
+            example_plugins = [
+                CustomerSegmentationPlugin(),
+                RevenueAnalyticsPlugin(),
+                TimeBasedInsightsPlugin(),
+                GeographicInsightsPlugin(),
+                BusinessRulesPlugin()
+            ]
+            for plugin in example_plugins:
+                plugin_manager.register_plugin(plugin)
+        
+        # Attach plugin manager to RAG system
+        self.rag_system.plugin_manager = plugin_manager
+        
+        enabled_plugins = [p.get_name() for p in plugin_manager.get_enabled_plugins()]
+        print(f"✅ Registered {len(enabled_plugins)} plugins: {', '.join(enabled_plugins)}")
+        
+        # Populate ChromaDB
+        try:
+            print("\n📚 Loading templates into ChromaDB...")
+            self.rag_system.populate_chromadb_from_library(clear_first=True)
+            print("✅ Templates loaded into vector database")
+        except Exception as e:
+            print(f"❌ Error populating ChromaDB: {e}")
+            return
         
         print("\n💡 Type 'help' for commands or 'examples' for query examples")
         print("🎯 Press TAB for query suggestions")
-        print("🔌 Type 'plugins' to show plugin status")
-        print("\nReady to answer your questions about the database with enhanced plugin features!\n")
+        print("🏢 Type 'domain' to see domain configuration")
+        print("📋 Type 'templates' to see available templates")
+        print("\nReady to answer your questions about the database!\n")
         
         # Main interaction loop
         last_result = None
@@ -440,7 +804,7 @@ class ConversationalDemo:
                 
                 # Handle commands
                 if user_input.lower() in ['quit', 'exit', 'bye']:
-                    print("\n👋 Thank you for using the Semantic RAG System!")
+                    print("\n👋 Thank you for using the Domain-Agnostic RAG System!")
                     self.save_history()
                     break
                 elif user_input.lower() == 'help':
@@ -452,12 +816,17 @@ class ConversationalDemo:
                 elif user_input.lower() == 'stats':
                     self.print_stats()
                     continue
+                elif user_input.lower() == 'domain':
+                    self.print_domain_info()
+                    continue
+                elif user_input.lower() == 'templates':
+                    self.print_templates_info()
+                    continue
                 elif user_input.lower() == 'plugins':
-                    plugins = self.rag_system.list_plugins()
+                    plugins = plugin_manager.get_enabled_plugins()
                     print(f"\n🔌 Plugin Status:")
                     for plugin in plugins:
-                        status = "✅" if plugin['enabled'] else "❌"
-                        print(f"   {status} {plugin['name']} v{plugin['version']} ({plugin['priority']})")
+                        print(f"   ✅ {plugin.get_name()} v{plugin.get_version()} ({plugin.get_priority().name})")
                     continue
                 elif user_input.lower() == 'clear':
                     self.rag_system.clear_conversation()
@@ -485,7 +854,7 @@ class ConversationalDemo:
                 last_result = result
                 
             except KeyboardInterrupt:
-                print("\n\n👋 Interrupted. Thank you for using the Semantic RAG System!")
+                print("\n\n👋 Interrupted. Thank you for using the Domain-Agnostic RAG System!")
                 self.save_history()
                 break
             except Exception as e:
