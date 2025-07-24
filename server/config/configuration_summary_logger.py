@@ -92,6 +92,9 @@ class ConfigurationSummaryLogger:
             # Endpoint Information
             self._log_endpoint_information()
             
+            # Performance Settings
+            self._log_performance_settings(app)
+            
             # System Settings
             self._log_system_settings()
             
@@ -313,6 +316,54 @@ class ConfigurationSummaryLogger:
             self._log_message("  - Health check: GET /health", indent=2)
         except Exception as e:
             self._log_message(f"Error logging endpoint information: {str(e)}", level='error')
+    
+    def _log_performance_settings(self, app: Optional[FastAPI] = None) -> None:
+        """Log performance and threading configuration."""
+        try:
+            perf_config = self.config.get('performance', {})
+            
+            if perf_config:
+                self._log_message("⚡ Performance Configuration:")
+                
+                # Uvicorn workers
+                workers = perf_config.get('workers', 1)
+                self._log_message(f"Uvicorn workers: {workers}", indent=2)
+                
+                # Keep-alive timeout
+                keep_alive = perf_config.get('keep_alive_timeout', 30)
+                self._log_message(f"Keep-alive timeout: {keep_alive}s", indent=2)
+                
+                # Thread pools
+                thread_pools = perf_config.get('thread_pools', {})
+                if thread_pools:
+                    self._log_message("Thread Pools:", indent=2)
+                    
+                    # Calculate total workers
+                    total_workers = 0
+                    for pool_name, worker_count in thread_pools.items():
+                        pool_display_name = pool_name.replace('_workers', '').upper()
+                        self._log_message(f"{pool_display_name}: {worker_count} workers", indent=4)
+                        total_workers += worker_count
+                    
+                    self._log_message(f"Total thread pool capacity: {total_workers} workers", indent=4)
+                    
+                    # Show current utilization if thread pool manager is available
+                    if app and hasattr(app.state, 'thread_pool_manager'):
+                        try:
+                            stats = app.state.thread_pool_manager.get_pool_stats()
+                            active_total = sum(pool['active_threads'] for pool in stats.values() if isinstance(pool['active_threads'], int))
+                            utilization = (active_total / total_workers * 100) if total_workers > 0 else 0
+                            self._log_message(f"Current utilization: {active_total}/{total_workers} ({utilization:.1f}%)", indent=4)
+                        except Exception:
+                            # Don't fail if stats aren't available
+                            pass
+                else:
+                    self._log_message("Thread pools: using defaults", indent=2)
+            else:
+                self._log_message("⚡ Performance: using default configuration")
+                
+        except Exception as e:
+            self._log_message(f"Error logging performance settings: {str(e)}", level='error')
     
     def _log_system_settings(self) -> None:
         """Log system-level settings."""

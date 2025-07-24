@@ -20,6 +20,17 @@ general:
   inference_provider: "llama_cpp"
   inference_only: true
 
+performance:
+  workers: 4                        # Number of uvicorn workers
+  keep_alive_timeout: 30            # Uvicorn keep-alive timeout
+  
+  thread_pools:
+    io_workers: 50              # Up from 10
+    cpu_workers: 30             # CPU-bound tasks
+    inference_workers: 20       # Model inference
+    embedding_workers: 15       # Embedding generation
+    db_workers: 25              # Database operations
+
 fault_tolerance:
   circuit_breaker:
     failure_threshold: 5

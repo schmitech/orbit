@@ -33,7 +33,6 @@ This roadmap outlines the strategic approach to transforming ORBIT into a high-p
 - Built-in load balancing
 - Real-time performance monitoring
 - Auto-scaling based on demand
-- Circuit breaker patterns for resilience
 - Request prioritization and throttling
 
 ## Implementation Roadmap
@@ -282,36 +281,7 @@ class PerformanceMonitorService:
             await self.scale_down_workers()
 ```
 
-#### 3.3 Circuit Breaker Implementation
-**Objective**: Implement resilience patterns for external service dependencies
-
-**New Service**: `CircuitBreakerService`
-```python
-class CircuitBreakerService:
-    def __init__(self):
-        self.circuit_breakers = {
-            'mongodb': CircuitBreaker(failure_threshold=5, timeout=60),
-            'redis': CircuitBreaker(failure_threshold=3, timeout=30),
-            'ollama': CircuitBreaker(failure_threshold=10, timeout=120),
-            'embedding_service': CircuitBreaker(failure_threshold=8, timeout=90)
-        }
-        
-    async def call_with_circuit_breaker(self, service_name: str, service_call):
-        breaker = self.circuit_breakers[service_name]
-        
-        if breaker.state == "OPEN":
-            raise ServiceUnavailableException(f"{service_name} is currently unavailable")
-        
-        try:
-            result = await service_call()
-            breaker.record_success()
-            return result
-        except Exception as e:
-            breaker.record_failure()
-            raise
-```
-
-#### 3.4 Auto-Scaling Logic
+#### 3.3 Auto-Scaling Logic
 **Objective**: Dynamic resource allocation based on demand patterns
 
 **New Service**: `AutoScalingService`

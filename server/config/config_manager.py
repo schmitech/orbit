@@ -89,6 +89,24 @@ def _log_config_summary(config: Dict[str, Any], source_path: str):
     logger.info(f"Fault Tolerance: enabled - strategy={execution_config.get('strategy', 'all')}, "
                f"circuit_breaker_threshold={circuit_breaker_config.get('failure_threshold', 5)}, "
                f"timeout={execution_config.get('timeout', 35)}s")
+    
+    # Log performance configuration
+    perf_config = config.get('performance', {})
+    if perf_config:
+        workers = perf_config.get('workers', 1)
+        keep_alive = perf_config.get('keep_alive_timeout', 30)
+        
+        # Calculate total thread pool capacity
+        thread_pools = perf_config.get('thread_pools', {})
+        if thread_pools:
+            total_workers = sum(thread_pools.values())
+            pool_summary = ', '.join([f"{k.replace('_workers', '')}={v}" for k, v in thread_pools.items()])
+            logger.info(f"Performance: workers={workers}, keep_alive={keep_alive}s, "
+                       f"thread_pools=({pool_summary}), total_capacity={total_workers}")
+        else:
+            logger.info(f"Performance: workers={workers}, keep_alive={keep_alive}s, thread_pools=default")
+    else:
+        logger.info("Performance: using default configuration")
 
 
 def _mask_url(url: str) -> str:

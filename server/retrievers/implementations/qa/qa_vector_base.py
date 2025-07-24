@@ -52,11 +52,19 @@ class QAVectorRetrieverBase(AbstractVectorRetriever):
         """Extract QA adapter configuration if available."""
         try:
             datasource_name = self.get_datasource_name()
+            logger.info(f"Extracting adapter config for datasource: {datasource_name}")
+            logger.info(f"Available adapters: {self.config.get('adapters', [])}")
+            
             for adapter in self.config.get('adapters', []):
+                logger.info(f"Checking adapter: {adapter}")
                 if (adapter.get('type') == 'retriever' and 
                     adapter.get('datasource') == datasource_name and 
                     adapter.get('adapter') == 'qa'):
-                    return adapter.get('config', {})
+                    config = adapter.get('config', {})
+                    logger.info(f"Found matching adapter config: {config}")
+                    return config
+            
+            logger.warning(f"No matching adapter found for datasource={datasource_name}, adapter=qa")
         except Exception as e:
             logger.warning(f"Error extracting adapter config: {str(e)}")
         return None
@@ -65,10 +73,16 @@ class QAVectorRetrieverBase(AbstractVectorRetriever):
         """Merge adapter config with datasource config."""
         try:
             datasource_name = self.get_datasource_name()
-            merged_config = self.config.get('datasources', {}).get(datasource_name, {}).copy()
+            datasource_config = self.config.get('datasources', {}).get(datasource_name, {})
+            merged_config = datasource_config.copy()
+            
+            logger.info(f"Merging configs for datasource: {datasource_name}")
+            logger.info(f"  Datasource config: {datasource_config}")
+            logger.info(f"  Adapter config: {self.adapter_config}")
             
             if self.adapter_config:
                 merged_config.update(self.adapter_config)
+                logger.info(f"  Merged config: {merged_config}")
                 
             # Override max_results and return_results in main config
             if 'max_results' in merged_config:
@@ -235,8 +249,22 @@ class QAVectorRetrieverBase(AbstractVectorRetriever):
             # Resolve collection name
             resolved_collection = collection_name or self.collection_name or self.datasource_config.get('collection')
             
+            if self.verbose:
+                logger.info(f"Collection name resolution:")
+                logger.info(f"  - Parameter collection_name: {collection_name}")
+                logger.info(f"  - Self.collection_name: {getattr(self, 'collection_name', 'Not set')}")
+                logger.info(f"  - Datasource config collection: {self.datasource_config.get('collection')}")
+                logger.info(f"  - Resolved collection: {resolved_collection}")
+            
             if resolved_collection:
                 await self.set_collection(resolved_collection)
+            else:
+                logger.error("No collection name could be resolved!")
+                logger.error("Available sources:")
+                logger.error(f"  - Parameter: {collection_name}")
+                logger.error(f"  - Self.collection_name: {getattr(self, 'collection_name', 'Not set')}")
+                logger.error(f"  - Datasource config: {self.datasource_config}")
+                return []
             
             # Check embeddings
             if not self.embeddings:

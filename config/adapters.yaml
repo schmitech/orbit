@@ -57,20 +57,20 @@ adapters:
       
     # Fault tolerance settings for this adapter
     fault_tolerance:
-      operation_timeout: 25.0          # Longer timeout for network operations
-      failure_threshold: 3             # Lower threshold for external service
-      recovery_timeout: 60.0           # Longer base timeout for network service
-      success_threshold: 2             # Fewer successes to close circuit
-      max_recovery_timeout: 600.0      # Max 10 minutes for network service
-      enable_exponential_backoff: true # Enable backoff for network service
-      enable_thread_isolation: true    # Use thread isolation for network operations
-      enable_process_isolation: false  # Thread isolation sufficient for most cases
-      max_retries: 2                   # Fewer retries for network operations
-      retry_delay: 1.0                 # Longer delay between retries
-      cleanup_interval: 1800.0         # Clean up stats every 30 minutes (more frequent for network ops)
-      retention_period: 43200.0        # Keep stats for 12 hours
+      operation_timeout: 25.0
+      failure_threshold: 3
+      recovery_timeout: 60.0
+      success_threshold: 2
+      max_recovery_timeout: 600.0
+      enable_exponential_backoff: true
+      enable_thread_isolation: true
+      enable_process_isolation: false
+      max_retries: 2
+      retry_delay: 1.0
+      cleanup_interval: 1800.0
+      retention_period: 43200.0
       event_handler:
-        type: "default"                # Use default filesystem logger
+        type: "default"
       
   - name: "qa-vector-qdrant"
     type: "retriever"
@@ -87,20 +87,20 @@ adapters:
       
     # Fault tolerance settings for this adapter
     fault_tolerance:
-      operation_timeout: 10.0          # Reduced timeout for faster failure detection
-      failure_threshold: 2             # Lower threshold for external service
-      recovery_timeout: 45.0           # Moderate base timeout for Qdrant
-      success_threshold: 1             # Single success to close circuit (aggressive)
-      max_recovery_timeout: 300.0      # Max 5 minutes for Qdrant
-      enable_exponential_backoff: true # Enable backoff for Qdrant
-      enable_thread_isolation: true    # Use thread isolation for network operations
-      enable_process_isolation: false  # Thread isolation sufficient
-      max_retries: 1                   # Fewer retries for network operations
-      retry_delay: 1.0                 # Shorter delay for Qdrant
-      cleanup_interval: 1800.0         # Clean up stats every 30 minutes
-      retention_period: 43200.0        # Keep stats for 12 hours
+      operation_timeout: 10.0
+      failure_threshold: 2
+      recovery_timeout: 45.0
+      success_threshold: 1
+      max_recovery_timeout: 300.0
+      enable_exponential_backoff: true
+      enable_thread_isolation: true
+      enable_process_isolation: false
+      max_retries: 1
+      retry_delay: 1.0
+      cleanup_interval: 1800.0
+      retention_period: 43200.0
       event_handler:
-        type: "default"                # Use default filesystem logger
+        type: "default"
       
   - name: "file-vector"
     type: "retriever"

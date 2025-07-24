@@ -49,7 +49,7 @@ cd orbit-1.2.1
 
 # Quick setup with a small model
 cp .env.example .env
-./install/setup.sh --profile minimal --download-gguf gemma3-1b.gguf
+./install/setup.sh --profile minimal --download-gguf gemma3-1b
 
 # Start ORBIT (Default is http://localhost:3000)
 source venv/bin/activate

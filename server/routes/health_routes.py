@@ -8,6 +8,7 @@ import logging
 from typing import Dict, Any
 from fastapi import APIRouter, HTTPException, Request, Depends
 from fastapi.responses import JSONResponse
+from utils import is_true_value
 
 logger = logging.getLogger(__name__)
 
@@ -359,5 +360,79 @@ def create_health_router() -> APIRouter:
                 status_code=500,
                 detail=f"Internal server error while retrieving full adapter history: {str(e)}"
             )
+    
+    @router.get("/thread-pools")
+    async def get_thread_pool_stats(request: Request):
+        """Get thread pool statistics when verbose mode is enabled"""
+        # Check if verbose mode is enabled
+        verbose = is_true_value(request.app.state.config.get('general', {}).get('verbose', False))
+        if not verbose:
+            raise HTTPException(
+                status_code=404, 
+                detail="Thread pool stats only available when verbose mode is enabled"
+            )
+        
+        # Get thread pool manager from application state
+        thread_pool_manager = getattr(request.app.state, 'thread_pool_manager', None)
+        if not thread_pool_manager:
+            raise HTTPException(
+                status_code=503,
+                detail="Thread pool manager not available"
+            )
+        
+        try:
+            # Get current stats
+            stats = thread_pool_manager.get_pool_stats()
+            
+            # Add summary information
+            total_workers = sum(pool['max_workers'] for pool in stats.values())
+            total_active = sum(pool['active_threads'] for pool in stats.values() if isinstance(pool['active_threads'], int))
+            total_queued = sum(pool['queued_tasks'] for pool in stats.values() if pool['queued_tasks'] != 'N/A' and isinstance(pool['queued_tasks'], int))
+            
+            return {
+                "timestamp": request.app.state.config.get('server_start_time', 'unknown'),
+                "summary": {
+                    "total_workers": total_workers,
+                    "total_active": total_active,
+                    "total_queued": total_queued,
+                    "utilization_percent": round((total_active / total_workers * 100) if total_workers > 0 else 0, 1)
+                },
+                "pools": stats
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting thread pool stats: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+    
+    @router.post("/thread-pools/log-status")
+    async def log_thread_pool_status(request: Request):
+        """Trigger logging of current thread pool status"""
+        # Check if verbose mode is enabled
+        verbose = is_true_value(request.app.state.config.get('general', {}).get('verbose', False))
+        if not verbose:
+            raise HTTPException(
+                status_code=404, 
+                detail="Thread pool logging only available when verbose mode is enabled"
+            )
+        
+        # Get thread pool manager from application state
+        thread_pool_manager = getattr(request.app.state, 'thread_pool_manager', None)
+        if not thread_pool_manager:
+            raise HTTPException(
+                status_code=503,
+                detail="Thread pool manager not available"
+            )
+        
+        try:
+            # Trigger status logging
+            thread_pool_manager.log_current_status()
+            return {
+                "message": "Thread pool status logged successfully",
+                "check_logs": "See server logs for detailed thread pool status"
+            }
+            
+        except Exception as e:
+            logger.error(f"Error logging thread pool status: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
     
     return router

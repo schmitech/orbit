@@ -41,6 +41,11 @@ class QAQdrantRetriever(QAVectorRetrieverBase, QdrantRetriever):
         self._domain_adapter = domain_adapter
         self._collection = collection
         
+        # Ensure collection name is set from adapter config after both parents are initialized
+        if self.adapter_config and 'collection' in self.adapter_config:
+            self.collection_name = self.adapter_config['collection']
+            logger.info(f"QAQdrantRetriever using collection from adapter config: {self.collection_name}")
+        
         # Qdrant-specific parameters
         self.score_threshold = self.adapter_config.get(
             'score_threshold', self.confidence_threshold
@@ -90,6 +95,15 @@ class QAQdrantRetriever(QAVectorRetrieverBase, QdrantRetriever):
                                   max_results: int) -> Any:
         """Query Qdrant collection."""
         try:
+            # Validate collection name
+            if not collection_name:
+                logger.error("Collection name is None or empty")
+                logger.error(f"Available collection_name sources:")
+                logger.error(f"  - Parameter: {collection_name}")
+                logger.error(f"  - Self.collection_name: {getattr(self, 'collection_name', 'Not set')}")
+                logger.error(f"  - Adapter config collection: {self.adapter_config.get('collection') if self.adapter_config else 'No adapter config'}")
+                return []
+            
             # Ensure client is initialized
             if not self.qdrant_client:
                 logger.error("Qdrant client is not initialized")
@@ -98,6 +112,9 @@ class QAQdrantRetriever(QAVectorRetrieverBase, QdrantRetriever):
             if not self.qdrant_client:
                 logger.error("Failed to initialize Qdrant client")
                 return []
+                
+            if self.verbose:
+                logger.info(f"Querying Qdrant collection: {collection_name}")
                 
             return self.qdrant_client.search(
                 collection_name=collection_name,

@@ -21,6 +21,7 @@ from config.logging_configurator import LoggingConfigurator
 from config.middleware_configurator import MiddlewareConfigurator
 from services.service_factory import ServiceFactory
 from utils.http_utils import close_all_aiohttp_sessions, setup_aiohttp_session_tracking
+from utils.thread_pool_manager import ThreadPoolManager
 from routes.routes_configurator import RouteConfigurator
 from config.configuration_summary_logger import ConfigurationSummaryLogger
 from datasources import DatasourceFactory
@@ -107,8 +108,11 @@ class InferenceServer:
         self.configuration_summary_logger = ConfigurationSummaryLogger(self.config, self.logger)
         self.datasource_factory = DatasourceFactory(self.config, self.logger)
         
-        # Thread pool for blocking I/O operations
-        self.thread_pool = ThreadPoolExecutor(max_workers=10)
+        # Initialize thread pool manager with specialized pools
+        self.thread_pool_manager = ThreadPoolManager(self.config, self.logger)
+        
+        # Keep backward compatibility - use IO pool as default
+        self.thread_pool = self.thread_pool_manager.get_pool('io')
         
         # Initialize FastAPI app with lifespan manager
         self.app = FastAPI(
@@ -155,6 +159,8 @@ class InferenceServer:
             
             # Initialize services and clients
             try:
+                # Store thread pool manager in app state for service access
+                app.state.thread_pool_manager = self.thread_pool_manager
                 await self._initialize_services(app)
                 self.configuration_summary_logger.log_configuration_summary(app)
                 self.logger.info("Startup complete")
@@ -335,6 +341,14 @@ class InferenceServer:
         # Close all tracked aiohttp sessions
         shutdown_tasks.append(close_all_aiohttp_sessions())
         
+        # Shutdown thread pool manager
+        if hasattr(self, 'thread_pool_manager'):
+            try:
+                self.thread_pool_manager.shutdown(wait=True)
+                self.logger.info("Thread pool manager shut down successfully")
+            except Exception as e:
+                self.logger.error(f"Error shutting down thread pool manager: {str(e)}")
+        
         # Only run asyncio.gather if there are tasks to gather
         if shutdown_tasks:
             try:
@@ -415,6 +429,10 @@ class InferenceServer:
             ssl_certfile = self.config['general']['https']['cert_file']
             port_to_use = int(self.config['general']['https'].get('port', 3443))
         
+        # Get performance configuration
+        perf_config = self.config.get('performance', {})
+        workers = perf_config.get('workers', 1)  # Default to 1 worker for backward compatibility
+        
         # Configure uvicorn with signal handlers for graceful shutdown
         config = uvicorn.Config(
             self.app,
@@ -422,8 +440,9 @@ class InferenceServer:
             port=port_to_use,
             ssl_keyfile=ssl_keyfile,
             ssl_certfile=ssl_certfile,
+            workers=workers if workers > 1 else None,  # Only use workers if > 1
             loop="asyncio",
-            timeout_keep_alive=30,
+            timeout_keep_alive=perf_config.get('keep_alive_timeout', 30),
             timeout_graceful_shutdown=30,
             access_log=False  # Disable FastAPI's default access logging
         )
