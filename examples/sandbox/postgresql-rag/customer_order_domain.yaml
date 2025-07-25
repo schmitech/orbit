@@ -118,6 +118,19 @@ fields:
       validation_rules: []
       aliases: []
       enum_values: null
+    created_at:
+      name: created_at
+      data_type: datetime
+      db_column: created_at
+      description: Customer creation date
+      required: true
+      searchable: false
+      filterable: true
+      sortable: true
+      display_format: date
+      validation_rules: []
+      aliases: []
+      enum_values: null
   order:
     id:
       name: id

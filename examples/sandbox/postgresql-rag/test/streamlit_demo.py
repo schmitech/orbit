@@ -13,8 +13,46 @@ from typing import Dict, List
 from dotenv import load_dotenv
 import markdown
 
-# Import the RAG system
-from customer_order_rag import SemanticRAGSystem
+# Import the new domain-agnostic RAG system components
+from base_rag_system import RAGSystem
+from domain_configuration import DomainConfiguration, DomainEntity, DomainField, DomainRelationship
+from domain_configuration import DataType, EntityType, RelationType
+from template_library import TemplateLibrary
+from domain_plugin import DomainSpecificPlugin, DomainAnalyticsPlugin
+from template_generator import DomainTemplateGenerator
+from plugin_system import PluginManager
+from shared_domain_config import create_customer_order_domain
+from shared_template_loader import load_or_generate_templates
+
+# Import the actual implementations
+from clients import (
+    OllamaEmbeddingClient, 
+    OllamaInferenceClient, 
+    PostgreSQLDatabaseClient
+)
+
+# Import plugins
+from plugin_system import (
+    SecurityPlugin,
+    QueryNormalizationPlugin,
+    ResultFilteringPlugin,
+    DataEnrichmentPlugin,
+    ResponseEnhancementPlugin,
+    LoggingPlugin
+)
+
+# Import example plugins if available
+try:
+    from examples.example_plugins import (
+        CustomerSegmentationPlugin,
+        RevenueAnalyticsPlugin,
+        TimeBasedInsightsPlugin,
+        GeographicInsightsPlugin,
+        BusinessRulesPlugin
+    )
+    EXAMPLE_PLUGINS_AVAILABLE = True
+except ImportError:
+    EXAMPLE_PLUGINS_AVAILABLE = False
 
 
 class StreamlitRAGDemo:
@@ -107,15 +145,77 @@ class StreamlitRAGDemo:
         return []
     
     
+# Domain creation function moved to shared_domain_config.py for consistency
+
+
+# Template loading function moved to shared_template_loader.py for consistency
+
+
 def initialize_system():
     """Initialize the RAG system with proper error handling"""
     try:
-        with st.spinner("🚀 Initializing RAG system with plugins..."):
-            rag_system = SemanticRAGSystem(
-                enable_default_plugins=True,
-                enable_postgresql_plugins=True
+        with st.spinner("🚀 Initializing RAG system with domain configuration..."):
+            # Create domain configuration
+            domain = create_customer_order_domain()
+            
+            # Initialize clients
+            embedding_client = OllamaEmbeddingClient()
+            inference_client = OllamaInferenceClient()
+            db_client = PostgreSQLDatabaseClient()
+            
+            # Load or generate templates
+            template_library = load_or_generate_templates(domain)
+            
+            # Initialize the RAG system
+            rag_system = RAGSystem(
+                domain=domain,
+                template_library=template_library,
+                embedding_client=embedding_client,
+                inference_client=inference_client,
+                db_client=db_client
             )
-            rag_system.populate_chromadb("query_templates.yaml", clear_first=True)
+            
+            # Register plugins
+            plugin_manager = PluginManager()
+            
+            # Register default plugins
+            default_plugins = [
+                SecurityPlugin(),
+                QueryNormalizationPlugin(),
+                ResultFilteringPlugin(max_results=50),
+                DataEnrichmentPlugin(),
+                ResponseEnhancementPlugin(),
+                LoggingPlugin()
+            ]
+            
+            for plugin in default_plugins:
+                plugin_manager.register_plugin(plugin)
+            
+            # Register domain-specific plugin
+            domain_plugin = DomainSpecificPlugin(domain, inference_client)
+            plugin_manager.register_plugin(domain_plugin)
+            
+            analytics_plugin = DomainAnalyticsPlugin(domain)
+            plugin_manager.register_plugin(analytics_plugin)
+            
+            # Register example plugins if available
+            if EXAMPLE_PLUGINS_AVAILABLE:
+                example_plugins = [
+                    CustomerSegmentationPlugin(),
+                    RevenueAnalyticsPlugin(),
+                    TimeBasedInsightsPlugin(),
+                    GeographicInsightsPlugin(),
+                    BusinessRulesPlugin()
+                ]
+                for plugin in example_plugins:
+                    plugin_manager.register_plugin(plugin)
+            
+            # Attach plugin manager to RAG system
+            rag_system.plugin_manager = plugin_manager
+            
+            # Populate ChromaDB
+            rag_system.populate_chromadb_from_library(clear_first=True)
+            
             return rag_system, None
     except Exception as e:
         error_msg = f"System initialization failed: {str(e)}\n\n"
@@ -124,7 +224,7 @@ def initialize_system():
         error_msg += f"2. Pull required models:\n"
         error_msg += f"   - `ollama pull {os.getenv('OLLAMA_EMBEDDING_MODEL', 'nomic-embed-text')}`\n"
         error_msg += f"   - `ollama pull {os.getenv('OLLAMA_INFERENCE_MODEL', 'gemma3:1b')}`\n"
-        error_msg += "3. Check PostgreSQL connection settings in .env file"
+        error_msg += "3. Check PostgreSQL connection settings in ../.env file"
         return None, error_msg
 
 
@@ -750,7 +850,7 @@ def main():
                 del st.session_state['main_query_input']
             
             # Clear RAG system conversation if available
-            if st.session_state.rag_system and hasattr(st.session_state.rag_system, 'clear_conversation'):
+            if st.session_state.rag_system:
                 try:
                     st.session_state.rag_system.clear_conversation()
                 except:
@@ -843,42 +943,7 @@ def main():
                     </div>
                     """, unsafe_allow_html=True)
                     
-                    # Show results table if available
-                    if result.get('results'):
-                        st.subheader("📊 Results Table")
-                        df = pd.DataFrame(result['results'])
-                        st.dataframe(df, use_container_width=True, hide_index=True)
-                        
-                        # Show download button
-                        csv = df.to_csv(index=False)
-                        st.markdown("""
-                        <style>
-                        .stDownloadButton > button {
-                            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%) !important;
-                            color: #1f2937 !important;
-                            border: 2px solid #cbd5e1 !important;
-                            border-radius: 8px !important;
-                            padding: 0.5rem 1.5rem !important;
-                            font-family: 'Mona Sans', sans-serif !important;
-                            font-weight: 500 !important;
-                            transition: all 0.2s ease !important;
-                            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05) !important;
-                        }
-                        
-                        .stDownloadButton > button:hover {
-                            background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%) !important;
-                            border-color: #94a3b8 !important;
-                            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1) !important;
-                            transform: translateY(-1px) !important;
-                        }
-                        </style>
-                        """, unsafe_allow_html=True)
-                        st.download_button(
-                            label="📥 Download Results as CSV",
-                            data=csv,
-                            file_name=f"query_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                            mime="text/csv"
-                        )
+
                 else:
                     # Error response
                     st.error("❌ **Query Failed**")

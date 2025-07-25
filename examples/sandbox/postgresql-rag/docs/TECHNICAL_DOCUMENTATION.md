@@ -27,6 +27,8 @@ This is a sophisticated semantic RAG (Retrieval-Augmented Generation) system des
 - **LLM**: Ollama for inference (default: gemma3:1b)
 - **Database**: PostgreSQL (extensible to other databases)
 - **Configuration**: YAML-based domain and template configuration
+- **Consistency**: Shared configuration modules for demo consistency
+- **Validation**: Comprehensive validation suite for accuracy testing
 
 ## Architecture
 
@@ -216,7 +218,35 @@ class CustomAnalyticsPlugin(BaseRAGPlugin):
         return f"{response}\n\n💡 Analytical Insights:\n{insights}"
 ```
 
-### 5. RAG System (`base_rag_system.py`)
+### 5. Shared Configuration Modules (New)
+
+**Shared Domain Configuration (`shared_domain_config.py`)**
+- Single source of truth for domain definitions
+- Ensures consistent domain configuration across all demos
+- Prevents configuration drift between conversational and Streamlit demos
+
+**Shared Template Loader (`shared_template_loader.py`)**
+- Consistent template loading logic across demos
+- Eliminates duplicate template generation code
+- Ensures identical template libraries in all interfaces
+
+#### Benefits:
+- **Consistency**: Both demos use identical configurations
+- **Maintainability**: Single place to update domain definitions
+- **Reliability**: Eliminates configuration mismatches
+- **Testing**: Easier to validate system behavior
+
+#### Usage:
+```python
+from shared_domain_config import create_customer_order_domain
+from shared_template_loader import load_or_generate_templates
+
+# Both demos use the same functions
+domain = create_customer_order_domain()
+templates = load_or_generate_templates(domain)
+```
+
+### 6. RAG System (`base_rag_system.py`)
 
 The main orchestration class that brings all components together.
 
@@ -251,11 +281,70 @@ The main orchestration class that brings all components together.
 8. **Response Generation**: Generate natural language response
 9. **Enhancement**: Plugins enhance final response
 
+### 7. Validation System (New)
+
+A comprehensive validation suite that ensures RAG system responses match actual database results.
+
+#### Key Components:
+
+**RAG Validator (`validate_rag_results.py`)**
+- Compares RAG responses with equivalent SQL queries
+- Validates result counts and response accuracy
+- Provides detailed error analysis and debugging information
+- Supports category-based testing and sampling
+
+**SQL Validation Templates (`sql_validation_templates.py`)**
+- Mirror RAG query templates with equivalent SQL
+- Ensure accurate comparison between RAG and direct SQL results
+- Handle different query types (customer, orders, analytics, etc.)
+
+**Test Runner (`run_validation_tests.sh`)**
+- Easy-to-use script for running validation tests
+- Supports different test categories and sample sizes
+- Provides clear pass/fail results with detailed analysis
+
+#### Validation Features:
+- **Accuracy Testing**: Verify RAG results match SQL results
+- **Count Validation**: Check result count consistency (within tolerance)
+- **Template Verification**: Ensure correct template selection
+- **Parameter Testing**: Validate parameter extraction accuracy
+- **Performance Monitoring**: Track query execution times
+- **Error Analysis**: Detailed debugging for failed queries
+
+#### Usage:
+```bash
+# Basic validation tests
+python3 validate_rag_results.py
+
+# Category-specific testing
+./run_validation_tests.sh customer
+./run_validation_tests.sh orders
+./run_validation_tests.sh analytics
+
+# Comprehensive testing
+./run_validation_tests.sh full
+
+# Debug mode
+python3 validate_rag_results.py --debug --custom "Your query here"
+```
+
+#### Validation Results:
+```
+✅ PASS | RAG:15 SQL:14 | 0.45s | Show orders from customer 123...
+❌ FAIL | RAG:0  SQL:25 | 0.32s | Find orders over $500...
+
+📊 Validation Summary:
+   Total queries: 8
+   Passed: 7 (87.5%)  
+   Failed: 1 (12.5%)
+   Average time: 0.43s per query
+```
+
 ## Extending to New Domains
 
 ### Step 1: Define Your Domain
 
-Create a domain configuration function similar to `create_customer_order_domain()`:
+Create a shared domain configuration function in a new file (following the pattern of `shared_domain_config.py`):
 
 ```python
 def create_healthcare_domain() -> DomainConfiguration:
@@ -501,7 +590,48 @@ if __name__ == "__main__":
     demo.run()
 ```
 
-### Step 5: Configuration Management
+### Step 5: Create Validation Templates
+
+Create corresponding SQL validation templates for accuracy testing:
+
+```python
+# healthcare_validation_templates.py
+class HealthcareValidationTemplates:
+    @staticmethod
+    def get_patient_history_sql(parameters: Dict[str, Any]) -> Tuple[str, List]:
+        sql = """
+            SELECT p.full_name, p.date_of_birth, 
+                   a.appointment_date, a.chief_complaint,
+                   d.diagnosis_code, d.diagnosis_description
+            FROM patients p
+            LEFT JOIN appointments a ON p.patient_id = a.patient_id
+            LEFT JOIN diagnoses d ON a.appointment_id = d.appointment_id
+            WHERE 1=1
+        """
+        
+        params = []
+        if 'patient_identifier' in parameters:
+            sql += " AND (p.medical_record_number = %s OR p.full_name ILIKE %s)"
+            params.extend([parameters['patient_identifier'], f"%{parameters['patient_identifier']}%"])
+        
+        sql += " ORDER BY a.appointment_date DESC LIMIT 100"
+        return sql, params
+```
+
+### Step 6: Validation Testing
+
+Create validation tests for your new domain:
+
+```bash
+# Test your healthcare domain
+python3 validate_rag_results.py --custom "Show medical history for patient MR123456"
+python3 validate_rag_results.py --custom "Find patients with diabetes"
+
+# Create domain-specific test categories
+# Edit validate_rag_results.py to add healthcare queries
+```
+
+### Step 7: Configuration Management
 
 Create YAML configuration files for easy management:
 

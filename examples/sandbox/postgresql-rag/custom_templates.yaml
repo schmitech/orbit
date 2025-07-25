@@ -71,3 +71,52 @@ templates:
       secondary_entity: "customer"
       qualifiers: ["by_name", "recent"]
     approved: true
+
+  - id: list_customers_by_time_period
+    version: "1.0.0"
+    description: "List all customers who placed orders within a specific time period"
+    nl_examples:
+      - "Who ordered from us last week?"
+      - "Which customers placed orders this month?"
+      - "Show me all customers who ordered in the last 7 days"
+      - "Who are the customers that ordered recently?"
+      - "List customers who made purchases last week"
+      - "Which customers bought from us this week?"
+      - "Show me recent customers"
+      - "Who ordered in the past few days?"
+      - "Who has been ordering from us?"
+      - "List of customers who ordered"
+      - "Show customers who placed orders"
+      - "Who are our recent customers?"
+      - "Who are the customers who ordered?"
+      - "Who placed orders with us?"
+      - "Who bought from us recently?"
+      - "Who are the people who ordered?"
+    parameters:
+      - name: days_back
+        type: integer
+        description: "Number of days to look back"
+        required: true
+        default: 7
+        aliases: ["time_period", "days", "period"]
+    sql_template: |
+      SELECT DISTINCT c.id as customer_id, c.name as customer_name, c.email as customer_email, 
+             c.city as customer_city, c.country as customer_country,
+             COUNT(o.id) as order_count,
+             SUM(o.total) as total_spent,
+             MAX(o.order_date) as last_order_date,
+             MIN(o.order_date) as first_order_date
+      FROM customers c
+      JOIN orders o ON c.id = o.customer_id
+      WHERE o.order_date >= CURRENT_DATE - INTERVAL '%(days_back)s days'
+      GROUP BY c.id, c.name, c.email, c.city, c.country
+      ORDER BY last_order_date DESC, total_spent DESC
+      LIMIT 100
+    result_format: "table"
+    tags: ["customer", "list", "time", "period", "recent", "who", "ordered"]
+    semantic_tags:
+      action: "list_who"
+      primary_entity: "customer"
+      secondary_entity: "order"
+      qualifiers: ["by_time_period", "recent", "who_ordered"]
+    approved: true
