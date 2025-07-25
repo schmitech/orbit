@@ -105,44 +105,49 @@ class StreamlitRAGDemo:
         }
     
     def suggest_followup(self, result: Dict) -> List[str]:
-        """Generate follow-up suggestions based on query result"""
-        if not result.get('success'):
-            return []
+        """Generate follow-up suggestions based on query result - Match conversational demo exactly"""
+        suggestions = []
         
-        template_id = result.get('template_id', '').lower()
+        if result.get('success'):
+            template_id = result.get('template_id', '')
+            
+            if 'customer' in template_id:
+                suggestions.extend([
+                    "Show me their lifetime value",
+                    "What's their average order size?",
+                    "When was their last order?",
+                    "Show their international shipping history"
+                ])
+            elif 'orders' in template_id:
+                suggestions.extend([
+                    "Show me the top customers from these results",
+                    "What's the average order value?",
+                    "Break this down by payment method",
+                    "Show shipping destinations for these orders"
+                ])
+            elif 'payment' in template_id:
+                suggestions.extend([
+                    "Which payment method is most popular?",
+                    "Show trends over time",
+                    "Compare with last month",
+                    "Payment methods by country"
+                ])
+            elif 'international' in template_id or 'shipping' in template_id:
+                suggestions.extend([
+                    "Show revenue by shipping destination",
+                    "Which countries order the most?",
+                    "International payment methods used",
+                    "Shipping costs by region"
+                ])
+            elif 'location' in template_id or 'city' in template_id:
+                suggestions.extend([
+                    "Show international shipping from this location",
+                    "Compare with other cities",
+                    "Revenue by geographic region",
+                    "Shipping patterns by location"
+                ])
         
-        if 'customer' in template_id:
-            return [
-                "Show their lifetime value",
-                "What's their average order size?",
-                "When was their last order?"
-            ]
-        elif 'orders' in template_id:
-            return [
-                "Show top customers from these results",
-                "What's the average order value?",
-                "Break this down by payment method"
-            ]
-        elif 'payment' in template_id:
-            return [
-                "Which payment method is most popular?",
-                "Show trends over time",
-                "Compare with last month"
-            ]
-        elif 'international' in template_id or 'shipping' in template_id:
-            return [
-                "Show revenue by shipping destination",
-                "Which countries order the most?",
-                "International payment methods used"
-            ]
-        elif 'location' in template_id or 'city' in template_id:
-            return [
-                "Show international shipping from this location",
-                "Compare with other cities",
-                "Revenue by geographic region"
-            ]
-        
-        return []
+        return suggestions[:3]  # Return top 3 suggestions like conversational demo
     
     
 # Domain creation function moved to shared_domain_config.py for consistency
@@ -175,7 +180,7 @@ def initialize_system():
                 db_client=db_client
             )
             
-            # Register plugins
+            # Register plugins - Match conversational demo order exactly
             plugin_manager = PluginManager()
             
             # Register default plugins
@@ -210,7 +215,7 @@ def initialize_system():
                 for plugin in example_plugins:
                     plugin_manager.register_plugin(plugin)
             
-            # Attach plugin manager to RAG system
+            # Attach plugin manager to RAG system before population
             rag_system.plugin_manager = plugin_manager
             
             # Populate ChromaDB
@@ -803,7 +808,7 @@ def main():
         st.write(f"**Embedding:** {os.getenv('OLLAMA_EMBEDDING_MODEL', 'nomic-embed-text')}")
         st.write(f"**Inference:** {os.getenv('OLLAMA_INFERENCE_MODEL', 'gemma3:1b')}")
         
-        # Session statistics
+        # Session statistics - Match conversational demo format
         if st.session_state.query_history:
             st.subheader("📊 Session Stats")
             total_queries = len(st.session_state.query_history)
@@ -811,7 +816,20 @@ def main():
             
             st.write(f"**Total Queries:** {total_queries}")
             st.write(f"**Successful:** {successful_queries}")
+            st.write(f"**Failed:** {total_queries - successful_queries}")
             st.write(f"**Success Rate:** {(successful_queries/total_queries)*100:.1f}%")
+            
+            # Plugin usage statistics - Match conversational demo
+            plugin_usage = {}
+            for q in st.session_state.query_history:
+                if q['success'] and 'plugins_used' in q:
+                    for plugin in q['plugins_used']:
+                        plugin_usage[plugin] = plugin_usage.get(plugin, 0) + 1
+            
+            if plugin_usage:
+                st.write("**Plugin Usage:**")
+                for plugin, count in sorted(plugin_usage.items(), key=lambda x: x[1], reverse=True):
+                    st.write(f"   {plugin}: {count} times")
         
 
     
@@ -849,11 +867,11 @@ def main():
             if 'main_query_input' in st.session_state:
                 del st.session_state['main_query_input']
             
-            # Clear RAG system conversation if available
+            # Clear RAG system conversation - Match conversational demo
             if st.session_state.rag_system:
                 try:
                     st.session_state.rag_system.clear_conversation()
-                except:
+                except AttributeError:
                     pass  # Ignore if method doesn't exist
             
             # Force a complete page rerun
@@ -868,12 +886,14 @@ def main():
                 with st.spinner("⏳ Processing your query..."):
                     result = st.session_state.rag_system.process_query(user_query)
                 
-                # Store in history
+                # Store in history - Match conversational demo format exactly
                 st.session_state.query_history.append({
                     'timestamp': datetime.now().isoformat(),
                     'query': user_query,
-                    'result': result,
-                    'success': result['success']
+                    'success': result['success'],
+                    'template_id': result.get('template_id'),
+                    'plugins_used': result.get('plugins_used', []),
+                    'result': result  # Keep full result for compatibility
                 })
                 
                 st.session_state.last_result = result
@@ -988,7 +1008,7 @@ def main():
                         st.session_state.selected_query = query
                         st.rerun()
         
-        # Recent queries
+        # Recent queries - Match conversational demo approach
         if st.session_state.query_history:
             st.subheader("📝 Recent Queries")
             
@@ -999,11 +1019,14 @@ def main():
                     st.write(f"**Status:** {status_emoji} {'Success' if entry['success'] else 'Failed'}")
                     
                     if entry['success']:
-                        result = entry['result']
-                        st.write(f"**Results:** {result['result_count']} records")
-                        st.write(f"**Template:** {result['template_id']}")
+                        # Use the same field access pattern as conversational demo
+                        if 'result' in entry:
+                            result = entry['result']
+                            st.write(f"**Results:** {result.get('result_count', 'N/A')} records")
+                            st.write(f"**Template:** {result.get('template_id', 'N/A')}")
                         
-                        plugins_used = result.get('plugins_used', [])
+                        # Use direct access to plugins_used like conversational demo
+                        plugins_used = entry.get('plugins_used', [])
                         if plugins_used:
                             st.write(f"**Plugins:** {', '.join(plugins_used)}")
                     

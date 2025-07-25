@@ -225,6 +225,7 @@ settings_local.py
 *.tar.gz
 *.rar
 *.7z
+temp_*.py
 
 # Large files (adjust size as needed)
 # *.csv
