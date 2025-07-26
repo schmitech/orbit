@@ -21,48 +21,9 @@ This roadmap outlines the strategic approach to transforming ORBIT into a high-p
 - Limited connection pooling for external services
 - Thread-safe database operations with Motor (MongoDB)
 
-## Objectives
-
-### Performance Goals
-- **Phase 1**: Scale to 500-1000 concurrent requests
-- **Phase 2**: Handle 2000-3000 concurrent requests
-- **Phase 3**: Support 5000+ concurrent requests with auto-scaling
-
-### Requirements
-- Zero-downtime deployments
-- Built-in load balancing
-- Real-time performance monitoring
-- Auto-scaling based on demand
-- Request prioritization and throttling
-
 ## Implementation Roadmap
 
-### Phase 1: Foundation Infrastructure
-
-#### 1.1 Enhanced Thread Pool Management
-**Objective**: Increase concurrent processing capacity and specialize worker pools
-
-**Implementation**:
-```yaml
-# New config.yaml section
-performance:
-  thread_pools:
-    io_workers: 50              # Up from 10
-    cpu_workers: 30             # CPU-bound tasks
-    inference_workers: 20       # Model inference
-    embedding_workers: 15       # Embedding generation
-    db_workers: 25              # Database operations
-  max_concurrent_requests: 1000  # Per worker process
-  request_timeout: 30
-  keep_alive_timeout: 30
-```
-
-**Services Affected**:
-- `InferenceServer`: Enhanced thread pool configuration
-- `ServiceFactory`: Specialized worker pool initialization
-- `ChatService`: Dedicated inference thread pools
-
-#### 1.2 Advanced Connection Pool Configuration
+### 1.1 Advanced Connection Pool Configuration
 **Objective**: Optimize external service connections and database pooling
 
 **Implementation**:
@@ -94,7 +55,7 @@ connection_pools:
 - `OllamaEmbeddingService`: Improved HTTP client configuration
 - `OllamaReranker`: Better session management
 
-#### 1.3 Multi-Worker Uvicorn Configuration
+### 1.2 Multi-Worker Uvicorn Configuration
 **Objective**: Enable horizontal scaling through multiprocessing
 
 **Implementation**:
@@ -140,9 +101,7 @@ class RequestQueueService:
         # Batch processing for efficiency
 ```
 
-### Phase 2: Performance Optimization
-
-#### 2.1 Load Balancing Middleware (Optional)
+### 2.1 Load Balancing Middleware (Optional)
 **Objective**: Distribute requests based on server load and request type
 
 **New Component**: `LoadBalancingMiddleware`
@@ -166,7 +125,7 @@ async def load_balancing_middleware(request: Request, call_next):
 - Dynamic worker allocation
 - Real-time load monitoring
 
-#### 2.2 Streaming Response Optimization
+### 2.2 Streaming Response Optimization
 **Objective**: Handle thousands of concurrent streaming responses efficiently
 
 **Enhanced Service**: `ConcurrentChatService`
@@ -188,7 +147,7 @@ class ConcurrentChatService:
                 tg.create_task(self.process_stream_with_backpressure(stream_id))
 ```
 
-#### 2.3 Database Connection Pool Enhancement
+### 2.3 Database Connection Pool Enhancement
 **Objective**: Optimize database operations for high concurrency
 
 **Enhanced Service**: `MongoDBService`
@@ -209,7 +168,7 @@ class EnhancedMongoDBService:
         # Circuit breaker pattern for database resilience
 ```
 
-#### 2.4 Request Batching System
+### 2.4 Request Batching System
 **Objective**: Optimize resource usage through intelligent request batching
 
 **New Service**: `BatchProcessingService`
@@ -231,9 +190,7 @@ class BatchProcessingService:
         return await self.cache.get_or_compute(cache_key, self.inference_fn)
 ```
 
-### Phase 3: Enterprise Features
-
-#### 3.1 Multi-Model Pool Management
+### 3.1 Multi-Model Pool Management
 **Objective**: Efficiently manage multiple model instances for different workloads
 
 **New Service**: `ModelPoolService`
@@ -254,7 +211,7 @@ class ModelPoolService:
         return self.load_balancer.select_model(available_models, workload_size)
 ```
 
-#### 3.2 Real-Time Performance Monitoring
+### 3.2 Real-Time Performance Monitoring
 **Objective**: Comprehensive performance tracking and alerting
 
 **New Service**: `PerformanceMonitorService`
@@ -281,7 +238,7 @@ class PerformanceMonitorService:
             await self.scale_down_workers()
 ```
 
-#### 3.3 Auto-Scaling Logic
+### 3.3 Auto-Scaling Logic
 **Objective**: Dynamic resource allocation based on demand patterns
 
 **New Service**: `AutoScalingService`

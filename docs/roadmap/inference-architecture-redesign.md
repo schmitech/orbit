@@ -489,6 +489,56 @@ pipeline.add_step(CustomProcessingStep)
 - Each step can handle its own errors
 - Clear error propagation
 
+## Further Considerations
+
+Based on a review of the current system, two additional areas should be addressed in the new architecture:
+
+### 1. Streaming Response Handling
+
+The current `InferencePipeline.process` method is designed for unary request/response interactions. To fully support streaming, the pipeline orchestration logic will need to be adapted.
+
+- The `InferencePipeline` will require a new method, such as `process_stream`, that can handle `AsyncGenerator`s.
+- The `LLMInferenceStep` will need a corresponding `process_stream` method that calls the `llm_provider.generate_stream()` method and yields context updates.
+- The `ChatService` will need to be updated to call the appropriate pipeline processing method based on whether a streaming response is requested.
+
+### 2. Output/Response Security Scanning
+
+The current `SafetyFilterStep` only validates the incoming user message. The existing `LLMClientCommon` also performs security checks on the *outgoing* LLM response. This functionality must be preserved.
+
+A new `ResponseValidationStep` should be added to the pipeline after the `LLMInferenceStep` to validate the generated `context.response`.
+
+```python
+class ResponseValidationStep(PipelineStep):
+    """Perform safety check on the final generated response."""
+
+    def should_execute(self, context: ProcessingContext) -> bool:
+        return self.container.has('guardrail_service') and not context.is_blocked
+
+    async def process(self, context: ProcessingContext) -> ProcessingContext:
+        if context.is_blocked or not context.response:
+            return context
+
+        guardrail = self.container.get('guardrail_service')
+        is_safe, refusal_message = await guardrail.check_safety(context.response)
+
+        if not is_safe:
+            context.is_blocked = True
+            context.error = refusal_message or "Response blocked by safety filter"
+            context.response = ""  # Clear the unsafe response
+
+        return context
+
+# Updated standard pipeline
+def build_standard_pipeline(container: ServiceContainer) -> InferencePipeline:
+    """Build the standard inference pipeline."""
+    return (InferencePipeline(container)
+            .add_step(SafetyFilterStep)
+            .add_step(ContextRetrievalStep)
+            .add_step(RerankerStep)
+            .add_step(LLMInferenceStep)
+            .add_step(ResponseValidationStep))
+```
+
 ## Migration Strategy
 
 1. **Phase 1**: Implement new architecture alongside existing
