@@ -1,10 +1,11 @@
 """
-Inference module for LLM clients.
+Inference module for the pipeline architecture.
 
-This module provides various LLM client implementations for different providers.
+This module provides the new pipeline-based inference system
+with clean provider implementations.
 """
 
-from .base_llm_client import BaseLLMClient
-from .factory import LLMClientFactory
+from .pipeline_factory import PipelineFactory
+from .pipeline import ProcessingContext, InferencePipeline
 
-__all__ = ["BaseLLMClient", "LLMClientFactory"]
+__all__ = ["PipelineFactory", "ProcessingContext", "InferencePipeline"]

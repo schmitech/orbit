@@ -20,6 +20,37 @@ general:
   inference_provider: "llama_cpp"
   inference_only: true
 
+pipeline:
+  enabled: true
+  
+  # Provider configuration - use direct providers for better performance
+  use_direct_providers: true   # Use native provider implementations
+  
+  # Metrics and monitoring
+  log_metrics: true  # Log performance metrics for comparison
+  
+  # All endpoints use pipeline by default (no per-endpoint config needed)
+  
+  # Pipeline step configuration
+  steps:
+    # Configure which steps are active and their timeouts
+    safety_filter:
+      enabled: false  # Disabled to test
+      timeout_ms: 1000
+    
+    context_retrieval:
+      enabled: true
+      timeout_ms: 3000
+      max_documents: 10
+    
+    llm_inference:
+      enabled: true
+      timeout_ms: 30000
+    
+    response_validation:
+      enabled: false  # Disabled to test
+      timeout_ms: 1000
+
 performance:
   workers: 4                        # Number of uvicorn workers
   keep_alive_timeout: 30            # Uvicorn keep-alive timeout

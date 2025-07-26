@@ -11,7 +11,6 @@ from typing import Dict, Any, Optional
 from fastapi import FastAPI
 
 from utils import is_true_value
-from inference import LLMClientFactory
 from services.auth_service import AuthService
 
 
@@ -236,56 +235,96 @@ class ServiceFactory:
     
     async def _initialize_llm_client(self, app: FastAPI) -> None:
         """Initialize and verify the LLM client."""
-        # Load no results message
-        no_results_message = self.config.get('messages', {}).get('no_results_response', 
-            "I'm sorry, but I don't have any specific information about that topic in my knowledge base.")
+        # Check if pipeline mode is enabled
+        pipeline_enabled = is_true_value(self.config.get('pipeline', {}).get('enabled', False))
         
-        # Create LLM client using the factory
-        inference_provider = self.config['general'].get('inference_provider', 'ollama')
-        
-        app.state.llm_client = LLMClientFactory.create_llm_client(
-            self.config, 
-            None if self.inference_only else app.state.retriever,
-            reranker_service=getattr(app.state, 'reranker_service', None),
-            prompt_service=None if self.inference_only else getattr(app.state, 'prompt_service', None),
-            no_results_message=no_results_message,
-            llm_guard_service=getattr(app.state, 'llm_guard_service', None),
-            moderator_service=getattr(app.state, 'moderator_service', None)
-        )
-        
-        # Initialize LLM client
-        await app.state.llm_client.initialize()
-        
-        # Verify LLM connection
-        if not await app.state.llm_client.verify_connection():
-            self.logger.error(f"Failed to connect to {inference_provider}. Exiting...")
-            raise Exception(f"Failed to connect to {inference_provider}")
-        
-        self.logger.info(f"LLM client ({inference_provider}) initialized and connected successfully")
+        if pipeline_enabled:
+            # Pipeline mode - no need to create traditional LLM client
+            app.state.llm_client = None
+            self.logger.info("Pipeline mode enabled - skipping traditional LLM client initialization")
+        else:
+            # Traditional mode - create LLM client
+            # Import LLMClientFactory only when needed (for backwards compatibility)
+            try:
+                from inference import LLMClientFactory
+            except ImportError as e:
+                self.logger.error(f"Failed to import LLMClientFactory: {str(e)}")
+                self.logger.error("The legacy client system has been migrated to the new pipeline architecture.")
+                self.logger.error("Please enable pipeline mode by setting 'pipeline.enabled: true' in your configuration.")
+                raise RuntimeError("Legacy client system is no longer available. Please use pipeline mode.")
+            
+            # Load no results message
+            no_results_message = self.config.get('messages', {}).get('no_results_response', 
+                "I'm sorry, but I don't have any specific information about that topic in my knowledge base.")
+            
+            # Create LLM client using the factory
+            inference_provider = self.config['general'].get('inference_provider', 'ollama')
+            
+            app.state.llm_client = LLMClientFactory.create_llm_client(
+                self.config, 
+                None if self.inference_only else app.state.retriever,
+                reranker_service=getattr(app.state, 'reranker_service', None),
+                prompt_service=None if self.inference_only else getattr(app.state, 'prompt_service', None),
+                no_results_message=no_results_message,
+                llm_guard_service=getattr(app.state, 'llm_guard_service', None),
+                moderator_service=getattr(app.state, 'moderator_service', None)
+            )
+            
+            # Initialize LLM client
+            await app.state.llm_client.initialize()
+            
+            # Verify LLM connection
+            if not await app.state.llm_client.verify_connection():
+                self.logger.error(f"Failed to connect to {inference_provider}. Exiting...")
+                raise Exception(f"Failed to connect to {inference_provider}")
+            
+            self.logger.info(f"LLM client ({inference_provider}) initialized and connected successfully")
     
     async def _initialize_dependent_services(self, app: FastAPI) -> None:
         """Initialize services that depend on other services."""
+        # Check if pipeline mode is enabled
+        pipeline_enabled = is_true_value(self.config.get('pipeline', {}).get('enabled', False))
+        
         # Initialize Chat Service (always needed)
         chat_history_service = getattr(app.state, 'chat_history_service', None)
         llm_guard_service = getattr(app.state, 'llm_guard_service', None)
         moderator_service = getattr(app.state, 'moderator_service', None)
         
-        from services.chat_service import ChatService
-        app.state.chat_service = ChatService(
-            self.config, 
-            app.state.llm_client, 
-            app.state.logger_service,
-            chat_history_service,
-            llm_guard_service,
-            moderator_service
-        )
+        if pipeline_enabled:
+            # Use pipeline-based chat service
+            from services.pipeline_chat_service import PipelineChatService
+            app.state.chat_service = PipelineChatService(
+                config=self.config,
+                logger_service=app.state.logger_service,
+                chat_history_service=chat_history_service,
+                llm_guard_service=llm_guard_service,
+                moderator_service=moderator_service,
+                retriever=getattr(app.state, 'retriever', None),
+                reranker_service=getattr(app.state, 'reranker_service', None),
+                prompt_service=getattr(app.state, 'prompt_service', None)
+            )
+            # Initialize the pipeline provider
+            await app.state.chat_service.initialize()
+            self.logger.info("Initialized pipeline-based chat service")
+        else:
+            # Use traditional chat service
+            from services.chat_service import ChatService
+            app.state.chat_service = ChatService(
+                self.config, 
+                app.state.llm_client, 
+                app.state.logger_service,
+                chat_history_service,
+                llm_guard_service,
+                moderator_service
+            )
+            self.logger.info("Initialized traditional chat service")
         
         # Initialize Health Service
         from services.health_service import HealthService
         app.state.health_service = HealthService(
             config=self.config,
             datasource_client=getattr(app.state, 'datasource_client', None),
-            llm_client=app.state.llm_client
+            llm_client=getattr(app.state, 'llm_client', None)  # May be None in pipeline mode
         )
         
         self.logger.info("Dependent services initialized successfully")
