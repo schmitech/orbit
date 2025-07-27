@@ -1,11 +1,11 @@
 """
-Test for pipeline mode integration in the server.
+Test for pipeline architecture integration in the server.
 
 This test verifies that:
-1. Pipeline mode can be enabled via configuration
+1. Pipeline architecture is the default and only mode
 2. Service factory correctly creates pipeline-based services
-3. Old LLM clients are not created in pipeline mode
-4. The server can work without the old LLM client code
+3. LLM clients are not created (pipeline handles inference directly)
+4. The server works with the pipeline architecture
 """
 
 import pytest
@@ -21,22 +21,16 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from fastapi import FastAPI
 from services.service_factory import ServiceFactory
 from services.pipeline_chat_service import PipelineChatService
-from services.chat_service import ChatService
 
 
 @pytest.fixture
-def pipeline_config():
-    """Configuration with pipeline mode enabled."""
+def test_config():
+    """Standard test configuration (pipeline is always active)."""
     return {
         'general': {
             'inference_provider': 'ollama',
             'inference_only': True,
             'verbose': True
-        },
-        'pipeline': {
-            'enabled': True,  # Enable pipeline mode
-            'use_direct_providers': True,
-            'log_metrics': True
         },
         'chat_history': {
             'enabled': False
@@ -50,13 +44,7 @@ def pipeline_config():
     }
 
 
-@pytest.fixture
-def traditional_config(pipeline_config):
-    """Configuration with pipeline mode disabled."""
-    config = pipeline_config.copy()
-    config['pipeline'] = config['pipeline'].copy()
-    config['pipeline']['enabled'] = False
-    return config
+# Traditional mode no longer exists - pipeline is always active
 
 
 @pytest.fixture
@@ -92,46 +80,46 @@ def mock_app():
 
 
 @pytest.mark.asyncio
-async def test_pipeline_mode_enabled(pipeline_config, mock_logger, mock_app):
-    """Test that pipeline mode correctly initializes pipeline-based services."""
-    service_factory = ServiceFactory(pipeline_config, mock_logger)
+async def test_pipeline_architecture_default(test_config, mock_logger, mock_app):
+    """Test that pipeline architecture is the default."""
+    service_factory = ServiceFactory(test_config, mock_logger)
     
     # Initialize LLM client
     await service_factory._initialize_llm_client(mock_app)
     
-    # In pipeline mode, llm_client should be None
+    # LLM client should always be None (pipeline handles inference)
     assert mock_app.state.llm_client is None
-    assert any('Pipeline mode enabled' in str(call) for call in mock_logger.info.call_args_list)
+    assert any('pipeline architecture' in str(call) for call in mock_logger.info.call_args_list)
     
     # Initialize dependent services
     await service_factory._initialize_dependent_services(mock_app)
     
-    # Should have pipeline-based chat service
+    # Should always have pipeline-based chat service
     assert hasattr(mock_app.state, 'chat_service')
     assert isinstance(mock_app.state.chat_service, PipelineChatService)
     assert any('pipeline-based chat service' in str(call) for call in mock_logger.info.call_args_list)
 
 
 @pytest.mark.asyncio
-async def test_traditional_mode_fails_gracefully(traditional_config, mock_logger, mock_app):
-    """Test that traditional mode fails gracefully when legacy clients are not available."""
-    service_factory = ServiceFactory(traditional_config, mock_logger)
+async def test_no_traditional_mode(test_config, mock_logger, mock_app):
+    """Test that only pipeline architecture exists."""
+    service_factory = ServiceFactory(test_config, mock_logger)
     
-    # Traditional mode should now fail because legacy clients have been removed
-    with pytest.raises(RuntimeError) as exc_info:
-        await service_factory._initialize_llm_client(mock_app)
+    # Should always use pipeline architecture
+    await service_factory._initialize_llm_client(mock_app)
+    await service_factory._initialize_dependent_services(mock_app)
     
-    # Should get the helpful error message about using pipeline mode
-    assert "Legacy client system is no longer available" in str(exc_info.value)
-    assert "pipeline mode" in str(exc_info.value)
+    # Verify pipeline architecture is used
+    assert mock_app.state.llm_client is None
+    assert isinstance(mock_app.state.chat_service, PipelineChatService)
 
 
 @pytest.mark.asyncio
-async def test_pipeline_chat_service_interface(pipeline_config, mock_logger):
-    """Test that PipelineChatService has the same interface as ChatService."""
+async def test_pipeline_chat_service_interface(test_config, mock_logger):
+    """Test that PipelineChatService has the correct interface."""
     # Create pipeline chat service
     pipeline_chat_service = PipelineChatService(
-        config=pipeline_config,
+        config=test_config,
         logger_service=mock_logger,
         chat_history_service=None,
         llm_guard_service=None,
@@ -163,9 +151,9 @@ async def test_pipeline_chat_service_interface(pipeline_config, mock_logger):
 
 
 @pytest.mark.asyncio
-async def test_health_service_with_pipeline_mode(pipeline_config, mock_logger, mock_app):
-    """Test that health service works correctly in pipeline mode."""
-    service_factory = ServiceFactory(pipeline_config, mock_logger)
+async def test_health_service_with_pipeline(test_config, mock_logger, mock_app):
+    """Test that health service works correctly with pipeline architecture."""
+    service_factory = ServiceFactory(test_config, mock_logger)
     
     # Initialize services
     await service_factory._initialize_llm_client(mock_app)
@@ -176,23 +164,20 @@ async def test_health_service_with_pipeline_mode(pipeline_config, mock_logger, m
     # Health service should handle None llm_client gracefully
 
 
-def test_pipeline_config_detection(pipeline_config, traditional_config, mock_logger):
-    """Test that service factory correctly detects pipeline mode from config."""
-    # Pipeline mode enabled
-    pipeline_factory = ServiceFactory(pipeline_config, mock_logger)
-    assert pipeline_factory.config.get('pipeline', {}).get('enabled', False) is True
-    
-    # Pipeline mode disabled
-    traditional_factory = ServiceFactory(traditional_config, mock_logger)
-    assert traditional_factory.config.get('pipeline', {}).get('enabled', False) is False
+def test_pipeline_always_active(test_config, mock_logger):
+    """Test that pipeline architecture is always active."""
+    # Pipeline is always active regardless of config
+    factory = ServiceFactory(test_config, mock_logger)
+    # No pipeline config section needed
+    assert 'pipeline' not in test_config
 
 
 @pytest.mark.asyncio
-async def test_no_llm_client_imports_in_pipeline_mode(pipeline_config, mock_logger, mock_app):
-    """Test that pipeline mode doesn't import old LLM client code."""
-    service_factory = ServiceFactory(pipeline_config, mock_logger)
+async def test_no_llm_client_imports(test_config, mock_logger, mock_app):
+    """Test that pipeline architecture doesn't create LLM client."""
+    service_factory = ServiceFactory(test_config, mock_logger)
     
-    # Initialize services in pipeline mode - should not import LLM client modules
+    # Initialize services - should not create LLM client
     await service_factory._initialize_llm_client(mock_app)
     await service_factory._initialize_dependent_services(mock_app)
     

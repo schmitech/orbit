@@ -2,7 +2,7 @@
 
 ## Overview
 
-ORBIT's pipeline inference architecture is a modern, composable system designed for processing AI inference requests through a series of discrete, testable steps. This document explains how the architecture works, its components, and the technical decisions behind its design.
+ORBIT's pipeline inference architecture is a modern, composable system designed for processing AI inference requests through a series of discrete, testable steps. As of the latest version, the pipeline architecture is the default and only mode for all inference operations. This document explains how the architecture works, its components, and the technical decisions behind its design.
 
 ## Table of Contents
 
@@ -24,7 +24,7 @@ ORBIT's pipeline inference architecture is a modern, composable system designed 
 A **pipeline** is a sequence of processing steps that transform an input (user message) into an output (AI response). Each step has a single responsibility and can be independently tested, configured, and monitored. 
 
 ```
-User Message → [Safety] → [Retrieval] → [Reranking] → [LLM] → [Validation] → Response
+User Message → [Safety] → [Language Detection] → [Retrieval] → [LLM] → [Validation] → Response
 ```
 
 ### Key Benefits
@@ -32,7 +32,7 @@ User Message → [Safety] → [Retrieval] → [Reranking] → [LLM] → [Validat
 - **Modularity**: Each step is independent and replaceable
 - **Testability**: Steps can be unit tested in isolation
 - **Observability**: Per-step metrics and error tracking
-- **Flexibility**: Steps can be enabled/disabled or reordered
+- **Flexibility**: Steps automatically configure based on available services
 - **Performance**: Direct provider implementations eliminate wrapper overhead
 
 ## Architecture Components
@@ -47,10 +47,10 @@ class ProcessingContext:
     message: str = ""                    # Original user message
     collection_name: str = ""            # Vector DB collection to search
     retrieved_docs: List[Dict] = []      # Documents from RAG retrieval
-    reranked_docs: List[Dict] = []       # Reranked relevant documents
     response: str = ""                   # Final AI response
     is_blocked: bool = False             # Safety check result
     error: Optional[str] = None          # Error information
+    detected_language: str = ""          # Detected language code (e.g., 'en', 'es', 'zh')
     metadata: Dict[str, Any] = {}        # Step-specific metadata
 ```
 
@@ -130,7 +130,22 @@ class SafetyFilterStep(PipelineStep):
         return context
 ```
 
-#### Step 2: Context Retrieval (RAG)
+#### Step 2: Language Detection
+```python
+class LanguageDetectionStep(PipelineStep):
+    async def process(self, context):
+        # Detect the language of the user message
+        detected_lang = self.detect_language(context.message)
+        context.detected_language = detected_lang
+        return context
+    
+    def should_execute(self, context):
+        # Only execute if language detection is enabled
+        config = self.container.get_or_none('config') or {}
+        return config.get('general', {}).get('language_detection', False)
+```
+
+#### Step 3: Context Retrieval (RAG)
 ```python
 class ContextRetrievalStep(PipelineStep):
     async def process(self, context):
@@ -144,20 +159,6 @@ class ContextRetrievalStep(PipelineStep):
         return context
 ```
 
-#### Step 3: Reranking
-```python
-class RerankerStep(PipelineStep):
-    async def process(self, context):
-        if context.retrieved_docs:
-            reranker = self.container.get('reranker_service')
-            ranked_docs = await reranker.rerank(
-                query=context.message,
-                documents=context.retrieved_docs
-            )
-            context.reranked_docs = ranked_docs
-        return context
-```
-
 #### Step 4: LLM Inference
 ```python
 class LLMInferenceStep(PipelineStep):
@@ -165,7 +166,7 @@ class LLMInferenceStep(PipelineStep):
         llm_provider = self.container.get('llm_provider')
         
         # Build prompt with context
-        prompt = self.build_prompt(context.message, context.reranked_docs)
+        prompt = self.build_prompt(context.message, context.retrieved_docs)
         
         # Generate response
         context.response = await llm_provider.generate(prompt)
@@ -198,30 +199,39 @@ class ResponseValidationStep(PipelineStep):
 ### Built-in Steps
 
 1. **SafetyFilterStep**: Input validation and content filtering
-2. **ContextRetrievalStep**: RAG document retrieval from vector databases
-3. **RerankerStep**: Relevance-based document reranking
+2. **LanguageDetectionStep**: Automatic language detection for multilingual support
+3. **ContextRetrievalStep**: RAG document retrieval from vector databases
 4. **LLMInferenceStep**: Language model text generation
 5. **ResponseValidationStep**: Output safety and quality checks
 
 ### Step Configuration
 
-Each step can be configured independently:
+Steps are automatically included in the pipeline based on the available services and mode of operation. Each step uses its `should_execute()` method to determine whether it should run based on the current context and available services:
+
+- **SafetyFilterStep**: Executes when `llm_guard_service` or `moderator_service` is available
+- **LanguageDetectionStep**: Executes when `language_detection` is enabled in general configuration
+- **ContextRetrievalStep**: Executes when not in `inference_only` mode and a retriever is available
+- **LLMInferenceStep**: Always executes when an LLM provider is available
+- **ResponseValidationStep**: Executes when safety services are available and a response exists
+
+Safety and moderation features are controlled by their respective configuration sections:
 
 ```yaml
-pipeline:
-  steps:
-    safety_filter:
-      enabled: true
-      timeout_ms: 1000
-    
-    context_retrieval:
-      enabled: true
-      timeout_ms: 3000
-      max_documents: 10
-    
-    llm_inference:
-      enabled: true
-      timeout_ms: 30000
+# Safety configuration
+safety:
+  enabled: true  # Enables moderator service
+  mode: "fuzzy"
+  moderator: "ollama"
+
+# LLM Guard configuration  
+llm_guard:
+  enabled: true  # Enables LLM Guard service
+  service:
+    base_url: "http://localhost:8000"
+
+# Language detection configuration
+general:
+  language_detection: true  # Enables automatic language detection
 ```
 
 ### Custom Steps
@@ -396,54 +406,41 @@ pipeline_step_executions_total{step="SafetyFilterStep"} 1000
 
 ## Configuration
 
-### Pipeline Configuration
+### Pipeline Architecture
+
+The pipeline architecture is now the default and only inference mode in ORBIT. There is no separate pipeline configuration section - the pipeline automatically configures itself based on:
+
+1. **Available Services**: Steps execute only when their required services are available
+2. **Mode Settings**: `inference_only` mode skips RAG-related steps
+3. **Safety Settings**: Safety and validation steps are controlled by `safety` and `llm_guard` configuration sections
+
+### Key Configuration Sections
 
 ```yaml
-pipeline:
-  # Use direct provider implementations for better performance
-  use_direct_providers: true
-  
-  # Enable performance metrics logging
-  log_metrics: true
-  
-  # Step-specific configuration
-  steps:
-    safety_filter:
-      enabled: true
-      timeout_ms: 1000
-    
-    context_retrieval:
-      enabled: true
-      timeout_ms: 3000
-      max_documents: 10
-    
-    reranker:
-      enabled: true
-      timeout_ms: 2000
-      top_k: 5
-    
-    llm_inference:
-      enabled: true
-      timeout_ms: 30000
-    
-    response_validation:
-      enabled: true
-      timeout_ms: 1000
-  
-  # Performance tuning
-  performance:
-    total_timeout_ms: 60000
-    connection_pool_size: 10
-  
-  # Health monitoring
-  monitoring:
-    health_check:
-      enabled: true
-      interval_seconds: 30
-      failure_threshold: 3
+# General settings control the mode
+general:
+  inference_provider: "openai"  # Which LLM provider to use
+  inference_only: true          # Skip RAG steps if true
+
+# Safety settings control filtering and validation
+safety:
+  enabled: true                 # Enable content moderation
+  mode: "fuzzy"
+  moderator: "ollama"
+
+# LLM Guard for advanced security
+llm_guard:
+  enabled: true                 # Enable LLM Guard checks
+  service:
+    base_url: "http://localhost:8000"
+    timeout: 30
+  security:
+    risk_threshold: 0.6
 ```
 
 ### Provider Configuration
+
+Providers are configured in their respective sections and selected via `general.inference_provider`:
 
 ```yaml
 # LLM Provider configuration
@@ -459,9 +456,9 @@ inference:
     model: "claude-3-sonnet-20240229"
     max_tokens: 2000
 
-# General settings
+# Select which provider to use
 general:
-  inference_provider: "openai"  # Which provider to use
+  inference_provider: "openai"  # Active provider
   inference_only: true          # Skip RAG if true
 ```
 
@@ -560,14 +557,17 @@ async def process_stream(self, context: ProcessingContext) -> AsyncGenerator[str
         yield chunk
 ```
 
-### Caching (Future Feature)
+### Caching
+
+Caching is handled at the service level rather than pipeline configuration. For example, Redis can be used for caching when enabled:
 
 ```yaml
-pipeline:
-  cache:
+internal_services:
+  redis:
     enabled: true
-    ttl_seconds: 3600
-    max_size_mb: 100
+    host: "localhost"
+    port: 6379
+    ttl: 3600  # 1 hour cache TTL
 ```
 
 ## Testing
@@ -610,18 +610,17 @@ async def test_full_pipeline_flow():
     assert result.response == "expected response"
 ```
 
-## Migration from Legacy Systems
+## Migration Notes
 
-If you're migrating from a legacy inference system:
+The pipeline architecture is now the default and only mode in ORBIT. The legacy client system has been completely removed. Key changes:
 
-1. **Identify Current Steps**: Map existing logic to pipeline steps
-2. **Create Custom Steps**: Implement `PipelineStep` for custom logic
-3. **Configure Services**: Set up service container with dependencies
-4. **Test Incrementally**: Test each step independently
-5. **Monitor Performance**: Use built-in monitoring to compare performance
+1. **No Pipeline Configuration**: The `pipeline:` configuration section has been removed. Steps are automatically configured based on available services.
+2. **Automatic Step Inclusion**: All steps are included by default and use their internal logic to determine execution.
+3. **Service-Based Control**: Enable/disable features through their respective service configurations (`safety:`, `llm_guard:`, etc.) rather than pipeline step configuration.
+4. **Default Mode**: There's no need to enable pipeline mode - it's always active.
 
 ## Conclusion
 
 ORBIT's pipeline inference architecture provides a robust, scalable, and maintainable foundation for AI inference workloads. Its modular design enables easy customization, comprehensive testing, and detailed observability while maintaining high performance through direct provider implementations.
 
-The architecture scales from simple inference-only use cases to complex RAG pipelines with multiple processing steps, making it suitable for a wide range of AI applications.
+The architecture scales from simple inference-only use cases to complex RAG pipelines with multiple processing steps, making it suitable for a wide range of AI applications. As the default and only inference mode, it ensures consistent behavior and performance across all deployments.

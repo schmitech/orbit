@@ -82,6 +82,14 @@ def _log_config_summary(config: Dict[str, Any], source_path: str):
     else:
         logger.info(f"Inference: {inference_provider}")
     
+    # Log general configuration flags
+    general_config = config.get('general', {})
+    inference_only = general_config.get('inference_only', False)
+    language_detection = general_config.get('language_detection', False)
+    verbose = general_config.get('verbose', False)
+    
+    logger.info(f"General: inference_only={inference_only}, language_detection={language_detection}, verbose={verbose}")
+    
     # Log fault tolerance configuration (always enabled)
     fault_tolerance_config = config.get('fault_tolerance', {})
     circuit_breaker_config = fault_tolerance_config.get('circuit_breaker', {})

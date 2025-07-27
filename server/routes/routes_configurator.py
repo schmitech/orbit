@@ -94,15 +94,9 @@ class RouteConfigurator:
         """Create chat service dependency."""
         async def get_chat_service(request: Request):
             if not hasattr(request.app.state, 'chat_service'):
-                from services.chat_service import ChatService
-                # Get chat history service if available
-                chat_history_service = getattr(request.app.state, 'chat_history_service', None)
-                request.app.state.chat_service = ChatService(
-                    request.app.state.config, 
-                    request.app.state.llm_client, 
-                    request.app.state.logger_service,
-                    chat_history_service
-                )
+                # Chat service should always be initialized by ServiceFactory
+                # If it's missing, there's a configuration issue
+                raise RuntimeError("Chat service not initialized. Please check server initialization.")
             return request.app.state.chat_service
         return get_chat_service
     

@@ -11,7 +11,7 @@ from typing import List, AsyncGenerator
 from .base import ProcessingContext, PipelineStep
 from .service_container import ServiceContainer
 from .monitoring import PipelineMonitor
-from .steps import SafetyFilterStep, ContextRetrievalStep, LLMInferenceStep, ResponseValidationStep
+from .steps import SafetyFilterStep, LanguageDetectionStep, ContextRetrievalStep, LLMInferenceStep, ResponseValidationStep
 
 class InferencePipeline:
     """
@@ -254,23 +254,24 @@ class InferencePipelineBuilder:
             Configured inference pipeline
         """
         config = container.get('config')
-        pipeline_config = config.get('pipeline', {})
-        step_config = pipeline_config.get('steps', {})
         
         steps = []
         
-        # Add steps based on configuration
-        if step_config.get('safety_filter', {}).get('enabled', True):
-            steps.append(SafetyFilterStep(container))
+        # Add all steps by default (pipeline config section removed)
+        # Safety filter only if safety/llm_guard services are available
+        steps.append(SafetyFilterStep(container))
         
-        if step_config.get('context_retrieval', {}).get('enabled', True):
-            steps.append(ContextRetrievalStep(container))
+        # Language detection (if enabled)
+        steps.append(LanguageDetectionStep(container))
         
-        if step_config.get('llm_inference', {}).get('enabled', True):
-            steps.append(LLMInferenceStep(container))
+        # Context retrieval only if not in inference-only mode
+        steps.append(ContextRetrievalStep(container))
         
-        if step_config.get('response_validation', {}).get('enabled', True):
-            steps.append(ResponseValidationStep(container))
+        # LLM inference is always needed
+        steps.append(LLMInferenceStep(container))
+        
+        # Response validation only if safety/llm_guard services are available
+        steps.append(ResponseValidationStep(container))
         
         return InferencePipeline(steps, container)
     
@@ -286,20 +287,21 @@ class InferencePipelineBuilder:
             Configured inference-only pipeline
         """
         config = container.get('config')
-        pipeline_config = config.get('pipeline', {})
-        step_config = pipeline_config.get('steps', {})
         
         steps = []
         
-        # Add steps based on configuration (skip context_retrieval for inference-only)
-        if step_config.get('safety_filter', {}).get('enabled', True):
-            steps.append(SafetyFilterStep(container))
+        # Add steps for inference-only mode (skip context_retrieval)
+        # Safety filter only if safety/llm_guard services are available
+        steps.append(SafetyFilterStep(container))
         
-        if step_config.get('llm_inference', {}).get('enabled', True):
-            steps.append(LLMInferenceStep(container))
+        # Language detection (if enabled)
+        steps.append(LanguageDetectionStep(container))
         
-        if step_config.get('response_validation', {}).get('enabled', True):
-            steps.append(ResponseValidationStep(container))
+        # LLM inference is always needed
+        steps.append(LLMInferenceStep(container))
+        
+        # Response validation only if safety/llm_guard services are available
+        steps.append(ResponseValidationStep(container))
         
         return InferencePipeline(steps, container)
     

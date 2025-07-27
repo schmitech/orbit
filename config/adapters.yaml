@@ -55,7 +55,6 @@ adapters:
       max_results: 5
       return_results: 3
       
-    # Fault tolerance settings for this adapter
     fault_tolerance:
       operation_timeout: 25.0
       failure_threshold: 3
@@ -72,35 +71,34 @@ adapters:
       event_handler:
         type: "default"
       
-  - name: "qa-vector-qdrant"
-    type: "retriever"
-    datasource: "qdrant"
-    adapter: "qa"
-    implementation: "retrievers.implementations.qa.QAQdrantRetriever"
-    config:
-      collection: "city"
-      confidence_threshold: 0.3
-      score_scaling_factor: 200.0
-      embedding_provider: null
-      max_results: 5
-      return_results: 3
+  # - name: "qa-vector-qdrant"
+  #   type: "retriever"
+  #   datasource: "qdrant"
+  #   adapter: "qa"
+  #   implementation: "retrievers.implementations.qa.QAQdrantRetriever"
+  #   config:
+  #     collection: "city"
+  #     confidence_threshold: 0.3
+  #     score_scaling_factor: 200.0
+  #     embedding_provider: null
+  #     max_results: 5
+  #     return_results: 3
       
-    # Fault tolerance settings for this adapter
-    fault_tolerance:
-      operation_timeout: 10.0
-      failure_threshold: 2
-      recovery_timeout: 45.0
-      success_threshold: 1
-      max_recovery_timeout: 300.0
-      enable_exponential_backoff: true
-      enable_thread_isolation: true
-      enable_process_isolation: false
-      max_retries: 1
-      retry_delay: 1.0
-      cleanup_interval: 1800.0
-      retention_period: 43200.0
-      event_handler:
-        type: "default"
+  #   fault_tolerance:
+  #     operation_timeout: 10.0
+  #     failure_threshold: 2
+  #     recovery_timeout: 45.0
+  #     success_threshold: 1
+  #     max_recovery_timeout: 300.0
+  #     enable_exponential_backoff: true
+  #     enable_thread_isolation: true
+  #     enable_process_isolation: false
+  #     max_retries: 1
+  #     retry_delay: 1.0
+  #     cleanup_interval: 1800.0
+  #     retention_period: 43200.0
+  #     event_handler:
+  #       type: "default"
       
   - name: "file-vector"
     type: "retriever"
@@ -119,19 +117,18 @@ adapters:
       file_content_weight: 1.5
       metadata_weight: 0.8
       
-    # Fault tolerance settings for this adapter
     fault_tolerance:
-      operation_timeout: 35.0          # Longer timeout for file operations (larger datasets)
-      failure_threshold: 5             # More tolerance for file operations
-      recovery_timeout: 45.0           # Moderate base timeout for file operations
-      success_threshold: 3             # Multiple successes to close circuit
-      max_recovery_timeout: 300.0      # Max 5 minutes for file operations
-      enable_exponential_backoff: true # Enable backoff for file operations
-      enable_thread_isolation: true    # Use thread isolation for file processing
-      enable_process_isolation: false  # Thread isolation sufficient for file operations
-      max_retries: 3                   # More retries for file operations
-      retry_delay: 2.0                 # Longer delay for file operations
-      cleanup_interval: 7200.0         # Clean up stats every 2 hours (less frequent for file ops)
-      retention_period: 172800.0       # Keep stats for 48 hours (longer retention for file ops)
+      operation_timeout: 35.0
+      failure_threshold: 5
+      recovery_timeout: 45.0
+      success_threshold: 3
+      max_recovery_timeout: 300.0
+      enable_exponential_backoff: true
+      enable_thread_isolation: true
+      enable_process_isolation: false
+      max_retries: 3
+      retry_delay: 2.0
+      cleanup_interval: 7200.0
+      retention_period: 172800.0
       event_handler:
-        type: "default"                # Use default filesystem logger
+        type: "default"

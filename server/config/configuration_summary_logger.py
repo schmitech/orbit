@@ -369,7 +369,12 @@ class ConfigurationSummaryLogger:
         """Log system-level settings."""
         try:
             verbose_enabled = is_true_value(self.config.get('general', {}).get('verbose', False))
+            language_detection_enabled = is_true_value(self.config.get('general', {}).get('language_detection', False))
             self._log_message(f"Verbose mode: {verbose_enabled}")
+            self._log_message(f"🌍 Language detection: {'enabled' if language_detection_enabled else 'disabled'}")
+            
+            if language_detection_enabled:
+                self._log_message("Automatic language matching for multilingual responses", indent=2)
         except Exception as e:
             self._log_message(f"Error logging system settings: {str(e)}", level='error')
     
@@ -411,7 +416,8 @@ class ConfigurationSummaryLogger:
                     'api_key_enabled': is_true_value(self.config.get('api_keys', {}).get('enabled', True))
                 },
                 'system': {
-                    'verbose': is_true_value(self.config.get('general', {}).get('verbose', False))
+                    'verbose': is_true_value(self.config.get('general', {}).get('verbose', False)),
+                    'language_detection': is_true_value(self.config.get('general', {}).get('language_detection', False))
                 }
             }
             

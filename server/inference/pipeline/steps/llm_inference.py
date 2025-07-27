@@ -60,7 +60,12 @@ class LLMInferenceStep(PipelineStep):
             response = await llm_provider.generate(full_prompt)
             context.response = response
             
-            self.logger.debug(f"Generated response: {response[:100]}...")
+            # Debug: Log the full response if verbose
+            config = self.container.get_or_none('config') or {}
+            if config.get('general', {}).get('verbose', False):
+                self.logger.info(f"DEBUG: Full LLM response: {repr(response)}")
+            else:
+                self.logger.debug(f"Generated response: {response[:100]}...")
             
         except Exception as e:
             self.logger.error(f"Error during LLM inference: {str(e)}")
@@ -102,7 +107,13 @@ class LLMInferenceStep(PipelineStep):
                 yield chunk
             
             context.response = accumulated_response
-            self.logger.debug(f"Generated streaming response: {accumulated_response[:100]}...")
+            
+            # Debug: Log the full streaming response if verbose
+            config = self.container.get_or_none('config') or {}
+            if config.get('general', {}).get('verbose', False):
+                self.logger.info(f"DEBUG: Full streaming LLM response: {repr(accumulated_response)}")
+            else:
+                self.logger.debug(f"Generated streaming response: {accumulated_response[:100]}...")
             
         except Exception as e:
             self.logger.error(f"Error during streaming LLM inference: {str(e)}")
@@ -133,6 +144,11 @@ class LLMInferenceStep(PipelineStep):
         
         # Build the complete prompt
         parts = [system_prompt]
+        
+        # Add language matching instruction based on detection
+        language_instruction = self._build_language_instruction(context)
+        if language_instruction:
+            parts.append(language_instruction)
         
         if context_section:
             parts.append(context_section)
@@ -190,4 +206,59 @@ class LLMInferenceStep(PipelineStep):
             if role and content:
                 history.append(f"{role.title()}: {content}")
         
-        return "\n".join(history) 
+        return "\n".join(history)
+    
+    def _build_language_instruction(self, context: ProcessingContext) -> str:
+        """
+        Build language instruction based on detected language.
+        
+        Args:
+            context: The processing context
+            
+        Returns:
+            Language instruction string or empty string
+        """
+        config = self.container.get_or_none('config') or {}
+        language_detection_enabled = config.get('general', {}).get('language_detection', False)
+        
+        if not language_detection_enabled:
+            # No language instruction if language detection is disabled
+            if config.get('general', {}).get('verbose', False):
+                self.logger.info("DEBUG: Language detection disabled - no language instruction added")
+            return ""
+        
+        detected_language = getattr(context, 'detected_language', None)
+        
+        if not detected_language:
+            # No detection available, use generic instruction
+            return "\nIMPORTANT: Reply in the same language the user is using. Always match the user's language. Do not provide translations or explanations in other languages."
+        
+        # Language-specific instructions for better consistency
+        language_names = {
+            'en': 'English',
+            'es': 'Spanish',
+            'fr': 'French',
+            'de': 'German',
+            'it': 'Italian',
+            'pt': 'Portuguese',
+            'nl': 'Dutch',
+            'ru': 'Russian',
+            'zh': 'Chinese',
+            'ja': 'Japanese',
+            'ko': 'Korean',
+            'ar': 'Arabic',
+            'hi': 'Hindi',
+            'th': 'Thai',
+            'el': 'Greek',
+            'he': 'Hebrew'
+        }
+        
+        language_name = language_names.get(detected_language, detected_language.upper())
+        
+        # More specific instruction based on detected language
+        instruction = f"\nIMPORTANT: The user is writing in {language_name}. You must respond entirely in {language_name}. Do not include translations, explanations in other languages, or bilingual responses. Write naturally as a native {language_name} speaker would."
+        
+        if config.get('general', {}).get('verbose', False):
+            self.logger.info(f"DEBUG: Using language instruction for {language_name} ({detected_language})")
+        
+        return instruction 
