@@ -24,6 +24,7 @@ ORBIT is a middleware platform that provides a unified API for AI inference, all
 - **Deploy anywhere** - Locally, on-premise, or in the cloud. VM or Container.
 - **Stay secure** - Built-in authentication and content moderation
 
+ORBIT is actively maintained by [Remsy Schmilinsky](https://www.linkedin.com/in/remsy/).
 
 ## 🤔 Why ORBIT?
 
@@ -111,37 +112,7 @@ See [Docker Setup Guide](docker/README.md) for details.
 - **Vector DBs** (Optional): Chroma, Qdrant, Pinecone, Milvus for semantic search
 - **SQL DBs** (Optional): PostgreSQL, MySQL, SQLite for structured data retrieval
 
-## 📸 See It in Action
-
-<details>
-<summary><b>Terminal Chat Interface</b></summary>
-
-![ORBIT Chat Demo](docs/images/orbit-chat.gif)
-
-</details>
-
-<details>
-<summary><b>Web Application with Cohere</b></summary>
-
-![ORBIT Web App Demo](docs/images/orbit-cohere.gif)
-
-</details>
-
-<details>
-<summary><b>Content Moderation in Action</b></summary>
-
-![ORBIT Moderation](docs/images/moderation.gif)
-
-</details>
-
-<details>
-<summary><b>Customizable Chat Widget</b></summary>
-
-![ORBIT Widget Theming](docs/images/theming.gif)
-
-</details>
-
-## 🔧 Common Use Cases
+## 🔧 Sample Use Cases
 
 ### 💬 Local AI Assistant
 Run AI models on your hardware without cloud dependencies:
@@ -163,6 +134,12 @@ Add an AI assistant to your website:
 ```bash
 npm install @schmitech/chatbot-widget
 ```
+Here some examples of the chatbot widget in action:
+
+<video src="https://github.com/user-attachments/assets/876d0e5b-d24f-4367-be5a-3f966d97e8b6" controls>
+  Your browser does not support the video tag.
+</video>
+
 See the [widget documentation](clients/chat-widget/README.md) for integration details.
 
 ## 📖 Documentation
