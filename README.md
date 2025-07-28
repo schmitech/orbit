@@ -24,6 +24,16 @@ ORBIT is a middleware platform that provides a unified API for AI inference, all
 - **Deploy anywhere** - Locally, on-premise, or in the cloud. VM or Container.
 - **Stay secure** - Built-in authentication and content moderation
 
+
+## 🤔 Why ORBIT?
+
+Unlike cloud-based AI services, ORBIT gives you:
+
+- **No recurring costs** - Pay for hardware, not tokens
+- **Complete privacy** - Your data never leaves your infrastructure  
+- **Full control** - Customize everything to your needs
+- **Compliance ready** - Built for regulated industries
+
 Perfect for organizations seeking full transparency, control, and regulatory compliance when combining inference with sensitive data.
 
 <div align="center">
@@ -34,8 +44,15 @@ Perfect for organizations seeking full transparency, control, and regulatory com
 
 - 🤖 **Model-serving options** - Ollama, vLLM, llama.ccp, and more
 - 🔍 **RAG Support** - SQL, Vector DB, and Files
-- 🔐 **Security** - Authentication, content moderation, and audit trails
+- 🔐 **Security** - Authentication, Authorizaton (API Keys), content moderation, and audit trails
 - 🚀 **High Performance** - Async architecture with fault tolerance
+
+## 📋 Minimum Requirements
+
+- Python 3.12+
+- CPU & 16GB RAM (GPU recommended for 3b+ models)
+- MongoDB (for authentication and RAG features)
+- Optional: Redis (Caching), Elasticsearch (Logging/Audit)
 
 ## 🚀 Quick Start
 
@@ -58,6 +75,10 @@ source venv/bin/activate
 # Try the chat interface
 orbit-chat
 ```
+
+<video src="./docs/videos/orbit-chat.mp4" controls width="700">
+  Your browser does not support the video tag.
+</video>
 
 ### 🐳 Docker
 See [Docker Setup Guide](docker/README.md) for details.
@@ -82,13 +103,6 @@ See [Docker Setup Guide](docker/README.md) for details.
 - React-based chat application with Zustand state management
 - Embeddable chat widget with theming support
 - Node.js and Python API client libraries
-
-### Key Design Patterns
-
-1. **Provider Abstraction**: All AI services (LLMs, embeddings, rerankers) implement common interfaces allowing hot-swapping
-2. **Adapter Pattern**: Retrieval adapters provide unified interface for diverse data sources
-3. **Session Management**: Conversation history and context maintained via MongoDB with configurable retention
-4. **Async Architecture**: FastAPI async endpoints with proper connection pooling and resource management
 
 ### Dependencies
 
@@ -174,22 +188,6 @@ See the [widget documentation](clients/chat-widget/README.md) for integration de
 - **Updates:** Check the [changelog](CHANGELOG.md)
 - **Commercial Support:** Contact [schmitech.ai](https://schmitech.ai/)
 - **Maintained by:** [Remsy Schmilinsky](https://www.linkedin.com/in/remsy/)
-
-## 🌟 Why ORBIT?
-
-Unlike cloud-based AI services, ORBIT gives you:
-
-- **No recurring costs** - Pay for hardware, not tokens
-- **Complete privacy** - Your data never leaves your infrastructure  
-- **Full control** - Customize everything to your needs
-- **Compliance ready** - Built for regulated industries
-
-## 📋 Minimum Requirements
-
-- Python 3.12+
-- CPU & 16GB RAM (GPU recommended for 3b+ models)
-- MongoDB (for authentication and RAG features)
-- Optional: Redis, Elasticsearch
 
 ## 📄 License
 
