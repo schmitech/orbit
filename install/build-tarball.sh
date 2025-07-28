@@ -178,7 +178,14 @@ done
 
 # Sample data and scripts
 echo "Copying sample databases and scripts..."
-find examples -type f -not -path "*/\.*" -not -path "*/__pycache__/*" -not -name "*.pyc" -not -name "*.pyo" -not -name "*.pyd" | while read file; do
+find examples -type f \
+    -not -path "*/\.*" \
+    -not -path "*/__pycache__/*" \
+    -not -path "examples/sandbox/*" \
+    -not -path "examples/sandbox/**" \
+    -not -name "*.pyc" \
+    -not -name "*.pyo" \
+    -not -name "*.pyd" | while read file; do
     mkdir -p "dist/build/${PACKAGE_NAME}/$(dirname "$file")"
     cp "$file" "dist/build/${PACKAGE_NAME}/$file"
 done

@@ -61,7 +61,7 @@ Perfect for organizations seeking full transparency, control, and regulatory com
 
 ## 🚀 Quick Start
 
-Get ORBIT running in under 5 minutes:
+### Installation
 
 ```bash
 # Download latest release
@@ -75,12 +75,21 @@ cp .env.example .env
 
 # Start ORBIT (Default is http://localhost:3000)
 source venv/bin/activate
-./bin/orbit.sh start
-
-# Try the chat interface
-orbit-chat
+./bin/orbit.sh --help # CLI tool options
+./bin/orbit.sh start # logs under /logs/orbit.log
 ```
 
+<video src="https://github.com/user-attachments/assets/8ea103a6-8b33-4801-adc2-f0e81e03e96e" controls>
+  Your browser does not support the video tag.
+</video>
+
+### ORBIT CLI Chat
+
+Try the chat endpoint using ```orbit-chat``` tool. This is a [python package](https://pypi.org/project/schmitech-orbit-client/). The source is under directory `clients/python` if you owish to customize it.
+```bash
+orbit-chat --help
+orbit-chat --url http://localhost:3000 # Default url
+```
 <video src="https://github.com/user-attachments/assets/db46e91c-4cb7-44b4-b576-8c1d19176f0a" controls>
   Your browser does not support the video tag.
 </video>
@@ -126,7 +135,7 @@ orbit-chat
 ```
 
 ### 📚 Knowledge Base Q&A
-Connect your data for intelligent responses:
+Combine data with inference:
 ```bash
 # Set up with SQLite (see docs for full config)
 ./examples/setup-demo-db.sh sqlite
@@ -140,12 +149,12 @@ npm install @schmitech/chatbot-widget
 ```
 Here some examples of the chatbot widget in action:
 
-#### AI Assistant for a Non-Profit Organization
+#### AI Assistant for a Non-Profit Organization:
 <video src="https://github.com/user-attachments/assets/218a7396-ec8b-474e-803c-9b4caa4ca1a7" controls>
   Your browser does not support the video tag.
 </video>
 
-#### AI Assistant for Municipality
+#### AI Assistant for a Municipality:
 <video src="https://github.com/user-attachments/assets/876d0e5b-d24f-4367-be5a-3f966d97e8b6" controls>
   Your browser does not support the video tag.
 </video>
