@@ -140,6 +140,12 @@ npm install @schmitech/chatbot-widget
 ```
 Here some examples of the chatbot widget in action:
 
+#### AI Assistant for a Non-Profit Organization
+<video src="https://github.com/user-attachments/assets/218a7396-ec8b-474e-803c-9b4caa4ca1a7" controls>
+  Your browser does not support the video tag.
+</video>
+
+#### AI Assistant for Municipality
 <video src="https://github.com/user-attachments/assets/876d0e5b-d24f-4367-be5a-3f966d97e8b6" controls>
   Your browser does not support the video tag.
 </video>
