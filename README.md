@@ -76,7 +76,7 @@ source venv/bin/activate
 orbit-chat
 ```
 
-<video src="https://raw.githubusercontent.com/schmitech/orbit/main/docs/videos/orbit-chat.mp4" controls>
+<video src="https://github.com/user-attachments/assets/db46e91c-4cb7-44b4-b576-8c1d19176f0a" controls>
   Your browser does not support the video tag.
 </video>
 
