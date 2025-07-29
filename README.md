@@ -39,10 +39,6 @@ Unlike cloud-based AI services, ORBIT gives you:
 
 Perfect for organizations seeking full transparency, control, and regulatory compliance when combining inference with sensitive data.
 
-<div align="center">
-  <img src="docs/images/orbit-architecture.png" width="700" alt="ORBIT Architecture" />
-</div>
-
 ## ✨ Key Features
 
 - 🤖 **Model-serving options** - Ollama, vLLM, llama.cpp, and more
@@ -56,6 +52,38 @@ Perfect for organizations seeking full transparency, control, and regulatory com
 - CPU & 16GB RAM (GPU recommended for 3b+ models)
 - MongoDB (for authentication and RAG features)
 - Optional: Redis (Caching), Elasticsearch (Logging/Audit)
+
+## 🏗️ Architecture
+
+<div align="center">
+  <img src="docs/images/orbit-architecture.png" width="700" alt="ORBIT Architecture" />
+</div>
+
+### Core Components
+
+**ORBIT Server** (`/server/`): FastAPI-based inference middleware
+- **Inference Layer**: Supports multiple LLM providers (OpenAI, Anthropic, Cohere, Ollama, etc.) via unified interface
+- **RAG System**: Retrieval-Augmented Generation with SQL, Vector DB, and file-based adapters
+- **Authentication**: PBKDF2-SHA256 with bearer tokens, MongoDB-backed sessions
+- **Fault Tolerance**: Circuit breaker pattern with exponential backoff for provider failures
+- **Content Moderation**: Multi-layered safety with LLM Guard and configurable moderators
+
+**Configuration** (`/config/`): YAML-based modular configuration
+- Main config in `config.yaml` with environment variable support
+- Separate configs for adapters, datasources, embeddings, inference, moderators, and rerankers
+- Dynamic loading with validation and resolver system
+
+**Client Libraries**:
+- React-based chat application with Zustand state management
+- Embeddable chat widget with theming support
+- Node.js and Python API client libraries
+
+### Dependencies
+
+- **MongoDB** (Required): Authentication, RAG storage, conversation history
+- **Redis** (Optional): Caching layer
+- **Vector DBs** (Optional): Chroma, Qdrant, Pinecone, Milvus for semantic search
+- **SQL DBs** (Optional): PostgreSQL, MySQL, SQLite for structured data retrieval
 
 ## 🚀 Quick Start
 
@@ -101,7 +129,7 @@ INTERNAL_SERVICES_MONGODB_PORT=27017
 ```
 By default user name and password are disabled in MongoDB. Refer to [conversation history](docs/conversation_history.md) for implementation details.
 
-Make sure the chat_history is enabled in ```config.yaml```:
+Make sure the chat_history is enabled in ```config/config.yaml```:
 
 ```yaml
 chat_history:
@@ -119,8 +147,7 @@ chat_history:
     required: false
 ```
 
-For testing chat history, it's recommended to use a model with larger context window (i.e. Gemma3:12b). You can use Ollama (easiest) but if you use default
-llama_cpp provider, simply add another entry to file `install/gguf-models.json`. This is where you define the GGUF files from Hugging Face. Then simply run
+For testing chat history, it's recommended to use a model with larger context window (i.e. Gemma3:12b). You can use Ollama (easiest) but if you use default llama_cpp provider, simply add another entry to file `install/gguf-models.json`. This is where you define the GGUF files from Hugging Face. Then simply run
 this command to pull the model:
 
 ```bash
@@ -140,37 +167,20 @@ npm run dev
   Your browser does not support the video tag.
 </video>
 
+You can also try the embeddable ORBIT [chatbot widget](https://www.npmjs.com/package/@schmitech/chatbot-widget)  under ```clients/chat-widget/react-example```:
+
+```bash
+cd clients/chat-widget/react-example
+npm install
+npm run dev
+```
+
+<video src="https://github.com/user-attachments/assets/779b1275-ad99-4804-87b9-660e673b809c" controls>
+  Your browser does not support the video tag.
+</video>
 
 ### 🐳 Docker
 See [Docker Setup Guide](docker/README.md) for details.
-
-## 🏗️ Architecture Overview
-
-### Core Components
-
-**ORBIT Server** (`/server/`): FastAPI-based inference middleware
-- **Inference Layer**: Supports multiple LLM providers (OpenAI, Anthropic, Cohere, Ollama, etc.) via unified interface
-- **RAG System**: Retrieval-Augmented Generation with SQL, Vector DB, and file-based adapters
-- **Authentication**: PBKDF2-SHA256 with bearer tokens, MongoDB-backed sessions
-- **Fault Tolerance**: Circuit breaker pattern with exponential backoff for provider failures
-- **Content Moderation**: Multi-layered safety with LLM Guard and configurable moderators
-
-**Configuration** (`/config/`): YAML-based modular configuration
-- Main config in `config.yaml` with environment variable support
-- Separate configs for adapters, datasources, embeddings, inference, moderators, and rerankers
-- Dynamic loading with validation and resolver system
-
-**Client Libraries**:
-- React-based chat application with Zustand state management
-- Embeddable chat widget with theming support
-- Node.js and Python API client libraries
-
-### Dependencies
-
-- **MongoDB** (Required): Authentication, RAG storage, conversation history
-- **Redis** (Optional): Caching layer
-- **Vector DBs** (Optional): Chroma, Qdrant, Pinecone, Milvus for semantic search
-- **SQL DBs** (Optional): PostgreSQL, MySQL, SQLite for structured data retrieval
 
 ## 🔧 Sample Use Cases
 
