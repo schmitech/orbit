@@ -1,198 +1,88 @@
 # Language Detection Enhancement Roadmap
 
 ## Overview
-This document outlines recommendations for enhancing the current language detection system in `server/inference/pipeline/steps/language_detection.py` based on features available in the comprehensive `langiage_detection_example.py` module. The goal is to create a robust language detection system capable of accurately detecting any potential language on earth.
+This document outlines the future direction for enhancing the language detection system in `server/inference/pipeline/steps/language_detection.py`. The initial implementation phase is complete, and this roadmap details the next steps for architectural improvements, advanced features, and broader language support.
 
 ## Current State
-The current implementation uses only the `langdetect` library with basic pattern matching for script detection. While functional, it lacks the robustness needed for global language support.
+The language detection step is now a robust, configurable system that provides a strong foundation for future work. Key implemented features include:
 
-## High Priority Enhancements
+- **Multi-Backend Ensemble Detection:** The system uses a weighted-voting ensemble of `langdetect`, `langid`, and `pycld2` for high-accuracy detection. Backends are configurable and handle failures gracefully.
+- **Confidence Scoring:** All detections return a `DetectionResult` object with a clear confidence score, method, and raw results for downstream processing and debugging.
+- **Script & Pattern-Based Detection:** A high-confidence first-pass detector uses Unicode script ranges and word patterns to quickly identify many languages (e.g., `zh`, `ja`, `es`, `pt`, `th`).
+- **Configuration:** The entire feature can be managed via configuration, including enabling/disabling the service, selecting backends, and setting confidence thresholds.
+- **Enhanced Logging:** Detailed metadata is stored in the processing context for excellent debuggability.
 
-### 1. Multi-Backend Ensemble Detection
+## Future Enhancements
 
-Implement multiple detection backends with weighted voting:
-- **langdetect** (weight: 1.0) - Already implemented
-- **langid** (weight: 1.2) - Better for short texts
-- **pycld2** (weight: 1.5) - Most accurate for longer texts
+The following enhancements are planned in phases to build upon the current implementation.
 
-Benefits:
-- Significantly higher accuracy through consensus
-- Fallback when one library fails
-- Better handling of edge cases
+### Phase 1: Code Architecture and Specialization
 
-### 2. Comprehensive Language Pattern Repository
+The immediate next step is to refactor the codebase for better scalability and to add more specialized detection logic.
 
-Import the extensive pattern database including:
-- **Mongolian Cyrillic** patterns and indicators
-- **Common words** for 15+ languages
-- **Character frequency** profiles
-- **Question starters** and contextual phrases
-- **Accented character** mappings
+**1. Modular Code Refactoring**
+- **Action:** Break down the single `language_detection.py` file into the planned modular architecture.
+- **Rationale:** Improve maintainability, testability, and scalability as more features are added.
+- **Proposed Structure:**
+  ```
+  language_detection/
+  ├── __init__.py
+  ├── step.py                 # Main pipeline step
+  ├── backends/
+  │   ├── base.py, langdetect.py, langid.py, pycld2.py
+  ├── patterns/
+  │   ├── repository.py, languages/...
+  └── analyzers/
+      ├── script.py, confidence.py
+  ```
 
-Key languages to add:
-- Mongolian (mn)
-- Italian (it)
-- Portuguese (pt) - better disambiguation from Spanish
-- Greek (el)
-- Hebrew (he)
-- Hindi (hi)
+**2. Specialized Language Detectors**
+- **Action:** Create dedicated detectors for language families that require more nuanced differentiation.
+- **Detectors to Add:**
+  - **`CyrillicLanguageDetector`:** Distinguish between Russian (`ru`), Mongolian (`mn`), and Ukrainian (`uk`).
+  - **`CJKDetector`:** Improve disambiguation between Chinese (`zh`), Japanese (`ja`), and Korean (`ko`).
 
-### 3. Confidence Scoring System
+### Phase 2: Advanced Processing and Language Coverage
 
-Return confidence scores with all detections:
-```python
-@dataclass
-class DetectionResult:
-    language: str
-    confidence: float
-    script: ScriptType
-    method: str
-    details: Dict[str, Any]
-```
+This phase focuses on improving accuracy for difficult cases and expanding the number of supported languages.
 
-Benefits:
-- Better decision making in downstream processing
-- Ability to handle uncertain detections
-- Debugging and monitoring capabilities
+**1. Text Preprocessing Pipeline**
+- **Action:** Implement an intelligent preprocessing pipeline to improve detection accuracy, especially for short or ambiguous texts.
+- **Features:**
+  - N-gram extraction
+  - Technical content detection (e.g., code snippets)
+  - Text variation generation for very short inputs
 
-## Medium Priority Enhancements
+**2. Extended Language Support**
+- **Action:** Add patterns and detection logic for the following languages.
+- **Languages to Add:**
+  - Vietnamese (`vi`)
+  - Turkish (`tr`)
+  - Polish (`pl`)
+  - Dutch (`nl`)
+  - Swedish (`sv`), Norwegian (`no`), Danish (`da`), Finnish (`fi`)
+  - Indonesian (`id`), Malay (`ms`)
 
-### 4. Specialized Language Detectors
+### Phase 3: Performance and Reliability
 
-Add quick detection paths:
-- **EnglishDetector** - Uses common starters/phrases
-- **CyrillicLanguageDetector** - Distinguishes Russian/Mongolian/Ukrainian
-- **CJKDetector** - Better Japanese/Chinese/Korean disambiguation
+The final phase will focus on optimizing the system for speed and ensuring its reliability through comprehensive testing.
 
-### 5. Advanced Script Analysis
+**1. Performance Optimizations**
+- **Action:** Implement caching and support for batch processing.
+- **Benefits:**
+  - **Caching:** Avoid re-processing of identical texts, significantly speeding up common interactions.
+  - **Batch Processing:** Allow multiple detection requests to be handled in a single, efficient operation.
 
-Replace basic regex with comprehensive Unicode range mapping:
-- Full Unicode block coverage
-- Script ratio calculation for mixed texts
-- Fallback to Unicode name analysis
-- Support for rare scripts (Devanagari, Greek, etc.)
-
-### 6. Text Preprocessing Pipeline
-
-Add intelligent preprocessing:
-- Text variation generation for short inputs
-- Technical content detection
-- N-gram extraction
-- Entropy calculation
-
-## Additional Improvements
-
-### 7. Extended Language Support
-Add patterns and detection for:
-- Thai (th)
-- Vietnamese (vi)
-- Turkish (tr)
-- Polish (pl)
-- Dutch (nl)
-- Swedish (sv)
-- Norwegian (no)
-- Danish (da)
-- Finnish (fi)
-- Indonesian (id)
-- Malay (ms)
-
-### 8. Enhanced Logging and Debugging
-- Detailed vote tracking in debug mode
-- Backend performance metrics
-- Detection method tracking
-- Confidence breakdown logging
-
-### 9. Performance Optimizations
-- Batch processing support
-- Caching for repeated texts
-- Lazy loading of backends
-- Configurable backend selection
-
-### 10. Configuration Options
-```python
-config = {
-    'language_detection': {
-        'enabled': True,
-        'backends': ['langdetect', 'langid', 'pycld2'],
-        'min_confidence': 0.7,
-        'fallback_language': 'en',
-        'enable_preprocessing': True,
-        'cache_size': 1000,
-        'debug_mode': False
-    }
-}
-```
-
-## Implementation Strategy
-
-### Phase 1: Core Enhancements
-1. Implement multi-backend system
-2. Add confidence scoring
-3. Import basic pattern repository
-
-### Phase 2: Language Coverage
-1. Add specialized detectors
-2. Implement full pattern repository
-3. Add script analyzer
-
-### Phase 3: Optimization
-1. Add preprocessing pipeline
-2. Implement caching
-3. Add batch processing
-4. Performance testing
-
-## Code Architecture
-
-```
-language_detection/
-├── __init__.py
-├── step.py                 # Main pipeline step
-├── backends/
-│   ├── __init__.py
-│   ├── base.py            # Backend interface
-│   ├── langdetect.py
-│   ├── langid.py
-│   └── pycld2.py
-├── patterns/
-│   ├── __init__.py
-│   ├── repository.py      # Pattern storage
-│   └── languages/
-│       ├── cyrillic.py
-│       ├── latin.py
-│       ├── cjk.py
-│       └── ...
-├── analyzers/
-│   ├── __init__.py
-│   ├── script.py          # Script analysis
-│   ├── text.py            # Text preprocessing
-│   └── confidence.py      # Confidence calculation
-└── detectors/
-    ├── __init__.py
-    ├── english.py
-    ├── cyrillic.py
-    └── cjk.py
-```
-
-## Testing Requirements
-
-1. **Unit Tests**
-   - Each backend individually
-   - Pattern matching accuracy
-   - Confidence calculations
-   - Edge cases (empty, very short, mixed languages)
-
-2. **Integration Tests**
-   - Ensemble voting scenarios
-   - Full pipeline processing
-   - Performance benchmarks
-
-3. **Test Dataset**
-   - 100+ samples per language
-   - Various text lengths
-   - Mixed language samples
-   - Technical content samples
+**2. Comprehensive Testing**
+- **Action:** Develop a full test suite with a large, varied dataset.
+- **Requirements:**
+  - **Unit & Integration Tests:** Cover all backends, detectors, and the ensemble logic.
+  - **Test Dataset:** Curate a dataset with 100+ samples per language, including various text lengths and mixed-language examples.
+  - **Benchmarking:** Establish performance benchmarks to track detection speed.
 
 ## Success Metrics
+
+These metrics will be used to validate the successful implementation of the features in this roadmap.
 
 - **Accuracy**: >95% for major languages, >85% for all supported languages
 - **Performance**: <50ms average detection time

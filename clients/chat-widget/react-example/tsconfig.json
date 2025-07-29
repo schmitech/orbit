@@ -22,7 +22,7 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
-    "types": ["react", "react-dom"],
+    "types": ["react", "react-dom", "vite/client"],
     "noUncheckedSideEffectImports": true
   },
   "include": ["src"]

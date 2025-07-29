@@ -38,8 +38,9 @@ dependencies = [
     "python-magic>=0.4.27",
     "keyring>=25.6.0",
     "langdetect>=1.0.9",
-    "schmitech-orbit-client==0.2.2"
-    
+    "langid>=1.1.6",
+    "pycld2>=0.42",
+    "schmitech-orbit-client==0.2.2" 
 ]
 
 [profiles.torch]

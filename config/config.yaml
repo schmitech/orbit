@@ -19,7 +19,19 @@ general:
     required: true
   inference_provider: "llama_cpp"
   inference_only: true
-  language_detection: true  # Enable automatic language detection for better multilingual support
+
+language_detection:
+  enabled: false
+  backends: 
+    - "langdetect"
+    - "langid" 
+    - "pycld2"
+  backend_weights:
+    langdetect: 1.0
+    langid: 1.2
+    pycld2: 1.5
+  min_confidence: 0.7
+  fallback_language: "en"
 
 performance:
   workers: 4                        # Number of uvicorn workers

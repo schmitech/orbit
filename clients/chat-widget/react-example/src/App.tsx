@@ -97,9 +97,9 @@ function App() {
     // Remove or modify any options based on your needs
     
     const config = {
-      // Required parameters
-      apiUrl: 'http://localhost:3000',
-      apiKey: 'test-api-key',
+      // Required parameters - loaded from environment variables
+      apiUrl: import.meta.env.VITE_API_URL || 'http://localhost:3000',
+      apiKey: import.meta.env.VITE_API_KEY || 'test-api-key',
       sessionId: getSessionId(),
       
       // Optional: Custom container selector (remove this to use default floating widget)
@@ -109,32 +109,32 @@ function App() {
       widgetConfig: {
         // Header configuration
         header: {
-          title: "AI Retail Assistant"
+          title: "ORBIT Chatbot Example"
         },
         
         // Welcome message configuration
         welcome: {
-          title: "Need Help Running Your Store?",
-          description: "Your always-on assistant for retail store operations, support, and service delivery."
+          title: "Welcome to the Chatbot!",
+          description: "Ask me anything or try one of the suggested questions below to get started."
         },
-        
+
         // Suggested questions configuration
         suggestedQuestions: [
           {
-            text: "How do I set up a new store location?",
-            query: "What is the process for launching a new retail store?"
+            text: "What can you do?",
+            query: "What are your capabilities?"
           },
           {
-            text: "What's the process for onboarding new employees?",
-            query: "How do I onboard new retail staff effectively?"
+            text: "Tell me a fun fact.",
+            query: "Share an interesting fact."
           },
           {
-            text: "How can I track inventory in real time?",
-            query: "What tools are available for real-time inventory tracking?"
+            text: "How do I get started with algebra?",
+            query: "How can I use algebra effectively?"
           },
           {
-            text: "What are the best practices for handling customer complaints?",
-            query: "How should customer complaints be managed in-store?"
+            text: "Can you help me write code?",
+            query: "Can you assist with programming questions?"
           }
         ],
         
@@ -195,9 +195,9 @@ function App() {
     // Uncomment the code below and comment out the config above to use floating mode
     /*
     const floatingConfig = {
-      // Required parameters
-      apiUrl: 'http://localhost:3000',
-      apiKey: 'test-api-key', 
+      // Required parameters - loaded from environment variables
+      apiUrl: import.meta.env.VITE_API_URL || 'http://localhost:3000',
+      apiKey: import.meta.env.VITE_API_KEY || 'test-api-key', 
       sessionId: getSessionId(),
       
       // Note: No containerSelector = floating widget in bottom-right corner

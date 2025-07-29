@@ -369,12 +369,21 @@ class ConfigurationSummaryLogger:
         """Log system-level settings."""
         try:
             verbose_enabled = is_true_value(self.config.get('general', {}).get('verbose', False))
-            language_detection_enabled = is_true_value(self.config.get('general', {}).get('language_detection', False))
+            
+            # Check new language_detection configuration structure
+            lang_detect_config = self.config.get('language_detection', {})
+            language_detection_enabled = is_true_value(lang_detect_config.get('enabled', False))
+            
             self._log_message(f"Verbose mode: {verbose_enabled}")
             self._log_message(f"🌍 Language detection: {'enabled' if language_detection_enabled else 'disabled'}")
             
             if language_detection_enabled:
                 self._log_message("Automatic language matching for multilingual responses", indent=2)
+                # Log language detection configuration details
+                backends = lang_detect_config.get('backends', ['langdetect'])
+                self._log_message(f"Backends: {', '.join(backends)}", indent=2)
+                self._log_message(f"Min confidence: {lang_detect_config.get('min_confidence', 0.7)}", indent=2)
+                self._log_message(f"Fallback language: {lang_detect_config.get('fallback_language', 'en')}", indent=2)
         except Exception as e:
             self._log_message(f"Error logging system settings: {str(e)}", level='error')
     
@@ -417,7 +426,7 @@ class ConfigurationSummaryLogger:
                 },
                 'system': {
                     'verbose': is_true_value(self.config.get('general', {}).get('verbose', False)),
-                    'language_detection': is_true_value(self.config.get('general', {}).get('language_detection', False))
+                    'language_detection': is_true_value(self.config.get('language_detection', {}).get('enabled', False))
                 }
             }
             

@@ -219,7 +219,8 @@ class LLMInferenceStep(PipelineStep):
             Language instruction string or empty string
         """
         config = self.container.get_or_none('config') or {}
-        language_detection_enabled = config.get('general', {}).get('language_detection', False)
+        lang_detect_config = config.get('language_detection', {})
+        language_detection_enabled = lang_detect_config.get('enabled', False)
         
         if not language_detection_enabled:
             # No language instruction if language detection is disabled

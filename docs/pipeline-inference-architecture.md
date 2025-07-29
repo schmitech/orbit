@@ -142,7 +142,7 @@ class LanguageDetectionStep(PipelineStep):
     def should_execute(self, context):
         # Only execute if language detection is enabled
         config = self.container.get_or_none('config') or {}
-        return config.get('general', {}).get('language_detection', False)
+        return config.get('language_detection', {}).get('enabled', False)
 ```
 
 #### Step 3: Context Retrieval (RAG)
