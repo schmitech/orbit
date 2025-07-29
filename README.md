@@ -15,8 +15,6 @@
 
 **Deploy AI solutions without subscription fees. Run locally, maintain control.**
 
-[Documentation](docs/) • [Quick Start](#-quick-start) • [Features](#-key-features) • [Demo](#-see-it-in-action) • [Support](https://schmitech.ai/)
-
 </div>
 
 ## 🛰️ What is ORBIT?
@@ -47,9 +45,9 @@ Perfect for organizations seeking full transparency, control, and regulatory com
 
 ## ✨ Key Features
 
-- 🤖 **Model-serving options** - Ollama, vLLM, llama.ccp, and more
+- 🤖 **Model-serving options** - Ollama, vLLM, llama.cpp, and more
 - 🔍 **RAG Support** - SQL, Vector DB, and Files
-- 🔐 **Security** - Authentication, Authorizaton (API Keys), content moderation, and audit trails
+- 🔐 **Security** - Authentication, Authorization (API Keys), content moderation, and audit trails
 - 🚀 **High Performance** - Async architecture with fault tolerance
 
 ## 📋 Minimum Requirements
@@ -85,7 +83,7 @@ source venv/bin/activate
 
 ### ORBIT CLI Chat
 
-Try the chat endpoint using ```orbit-chat``` tool. This is a [python package](https://pypi.org/project/schmitech-orbit-client/). The source is under directory `clients/python` if you owish to customize it.
+Try the chat endpoint using ```orbit-chat``` tool. This is a [python package](https://pypi.org/project/schmitech-orbit-client/). The source is under directory `clients/python` if you wish to customize it.
 ```bash
 orbit-chat --help
 orbit-chat --url http://localhost:3000 # Default url
@@ -93,6 +91,57 @@ orbit-chat --url http://localhost:3000 # Default url
 <video src="https://github.com/user-attachments/assets/db46e91c-4cb7-44b4-b576-8c1d19176f0a" controls>
   Your browser does not support the video tag.
 </video>
+
+### Chat with conversation history
+There is a simple React app you can use to chat with ORBIT. It's not part of the distributable package, but you if you clone the repository you will find it under ```clients/chat-app```.
+
+To enable conversation history, you will need to have an instance of MongoDB and adjust the settings in your .env file (copy .env.example to .env). The two settings are:
+
+```bash
+INTERNAL_SERVICES_MONGODB_HOST=localhost
+INTERNAL_SERVICES_MONGODB_PORT=27017
+```
+By default user name and password are disabled in MongoDB. Refer to [conversation history](docs/conversation_history.md) for implementation details.
+
+
+Make sure the chat_history is enabled in ```config.yaml```:
+
+```yaml
+chat_history:
+  enabled: true
+  collection_name: "chat_history"
+  store_metadata: true
+  retention_days: 90
+  max_tracked_sessions: 10000
+  session:
+    auto_generate: false
+    required: true
+    header_name: "X-Session-ID"
+  user:
+    header_name: "X-User-ID"
+    required: false
+```
+
+For testing chat history, it's recommended to use model with larger context window (i.e. Gemma3:12b). You can use Ollama (easiest) but if you use default
+llama_cpp provider, simply add another entry to file `install/gguf-models.json`. This is where you define the GGUF files from Hugging Face. Then simply run
+this command to pull your model:
+
+```bash
+# Assuming gemma3-12b is defined in gguf-models.json
+./install/setup.sh --profile minimal --download-gguf gemma3-12b
+```
+
+How to run the react GUI chat application:
+```bash
+cd clients/chat-app
+npm install
+npm run dev
+```
+
+<video src="https://github.com/user-attachments/assets/116dcd19-3485-41d2-996c-7317353b5b34" controls>
+  Your browser does not support the video tag.
+</video>
+
 
 ### 🐳 Docker
 See [Docker Setup Guide](docker/README.md) for details.
