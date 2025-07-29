@@ -93,8 +93,6 @@ orbit-chat --url http://localhost:3000 # Default url
 </video>
 
 ### Chat with conversation history
-There is a simple React app you can use to chat with ORBIT. It's not part of the distributable package, but you if you clone the repository you will find it under ```clients/chat-app```.
-
 To enable conversation history, you will need to have an instance of MongoDB and adjust the settings in your .env file (copy .env.example to .env). The two settings are:
 
 ```bash
@@ -102,7 +100,6 @@ INTERNAL_SERVICES_MONGODB_HOST=localhost
 INTERNAL_SERVICES_MONGODB_PORT=27017
 ```
 By default user name and password are disabled in MongoDB. Refer to [conversation history](docs/conversation_history.md) for implementation details.
-
 
 Make sure the chat_history is enabled in ```config.yaml```:
 
@@ -122,16 +119,17 @@ chat_history:
     required: false
 ```
 
-For testing chat history, it's recommended to use model with larger context window (i.e. Gemma3:12b). You can use Ollama (easiest) but if you use default
+For testing chat history, it's recommended to use a model with larger context window (i.e. Gemma3:12b). You can use Ollama (easiest) but if you use default
 llama_cpp provider, simply add another entry to file `install/gguf-models.json`. This is where you define the GGUF files from Hugging Face. Then simply run
-this command to pull your model:
+this command to pull the model:
 
 ```bash
 # Assuming gemma3-12b is defined in gguf-models.json
 ./install/setup.sh --profile minimal --download-gguf gemma3-12b
 ```
 
-How to run the react GUI chat application:
+There is a simple React app you can use to test conversation history with ORBIT. It's not part of the distributable package, but you if you clone the repository you will find it under ```clients/chat-app```. To run the react GUI chat application:
+
 ```bash
 cd clients/chat-app
 npm install
