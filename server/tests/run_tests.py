@@ -63,8 +63,7 @@ def main():
         "-v",
         "--asyncio-mode=auto",
         "-k", "not test_ollama and not vllm",
-        "--ignore=tests/test_vllm.py",
-        "--ignore=tests/test_vllm_simple.py"
+        "--ignore=tests/vllm/"
     ])
 
 if __name__ == "__main__":

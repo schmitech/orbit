@@ -69,10 +69,14 @@ class ProviderFactory:
             # Try different import strategies
             try:
                 # First try relative import
-                module = importlib.import_module(f'.{module_name}', package='server.inference.pipeline.providers')
+                module = importlib.import_module(f'.{module_name}', package='inference.pipeline.providers')
             except ImportError:
-                # Fallback to absolute import
-                module = importlib.import_module(f'server.inference.pipeline.providers.{module_name}')
+                try:
+                    # Try absolute import without 'server' prefix
+                    module = importlib.import_module(f'inference.pipeline.providers.{module_name}')
+                except ImportError:
+                    # Fallback to absolute import with 'server' prefix
+                    module = importlib.import_module(f'server.inference.pipeline.providers.{module_name}')
             
             provider_class = getattr(module, class_name)
             

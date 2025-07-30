@@ -17,6 +17,9 @@ import sys
 from typing import Dict, Any
 from requests.exceptions import ReadTimeout, ConnectionError
 
+#  Quick test
+# curl http://localhost:8000/v1/chat/completions -H "Content-Type: application/json" -d '{"model": "Qwen/Qwen2.5-1.5B-Instruct", "messages": [{"role": "system", "content": "You are a helpful assistant."}, {"role": "user", "content": "Hello, how are you?"}], "temperature": 0.7, "max_tokens": 100}' | jq
+
 # Get the absolute path to the server directory (parent of tests)
 server_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Get the absolute path to the project root directory (parent of server)
@@ -211,13 +214,13 @@ def test_vllm_error_handling(vllm_config: Dict[str, Any]):
     except ReadTimeout as e:
         pytest.fail(f"Request to vLLM service timed out after {DEFAULT_TIMEOUT} seconds. Is vLLM running? Error: {str(e)}")
 
-def test_vllm_client_integration(vllm_config: Dict[str, Any], test_query: str):
-    """Test the vLLM client integration"""
+def test_vllm_provider_integration(vllm_config: Dict[str, Any], test_query: str):
+    """Test the vLLM provider integration"""
     try:
-        from inference.clients.vllm import QAVLLMClient
+        from inference.pipeline.providers.vllm_provider import VLLMProvider
         
-        # Create a minimal config for the client
-        client_config = {
+        # Create a minimal config for the provider
+        provider_config = {
             'inference': {
                 'vllm': vllm_config
             },
@@ -226,17 +229,80 @@ def test_vllm_client_integration(vllm_config: Dict[str, Any], test_query: str):
             }
         }
         
-        # Initialize the client
-        client = QAVLLMClient(client_config)
+        # Initialize the provider
+        provider = VLLMProvider(provider_config)
         
-        # Test connection verification
+        # Test connection validation
         import asyncio
-        is_connected = asyncio.run(client.verify_connection())
-        assert is_connected, "vLLM client should be able to connect to the server"
+        is_valid = asyncio.run(provider.validate_config())
+        assert is_valid, "vLLM provider configuration should be valid"
         
-        print("vLLM client integration test passed")
+        # Initialize the provider
+        asyncio.run(provider.initialize())
+        
+        # Test generation
+        response = asyncio.run(provider.generate(test_query))
+        assert response, "vLLM provider should generate a response"
+        assert isinstance(response, str), "Response should be a string"
+        assert len(response) > 0, "Response should not be empty"
+        
+        # Clean up
+        asyncio.run(provider.close())
+        
+        print("vLLM provider integration test passed")
         
     except ImportError as e:
-        pytest.fail(f"Could not import vLLM client: {str(e)}")
+        pytest.fail(f"Could not import vLLM provider: {str(e)}")
     except Exception as e:
-        pytest.fail(f"vLLM client integration test failed: {str(e)}") 
+        pytest.fail(f"vLLM provider integration test failed: {str(e)}")
+
+def test_vllm_provider_streaming(vllm_config: Dict[str, Any], test_query: str):
+    """Test the vLLM provider streaming functionality"""
+    try:
+        from inference.pipeline.providers.vllm_provider import VLLMProvider
+        import asyncio
+        
+        # Create a minimal config for the provider
+        provider_config = {
+            'inference': {
+                'vllm': vllm_config
+            },
+            'general': {
+                'verbose': True
+            }
+        }
+        
+        # Initialize the provider
+        provider = VLLMProvider(provider_config)
+        
+        # Initialize the provider
+        asyncio.run(provider.initialize())
+        
+        # Test streaming generation
+        async def test_stream():
+            chunks = []
+            async for chunk in provider.generate_stream(test_query):
+                assert isinstance(chunk, str), "Stream chunk should be a string"
+                chunks.append(chunk)
+            
+            # Verify we got some chunks
+            assert len(chunks) > 0, "Should receive at least one chunk"
+            
+            # Verify the complete response
+            complete_response = ''.join(chunks)
+            assert len(complete_response) > 0, "Complete response should not be empty"
+            
+            return complete_response
+        
+        response = asyncio.run(test_stream())
+        print(f"vLLM streaming response (first 100 chars): {response[:100]}...")
+        
+        # Clean up
+        asyncio.run(provider.close())
+        
+        print("vLLM provider streaming test passed")
+        
+    except ImportError as e:
+        pytest.fail(f"Could not import vLLM provider: {str(e)}")
+    except Exception as e:
+        pytest.fail(f"vLLM provider streaming test failed: {str(e)}") 
