@@ -1,5 +1,27 @@
 # Changelog
 
+## [1.2.2] - 2025-07-30
+
+### Inference Pipeline & Architecture
+- Implemented new inference pipeline architecture
+- Added language detection step to the inference pipeline
+- Added lazy loading for inference providers to improve performance
+- Enhanced provider factory with improved unit tests and import path fixes
+
+### Docker & Deployment
+- Improved docker-cleanup.sh script
+- Updated tarball script
+- Removed unused config.yaml settings
+
+### Testing & Quality Assurance
+- Added aditional vLLM unit tests
+- Fixed minor import path issues in provider_factory.py
+- Enhanced test coverage for inference providers
+
+### UI & Demo Applications
+- Updated widget react example with minor improvements
+- Improved video content and demonstration materials
+
 ## [1.2.1] - 2025-07-23
 
 ### Fault Tolerance & Architecture

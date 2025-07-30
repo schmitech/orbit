@@ -91,9 +91,9 @@ Perfect for organizations seeking full transparency, control, and regulatory com
 
 ```bash
 # Download latest release
-curl -L https://github.com/schmitech/orbit/releases/download/v1.2.1/orbit-1.2.1.tar.gz -o orbit-1.2.1.tar.gz
-tar -xzf orbit-1.2.1.tar.gz
-cd orbit-1.2.1
+curl -L https://github.com/schmitech/orbit/releases/download/v1.2.2/orbit-1.2.2.tar.gz -o orbit-1.2.2.tar.gz
+tar -xzf orbit-1.2.2.tar.gz
+cd orbit-1.2.2
 
 # Quick setup with a small model
 cp .env.example .env
@@ -104,6 +104,9 @@ source venv/bin/activate
 ./bin/orbit.sh --help # CLI tool options
 ./bin/orbit.sh start # logs under /logs/orbit.log
 ```
+
+#### 🐳 Using Docker
+Refer to [Docker Setup Guide](docker/README.md) for instructions on how to deploy as a docker container.
 
 <video src="https://github.com/user-attachments/assets/8ea103a6-8b33-4801-adc2-f0e81e03e96e" controls>
   Your browser does not support the video tag.
@@ -179,8 +182,6 @@ npm run dev
   Your browser does not support the video tag.
 </video>
 
-### 🐳 Docker
-See [Docker Setup Guide](docker/README.md) for details.
 
 ## 🔧 Sample Use Cases
 
@@ -204,14 +205,8 @@ Add an AI assistant to your website:
 ```bash
 npm install @schmitech/chatbot-widget
 ```
-Here some examples of the chatbot widget in action:
 
-#### AI Assistant for a Non-Profit Organization:
-<video src="https://github.com/user-attachments/assets/218a7396-ec8b-474e-803c-9b4caa4ca1a7" controls>
-  Your browser does not support the video tag.
-</video>
-
-#### AI Assistant for a Municipality:
+#### Here's an example of the chatbot widget:
 <video src="https://github.com/user-attachments/assets/876d0e5b-d24f-4367-be5a-3f966d97e8b6" controls>
   Your browser does not support the video tag.
 </video>
