@@ -153,7 +153,7 @@ adapters:
       # Return top N results
       return_results: 10
       # ChromaDB persistence settings
-      chroma_persist: false  # Set to true to persist embeddings between runs
+      chroma_persist: true  # Set to true to persist embeddings between runs
       chroma_persist_path: "./chroma_db/intent_templates"  # Path for persistent storage
       reload_templates_on_start: true  # Whether to reload templates on startup (when using persistent storage)
       force_reload_templates: false  # Force reload even if templates exist in persistent storage

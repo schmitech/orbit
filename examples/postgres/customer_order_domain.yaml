@@ -1,0 +1,315 @@
+domain_name: E-Commerce
+description: Customer order management system
+entities:
+  customer:
+    name: customer
+    entity_type: primary
+    table_name: customers
+    description: Customer information
+    primary_key: id
+    display_name_field: name
+    searchable_fields:
+    - name
+    - email
+    - phone
+    common_filters:
+    - city
+    - country
+    - created_at
+    default_sort_field: created_at
+    default_sort_order: DESC
+  order:
+    name: order
+    entity_type: transaction
+    table_name: orders
+    description: Customer orders
+    primary_key: id
+    display_name_field: id
+    searchable_fields:
+    - id
+    - status
+    common_filters:
+    - status
+    - payment_method
+    - order_date
+    - total
+    default_sort_field: order_date
+    default_sort_order: DESC
+fields:
+  customer:
+    id:
+      name: id
+      data_type: integer
+      db_column: id
+      description: Customer ID
+      required: true
+      searchable: true
+      filterable: true
+      sortable: true
+      display_format: null
+      validation_rules: []
+      aliases: []
+      enum_values: null
+    name:
+      name: name
+      data_type: string
+      db_column: name
+      description: Customer name
+      required: true
+      searchable: true
+      filterable: true
+      sortable: true
+      display_format: null
+      validation_rules: []
+      aliases:
+      - customer name
+      - client name
+      - buyer name
+      enum_values: null
+    email:
+      name: email
+      data_type: string
+      db_column: email
+      description: Customer email
+      required: true
+      searchable: true
+      filterable: true
+      sortable: true
+      display_format: email
+      validation_rules: []
+      aliases: []
+      enum_values: null
+    phone:
+      name: phone
+      data_type: string
+      db_column: phone
+      description: Phone number
+      required: false
+      searchable: true
+      filterable: true
+      sortable: true
+      display_format: phone
+      validation_rules: []
+      aliases: []
+      enum_values: null
+    city:
+      name: city
+      data_type: string
+      db_column: city
+      description: City
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      display_format: null
+      validation_rules: []
+      aliases: []
+      enum_values: null
+    country:
+      name: country
+      data_type: string
+      db_column: country
+      description: Country
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      display_format: null
+      validation_rules: []
+      aliases: []
+      enum_values: null
+    created_at:
+      name: created_at
+      data_type: datetime
+      db_column: created_at
+      description: Customer creation date
+      required: true
+      searchable: false
+      filterable: true
+      sortable: true
+      display_format: date
+      validation_rules: []
+      aliases: []
+      enum_values: null
+  order:
+    id:
+      name: id
+      data_type: integer
+      db_column: id
+      description: Order ID
+      required: true
+      searchable: true
+      filterable: true
+      sortable: true
+      display_format: null
+      validation_rules: []
+      aliases: []
+      enum_values: null
+    customer_id:
+      name: customer_id
+      data_type: integer
+      db_column: customer_id
+      description: Customer ID
+      required: true
+      searchable: false
+      filterable: true
+      sortable: true
+      display_format: null
+      validation_rules: []
+      aliases: []
+      enum_values: null
+    order_date:
+      name: order_date
+      data_type: datetime
+      db_column: order_date
+      description: Order date
+      required: true
+      searchable: false
+      filterable: true
+      sortable: true
+      display_format: date
+      validation_rules: []
+      aliases: []
+      enum_values: null
+    total:
+      name: total
+      data_type: decimal
+      db_column: total
+      description: Order total amount
+      required: true
+      searchable: false
+      filterable: true
+      sortable: true
+      display_format: currency
+      validation_rules: []
+      aliases: []
+      enum_values: null
+    status:
+      name: status
+      data_type: enum
+      db_column: status
+      description: Order status
+      required: true
+      searchable: true
+      filterable: true
+      sortable: true
+      display_format: null
+      validation_rules: []
+      aliases: []
+      enum_values:
+      - pending
+      - processing
+      - shipped
+      - delivered
+      - cancelled
+    payment_method:
+      name: payment_method
+      data_type: enum
+      db_column: payment_method
+      description: Payment method
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      display_format: null
+      validation_rules: []
+      aliases: []
+      enum_values:
+      - credit_card
+      - debit_card
+      - paypal
+      - bank_transfer
+      - cash
+    shipping_address:
+      name: shipping_address
+      data_type: string
+      db_column: shipping_address
+      description: Shipping address
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      display_format: null
+      validation_rules: []
+      aliases: []
+      enum_values: null
+    shipping_city:
+      name: shipping_city
+      data_type: string
+      db_column: shipping_city
+      description: Shipping city
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      display_format: null
+      validation_rules: []
+      aliases: []
+      enum_values: null
+    shipping_country:
+      name: shipping_country
+      data_type: string
+      db_column: shipping_country
+      description: Shipping country
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      display_format: null
+      validation_rules: []
+      aliases: []
+      enum_values: null
+relationships:
+- name: customer_orders
+  from_entity: customer
+  to_entity: order
+  relation_type: one_to_many
+  from_field: id
+  to_field: customer_id
+  join_type: INNER
+  description: Customer has many orders
+query_patterns: []
+vocabulary:
+  entity_synonyms:
+    customer:
+    - client
+    - buyer
+    - user
+    - purchaser
+    - shopper
+    order:
+    - purchase
+    - transaction
+    - sale
+    - invoice
+  action_verbs:
+    find:
+    - show
+    - list
+    - get
+    - find
+    - display
+    - retrieve
+    calculate:
+    - sum
+    - total
+    - calculate
+    - compute
+    - aggregate
+    filter:
+    - filter
+    - only
+    - just
+    - where
+    - with
+  time_expressions:
+    today: '0'
+    yesterday: '1'
+    this week: '7'
+    last week: '14'
+    this month: '30'
+    last month: '60'
+    this year: '365'
+  value_expressions: {}
+  common_phrases: {}
+metadata: {}

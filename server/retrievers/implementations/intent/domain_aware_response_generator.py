@@ -111,9 +111,9 @@ Important: Give ONLY the direct response."""
         
         try:
             if hasattr(self.inference_client, 'generate'):
-                return await self.inference_client.generate(prompt, temperature=0.3)
+                return await self.inference_client.generate(prompt)
             else:
-                return await self.inference_client.generate_response(prompt, temperature=0.3)
+                return await self.inference_client.generate_response(prompt)
         except Exception as e:
             logger.error(f"Error generating error response: {e}")
             return f"I encountered an error processing your request: {error}. Please try rephrasing your question."
@@ -133,9 +133,9 @@ Important: Give ONLY the direct response."""
         
         try:
             if hasattr(self.inference_client, 'generate'):
-                return await self.inference_client.generate(prompt, temperature=0.3)
+                return await self.inference_client.generate(prompt)
             else:
-                return await self.inference_client.generate_response(prompt, temperature=0.3)
+                return await self.inference_client.generate_response(prompt)
         except Exception as e:
             logger.error(f"Error generating no results response: {e}")
             return "I didn't find any results for your query. You might want to try different search criteria."
@@ -171,9 +171,9 @@ Important: Give ONLY the direct response."""
         
         try:
             if hasattr(self.inference_client, 'generate'):
-                return await self.inference_client.generate(prompt, temperature=0.3)
+                return await self.inference_client.generate(prompt)
             else:
-                return await self.inference_client.generate_response(prompt, temperature=0.3)
+                return await self.inference_client.generate_response(prompt)
         except Exception as e:
             logger.error(f"Error generating summary response: {e}")
             return self._format_fallback_summary(results)
@@ -221,9 +221,9 @@ Important: Give ONLY the direct response. Use the actual data details."""
         
         try:
             if hasattr(self.inference_client, 'generate'):
-                return await self.inference_client.generate(prompt, temperature=0.3)
+                return await self.inference_client.generate(prompt)
             else:
-                return await self.inference_client.generate_response(prompt, temperature=0.3)
+                return await self.inference_client.generate_response(prompt)
         except Exception as e:
             logger.error(f"Error generating table response: {e}")
             return self._format_fallback_table(results, result_count, entity_desc)
@@ -250,7 +250,7 @@ Important: Give ONLY the direct response. Use the actual data details."""
         lines = [f"Found {count} {entity_desc}:"]
         
         for i, result in enumerate(results[:3]):
-            lines.append(f"\\n{i+1}. ", end="")
+            lines.append(f"\\n{i+1}. ")
             item_parts = []
             for key, value in result.items():
                 if value is not None and key in ['id', 'name', 'title', 'total', 'amount', 'date']:

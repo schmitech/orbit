@@ -99,19 +99,43 @@ class IntentPostgreSQLRetriever(PostgreSQLRetriever):
                 logger.info("Creating PostgreSQL connection for intent retriever")
                 self.connection = self._create_postgres_connection()
             
-            # Initialize embedding client
+            # Initialize embedding client with fallback support
+            # Check datasource config first, then fall back to global config
             embedding_provider = self.datasource_config.get('embedding_provider')
-            if embedding_provider:
-                # Use specified embedding provider
-                from embeddings.base import EmbeddingServiceFactory
-                self.embedding_client = EmbeddingServiceFactory.create_embedding_service(self.config, embedding_provider)
-            else:
-                # Use default embedding provider from configuration
-                from embeddings.base import EmbeddingServiceFactory
-                self.embedding_client = EmbeddingServiceFactory.create_embedding_service(self.config)
             
-            # Initialize the embedding client
-            await self.embedding_client.initialize()
+            # If datasource embedding_provider is None or not set, use global config
+            if not embedding_provider or embedding_provider == 'null':
+                embedding_provider = self.config.get('embedding', {}).get('provider')
+                logger.info(f"Using global embedding provider: {embedding_provider}")
+            else:
+                logger.info(f"Using datasource-specific embedding provider: {embedding_provider}")
+            
+            from embeddings.base import EmbeddingServiceFactory
+            
+            # Try to initialize the preferred embedding provider
+            try:
+                if embedding_provider:
+                    self.embedding_client = EmbeddingServiceFactory.create_embedding_service(self.config, embedding_provider)
+                else:
+                    # Let factory use default from config
+                    self.embedding_client = EmbeddingServiceFactory.create_embedding_service(self.config)
+                
+                # Initialize the embedding client
+                await self.embedding_client.initialize()
+                logger.info(f"Successfully initialized {embedding_provider} embedding provider")
+                
+            except Exception as e:
+                logger.warning(f"Failed to initialize {embedding_provider} embedding provider: {str(e)}")
+                logger.info("Falling back to Ollama embedding provider")
+                
+                # Fallback to Ollama which is more likely to be available locally
+                try:
+                    self.embedding_client = EmbeddingServiceFactory.create_embedding_service(self.config, 'ollama')
+                    await self.embedding_client.initialize()
+                    logger.info("Successfully initialized Ollama fallback embedding provider")
+                except Exception as fallback_error:
+                    logger.error(f"Failed to initialize fallback embedding provider: {str(fallback_error)}")
+                    raise Exception("Unable to initialize any embedding provider. Please check your configuration.")
             
             # Initialize inference client
             from inference.pipeline.providers.provider_factory import ProviderFactory
@@ -310,14 +334,19 @@ class IntentPostgreSQLRetriever(PostgreSQLRetriever):
                 # Create embedding text from template
                 embedding_text = self._create_embedding_text(template)
                 
-                # Get embedding
-                embedding = await self.embedding_client.embed_query(embedding_text)
-                
-                if embedding:
-                    ids.append(template_id)
-                    embeddings.append(embedding)
-                    documents.append(embedding_text)
-                    metadatas.append(self._create_template_metadata(template))
+                try:
+                    # Get embedding
+                    embedding = await self.embedding_client.embed_query(embedding_text)
+                    
+                    if embedding:
+                        ids.append(template_id)
+                        embeddings.append(embedding)
+                        documents.append(embedding_text)
+                        metadatas.append(self._create_template_metadata(template))
+                except Exception as e:
+                    logger.error(f"Failed to get embedding for template {template_id}: {str(e)}")
+                    # Continue with next template instead of failing completely
+                    continue
             
             # Add to ChromaDB
             if ids:
@@ -351,10 +380,19 @@ class IntentPostgreSQLRetriever(PostgreSQLRetriever):
         if 'semantic_tags' in template:
             tags = template['semantic_tags']
             parts.append(tags.get('action', ''))
-            parts.append(tags.get('primary_entity', ''))
+            primary_entity = tags.get('primary_entity', '')
+            parts.append(primary_entity)
             if tags.get('secondary_entity'):
                 parts.append(tags['secondary_entity'])
             parts.extend(tags.get('qualifiers', []))
+
+            # Add entity synonyms from domain vocabulary
+            domain_config = self.domain_adapter.get_domain_config()
+            if domain_config and primary_entity:
+                vocabulary = domain_config.get('vocabulary', {})
+                entity_synonyms = vocabulary.get('entity_synonyms', {})
+                if primary_entity in entity_synonyms:
+                    parts.extend(entity_synonyms[primary_entity])
         
         return ' '.join(filter(None, parts))
     
@@ -373,6 +411,60 @@ class IntentPostgreSQLRetriever(PostgreSQLRetriever):
                 metadata[f'semantic_{key}'] = str(value)
         
         return metadata
+
+    def _convert_row_types(self, row: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert PostgreSQL types to standard Python types."""
+        from decimal import Decimal
+        from datetime import datetime, date
+        
+        converted = {}
+        for key, value in row.items():
+            if isinstance(value, Decimal):
+                converted[key] = float(value)
+            elif isinstance(value, (datetime, date)):
+                converted[key] = value.isoformat()
+            else:
+                converted[key] = value
+        return converted
+
+    async def execute_query(self, query: str, params: Optional[Dict] = None) -> List[Dict]:
+        """
+        Execute a SQL query and return a list of dictionaries.
+        This method overrides the parent's implementation to correctly handle RealDictCursor.
+        """
+        if not self.connection:
+            raise Exception("PostgreSQL connection is not initialized.")
+        
+        cursor = None
+        try:
+            # Use a new cursor for each execution for thread safety
+            cursor = self.connection.cursor()
+            
+            logger.info(f"Executing PostgreSQL query: {query}")
+            logger.info(f"Parameters: {params}")
+            
+            cursor.execute(query, params)
+            
+            if query.strip().upper().startswith("SELECT"):
+                results = cursor.fetchall()
+                # RealDictCursor returns a list of dict-like objects.
+                # We convert them to standard dicts and handle special data types.
+                return [self._convert_row_types(dict(row)) for row in results]
+            else:
+                # For non-SELECT queries, commit and return affected row count
+                self.connection.commit()
+                return [{"affected_rows": cursor.rowcount}]
+                
+        except Exception as e:
+            logger.error(f"Error executing PostgreSQL query: {e}")
+            logger.error(f"SQL: {query}, Params: {params}")
+            if self.connection:
+                self.connection.rollback()
+            # Re-raise the exception to be handled by the caller
+            raise
+        finally:
+            if cursor:
+                cursor.close()
     
     async def get_relevant_context(self, 
                                  query: str, 
@@ -497,11 +589,17 @@ class IntentPostgreSQLRetriever(PostgreSQLRetriever):
         """Find best matching templates for the query."""
         try:
             # Get query embedding
-            query_embedding = await self.embedding_client.embed_query(query)
+            try:
+                query_embedding = await self.embedding_client.embed_query(query)
+            except Exception as e:
+                logger.error(f"Failed to get query embedding: {str(e)}")
+                logger.warning("Falling back to simple text matching")
+                # Fall back to simple text matching if embedding fails
+                return self._fallback_template_matching(query)
             
             if not query_embedding:
                 logger.error("Failed to get query embedding")
-                return []
+                return self._fallback_template_matching(query)
             
             # Search in ChromaDB
             results = self.template_collection.query(
@@ -530,6 +628,61 @@ class IntentPostgreSQLRetriever(PostgreSQLRetriever):
         except Exception as e:
             logger.error(f"Error finding templates: {str(e)}")
             return []
+    
+    def _fallback_template_matching(self, query: str) -> List[Dict[str, Any]]:
+        """Fallback template matching using simple text similarity when embeddings fail."""
+        try:
+            query_lower = query.lower()
+            templates = self.domain_adapter.get_all_templates()
+            matches = []
+            
+            for template in templates:
+                if not isinstance(template, dict):
+                    continue
+                    
+                score = 0.0
+                # Check nl_examples
+                for example in template.get('nl_examples', []):
+                    if self._calculate_simple_similarity(query_lower, example.lower()) > 0.5:
+                        score = max(score, 0.7)
+                
+                # Check description
+                description = template.get('description', '')
+                if description and self._calculate_simple_similarity(query_lower, description.lower()) > 0.5:
+                    score = max(score, 0.6)
+                
+                # Check tags
+                tags = ' '.join(template.get('tags', []))
+                if tags and self._calculate_simple_similarity(query_lower, tags.lower()) > 0.3:
+                    score = max(score, 0.5)
+                
+                if score > 0:
+                    matches.append({
+                        'template': template,
+                        'similarity': score,
+                        'embedding_text': self._create_embedding_text(template)
+                    })
+            
+            # Sort by score and return top matches
+            matches.sort(key=lambda x: x['similarity'], reverse=True)
+            return matches[:self.max_templates]
+            
+        except Exception as e:
+            logger.error(f"Error in fallback template matching: {str(e)}")
+            return []
+    
+    def _calculate_simple_similarity(self, text1: str, text2: str) -> float:
+        """Calculate simple text similarity based on word overlap."""
+        words1 = set(text1.split())
+        words2 = set(text2.split())
+        
+        if not words1 or not words2:
+            return 0.0
+        
+        intersection = words1 & words2
+        union = words1 | words2
+        
+        return len(intersection) / len(union)
     
     async def _extract_parameters(self, query: str, template: Dict[str, Any]) -> Dict[str, Any]:
         """Extract parameters from the query using LLM."""
@@ -562,7 +715,7 @@ User query: "{query}"
 JSON:"""
             
             # Get LLM response
-            response = await self.inference_client.generate(extraction_prompt, temperature=0.1)
+            response = await self.inference_client.generate(extraction_prompt)
             
             # Parse JSON response
             import re
@@ -593,8 +746,19 @@ JSON:"""
             if not sql_template:
                 return [], "Template has no SQL query"
             
+            # FIX: Add wildcards for LIKE queries with name parameters
+            formatted_parameters = parameters.copy()
+            for param_name, param_value in formatted_parameters.items():
+                if param_value and isinstance(param_value, str) and 'name' in param_name.lower() and 'LIKE' in sql_template.upper():
+                    # Clean the parameter value by stripping whitespace and quotes
+                    cleaned_value = param_value.strip().strip('"').strip("'")
+                    # Add wildcards for LIKE queries to enable partial matching
+                    formatted_parameters[param_name] = f"%{cleaned_value}%"
+                    if self.verbose:
+                        logger.info(f"Added wildcards to parameter {param_name}: '{param_value}' -> '{formatted_parameters[param_name]}'")
+            
             # Process the SQL template with parameters
-            sql_query = self._process_sql_template(sql_template, parameters)
+            sql_query = self._process_sql_template(sql_template, formatted_parameters)
             
             if self.verbose:
                 logger.info(f"Executing SQL: {sql_query}")
@@ -604,8 +768,8 @@ JSON:"""
             template_description = template.get('description', 'no description')
             logger.info(f"Using template: {template_id} - {template_description}")
             
-            # Execute query using parent class method
-            results = await self.execute_query(sql_query, parameters)
+            # Execute query using parent class method with formatted parameters
+            results = await self.execute_query(sql_query, formatted_parameters)
             
             return results, None
             

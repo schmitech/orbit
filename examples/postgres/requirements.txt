@@ -1,0 +1,10 @@
+psycopg2-binary==2.9.10
+faker==37.4.0
+python-dotenv==1.0.0
+chromadb>=1.0.12
+requests>=2.31.0
+PyYAML>=6.0
+python-dotenv>=1.0.0
+streamlit>=1.46.1
+pandas>=2.3.1
+markdown>=3.8.2

@@ -22,6 +22,20 @@ class TemplateReranker:
             template = template_info['template']
             boost = 0.0
             
+            # Special handling for person names vs cities
+            template_id = template.get('id', '')
+            if 'customer_name' in template_id:
+                # Check if query likely contains a person name
+                if self._contains_person_name_pattern(query_lower):
+                    boost += 0.3
+            elif 'customer_city' in template_id:
+                # Check if query likely contains a city name
+                if self._contains_city_pattern(query_lower):
+                    boost += 0.3
+                # Penalize if it looks like a person name
+                if self._contains_person_name_pattern(query_lower):
+                    boost -= 0.2
+            
             # Check for entity matches using domain vocabulary
             semantic_tags = template.get('semantic_tags', {})
             if semantic_tags:
@@ -135,3 +149,57 @@ class TemplateReranker:
             lines.append("")
         
         return "\\n".join(lines)
+    
+    def _contains_person_name_pattern(self, text: str) -> bool:
+        """Check if text likely contains a person name"""
+        # Common patterns for person names
+        words = text.split()
+        
+        # Check for capitalized words (typical of names)
+        # Note: this is checking the lowercase version, so we need to look for patterns
+        
+        # Check for common name indicators
+        person_indicators = [
+            'customer', 'person', 'user', 'client', 'buyer',
+            'mr', 'mrs', 'ms', 'dr', 'prof'
+        ]
+        
+        for indicator in person_indicators:
+            if indicator in text:
+                return True
+        
+        # Check if it contains two consecutive words that could be first/last name
+        # Look for patterns like "from [Name] [Name]" or "[Name] [Name] order"
+        import re
+        
+        # Pattern: "from" followed by two capitalized words (checking original case would be better)
+        if re.search(r'from\s+\w+\s+\w+', text):
+            # If the pattern is "from X Y" where X and Y are words, likely a person
+            if not any(city_word in text for city_word in ['city', 'in', 'located', 'from the']):
+                return True
+        
+        # Check for possessive patterns like "angela's orders" or "john's purchases"
+        if re.search(r"\w+'s\s+(order|purchase|transaction)", text):
+            return True
+        
+        return False
+    
+    def _contains_city_pattern(self, text: str) -> bool:
+        """Check if text likely contains a city name"""
+        # City indicators
+        city_indicators = [
+            'city', 'location', 'from the', 'in ', 'located in',
+            'customers in', 'customers from', 'from customers in'
+        ]
+        
+        for indicator in city_indicators:
+            if indicator in text:
+                return True
+        
+        # Check for known geographic qualifiers
+        geo_terms = ['downtown', 'north', 'south', 'east', 'west', 'metro', 'greater']
+        for term in geo_terms:
+            if term in text:
+                return True
+        
+        return False

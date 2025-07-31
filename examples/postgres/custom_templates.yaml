@@ -3,15 +3,11 @@ templates:
     version: "1.0.0"
     description: "Find orders for a customer by their name"
     nl_examples:
-      - "Show me orders from customer John Smith"
+      - "Show me orders from John Smith"
       - "What did Jane Doe order?"
       - "Find all orders from customer Bob Johnson"
       - "Orders placed by Alice Wilson"
-      - "Show me all orders from customer Mary Brown"
-      - "Get orders for customer name David Lee"
-      - "Customer Michael Davis orders"
-      - "Find customer Sarah Johnson's purchases"
-      - "Show me what customer Robert Williams bought"
+      - "Show me all orders from Shelia Olson"
     parameters:
       - name: customer_name
         type: string
@@ -32,12 +28,12 @@ templates:
       ORDER BY o.order_date DESC
       LIMIT 100
     result_format: "table"
-    tags: ["order", "customer", "name", "search", "person"]
+    tags: ["order", "customer", "name", "search"]
     semantic_tags:
       action: "find_list"
       primary_entity: "order"
       secondary_entity: "customer"
-      qualifiers: ["by_name", "by_person_name", "customer_name"]
+      qualifiers: ["by_name"]
     approved: true
 
   - id: find_order_by_customer_name_recent
@@ -724,21 +720,19 @@ templates:
     version: "1.0.0"
     description: "Find orders from customers in a specific city or location"
     nl_examples:
-      - "Show orders from customers in New York"
-      - "Find orders from customers located in Los Angeles"  
-      - "What orders came from the city of Chicago?"
-      - "Orders from customers in San Francisco"
-      - "Show me orders from customers in the city of Boston"
-      - "Which customers from the city of Seattle ordered?"
-      - "Orders from customers in Dallas city"
-      - "Find purchases from customers in Miami"
-      - "Orders originating from customers in Denver"
-      - "Show transactions from customers in Houston"
-      - "Orders from customers located in Phoenix"
-      - "Customer orders from the city of Atlanta"
-      - "Purchases from customers in Las Vegas"
-      - "Orders from customers located in Toronto"
-      - "Show me customers from the city of Montreal"
+      - "Show orders from New York customers"
+      - "Find orders from customers in Los Angeles"
+      - "What orders came from Chicago?"
+      - "Orders from San Francisco customers"
+      - "Show me orders from Boston"
+      - "Which customers from Seattle ordered?"
+      - "Dallas customer orders"
+      - "Find Miami purchases"
+      - "Orders originating from Denver"
+      - "Show Houston customer transactions"
+      - "Orders from Phoenix customers"
+      - "Atlanta customer orders"
+      - "Las Vegas customer purchases"
     parameters:
       - name: city
         type: string

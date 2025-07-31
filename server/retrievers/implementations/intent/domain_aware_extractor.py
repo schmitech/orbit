@@ -173,9 +173,9 @@ Value:"""
         
         try:
             if hasattr(self.inference_client, 'generate'):
-                response = self.inference_client.generate(prompt, temperature=0.1)
+                response = await self.inference_client.generate(prompt)
             else:
-                response = self.inference_client.generate_response(prompt, temperature=0.1)
+                response = await self.inference_client.generate_response(prompt)
             
             response = response.strip()
             
@@ -210,9 +210,9 @@ JSON:"""
         
         try:
             if hasattr(self.inference_client, 'generate'):
-                response = await self.inference_client.generate(extraction_prompt, temperature=0.1)
+                response = await self.inference_client.generate(extraction_prompt)
             else:
-                response = await self.inference_client.generate_response(extraction_prompt, temperature=0.1)
+                response = await self.inference_client.generate_response(extraction_prompt)
             
             # Extract JSON from response
             json_match = re.search(r'\{.*\}', response, re.DOTALL)
@@ -232,12 +232,15 @@ JSON:"""
             param_type = param.get('type', 'string')
             required = param.get('required', False)
             
-            if required and param_name not in parameters:
+            if required and (param_name not in parameters or parameters.get(param_name) is None):
                 errors.append(f"Missing required parameter: {param_name}")
                 continue
             
             if param_name in parameters:
-                value = parameters[param_name]
+                value = parameters.get(param_name)
+                
+                if value is None:
+                    continue
                 
                 # Find corresponding field in domain
                 field = None
