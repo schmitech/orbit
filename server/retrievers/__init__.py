@@ -30,6 +30,9 @@ try:
         QASSQLRetriever
     )
     
+    # Import Intent specialization
+    from .implementations.intent import IntentPostgreSQLRetriever
+    
     logger.info("Successfully imported vector retriever implementations")
 except ImportError as e:
     logger.warning(f"Some vector retrievers could not be imported: {e}")
@@ -65,7 +68,9 @@ __all__ = [
     'MySQLRetriever',
     # QA specializations
     'QAChromaRetriever',
-    'QASSQLRetriever'
+    'QASSQLRetriever',
+    # Intent specialization
+    'IntentPostgreSQLRetriever'
 ]
 
 # Import implementations to register them

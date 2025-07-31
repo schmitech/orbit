@@ -1,0 +1,215 @@
+# SQL Intent Templates for PostgreSQL Customer Orders
+# This file demonstrates how to create intent templates for SQL datasources
+
+templates:
+  find_customer_by_id:
+    id: "find_customer_by_id"
+    description: "Find a customer by their ID"
+    nl_examples:
+      - "Show me customer 123"
+      - "Get customer with id 456"
+      - "Find customer #789"
+      - "What are the details for customer 100"
+    tags: ["customer", "find", "id", "lookup"]
+    semantic_tags:
+      action: "find"
+      primary_entity: "customer"
+      intent: "find_customer_by_id"
+    parameters:
+      - name: "customer_id"
+        type: "integer"
+        description: "The customer ID to search for"
+        required: true
+        example: 123
+    sql_template: |
+      SELECT 
+        c.id,
+        c.name,
+        c.email,
+        c.phone,
+        c.address,
+        c.city,
+        c.country,
+        c.created_at
+      FROM customers c
+      WHERE c.id = %(customer_id)s
+    result_format: "single"
+    category: "customer_lookup"
+    
+  find_customer_by_email:
+    id: "find_customer_by_email"
+    description: "Find a customer by their email address"
+    nl_examples:
+      - "Find customer with email john@example.com"
+      - "Show me the customer who has email jane.doe@gmail.com"
+      - "Get customer by email address"
+    tags: ["customer", "find", "email", "search"]
+    semantic_tags:
+      action: "find"
+      primary_entity: "customer"
+      intent: "find_customer_by_email"
+    parameters:
+      - name: "email"
+        type: "string"
+        description: "The customer email to search for"
+        required: true
+        example: "john@example.com"
+    sql_template: |
+      SELECT 
+        c.id,
+        c.name,
+        c.email,
+        c.phone,
+        c.address,
+        c.city,
+        c.country,
+        c.created_at
+      FROM customers c
+      WHERE LOWER(c.email) = LOWER(%(email)s)
+    result_format: "single"
+    category: "customer_lookup"
+    
+  find_customer_orders:
+    id: "find_customer_orders"
+    description: "Find all orders for a specific customer"
+    nl_examples:
+      - "Show me all orders for customer 123"
+      - "Get orders from customer #456"
+      - "What orders has customer 789 placed"
+      - "List customer 100's orders"
+    tags: ["customer", "orders", "history", "list"]
+    semantic_tags:
+      action: "find"
+      primary_entity: "order"
+      secondary_entity: "customer"
+      intent: "find_customer_orders"
+    parameters:
+      - name: "customer_id"
+        type: "integer"
+        description: "The customer ID whose orders to retrieve"
+        required: true
+        example: 123
+    sql_template: |
+      SELECT 
+        o.id as order_id,
+        o.order_date,
+        o.status,
+        o.total,
+        o.payment_method,
+        c.name as customer_name
+      FROM orders o
+      JOIN customers c ON o.customer_id = c.id
+      WHERE o.customer_id = %(customer_id)s
+      ORDER BY o.order_date DESC
+    result_format: "table"
+    category: "order_history"
+    
+  find_recent_orders:
+    id: "find_recent_orders"
+    description: "Find recent orders within a specified number of days"
+    nl_examples:
+      - "Show me orders from the last 7 days"
+      - "Get recent orders from past 30 days"
+      - "Find orders placed in the last week"
+      - "List orders from the past month"
+    tags: ["orders", "recent", "time", "date"]
+    semantic_tags:
+      action: "find"
+      primary_entity: "order"
+      qualifiers: ["recent", "time_based"]
+      intent: "find_recent_orders"
+    parameters:
+      - name: "days"
+        type: "integer"
+        description: "Number of days to look back"
+        required: true
+        default: 7
+        example: 30
+    sql_template: |
+      SELECT 
+        o.id as order_id,
+        o.order_date,
+        o.status,
+        o.total,
+        o.payment_method,
+        c.name as customer_name,
+        c.email as customer_email
+      FROM orders o
+      JOIN customers c ON o.customer_id = c.id
+      WHERE o.order_date >= CURRENT_DATE - INTERVAL '%(days)s days'
+      ORDER BY o.order_date DESC
+    result_format: "table"
+    category: "order_analysis"
+    
+  calculate_customer_total_spending:
+    id: "calculate_customer_total_spending"
+    description: "Calculate total spending for a specific customer"
+    nl_examples:
+      - "How much has customer 123 spent in total"
+      - "What is the total spending of customer #456"
+      - "Calculate total orders amount for customer 789"
+      - "Show me customer 100's total purchase amount"
+    tags: ["customer", "total", "spending", "sum", "calculate"]
+    semantic_tags:
+      action: "calculate"
+      primary_entity: "customer"
+      secondary_entity: "order"
+      qualifiers: ["total", "aggregate"]
+      intent: "calculate_customer_spending"
+    parameters:
+      - name: "customer_id"
+        type: "integer"
+        description: "The customer ID to calculate spending for"
+        required: true
+        example: 123
+    sql_template: |
+      SELECT 
+        c.id as customer_id,
+        c.name as customer_name,
+        COUNT(o.id) as total_orders,
+        COALESCE(SUM(o.total), 0) as total_spent,
+        COALESCE(AVG(o.total), 0) as average_order_value,
+        MAX(o.order_date) as last_order_date
+      FROM customers c
+      LEFT JOIN orders o ON c.id = o.customer_id
+      WHERE c.id = %(customer_id)s
+      GROUP BY c.id, c.name
+    result_format: "summary"
+    category: "customer_analytics"
+    
+  find_high_value_orders:
+    id: "find_high_value_orders"
+    description: "Find orders above a certain amount"
+    nl_examples:
+      - "Show me orders over $1000"
+      - "Find high value orders above 500"
+      - "Get orders with total greater than 2000"
+      - "List expensive orders over $5000"
+    tags: ["orders", "high", "value", "amount", "expensive"]
+    semantic_tags:
+      action: "find"
+      primary_entity: "order"
+      qualifiers: ["high_value", "filtered"]
+      intent: "find_high_value_orders"
+    parameters:
+      - name: "min_amount"
+        type: "decimal"
+        description: "Minimum order amount"
+        required: true
+        default: 1000
+        example: 500
+    sql_template: |
+      SELECT 
+        o.id as order_id,
+        o.order_date,
+        o.status,
+        o.total,
+        o.payment_method,
+        c.name as customer_name,
+        c.email as customer_email
+      FROM orders o
+      JOIN customers c ON o.customer_id = c.id
+      WHERE o.total >= %(min_amount)s
+      ORDER BY o.total DESC
+    result_format: "table"
+    category: "order_analysis"

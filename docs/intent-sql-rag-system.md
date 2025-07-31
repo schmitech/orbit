@@ -11,7 +11,7 @@
 
 ## Overview
 
-This is a sophisticated semantic RAG (Retrieval-Augmented Generation) system designed to provide natural language querying capabilities over structured databases. The system is built with domain-agnostic principles, allowing it to be rapidly adapted to different business contexts without code changes.
+This is a semantic RAG (Retrieval-Augmented Generation) system designed to provide natural language querying capabilities over structured databases. The system is built with domain-agnostic principles, allowing it to be rapidly adapted to different business contexts without code changes.
 
 ### Key Features
 - **Domain-Agnostic Architecture**: Configure for any business domain through declarative configuration

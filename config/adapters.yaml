@@ -132,3 +132,45 @@ adapters:
       retention_period: 172800.0
       event_handler:
         type: "default"
+        
+  - name: "intent-sql-postgres"
+    type: "retriever"
+    datasource: "postgres"
+    adapter: "intent"
+    implementation: "retrievers.implementations.intent.IntentPostgreSQLRetriever"
+    config:
+      # Path to the domain definition file
+      domain_config_path: "config/sql_intent_templates/customer_order_domain.yaml"
+      # Path to the SQL template library
+      template_library_path: "config/sql_intent_templates/postgres_customer_orders.yaml"
+      # Name for the vector store collection for templates
+      template_collection_name: "intent_query_templates"
+      confidence_threshold: 0.75
+      # Embedding provider for template matching (null = use default)
+      embedding_provider: null
+      # Maximum templates to consider
+      max_templates: 5
+      # Return top N results
+      return_results: 10
+      # ChromaDB persistence settings
+      chroma_persist: false  # Set to true to persist embeddings between runs
+      chroma_persist_path: "./chroma_db/intent_templates"  # Path for persistent storage
+      reload_templates_on_start: true  # Whether to reload templates on startup (when using persistent storage)
+      force_reload_templates: false  # Force reload even if templates exist in persistent storage
+      
+    # Fault tolerance settings
+    fault_tolerance:
+      operation_timeout: 20.0
+      failure_threshold: 5
+      recovery_timeout: 45.0
+      success_threshold: 3
+      max_recovery_timeout: 300.0
+      enable_exponential_backoff: true
+      enable_thread_isolation: true
+      enable_process_isolation: false
+      max_retries: 3
+      retry_delay: 1.0
+      cleanup_interval: 3600.0
+      retention_period: 86400.0
+      event_handler:
+        type: "default"

@@ -78,11 +78,53 @@ class DatasourceFactory:
         Initialize a PostgreSQL database client.
         
         Returns:
-            PostgreSQL client object or None (not yet implemented)
+            PostgreSQL connection object or None if initialization fails
         """
         postgres_conf = self.config['datasources']['postgres']
-        self.logger.info("PostgreSQL datasource not yet implemented")
-        return None
+        
+        try:
+            import psycopg2
+            from psycopg2.extras import RealDictCursor
+            
+            # Extract connection parameters
+            host = postgres_conf.get('host', 'localhost')
+            port = postgres_conf.get('port', 5432)
+            database = postgres_conf.get('database', 'postgres')
+            username = postgres_conf.get('username', 'postgres')
+            password = postgres_conf.get('password', '')
+            sslmode = postgres_conf.get('sslmode', 'prefer')
+            
+            self.logger.info(f"Initializing PostgreSQL connection to {host}:{port}/{database}")
+            
+            # Create connection
+            connection = psycopg2.connect(
+                host=host,
+                port=port,
+                database=database,
+                user=username,
+                password=password,
+                sslmode=sslmode,
+                cursor_factory=RealDictCursor  # Use dict cursor by default
+            )
+            
+            # Test the connection
+            cursor = connection.cursor()
+            cursor.execute("SELECT version();")
+            version = cursor.fetchone()
+            cursor.close()
+            
+            if version:
+                self.logger.info(f"PostgreSQL connection successful: {version['version']}")
+            
+            return connection
+            
+        except ImportError:
+            self.logger.error("psycopg2 not available. Install with: pip install psycopg2-binary")
+            return None
+        except Exception as e:
+            self.logger.error(f"Failed to connect to PostgreSQL database: {str(e)}")
+            self.logger.error(f"Connection details: {host}:{port}/{database} (user: {username})")
+            return None
     
     def _initialize_milvus_client(self) -> Optional[Any]:
         """

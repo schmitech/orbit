@@ -37,7 +37,8 @@ class PipelineFactory:
         llm_guard_service=None,
         moderator_service=None,
         chat_history_service=None,
-        logger_service=None
+        logger_service=None,
+        adapter_manager=None
     ) -> ServiceContainer:
         """
         Create a service container with all required services.
@@ -50,6 +51,7 @@ class PipelineFactory:
             moderator_service: Optional moderator service
             chat_history_service: Optional chat history service
             logger_service: Optional logger service
+            adapter_manager: Optional dynamic adapter manager
             
         Returns:
             Configured service container
@@ -63,9 +65,13 @@ class PipelineFactory:
         llm_provider = ProviderFactory.create_provider(self.config)
         container.register_singleton('llm_provider', llm_provider)
         
-        # Register RAG services if available
-        if retriever:
+        # Register RAG services - prefer adapter manager over static retriever
+        if adapter_manager:
+            container.register_singleton('adapter_manager', adapter_manager)
+            self.logger.info("Registered dynamic adapter manager for retrieval")
+        elif retriever:
             container.register_singleton('retriever', retriever)
+            self.logger.info("Registered static retriever")
         
         if reranker_service:
             container.register_singleton('reranker_service', reranker_service)
@@ -142,6 +148,7 @@ class PipelineFactory:
         moderator_service=None,
         chat_history_service=None,
         logger_service=None,
+        adapter_manager=None,
         pipeline_type: str = "auto"
     ) -> InferencePipeline:
         """
@@ -158,6 +165,7 @@ class PipelineFactory:
             moderator_service: Optional moderator service
             chat_history_service: Optional chat history service
             logger_service: Optional logger service
+            adapter_manager: Optional dynamic adapter manager
             pipeline_type: Type of pipeline to create
             
         Returns:
@@ -170,7 +178,8 @@ class PipelineFactory:
             llm_guard_service=llm_guard_service,
             moderator_service=moderator_service,
             chat_history_service=chat_history_service,
-            logger_service=logger_service
+            logger_service=logger_service,
+            adapter_manager=adapter_manager
         )
         
         return self.create_pipeline(container, pipeline_type) 

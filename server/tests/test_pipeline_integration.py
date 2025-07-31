@@ -8,7 +8,7 @@ without any legacy compatibility layers.
 import pytest
 import asyncio
 from unittest.mock import Mock, AsyncMock
-from typing import Dict, Any
+from typing import Dict, Any, List, Optional
 
 import sys
 import os
@@ -69,6 +69,118 @@ class MockPromptService:
             "prompt": "You are a helpful test assistant.",
             "name": "Test Prompt"
         }
+
+
+class MockAdapterManager:
+    """Mock adapter manager for testing."""
+    
+    async def get_adapter(self, adapter_name: str) -> Any:
+        """Mock adapter retrieval."""
+        return MockRetriever()
+    
+    def get_available_adapters(self) -> List[str]:
+        """Mock available adapters."""
+        return ["test_collection"]
+
+
+class MockablePipelineChatService(PipelineChatService):
+    """Test version of PipelineChatService that allows mock provider injection."""
+    
+    def __init__(self, config: Dict[str, Any], logger_service, mock_provider=None,
+                 chat_history_service=None, llm_guard_service=None, moderator_service=None,
+                 retriever=None, reranker_service=None, prompt_service=None, mock_adapter_manager=None):
+        """Initialize with option to inject mock provider and adapter manager."""
+        self.config = config
+        self.verbose = config.get('general', {}).get('verbose', False)
+        
+        # Chat history configuration
+        self.chat_history_config = config.get('chat_history', {})
+        self.chat_history_enabled = config.get('chat_history', {}).get('enabled', False)
+        
+        # Messages configuration
+        self.messages_config = config.get('messages', {})
+        
+        # Create pipeline factory
+        self.pipeline_factory = PipelineFactory(config)
+        
+        # Use mock adapter manager if provided, otherwise create real one
+        if mock_adapter_manager:
+            adapter_manager = mock_adapter_manager
+        else:
+            from services.dynamic_adapter_manager import DynamicAdapterManager
+            adapter_manager = DynamicAdapterManager(config)
+        
+        # Create pipeline with services
+        self.pipeline = self.pipeline_factory.create_pipeline_with_services(
+            retriever=retriever,
+            reranker_service=reranker_service,
+            prompt_service=prompt_service,
+            llm_guard_service=llm_guard_service,
+            moderator_service=moderator_service,
+            chat_history_service=chat_history_service,
+            logger_service=logger_service,
+            adapter_manager=adapter_manager
+        )
+        
+        # Store pipeline reference for async initialization
+        self._pipeline_initialized = False
+        
+        # Store services for direct access
+        self.logger_service = logger_service
+        self.chat_history_service = chat_history_service
+        self.llm_guard_service = llm_guard_service
+        self.moderator_service = moderator_service
+        
+        # Thread-safe queue for streaming responses
+        self._stream_queues = {}
+        self._stream_locks = {}
+        
+        # If mock provider is provided, replace the real one
+        if mock_provider:
+            self.pipeline.container.register_singleton('llm_provider', mock_provider)
+    
+    async def initialize(self):
+        """Initialize the pipeline provider."""
+        if not self._pipeline_initialized:
+            await self.pipeline_factory.initialize_provider(self.pipeline.container)
+            self._pipeline_initialized = True
+    
+    async def _get_conversation_context(self, session_id: Optional[str]) -> List[Dict[str, str]]:
+        """Get conversation context from history for the current session."""
+        if not self.chat_history_enabled or not self.chat_history_service or not session_id:
+            return []
+        return []
+    
+    async def _store_conversation_turn(self, session_id: Optional[str], user_message: str, 
+                                     assistant_response: str, user_id: Optional[str] = None,
+                                     api_key: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None) -> None:
+        """Store a conversation turn in chat history."""
+        if not self.chat_history_enabled or not self.chat_history_service or not session_id:
+            return
+    
+    async def _log_conversation(self, query: str, response: str, client_ip: str, api_key: Optional[str] = None):
+        """Log conversation asynchronously."""
+        try:
+            await self.logger_service.log_conversation(
+                query=query,
+                response=response,
+                ip=client_ip,
+                backend=None,
+                blocked=False,
+                api_key=api_key
+            )
+        except Exception as e:
+            pass
+    
+    async def _log_request_details(self, message: str, client_ip: str, adapter_name: str, 
+                                  system_prompt_id: Optional[str], api_key: Optional[str],
+                                  session_id: Optional[str], user_id: Optional[str]):
+        """Log detailed request information for debugging."""
+        pass
+    
+    async def _check_conversation_limit_warning(self, session_id: Optional[str]) -> Optional[str]:
+        """Check for conversation limit warnings."""
+        return None
 
 
 @pytest.mark.asyncio
@@ -156,21 +268,6 @@ async def test_pipeline_processing():
     assert len(result.retrieved_docs) > 0
 
 
-class MockablePipelineChatService(PipelineChatService):
-    """Test version of PipelineChatService that allows mock provider injection."""
-    
-    def __init__(self, config: Dict[str, Any], logger_service, mock_provider=None,
-                 chat_history_service=None, llm_guard_service=None, moderator_service=None,
-                 retriever=None, reranker_service=None, prompt_service=None):
-        """Initialize with option to inject mock provider."""
-        super().__init__(config, logger_service, chat_history_service, llm_guard_service,
-                        moderator_service, retriever, reranker_service, prompt_service)
-        
-        # If mock provider is provided, replace the real one
-        if mock_provider:
-            self.pipeline.container.register_singleton('llm_provider', mock_provider)
-
-
 @pytest.mark.asyncio
 async def test_pipeline_chat_service():
     """Test that the pipeline chat service works with clean providers."""
@@ -198,6 +295,7 @@ async def test_pipeline_chat_service():
     logger_service = Mock()
     logger_service.log_conversation = AsyncMock()
     mock_provider = MockLLMProvider()
+    mock_adapter_manager = MockAdapterManager()
     
     # Create pipeline chat service with mock provider
     chat_service = MockablePipelineChatService(
@@ -205,7 +303,8 @@ async def test_pipeline_chat_service():
         logger_service=logger_service,
         retriever=retriever,
         prompt_service=prompt_service,
-        mock_provider=mock_provider
+        mock_provider=mock_provider,
+        mock_adapter_manager=mock_adapter_manager
     )
     
     # Test chat processing

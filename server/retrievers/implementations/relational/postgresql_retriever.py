@@ -45,7 +45,7 @@ class PostgreSQLRetriever(AbstractSQLRetriever):
 
     def _get_datasource_name(self) -> str:
         """Return the datasource name for config lookup."""
-        return 'postgresql'
+        return 'postgres'
 
     # Required abstract method implementations
     async def execute_query(self, sql: str, params: List[Any] = None) -> List[Dict[str, Any]]:

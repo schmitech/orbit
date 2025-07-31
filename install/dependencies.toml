@@ -40,6 +40,7 @@ dependencies = [
     "langdetect>=1.0.9",
     "langid>=1.1.6",
     "pycld2>=0.42",
+    "psycopg2-binary>=2.9.10",
     "schmitech-orbit-client==0.2.2" 
 ]
 

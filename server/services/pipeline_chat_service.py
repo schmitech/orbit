@@ -57,6 +57,11 @@ class PipelineChatService:
         
         # Create pipeline factory and pipeline
         self.pipeline_factory = PipelineFactory(config)
+        
+        # Create adapter manager for dynamic retrieval
+        from services.dynamic_adapter_manager import DynamicAdapterManager
+        adapter_manager = DynamicAdapterManager(config)
+        
         self.pipeline = self.pipeline_factory.create_pipeline_with_services(
             retriever=retriever,
             reranker_service=reranker_service,
@@ -64,7 +69,8 @@ class PipelineChatService:
             llm_guard_service=llm_guard_service,
             moderator_service=moderator_service,
             chat_history_service=chat_history_service,
-            logger_service=logger_service
+            logger_service=logger_service,
+            adapter_manager=adapter_manager
         )
         
         # Store pipeline reference for async initialization

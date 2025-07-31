@@ -21,6 +21,40 @@ logger = logging.getLogger(__name__)
 def load_config(config_path: Optional[str] = None):
     """Load configuration from shared config.yaml file"""
     
+    # Load environment variables first
+    try:
+        from dotenv import load_dotenv
+        # Try to load .env from various possible locations
+        import os
+        from pathlib import Path
+        
+        # Get the current directory
+        current_dir = Path.cwd()
+        
+        # Try different possible .env file locations
+        env_paths = [
+            current_dir / '.env',
+            current_dir.parent / '.env',
+            current_dir.parent.parent / '.env',
+            Path('.env'),
+        ]
+        
+        env_loaded = False
+        for env_path in env_paths:
+            if env_path.exists():
+                load_dotenv(env_path, override=True)
+                logger.info(f"Loaded environment variables from: {env_path}")
+                env_loaded = True
+                break
+        
+        if not env_loaded:
+            logger.warning("No .env file found in expected locations")
+            
+    except ImportError:
+        logger.warning("python-dotenv not available, environment variables may not be loaded")
+    except Exception as e:
+        logger.warning(f"Error loading environment variables: {str(e)}")
+    
     config_paths = [
         config_path, 
         '../config/config.yaml',
@@ -257,12 +291,3 @@ def _process_env_vars(config: Dict[str, Any]) -> Dict[str, Any]:
         return result
 
     return process_dict(config)
-
-
-# Removed _load_defaults_file() - no longer needed since config files are complete
-
-
-
-
-
-# Removed get_default_config() - now using defaults.yaml file instead

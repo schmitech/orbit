@@ -21,13 +21,13 @@ class ContextRetrievalStep(PipelineStep):
         Determine if this step should execute.
         
         Returns:
-            True if retriever is available, not in inference-only mode, and not blocked
+            True if adapter manager is available, not in inference-only mode, and not blocked
         """
         config = self.container.get_or_none('config') or {}
         inference_only = config.get('general', {}).get('inference_only', False)
         
         return (not inference_only and 
-                self.container.has('retriever') and 
+                (self.container.has('adapter_manager') or self.container.has('retriever')) and 
                 context.adapter_name and
                 not context.is_blocked)
     
@@ -47,7 +47,15 @@ class ContextRetrievalStep(PipelineStep):
         self.logger.debug(f"Retrieving context for adapter: {context.adapter_name}")
         
         try:
-            retriever = self.container.get('retriever')
+            # Try to get adapter from adapter manager first (dynamic loading)
+            if self.container.has('adapter_manager'):
+                adapter_manager = self.container.get('adapter_manager')
+                retriever = await adapter_manager.get_adapter(context.adapter_name)
+                self.logger.debug(f"Using dynamic adapter: {context.adapter_name}")
+            else:
+                # Fall back to static retriever
+                retriever = self.container.get('retriever')
+                self.logger.debug(f"Using static retriever with adapter_name: {context.adapter_name}")
             
             # Get relevant documents
             docs = await retriever.get_relevant_context(
