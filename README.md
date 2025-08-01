@@ -191,8 +191,7 @@ ORBIT works in two modes: **simple inference** (pass-through to model providers)
 Each adapter defines:
 - **Data Source**: SQLite, PostgreSQL, Chroma, Qdrant, etc.
 - **Retrieval Method**: SQL queries, vector search, intent recognition
-- **Security**: Table/field access controls, authentication
-- **Behavior**: How the AI responds to queries
+- **Behavior**: How the AI responds to queries thorugh custom prompts
 
 This means one API key = one specific behavior/agent, making it easy to create specialized assistants for different use cases.
 
