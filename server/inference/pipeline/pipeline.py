@@ -179,6 +179,11 @@ class InferencePipeline:
                 self.logger.info(f"DEBUG: LLM step found: {llm_step.get_name()}, should_execute={llm_step.should_execute(context)}, supports_streaming={llm_step.supports_streaming()}")
             
             if llm_step.should_execute(context) and llm_step.supports_streaming():
+                # If response is already generated, just stream it
+                if context.response:
+                    yield json.dumps({"response": context.response, "done": False})
+                    yield json.dumps({"done": True})
+                    return
                 step_start_time = asyncio.get_event_loop().time()
                 
                 try:

@@ -412,6 +412,22 @@ class IntentPostgreSQLRetriever(PostgreSQLRetriever):
         
         return metadata
 
+    def _dump_results_to_file(self, results: List[Dict[str, Any]]):
+        """Dump query results to a timestamped JSON file."""
+        try:
+            from datetime import datetime
+            log_dir = Path("logs")
+            log_dir.mkdir(exist_ok=True)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            file_path = log_dir / f"query_results_{timestamp}.json"
+            
+            with open(file_path, 'w') as f:
+                json.dump(results, f, indent=2)
+            
+            logger.info(f"Query results saved to {file_path}")
+        except Exception as e:
+            logger.error(f"Failed to dump query results to file: {e}")
+
     def _convert_row_types(self, row: Dict[str, Any]) -> Dict[str, Any]:
         """Convert PostgreSQL types to standard Python types."""
         from decimal import Decimal
@@ -449,7 +465,11 @@ class IntentPostgreSQLRetriever(PostgreSQLRetriever):
                 results = cursor.fetchall()
                 # RealDictCursor returns a list of dict-like objects.
                 # We convert them to standard dicts and handle special data types.
-                return [self._convert_row_types(dict(row)) for row in results]
+                converted_results = [self._convert_row_types(dict(row)) for row in results]
+                if self.verbose:
+                    # Dump to file instead of logging
+                    self._dump_results_to_file(converted_results)
+                return converted_results
             else:
                 # For non-SELECT queries, commit and return affected row count
                 self.connection.commit()

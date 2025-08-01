@@ -50,6 +50,9 @@ class DomainAwareParameterExtractor:
                     elif data_type == "decimal" or data_type == "integer":
                         # Amount/number pattern
                         self.patterns[pattern_key] = re.compile(r'\$?\s*(\d+(?:\.\d{2})?)', re.IGNORECASE)
+                        # Range pattern
+                        range_pattern_key = f"{pattern_key}_range"
+                        self.patterns[range_pattern_key] = re.compile(r'between\s*\$?(\d+(?:\.\d{2})?)\s*and\s*\$?(\d+(?:\.\d{2})?)', re.IGNORECASE)
                     
                     elif data_type == "date":
                         # Date pattern
@@ -85,6 +88,17 @@ class DomainAwareParameterExtractor:
                                 if data_type == "integer":
                                     parameters[param_name] = int(match.group(len(match.groups())))
                                 elif data_type == "decimal":
+                                    # Check for range pattern first
+                                    range_pattern_key = f"{pattern_key}_range"
+                                    if range_pattern_key in self.patterns:
+                                        range_match = self.patterns[range_pattern_key].search(user_query)
+                                        if range_match:
+                                            parameters["min_amount"] = float(range_match.group(1))
+                                            parameters["max_amount"] = float(range_match.group(2))
+                                            # Found a range, so we can skip other decimal matches for this field
+                                            continue
+                                    
+                                    # Fallback to single amount
                                     parameters[param_name] = float(match.group(1))
                                 elif data_type == "string":
                                     if "name" in field_name.lower():
