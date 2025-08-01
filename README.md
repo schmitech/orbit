@@ -87,7 +87,10 @@ Perfect for organizations seeking full transparency, control, and regulatory com
 
 ## 🚀 Quick Start
 
-### Installation
+### Deploying with Docker
+Refer to [Docker Setup Guide](docker/README.md) for instructions on how to deploy as a docker container.
+
+### Deploying Locally
 
 ```bash
 # Download latest release
@@ -105,9 +108,6 @@ source venv/bin/activate
 ./bin/orbit.sh start # logs under /logs/orbit.log
 ```
 
-#### 🐳 Using Docker
-Refer to [Docker Setup Guide](docker/README.md) for instructions on how to deploy as a docker container.
-
 <video src="https://github.com/user-attachments/assets/8ea103a6-8b33-4801-adc2-f0e81e03e96e" controls>
   Your browser does not support the video tag.
 </video>
@@ -123,8 +123,8 @@ orbit-chat --url http://localhost:3000 # Default url
   Your browser does not support the video tag.
 </video>
 
-### Chat with conversation history
-To enable conversation history, you will need to have an instance of MongoDB and adjust the settings in your .env file (copy .env.example to .env). The two settings are:
+### Enabling Chat Memory
+To enable conversation history, you will need to have an instance of MongoDB and adjust the settings in your .env file (copy .env.example to .env). At this time conversation history only works in inference mode. Work is underway to enable memory when adapters are enabled (more about adapters in business use cases section). The two settings are:
 
 ```bash
 INTERNAL_SERVICES_MONGODB_HOST=localhost
@@ -182,36 +182,180 @@ npm run dev
   Your browser does not support the video tag.
 </video>
 
+## Use Case Examples
 
-## 🔧 Sample Use Cases
+ORBIT works in two modes: **simple inference** (pass-through to model providers) and **RAG mode** (using retriever adapters). ORBIT uses an **adapter-based approach** where API keys are attached to specific adapters from `config/adapters.yaml`, so API keys represent behaviors or agents. A MongoDB instance is required to enable adapters, otherwise you can only use ORBIT as simple inference pass-through service.
 
-### 💬 Local AI Assistant
-Run AI models on your hardware without cloud dependencies:
+### Understanding ORBIT's Adapter System
+
+Each adapter defines:
+- **Data Source**: SQLite, PostgreSQL, Chroma, Qdrant, etc.
+- **Retrieval Method**: SQL queries, vector search, intent recognition
+- **Security**: Table/field access controls, authentication
+- **Behavior**: How the AI responds to queries
+
+This means one API key = one specific behavior/agent, making it easy to create specialized assistants for different use cases.
+
+### Multilingual Support
+
+When `language_detection.enabled: true` in `config.yaml`, ORBIT automatically detects the conversation language, so responses and conversations are maintained in the detected language for consistency. Therefore, you don't need to translate your knowledge base—you can work with your data as is.
+
+### Business Use Case #1: A Knowledge Base Q&A Chatbot (SQLite)
+
+**Scenario**: Municipal government wants to provide citizens with instant answers about city services, regulations, and procedures.
+
+**Setup**:
 ```bash
-# Already done in quick start!
-orbit-chat
+# Set up SQLite database with city Q&A data
+./examples/sample-db-setup.sh sqlite
+
+# Create API key for the qa-sql adapter
+python bin/orbit.py key create \
+  --adapter qa-sql \
+  --name "City Services Assistant" \
+  --prompt-file examples/prompts/examples/city/city-assistant-normal-prompt.txt
 ```
 
-### 📚 Knowledge Base Q&A
-Combine data with inference:
+**Sample Questions**:
+- "How do I report a pothole on my street?"
+- "What is the fee for a residential parking permit?"
+- "Where can I dispose of hazardous household waste?"
+- "How do I renew my dog license?"
+
+**Features**:
+- Fast SQL-based retrieval with confidence scoring
+- Secure table-level access control
+- Built-in fault tolerance and caching
+- Perfect for structured Q&A data
+
+Test it with the orbit-chat tool:
+
 ```bash
-# Set up with SQLite (see docs for full config)
-./examples/setup-demo-db.sh sqlite
-orbit-chat --api-key orbit_YOUR_KEY
+orbit-chat --url http://localhost:3000 --api-key YOUR_API_KEY
 ```
 
-### 🌐 Website Chatbot
-Add an AI assistant to your website:
-```bash
-npm install @schmitech/chatbot-widget
-```
-
-#### Here's an example of the chatbot widget:
+Or use the ORBIT chatbot widget. See the [widget documentation](clients/chat-widget/README.md) for integration details:
 <video src="https://github.com/user-attachments/assets/876d0e5b-d24f-4367-be5a-3f966d97e8b6" controls>
   Your browser does not support the video tag.
 </video>
 
-See the [widget documentation](clients/chat-widget/README.md) for integration details.
+**💡 Extending SQLite**: The `QASSQLRetriever` extends `SQLiteRetriever` with QA-specific enhancements. You can create your own domain specializations by inheriting from any database implementation. See [SQL Retriever Architecture](docs/sql-retriever-architecture.md) for details on creating new database support or domain specializations.
+
+### Business Use Case #2: A Knowledge Base Q&A Chatbot (Vector DB)
+
+**Scenario**: Municipal recreation department wants to provide citizens with information about community programs, activities, and registration details using semantic search.
+
+**Setup**:
+```bash
+# Set up Chroma vector database with Q&A data
+./examples/sample-db-setup.sh chroma
+
+# Create API key for the qa-vector-chroma adapter
+python bin/orbit.py key create \
+  --adapter qa-vector-chroma \
+  --name "Recreation Programs Assistant" \
+  --prompt-file examples/prompts/examples/activity/activity-assistant-normal-prompt.txt
+```
+
+**Sample Questions**:
+- "What gymnastics programs are available for adults?"
+- "How do I register for the contemporary dance class?"
+- "What mindfulness programs are there for seniors?"
+- "Are there any summer camps for kids?"
+
+**Features**:
+- Semantic similarity search using embeddings
+- Handles natural language variations
+- Scalable to millions of Q&A pairs
+- Multilingual, no need to translate each QA pair.
+
+**⚠️ Requirements**: 
+- Embeddings must be enabled in `config.yaml` (`embedding.enabled: true`)
+- Accuracy and matching quality depend on the embedding model's number of dimensions (higher dimensions = better semantic understanding)
+- Default: 768 dimensions (nomic-embed-text model) via Ollama. Embeddings are defined in ```config/embeddings.yaml```
+
+**💡 Extending ChromaDB**: The `QAChromaRetriever` extends `ChromaRetriever` with QA-specific enhancements. You can create your own domain specializations or add support for other vector databases (Milvus, Pinecone, Elasticsearch, Redis). See [Vector Retriever Architecture](docs/vector-retriever-architecture.md) for details on creating new vector database support or domain specializations.
+
+**🔍 Qdrant Alternative**: There's also a Qdrant example under `examples/qdrant/` with a commented adapter in `config/adapters.yaml`. Qdrant provides high-performance vector search with REST API and multiple distance metrics.
+
+### Business Use Case #3: A Database Chatbot (PostgreSQL) - Experimental
+
+> **⚠️ Experimental Feature**: This PostgreSQL intent-based querying is available in development builds and will be released in v1.2.3.
+
+**Scenario**: Customer service team needs to query order data using natural language instead of SQL.
+
+**Setup Sample Customer Orders Database**:
+```bash
+# Set up PostgreSQL with customer order schema
+cd examples/postgres
+
+# Update Postgres connection parameters
+cp env.example .env
+
+# Test connection
+python /db_utils/test_connection.py
+
+# Create sample database
+python /db_utils/setup_schema.py
+
+# Add sample data
+python /db_utils/customer-order.py --action insert --clean --customers 100 --orders 1000
+
+# Test data exists
+python /db_utils/test_query.py
+
+# Create API key for the intent-sql-postgres adapter
+python bin/orbit.py key create \
+  --adapter intent-sql-postgres \
+  --name "Order Management Assistant" \
+  --prompt-file examples/postgres/prompts/customer-assistant-enhanced-prompt.txt
+```
+
+**Sample Questions**:
+- "Show me all orders from John Smith"
+- "What are the top 10 customers by order value?"
+- "Find orders with status 'pending' from last week"
+- "Which customers haven't placed an order in 6 months?"
+
+**Features**:
+- Natural language to SQL conversion
+- Domain-aware intent recognition
+- Template-based query generation
+
+Test it with the orbit-chat tool:
+
+```bash
+orbit-chat --url http://localhost:3000 --api-key YOUR_API_KEY
+```
+
+<video src="https://github.com/user-attachments/assets/fffdb719-5cd2-4bc5-9570-84b238de50a1" controls>
+  Your browser does not support the video tag.
+</video>
+
+### API Key Management
+
+List and manage your API keys:
+```bash
+# List all API keys
+./bin/orbit.sh key list
+
+# Test an API key
+./bin/orbit.sh key test YOUR_API_KEY
+
+# Deactivate an API key
+./bin/orbit.sh key deactivate YOUR_API_KEY
+```
+
+### Adapter Information
+
+View available adapters and their configurations:
+```bash
+# List all adapters
+./bin/orbit.sh key list-adapters
+
+# Get adapter details
+./bin/orbit.sh key list-adapters --adapter qa-sql
+```
 
 ## 📖 Documentation
 
@@ -229,6 +373,8 @@ See the [widget documentation](clients/chat-widget/README.md) for integration de
 - [API Reference](docs/api-reference.md) - Complete API documentation
 - [Development Roadmap](docs/roadmap/README.md) - What's coming next
 - [Contributing Guide](CONTRIBUTING.md) - Join the project
+- [SQL Retriever Architecture](docs/sql-retriever-architecture.md) - Extend database support
+- [Vector Retriever Architecture](docs/vector-retriever-architecture.md) - Extend vector database support
 
 ## 🤝 Community & Support
 
