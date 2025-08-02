@@ -208,7 +208,7 @@ class TestIntentIntegration:
         # Create configuration
         config = {
             'datasources': {
-                'postgresql': {
+                'postgres': {
                     'host': 'localhost',
                     'port': 5432,
                     'database': 'testdb'
@@ -250,6 +250,10 @@ class TestIntentIntegration:
                         {'id': 123, 'name': 'John Doe', 'email': 'john@example.com'}
                     ])
                     
+                    # Mock the abstract methods from BaseRetriever
+                    retriever._tokenize_text = MagicMock(return_value=['customer', '123'])
+                    retriever._calculate_similarity = MagicMock(return_value=0.8)
+                    
                     # Initialize
                     await retriever.initialize()
                     
@@ -263,9 +267,9 @@ class TestIntentIntegration:
     @pytest.mark.asyncio
     async def test_intent_retriever_factory_registration(self):
         """Test that the intent retriever is properly registered with the factory"""
-        # Check that 'intent' is registered
+        # Check that 'intent_postgresql' is registered
         retrievers = RetrieverFactory._registered_retrievers
-        assert 'intent' in retrievers
+        assert 'intent_postgresql' in retrievers
     
     @pytest.mark.asyncio
     async def test_parameter_extraction_edge_cases(self, temp_config_files):
@@ -315,7 +319,18 @@ class TestIntentIntegration:
             'date_from': '2024-01-01'
         }
         
-        retriever = IntentPostgreSQLRetriever({'config': {}})
+        # Create a minimal config with datasource info
+        config = {
+            'datasources': {
+                'postgres': {
+                    'host': 'localhost',
+                    'port': 5432,
+                    'database': 'testdb'
+                }
+            },
+            'config': {}
+        }
+        retriever = IntentPostgreSQLRetriever(config=config)
         processed = retriever._process_sql_template(template_with_conditionals, params)
         
         assert 'AND customer_id = %(customer_id)s' in processed

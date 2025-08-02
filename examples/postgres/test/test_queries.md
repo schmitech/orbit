@@ -1,64 +1,3 @@
-# 100 Test Queries for PostgreSQL RAG System
-
-This document contains 100 diverse test queries to thoroughly test the conversational demo system. The queries are organized by category and cover all supported template types, edge cases, and natural language variations.
-
-## Database Schema Reference
-
-**Customers Table:**
-- `id` (SERIAL PRIMARY KEY)
-- `name` (VARCHAR(255))
-- `email` (VARCHAR(255) UNIQUE)
-- `phone` (VARCHAR(20))
-- `address` (TEXT)
-- `city` (VARCHAR(100))
-- `country` (VARCHAR(100))
-- `created_at` (TIMESTAMP)
-- `updated_at` (TIMESTAMP)
-
-**Orders Table:**
-- `id` (SERIAL PRIMARY KEY)
-- `customer_id` (INTEGER, FOREIGN KEY)
-- `order_date` (DATE)
-- `total` (DECIMAL(10,2))
-- `status` (VARCHAR(50)) - values: pending, processing, shipped, delivered, cancelled
-- `shipping_address` (TEXT)
-- `payment_method` (VARCHAR(50)) - values: credit_card, debit_card, paypal, bank_transfer, cash
-- `created_at` (TIMESTAMP)
-- `updated_at` (TIMESTAMP)
-
----
-
-```mermaid
-erDiagram
-    CUSTOMERS {
-        SERIAL id PK
-        VARCHAR(255) name
-        VARCHAR(255) email UK
-        VARCHAR(20) phone
-        TEXT address
-        VARCHAR(100) city
-        VARCHAR(100) country
-        TIMESTAMP created_at
-        TIMESTAMP updated_at
-    }
-    
-    ORDERS {
-        SERIAL id PK
-        INTEGER customer_id FK
-        DATE order_date
-        DECIMAL(10_2) total
-        VARCHAR(50) status
-        TEXT shipping_address
-        VARCHAR(50) payment_method
-        TIMESTAMP created_at
-        TIMESTAMP updated_at
-    }
-    
-    CUSTOMERS ||--o{ ORDERS : "has many"
-```
-
-## 🛍️ Customer Queries (1-20)
-
 ### Basic Customer Lookups
 1. "What did customer 1 buy last week?"
 2. "Show me orders from Maria Smith"
@@ -82,8 +21,6 @@ erDiagram
 18. "What's been ordered by customer 12 lately?"
 19. "Recent shopping history for customer 234"
 20. "Display the latest transactions for customer 567"
-
----
 
 ## 💰 Order Value Queries (21-40)
 
@@ -164,7 +101,7 @@ erDiagram
 76. "What were yesterday's sales?"
 77. "Show me today's revenue"
 78. "Sales summary for last Monday"
-79. "How much did we sell on 2024-12-25?"
+79. "How much did we sell on 2025-07-22?"
 80. "Daily sales report for this week"
 
 ---
@@ -361,63 +298,3 @@ I'm looking for credit card orders within the last 6 days.
 Orders from customers in Canada
 Can you please find  orders from customers from city Havelberg?
 Show me all PayPal transactions within the last 3 days.
-
----
-
-## 🧪 Testing Instructions
-
-### Running the Tests
-
-1. **Start the conversational demo:**
-   ```bash
-   cd examples/sandbox/postgresql-rag
-   python conversational_demo.py
-   ```
-
-2. **Test Categories:**
-   - Run queries 1-20 to test basic customer functionality
-   - Run queries 21-50 to test order value filtering
-   - Run queries 51-65 to test status filtering
-   - Run queries 66-80 to test summary analytics
-   - Run queries 81-100 to test location-based queries
-   - Run queries 101-110 to test payment method filtering
-   - Run queries 111-125 to test trending analytics
-   - Run queries 126-135 to test search functionality
-   - Run queries 136-150 to test international shipping
-   - Run queries 151-170 to test complex combinations
-   - Run queries 171-190 to test natural language variations
-   - Run queries 191-200 to test edge cases
-
-### Expected Behaviors
-
-- **Successful queries** should return relevant results with proper formatting
-- **Failed queries** should provide helpful error messages or suggestions
-- **Parameter extraction** should work correctly for various input formats
-- **Template matching** should select appropriate templates for each query type
-- **Plugin integration** should enhance results with additional insights
-- **Response generation** should be conversational and informative
-
-### Validation Checklist
-
-- [ ] All customer ID queries work with numeric IDs
-- [ ] Customer name queries work with partial name matching
-- [ ] Amount filters work with various currency formats
-- [ ] Date/time filters work with natural language
-- [ ] Status filters work with all valid statuses
-- [ ] Payment method filters work with all valid methods
-- [ ] Location queries work with city and country names
-- [ ] Summary queries return aggregated statistics
-- [ ] Complex queries combine multiple filters correctly
-- [ ] Edge cases handle gracefully with appropriate responses
-- [ ] Natural language variations are understood correctly
-- [ ] Plugin enhancements are applied where appropriate
-
----
-
-## 📝 Notes
-
-- These queries are designed to test the full range of functionality supported by the query templates
-- Some queries may return no results depending on the actual data in your database
-- The system should handle both successful and failed queries gracefully
-- Plugin functionality may enhance results with additional business insights
-- All queries should be processed through the conversational interface for natural language understanding 

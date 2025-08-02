@@ -35,6 +35,18 @@ entities:
     - total
     default_sort_field: order_date
     default_sort_order: DESC
+  sales:
+    name: sales
+    entity_type: aggregation
+    table_name: orders
+    description: Sales analytics and summaries
+    primary_key: null
+    display_name_field: null
+    searchable_fields: []
+    common_filters:
+    - order_date
+    default_sort_field: order_date
+    default_sort_order: DESC
 fields:
   customer:
     id:
@@ -282,6 +294,12 @@ vocabulary:
     - transaction
     - sale
     - invoice
+    sales:
+    - revenue
+    - income
+    - earnings
+    - proceeds
+    - receipts
   action_verbs:
     find:
     - show
@@ -296,6 +314,12 @@ vocabulary:
     - calculate
     - compute
     - aggregate
+    calculate_total:
+    - how much
+    - what was
+    - total
+    - sum
+    - amount
     filter:
     - filter
     - only

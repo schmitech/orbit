@@ -1067,3 +1067,97 @@ templates:
       primary_entity: "order"
       qualifiers: ["international_only"]
     approved: true
+
+  - id: find_new_customers_by_time_period
+    version: "1.0.0"
+    description: "Find new customers who registered within a specific time period"
+    nl_examples:
+      - "Show me new customers from Aug 1 2025"
+      - "Who are the new customers this week?"
+      - "Find customers who registered in the last 7 days"
+      - "Show new customers from last month"
+      - "List recently registered customers"
+      - "New customers who joined this month"
+      - "Show me customers who signed up recently"
+      - "Find new customers from the past 3 days"
+      - "Who registered in the last 30 days?"
+      - "Show new customer registrations"
+      - "Recent customer signups"
+      - "New customers who joined us"
+    parameters:
+      - name: days_back
+        type: integer
+        description: "Number of days to look back from today"
+        required: false
+        default: 7
+        aliases: ["days", "period", "time_period"]
+    sql_template: |
+      SELECT 
+        c.id as customer_id,
+        c.name as customer_name,
+        c.email as customer_email,
+        c.phone as customer_phone,
+        c.city as customer_city,
+        c.country as customer_country,
+        c.created_at as registration_date,
+        CURRENT_DATE - DATE(c.created_at) as days_since_registration,
+        COUNT(o.id) as total_orders,
+        COALESCE(SUM(o.total), 0) as total_spent
+      FROM customers c
+      LEFT JOIN orders o ON c.id = o.customer_id
+      WHERE c.created_at >= CURRENT_DATE - INTERVAL '%(days_back)s days'
+      GROUP BY c.id, c.name, c.email, c.phone, c.city, c.country, c.created_at
+      ORDER BY c.created_at DESC
+      LIMIT 100
+    result_format: "table"
+    tags: ["customer", "new", "registered", "joined", "signed", "recent", "registration", "signup"]
+    semantic_tags:
+      action: "find_list"
+      primary_entity: "customer"
+      qualifiers: ["new", "by_registration_date", "recent"]
+    approved: true
+
+  - id: find_new_customers_from_specific_date
+    version: "1.0.0"
+    description: "Find new customers who registered from a specific date onwards"
+    nl_examples:
+      - "Show me new customers from Aug 1 2025"
+      - "Find customers who registered since July 15, 2025"
+      - "New customers from 2025-08-01"
+      - "Who registered after August 1st?"
+      - "Show customers who joined since 08/01/2025"
+      - "New customers from August 1st, 2025"
+      - "Find registrations since Aug 1"
+      - "Customers who signed up from August 1"
+    parameters:
+      - name: from_date
+        type: date
+        description: "Start date to find new customers from (YYYY-MM-DD format)"
+        required: true
+        aliases: ["start_date", "since_date", "from", "since"]
+        example: "2025-08-01"
+    sql_template: |
+      SELECT 
+        c.id as customer_id,
+        c.name as customer_name,
+        c.email as customer_email,
+        c.phone as customer_phone,
+        c.city as customer_city,
+        c.country as customer_country,
+        c.created_at as registration_date,
+        CURRENT_DATE - DATE(c.created_at) as days_since_registration,
+        COUNT(o.id) as total_orders,
+        COALESCE(SUM(o.total), 0) as total_spent
+      FROM customers c
+      LEFT JOIN orders o ON c.id = o.customer_id
+      WHERE DATE(c.created_at) >= %(from_date)s
+      GROUP BY c.id, c.name, c.email, c.phone, c.city, c.country, c.created_at
+      ORDER BY c.created_at DESC
+      LIMIT 100
+    result_format: "table"
+    tags: ["customer", "new", "registered", "from", "since", "specific", "date", "Aug", "August", "July"]
+    semantic_tags:
+      action: "find_list"
+      primary_entity: "customer"
+      qualifiers: ["new", "from_specific_date"]
+    approved: true

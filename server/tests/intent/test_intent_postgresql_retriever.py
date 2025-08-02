@@ -28,7 +28,7 @@ class TestIntentPostgreSQLRetriever:
         """Mock configuration for testing"""
         return {
             'datasources': {
-                'postgresql': {
+                'postgres': {
                     'host': 'localhost',
                     'port': 5432,
                     'database': 'testdb',
@@ -108,12 +108,16 @@ class TestIntentPostgreSQLRetriever:
     @pytest.fixture
     async def retriever(self, mock_config, mock_adapter):
         """Create retriever instance with mocks"""
-        with patch('retrievers.implementations.intent.intent_postgresql_retriever.IntentAdapter', return_value=mock_adapter):
-            retriever = IntentPostgreSQLRetriever(
-                config=mock_config,
-                domain_adapter=mock_adapter
-            )
-            return retriever
+        retriever = IntentPostgreSQLRetriever(
+            config=mock_config,
+            domain_adapter=mock_adapter
+        )
+        
+        # Mock the abstract methods from BaseRetriever
+        retriever._tokenize_text = MagicMock(return_value=['customer', '123'])
+        retriever._calculate_similarity = MagicMock(return_value=0.8)
+        
+        return retriever
     
     @pytest.mark.asyncio
     async def test_initialization(self, retriever, mock_config):
@@ -130,7 +134,7 @@ class TestIntentPostgreSQLRetriever:
         with patch('embeddings.base.EmbeddingServiceFactory') as mock_embed_factory:
             with patch('inference.pipeline.providers.provider_factory.ProviderFactory') as mock_inf_factory:
                 with patch('chromadb.Client') as mock_chroma_client:
-                    with patch.object(retriever, '_create_postgres_connection') as mock_conn_create:
+                    with patch.object(retriever, '_create_database_connection') as mock_conn_create:
                         # Setup mocks
                         mock_embed_factory.create_embedding_service.return_value = mock_embedding_client
                         mock_inf_factory.create_provider.return_value = mock_inference_client

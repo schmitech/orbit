@@ -1,0 +1,152 @@
+# Template Generator Configuration
+#
+# This configuration file controls the behavior of the template generator script.
+# Modify these settings to customize template generation according to your needs.
+#
+# USAGE:
+#   The template generator automatically looks for this file in the same directory.
+#   You can also specify a custom config path when initializing the generator.
+#
+# SECTIONS:
+#   - generation: Core generation settings and defaults
+#   - inference: AI model parameters for analysis and SQL generation
+#   - validation: Rules for validating generated templates
+#   - schema: Settings for database schema analysis
+#   - grouping: Rules for grouping similar queries
+#   - output: Formatting options for generated templates
+#
+# NOTES:
+#   - All paths are relative to the project root unless absolute
+#   - Temperature values: lower = more deterministic, higher = more creative
+#   - Similarity threshold: higher = stricter grouping, lower = more permissive
+
+# Generation settings
+generation:
+  # Maximum number of examples per template
+  max_examples_per_template: 10
+  
+  # Minimum similarity score to group queries together
+  similarity_threshold: 0.8
+  
+  # Default values for new templates
+  defaults:
+    version: "1.0.0"
+    approved: false
+    result_format: "table"
+  
+  # Template categories to generate
+  categories:
+    - customer_queries
+    - order_queries
+    - analytics_queries
+    - location_queries
+    - status_queries
+    - payment_queries
+
+# Inference settings
+inference:
+  # Model parameters for query analysis
+  analysis:
+    temperature: 0.1
+    max_tokens: 1024
+    
+  # Model parameters for SQL generation
+  sql_generation:
+    temperature: 0.2
+    max_tokens: 2048
+
+# Validation rules
+validation:
+  # Required fields for each template
+  required_fields:
+    - id
+    - description
+    - sql_template
+    - parameters
+    - nl_examples
+    
+  # Minimum number of NL examples
+  min_examples: 3
+  
+  # Maximum SQL template length
+  max_sql_length: 5000
+  
+  # Parameter validation
+  parameters:
+    # Valid parameter types
+    valid_types:
+      - string
+      - integer
+      - decimal
+      - date
+      - datetime
+      - boolean
+      - enum
+    
+    # Required parameter fields
+    required_fields:
+      - name
+      - type
+      - description
+      - required
+
+# Schema analysis settings
+schema:
+  # Tables to include in analysis
+  include_tables: []  # Empty means all tables
+  
+  # Tables to exclude from analysis
+  exclude_tables:
+    - migrations
+    - schema_version
+  
+  # Column patterns to identify special fields
+  special_columns:
+    email:
+      pattern: ".*email.*"
+      format: "email"
+    phone:
+      pattern: ".*phone.*"
+      format: "phone"
+    date:
+      pattern: ".*(date|_at)$"
+      format: "date"
+    amount:
+      pattern: ".*(amount|total|price|cost).*"
+      format: "currency"
+    status:
+      pattern: ".*status.*"
+      format: "enum"
+
+# Query grouping rules
+grouping:
+  # Similarity features to consider
+  features:
+    - intent
+    - primary_entity
+    - secondary_entity
+    - aggregations
+    - filters
+  
+  # Weight for each feature
+  feature_weights:
+    intent: 0.3
+    primary_entity: 0.3
+    secondary_entity: 0.2
+    aggregations: 0.1
+    filters: 0.1
+
+# Output formatting
+output:
+  # Sort templates by
+  sort_by: "primary_entity"
+  
+  # Group templates by category
+  group_by_category: true
+  
+  # Include metadata
+  include_metadata:
+    - created_at
+    - created_by
+    - generator_version
+    - validation_status

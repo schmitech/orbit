@@ -333,6 +333,13 @@ orbit-chat --url http://localhost:3000 --api-key YOUR_API_KEY
 
 ### API Key Management
 
+> **Note:** You need to log in as admin before managing API keys.  
+> Run:
+> ```bash
+> ./bin/orbit.sh login
+> ```
+
+
 List and manage your API keys:
 ```bash
 # List all API keys

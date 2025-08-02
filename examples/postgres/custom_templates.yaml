@@ -484,6 +484,48 @@ templates:
       qualifiers: ["by_status", "by_time_period"]
     approved: true
 
+  - id: calculate_daily_sales_total
+    version: "1.0.0"
+    description: "Calculate total sales amount for a specific date"
+    nl_examples:
+      - "How much did we sell on 2025-07-22?"
+      - "What was our total sales on July 22, 2025?"
+      - "Show me total revenue for 2025-07-22"
+      - "Calculate sales for July 22nd 2025"
+      - "What's the sales total for 22/07/2025?"
+      - "How much revenue on 2025-07-22?"
+      - "Total sales amount on July 22"
+      - "Sum of all sales on 2025-07-22"
+      - "What did we make on July 22, 2025?"
+      - "Daily sales total for 2025-07-22"
+    parameters:
+      - name: sales_date
+        type: date
+        description: "Date to calculate sales total for (YYYY-MM-DD format)"
+        required: true
+        aliases: ["date", "on_date", "specific_date", "for_date", "on"]
+        example: "2025-07-22"
+        pattern: "\\d{4}-\\d{2}-\\d{2}"
+    sql_template: |
+      SELECT 
+        DATE(o.order_date) as sales_date,
+        COUNT(o.id) as total_orders,
+        SUM(o.total) as total_sales,
+        AVG(o.total) as average_order_value,
+        MIN(o.total) as smallest_order,
+        MAX(o.total) as largest_order,
+        COUNT(DISTINCT o.customer_id) as unique_customers
+      FROM orders o
+      WHERE DATE(o.order_date) = %(sales_date)s
+      GROUP BY DATE(o.order_date)
+    result_format: "summary"
+    tags: ["sales", "revenue", "total", "amount", "daily", "date", "calculate", "sum", "how much", "sell"]
+    semantic_tags:
+      action: "calculate_total"
+      primary_entity: "sales"
+      qualifiers: ["by_date", "daily_total"]
+    approved: true
+
   - id: find_orders_by_exact_date
     version: "1.0.0"
     description: "Find orders placed on a specific exact date"
