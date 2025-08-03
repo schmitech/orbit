@@ -1,201 +1,180 @@
 """
-SQLite implementation of AbstractSQLRetriever
+SQLite implementation using the new BaseSQLDatabaseRetriever.
+Significantly reduced code duplication.
 """
 
 import logging
 import sqlite3
 import os
 from typing import Dict, Any, List, Optional
-from ...base.sql_retriever import AbstractSQLRetriever
-from ...base.base_retriever import RetrieverFactory
-from utils.lazy_loader import LazyLoader
+
+from server.retrievers.base.base_sql_database import BaseSQLDatabaseRetriever
+from server.retrievers.base.base_retriever import RetrieverFactory
 
 logger = logging.getLogger(__name__)
 
-class SQLiteRetriever(AbstractSQLRetriever):
+class SQLiteRetriever(BaseSQLDatabaseRetriever):
     """
-    SQLite-specific implementation of AbstractSQLRetriever.
+    SQLite-specific implementation using unified base.
+    Demonstrates significant code reduction while maintaining functionality.
+    """
     
-    This shows how to implement database-specific functionality while
-    leveraging the common SQL retriever infrastructure.
-    """
-
-    def __init__(self, 
-                config: Dict[str, Any],
-                connection: Any = None,
-                **kwargs):
-        """
-        Initialize SQLiteRetriever.
-        
-        Args:
-            config: Configuration dictionary
-            connection: Optional SQLite connection
-            **kwargs: Additional arguments
-        """
+    def __init__(self, config: Dict[str, Any], connection: Any = None, **kwargs):
+        """Initialize SQLite retriever."""
         super().__init__(config=config, connection=connection, **kwargs)
         
-        # SQLite-specific configuration
-        sqlite_config = self.datasource_config
-        self.db_path = sqlite_config.get('db_path', 'sqlite_db')
-        
-        # Create lazy loader for SQLite connection
-        def create_sqlite_connection():
-            try:
-                # Create directory if needed
-                db_dir = os.path.dirname(self.db_path)
-                if db_dir and not os.path.exists(db_dir):
-                    os.makedirs(db_dir)
-                
-                # Connect to SQLite database
-                conn = sqlite3.connect(self.db_path)
-                conn.row_factory = sqlite3.Row  # Enable column access by name
-                
-                if self.verbose:
-                    logger.info(f"Connected to SQLite database at {self.db_path}")
-                
-                return conn
-                    
-            except Exception as e:
-                logger.error(f"Failed to connect to SQLite database: {str(e)}")
-                raise ValueError(f"SQLite connection error: {str(e)}")
-        
-        if not connection:
-            self._connection_loader = LazyLoader(create_sqlite_connection, "SQLite connection")
-        else:
-            self.connection = connection
-
-    @property
-    def connection(self):
-        """Lazy-loaded SQLite connection."""
-        if hasattr(self, '_connection_loader'):
-            return self._connection_loader.get_instance()
-        return self._connection
-
-    @connection.setter
-    def connection(self, value):
-        """Set the connection directly."""
-        self._connection = value
+        # SQLite-specific settings
+        self.db_path = self.get_config_value(self.datasource_config, 'db_path', 'sqlite_db')
+        self.enable_wal_mode = self.datasource_config.get('enable_wal_mode', True)
+        self.enable_foreign_keys = self.datasource_config.get('enable_foreign_keys', True)
 
     def _get_datasource_name(self) -> str:
-        """Return the datasource name for config lookup."""
+        """Return the datasource name."""
         return 'sqlite'
-
-    # Required abstract method implementations
-    async def execute_query(self, sql: str, params: List[Any] = None) -> List[Dict[str, Any]]:
-        """
-        Execute SQLite query and return results.
-        
-        Args:
-            sql: SQL query string
-            params: Query parameters
-            
-        Returns:
-            List of rows as dictionaries
-        """
-        if not self.connection:
-            raise ValueError("SQLite connection not initialized")
-            
-        if params is None:
-            params = []
-            
+    
+    def get_default_port(self) -> int:
+        """SQLite doesn't use ports."""
+        return 0
+    
+    def get_default_database(self) -> str:
+        """SQLite default database (file path)."""
+        return 'sqlite_db'
+    
+    def get_default_username(self) -> str:
+        """SQLite doesn't use usernames."""
+        return ''
+    
+    async def create_connection(self) -> Any:
+        """Create SQLite connection."""
         try:
-            if self.verbose:
-                logger.info(f"Executing SQLite query: {sql}")
-                logger.info(f"Parameters: {params}")
+            # Create directory if needed
+            db_dir = os.path.dirname(self.db_path)
+            if db_dir and not os.path.exists(db_dir):
+                os.makedirs(db_dir)
             
-            cursor = self.connection.cursor()
-            cursor.execute(sql, params)
+            # Connect to SQLite database
+            connection = sqlite3.connect(self.db_path)
+            connection.row_factory = sqlite3.Row  # Enable column access by name
             
-            # Convert SQLite rows to dictionaries
-            rows = cursor.fetchall()
-            result = []
+            # Configure SQLite settings
+            if self.enable_wal_mode:
+                connection.execute("PRAGMA journal_mode=WAL")
             
-            for row in rows:
-                # SQLite3.Row supports dict-like access
-                item = {key: row[key] for key in row.keys()}
-                result.append(item)
+            if self.enable_foreign_keys:
+                connection.execute("PRAGMA foreign_keys=ON")
             
-            if self.verbose:
-                logger.info(f"SQLite query returned {len(result)} rows")
+            # Test connection
+            cursor = connection.cursor()
+            cursor.execute("SELECT sqlite_version()")
+            version = cursor.fetchone()
+            cursor.close()
             
-            return result
+            if version and self.verbose:
+                logger.info(f"SQLite connection successful: {version[0]}")
+            
+            return connection
             
         except Exception as e:
-            logger.error(f"Error executing SQLite query: {str(e)}")
-            logger.error(f"SQL: {sql}, Params: {params}")
-            return []
+            logger.error(f"Failed to connect to SQLite database: {e}")
+            raise
+    
+    def get_test_query(self) -> str:
+        """SQLite test query."""
+        return "SELECT 1 as test"
+    
+    async def _execute_raw_query(self, query: str, params: Optional[Any] = None) -> List[Any]:
+        """Execute SQLite query and return raw results."""
+        cursor = None
+        try:
+            cursor = self.connection.cursor()
+            
+            # Handle parameters
+            if params is None:
+                params = []
+            
+            cursor.execute(query, params)
+            
+            # Handle different query types
+            if query.strip().upper().startswith("SELECT"):
+                results = cursor.fetchall()
+                # Convert SQLite rows to dictionaries
+                return [{key: row[key] for key in row.keys()} for row in results]
+            else:
+                # For non-SELECT queries
+                self.connection.commit()
+                return [{"affected_rows": cursor.rowcount}]
+                
+        except Exception as e:
+            if self.connection:
+                self.connection.rollback()
+            raise
+        finally:
+            if cursor:
+                cursor.close()
+    
+    async def _close_connection(self) -> None:
+        """Close SQLite connection."""
+        if self.connection:
+            self.connection.close()
 
     async def initialize(self) -> None:
-        """
-        Initialize SQLite database and verify structure.
-        """
+        """Initialize SQLite database."""
         try:
-            # Ensure connection is established
             if not self.connection:
-                _ = self.connection  # Trigger lazy loading
-                
-            # Verify database structure
+                self.connection = await self.create_connection()
+            
+            # Verify table structure
             await self._verify_database_structure()
             
             logger.info(f"SQLiteRetriever initialized for database: {self.db_path}")
             
         except Exception as e:
-            logger.error(f"Failed to initialize SQLiteRetriever: {str(e)}")
+            logger.error(f"Failed to initialize SQLiteRetriever: {e}")
             raise
-
-    async def close(self) -> None:
-        """
-        Close SQLite connection and cleanup resources.
-        """
-        try:
-            if hasattr(self, '_connection') and self._connection:
-                self._connection.close()
-                self._connection = None
-                logger.info("SQLite connection closed")
-            elif hasattr(self, '_connection_loader'):
-                if self._connection_loader._instance:
-                    self._connection_loader._instance.close()
-                    self._connection_loader._instance = None
-                    logger.info("SQLite connection closed")
-                
-        except Exception as e:
-            logger.error(f"Error closing SQLite connection: {str(e)}")
-
-    # SQLite-specific helper methods
+    
     async def _verify_database_structure(self) -> None:
-        """Verify that required tables exist in SQLite database."""
+        """Verify required tables exist."""
         try:
-            cursor = self.connection.cursor()
-            
-            # Check if collection table exists (SQLite-specific syntax)
-            cursor.execute(
+            result = await self.execute_query(
                 "SELECT name FROM sqlite_master WHERE type='table' AND name=?", 
-                (self.collection,)
+                [self.collection]
             )
             
-            if not cursor.fetchone():
+            exists = len(result) > 0
+            if not exists:
                 logger.warning(f"Table '{self.collection}' not found in SQLite database")
-                # Optionally create table here
                 
         except Exception as e:
-            logger.error(f"Error verifying SQLite database structure: {str(e)}")
+            logger.error(f"Error verifying SQLite database structure: {e}")
             raise
 
     def _get_search_query(self, query: str, collection_name: str) -> Dict[str, Any]:
-        """
-        Generate SQLite-optimized search query.
+        """Generate SQLite-optimized search query."""
+        # Check if FTS is available (simplified version)
+        use_fts = self.datasource_config.get('use_fts', False)
         
-        SQLite supports FTS (Full-Text Search) which we could leverage here.
-        """
-        # Use parent implementation by default
-        search_config = super()._get_search_query(query, collection_name)
+        if use_fts:
+            query_tokens = self._tokenize_text(query)
+            if query_tokens:
+                # Use SQLite FTS if enabled
+                search_config = {
+                    "sql": f"""
+                        SELECT * FROM {collection_name}_fts 
+                        WHERE {collection_name}_fts MATCH ?
+                        ORDER BY rank
+                        LIMIT ?
+                    """,
+                    "params": [query, self.max_results],
+                    "fields": self.default_search_fields
+                }
+                
+                if self.verbose:
+                    logger.info("Using SQLite FTS search")
+                
+                return search_config
         
-        # SQLite-specific optimizations could be added here:
-        # - Use FTS5 if available
-        # - Use SQLite's LIKE with proper indexing
-        # - Leverage SQLite's JSON functions if storing JSON data
-        
-        return search_config
+        # Fallback to parent implementation
+        return super()._get_search_query(query, collection_name)
 
 
 # Register SQLite retriever with factory

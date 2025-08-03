@@ -13,9 +13,14 @@ adapters:
       max_results: 5
       return_results: 3
       
-      # Adapter granularity strategy settings
-      query_timeout: 5000
+      # Unified retriever features (available for all SQL adapters)
+      use_connection_pool: false  # SQLite doesn't support traditional pooling (file-based)
+      pool_size: 1  # Not applicable for SQLite
+      connection_timeout: 30  # Connection timeout in seconds
+      
+      # Query monitoring (automatically provided by unified base)
       enable_query_monitoring: true
+      query_timeout: 5000  # 5 seconds
       
       # Security and access control (recommended)
       table: "city"  # Specify the exact table for single-table access
@@ -133,6 +138,7 @@ adapters:
       event_handler:
         type: "default"
         
+  # New refactored implementation with unified base classes
   - name: "intent-sql-postgres"
     type: "retriever"
     datasource: "postgres"
@@ -158,7 +164,16 @@ adapters:
       reload_templates_on_start: true  # Whether to reload templates on startup (when using persistent storage)
       force_reload_templates: false  # Force reload even if templates exist in persistent storage
       
-    # Fault tolerance settings
+      # Unified retriever features
+      use_connection_pool: false  # Enable connection pooling
+      pool_size: 5  # Connection pool size
+      connection_timeout: 30  # Connection timeout in seconds
+      
+      # Query monitoring (automatically provided by new base)
+      enable_query_monitoring: true
+      query_timeout: 5000  # 5 seconds
+      
+    # Fault tolerance settings (same as original)
     fault_tolerance:
       operation_timeout: 20.0
       failure_threshold: 5

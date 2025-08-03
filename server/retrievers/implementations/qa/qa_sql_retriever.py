@@ -1,5 +1,6 @@
 """
-QA-specialized SQLite retriever that extends SQLiteRetriever
+QA-specialized SQLite retriever that extends SQLiteRetriever.
+Updated to work with the new BaseSQLDatabaseRetriever architecture.
 """
 
 import logging
@@ -488,4 +489,4 @@ class QASSQLRetriever(SQLiteRetriever):
 
 
 # Register the QA-specialized retriever with the factory
-RetrieverFactory.register_retriever('sql', QASSQLRetriever)
+RetrieverFactory.register_retriever('qa_sql', QASSQLRetriever)

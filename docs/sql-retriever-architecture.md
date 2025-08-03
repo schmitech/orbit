@@ -459,6 +459,43 @@ for retriever in [dev_retriever, prod_retriever]:
     # Process results identically
 ```
 
+## New Base Class Features
+
+### Environment Variable Support
+```yaml
+# config.yaml
+postgresql:
+  host: ${DB_HOST}
+  password: ${DB_PASSWORD}
+  port: ${DB_PORT:5432}  # With default value
+```
+
+### Connection Management
+```python
+# Automatic retry on connection failure
+# Built-in connection pooling support
+# Proper cleanup on close
+```
+
+### Type Conversion
+```python
+# Automatic conversion of database types:
+# - Decimal → float
+# - datetime/date → ISO string  
+# - UUID → string
+# - Binary data → UTF-8 string
+# - Database-specific types → Python types
+```
+
+### Query Monitoring
+```python
+# Automatic logging of:
+# - Slow queries (>5 seconds)
+# - Large result sets (>1000 rows)
+# - Query execution time
+# - Optional result dumping to JSON files
+```
+
 ## Design Principles
 
 **Single Responsibility**: Each class has one clear purpose

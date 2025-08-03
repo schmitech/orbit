@@ -269,6 +269,9 @@ The implementation adds minimal overhead:
 - Query monitoring adds <1ms per query
 - Security filters are applied at SQL level
 - Memory usage is bounded by configuration limits
+- Type conversion is optimized for common types
+- Connection pooling reduces connection overhead
+- Environment variable resolution happens once at startup
 
 ## Future Enhancements
 
@@ -277,6 +280,9 @@ Planned improvements include:
 - Machine learning-based risk assessment
 - Dynamic resource allocation based on usage
 - Integration with database query planners
+- Extended support for NoSQL adapters
+- Advanced caching strategies
+- Real-time performance dashboards
 
 ## Troubleshooting
 

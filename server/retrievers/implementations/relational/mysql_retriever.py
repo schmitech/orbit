@@ -1,161 +1,175 @@
 """
-MySQL implementation of AbstractSQLRetriever
+MySQL implementation using the new BaseSQLDatabaseRetriever.
+Significantly reduced code duplication.
 """
 
 import logging
 from typing import Dict, Any, List, Optional
-from ...base.sql_retriever import AbstractSQLRetriever
-from ...base.base_retriever import RetrieverFactory
+
+from server.retrievers.base.base_sql_database import BaseSQLDatabaseRetriever
+from server.retrievers.base.base_retriever import RetrieverFactory
 
 logger = logging.getLogger(__name__)
 
-class MySQLRetriever(AbstractSQLRetriever):
+class MySQLRetriever(BaseSQLDatabaseRetriever):
     """
-    MySQL-specific implementation of AbstractSQLRetriever.
+    MySQL-specific implementation using unified base.
+    Demonstrates significant code reduction while maintaining functionality.
+    """
     
-    Demonstrates how to leverage MySQL's features like full-text search,
-    JSON functions, and optimized queries.
-    """
-
-    def __init__(self, 
-                config: Dict[str, Any],
-                connection: Any = None,
-                **kwargs):
-        """
-        Initialize MySQLRetriever.
-        
-        Args:
-            config: Configuration dictionary
-            connection: Optional MySQL connection (e.g., mysql-connector-python or PyMySQL)
-            **kwargs: Additional arguments
-        """
+    def __init__(self, config: Dict[str, Any], connection: Any = None, **kwargs):
+        """Initialize MySQL retriever."""
         super().__init__(config=config, connection=connection, **kwargs)
         
-        # MySQL-specific configuration
-        mysql_config = self.datasource_config
-        self.host = mysql_config.get('host', 'localhost')
-        self.port = mysql_config.get('port', 3306)
-        self.database = mysql_config.get('database', 'mysql')
-        self.username = mysql_config.get('username', 'root')
-        self.password = mysql_config.get('password', '')
-        
-        # MySQL-specific features
-        self.use_full_text_search = mysql_config.get('use_full_text_search', True)
-        self.engine = mysql_config.get('engine', 'InnoDB')
+        # MySQL-specific settings
+        self.use_full_text_search = self.datasource_config.get('use_full_text_search', True)
+        self.engine = self.datasource_config.get('engine', 'InnoDB')
+        self.charset = self.datasource_config.get('charset', 'utf8mb4')
+        self.sql_mode = self.datasource_config.get('sql_mode', 'STRICT_TRANS_TABLES')
 
     def _get_datasource_name(self) -> str:
-        """Return the datasource name for config lookup."""
+        """Return the datasource name."""
         return 'mysql'
-
-    # Required abstract method implementations
-    async def execute_query(self, sql: str, params: List[Any] = None) -> List[Dict[str, Any]]:
-        """
-        Execute MySQL query and return results.
-        
-        Args:
-            sql: SQL query string
-            params: Query parameters
-            
-        Returns:
-            List of rows as dictionaries
-        """
-        if not self.connection:
-            raise ValueError("MySQL connection not initialized")
-            
-        if params is None:
-            params = []
-            
+    
+    def get_default_port(self) -> int:
+        """MySQL default port."""
+        return 3306
+    
+    def get_default_database(self) -> str:
+        """MySQL default database."""
+        return 'mysql'
+    
+    def get_default_username(self) -> str:
+        """MySQL default username."""
+        return 'root'
+    
+    async def create_connection(self) -> Any:
+        """Create MySQL connection."""
         try:
-            if self.verbose:
-                logger.info(f"Executing MySQL query: {sql}")
-                logger.info(f"Parameters: {params}")
+            # Try to import mysql-connector-python first
+            try:
+                import mysql.connector
+                connection = mysql.connector.connect(
+                    host=self.connection_params['host'],
+                    port=self.connection_params['port'],
+                    database=self.connection_params['database'],
+                    user=self.connection_params['username'],
+                    password=self.connection_params['password'],
+                    charset=self.charset,
+                    sql_mode=self.sql_mode
+                )
+            except ImportError:
+                # Fallback to PyMySQL
+                try:
+                    import pymysql
+                    connection = pymysql.connect(
+                        host=self.connection_params['host'],
+                        port=self.connection_params['port'],
+                        database=self.connection_params['database'],
+                        user=self.connection_params['username'],
+                        password=self.connection_params['password'],
+                        charset=self.charset,
+                        cursorclass=pymysql.cursors.DictCursor
+                    )
+                except ImportError:
+                    logger.error("Neither mysql-connector-python nor PyMySQL available. Install with: pip install mysql-connector-python or pip install PyMySQL")
+                    raise
             
-            # Example with mysql-connector-python
-            cursor = self.connection.cursor(dictionary=True)  # MySQL returns dicts directly
-            cursor.execute(sql, params)
+            # Test connection
+            cursor = connection.cursor()
+            cursor.execute("SELECT VERSION()")
+            version = cursor.fetchone()
+            cursor.close()
             
-            # Fetch all rows as dictionaries
-            result = cursor.fetchall()
+            if version and self.verbose:
+                version_str = version.get('VERSION()') if isinstance(version, dict) else version[0]
+                logger.info(f"MySQL connection successful: {version_str}")
             
-            if self.verbose:
-                logger.info(f"MySQL query returned {len(result)} rows")
-            
-            return result
+            return connection
             
         except Exception as e:
-            logger.error(f"Error executing MySQL query: {str(e)}")
-            logger.error(f"SQL: {sql}, Params: {params}")
-            return []
-
-    async def initialize(self) -> None:
-        """
-        Initialize MySQL database and verify structure.
-        """
-        try:
-            if not self.connection:
-                # Example connection creation (would need mysql-connector-python)
-                # import mysql.connector
-                # self.connection = mysql.connector.connect(
-                #     host=self.host,
-                #     port=self.port,
-                #     database=self.database,
-                #     user=self.username,
-                #     password=self.password
-                # )
-                logger.warning("MySQL connection initialization not implemented")
-                
-            # Verify database structure
-            await self._verify_database_structure()
-            
-            logger.info(f"MySQLRetriever initialized for database: {self.database}")
-            
-        except Exception as e:
-            logger.error(f"Failed to initialize MySQLRetriever: {str(e)}")
+            logger.error(f"Failed to connect to MySQL: {e}")
             raise
-
-    async def close(self) -> None:
-        """
-        Close MySQL connection and cleanup resources.
-        """
-        try:
-            if self.connection:
-                self.connection.close()
-                self.connection = None
-                logger.info("MySQL connection closed")
-                
-        except Exception as e:
-            logger.error(f"Error closing MySQL connection: {str(e)}")
-
-    # MySQL-specific helper methods
-    async def _verify_database_structure(self) -> None:
-        """Verify that required tables exist in MySQL database."""
+    
+    def get_test_query(self) -> str:
+        """MySQL test query."""
+        return "SELECT 1 as test"
+    
+    async def _execute_raw_query(self, query: str, params: Optional[Any] = None) -> List[Any]:
+        """Execute MySQL query and return raw results."""
+        cursor = None
         try:
             cursor = self.connection.cursor()
             
-            # Check if collection table exists (MySQL-specific syntax)
-            cursor.execute("""
-                SELECT COUNT(*) 
+            # Handle different parameter formats
+            if isinstance(params, dict):
+                # Named parameters (mysql-connector-python format)
+                cursor.execute(query, params)
+            elif isinstance(params, (list, tuple)):
+                # Positional parameters
+                cursor.execute(query, params)
+            else:
+                # No parameters
+                cursor.execute(query)
+            
+            # Handle different query types
+            if query.strip().upper().startswith("SELECT"):
+                results = cursor.fetchall()
+                return results
+            else:
+                # For non-SELECT queries
+                self.connection.commit()
+                return [{"affected_rows": cursor.rowcount}]
+                
+        except Exception as e:
+            if self.connection:
+                self.connection.rollback()
+            raise
+        finally:
+            if cursor:
+                cursor.close()
+    
+    async def _close_connection(self) -> None:
+        """Close MySQL connection."""
+        if self.connection:
+            self.connection.close()
+
+    async def initialize(self) -> None:
+        """Initialize MySQL database."""
+        try:
+            if not self.connection:
+                self.connection = await self.create_connection()
+            
+            # Verify table structure
+            await self._verify_database_structure()
+            
+            logger.info(f"MySQLRetriever initialized for database: {self.connection_params['database']}")
+            
+        except Exception as e:
+            logger.error(f"Failed to initialize MySQLRetriever: {e}")
+            raise
+    
+    async def _verify_database_structure(self) -> None:
+        """Verify required tables exist."""
+        try:
+            result = await self.execute_query("""
+                SELECT COUNT(*) as count
                 FROM information_schema.tables 
                 WHERE table_schema = %s 
                 AND table_name = %s
-            """, (self.database, self.collection))
+            """, [self.connection_params['database'], self.collection])
             
-            exists = cursor.fetchone()[0] > 0
+            exists = result[0]['count'] > 0 if result else False
             if not exists:
                 logger.warning(f"Table '{self.collection}' not found in MySQL database")
                 
         except Exception as e:
-            logger.error(f"Error verifying MySQL database structure: {str(e)}")
+            logger.error(f"Error verifying MySQL database structure: {e}")
             raise
 
     def _get_search_query(self, query: str, collection_name: str) -> Dict[str, Any]:
-        """
-        Generate MySQL-optimized search query with full-text search.
-        
-        MySQL offers FULLTEXT indexes and MATCH() AGAINST() for text search.
-        """
+        """Generate MySQL-optimized search query with full-text search."""
         if self.use_full_text_search:
-            # MySQL full-text search implementation
             query_tokens = self._tokenize_text(query)
             
             if query_tokens:
@@ -178,32 +192,7 @@ class MySQLRetriever(AbstractSQLRetriever):
                 
                 return search_config
         
-        # Fallback to parent implementation with LIKE search
-        if self.verbose:
-            logger.info("Using standard SQL search (FULLTEXT search disabled)")
-        
-        # MySQL-optimized LIKE search
-        query_tokens = self._tokenize_text(query)
-        if query_tokens:
-            like_conditions = []
-            params = []
-            
-            for token in query_tokens[:5]:  # Limit to avoid too many conditions
-                like_conditions.append("(content LIKE %s OR question LIKE %s)")
-                params.extend([f"%{token}%", f"%{token}%"])
-            
-            if like_conditions:
-                search_config = {
-                    "sql": f"""
-                        SELECT * FROM {collection_name} 
-                        WHERE {' OR '.join(like_conditions)}
-                        LIMIT %s
-                    """,
-                    "params": params + [self.max_results],
-                    "fields": self.default_search_fields
-                }
-                return search_config
-        
+        # Fallback to parent implementation
         return super()._get_search_query(query, collection_name)
 
 

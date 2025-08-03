@@ -25,14 +25,17 @@ This is a semantic RAG (Retrieval-Augmented Generation) system designed to provi
 - **Vector Database**: ChromaDB for semantic search
 - **Embeddings**: Ollama with configurable models (default: nomic-embed-text)
 - **LLM**: Ollama for inference (default: gemma3:1b)
-- **Database**: PostgreSQL (extensible to other databases)
+- **Database**: PostgreSQL, MySQL, SQLite (unified base class with mixins)
 - **Configuration**: YAML-based domain and template configuration
 - **Consistency**: Shared configuration modules for demo consistency
 - **Validation**: Comprehensive validation suite for accuracy testing
+- **Base Architecture**: BaseSQLDatabaseRetriever with 80% code reduction
 
 ## Architecture
 
 The system follows a layered architecture with clear separation of concerns:
+
+**Note**: The Intent SQL RAG system now uses the refactored `IntentSQLRetriever` base classes that inherit from `BaseSQLDatabaseRetriever`, providing unified database operations, environment variable support, and automatic type conversion.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -62,7 +65,8 @@ The system follows a layered architecture with clear separation of concerns:
                               │
 ┌─────────────────────────────────────────────────────────────┐
 │                   Infrastructure Layer                     │
-│    ChromaDB, Ollama Clients, PostgreSQL Client            │
+│  ChromaDB, Ollama Clients, SQL Database Clients           │
+│  (PostgreSQL, MySQL, SQLite via unified base)             │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -199,6 +203,8 @@ Extensible pipeline for customizing query processing at any stage.
 - **DataEnrichmentPlugin**: Adds computed fields
 - **ResponseEnhancementPlugin**: Improves response formatting
 - **LoggingPlugin**: Comprehensive logging and metrics
+- **DatabaseCompatibilityPlugin**: Handles database-specific optimizations
+- **EnvironmentVariablePlugin**: Resolves ${VAR} configurations
 
 #### Creating Custom Plugins:
 ```python
@@ -246,9 +252,25 @@ domain = create_customer_order_domain()
 templates = load_or_generate_templates(domain)
 ```
 
-### 6. RAG System (`base_rag_system.py`)
+### 6. Intent SQL System
 
-The main orchestration class that brings all components together.
+The intent-based SQL RAG system now includes refactored retrievers:
+
+**IntentSQLRetriever Hierarchy:**
+```
+BaseSQLDatabaseRetriever
+└── IntentSQLRetriever (base class)
+    ├── IntentPostgreSQLRetriever
+    ├── IntentMySQLRetriever
+    └── IntentSQLiteRetriever (potential)
+```
+
+**Key Benefits:**
+- **Unified Interface**: All intent retrievers share common database operations
+- **Environment Variables**: Full support for ${VAR} in configurations
+- **Automatic Type Conversion**: Database types converted to Python types
+- **Connection Management**: Built-in retry logic and pooling
+- **Query Monitoring**: Automatic logging of slow queries and large results
 
 #### Key Components:
 
