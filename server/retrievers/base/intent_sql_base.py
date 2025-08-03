@@ -11,10 +11,10 @@ from typing import Dict, Any, List, Optional, Tuple
 from abc import abstractmethod
 
 from .base_sql_database import BaseSQLDatabaseRetriever
-from server.retrievers.adapters.intent.intent_adapter import IntentAdapter
-from server.retrievers.implementations.intent.domain_aware_extractor import DomainAwareParameterExtractor
-from server.retrievers.implementations.intent.domain_aware_response_generator import DomainAwareResponseGenerator
-from server.retrievers.implementations.intent.template_reranker import TemplateReranker
+from retrievers.adapters.intent.intent_adapter import IntentAdapter
+from retrievers.implementations.intent.domain_aware_extractor import DomainAwareParameterExtractor
+from retrievers.implementations.intent.domain_aware_response_generator import DomainAwareResponseGenerator
+from retrievers.implementations.intent.template_reranker import TemplateReranker
 
 logger = logging.getLogger(__name__)
 

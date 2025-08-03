@@ -134,7 +134,7 @@ class TestIntentPostgreSQLRetriever:
         with patch('embeddings.base.EmbeddingServiceFactory') as mock_embed_factory:
             with patch('inference.pipeline.providers.provider_factory.ProviderFactory') as mock_inf_factory:
                 with patch('chromadb.Client') as mock_chroma_client:
-                    with patch.object(retriever, '_create_database_connection') as mock_conn_create:
+                    with patch.object(retriever, 'create_connection') as mock_conn_create:
                         # Setup mocks
                         mock_embed_factory.create_embedding_service.return_value = mock_embedding_client
                         mock_inf_factory.create_provider.return_value = mock_inference_client

@@ -248,6 +248,7 @@ class TestTemplateReranker:
     def sample_domain_config(self):
         """Sample domain configuration"""
         return {
+            "domain_name": "E-Commerce",
             "vocabulary": {
                 "entity_synonyms": {
                     "customer": ["client", "buyer", "user"]
@@ -292,6 +293,8 @@ class TestTemplateReranker:
         """Test reranker initialization"""
         reranker = TemplateReranker(sample_domain_config)
         assert reranker.domain_config == sample_domain_config
+        assert reranker.domain_name == "e-commerce"
+        assert reranker.domain_strategy is not None  # Should load CustomerOrderStrategy
     
     def test_rerank_templates(self, sample_domain_config, sample_templates):
         """Test template reranking with boosts"""
@@ -304,6 +307,51 @@ class TestTemplateReranker:
         customer_template = next(t for t in reranked if t['template']['id'] == 'find_customer')
         assert customer_template['similarity'] > 0.6  # Should be boosted
         assert 'boost_applied' in customer_template
+    
+    def test_rerank_templates_customer_name_vs_city(self, sample_domain_config):
+        """Test domain-specific customer name vs city disambiguation"""
+        import copy
+        
+        # Create templates with deep copy to avoid mutation issues
+        templates_original = [
+            {
+                "template": {
+                    "id": "find_by_customer_name",
+                    "semantic_tags": {"primary_entity": "customer"},
+                    "tags": ["name"]
+                },
+                "similarity": 0.5
+            },
+            {
+                "template": {
+                    "id": "find_by_customer_city",
+                    "semantic_tags": {"primary_entity": "customer"},
+                    "tags": ["city"]
+                },
+                "similarity": 0.5
+            }
+        ]
+        
+        reranker = TemplateReranker(sample_domain_config)
+        
+        # Debug: Check if domain strategy was loaded
+        assert reranker.domain_strategy is not None, "Domain strategy should be loaded for E-Commerce domain"
+        
+        # Test with person name pattern
+        templates = copy.deepcopy(templates_original)
+        reranked = reranker.rerank_templates(templates, "find orders from John Smith")
+        name_template = next(t for t in reranked if 'customer_name' in t['template']['id'])
+        city_template = next(t for t in reranked if 'customer_city' in t['template']['id'])
+        assert name_template['similarity'] > city_template['similarity'], \
+            f"Expected name template ({name_template['similarity']}) > city template ({city_template['similarity']})"
+        
+        # Test with city pattern
+        templates = copy.deepcopy(templates_original)
+        reranked = reranker.rerank_templates(templates, "find customers in New York")
+        name_template = next(t for t in reranked if 'customer_name' in t['template']['id'])
+        city_template = next(t for t in reranked if 'customer_city' in t['template']['id'])
+        assert city_template['similarity'] > name_template['similarity'], \
+            f"Expected city template ({city_template['similarity']}) > name template ({name_template['similarity']})"
     
     def test_entity_boost_calculation(self, sample_domain_config):
         """Test entity boost calculation"""
@@ -336,6 +384,32 @@ class TestTemplateReranker:
         # No overlap
         sim = reranker._calculate_text_similarity("hello", "goodbye")
         assert sim == 0
+    
+    def test_reranker_without_domain_strategy(self):
+        """Test reranker with no domain-specific strategy"""
+        config = {
+            "domain_name": "unknown_domain",
+            "vocabulary": {
+                "entity_synonyms": {},
+                "action_verbs": {}
+            }
+        }
+        
+        reranker = TemplateReranker(config)
+        assert reranker.domain_strategy is None  # No strategy for unknown domain
+        
+        # Should still work with generic reranking
+        templates = [{
+            "template": {
+                "id": "test",
+                "semantic_tags": {"primary_entity": "test"},
+                "tags": ["test"]
+            },
+            "similarity": 0.5
+        }]
+        
+        reranked = reranker.rerank_templates(templates, "test query")
+        assert len(reranked) == 1
 
 
 class TestIntentPluginSystem:

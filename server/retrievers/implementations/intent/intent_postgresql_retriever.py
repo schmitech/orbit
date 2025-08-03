@@ -8,8 +8,8 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 from typing import Dict, Any, List, Optional
 
-from server.retrievers.base.intent_sql_base import IntentSQLRetriever
-from server.retrievers.base.base_retriever import RetrieverFactory
+from retrievers.base.intent_sql_base import IntentSQLRetriever
+from retrievers.base.base_retriever import RetrieverFactory
 
 logger = logging.getLogger(__name__)
 

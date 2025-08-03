@@ -6,8 +6,8 @@ Significantly reduced code duplication.
 import logging
 from typing import Dict, Any, List, Optional
 
-from server.retrievers.base.base_sql_database import BaseSQLDatabaseRetriever
-from server.retrievers.base.base_retriever import RetrieverFactory
+from retrievers.base.base_sql_database import BaseSQLDatabaseRetriever
+from retrievers.base.base_retriever import RetrieverFactory
 
 logger = logging.getLogger(__name__)
 

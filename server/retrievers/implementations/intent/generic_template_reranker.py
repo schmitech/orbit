@@ -1,30 +1,33 @@
 """
-Template reranking system for Intent retriever using domain-specific rules
+Generic template reranking system with pluggable domain strategies
 """
 
 import logging
 from typing import Dict, List, Any, Optional
-from .domain_strategies.registry import DomainStrategyRegistry
+from .reranking_strategies import RerankingStrategy, RerankingStrategyFactory
 
 logger = logging.getLogger(__name__)
 
 
-class TemplateReranker:
-    """Rerank templates using domain-specific rules and vocabulary"""
+class GenericTemplateReranker:
+    """Generic template reranker that uses domain-specific strategies"""
     
     def __init__(self, domain_config: Optional[Dict[str, Any]] = None):
         self.domain_config = domain_config or {}
         self.domain_name = self.domain_config.get('domain_name', '').lower()
         
-        # Get domain-specific strategy if available
+        # Create domain-specific strategy if available
         self.domain_strategy = None
         if self.domain_name:
-            self.domain_strategy = DomainStrategyRegistry.get_strategy(self.domain_name)
-            if not self.domain_strategy:
-                logger.info(f"No specific strategy for domain '{self.domain_name}', using generic reranking only")
+            try:
+                self.domain_strategy = RerankingStrategyFactory.create_strategy(
+                    self.domain_name, self.domain_config
+                )
+            except ValueError:
+                logger.warning(f"No specific strategy for domain '{self.domain_name}', using generic reranking only")
     
     def rerank_templates(self, templates: List[Dict], user_query: str) -> List[Dict]:
-        """Rerank templates using domain-specific rules and generic rules"""
+        """Rerank templates using generic rules and optional domain-specific strategy"""
         query_lower = user_query.lower()
         
         for template_info in templates:
@@ -33,9 +36,7 @@ class TemplateReranker:
             
             # Apply domain-specific boosting if available
             if self.domain_strategy:
-                boost += self.domain_strategy.calculate_domain_boost(
-                    template_info, user_query, self.domain_config
-                )
+                boost += self.domain_strategy.calculate_boost(template_info, user_query)
             
             # Apply generic boosting rules
             boost += self._calculate_generic_boost(template, query_lower)
@@ -157,9 +158,6 @@ class TemplateReranker:
             if semantic_tags:
                 lines.append(f"   Entity: {semantic_tags.get('primary_entity', 'N/A')}")
                 lines.append(f"   Action: {semantic_tags.get('action', 'N/A')}")
-            
-            if self.domain_strategy and self.domain_name:
-                lines.append(f"   Domain Strategy: {self.domain_strategy.__class__.__name__}")
             
             lines.append("")
         

@@ -13,7 +13,7 @@ import uuid
 from abc import abstractmethod
 from pathlib import Path
 
-from server.retrievers.base.sql_retriever import AbstractSQLRetriever
+from retrievers.base.sql_retriever import AbstractSQLRetriever
 
 logger = logging.getLogger(__name__)
 
