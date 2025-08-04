@@ -296,6 +296,36 @@ class BaseSQLDatabaseRetriever(AbstractSQLRetriever, SQLConnectionMixin, SQLType
             return results
             
         except Exception as e:
+            error_msg = str(e).lower()
+            # Check if this is a connection closed error
+            if 'connection' in error_msg and ('closed' in error_msg or 'lost' in error_msg or 'broken' in error_msg):
+                logger.warning(f"Connection appears to be closed, attempting to reconnect...")
+                try:
+                    # Close the existing connection properly
+                    if self.connection:
+                        try:
+                            await self._close_connection()
+                        except:
+                            pass
+                        self.connection = None
+                    
+                    # Create a new connection
+                    self.connection = await self.create_connection()
+                    logger.info(f"Reconnected to {self._get_datasource_name()} successfully")
+                    
+                    # Retry the query with the new connection
+                    raw_results = await self._execute_raw_query(query, params)
+                    results = [self.convert_row_types(row) for row in raw_results]
+                    
+                    if self.verbose:
+                        logger.info(f"Query retry successful, returned {len(results)} rows")
+                    
+                    return results
+                    
+                except Exception as reconnect_error:
+                    logger.error(f"Failed to reconnect to {self._get_datasource_name()}: {reconnect_error}")
+                    raise
+            
             logger.error(f"Error executing {self._get_datasource_name()} query: {e}")
             logger.error(f"SQL: {query}, Params: {params}")
             raise

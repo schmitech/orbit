@@ -326,7 +326,8 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
                     parameters = await self.parameter_extractor.extract_parameters(query, template)
                     is_valid, validation_errors = self.parameter_extractor.validate_parameters(parameters, template)
                     if not is_valid:
-                        logger.warning(f"Parameter validation failed: {validation_errors}")
+                        if self.verbose:
+                            logger.debug(f"Parameter validation failed for template {template.get('id')}: {validation_errors}")
                         continue
                 else:
                     parameters = await self._extract_parameters(query, template)
@@ -335,7 +336,8 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
                 results, error = await self._execute_template(template, parameters)
                 
                 if error:
-                    logger.warning(f"Template execution failed: {error}")
+                    if self.verbose:
+                        logger.debug(f"Template {template.get('id')} execution failed: {error}")
                     continue
                 
                 # Generate response

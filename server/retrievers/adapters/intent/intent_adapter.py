@@ -4,7 +4,7 @@ Intent adapter for SQL datasources that translates natural language queries to S
 
 import yaml
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Union
 import os
 from pathlib import Path
 
@@ -27,7 +27,7 @@ class IntentAdapter(DocumentAdapter):
     
     def __init__(self, 
                  domain_config_path: Optional[str] = None,
-                 template_library_path: Optional[str] = None,
+                 template_library_path: Optional[Union[str, List[str]]] = None,
                  confidence_threshold: float = 0.75,
                  verbose: bool = False,
                  config: Dict[str, Any] = None,
@@ -61,7 +61,11 @@ class IntentAdapter(DocumentAdapter):
         if domain_config_path:
             self.domain_config = self._load_yaml_config(domain_config_path, "domain configuration")
         if template_library_path:
-            self.template_library = self._load_yaml_config(template_library_path, "template library")
+            # Support both single path and list of paths
+            if isinstance(template_library_path, list):
+                self.template_library = self._load_multiple_template_libraries(template_library_path)
+            else:
+                self.template_library = self._load_yaml_config(template_library_path, "template library")
             
         logger.info(f"IntentAdapter initialized with confidence_threshold={confidence_threshold}")
         if self.domain_config:
@@ -105,6 +109,36 @@ class IntentAdapter(DocumentAdapter):
         except Exception as e:
             logger.error(f"Error loading {config_type}: {str(e)}")
             return None
+    
+    def _load_multiple_template_libraries(self, paths: List[str]) -> Dict[str, Any]:
+        """
+        Load and merge multiple template library files.
+        
+        Args:
+            paths: List of paths to template library files
+            
+        Returns:
+            Merged template library dictionary
+        """
+        merged_library = {"templates": []}
+        total_loaded = 0
+        
+        for path in paths:
+            library = self._load_yaml_config(path, f"template library from {path}")
+            if library and "templates" in library:
+                templates = library["templates"]
+                # Handle both list and dict formats
+                if isinstance(templates, list):
+                    merged_library["templates"].extend(templates)
+                    total_loaded += len(templates)
+                elif isinstance(templates, dict):
+                    # Convert dict to list format
+                    for template in templates.values():
+                        merged_library["templates"].append(template)
+                        total_loaded += 1
+                    
+        logger.info(f"Loaded {total_loaded} total SQL templates from {len(paths)} files")
+        return merged_library
     
     def get_domain_config(self) -> Optional[Dict[str, Any]]:
         """Get the loaded domain configuration."""

@@ -1,0 +1,475 @@
+templates:
+  # Cohort and Customer Behavior Analysis
+  - id: customer_retention_analysis
+    version: "1.0.0"
+    description: "Analyze customer retention and repeat purchase behavior"
+    nl_examples:
+      - "How many customers come back to buy again?"
+      - "What's our customer retention rate?"
+      - "Show me repeat customer statistics"
+      - "Customer retention analysis"
+      - "How many customers make a second purchase?"
+      - "Repeat purchase behavior"
+    parameters:
+      - name: days_back
+        type: integer
+        description: "Period to analyze"
+        required: false
+        default: 365
+    sql_template: |
+      WITH customer_order_timeline AS (
+        SELECT 
+          customer_id,
+          MIN(order_date) as first_order,
+          MAX(order_date) as last_order,
+          COUNT(*) as total_orders
+        FROM orders 
+        WHERE order_date >= CURRENT_DATE - INTERVAL '%(days_back)s days'
+          AND status != 'cancelled'
+        GROUP BY customer_id
+      ),
+      retention_stats AS (
+        SELECT 
+          CASE 
+            WHEN total_orders = 1 THEN 'One-time customers'
+            WHEN total_orders = 2 THEN 'Two-time customers'
+            WHEN total_orders BETWEEN 3 AND 5 THEN 'Regular customers (3-5 orders)'
+            WHEN total_orders BETWEEN 6 AND 10 THEN 'Loyal customers (6-10 orders)'
+            ELSE 'VIP customers (10+ orders)'
+          END as customer_type,
+          COUNT(*) as customer_count,
+          AVG(total_orders) as avg_orders_per_customer,
+          AVG(last_order - first_order) as avg_customer_lifespan_days
+        FROM customer_order_timeline
+        GROUP BY 
+          CASE 
+            WHEN total_orders = 1 THEN 'One-time customers'
+            WHEN total_orders = 2 THEN 'Two-time customers'
+            WHEN total_orders BETWEEN 3 AND 5 THEN 'Regular customers (3-5 orders)'
+            WHEN total_orders BETWEEN 6 AND 10 THEN 'Loyal customers (6-10 orders)'
+            ELSE 'VIP customers (10+ orders)'
+          END
+      )
+      SELECT 
+        customer_type,
+        customer_count,
+        ROUND(customer_count * 100.0 / SUM(customer_count) OVER(), 2) as percentage,
+        ROUND(avg_orders_per_customer, 1) as avg_orders,
+        ROUND(avg_customer_lifespan_days, 0) as avg_lifespan_days
+      FROM retention_stats
+      ORDER BY customer_count DESC
+    result_format: "table"
+    tags: ["retention", "repeat", "customers", "comeback", "loyalty", "behavior"]
+    semantic_tags:
+      action: "analyze_retention"
+      primary_entity: "customer"
+      qualifiers: ["retention", "repeat_behavior"]
+    approved: true
+
+  - id: customer_churn_risk_analysis
+    version: "1.0.0"
+    description: "Identify customers at risk of churning based on order patterns"
+    nl_examples:
+      - "Which customers might stop buying?"
+      - "Show me customers at risk of leaving"
+      - "Customer churn risk analysis"
+      - "Who hasn't ordered in a while?"
+      - "Identify at-risk customers"
+      - "Customers likely to churn"
+    parameters:
+      - name: warning_days
+        type: integer
+        description: "Days since last order to consider at risk"
+        required: false
+        default: 60
+      - name: high_risk_days
+        type: integer
+        description: "Days since last order to consider high risk"
+        required: false
+        default: 120
+    sql_template: |
+      WITH customer_activity AS (
+        SELECT 
+          c.id,
+          c.name,
+          c.email,
+          c.city,
+          c.country,
+          COUNT(o.id) as total_orders,
+          SUM(o.total) as total_spent,
+          MAX(o.order_date) as last_order_date,
+          CURRENT_DATE - MAX(o.order_date) as days_since_last_order,
+          AVG(o.total) as avg_order_value
+        FROM customers c
+        LEFT JOIN orders o ON c.id = o.customer_id AND o.status != 'cancelled'
+        GROUP BY c.id, c.name, c.email, c.city, c.country
+        HAVING COUNT(o.id) > 0
+      )
+      SELECT 
+        id as customer_id,
+        name as customer_name,
+        email,
+        city,
+        country,
+        total_orders,
+        ROUND(total_spent, 2) as total_spent,
+        last_order_date,
+        days_since_last_order,
+        ROUND(avg_order_value, 2) as avg_order_value,
+        CASE 
+          WHEN days_since_last_order >= %(high_risk_days)s THEN 'High Risk'
+          WHEN days_since_last_order >= %(warning_days)s THEN 'At Risk'
+          ELSE 'Active'
+        END as churn_risk_level
+      FROM customer_activity
+      WHERE days_since_last_order >= %(warning_days)s
+      ORDER BY total_spent DESC, days_since_last_order DESC
+    result_format: "table"
+    tags: ["churn", "risk", "leaving", "stop", "buying", "at-risk", "customers"]
+    semantic_tags:
+      action: "identify_risks"
+      primary_entity: "customer"
+      qualifiers: ["churn_risk", "at_risk"]
+    approved: true
+
+  - id: purchase_pattern_analysis
+    version: "1.0.0"
+    description: "Analyze customer purchase patterns and buying habits"
+    nl_examples:
+      - "What are our customers' buying patterns?"
+      - "How often do customers typically order?"
+      - "Customer purchase behavior analysis"
+      - "Show me buying habits"
+      - "Purchase pattern insights"
+      - "Customer ordering behavior"
+    parameters:
+      - name: days_back
+        type: integer
+        description: "Period to analyze"
+        required: false
+        default: 180
+    sql_template: |
+      WITH customer_patterns AS (
+        SELECT 
+          customer_id,
+          COUNT(*) as order_count,
+          AVG(total) as avg_order_value,
+          MIN(order_date) as first_order,
+          MAX(order_date) as last_order,
+          MAX(order_date) - MIN(order_date) as customer_lifespan,
+          CASE 
+            WHEN COUNT(*) = 1 THEN 0
+            ELSE (MAX(order_date) - MIN(order_date)) / (COUNT(*) - 1)
+          END as avg_days_between_orders
+        FROM orders
+        WHERE order_date >= CURRENT_DATE - INTERVAL '%(days_back)s days'
+          AND status != 'cancelled'
+        GROUP BY customer_id
+        HAVING COUNT(*) >= 2
+      )
+      SELECT 
+        CASE 
+          WHEN avg_days_between_orders <= 7 THEN 'Weekly buyers (≤7 days)'
+          WHEN avg_days_between_orders <= 30 THEN 'Monthly buyers (8-30 days)'
+          WHEN avg_days_between_orders <= 60 THEN 'Bi-monthly buyers (31-60 days)'
+          WHEN avg_days_between_orders <= 90 THEN 'Quarterly buyers (61-90 days)'
+          ELSE 'Infrequent buyers (>90 days)'
+        END as purchase_pattern,
+        COUNT(*) as customer_count,
+        ROUND(AVG(avg_days_between_orders), 1) as avg_days_between_orders,
+        ROUND(AVG(avg_order_value), 2) as avg_order_value,
+        ROUND(AVG(order_count), 1) as avg_orders_per_customer
+      FROM customer_patterns
+      GROUP BY 
+        CASE 
+          WHEN avg_days_between_orders <= 7 THEN 'Weekly buyers (≤7 days)'
+          WHEN avg_days_between_orders <= 30 THEN 'Monthly buyers (8-30 days)'
+          WHEN avg_days_between_orders <= 60 THEN 'Bi-monthly buyers (31-60 days)'
+          WHEN avg_days_between_orders <= 90 THEN 'Quarterly buyers (61-90 days)'
+          ELSE 'Infrequent buyers (>90 days)'
+        END
+      ORDER BY avg_days_between_orders
+    result_format: "table"
+    tags: ["purchase", "patterns", "buying", "habits", "behavior", "often", "typically"]
+    semantic_tags:
+      action: "analyze_patterns"
+      primary_entity: "customer"
+      qualifiers: ["purchase_patterns", "buying_habits"]
+    approved: true
+
+  - id: order_value_distribution_analysis
+    version: "1.0.0"
+    description: "Analyze the distribution of order values and identify patterns"
+    nl_examples:
+      - "What's the distribution of our order values?"
+      - "How are order amounts spread out?"
+      - "Order value analysis"
+      - "Show me order size patterns"
+      - "Order amount distribution"
+      - "What are our typical order sizes?"
+    parameters:
+      - name: days_back
+        type: integer
+        description: "Period to analyze"
+        required: false
+        default: 90
+    sql_template: |
+      WITH order_stats AS (
+        SELECT 
+          total,
+          NTILE(10) OVER (ORDER BY total) as decile
+        FROM orders 
+        WHERE order_date >= CURRENT_DATE - INTERVAL '%(days_back)s days'
+          AND status != 'cancelled'
+      )
+      SELECT 
+        CASE 
+          WHEN total < 25 THEN 'Micro ($0-$24)'
+          WHEN total < 50 THEN 'Small ($25-$49)'
+          WHEN total < 100 THEN 'Medium ($50-$99)'
+          WHEN total < 250 THEN 'Large ($100-$249)'
+          WHEN total < 500 THEN 'XL ($250-$499)'
+          WHEN total < 1000 THEN 'Premium ($500-$999)'
+          ELSE 'Luxury ($1000+)'
+        END as order_size_category,
+        COUNT(*) as order_count,
+        ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 2) as percentage,
+        ROUND(MIN(total), 2) as min_value,
+        ROUND(MAX(total), 2) as max_value,
+        ROUND(AVG(total), 2) as avg_value,
+        SUM(total) as total_revenue
+      FROM order_stats
+      GROUP BY 
+        CASE 
+          WHEN total < 25 THEN 'Micro ($0-$24)'
+          WHEN total < 50 THEN 'Small ($25-$49)'
+          WHEN total < 100 THEN 'Medium ($50-$99)'
+          WHEN total < 250 THEN 'Large ($100-$249)'
+          WHEN total < 500 THEN 'XL ($250-$499)'
+          WHEN total < 1000 THEN 'Premium ($500-$999)'
+          ELSE 'Luxury ($1000+)'
+        END
+      ORDER BY MIN(total)
+    result_format: "table"
+    tags: ["order", "value", "distribution", "amounts", "spread", "sizes", "typical", "patterns"]
+    semantic_tags:
+      action: "analyze_distribution"
+      primary_entity: "order"
+      qualifiers: ["value_distribution", "size_patterns"]
+    approved: true
+
+  - id: geographical_sales_analysis
+    version: "1.0.0"
+    description: "Comprehensive geographical analysis of sales performance"
+    nl_examples:
+      - "How do sales vary by location?"
+      - "Geographical sales performance"
+      - "Sales by region analysis"
+      - "Which locations perform best?"
+      - "Geographic revenue breakdown"
+      - "Sales performance by country and city"
+    parameters:
+      - name: days_back
+        type: integer
+        description: "Period to analyze"
+        required: false
+        default: 180
+      - name: min_orders
+        type: integer
+        description: "Minimum orders required to include location"
+        required: false
+        default: 5
+    sql_template: |
+      SELECT 
+        c.country,
+        c.city,
+        COUNT(o.id) as total_orders,
+        SUM(o.total) as total_revenue,
+        AVG(o.total) as avg_order_value,
+        COUNT(DISTINCT o.customer_id) as unique_customers,
+        ROUND(AVG(o.total), 2) as avg_order_size,
+        ROUND(SUM(o.total) / COUNT(DISTINCT o.customer_id), 2) as revenue_per_customer,
+        RANK() OVER (ORDER BY SUM(o.total) DESC) as revenue_rank
+      FROM customers c
+      JOIN orders o ON c.id = o.customer_id
+      WHERE o.order_date >= CURRENT_DATE - INTERVAL '%(days_back)s days'
+        AND o.status != 'cancelled'
+        AND c.country IS NOT NULL
+        AND c.city IS NOT NULL
+      GROUP BY c.country, c.city
+      HAVING COUNT(o.id) >= %(min_orders)s
+      ORDER BY total_revenue DESC
+      LIMIT 50
+    result_format: "table"
+    tags: ["geographical", "location", "region", "country", "city", "performance", "vary"]
+    semantic_tags:
+      action: "analyze_geography"
+      primary_entity: "sales"
+      qualifiers: ["geographical", "regional"]
+    approved: true
+
+  - id: customer_acquisition_analysis
+    version: "1.0.0"
+    description: "Analyze customer acquisition trends and new customer behavior"
+    nl_examples:
+      - "How many new customers are we getting?"
+      - "Customer acquisition trends"
+      - "New customer analysis"
+      - "Show me customer growth"
+      - "How fast are we acquiring customers?"
+      - "New customer acquisition rate"
+    parameters:
+      - name: period
+        type: string
+        description: "Time period grouping"
+        required: false
+        default: "monthly"
+        allowed_values: ["weekly", "monthly"]
+      - name: days_back
+        type: integer
+        description: "Period to analyze"
+        required: false
+        default: 365
+    sql_template: |
+      WITH new_customers AS (
+        SELECT 
+          c.id,
+          c.name,
+          c.created_at as registration_date,
+          MIN(o.order_date) as first_order_date,
+          COUNT(o.id) as orders_in_period,
+          COALESCE(SUM(o.total), 0) as total_spent
+        FROM customers c
+        LEFT JOIN orders o ON c.id = o.customer_id 
+          AND o.status != 'cancelled'
+          AND o.order_date <= c.created_at + INTERVAL '30 days'
+        WHERE c.created_at >= CURRENT_DATE - INTERVAL '%(days_back)s days'
+        GROUP BY c.id, c.name, c.created_at
+      )
+      SELECT 
+        CASE 
+          WHEN %(period)s = 'weekly' THEN TO_CHAR(DATE_TRUNC('week', registration_date), 'YYYY-MM-DD')
+          ELSE TO_CHAR(DATE_TRUNC('month', registration_date), 'YYYY-MM')
+        END as time_period,
+        COUNT(*) as new_customers,
+        COUNT(CASE WHEN orders_in_period > 0 THEN 1 END) as customers_who_purchased,
+        ROUND(COUNT(CASE WHEN orders_in_period > 0 THEN 1 END) * 100.0 / COUNT(*), 2) as conversion_rate,
+        ROUND(AVG(total_spent), 2) as avg_first_month_spending,
+        SUM(total_spent) as total_new_customer_revenue
+      FROM new_customers
+      GROUP BY 
+        CASE 
+          WHEN %(period)s = 'weekly' THEN TO_CHAR(DATE_TRUNC('week', registration_date), 'YYYY-MM-DD')
+          ELSE TO_CHAR(DATE_TRUNC('month', registration_date), 'YYYY-MM')
+        END
+      ORDER BY time_period
+    result_format: "table"
+    tags: ["acquisition", "new", "customers", "getting", "trends", "growth", "acquiring", "rate"]
+    semantic_tags:
+      action: "analyze_acquisition"
+      primary_entity: "customer"
+      qualifiers: ["acquisition", "new_customers"]
+    approved: true
+
+  - id: order_time_analysis
+    version: "1.0.0"
+    description: "Analyze when orders are placed throughout the day and week"
+    nl_examples:
+      - "What time of day do people order most?"
+      - "When are orders typically placed?"
+      - "Order timing analysis"
+      - "Peak ordering hours"
+      - "What hours are busiest for orders?"
+      - "Daily order patterns"
+    parameters:
+      - name: days_back
+        type: integer
+        description: "Period to analyze"
+        required: false
+        default: 90
+    sql_template: |
+      SELECT 
+        EXTRACT(HOUR FROM order_date) as hour_of_day,
+        TO_CHAR(order_date, 'Day') as day_of_week,
+        COUNT(*) as order_count,
+        SUM(total) as total_revenue,
+        AVG(total) as avg_order_value,
+        ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 2) as percentage_of_orders
+      FROM orders
+      WHERE order_date >= CURRENT_DATE - INTERVAL '%(days_back)s days'
+        AND status != 'cancelled'
+      GROUP BY EXTRACT(HOUR FROM order_date), TO_CHAR(order_date, 'Day')
+      ORDER BY order_count DESC
+    result_format: "table"
+    tags: ["time", "day", "hour", "when", "placed", "timing", "peak", "busiest", "patterns"]
+    semantic_tags:
+      action: "analyze_timing"
+      primary_entity: "order"
+      qualifiers: ["time_patterns", "peak_hours"]
+    approved: true
+
+  - id: customer_value_percentiles
+    version: "1.0.0"
+    description: "Show customer value percentiles and top performer analysis"
+    nl_examples:
+      - "Who are the top 10% of customers by value?"
+      - "Show me customer value percentiles"
+      - "Top customer performance analysis"
+      - "Customer value distribution by percentile"
+      - "Who are our highest value customers?"
+      - "Top performer customer analysis"
+    parameters:
+      - name: days_back
+        type: integer
+        description: "Period to analyze"
+        required: false
+        default: 365
+    sql_template: |
+      WITH customer_values AS (
+        SELECT 
+          c.id,
+          c.name,
+          c.email,
+          c.city,
+          c.country,
+          COUNT(o.id) as total_orders,
+          SUM(o.total) as total_spent,
+          AVG(o.total) as avg_order_value,
+          NTILE(100) OVER (ORDER BY SUM(o.total)) as percentile
+        FROM customers c
+        JOIN orders o ON c.id = o.customer_id
+        WHERE o.order_date >= CURRENT_DATE - INTERVAL '%(days_back)s days'
+          AND o.status != 'cancelled'
+        GROUP BY c.id, c.name, c.email, c.city, c.country
+      )
+      SELECT 
+        CASE 
+          WHEN percentile >= 95 THEN 'Top 5% (95th-100th percentile)'
+          WHEN percentile >= 90 THEN 'Top 10% (90th-94th percentile)'
+          WHEN percentile >= 75 THEN 'Top 25% (75th-89th percentile)'
+          WHEN percentile >= 50 THEN 'Top 50% (50th-74th percentile)'
+          ELSE 'Bottom 50% (Below 50th percentile)'
+        END as customer_tier,
+        COUNT(*) as customer_count,
+        ROUND(AVG(total_spent), 2) as avg_customer_value,
+        ROUND(MIN(total_spent), 2) as min_value_in_tier,
+        ROUND(MAX(total_spent), 2) as max_value_in_tier,
+        SUM(total_spent) as total_revenue_from_tier,
+        ROUND(SUM(total_spent) * 100.0 / SUM(SUM(total_spent)) OVER(), 2) as revenue_percentage
+      FROM customer_values
+      GROUP BY 
+        CASE 
+          WHEN percentile >= 95 THEN 'Top 5% (95th-100th percentile)'
+          WHEN percentile >= 90 THEN 'Top 10% (90th-94th percentile)'
+          WHEN percentile >= 75 THEN 'Top 25% (75th-89th percentile)'
+          WHEN percentile >= 50 THEN 'Top 50% (50th-74th percentile)'
+          ELSE 'Bottom 50% (Below 50th percentile)'
+        END
+      ORDER BY min_value_in_tier DESC
+    result_format: "table"
+    tags: ["top", "percentiles", "10%", "highest", "value", "performers", "analysis", "distribution"]
+    semantic_tags:
+      action: "rank_by_percentile"
+      primary_entity: "customer"
+      qualifiers: ["value_percentiles", "top_performers"]
+    approved: true

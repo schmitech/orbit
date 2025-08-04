@@ -1,0 +1,504 @@
+templates:
+  # Comparative Analysis Templates
+  - id: compare_periods_revenue
+    version: "1.0.0"
+    description: "Compare revenue between two time periods"
+    nl_examples:
+      - "Compare this month's sales to last month"
+      - "How do sales this quarter compare to last quarter?"
+      - "Show me year over year revenue comparison"
+      - "Compare revenue this week vs last week"
+      - "Month over month sales comparison"
+      - "Revenue comparison between periods"
+      - "Sales growth from last month to this month"
+    parameters:
+      - name: period_type
+        type: string
+        description: "Type of period to compare"
+        required: false
+        default: "month"
+        allowed_values: ["week", "month", "quarter", "year"]
+      - name: periods_back
+        type: integer
+        description: "How many periods back to compare"
+        required: false
+        default: 1
+    sql_template: |
+      WITH period_data AS (
+        SELECT 
+          CASE 
+            WHEN %(period_type)s = 'week' THEN 
+              CASE 
+                WHEN order_date >= DATE_TRUNC('week', CURRENT_DATE) THEN 'Current Period'
+                WHEN order_date >= DATE_TRUNC('week', CURRENT_DATE) - INTERVAL '%(periods_back)s weeks' 
+                     AND order_date < DATE_TRUNC('week', CURRENT_DATE) THEN 'Previous Period'
+                ELSE 'Other'
+              END
+            WHEN %(period_type)s = 'month' THEN
+              CASE 
+                WHEN order_date >= DATE_TRUNC('month', CURRENT_DATE) THEN 'Current Period'
+                WHEN order_date >= DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '%(periods_back)s months' 
+                     AND order_date < DATE_TRUNC('month', CURRENT_DATE) THEN 'Previous Period'
+                ELSE 'Other'
+              END
+            WHEN %(period_type)s = 'quarter' THEN
+              CASE 
+                WHEN order_date >= DATE_TRUNC('quarter', CURRENT_DATE) THEN 'Current Period'
+                WHEN order_date >= DATE_TRUNC('quarter', CURRENT_DATE) - INTERVAL '%(periods_back)s quarters' 
+                     AND order_date < DATE_TRUNC('quarter', CURRENT_DATE) THEN 'Previous Period'
+                ELSE 'Other'
+              END
+            ELSE
+              CASE 
+                WHEN order_date >= DATE_TRUNC('year', CURRENT_DATE) THEN 'Current Period'
+                WHEN order_date >= DATE_TRUNC('year', CURRENT_DATE) - INTERVAL '%(periods_back)s years' 
+                     AND order_date < DATE_TRUNC('year', CURRENT_DATE) THEN 'Previous Period'
+                ELSE 'Other'
+              END
+          END as period,
+          COUNT(*) as total_orders,
+          SUM(total) as total_revenue,
+          AVG(total) as avg_order_value,
+          COUNT(DISTINCT customer_id) as unique_customers
+        FROM orders
+        WHERE status != 'cancelled'
+          AND order_date >= 
+            CASE 
+              WHEN %(period_type)s = 'week' THEN DATE_TRUNC('week', CURRENT_DATE) - INTERVAL '%(periods_back)s weeks'
+              WHEN %(period_type)s = 'month' THEN DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '%(periods_back)s months'
+              WHEN %(period_type)s = 'quarter' THEN DATE_TRUNC('quarter', CURRENT_DATE) - INTERVAL '%(periods_back)s quarters'
+              ELSE DATE_TRUNC('year', CURRENT_DATE) - INTERVAL '%(periods_back)s years'
+            END
+        GROUP BY 
+          CASE 
+            WHEN %(period_type)s = 'week' THEN 
+              CASE 
+                WHEN order_date >= DATE_TRUNC('week', CURRENT_DATE) THEN 'Current Period'
+                WHEN order_date >= DATE_TRUNC('week', CURRENT_DATE) - INTERVAL '%(periods_back)s weeks' 
+                     AND order_date < DATE_TRUNC('week', CURRENT_DATE) THEN 'Previous Period'
+                ELSE 'Other'
+              END
+            WHEN %(period_type)s = 'month' THEN
+              CASE 
+                WHEN order_date >= DATE_TRUNC('month', CURRENT_DATE) THEN 'Current Period'
+                WHEN order_date >= DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '%(periods_back)s months' 
+                     AND order_date < DATE_TRUNC('month', CURRENT_DATE) THEN 'Previous Period'
+                ELSE 'Other'
+              END
+            WHEN %(period_type)s = 'quarter' THEN
+              CASE 
+                WHEN order_date >= DATE_TRUNC('quarter', CURRENT_DATE) THEN 'Current Period'
+                WHEN order_date >= DATE_TRUNC('quarter', CURRENT_DATE) - INTERVAL '%(periods_back)s quarters' 
+                     AND order_date < DATE_TRUNC('quarter', CURRENT_DATE) THEN 'Previous Period'
+                ELSE 'Other'
+              END
+            ELSE
+              CASE 
+                WHEN order_date >= DATE_TRUNC('year', CURRENT_DATE) THEN 'Current Period'
+                WHEN order_date >= DATE_TRUNC('year', CURRENT_DATE) - INTERVAL '%(periods_back)s years' 
+                     AND order_date < DATE_TRUNC('year', CURRENT_DATE) THEN 'Previous Period'
+                ELSE 'Other'
+              END
+          END
+      )
+      SELECT 
+        period,
+        total_orders,
+        ROUND(total_revenue, 2) as total_revenue,
+        ROUND(avg_order_value, 2) as avg_order_value,
+        unique_customers,
+        CASE 
+          WHEN period = 'Current Period' AND LAG(total_revenue) OVER (ORDER BY period DESC) IS NOT NULL THEN
+            ROUND(((total_revenue - LAG(total_revenue) OVER (ORDER BY period DESC)) / 
+                   LAG(total_revenue) OVER (ORDER BY period DESC)) * 100, 2)
+          ELSE NULL
+        END as revenue_growth_percent
+      FROM period_data
+      WHERE period IN ('Current Period', 'Previous Period')
+      ORDER BY period DESC
+    result_format: "table"
+    tags: ["compare", "comparison", "vs", "last", "month", "quarter", "year", "week", "growth", "over"]
+    semantic_tags:
+      action: "compare_periods"
+      primary_entity: "revenue"
+      qualifiers: ["period_comparison", "growth"]
+    approved: true
+
+  - id: compare_customer_segments_performance
+    version: "1.0.0"
+    description: "Compare performance between different customer segments"
+    nl_examples:
+      - "Compare high value vs regular customers"
+      - "How do VIP customers compare to others?"
+      - "Performance comparison between customer segments"
+      - "Compare new vs returning customers"
+      - "VIP vs regular customer analysis"
+      - "Customer segment performance comparison"
+    parameters:
+      - name: days_back
+        type: integer
+        description: "Period to analyze"
+        required: false
+        default: 180
+    sql_template: |
+      WITH customer_segments AS (
+        SELECT 
+          c.id,
+          c.name,
+          COUNT(o.id) as total_orders,
+          SUM(o.total) as total_spent,
+          AVG(o.total) as avg_order_value,
+          MIN(o.order_date) as first_order,
+          MAX(o.order_date) as last_order,
+          CASE 
+            WHEN SUM(o.total) >= 2000 THEN 'VIP Customers'
+            WHEN SUM(o.total) >= 500 THEN 'High Value'
+            WHEN SUM(o.total) >= 100 THEN 'Regular'
+            ELSE 'Low Value'
+          END as customer_segment,
+          CASE 
+            WHEN MIN(o.order_date) >= CURRENT_DATE - INTERVAL '30 days' THEN 'New Customer'
+            ELSE 'Returning Customer'
+          END as customer_type
+        FROM customers c
+        JOIN orders o ON c.id = o.customer_id
+        WHERE o.order_date >= CURRENT_DATE - INTERVAL '%(days_back)s days'
+          AND o.status != 'cancelled'
+        GROUP BY c.id, c.name
+      )
+      SELECT 
+        customer_segment,
+        customer_type,
+        COUNT(*) as customer_count,
+        ROUND(AVG(total_spent), 2) as avg_customer_value,
+        ROUND(AVG(avg_order_value), 2) as avg_order_value,
+        ROUND(AVG(total_orders), 1) as avg_orders_per_customer,
+        SUM(total_spent) as segment_revenue,
+        ROUND(SUM(total_spent) * 100.0 / SUM(SUM(total_spent)) OVER(), 2) as revenue_percentage
+      FROM customer_segments
+      GROUP BY customer_segment, customer_type
+      ORDER BY segment_revenue DESC
+    result_format: "table"
+    tags: ["compare", "segments", "VIP", "regular", "high", "value", "performance", "vs", "customers"]
+    semantic_tags:
+      action: "compare_segments"
+      primary_entity: "customer"
+      qualifiers: ["segment_comparison", "performance"]
+    approved: true
+
+  - id: geographic_performance_comparison
+    version: "1.0.0"
+    description: "Compare sales performance between different geographic regions"
+    nl_examples:
+      - "Compare sales between countries"
+      - "Which cities perform better?"
+      - "International vs domestic sales comparison"
+      - "Geographic performance comparison"
+      - "Compare revenue by region"
+      - "City performance comparison"
+    parameters:
+      - name: comparison_type
+        type: string
+        description: "Type of geographic comparison"
+        required: false
+        default: "country"
+        allowed_values: ["country", "city", "international_vs_domestic"]
+      - name: days_back
+        type: integer
+        description: "Period to analyze"
+        required: false
+        default: 180
+      - name: home_country
+        type: string
+        description: "Home country for international comparison"
+        required: false
+        default: "Canada"
+    sql_template: |
+      SELECT 
+        CASE 
+          WHEN %(comparison_type)s = 'country' THEN c.country
+          WHEN %(comparison_type)s = 'city' THEN CONCAT(c.city, ', ', c.country)
+          ELSE 
+            CASE 
+              WHEN LOWER(c.country) = LOWER(%(home_country)s) THEN 'Domestic'
+              ELSE 'International'
+            END
+        END as geographic_region,
+        COUNT(o.id) as total_orders,
+        SUM(o.total) as total_revenue,
+        AVG(o.total) as avg_order_value,
+        COUNT(DISTINCT o.customer_id) as unique_customers,
+        ROUND(SUM(o.total) / COUNT(DISTINCT o.customer_id), 2) as revenue_per_customer,
+        ROUND(SUM(o.total) * 100.0 / SUM(SUM(o.total)) OVER(), 2) as revenue_percentage,
+        RANK() OVER (ORDER BY SUM(o.total) DESC) as revenue_rank
+      FROM customers c
+      JOIN orders o ON c.id = o.customer_id
+      WHERE o.order_date >= CURRENT_DATE - INTERVAL '%(days_back)s days'
+        AND o.status != 'cancelled'
+        AND c.country IS NOT NULL
+      GROUP BY 
+        CASE 
+          WHEN %(comparison_type)s = 'country' THEN c.country
+          WHEN %(comparison_type)s = 'city' THEN CONCAT(c.city, ', ', c.country)
+          ELSE 
+            CASE 
+              WHEN LOWER(c.country) = LOWER(%(home_country)s) THEN 'Domestic'
+              ELSE 'International'
+            END
+        END
+      ORDER BY total_revenue DESC
+      LIMIT 20
+    result_format: "table"
+    tags: ["compare", "geographic", "countries", "cities", "regions", "international", "domestic", "performance"]
+    semantic_tags:
+      action: "compare_geography"
+      primary_entity: "sales"
+      qualifiers: ["geographic_comparison", "regional"]
+    approved: true
+
+  - id: order_status_performance_comparison
+    version: "1.0.0"
+    description: "Compare order fulfillment performance and success rates"
+    nl_examples:
+      - "Compare order completion rates"
+      - "How do our fulfillment rates compare over time?"
+      - "Order status performance comparison"
+      - "Success rate comparison between periods"
+      - "Fulfillment performance analysis"
+      - "Compare delivery success rates"
+    parameters:
+      - name: current_period_days
+        type: integer
+        description: "Days for current period"
+        required: false
+        default: 30
+      - name: previous_period_days
+        type: integer
+        description: "Days for previous period"
+        required: false
+        default: 30
+    sql_template: |
+      WITH period_comparison AS (
+        SELECT 
+          CASE 
+            WHEN order_date >= CURRENT_DATE - INTERVAL '%(current_period_days)s days' THEN 'Current Period'
+            WHEN order_date >= CURRENT_DATE - INTERVAL '%(current_period_days)s days' - INTERVAL '%(previous_period_days)s days'
+                 AND order_date < CURRENT_DATE - INTERVAL '%(current_period_days)s days' THEN 'Previous Period'
+            ELSE 'Other'
+          END as period,
+          status,
+          COUNT(*) as order_count,
+          SUM(total) as total_revenue
+        FROM orders
+        WHERE order_date >= CURRENT_DATE - INTERVAL '%(current_period_days)s days' - INTERVAL '%(previous_period_days)s days'
+        GROUP BY 
+          CASE 
+            WHEN order_date >= CURRENT_DATE - INTERVAL '%(current_period_days)s days' THEN 'Current Period'
+            WHEN order_date >= CURRENT_DATE - INTERVAL '%(current_period_days)s days' - INTERVAL '%(previous_period_days)s days'
+                 AND order_date < CURRENT_DATE - INTERVAL '%(current_period_days)s days' THEN 'Previous Period'
+            ELSE 'Other'
+          END,
+          status
+      ),
+      period_totals AS (
+        SELECT 
+          period,
+          SUM(order_count) as total_orders,
+          SUM(total_revenue) as total_revenue
+        FROM period_comparison
+        WHERE period IN ('Current Period', 'Previous Period')
+        GROUP BY period
+      )
+      SELECT 
+        pc.period,
+        pc.status,
+        pc.order_count,
+        ROUND(pc.order_count * 100.0 / pt.total_orders, 2) as percentage,
+        ROUND(pc.total_revenue, 2) as revenue,
+        CASE 
+          WHEN pc.status = 'delivered' THEN 'Success'
+          WHEN pc.status = 'cancelled' THEN 'Failed'
+          ELSE 'In Progress'
+        END as status_category
+      FROM period_comparison pc
+      JOIN period_totals pt ON pc.period = pt.period
+      WHERE pc.period IN ('Current Period', 'Previous Period')
+      ORDER BY pc.period DESC, pc.order_count DESC
+    result_format: "table"
+    tags: ["compare", "completion", "rates", "fulfillment", "status", "success", "delivery", "performance"]
+    semantic_tags:
+      action: "compare_performance"
+      primary_entity: "order"
+      qualifiers: ["status_comparison", "fulfillment"]
+    approved: true
+
+  - id: customer_behavior_before_after_comparison
+    version: "1.0.0"
+    description: "Compare customer behavior before and after a specific date"
+    nl_examples:
+      - "How did customer behavior change after July 1st?"
+      - "Compare customer patterns before and after a specific date"
+      - "Customer behavior comparison before/after date"
+      - "How did buying patterns change after July 15?"
+      - "Before and after customer analysis"
+    parameters:
+      - name: comparison_date
+        type: date
+        description: "Date to split the comparison"
+        required: true
+        aliases: ["date", "split_date", "after"]
+        example: "2025-07-01"
+      - name: days_before
+        type: integer
+        description: "Days before the date to analyze"
+        required: false
+        default: 30
+      - name: days_after
+        type: integer
+        description: "Days after the date to analyze"
+        required: false
+        default: 30
+    sql_template: |
+      WITH behavior_comparison AS (
+        SELECT 
+          customer_id,
+          CASE 
+            WHEN order_date < %(comparison_date)s THEN 'Before'
+            ELSE 'After'
+          END as period,
+          COUNT(*) as orders,
+          SUM(total) as total_spent,
+          AVG(total) as avg_order_value
+        FROM orders
+        WHERE order_date >= %(comparison_date)s - INTERVAL '%(days_before)s days'
+          AND order_date <= %(comparison_date)s + INTERVAL '%(days_after)s days'
+          AND status != 'cancelled'
+        GROUP BY customer_id, 
+          CASE 
+            WHEN order_date < %(comparison_date)s THEN 'Before'
+            ELSE 'After'
+          END
+      )
+      SELECT 
+        period,
+        COUNT(DISTINCT customer_id) as active_customers,
+        SUM(orders) as total_orders,
+        ROUND(AVG(orders), 1) as avg_orders_per_customer,
+        ROUND(SUM(total_spent), 2) as total_revenue,
+        ROUND(AVG(total_spent), 2) as avg_customer_spending,
+        ROUND(AVG(avg_order_value), 2) as avg_order_value
+      FROM behavior_comparison
+      GROUP BY period
+      ORDER BY period
+    result_format: "table"
+    tags: ["compare", "before", "after", "behavior", "changed", "patterns", "date", "analysis"]
+    semantic_tags:
+      action: "compare_periods"
+      primary_entity: "customer"
+      qualifiers: ["before_after", "behavior_change"]
+    approved: true
+
+  - id: weekly_performance_trends
+    version: "1.0.0"
+    description: "Compare weekly performance trends and identify patterns"
+    nl_examples:
+      - "How do our weekly sales compare?"
+      - "Weekly performance comparison"
+      - "Show me week over week trends"
+      - "Weekly sales trend analysis"
+      - "Compare recent weeks performance"
+      - "Weekly revenue comparison"
+    parameters:
+      - name: weeks_to_compare
+        type: integer
+        description: "Number of weeks to compare"
+        required: false
+        default: 8
+    sql_template: |
+      SELECT 
+        TO_CHAR(DATE_TRUNC('week', order_date), 'YYYY-MM-DD') as week_start,
+        EXTRACT(WEEK FROM order_date) as week_number,
+        COUNT(*) as total_orders,
+        SUM(total) as total_revenue,
+        AVG(total) as avg_order_value,
+        COUNT(DISTINCT customer_id) as unique_customers,
+        ROUND(SUM(total) - LAG(SUM(total)) OVER (ORDER BY DATE_TRUNC('week', order_date)), 2) as revenue_change,
+        ROUND(((SUM(total) - LAG(SUM(total)) OVER (ORDER BY DATE_TRUNC('week', order_date))) / 
+               NULLIF(LAG(SUM(total)) OVER (ORDER BY DATE_TRUNC('week', order_date)), 0)) * 100, 2) as revenue_change_percent
+      FROM orders
+      WHERE order_date >= CURRENT_DATE - INTERVAL '%(weeks_to_compare)s weeks'
+        AND status != 'cancelled'
+      GROUP BY DATE_TRUNC('week', order_date), EXTRACT(WEEK FROM order_date)
+      ORDER BY week_start DESC
+    result_format: "table"
+    tags: ["weekly", "performance", "compare", "trends", "week", "over", "recent", "comparison"]
+    semantic_tags:
+      action: "compare_trends"
+      primary_entity: "sales"
+      qualifiers: ["weekly", "trends"]
+    approved: true
+
+  - id: high_vs_low_value_order_comparison
+    version: "1.0.0"
+    description: "Compare characteristics of high value vs low value orders"
+    nl_examples:
+      - "Compare high value vs low value orders"
+      - "What's different about expensive vs cheap orders?"
+      - "High vs low order value analysis"
+      - "Expensive order characteristics comparison"
+      - "Compare big vs small orders"
+      - "Order value segment comparison"
+    parameters:
+      - name: high_value_threshold
+        type: decimal
+        description: "Minimum amount for high value orders"
+        required: false
+        default: 500
+      - name: low_value_threshold
+        type: decimal
+        description: "Maximum amount for low value orders"
+        required: false
+        default: 100
+      - name: days_back
+        type: integer
+        description: "Period to analyze"
+        required: false
+        default: 90
+    sql_template: |
+      WITH order_segments AS (
+        SELECT 
+          o.*,
+          c.city,
+          c.country,
+          CASE 
+            WHEN o.total >= %(high_value_threshold)s THEN 'High Value'
+            WHEN o.total <= %(low_value_threshold)s THEN 'Low Value'
+            ELSE 'Medium Value'
+          END as value_segment
+        FROM orders o
+        JOIN customers c ON o.customer_id = c.id
+        WHERE o.order_date >= CURRENT_DATE - INTERVAL '%(days_back)s days'
+          AND o.status != 'cancelled'
+      )
+      SELECT 
+        value_segment,
+        COUNT(*) as order_count,
+        ROUND(AVG(total), 2) as avg_order_value,
+        ROUND(MIN(total), 2) as min_value,
+        ROUND(MAX(total), 2) as max_value,
+        COUNT(DISTINCT customer_id) as unique_customers,
+        COUNT(DISTINCT country) as countries_served,
+        ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 2) as percentage_of_orders,
+        ROUND(SUM(total) * 100.0 / SUM(SUM(total)) OVER(), 2) as percentage_of_revenue,
+        MODE() WITHIN GROUP (ORDER BY status) as most_common_status
+      FROM order_segments
+      WHERE value_segment IN ('High Value', 'Low Value')
+      GROUP BY value_segment
+      ORDER BY avg_order_value DESC
+    result_format: "table"
+    tags: ["compare", "high", "value", "vs", "low", "expensive", "cheap", "big", "small", "orders"]
+    semantic_tags:
+      action: "compare_segments"
+      primary_entity: "order"
+      qualifiers: ["value_comparison", "high_vs_low"]
+    approved: true
