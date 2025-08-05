@@ -331,6 +331,11 @@ orbit-chat --url http://localhost:3000 --api-key YOUR_API_KEY
   Your browser does not support the video tag.
 </video>
 
+Here's the same intent adapter in action using the web widget:
+<video src="https://github.com/user-attachments/assets/6b2436e8-0d48-40c4-b1ea-0629cc8725b6" controls>
+  Your browser does not support the video tag.
+</video>
+
 ### API Key Management
 
 > **Note:** You need to log in as admin before managing API keys.  
