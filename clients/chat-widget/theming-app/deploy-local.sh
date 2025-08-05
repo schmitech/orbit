@@ -38,7 +38,7 @@ cat > .env.local << EOF
 VITE_WIDGET_SOURCE=local
 VITE_LOCAL_WIDGET_JS_PATH=/dist/chatbot-widget.umd.js
 VITE_LOCAL_WIDGET_CSS_PATH=/dist/chatbot-widget.css
-VITE_NPM_WIDGET_VERSION=0.4.9
+VITE_NPM_WIDGET_VERSION=0.4.11
 VITE_WIDGET_DEBUG=true
 EOF
 
