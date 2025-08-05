@@ -112,4 +112,15 @@
   border: none;
   border-top: 1px solid rgba(0, 0, 0, 0.2);
   opacity: 0.5;
+}
+
+/* Ensure KaTeX styles are not overridden */
+.markdown-content .katex {
+  font-size: 1.1em; /* Slightly larger for better readability */
+}
+
+.markdown-content .katex-display {
+  margin: 1em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
 } 

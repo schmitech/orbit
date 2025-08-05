@@ -38,16 +38,21 @@ export const useScrollManagement = (isAnimating: boolean): ScrollManagementRetur
   // Scroll to bottom function with immediate option
   const scrollToBottom = useCallback((immediate = false) => {
     if (messagesContainerRef.current) {
-      const { scrollHeight } = messagesContainerRef.current;
-      messagesContainerRef.current.scrollTo({
-        top: scrollHeight,
-        behavior: immediate ? 'auto' : 'smooth'
-      });
+      const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
+      const isNearBottom = Math.abs(scrollHeight - scrollTop - clientHeight) < 100; // Within 100px of bottom
       
-      // Update scroll buttons visibility after scrolling
-      setTimeout(() => {
-        handleScroll();
-      }, immediate ? 0 : CHAT_CONSTANTS.ANIMATIONS.SCROLL_TIMEOUT);
+      // Only scroll if user is already near the bottom or if shouldScrollRef is true
+      if (isNearBottom || shouldScrollRef.current) {
+        messagesContainerRef.current.scrollTo({
+          top: scrollHeight,
+          behavior: immediate ? 'auto' : 'smooth'
+        });
+        
+        // Update scroll buttons visibility after scrolling
+        setTimeout(() => {
+          handleScroll();
+        }, immediate ? 0 : CHAT_CONSTANTS.ANIMATIONS.SCROLL_TIMEOUT);
+      }
     }
   }, []);
   

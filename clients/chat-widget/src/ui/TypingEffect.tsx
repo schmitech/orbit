@@ -15,6 +15,51 @@ export interface TypingEffectProps {
 }
 
 /**
+ * Helper function to detect if we're in the middle of a markdown token
+ */
+const isIncompleteMarkdownToken = (text: string): boolean => {
+  if (!text) return false;
+  
+  // Check for incomplete code blocks (both inline and fenced)
+  const backtickCount = (text.match(/`/g) || []).length;
+  if (backtickCount % 2 !== 0) return true;
+  
+  // Check for incomplete fenced code blocks
+  const fenceMatches = text.match(/```/g) || [];
+  if (fenceMatches.length % 2 !== 0) return true;
+  
+  // Check for incomplete bold/italic markers at the end
+  if (text.endsWith('*') || text.endsWith('_')) {
+    // Count preceding markers
+    const lastChar = text[text.length - 1];
+    let count = 0;
+    for (let i = text.length - 1; i >= 0 && text[i] === lastChar; i--) {
+      count++;
+    }
+    // If we have 1 or 2 markers at the end, we might be incomplete
+    if (count <= 2) return true;
+  }
+  
+  // Check for list markers at the very end
+  if (text.match(/\n[-*+]\s*$/) || text.match(/^\s*[-*+]\s*$/)) return true;
+  
+  // Check for incomplete link syntax
+  if (text.endsWith('[') || (text.includes('[') && !text.includes(']('))) return true;
+  
+  // Check for incomplete math delimiters
+  const dollarSigns = (text.match(/\$/g) || []).length;
+  if (dollarSigns % 2 !== 0) return true;
+  
+  // Check for LaTeX start markers
+  if (text.endsWith('\\') || text.endsWith('\\(') || text.endsWith('\\[')) return true;
+  
+  // Check for incomplete headers
+  if (text.match(/(^|\n)#{1,6}\s*$/)) return true;
+  
+  return false;
+};
+
+/**
  * TypingEffect component handles the character-by-character typing animation
  * for assistant messages with support for pausing, resuming, and skipping
  */
@@ -74,22 +119,37 @@ export const TypingEffect: React.FC<TypingEffectProps> = ({
     }
 
     if (currentIndexRef.current < targetLength) {
-      // Type one character
-      currentIndexRef.current++;
-      setDisplayedContent(currentContent.slice(0, currentIndexRef.current));
+      // Type characters until we have a complete token
+      let newIndex = currentIndexRef.current + 1;
+      let potentialContent = currentContent.slice(0, newIndex);
+      
+      // Keep adding characters while we have an incomplete markdown token
+      while (newIndex < targetLength && isIncompleteMarkdownToken(potentialContent)) {
+        newIndex++;
+        potentialContent = currentContent.slice(0, newIndex);
+      }
+      
+      currentIndexRef.current = newIndex;
+      setDisplayedContent(potentialContent);
       
       // Save progress
       typingProgressRef.current.set(messageIndex, currentIndexRef.current);
       
+      // Scroll to bottom periodically (every 10 characters or on newlines)
+      const justTypedNewline = potentialContent.includes('\n') && potentialContent.lastIndexOf('\n') > potentialContent.length - 10;
+      if (currentIndexRef.current % 10 === 0 || justTypedNewline) {
+        scrollToBottom();
+      }
+      
       // Schedule next frame
       animationFrameRef.current = requestAnimationFrame(() => {
-        setTimeout(() => animate(), 15); // 15ms delay between characters
+        setTimeout(() => animate(), 5); // 5ms delay between characters (3x faster)
       });
     } else if (targetLength > 0 && currentIndexRef.current === targetLength) {
       // Animation complete
       completeAnimation();
     }
-  }, [content, messageIndex, typingProgressRef]);
+  }, [content, messageIndex, typingProgressRef, scrollToBottom]);
 
   // Complete animation function
   const completeAnimation = useCallback(() => {

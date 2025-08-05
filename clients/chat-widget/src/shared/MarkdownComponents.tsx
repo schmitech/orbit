@@ -22,10 +22,10 @@ export const preprocessMarkdown = (content: string): string => {
 
     // Convert LaTeX-style math delimiters to markdown math syntax
     // Handle display math: \[ ... \] → $$ ... $$
-    processed = processed.replace(/\\\[([\s\S]*?)\\\]/g, '\n$$$1$$\n');
+    processed = processed.replace(/\\\[([\s\S]*?)\\\]/g, (match, p1) => `\n$$${p1}$$\n`);
     
     // Handle inline math: \( ... \) → $ ... $
-    processed = processed.replace(/\\\(([\s\S]*?)\\\)/g, '$$1$');
+    processed = processed.replace(/\\\(([\s\S]*?)\\\)/g, (match, p1) => `$${p1}$`);
     
     // Final cleanup: ensure single trailing newline
     processed = processed.trim();
