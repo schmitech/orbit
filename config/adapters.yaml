@@ -146,17 +146,12 @@ adapters:
     implementation: "retrievers.implementations.intent.IntentPostgreSQLRetriever"
     config:
       # Path to the domain definition file
-      domain_config_path: "config/sql_intent_templates/customer_order_domain.yaml"
-      # Path to the SQL template library
-      # Option 1: Single file (original approach)
-      # template_library_path: "config/sql_intent_templates/postgres_customer_orders.yaml"
-      
-      # Option 2: Multiple template files (requires adapter modification)
+      domain_config_path: "config/sql_intent_templates/examples/customer-orders/customer_order_domain.yaml"
       template_library_path: 
-        - "config/sql_intent_templates/postgres_customer_orders.yaml"
-        - "config/sql_intent_templates/business_intelligence_templates.yaml"
-        - "config/sql_intent_templates/advanced_analytics_templates.yaml"
-        - "config/sql_intent_templates/comparative_analysis_templates.yaml"
+        - "config/sql_intent_templates/examples/customer-orders/postgres_customer_orders.yaml"
+        - "config/sql_intent_templates/examples/customer-orders/business_intelligence_templates.yaml"
+        - "config/sql_intent_templates/examples/customer-orders/advanced_analytics_templates.yaml"
+        - "config/sql_intent_templates/examples/customer-orders/comparative_analysis_templates.yaml"
       # Name for the vector store collection for templates
       template_collection_name: "intent_query_templates"
       confidence_threshold: 0.75

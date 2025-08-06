@@ -5,25 +5,21 @@ This guide explains how to implement and use the adapter architecture for retrie
 ## Quick Start
 
 ```python
-from retrievers.adapters.registry import ADAPTER_REGISTRY
 from retrievers.base.base_retriever import RetrieverFactory
+from retrievers.adapters.domain_adapters import DocumentAdapterFactory
 import yaml
 
 # 1. Load configuration
 with open('config.yaml', 'r') as file:
     config = yaml.safe_load(file)
 
-# 2. Register adapters from configuration
-ADAPTER_REGISTRY.load_from_config(config)
-
-# 3. Create and use a retriever
+# 2. Create and use a retriever
 async def search_documents(query):
     # Create retriever with appropriate adapter
     retriever = RetrieverFactory.create_retriever(
         retriever_type="chroma",  # Vector DB
         config=config,
-        datasource='chroma',
-        adapter_name='qa'
+        domain_adapter_type='qa'  # Use QA adapter
     )
     
     # Initialize and set collection
@@ -41,16 +37,16 @@ The adapter architecture separates concerns into the following components:
 
 1. **Base Retrievers**: Abstract base classes that define common interfaces and functionality
    - `BaseRetriever`: Core retriever interface
-   - `VectorDBRetriever`: For vector database implementations
-   - `SQLRetriever`: For SQL-based implementations
+   - `AbstractVectorRetriever`: For vector database implementations
+   - `AbstractSQLRetriever`: For SQL-based implementations
 
 2. **Domain Adapters**: Components that adapt documents for specific domains
    - `DocumentAdapter`: Base interface for all domain adapters
    - Specialized adapters (e.g., `QADocumentAdapter`, `GenericDocumentAdapter`)
-   - Datasource-specific adapters (e.g., `ChromaQAAdapter`, `QASqliteAdapter`)
+   - Datasource-specific adapters (e.g., `ChromaQAAdapter`, `ChromaFileAdapter`)
 
 3. **Adapter Registry**: Central registry for managing adapter types, datasources, and implementations
-   - `ADAPTER_REGISTRY`: Singleton instance managing adapter registration
+   - `AdapterRegistry`: Singleton instance managing adapter registration
    - Supports hierarchical structure: type -> datasource -> adapter name
    - Handles lazy loading of adapters
 
@@ -66,8 +62,6 @@ The configuration uses a clear hierarchy:
 - `config`: Adapter-specific configuration
 
 ### Architecture Diagram
-
-![Adapter Architecture Diagram](adapter-architecture-diagram.svg)
 
 ## Architecture Strengths
 
@@ -132,8 +126,7 @@ from retrievers.base.base_retriever import RetrieverFactory
 retriever = RetrieverFactory.create_retriever(
     retriever_type="sqlite",
     config=config,
-    datasource='sqlite',
-    adapter_name='qa'
+    domain_adapter_type='qa'  # Use QA adapter
 )
 
 # Initialize the retriever
@@ -156,8 +149,7 @@ try:
     retriever = RetrieverFactory.create_retriever(
         retriever_type="chroma",
         config=config,
-        datasource='chroma',
-        adapter_name='qa'
+        domain_adapter_type='qa'
     )
     await retriever.initialize()
 except ValueError as e:
@@ -259,7 +251,7 @@ The QA adapter processes documents structured as question-answer pairs:
 qa_retriever = RetrieverFactory.create_retriever(
     retriever_type="chroma", 
     config=config,
-    adapter_name='qa'
+    domain_adapter_type='qa'
 )
 
 # Find answers to customer questions
@@ -271,47 +263,46 @@ results = await qa_retriever.get_relevant_context(
 direct_answer = qa_retriever.get_direct_answer(results)
 ```
 
-### 2. Legal Document Search
+### 2. File Upload System
 
 ```python
-# Legal adapter processes and formats legal documents
-legal_retriever = RetrieverFactory.create_retriever(
-    retriever_type="elasticsearch",
+# File adapter processes uploaded documents (CSV, Excel, etc.)
+file_retriever = RetrieverFactory.create_retriever(
+    retriever_type="chroma",
     config=config,
-    adapter_name='legal'
+    domain_adapter_type='file'
 )
 
-# Search for specific legal precedents
-results = await legal_retriever.get_relevant_context(
-    "Precedents for trademark infringement in software"
+# Search uploaded files
+results = await file_retriever.get_relevant_context(
+    "Show me sales data from Q4"
 )
 
-# Legal adapter might include citation formatting
+# File adapter provides structured data formatting
 for doc in results:
-    print(f"Document: {doc['title']}")
-    print(f"Citation: {doc['citation']}")
+    print(f"File: {doc['filename']}")
+    print(f"Type: {doc['content_type']}")
     print(f"Content: {doc['content']}")
 ```
 
-### 3. Technical Documentation Search
+### 3. Generic Document Search
 
 ```python
-# Documentation adapter specializes in API and technical docs
-docs_retriever = RetrieverFactory.create_retriever(
+# Generic adapter for general document search
+generic_retriever = RetrieverFactory.create_retriever(
     retriever_type="sqlite",
     config=config,
-    adapter_name='technical'
+    domain_adapter_type='generic'
 )
 
-# Search API documentation
-results = await docs_retriever.get_relevant_context(
-    "How to use the RetrieverFactory class"
+# Search general documents
+results = await generic_retriever.get_relevant_context(
+    "Find documents about API documentation"
 )
 
-# Technical adapter might extract code examples
+# Generic adapter provides standard formatting
 for doc in results:
-    print(f"Section: {doc['section']}")
-    print(f"Example: {doc['code_example']}")
+    print(f"Document: {doc['content']}")
 ```
 
 ## Extending the Architecture
@@ -338,13 +329,12 @@ To create a new domain adapter:
 
 1. Create a new class that extends `DocumentAdapter`
 2. Implement the required methods: `format_document()`, `extract_direct_answer()`, and `apply_domain_specific_filtering()`
-3. Register the adapter with both the factory and registry
+3. Register the adapter with the factory
 
 Example:
 
 ```python
 from retrievers.adapters.domain_adapters import DocumentAdapter, DocumentAdapterFactory
-from retrievers.adapters.registry import ADAPTER_REGISTRY
 
 class CustomDomainAdapter(DocumentAdapter):
     """Custom domain adapter for specialized document handling"""
@@ -377,14 +367,6 @@ class CustomDomainAdapter(DocumentAdapter):
 
 # Register with the factory
 DocumentAdapterFactory.register_adapter("custom", lambda **kwargs: CustomDomainAdapter(**kwargs))
-
-# Register with the registry
-ADAPTER_REGISTRY.register(
-    adapter_type="retriever",
-    datasource="sqlite",
-    adapter_name="custom",
-    factory_func=lambda **kwargs: CustomDomainAdapter(**kwargs)
-)
 ```
 
 For domain-specific adapters, consider placing your implementation in the appropriate directory structure:
@@ -395,9 +377,9 @@ server/retrievers/adapters/
     └── datasource_domain_adapter.py
 ```
 
-For example, a legal adapter for Elasticsearch might be placed at:
+For example, a legal adapter for ChromaDB might be placed at:
 ```
-server/retrievers/adapters/legal/elastic_legal_adapter.py
+server/retrievers/adapters/legal/chroma_legal_adapter.py
 ```
 
 ### Creating a New Retriever Implementation
@@ -406,8 +388,8 @@ To create a new retriever implementation:
 
 1. Choose the appropriate base class to extend:
    - `BaseRetriever`: For general custom retrievers
-   - `VectorDBRetriever`: For vector database implementations (requires embeddings)
-   - `SQLRetriever`: For SQL-based implementations
+   - `AbstractVectorRetriever`: For vector database implementations (requires embeddings)
+   - `AbstractSQLRetriever`: For SQL-based implementations
    
 2. Implement the required abstract methods:
    - `_get_datasource_name()`: Return the name used in config.yaml
@@ -421,11 +403,11 @@ To create a new retriever implementation:
 Example for a vector database retriever:
 
 ```python
-from retrievers.base.vector_retriever import VectorDBRetriever
+from retrievers.base.abstract_vector_retriever import AbstractVectorRetriever
 from retrievers.base.base_retriever import RetrieverFactory
 from embeddings.base import EmbeddingService
 
-class CustomVectorRetriever(VectorDBRetriever):
+class CustomVectorRetriever(AbstractVectorRetriever):
     """A custom vector database retriever implementation"""
     
     def __init__(self, 
@@ -531,12 +513,12 @@ class CustomVectorRetriever(VectorDBRetriever):
 RetrieverFactory.register_retriever("custom_vector_db", CustomVectorRetriever)
 ```
 
-For SQL-based retrievers, extend the `SQLRetriever` class and implement token-based search:
+For SQL-based retrievers, extend the `AbstractSQLRetriever` class and implement token-based search:
 
 ```python
-from retrievers.base.sql_retriever import SQLRetriever
+from retrievers.base.sql_retriever import AbstractSQLRetriever
 
-class CustomSQLRetriever(SQLRetriever):
+class CustomSQLRetriever(AbstractSQLRetriever):
     """Custom SQL-based retriever implementation"""
     
     def _tokenize_text(self, text: str) -> List[str]:
@@ -557,3 +539,103 @@ Remember to place your implementation in the proper directory:
 server/retrievers/implementations/
 └── your_implementation_name.py
 ```
+
+## Current Adapter Implementations
+
+### Available Domain Adapters
+
+1. **QADocumentAdapter** (`domain_adapters.py`)
+   - For question-answer pairs
+   - Extracts direct answers from QA format
+   - Configurable confidence threshold
+
+2. **GenericDocumentAdapter** (`domain_adapters.py`)
+   - For general document search
+   - Basic document formatting
+   - No special filtering
+
+3. **ChromaQAAdapter** (`qa/chroma_qa_adapter.py`)
+   - ChromaDB-specific QA adapter
+   - Optimized for QA pairs in ChromaDB
+   - Enhanced metadata handling
+
+4. **ChromaFileAdapter** (`file/chroma_file_adapter.py`)
+   - For uploaded file content (CSV, Excel, etc.)
+   - Structured data handling
+   - File metadata integration
+
+### Available Retriever Implementations
+
+1. **Vector Database Retrievers**
+   - `ChromaRetriever`: ChromaDB vector database
+   - `MilvusRetriever`: Milvus vector database
+   - `PineconeRetriever`: Pinecone vector database
+   - `ElasticsearchRetriever`: Elasticsearch
+   - `RedisRetriever`: Redis vector database
+
+2. **SQL Database Retrievers**
+   - `SQLiteRetriever`: SQLite database
+   - `PostgreSQLRetriever`: PostgreSQL database
+   - `MySQLRetriever`: MySQL database
+
+3. **Specialized Retrievers**
+   - `QAChromaRetriever`: QA-specific ChromaDB retriever
+   - `QASSQLRetriever`: QA-specific SQL retriever
+   - `IntentPostgreSQLRetriever`: Intent-based SQL retriever
+
+## Configuration Examples
+
+### Basic Configuration
+
+```yaml
+# config.yaml
+retrievers:
+  - name: "qa-chroma"
+    type: "retriever"
+    datasource: "chroma"
+    adapter: "qa"
+    implementation: "retrievers.implementations.vector.ChromaRetriever"
+    config:
+      confidence_threshold: 0.7
+      max_results: 10
+      return_results: 5
+      embedding_provider: "ollama"
+      embedding_model: "nomic-embed-text"
+```
+
+### Advanced Configuration
+
+```yaml
+# config.yaml
+retrievers:
+  - name: "file-chroma"
+    type: "retriever"
+    datasource: "chroma"
+    adapter: "file"
+    implementation: "retrievers.implementations.vector.ChromaRetriever"
+    config:
+      confidence_threshold: 0.3
+      include_file_metadata: true
+      boost_file_uploads: true
+      file_content_weight: 1.5
+      metadata_weight: 0.8
+      embedding_provider: "ollama"
+      embedding_model: "nomic-embed-text"
+      
+  - name: "intent-postgres"
+    type: "retriever"
+    datasource: "postgres"
+    adapter: "intent"
+    implementation: "retrievers.implementations.intent.IntentPostgreSQLRetriever"
+    config:
+      domain_config_path: "config/domain.yaml"
+      template_library_path: 
+        - "config/templates/basic.yaml"
+        - "config/templates/analytics.yaml"
+      confidence_threshold: 0.75
+      max_templates: 5
+      chroma_persist: true
+      chroma_persist_path: "./chroma_db/templates"
+```
+
+This comprehensive documentation should enable developers to understand and extend the adapter architecture effectively.

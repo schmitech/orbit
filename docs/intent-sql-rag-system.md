@@ -16,7 +16,7 @@ This is a semantic RAG (Retrieval-Augmented Generation) system designed to provi
 ### Key Features
 - **Domain-Agnostic Architecture**: Configure for any business domain through declarative configuration
 - **Semantic Query Matching**: Uses vector embeddings to match natural language to SQL templates
-- **Plugin System**: Extensible processing pipeline with custom plugins
+- **Template-Based Translation**: YAML-based template system for natural language to SQL conversion
 - **Conversation Context**: Maintains conversation history for contextual responses
 - **Auto-Template Generation**: Automatically creates query templates from domain configuration
 - **Smart Parameter Extraction**: Domain-aware parameter extraction with LLM fallback
@@ -27,15 +27,14 @@ This is a semantic RAG (Retrieval-Augmented Generation) system designed to provi
 - **LLM**: Ollama for inference (default: gemma3:1b)
 - **Database**: PostgreSQL, MySQL, SQLite (unified base class with mixins)
 - **Configuration**: YAML-based domain and template configuration
-- **Consistency**: Shared configuration modules for demo consistency
-- **Validation**: Comprehensive validation suite for accuracy testing
-- **Base Architecture**: BaseSQLDatabaseRetriever with 80% code reduction
+- **Validation**: External validation suite for accuracy testing
+- **Base Architecture**: Unified IntentSQLRetriever with database-specific implementations
 
 ## Architecture
 
 The system follows a layered architecture with clear separation of concerns:
 
-**Note**: The Intent SQL RAG system now uses the refactored `IntentSQLRetriever` base classes that inherit from `BaseSQLDatabaseRetriever`, providing unified database operations, environment variable support, and automatic type conversion.
+**Note**: The Intent SQL RAG system uses the refactored `IntentSQLRetriever` base classes that inherit from `BaseSQLDatabaseRetriever`, providing unified database operations, environment variable support, and automatic type conversion.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -45,12 +44,7 @@ The system follows a layered architecture with clear separation of concerns:
                               │
 ┌─────────────────────────────────────────────────────────────┐
 │                   Orchestration Layer                      │
-│              RAGSystem (Main System Class)                 │
-└─────────────────────────────────────────────────────────────┘
-                              │
-┌─────────────────────────────────────────────────────────────┐
-│                    Plugin System Layer                     │
-│  PluginManager, Pre/Post Processing, Enhancement Plugins   │
+│              IntentSQLRetriever (Main System Class)        │
 └─────────────────────────────────────────────────────────────┘
                               │
 ┌─────────────────────────────────────────────────────────────┐
@@ -60,7 +54,7 @@ The system follows a layered architecture with clear separation of concerns:
                               │
 ┌─────────────────────────────────────────────────────────────┐
 │                   Configuration Layer                      │
-│  DomainConfiguration, TemplateLibrary, Vocabulary         │
+│  IntentAdapter, Domain Configuration, Template Library     │
 └─────────────────────────────────────────────────────────────┘
                               │
 ┌─────────────────────────────────────────────────────────────┐
@@ -72,95 +66,65 @@ The system follows a layered architecture with clear separation of concerns:
 
 ## Core Components
 
-### 1. Domain Configuration (`domain_configuration.py`)
+### 1. Intent Adapter (`intent_adapter.py`)
 
-The foundation of the system's domain-agnostic design. Defines business entities, relationships, and vocabulary.
+The foundation of the system's domain-agnostic design. Manages domain configuration and template libraries.
 
 #### Key Classes:
 
-**DomainConfiguration**
-- Central class managing the entire domain definition
-- Contains entities, fields, relationships, and vocabulary
-- Supports YAML serialization for configuration management
-
-**DomainEntity**
-- Represents business entities (e.g., Customer, Order, Product)
-- Defines entity type, database mapping, and searchable fields
-- Supports different entity types: PRIMARY, SECONDARY, TRANSACTION, LOOKUP
-
-**DomainField**
-- Defines entity attributes with comprehensive metadata
-- Includes data types, validation rules, display formatting
-- Supports aliases for natural language matching
-
-**DomainRelationship**
-- Models relationships between entities
-- Supports ONE_TO_MANY, MANY_TO_ONE, MANY_TO_MANY relationships
-- Used for automatic join generation in templates
+**IntentAdapter**
+- Central class managing domain configuration and template libraries
+- Loads YAML-based domain definitions and SQL templates
+- Provides template retrieval and domain-specific filtering
+- Supports multiple template library files
 
 #### Example Usage:
 ```python
-# Create domain
-domain = DomainConfiguration("E-Commerce", "Customer order management")
-
-# Add entity
-customer_entity = DomainEntity(
-    name="customer",
-    entity_type=EntityType.PRIMARY,
-    table_name="customers",
-    description="Customer information",
-    primary_key="id",
-    searchable_fields=["name", "email"]
+# Create adapter with domain configuration
+adapter = IntentAdapter(
+    domain_config_path="config/domain.yaml",
+    template_library_path=[
+        "config/templates/basic_queries.yaml",
+        "config/templates/analytics.yaml"
+    ],
+    confidence_threshold=0.75,
+    verbose=True
 )
-domain.add_entity(customer_entity)
 
-# Add field with validation
-domain.add_field("customer", DomainField(
-    name="email",
-    data_type=DataType.STRING,
-    db_column="email",
-    description="Customer email",
-    validation_rules=[{"type": "pattern", "value": r"^[\w\.-]+@[\w\.-]+\.\w+$"}],
-    display_format="email"
-))
+# Get domain configuration
+domain_config = adapter.get_domain_config()
+
+# Get all templates
+templates = adapter.get_all_templates()
+
+# Get specific template
+template = adapter.get_template_by_id("find_customer_by_name")
 ```
 
-### 2. Template Library (`template_library.py`)
+### 2. Template Library (YAML-based)
 
-Manages query templates that map natural language intent to SQL queries.
+Manages query templates that map natural language intent to SQL queries using YAML configuration.
 
-#### Key Classes:
-
-**QueryTemplateBuilder**
-- Fluent API for creating query templates
-- Supports method chaining for intuitive template construction
-- Handles semantic tagging and parameter definition
-
-**TemplateLibrary**
-- Container for managing collections of templates
-- Provides search, filtering, and organization capabilities
-- Supports YAML import/export for template management
-
-**TemplateParameter**
-- Advanced parameter definitions with validation
-- Supports different parameter types and constraints
-- Includes default values and required flags
-
-#### Example Usage:
-```python
-# Build template using fluent API
-template = (QueryTemplateBuilder("find_customer_by_name")
-    .with_description("Find customer by name")
-    .with_examples("Show customer John Smith", "Find customer named Jane")
-    .with_parameter("customer_name", ParameterType.STRING, 
-                   "Customer name to search for", required=True)
-    .with_sql("SELECT * FROM customers WHERE name ILIKE %(customer_name)s")
-    .with_semantic_tags(action="find", primary_entity="customer")
-    .build())
-
-# Add to library
-library = TemplateLibrary(domain)
-library.add_template(template)
+#### Template Structure:
+```yaml
+templates:
+  - id: "find_customer_by_name"
+    description: "Find customer by name"
+    nl_examples:
+      - "Show customer John Smith"
+      - "Find customer named Jane"
+    parameters:
+      - name: "customer_name"
+        type: "string"
+        description: "Customer name to search for"
+        required: true
+    sql: "SELECT * FROM customers WHERE name ILIKE %(customer_name)s"
+    semantic_tags:
+      action: "find"
+      primary_entity: "customer"
+    result_format: "table"
+    version: "1.0.0"
+    approved: true
 ```
 
 ### 3. Template Generator (`template_generator.py`)
@@ -186,83 +150,44 @@ library = generator.generate_standard_templates()
 # - find_orders_in_date_range
 ```
 
-### 4. Plugin System (`plugin_system.py`)
+### 4. Domain-Aware Components
 
-Extensible pipeline for customizing query processing at any stage.
+#### DomainAwareParameterExtractor
+- Extracts parameters using domain knowledge and patterns
+- Pattern-based extraction for common data types (IDs, emails, dates, etc.)
+- LLM fallback for complex parameter extraction
+- Domain vocabulary integration for better matching
 
-#### Plugin Types:
-- **Pre-processing**: Query normalization, intent analysis
-- **Post-processing**: Result filtering, data enrichment
-- **Response Enhancement**: Formatting, additional insights
-- **Security**: Validation, access control
+#### DomainAwareResponseGenerator
+- Generates contextual responses using domain configuration
+- Formats results based on field display rules (currency, dates, etc.)
+- Supports different response strategies (table vs summary)
+- Integrates conversation context for better responses
 
-#### Built-in Plugins:
-- **SecurityPlugin**: Validates queries for security concerns
-- **QueryNormalizationPlugin**: Standardizes query format
-- **ResultFilteringPlugin**: Limits and filters results
-- **DataEnrichmentPlugin**: Adds computed fields
-- **ResponseEnhancementPlugin**: Improves response formatting
-- **LoggingPlugin**: Comprehensive logging and metrics
-- **DatabaseCompatibilityPlugin**: Handles database-specific optimizations
-- **EnvironmentVariablePlugin**: Resolves ${VAR} configurations
+#### TemplateReranker
+- Reranks templates using domain-specific rules and vocabulary
+- Applies domain-specific boosting for better template selection
+- Uses semantic tags and natural language examples for scoring
+- Supports pluggable domain strategies
 
-#### Creating Custom Plugins:
-```python
-class CustomAnalyticsPlugin(BaseRAGPlugin):
-    def get_name(self) -> str:
-        return "CustomAnalytics"
-    
-    def post_process_results(self, results: List[Dict], context: PluginContext) -> List[Dict]:
-        # Add custom analytics
-        for result in results:
-            result['analytics_score'] = self.calculate_score(result)
-        return results
-    
-    def enhance_response(self, response: str, context: PluginContext) -> str:
-        # Add analytical insights to response
-        insights = self.generate_insights(context.metadata.get('results', []))
-        return f"{response}\n\n💡 Analytical Insights:\n{insights}"
-```
+### 5. Intent SQL System
 
-### 5. Shared Configuration Modules (New)
-
-**Shared Domain Configuration (`shared_domain_config.py`)**
-- Single source of truth for domain definitions
-- Ensures consistent domain configuration across all demos
-- Prevents configuration drift between conversational and Streamlit demos
-
-**Shared Template Loader (`shared_template_loader.py`)**
-- Consistent template loading logic across demos
-- Eliminates duplicate template generation code
-- Ensures identical template libraries in all interfaces
-
-#### Benefits:
-- **Consistency**: Both demos use identical configurations
-- **Maintainability**: Single place to update domain definitions
-- **Reliability**: Eliminates configuration mismatches
-- **Testing**: Easier to validate system behavior
-
-#### Usage:
-```python
-from shared_domain_config import create_customer_order_domain
-from shared_template_loader import load_or_generate_templates
-
-# Both demos use the same functions
-domain = create_customer_order_domain()
-templates = load_or_generate_templates(domain)
-```
-
-### 6. Intent SQL System
-
-The intent-based SQL RAG system now includes refactored retrievers:
+The intent-based SQL RAG system includes refactored retrievers with unified base classes:
 
 **IntentSQLRetriever Hierarchy:**
 ```
 BaseSQLDatabaseRetriever
-└── IntentSQLRetriever (base class)
+└── IntentSQLRetriever (unified base class)
     ├── IntentPostgreSQLRetriever
     ├── IntentMySQLRetriever
     └── IntentSQLiteRetriever (potential)
+```
+
+**Legacy Hierarchy (still exists):**
+```
+BaseRetriever
+└── BaseIntentSQLRetriever (legacy base)
+    └── [Legacy implementations]
 ```
 
 **Key Benefits:**
@@ -274,36 +199,21 @@ BaseSQLDatabaseRetriever
 
 #### Key Components:
 
-**DomainAwareParameterExtractor**
-- Extracts parameters using domain knowledge
-- Pattern-based extraction for common data types
-- LLM fallback for complex parameter extraction
-- Domain vocabulary integration
-
-**DomainAwareResponseGenerator**
-- Generates contextual responses using domain configuration
-- Formats results based on field display rules
-- Supports different response strategies (table vs summary)
-- Integrates conversation context
-
-**RAGSystem**
+**IntentSQLRetriever**
 - Main system class coordinating all components
 - Manages ChromaDB for semantic search
 - Handles conversation context and history
-- Integrates plugin pipeline
+- Integrates domain-aware components
 
-#### Query Processing Flow:
-1. **Pre-processing**: Plugins normalize and validate query
-2. **Template Matching**: Vector search finds best matching templates
-3. **Reranking**: Domain-specific rules adjust template scores
-4. **Parameter Extraction**: Extract parameters using domain patterns + LLM
-5. **Validation**: Validate parameters against domain rules
-6. **Execution**: Execute SQL query with parameters
-7. **Post-processing**: Plugins enrich and filter results
-8. **Response Generation**: Generate natural language response
-9. **Enhancement**: Plugins enhance final response
+**Query Processing Flow:**
+1. **Template Matching**: Vector search finds best matching templates
+2. **Reranking**: Domain-specific rules adjust template scores
+3. **Parameter Extraction**: Extract parameters using domain patterns + LLM
+4. **Validation**: Validate parameters against domain rules
+5. **Execution**: Execute SQL query with parameters
+6. **Response Generation**: Generate natural language response
 
-### 7. Validation System (New)
+### 6. Validation System
 
 A comprehensive validation suite that ensures RAG system responses match actual database results.
 
@@ -364,301 +274,12 @@ python3 validate_rag_results.py --debug --custom "Your query here"
 
 ## Extending to New Domains
 
-### Step 1: Define Your Domain
+### Step 1: Define Your Domain Configuration
 
-Create a shared domain configuration function in a new file (following the pattern of `shared_domain_config.py`):
+Create a YAML domain configuration file:
 
-```python
-def create_healthcare_domain() -> DomainConfiguration:
-    domain = DomainConfiguration(
-        domain_name="Healthcare",
-        description="Medical records and patient management system"
-    )
-    
-    # Define entities
-    patient_entity = DomainEntity(
-        name="patient",
-        entity_type=EntityType.PRIMARY,
-        table_name="patients",
-        description="Patient information",
-        primary_key="patient_id",
-        display_name_field="full_name",
-        searchable_fields=["full_name", "medical_record_number"],
-        common_filters=["date_of_birth", "insurance_provider"],
-        default_sort_field="last_visit_date"
-    )
-    domain.add_entity(patient_entity)
-    
-    # Define fields
-    domain.add_field("patient", DomainField(
-        name="medical_record_number",
-        data_type=DataType.STRING,
-        db_column="mrn",
-        description="Medical Record Number",
-        required=True,
-        searchable=True,
-        validation_rules=[{"type": "pattern", "value": r"^MR\d{6}$"}],
-        aliases=["MRN", "record number", "patient ID"]
-    ))
-    
-    # Define relationships
-    domain.add_relationship(DomainRelationship(
-        name="patient_appointments",
-        from_entity="patient",
-        to_entity="appointment",
-        relation_type=RelationType.ONE_TO_MANY,
-        from_field="patient_id",
-        to_field="patient_id",
-        description="Patient has many appointments"
-    ))
-    
-    # Define vocabulary
-    domain.vocabulary.entity_synonyms = {
-        "patient": ["client", "individual", "person", "case"],
-        "appointment": ["visit", "consultation", "session"],
-        "diagnosis": ["condition", "illness", "disorder"]
-    }
-    
-    domain.vocabulary.action_verbs = {
-        "find": ["locate", "search", "lookup", "retrieve", "show"],
-        "schedule": ["book", "arrange", "set up", "plan"],
-        "diagnose": ["identify", "determine", "assess"]
-    }
-    
-    domain.vocabulary.time_expressions = {
-        "last visit": "30",
-        "recent": "7",
-        "this quarter": "90",
-        "past year": "365"
-    }
-    
-    return domain
-```
-
-### Step 2: Create Domain-Specific Templates
-
-```python
-def create_healthcare_templates(domain: DomainConfiguration) -> TemplateLibrary:
-    library = TemplateLibrary(domain)
-    
-    # Auto-generate standard templates
-    generator = DomainTemplateGenerator(domain)
-    library = generator.generate_standard_templates()
-    
-    # Add domain-specific templates
-    medical_history_template = (QueryTemplateBuilder("patient_medical_history")
-        .with_description("Get comprehensive medical history for a patient")
-        .with_examples(
-            "Show medical history for patient MR123456",
-            "Get all records for John Smith",
-            "Patient history for MRN MR789012"
-        )
-        .with_parameter("patient_identifier", ParameterType.STRING, 
-                       "Patient MRN or name", required=True)
-        .with_sql("""
-            SELECT p.full_name, p.date_of_birth, 
-                   a.appointment_date, a.chief_complaint,
-                   d.diagnosis_code, d.diagnosis_description,
-                   pr.procedure_name, pr.procedure_date
-            FROM patients p
-            LEFT JOIN appointments a ON p.patient_id = a.patient_id
-            LEFT JOIN diagnoses d ON a.appointment_id = d.appointment_id
-            LEFT JOIN procedures pr ON a.appointment_id = pr.appointment_id
-            WHERE p.medical_record_number = %(patient_identifier)s 
-               OR p.full_name ILIKE %(patient_identifier)s
-            ORDER BY a.appointment_date DESC
-        """)
-        .with_semantic_tags(
-            action="find",
-            primary_entity="patient",
-            secondary_entity="appointment",
-            qualifiers=["medical_history", "comprehensive"]
-        )
-        .with_result_format("summary")
-        .build())
-    
-    library.add_template(medical_history_template)
-    return library
-```
-
-### Step 3: Create Domain-Specific Plugins
-
-```python
-class MedicalDataEnrichmentPlugin(BaseRAGPlugin):
-    def get_name(self) -> str:
-        return "MedicalDataEnrichment"
-    
-    def get_version(self) -> str:
-        return "1.0.0"
-    
-    def get_priority(self) -> PluginPriority:
-        return PluginPriority.MEDIUM
-    
-    def post_process_results(self, results: List[Dict], context: PluginContext) -> List[Dict]:
-        """Add medical-specific data enrichment"""
-        for result in results:
-            # Add age calculation
-            if 'date_of_birth' in result:
-                result['age'] = self._calculate_age(result['date_of_birth'])
-                result['age_group'] = self._categorize_age(result['age'])
-            
-            # Add risk categorization
-            if 'diagnosis_code' in result:
-                result['risk_level'] = self._assess_risk(result['diagnosis_code'])
-            
-            # Add days since last visit
-            if 'last_visit_date' in result:
-                result['days_since_visit'] = self._days_since(result['last_visit_date'])
-        
-        return results
-    
-    def enhance_response(self, response: str, context: PluginContext) -> str:
-        """Add medical insights to response"""
-        results = context.metadata.get('results', [])
-        
-        # Add medical insights
-        insights = []
-        if results:
-            high_risk_count = sum(1 for r in results if r.get('risk_level') == 'high')
-            if high_risk_count > 0:
-                insights.append(f"🚨 {high_risk_count} high-risk cases identified")
-            
-            overdue_count = sum(1 for r in results if r.get('days_since_visit', 0) > 365)
-            if overdue_count > 0:
-                insights.append(f"⏰ {overdue_count} patients overdue for visits")
-        
-        if insights:
-            response += f"\n\n🏥 Medical Insights:\n" + "\n".join(f"• {insight}" for insight in insights)
-        
-        return response
-    
-    def _calculate_age(self, date_of_birth):
-        from datetime import date
-        today = date.today()
-        birth_date = date.fromisoformat(str(date_of_birth)[:10])
-        return today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
-    
-    def _categorize_age(self, age):
-        if age < 18:
-            return "pediatric"
-        elif age < 65:
-            return "adult"
-        else:
-            return "geriatric"
-    
-    def _assess_risk(self, diagnosis_code):
-        # Simplified risk assessment
-        high_risk_codes = ['I21', 'I20', 'E11', 'C78']  # Heart attack, angina, diabetes, cancer
-        return "high" if any(code in diagnosis_code for code in high_risk_codes) else "low"
-    
-    def _days_since(self, date_value):
-        from datetime import date
-        if date_value:
-            visit_date = date.fromisoformat(str(date_value)[:10])
-            return (date.today() - visit_date).days
-        return 0
-```
-
-### Step 4: Create the Demo Application
-
-```python
-def create_healthcare_demo():
-    """Create healthcare-specific demo"""
-    
-    def create_healthcare_demo_app():
-        class HealthcareDemo(ConversationalDemo):
-            def create_domain(self):
-                return create_healthcare_domain()
-            
-            def create_templates(self, domain):
-                return create_healthcare_templates(domain)
-            
-            def create_custom_plugins(self):
-                return [
-                    MedicalDataEnrichmentPlugin(),
-                    PatientPrivacyPlugin(),
-                    ClinicalDecisionSupportPlugin()
-                ]
-            
-            def get_example_queries(self):
-                return {
-                    "👥 Patient Queries": [
-                        "Show medical history for patient MR123456",
-                        "Find patients with diabetes",
-                        "List all patients seen this week",
-                        "Show overdue patients for checkups"
-                    ],
-                    "📅 Appointment Queries": [
-                        "Show today's appointments",
-                        "Find available slots next week",
-                        "List cancelled appointments",
-                        "Show emergency visits this month"
-                    ],
-                    "🩺 Clinical Queries": [
-                        "Patients with high blood pressure",
-                        "Show vaccination records for John Smith",
-                        "Find patients on medication X",
-                        "List surgical procedures this month"
-                    ]
-                }
-        
-        return HealthcareDemo()
-    
-    return create_healthcare_demo_app()
-
-# Usage
-if __name__ == "__main__":
-    demo = create_healthcare_demo()
-    demo.run()
-```
-
-### Step 5: Create Validation Templates
-
-Create corresponding SQL validation templates for accuracy testing:
-
-```python
-# healthcare_validation_templates.py
-class HealthcareValidationTemplates:
-    @staticmethod
-    def get_patient_history_sql(parameters: Dict[str, Any]) -> Tuple[str, List]:
-        sql = """
-            SELECT p.full_name, p.date_of_birth, 
-                   a.appointment_date, a.chief_complaint,
-                   d.diagnosis_code, d.diagnosis_description
-            FROM patients p
-            LEFT JOIN appointments a ON p.patient_id = a.patient_id
-            LEFT JOIN diagnoses d ON a.appointment_id = d.appointment_id
-            WHERE 1=1
-        """
-        
-        params = []
-        if 'patient_identifier' in parameters:
-            sql += " AND (p.medical_record_number = %s OR p.full_name ILIKE %s)"
-            params.extend([parameters['patient_identifier'], f"%{parameters['patient_identifier']}%"])
-        
-        sql += " ORDER BY a.appointment_date DESC LIMIT 100"
-        return sql, params
-```
-
-### Step 6: Validation Testing
-
-Create validation tests for your new domain:
-
-```bash
-# Test your healthcare domain
-python3 validate_rag_results.py --custom "Show medical history for patient MR123456"
-python3 validate_rag_results.py --custom "Find patients with diabetes"
-
-# Create domain-specific test categories
-# Edit validate_rag_results.py to add healthcare queries
-```
-
-### Step 7: Configuration Management
-
-Create YAML configuration files for easy management:
-
-**healthcare_domain.yaml**
 ```yaml
+# healthcare_domain.yaml
 domain_name: "Healthcare"
 description: "Medical records and patient management system"
 
@@ -685,6 +306,14 @@ fields:
         - type: "pattern"
           value: "^MR\\d{6}$"
       aliases: ["MRN", "record number", "patient ID"]
+    
+    full_name:
+      data_type: "STRING"
+      db_column: "full_name"
+      description: "Patient full name"
+      required: true
+      searchable: true
+      display_format: "name"
 
 relationships:
   - name: "patient_appointments"
@@ -699,22 +328,144 @@ vocabulary:
   entity_synonyms:
     patient: ["client", "individual", "person", "case"]
     appointment: ["visit", "consultation", "session"]
+    diagnosis: ["condition", "illness", "disorder"]
   
   action_verbs:
-    find: ["locate", "search", "lookup", "retrieve"]
-    schedule: ["book", "arrange", "set up"]
+    find: ["locate", "search", "lookup", "retrieve", "show"]
+    schedule: ["book", "arrange", "set up", "plan"]
+    diagnose: ["identify", "determine", "assess"]
   
   time_expressions:
     "last visit": "30"
     "recent": "7"
     "this quarter": "90"
+    "past year": "365"
 ```
 
-Load configuration:
+### Step 2: Create Domain-Specific Templates
+
+Create YAML template files:
+
+```yaml
+# healthcare_templates.yaml
+templates:
+  - id: "patient_medical_history"
+    description: "Get comprehensive medical history for a patient"
+    nl_examples:
+      - "Show medical history for patient MR123456"
+      - "Get all records for John Smith"
+      - "Patient history for MRN MR789012"
+    parameters:
+      - name: "patient_identifier"
+        type: "string"
+        description: "Patient MRN or name"
+        required: true
+    sql: |
+      SELECT p.full_name, p.date_of_birth, 
+             a.appointment_date, a.chief_complaint,
+             d.diagnosis_code, d.diagnosis_description,
+             pr.procedure_name, pr.procedure_date
+      FROM patients p
+      LEFT JOIN appointments a ON p.patient_id = a.patient_id
+      LEFT JOIN diagnoses d ON a.appointment_id = d.appointment_id
+      LEFT JOIN procedures pr ON a.appointment_id = pr.appointment_id
+      WHERE p.medical_record_number = %(patient_identifier)s 
+         OR p.full_name ILIKE %(patient_identifier)s
+      ORDER BY a.appointment_date DESC
+    semantic_tags:
+      action: "find"
+      primary_entity: "patient"
+      secondary_entity: "appointment"
+      qualifiers: ["medical_history", "comprehensive"]
+    result_format: "summary"
+    version: "1.0.0"
+    approved: true
+```
+
+### Step 3: Create Domain-Specific Strategy
+
+Create a domain strategy for specialized reranking:
+
 ```python
-def load_healthcare_domain():
-    domain = DomainConfiguration.from_yaml("healthcare_domain.yaml")
-    return domain
+# domain_strategies/healthcare.py
+from typing import Dict, Any
+from .base import DomainStrategy
+
+class HealthcareDomainStrategy(DomainStrategy):
+    """Healthcare-specific domain strategy for template reranking"""
+    
+    def calculate_domain_boost(self, template_info: Dict, user_query: str, domain_config: Dict) -> float:
+        """Calculate domain-specific boost for healthcare queries"""
+        boost = 0.0
+        template = template_info['template']
+        query_lower = user_query.lower()
+        
+        # Medical terminology boosting
+        medical_terms = ['diagnosis', 'treatment', 'medication', 'symptoms', 'prescription']
+        for term in medical_terms:
+            if term in query_lower:
+                boost += 0.1
+        
+        # Patient-specific boosting
+        if 'patient' in query_lower and 'patient' in template.get('semantic_tags', {}).get('primary_entity', ''):
+            boost += 0.15
+        
+        # Emergency/urgent boosting
+        urgent_terms = ['emergency', 'urgent', 'critical', 'immediate']
+        if any(term in query_lower for term in urgent_terms):
+            boost += 0.2
+        
+        return boost
+```
+
+### Step 4: Configure the Retriever
+
+Update your configuration to use the new domain:
+
+```yaml
+# config/adapters.yaml
+datasources:
+  healthcare_intent:
+    type: "intent"
+    provider: "postgres"
+    config:
+      domain_config_path: "config/healthcare_domain.yaml"
+      template_library_path: 
+        - "config/healthcare_templates.yaml"
+        - "config/healthcare_analytics.yaml"
+      template_collection_name: "healthcare_query_templates"
+      confidence_threshold: 0.75
+      max_templates: 5
+      chroma_persist: true
+      chroma_persist_path: "./chroma_db/healthcare_templates"
+```
+
+### Step 5: Create Validation Templates
+
+Create corresponding SQL validation templates:
+
+```python
+# healthcare_validation_templates.py
+class HealthcareValidationTemplates:
+    @staticmethod
+    def get_patient_history_sql(parameters: Dict[str, Any]) -> Tuple[str, List]:
+        sql = """
+            SELECT p.full_name, p.date_of_birth, 
+                   a.appointment_date, a.chief_complaint,
+                   d.diagnosis_code, d.diagnosis_description
+            FROM patients p
+            LEFT JOIN appointments a ON p.patient_id = a.patient_id
+            LEFT JOIN diagnoses d ON a.appointment_id = d.appointment_id
+            WHERE 1=1
+        """
+        
+        params = []
+        if 'patient_identifier' in parameters:
+            sql += " AND (p.medical_record_number = %s OR p.full_name ILIKE %s)"
+            params.extend([parameters['patient_identifier'], f"%{parameters['patient_identifier']}%"])
+        
+        sql += " ORDER BY a.appointment_date DESC LIMIT 100"
+        return sql, params
 ```
 
 ## Development Guide
@@ -759,53 +510,63 @@ python test_connection.py
 1. **Unit Tests for Domain Configuration**
 ```python
 def test_domain_configuration():
-    domain = create_your_domain()
+    # Load domain configuration
+    adapter = IntentAdapter(domain_config_path="config/your_domain.yaml")
+    domain_config = adapter.get_domain_config()
     
     # Test entity creation
-    assert "your_entity" in domain.entities
-    assert domain.entities["your_entity"].table_name == "your_table"
+    assert "your_entity" in domain_config['entities']
+    assert domain_config['entities']["your_entity"]['table_name'] == "your_table"
     
     # Test field validation
-    field = domain.fields["your_entity"]["your_field"]
-    assert field.data_type == DataType.STRING
-    assert field.required == True
-    
-    # Test relationships
-    relationships = domain.get_relationships_for_entity("your_entity")
-    assert len(relationships) > 0
+    field = domain_config['fields']["your_entity"]["your_field"]
+    assert field['data_type'] == "STRING"
+    assert field['required'] == True
 ```
 
 2. **Integration Tests**
 ```python
 def test_end_to_end_query():
     # Initialize system
-    domain = create_your_domain()
-    rag_system = create_rag_system(domain)
+    config = {
+        "type": "intent",
+        "provider": "postgres",
+        "config": {
+            "domain_config_path": "config/your_domain.yaml",
+            "template_library_path": "config/your_templates.yaml"
+        }
+    }
+    
+    retriever = IntentPostgreSQLRetriever(config)
+    await retriever.initialize()
     
     # Test query processing
-    result = rag_system.process_query("Find customer John Smith")
+    result = await retriever.get_relevant_context("Find customer John Smith")
     
-    assert result['success'] == True
-    assert len(result['results']) > 0
-    assert 'John Smith' in str(result['results'])
+    assert len(result) > 0
+    assert result[0]['confidence'] > 0.5
 ```
 
 3. **Template Testing**
 ```python
-def test_template_generation():
-    domain = create_your_domain()
-    generator = DomainTemplateGenerator(domain)
-    library = generator.generate_standard_templates()
+def test_template_loading():
+    adapter = IntentAdapter(
+        domain_config_path="config/your_domain.yaml",
+        template_library_path="config/your_templates.yaml"
+    )
     
-    # Verify expected templates were created
+    templates = adapter.get_all_templates()
+    
+    # Verify expected templates were loaded
     expected_templates = [
         "find_customer_by_id",
         "list_orders_by_customer",
         "find_orders_by_status"
     ]
     
+    template_ids = [t['id'] for t in templates]
     for template_id in expected_templates:
-        assert template_id in library.templates
+        assert template_id in template_ids
 ```
 
 ### Performance Optimization
@@ -830,7 +591,7 @@ class CachedEmbeddingClient(OllamaEmbeddingClient):
 2. **Template Indexing**
 ```python
 # Create indexes for better template matching
-def optimize_chromadb(rag_system):
+def optimize_chromadb(retriever):
     # Pre-warm embedding cache
     all_queries = [
         "common query pattern 1",
@@ -839,7 +600,7 @@ def optimize_chromadb(rag_system):
     ]
     
     for query in all_queries:
-        rag_system.embedding_client.get_embedding(query)
+        retriever.embedding_client.get_embedding(query)
 ```
 
 3. **Database Query Optimization**
@@ -854,57 +615,120 @@ CREATE INDEX idx_orders_date ON orders(order_date);
 
 ### Core Classes
 
-#### DomainConfiguration
+#### IntentAdapter
 ```python
-class DomainConfiguration:
-    def __init__(self, domain_name: str, description: str)
-    def add_entity(self, entity: DomainEntity)
-    def add_field(self, entity_name: str, field: DomainField)
-    def add_relationship(self, relationship: DomainRelationship)
-    def to_yaml(self, file_path: str)
-    @classmethod
-    def from_yaml(cls, file_path: str) -> 'DomainConfiguration'
+class IntentAdapter:
+    def __init__(self, domain_config_path: str, template_library_path: str, 
+                 confidence_threshold: float = 0.75, verbose: bool = False)
+    def get_domain_config(self) -> Optional[Dict[str, Any]]
+    def get_template_library(self) -> Optional[Dict[str, Any]]
+    def get_template_by_id(self, template_id: str) -> Optional[Dict[str, Any]]
+    def get_all_templates(self) -> List[Dict[str, Any]]
 ```
 
-#### RAGSystem
+#### IntentSQLRetriever
 ```python
-class RAGSystem:
-    def __init__(self, domain: DomainConfiguration, 
-                 template_library: TemplateLibrary,
-                 embedding_client: BaseEmbeddingClient,
-                 inference_client: BaseInferenceClient,
-                 db_client: BaseDatabaseClient)
+class IntentSQLRetriever(BaseSQLDatabaseRetriever):
+    def __init__(self, config: Dict[str, Any], domain_adapter=None, connection: Any = None)
     
-    def process_query(self, user_query: str) -> Dict[str, Any]
-    def populate_chromadb_from_library(self, clear_first: bool = False)
-    def clear_conversation(self)
-    def print_configuration(self)
+    async def initialize(self) -> None
+    async def get_relevant_context(self, query: str, api_key: Optional[str] = None,
+                                 collection_name: Optional[str] = None, **kwargs) -> List[Dict[str, Any]]
+    async def close(self) -> None
 ```
 
-#### QueryTemplateBuilder
+#### DomainAwareParameterExtractor
 ```python
-class QueryTemplateBuilder:
-    def with_description(self, description: str) -> 'QueryTemplateBuilder'
-    def with_examples(self, *examples: str) -> 'QueryTemplateBuilder'
-    def with_parameter(self, name: str, param_type: ParameterType, 
-                      description: str, **kwargs) -> 'QueryTemplateBuilder'
-    def with_sql(self, sql: str) -> 'QueryTemplateBuilder'
-    def with_semantic_tags(self, **tags) -> 'QueryTemplateBuilder'
-    def build(self) -> Dict[str, Any]
-```
-
-### Plugin Interface
-
-```python
-class BaseRAGPlugin:
-    def get_name(self) -> str
-    def get_version(self) -> str
-    def get_priority(self) -> PluginPriority
-    def is_enabled(self) -> bool
+class DomainAwareParameterExtractor:
+    def __init__(self, inference_client, domain_config: Optional[Dict[str, Any]] = None)
     
-    def pre_process_query(self, query: str, context: PluginContext) -> str
-    def post_process_results(self, results: List[Dict], context: PluginContext) -> List[Dict]
-    def enhance_response(self, response: str, context: PluginContext) -> str
+    async def extract_parameters(self, user_query: str, template: Dict) -> Dict[str, Any]
+    def validate_parameters(self, parameters: Dict[str, Any], template: Dict) -> Tuple[bool, List[str]]
+```
+
+#### DomainAwareResponseGenerator
+```python
+class DomainAwareResponseGenerator:
+    def __init__(self, inference_client, domain_config: Optional[Dict[str, Any]] = None)
+    
+    async def generate_response(self, user_query: str, results: List[Dict], template: Dict, 
+                         error: Optional[str] = None, conversation_context: Optional[str] = None) -> str
+```
+
+#### TemplateReranker
+```python
+class TemplateReranker:
+    def __init__(self, domain_config: Optional[Dict[str, Any]] = None)
+    
+    def rerank_templates(self, templates: List[Dict], user_query: str) -> List[Dict]
+    def explain_ranking(self, templates: List[Dict]) -> str
+```
+
+### Configuration Structure
+
+#### Domain Configuration (YAML)
+```yaml
+domain_name: "Your Domain"
+description: "Domain description"
+
+entities:
+  entity_name:
+    entity_type: "PRIMARY"
+    table_name: "table_name"
+    description: "Entity description"
+    primary_key: "id"
+    searchable_fields: ["field1", "field2"]
+
+fields:
+  entity_name:
+    field_name:
+      data_type: "STRING"
+      db_column: "column_name"
+      description: "Field description"
+      required: true
+      searchable: true
+      validation_rules:
+        - type: "pattern"
+          value: "^regex$"
+      aliases: ["alias1", "alias2"]
+
+relationships:
+  - name: "relationship_name"
+    from_entity: "entity1"
+    to_entity: "entity2"
+    relation_type: "ONE_TO_MANY"
+    from_field: "field1"
+    to_field: "field2"
+
+vocabulary:
+  entity_synonyms:
+    entity: ["synonym1", "synonym2"]
+  action_verbs:
+    find: ["locate", "search", "lookup"]
+  time_expressions:
+    "recent": "7"
+```
+
+#### Template Configuration (YAML)
+```yaml
+templates:
+  - id: "template_id"
+    description: "Template description"
+    nl_examples:
+      - "Example query 1"
+      - "Example query 2"
+    parameters:
+      - name: "param_name"
+        type: "string"
+        description: "Parameter description"
+        required: true
+    sql: "SELECT * FROM table WHERE condition = %(param_name)s"
+    semantic_tags:
+      action: "find"
+      primary_entity: "entity"
+    result_format: "table"
+    version: "1.0.0"
+    approved: true
 ```
 
 ## Best Practices
@@ -923,13 +747,6 @@ class BaseRAGPlugin:
 4. **SQL Optimization**: Ensure SQL queries are optimized with proper indexes
 5. **Error Handling**: Include proper error handling in SQL queries
 
-### Plugin Development
-1. **Single Responsibility**: Each plugin should have a single, clear purpose
-2. **Performance Conscious**: Avoid heavy computation in plugins
-3. **Error Resilient**: Plugins should handle errors gracefully
-4. **Configurable**: Make plugins configurable through parameters
-5. **Well Documented**: Provide clear documentation for plugin functionality
-
 ### Performance
 1. **Index Strategy**: Create appropriate database indexes
 2. **Caching**: Implement caching for embeddings and frequent queries
@@ -939,7 +756,7 @@ class BaseRAGPlugin:
 
 ### Security
 1. **SQL Injection Prevention**: Always use parameterized queries
-2. **Access Control**: Implement proper access control through plugins
+2. **Access Control**: Implement proper access control through configuration
 3. **Data Validation**: Validate all user inputs
 4. **Audit Logging**: Log all queries and results for audit purposes
 5. **Sensitive Data**: Handle sensitive data appropriately
