@@ -26,7 +26,7 @@ ORBIT is a middleware platform that provides a unified API for AI inference, all
 - **Deploy anywhere** - Locally, on-premise, or in the cloud. VM or Container.
 - **Stay secure** - Built-in authentication and content moderation
 
-ORBIT is actively maintained by [Remsy Schmilinsky](https://www.linkedin.com/in/remsy/).
+ORBIT is actively maintained by [Remsy Schmilinsky](https://schmitech.ai/en/about/).
 
 ## 🤔 Why ORBIT?
 
