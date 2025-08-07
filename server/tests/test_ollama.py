@@ -34,16 +34,35 @@ def config() -> Dict[str, Any]:
     # Use the server's config loading function to handle the modular config structure
     try:
         from config.config_manager import load_config as load_server_config
-        return load_server_config()
-    except:
-        # Fallback to manual loading if that fails
-        # Look for config.yaml in the config directory first, then fallback to root
-        config_path = os.path.join(project_root, 'config', 'config.yaml')
-        if not os.path.exists(config_path):
-            config_path = os.path.join(project_root, 'config.yaml')
+        loaded_config = load_server_config()
+        if loaded_config:
+            return loaded_config
+    except Exception as e:
+        print(f"Failed to load config using config_manager: {e}")
+        pass
+    
+    # Fallback to manual loading if that fails
+    # Look for config.yaml in the config directory first, then fallback to root
+    config_path = os.path.join(project_root, 'config', 'config.yaml')
+    if not os.path.exists(config_path):
+        config_path = os.path.join(project_root, 'config.yaml')
+    
+    if not os.path.exists(config_path):
+        raise FileNotFoundError(f"Config file not found at {config_path}")
+    
+    with open(config_path, 'r') as file:
+        base_config = yaml.safe_load(file)
         
-        with open(config_path, 'r') as file:
-            return yaml.safe_load(file)
+    # Load inference.yaml separately if it exists
+    inference_path = os.path.join(project_root, 'config', 'inference.yaml')
+    if os.path.exists(inference_path):
+        with open(inference_path, 'r') as file:
+            inference_config = yaml.safe_load(file)
+            if 'inference' not in base_config:
+                base_config['inference'] = {}
+            base_config['inference'].update(inference_config.get('inference', {}))
+    
+    return base_config
 
 @pytest.fixture
 def ollama_config(config: Dict[str, Any]) -> Dict[str, Any]:
@@ -83,34 +102,67 @@ def test_ollama_connection(ollama_config: Dict[str, Any]):
 
 def test_ollama_response(ollama_config: Dict[str, Any], test_query: str):
     """Test that Ollama generates a valid response"""
-    # Create request payload
-    payload = {
-        "model": ollama_config["model"],
-        "prompt": test_query,
-        "temperature": ollama_config.get("temperature", 0.1),
-        "top_p": ollama_config.get("top_p", 0.8),
-        "top_k": ollama_config.get("top_k", 20),
-        "repeat_penalty": ollama_config.get("repeat_penalty", 1.1),
-        "num_predict": ollama_config.get("num_predict", 1024),
-        "stream": False
-    }
+    model = ollama_config["model"]
+    
+    # Check if model uses chat format (OpenAI-compatible models)
+    use_chat_api = model.startswith('gpt-') or 'openai' in model.lower()
     
     try:
-        # Make request to Ollama
-        response = requests.post(
-            f"{ollama_config['base_url']}/api/generate",
-            json=payload,
-            timeout=DEFAULT_TIMEOUT
-        )
-        
-        # Check response
-        assert response.status_code == 200, f"Request failed with status code {response.status_code}"
-        
-        # Parse and validate response
-        response_data = response.json()
-        assert "response" in response_data, "Response should contain 'response' field"
-        assert isinstance(response_data["response"], str), "Response should be a string"
-        assert len(response_data["response"]) > 0, "Response should not be empty"
+        if use_chat_api:
+            # Use chat endpoint for OpenAI-compatible models
+            payload = {
+                "model": model,
+                "messages": [{"role": "user", "content": test_query}],
+                "temperature": ollama_config.get("temperature", 0.1),
+                "top_p": ollama_config.get("top_p", 0.8),
+                "top_k": ollama_config.get("top_k", 20),
+                "repeat_penalty": ollama_config.get("repeat_penalty", 1.1),
+                "max_tokens": ollama_config.get("num_predict", 1024),
+                "stream": False
+            }
+            
+            response = requests.post(
+                f"{ollama_config['base_url']}/api/chat",
+                json=payload,
+                timeout=DEFAULT_TIMEOUT
+            )
+            
+            # Check response
+            assert response.status_code == 200, f"Request failed with status code {response.status_code}"
+            
+            # Parse and validate response
+            response_data = response.json()
+            assert "message" in response_data, "Response should contain 'message' field"
+            assert "content" in response_data["message"], "Message should contain 'content' field"
+            assert isinstance(response_data["message"]["content"], str), "Response content should be a string"
+            assert len(response_data["message"]["content"]) > 0, "Response should not be empty"
+        else:
+            # Use generate endpoint for traditional Ollama models
+            payload = {
+                "model": model,
+                "prompt": test_query,
+                "temperature": ollama_config.get("temperature", 0.1),
+                "top_p": ollama_config.get("top_p", 0.8),
+                "top_k": ollama_config.get("top_k", 20),
+                "repeat_penalty": ollama_config.get("repeat_penalty", 1.1),
+                "num_predict": ollama_config.get("num_predict", 1024),
+                "stream": False
+            }
+            
+            response = requests.post(
+                f"{ollama_config['base_url']}/api/generate",
+                json=payload,
+                timeout=DEFAULT_TIMEOUT
+            )
+            
+            # Check response
+            assert response.status_code == 200, f"Request failed with status code {response.status_code}"
+            
+            # Parse and validate response
+            response_data = response.json()
+            assert "response" in response_data, "Response should contain 'response' field"
+            assert isinstance(response_data["response"], str), "Response should be a string"
+            assert len(response_data["response"]) > 0, "Response should not be empty"
         
     except ConnectionError as e:
         pytest.fail(f"Could not connect to Ollama service at {ollama_config['base_url']}. Is Ollama running? Error: {str(e)}")
@@ -119,19 +171,37 @@ def test_ollama_response(ollama_config: Dict[str, Any], test_query: str):
 
 def test_ollama_error_handling(ollama_config: Dict[str, Any]):
     """Test error handling with invalid requests"""
-    # Test with invalid model
-    payload = {
-        "model": "nonexistent_model",
-        "prompt": "test",
-        "stream": False
-    }
+    # Determine which API to test based on a real model in config
+    real_model = ollama_config["model"]
+    use_chat_api = real_model.startswith('gpt-') or 'openai' in real_model.lower()
     
     try:
-        response = requests.post(
-            f"{ollama_config['base_url']}/api/generate",
-            json=payload,
-            timeout=DEFAULT_TIMEOUT
-        )
+        if use_chat_api:
+            # Test with invalid model using chat endpoint
+            payload = {
+                "model": "nonexistent_model",
+                "messages": [{"role": "user", "content": "test"}],
+                "stream": False
+            }
+            
+            response = requests.post(
+                f"{ollama_config['base_url']}/api/chat",
+                json=payload,
+                timeout=DEFAULT_TIMEOUT
+            )
+        else:
+            # Test with invalid model using generate endpoint
+            payload = {
+                "model": "nonexistent_model",
+                "prompt": "test",
+                "stream": False
+            }
+            
+            response = requests.post(
+                f"{ollama_config['base_url']}/api/generate",
+                json=payload,
+                timeout=DEFAULT_TIMEOUT
+            )
         
         # Should get an error response
         assert response.status_code != 200, "Invalid model should result in an error"

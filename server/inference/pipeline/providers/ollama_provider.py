@@ -74,34 +74,62 @@ class OllamaProvider(LLMProvider):
         try:
             start_time = time.time()
             
+            # Check if model uses chat format (OpenAI-compatible models)
+            use_chat_api = self.model.startswith('gpt-') or 'openai' in self.model.lower()
+            
             async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    f"{self.base_url}/api/generate",
-                    json={
-                        "model": self.model,
-                        "prompt": prompt,
-                        "stream": False,
-                        "temperature": self.temperature,
-                        "top_p": self.top_p,
-                        "top_k": self.top_k,
-                        "repeat_penalty": self.repeat_penalty,
-                        "num_predict": self.num_predict,
-                        **kwargs
-                    }
-                ) as response:
-                    if response.status != 200:
-                        error_text = await response.text()
-                        self.logger.error(f"Ollama error: {error_text}")
-                        raise Exception(f"Failed to generate response: {error_text}")
+                if use_chat_api:
+                    # Use chat endpoint for OpenAI-compatible models
+                    async with session.post(
+                        f"{self.base_url}/api/chat",
+                        json={
+                            "model": self.model,
+                            "messages": [{"role": "user", "content": prompt}],
+                            "stream": False,
+                            "temperature": self.temperature,
+                            "top_p": self.top_p,
+                            "top_k": self.top_k,
+                            "repeat_penalty": self.repeat_penalty,
+                            "max_tokens": self.num_predict,
+                            **kwargs
+                        }
+                    ) as response:
+                        if response.status != 200:
+                            error_text = await response.text()
+                            self.logger.error(f"Ollama error: {error_text}")
+                            raise Exception(f"Failed to generate response: {error_text}")
+                        
+                        data = await response.json()
+                        response_text = data.get("message", {}).get("content", "")
+                else:
+                    # Use generate endpoint for traditional Ollama models
+                    async with session.post(
+                        f"{self.base_url}/api/generate",
+                        json={
+                            "model": self.model,
+                            "prompt": prompt,
+                            "stream": False,
+                            "temperature": self.temperature,
+                            "top_p": self.top_p,
+                            "top_k": self.top_k,
+                            "repeat_penalty": self.repeat_penalty,
+                            "num_predict": self.num_predict,
+                            **kwargs
+                        }
+                    ) as response:
+                        if response.status != 200:
+                            error_text = await response.text()
+                            self.logger.error(f"Ollama error: {error_text}")
+                            raise Exception(f"Failed to generate response: {error_text}")
+                        
+                        data = await response.json()
+                        response_text = data.get("response", "")
                     
-                    data = await response.json()
-                    response_text = data.get("response", "")
-                    
-                    processing_time = time.time() - start_time
-                    if self.verbose:
-                        self.logger.info(f"Ollama generation completed in {processing_time:.3f}s")
-                    
-                    return response_text
+                processing_time = time.time() - start_time
+                if self.verbose:
+                    self.logger.info(f"Ollama generation completed in {processing_time:.3f}s")
+                
+                return response_text
                     
         except Exception as e:
             self.logger.error(f"Error generating response with Ollama: {str(e)}")
@@ -119,47 +147,92 @@ class OllamaProvider(LLMProvider):
             Response chunks as they are generated
         """
         try:
+            # Check if model uses chat format (OpenAI-compatible models)
+            use_chat_api = self.model.startswith('gpt-') or 'openai' in self.model.lower()
+            
             async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    f"{self.base_url}/api/generate",
-                    json={
-                        "model": self.model,
-                        "prompt": prompt,
-                        "stream": True,
-                        "temperature": self.temperature,
-                        "top_p": self.top_p,
-                        "top_k": self.top_k,
-                        "repeat_penalty": self.repeat_penalty,
-                        "num_predict": self.num_predict,
-                        **kwargs
-                    },
-                    timeout=aiohttp.ClientTimeout(total=300)  # 5 minutes timeout
-                ) as response:
-                    if response.status != 200:
-                        error_text = await response.text()
-                        self.logger.error(f"Ollama error: {error_text}")
-                        yield f"Error: Failed to generate response: {error_text}"
-                        return
-                    
-                    # Parse the streaming response
-                    buffer = ""
-                    async for line in response.content:
-                        chunk = line.decode('utf-8').strip()
-                        if not chunk:
-                            continue
+                if use_chat_api:
+                    # Use chat endpoint for OpenAI-compatible models
+                    async with session.post(
+                        f"{self.base_url}/api/chat",
+                        json={
+                            "model": self.model,
+                            "messages": [{"role": "user", "content": prompt}],
+                            "stream": True,
+                            "temperature": self.temperature,
+                            "top_p": self.top_p,
+                            "top_k": self.top_k,
+                            "repeat_penalty": self.repeat_penalty,
+                            "max_tokens": self.num_predict,
+                            **kwargs
+                        },
+                        timeout=aiohttp.ClientTimeout(total=300)  # 5 minutes timeout
+                    ) as response:
+                        if response.status != 200:
+                            error_text = await response.text()
+                            self.logger.error(f"Ollama error: {error_text}")
+                            yield f"Error: Failed to generate response: {error_text}"
+                            return
                         
-                        try:
-                            data = json.loads(chunk)
-                            if "response" in data:
-                                buffer += data["response"]
-                                yield data["response"]
+                        # Parse the streaming response
+                        async for line in response.content:
+                            chunk = line.decode('utf-8').strip()
+                            if not chunk:
+                                continue
                             
-                            if data.get("done", False):
-                                break
+                            try:
+                                data = json.loads(chunk)
+                                if "message" in data:
+                                    content = data["message"].get("content", "")
+                                    if content:
+                                        yield content
                                 
-                        except json.JSONDecodeError:
-                            self.logger.error(f"Error parsing JSON: {chunk}")
-                            continue
+                                if data.get("done", False):
+                                    break
+                                    
+                            except json.JSONDecodeError:
+                                self.logger.error(f"Error parsing JSON: {chunk}")
+                                continue
+                else:
+                    # Use generate endpoint for traditional Ollama models
+                    async with session.post(
+                        f"{self.base_url}/api/generate",
+                        json={
+                            "model": self.model,
+                            "prompt": prompt,
+                            "stream": True,
+                            "temperature": self.temperature,
+                            "top_p": self.top_p,
+                            "top_k": self.top_k,
+                            "repeat_penalty": self.repeat_penalty,
+                            "num_predict": self.num_predict,
+                            **kwargs
+                        },
+                        timeout=aiohttp.ClientTimeout(total=300)  # 5 minutes timeout
+                    ) as response:
+                        if response.status != 200:
+                            error_text = await response.text()
+                            self.logger.error(f"Ollama error: {error_text}")
+                            yield f"Error: Failed to generate response: {error_text}"
+                            return
+                        
+                        # Parse the streaming response
+                        async for line in response.content:
+                            chunk = line.decode('utf-8').strip()
+                            if not chunk:
+                                continue
+                            
+                            try:
+                                data = json.loads(chunk)
+                                if "response" in data:
+                                    yield data["response"]
+                                
+                                if data.get("done", False):
+                                    break
+                                    
+                            except json.JSONDecodeError:
+                                self.logger.error(f"Error parsing JSON: {chunk}")
+                                continue
                             
         except Exception as e:
             self.logger.error(f"Error generating streaming response with Ollama: {str(e)}")
