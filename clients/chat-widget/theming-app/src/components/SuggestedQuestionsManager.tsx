@@ -58,7 +58,15 @@ export const SuggestedQuestionsManager: React.FC<SuggestedQuestionsManagerProps>
                     <input
                       type="text"
                       value={question.text}
-                      onChange={(e) => onUpdateQuestion(index, 'text', e.target.value)}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        // Enforce the max length during typing
+                        if (value.length <= maxQuestionLength) {
+                          onUpdateQuestion(index, 'text', value);
+                        } else {
+                          onUpdateQuestion(index, 'text', value.substring(0, maxQuestionLength));
+                        }
+                      }}
                       maxLength={maxQuestionLength}
                       className="w-full px-3 py-2 pr-16 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                       placeholder="Button text"
@@ -80,7 +88,15 @@ export const SuggestedQuestionsManager: React.FC<SuggestedQuestionsManagerProps>
                   <input
                     type="text"
                     value={question.query}
-                    onChange={(e) => onUpdateQuestion(index, 'query', e.target.value)}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      // Enforce the max length during typing
+                      if (value.length <= maxQueryLength) {
+                        onUpdateQuestion(index, 'query', value);
+                      } else {
+                        onUpdateQuestion(index, 'query', value.substring(0, maxQueryLength));
+                      }
+                    }}
                     maxLength={maxQueryLength}
                     className="w-full px-3 py-2 pr-16 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                     placeholder="Query sent to API"

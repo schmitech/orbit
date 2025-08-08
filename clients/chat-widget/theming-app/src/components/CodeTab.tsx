@@ -76,7 +76,7 @@ export const CodeTab: React.FC<CodeTabProps> = ({
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-medium text-gray-900">Implementation Code</h3>
+        <h3 className="text-sm font-medium text-gray-900">Example of using the widget in your website:</h3>
       </div>
 
       {/* Sub-tabs and Download Button */}

@@ -36,6 +36,7 @@ export const ContentTab: React.FC<ContentTabProps> = ({
   const [questionLengthInput, setQuestionLengthInput] = useState(String(widgetConfig.maxSuggestedQuestionLength));
   const [queryLengthInput, setQueryLengthInput] = useState(String(widgetConfig.maxSuggestedQuestionQueryLength));
 
+  // Sync local input state with widget config and truncate when limits change
   useEffect(() => {
     setQuestionLengthInput(String(widgetConfig.maxSuggestedQuestionLength));
   }, [widgetConfig.maxSuggestedQuestionLength]);
@@ -43,6 +44,52 @@ export const ContentTab: React.FC<ContentTabProps> = ({
   useEffect(() => {
     setQueryLengthInput(String(widgetConfig.maxSuggestedQuestionQueryLength));
   }, [widgetConfig.maxSuggestedQuestionQueryLength]);
+  
+  // Truncate questions when max length changes
+  useEffect(() => {
+    let needsUpdate = false;
+    const updatedQuestions = widgetConfig.suggestedQuestions.map((question) => {
+      if (question.text.length > widgetConfig.maxSuggestedQuestionLength) {
+        needsUpdate = true;
+        return {
+          ...question,
+          text: question.text.substring(0, widgetConfig.maxSuggestedQuestionLength)
+        };
+      }
+      return question;
+    });
+    
+    if (needsUpdate) {
+      updatedQuestions.forEach((question, index) => {
+        if (widgetConfig.suggestedQuestions[index].text !== question.text) {
+          onUpdateSuggestedQuestion(index, 'text', question.text);
+        }
+      });
+    }
+  }, [widgetConfig.maxSuggestedQuestionLength, widgetConfig.suggestedQuestions, onUpdateSuggestedQuestion]);
+  
+  // Truncate queries when max length changes
+  useEffect(() => {
+    let needsUpdate = false;
+    const updatedQuestions = widgetConfig.suggestedQuestions.map((question) => {
+      if (question.query.length > widgetConfig.maxSuggestedQuestionQueryLength) {
+        needsUpdate = true;
+        return {
+          ...question,
+          query: question.query.substring(0, widgetConfig.maxSuggestedQuestionQueryLength)
+        };
+      }
+      return question;
+    });
+    
+    if (needsUpdate) {
+      updatedQuestions.forEach((question, index) => {
+        if (widgetConfig.suggestedQuestions[index].query !== question.query) {
+          onUpdateSuggestedQuestion(index, 'query', question.query);
+        }
+      });
+    }
+  }, [widgetConfig.maxSuggestedQuestionQueryLength, widgetConfig.suggestedQuestions, onUpdateSuggestedQuestion]);
 
   // Handle question length change with validation
   const handleQuestionLengthChange = (value: string) => {
@@ -66,6 +113,8 @@ export const ContentTab: React.FC<ContentTabProps> = ({
       limits.MIN_SUGGESTED_QUESTION_LENGTH,
       Math.min(value, limits.MAX_SUGGESTED_QUESTION_LENGTH_HARD)
     );
+    
+    // Update the limit - truncation will happen automatically via useEffect
     onUpdateMaxQuestionLength(clampedValue);
     setQuestionLengthInput(String(clampedValue));
   };
@@ -89,20 +138,14 @@ export const ContentTab: React.FC<ContentTabProps> = ({
       return;
     }
     
-    // Store the user's intended value even if it needs clamping
-    if (value >= limits.MIN_SUGGESTED_QUESTION_QUERY_LENGTH && value <= limits.MAX_SUGGESTED_QUESTION_QUERY_LENGTH_HARD) {
-      // Valid value, use as-is
-      onUpdateMaxQueryLength(value);
-      setQueryLengthInput(String(value));
-    } else {
-      // Value is out of bounds, clamp it
-      const clampedValue = Math.max(
-        limits.MIN_SUGGESTED_QUESTION_QUERY_LENGTH,
-        Math.min(value, limits.MAX_SUGGESTED_QUESTION_QUERY_LENGTH_HARD)
-      );
-      onUpdateMaxQueryLength(clampedValue);
-      setQueryLengthInput(String(clampedValue));
-    }
+    const clampedValue = Math.max(
+      limits.MIN_SUGGESTED_QUESTION_QUERY_LENGTH,
+      Math.min(value, limits.MAX_SUGGESTED_QUESTION_QUERY_LENGTH_HARD)
+    );
+    
+    // Update the limit - truncation will happen automatically via useEffect
+    onUpdateMaxQueryLength(clampedValue);
+    setQueryLengthInput(String(clampedValue));
   };
 
   return (
