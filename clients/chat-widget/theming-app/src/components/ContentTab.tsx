@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { WidgetConfig } from '../types/widget.types';
 import { FormInput } from './FormInput';
 import { FormTextarea } from './FormTextarea';
@@ -31,28 +31,77 @@ export const ContentTab: React.FC<ContentTabProps> = ({
   // Get widget limits
   const limits = getWidgetLimits();
   const limitDescriptions = getLimitDescriptions();
-  
+
   // Local state for number inputs to allow free typing
-  const [questionLengthInput, setQuestionLengthInput] = useState(widgetConfig.maxSuggestedQuestionLength.toString());
-  const [queryLengthInput, setQueryLengthInput] = useState(widgetConfig.maxSuggestedQuestionQueryLength.toString());
+  const [questionLengthInput, setQuestionLengthInput] = useState(String(widgetConfig.maxSuggestedQuestionLength));
+  const [queryLengthInput, setQueryLengthInput] = useState(String(widgetConfig.maxSuggestedQuestionQueryLength));
+
+  useEffect(() => {
+    setQuestionLengthInput(String(widgetConfig.maxSuggestedQuestionLength));
+  }, [widgetConfig.maxSuggestedQuestionLength]);
+
+  useEffect(() => {
+    setQueryLengthInput(String(widgetConfig.maxSuggestedQuestionQueryLength));
+  }, [widgetConfig.maxSuggestedQuestionQueryLength]);
 
   // Handle question length change with validation
   const handleQuestionLengthChange = (value: string) => {
     setQuestionLengthInput(value);
-    const num = parseInt(value);
-    if (!isNaN(num)) {
-      const clampedValue = Math.min(Math.max(num, limits.MIN_SUGGESTED_QUESTION_LENGTH), limits.MAX_SUGGESTED_QUESTION_LENGTH_HARD);
-      onUpdateMaxQuestionLength(clampedValue);
+  };
+
+  const handleQuestionLengthBlur = () => {
+    const raw = questionLengthInput;
+    if (raw.trim() === '') {
+      // Preserve previous value when empty/cleared
+      setQuestionLengthInput(String(widgetConfig.maxSuggestedQuestionLength));
+      return;
     }
+    const value = parseInt(raw, 10);
+    if (Number.isNaN(value)) {
+      // Invalid input, revert to previous
+      setQuestionLengthInput(String(widgetConfig.maxSuggestedQuestionLength));
+      return;
+    }
+    const clampedValue = Math.max(
+      limits.MIN_SUGGESTED_QUESTION_LENGTH,
+      Math.min(value, limits.MAX_SUGGESTED_QUESTION_LENGTH_HARD)
+    );
+    onUpdateMaxQuestionLength(clampedValue);
+    setQuestionLengthInput(String(clampedValue));
   };
 
   // Handle query length change with validation
   const handleQueryLengthChange = (value: string) => {
     setQueryLengthInput(value);
-    const num = parseInt(value);
-    if (!isNaN(num)) {
-      const clampedValue = Math.min(Math.max(num, limits.MIN_SUGGESTED_QUESTION_QUERY_LENGTH), limits.MAX_SUGGESTED_QUESTION_QUERY_LENGTH_HARD);
+  };
+
+  const handleQueryLengthBlur = () => {
+    const raw = queryLengthInput;
+    if (raw.trim() === '') {
+      // Preserve previous value when empty/cleared
+      setQueryLengthInput(String(widgetConfig.maxSuggestedQuestionQueryLength));
+      return;
+    }
+    const value = parseInt(raw, 10);
+    if (Number.isNaN(value)) {
+      // Invalid input, revert to previous
+      setQueryLengthInput(String(widgetConfig.maxSuggestedQuestionQueryLength));
+      return;
+    }
+    
+    // Store the user's intended value even if it needs clamping
+    if (value >= limits.MIN_SUGGESTED_QUESTION_QUERY_LENGTH && value <= limits.MAX_SUGGESTED_QUESTION_QUERY_LENGTH_HARD) {
+      // Valid value, use as-is
+      onUpdateMaxQueryLength(value);
+      setQueryLengthInput(String(value));
+    } else {
+      // Value is out of bounds, clamp it
+      const clampedValue = Math.max(
+        limits.MIN_SUGGESTED_QUESTION_QUERY_LENGTH,
+        Math.min(value, limits.MAX_SUGGESTED_QUESTION_QUERY_LENGTH_HARD)
+      );
       onUpdateMaxQueryLength(clampedValue);
+      setQueryLengthInput(String(clampedValue));
     }
   };
 
@@ -111,24 +160,26 @@ export const ContentTab: React.FC<ContentTabProps> = ({
             type="number"
             value={questionLengthInput}
             onChange={handleQuestionLengthChange}
+            onBlur={handleQuestionLengthBlur}
             min={limits.MIN_SUGGESTED_QUESTION_LENGTH}
             max={limits.MAX_SUGGESTED_QUESTION_LENGTH_HARD}
             placeholder={`${limits.MIN_SUGGESTED_QUESTION_LENGTH}-${limits.MAX_SUGGESTED_QUESTION_LENGTH_HARD}`}
           />
           <p className="text-xs text-gray-500 mt-1">
-            {limitDescriptions.questionLength.description}
+            {limitDescriptions.questionLength.description} (Range: {limits.MIN_SUGGESTED_QUESTION_LENGTH}-{limits.MAX_SUGGESTED_QUESTION_LENGTH_HARD})
           </p>
           <FormInput
             label="Max Query Length"
             type="number"
             value={queryLengthInput}
             onChange={handleQueryLengthChange}
+            onBlur={handleQueryLengthBlur}
             min={limits.MIN_SUGGESTED_QUESTION_QUERY_LENGTH}
             max={limits.MAX_SUGGESTED_QUESTION_QUERY_LENGTH_HARD}
             placeholder={`${limits.MIN_SUGGESTED_QUESTION_QUERY_LENGTH}-${limits.MAX_SUGGESTED_QUESTION_QUERY_LENGTH_HARD}`}
           />
           <p className="text-xs text-gray-500 mt-1">
-            {limitDescriptions.queryLength.description}
+            {limitDescriptions.queryLength.description} (Range: {limits.MIN_SUGGESTED_QUESTION_QUERY_LENGTH}-{limits.MAX_SUGGESTED_QUESTION_QUERY_LENGTH_HARD})
           </p>
         </div>
       </div>

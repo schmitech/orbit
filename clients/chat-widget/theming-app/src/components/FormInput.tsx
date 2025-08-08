@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 
 interface FormInputProps {
   label?: string;
   value: string | number;
   onChange: (value: string) => void;
+  onBlur?: (event: React.FocusEvent<HTMLInputElement>) => void;
   placeholder?: string;
   type?: 'text' | 'number' | 'email' | 'password';
   className?: string;
@@ -20,6 +21,7 @@ export const FormInput: React.FC<FormInputProps> = ({
   label,
   value,
   onChange,
+  onBlur,
   placeholder,
   type = 'text',
   className = "",
@@ -31,36 +33,37 @@ export const FormInput: React.FC<FormInputProps> = ({
   required = false,
   disabled = false
 }) => {
-  const [inputValue, setInputValue] = useState(String(value));
-
-  useEffect(() => {
-    setInputValue(String(value));
-  }, [value]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newValue = e.target.value;
-    setInputValue(newValue);
-    
+    const raw = e.target.value;
+
+    // For numeric inputs, respect provided bounds while allowing empty typing
     if (type === 'number') {
-      if (newValue === '') {
-        onChange('');
-      } else {
-        const numValue = Number(newValue);
-        if (!isNaN(numValue)) {
-          if (min !== undefined && numValue < min) {
-            setInputValue(String(min));
-            onChange(String(min));
-          } else if (max !== undefined && numValue > max) {
-            setInputValue(String(max));
-            onChange(String(max));
-          } else {
-            onChange(newValue);
-          }
-        }
+      // Allow clearing the field for editing
+      if (raw === '') {
+        onChange(raw);
+        return;
       }
-    } else if (!maxLength || newValue.length <= maxLength) {
-      onChange(newValue);
+
+      const n = Number(raw);
+      // If not a valid number, just pass through
+      if (Number.isNaN(n)) {
+        onChange(raw);
+        return;
+      }
+
+      // Enforce max immediately to keep field bounded while typing
+      if (typeof max === 'number' && n > max) {
+        onChange(String(max));
+        return;
+      }
+
+      // Do not clamp to min on change to avoid blocking partial input (handled onBlur)
+      onChange(raw);
+      return;
     }
+
+    onChange(raw);
   };
 
   return (
@@ -74,8 +77,9 @@ export const FormInput: React.FC<FormInputProps> = ({
       <div className="relative">
         <input
           type={type}
-          value={inputValue}
+          value={value}
           onChange={handleChange}
+          onBlur={onBlur}
           placeholder={placeholder}
           min={min}
           max={max}
@@ -89,7 +93,7 @@ export const FormInput: React.FC<FormInputProps> = ({
         {showCharacterCount && maxLength && type !== 'number' && (
           <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
             <span className="text-xs text-gray-400 bg-white px-1">
-              {inputValue.length}/{maxLength}
+              {String(value).length}/{maxLength}
             </span>
           </div>
         )}

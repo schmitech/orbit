@@ -17,6 +17,35 @@
 
 </div>
 
+## 📑 Table of Contents
+
+- [🛰️ What is ORBIT?](#️-what-is-orbit)
+- [🤔 Why ORBIT?](#-why-orbit)
+- [✨ Key Features](#-key-features)
+- [📋 Minimum Requirements](#-minimum-requirements)
+- [🏗️ Architecture](#️-architecture)
+  - [Core Components](#core-components)
+  - [Dependencies](#dependencies)
+- [🚀 Quick Start](#-quick-start)
+  - [Deploying with Docker](#deploying-with-docker)
+  - [Deploying Locally](#deploying-locally)
+  - [ORBIT CLI Chat](#orbit-cli-chat)
+  - [Enabling Chat Memory](#enabling-chat-memory)
+- [Use Case Examples](#use-case-examples)
+  - [Understanding ORBIT's Adapter System](#understanding-orbits-adapter-system)
+  - [Multilingual Support](#multilingual-support)
+  - [Business Use Case #1: A Knowledge Base Q&A Chatbot (SQLite)](#business-use-case-1-a-knowledge-base-qa-chatbot-sqlite)
+  - [Business Use Case #2: A Knowledge Base Q&A Chatbot (Vector DB)](#business-use-case-2-a-knowledge-base-qa-chatbot-vector-db)
+  - [Business Use Case #3: A Database Chatbot (PostgreSQL) - Experimental](#business-use-case-3-a-database-chatbot-postgresql---experimental)
+  - [API Key Management](#api-key-management)
+  - [Adapter Information](#adapter-information)
+- [📖 Documentation](#-documentation)
+  - [Getting Started](#getting-started)
+  - [Core Features](#core-features)
+  - [Advanced Topics](#advanced-topics)
+- [🤝 Community & Support](#-community--support)
+- [📄 License](#-license)
+
 ## 🛰️ What is ORBIT?
 
 ORBIT is a middleware platform that provides a unified API for AI inference, allowing you to:
