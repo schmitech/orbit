@@ -1,5 +1,6 @@
 import React from 'react';
 import type { TabType } from '../types/widget.types';
+import { WIDGET_CONFIG } from '../utils/widget-config';
 
 interface Tab {
   id: TabType;
@@ -17,12 +18,17 @@ export const TabNavigation: React.FC<TabNavigationProps> = ({
   onTabChange,
   className = ""
 }) => {
-  const tabs: Tab[] = [
+  const baseTabs: Tab[] = [
     { id: 'theme', label: 'Theme' },
     { id: 'content', label: 'Content' },
-    { id: 'prompt', label: 'Prompt' },
     { id: 'code', label: 'Code' }
   ];
+
+  const promptTab: Tab = { id: 'prompt', label: 'Prompt' };
+  
+  const tabs: Tab[] = WIDGET_CONFIG.promptEnabled 
+    ? [...baseTabs.slice(0, 2), promptTab, ...baseTabs.slice(2)]
+    : baseTabs;
 
   return (
     <div className={`border-b border-gray-200 ${className}`}>

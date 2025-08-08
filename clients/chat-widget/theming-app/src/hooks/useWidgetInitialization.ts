@@ -6,6 +6,7 @@ import { isDebugEnabled } from '../utils/widget-config';
 
 interface UseWidgetInitializationProps {
   apiKey: string;
+  apiEndpoint: string;
   widgetConfig: WidgetConfig;
   customColors: CustomColors;
   activeTab: TabType;
@@ -13,6 +14,7 @@ interface UseWidgetInitializationProps {
 
 export const useWidgetInitialization = ({
   apiKey,
+  apiEndpoint,
   widgetConfig,
   customColors,
   activeTab
@@ -88,7 +90,7 @@ export const useWidgetInitialization = ({
     }
 
     try {
-      initializeWidget(apiKey, widgetConfig, customColors);
+      initializeWidget(apiKey, apiEndpoint, widgetConfig, customColors);
       widgetInitialized.current = true;
       setIsInitialized(true);
     } catch (error) {

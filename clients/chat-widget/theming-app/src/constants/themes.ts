@@ -41,7 +41,7 @@ export const defaultWidgetConfig: WidgetConfig = {
       query: 'How do I get started with this service?'
     }
   ],
-  maxSuggestedQuestionLength: 50,
+  maxSuggestedQuestionLength: 120,
   maxSuggestedQuestionQueryLength: 200,
   icon: 'MessageSquare'
 };

@@ -43,6 +43,7 @@ export const generateThemeConfig = (customColors: CustomColors): ThemeConfig => 
 // Initialize widget
 export const initializeWidget = (
   apiKey: string,
+  apiEndpoint: string,
   widgetConfig: WidgetConfig,
   customColors: CustomColors
 ): void => {
@@ -103,7 +104,7 @@ export const initializeWidget = (
   const { systemPrompt, ...widgetConfigWithoutPrompt } = widgetConfig;
   
   const config: WidgetInitConfig = {
-    apiUrl: 'http://localhost:3000',
+    apiUrl: apiEndpoint,
     apiKey: apiKey,
     containerSelector: `#${containerId}`,
     widgetConfig: {

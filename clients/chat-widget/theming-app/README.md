@@ -56,6 +56,16 @@ VITE_WIDGET_SOURCE=local
 # Debug logging (optional - defaults to development mode)
 VITE_WIDGET_DEBUG=true
 
+# Prompt tab configuration (optional - defaults to enabled)
+VITE_PROMPT_ENABLED=true
+
+# Default API endpoint (optional - defaults to localhost:3000)
+VITE_DEFAULT_API_ENDPOINT=http://localhost:3000
+
+# GitHub repository configuration (optional - defaults to schmitech/orbit)
+VITE_GITHUB_OWNER=schmitech
+VITE_GITHUB_REPO=orbit
+
 # Paths
 VITE_LOCAL_WIDGET_JS_PATH=../dist/chatbot-widget.umd.js
 VITE_LOCAL_WIDGET_CSS_PATH=../dist/chatbot-widget.css
@@ -136,7 +146,50 @@ npm run build:local
 
 Both will have debug logging disabled in production.
 
-### 4. Clean Development (No Debug Logs)
+### 4. Prompt Tab Configuration
+
+The prompt tab allows users to customize the system prompt for their chatbot. You can disable this feature in production if it's not ready:
+
+```bash
+# Disable prompt tab functionality
+VITE_PROMPT_ENABLED=false
+```
+
+When disabled:
+- The "Prompt" tab will not appear in the navigation
+- If a user is on the prompt tab when disabled, they'll be redirected to the "Theme" tab
+- The prompt functionality will be completely hidden from the UI
+
+### 5. API Endpoint Configuration
+
+You can set a default API endpoint that will pre-populate the API endpoint field:
+
+```bash
+# Set default API endpoint
+VITE_DEFAULT_API_ENDPOINT=https://your-production-api.com
+```
+
+This is useful for:
+- Pre-configuring production endpoints for different environments
+- Setting up staging vs production endpoints
+- Providing a default that users can modify
+
+### 6. GitHub Repository Configuration
+
+You can configure which GitHub repository to display stats for:
+
+```bash
+# Set GitHub repository for stats display
+VITE_GITHUB_OWNER=schmitech
+VITE_GITHUB_REPO=orbit
+```
+
+This is useful for:
+- Displaying stats for your own fork of the project
+- Pointing to different repositories for different deployments
+- Customizing the "Powered by" section for your own projects
+
+### 7. Clean Development (No Debug Logs)
 
 If you want development without verbose logging:
 

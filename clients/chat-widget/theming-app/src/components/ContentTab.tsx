@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import type { WidgetConfig } from '../types/widget.types';
 import { FormInput } from './FormInput';
 import { FormTextarea } from './FormTextarea';
 import { SuggestedQuestionsManager } from './SuggestedQuestionsManager';
+import { getWidgetLimits, getLimitDescriptions } from '../utils/widget-limits';
 
 interface ContentTabProps {
   widgetConfig: WidgetConfig;
@@ -27,6 +28,34 @@ export const ContentTab: React.FC<ContentTabProps> = ({
   onUpdateMaxQuestionLength,
   onUpdateMaxQueryLength
 }) => {
+  // Get widget limits
+  const limits = getWidgetLimits();
+  const limitDescriptions = getLimitDescriptions();
+  
+  // Local state for number inputs to allow free typing
+  const [questionLengthInput, setQuestionLengthInput] = useState(widgetConfig.maxSuggestedQuestionLength.toString());
+  const [queryLengthInput, setQueryLengthInput] = useState(widgetConfig.maxSuggestedQuestionQueryLength.toString());
+
+  // Handle question length change with validation
+  const handleQuestionLengthChange = (value: string) => {
+    setQuestionLengthInput(value);
+    const num = parseInt(value);
+    if (!isNaN(num)) {
+      const clampedValue = Math.min(Math.max(num, limits.MIN_SUGGESTED_QUESTION_LENGTH), limits.MAX_SUGGESTED_QUESTION_LENGTH_HARD);
+      onUpdateMaxQuestionLength(clampedValue);
+    }
+  };
+
+  // Handle query length change with validation
+  const handleQueryLengthChange = (value: string) => {
+    setQueryLengthInput(value);
+    const num = parseInt(value);
+    if (!isNaN(num)) {
+      const clampedValue = Math.min(Math.max(num, limits.MIN_SUGGESTED_QUESTION_QUERY_LENGTH), limits.MAX_SUGGESTED_QUESTION_QUERY_LENGTH_HARD);
+      onUpdateMaxQueryLength(clampedValue);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header Configuration */}
@@ -80,51 +109,27 @@ export const ContentTab: React.FC<ContentTabProps> = ({
           <FormInput
             label="Max Question Display Length"
             type="number"
-            value={widgetConfig.maxSuggestedQuestionLength}
-            onChange={(value) => {
-              if (value === '') {
-                onUpdateMaxQuestionLength(50);
-              } else {
-                const num = parseInt(value);
-                if (!isNaN(num)) {
-                  if (num < 10) {
-                    onUpdateMaxQuestionLength(10);
-                  } else if (num > 200) {
-                    onUpdateMaxQuestionLength(200);
-                  } else {
-                    onUpdateMaxQuestionLength(num);
-                  }
-                }
-              }
-            }}
-            min={10}
-            max={200}
-            maxLength={3}
+            value={questionLengthInput}
+            onChange={handleQuestionLengthChange}
+            min={limits.MIN_SUGGESTED_QUESTION_LENGTH}
+            max={limits.MAX_SUGGESTED_QUESTION_LENGTH_HARD}
+            placeholder={`${limits.MIN_SUGGESTED_QUESTION_LENGTH}-${limits.MAX_SUGGESTED_QUESTION_LENGTH_HARD}`}
           />
+          <p className="text-xs text-gray-500 mt-1">
+            {limitDescriptions.questionLength.description}
+          </p>
           <FormInput
             label="Max Query Length"
             type="number"
-            value={widgetConfig.maxSuggestedQuestionQueryLength}
-            onChange={(value) => {
-              if (value === '') {
-                onUpdateMaxQueryLength(200);
-              } else {
-                const num = parseInt(value);
-                if (!isNaN(num)) {
-                  if (num < 50) {
-                    onUpdateMaxQueryLength(50);
-                  } else if (num > 1000) {
-                    onUpdateMaxQueryLength(1000);
-                  } else {
-                    onUpdateMaxQueryLength(num);
-                  }
-                }
-              }
-            }}
-            min={50}
-            max={1000}
-            maxLength={4}
+            value={queryLengthInput}
+            onChange={handleQueryLengthChange}
+            min={limits.MIN_SUGGESTED_QUESTION_QUERY_LENGTH}
+            max={limits.MAX_SUGGESTED_QUESTION_QUERY_LENGTH_HARD}
+            placeholder={`${limits.MIN_SUGGESTED_QUESTION_QUERY_LENGTH}-${limits.MAX_SUGGESTED_QUESTION_QUERY_LENGTH_HARD}`}
           />
+          <p className="text-xs text-gray-500 mt-1">
+            {limitDescriptions.queryLength.description}
+          </p>
         </div>
       </div>
     </div>

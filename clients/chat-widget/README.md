@@ -421,7 +421,7 @@ The widget provides flexible length controls for suggested questions:
 
 ### Display Length (`maxSuggestedQuestionLength`)
 - Controls how much text is shown on the suggestion buttons
-- Default: 50 characters
+- Default: 120 characters
 - Text longer than this limit will be truncated with "..." 
 - Example: "This is a very long question that will be truncated..." 
 

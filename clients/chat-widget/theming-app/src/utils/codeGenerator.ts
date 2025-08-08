@@ -4,13 +4,14 @@ import { generateThemeConfig } from './widgetUtils';
 // Generate implementation code (without system prompt)
 export const generateImplementationCode = (
   apiKey: string,
+  apiEndpoint: string,
   widgetConfig: WidgetConfig,
   customColors: CustomColors
 ): string => {
   const { systemPrompt, ...widgetConfigWithoutPrompt } = widgetConfig;
   
   const config = {
-    apiUrl: 'http://localhost:3000',
+    apiUrl: apiEndpoint,
     apiKey: apiKey,
     widgetConfig: {
       ...widgetConfigWithoutPrompt,
@@ -18,14 +19,36 @@ export const generateImplementationCode = (
     }
   };
 
-  return `<!-- Chatbot Widget Implementation -->
-<script src="https://unpkg.com/@schmitech/chatbot-widget@latest/dist/chatbot-widget.bundle.js"></script>
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Chatbot Widget</title>
+  <link rel="stylesheet" href="https://unpkg.com/@schmitech/chatbot-widget@0.4.12/dist/chatbot-widget.css">
+</head>
+<body>
+  <div id="chatbot-widget"></div>
+  <!-- Load Chatbot Widget Script -->
+  <!-- Widget dependencies -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@schmitech/chatbot-widget@0.4.12/dist/chatbot-widget.umd.js" crossorigin></script>
 
-<script>
-  window.addEventListener('load', function() {
-    window.initChatbotWidget(${JSON.stringify(config, null, 2)});
-  });
-</script>`;
+  <!-- Initialize Widget -->
+  <script>
+    window.addEventListener('load', function() {
+      // Ensure the container exists
+      if (!document.getElementById('chatbot-widget')) {
+        const container = document.createElement('div');
+        container.id = 'chatbot-widget';
+        document.body.appendChild(container);
+      }
+      
+      window.initChatbotWidget(${JSON.stringify(config, null, 2)});
+    });
+  </script>
+</body>
+</html>`;
 };
 
 // Copy code to clipboard
