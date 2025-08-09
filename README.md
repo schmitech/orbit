@@ -31,12 +31,12 @@
   - [Deploying Locally](#deploying-locally)
   - [ORBIT CLI Chat](#orbit-cli-chat)
   - [Enabling Chat Memory](#enabling-chat-memory)
-- [Use Case Examples](#use-case-examples)
+- [Scenarios](#scenarios)
   - [Understanding ORBIT's Adapter System](#understanding-orbits-adapter-system)
   - [Multilingual Support](#multilingual-support)
-  - [Business Use Case #1: A Knowledge Base Q&A Chatbot (SQLite)](#business-use-case-1-a-knowledge-base-qa-chatbot-sqlite)
-  - [Business Use Case #2: A Knowledge Base Q&A Chatbot (Vector DB)](#business-use-case-2-a-knowledge-base-qa-chatbot-vector-db)
-  - [Business Use Case #3: A Database Chatbot (PostgreSQL) - Experimental](#business-use-case-3-a-database-chatbot-postgresql---experimental)
+  - [Scenario #1: A Knowledge Base Q&A Chatbot (SQLite)](#scenario-1-a-knowledge-base-qa-chatbot-sqlite)
+  - [Scenario #2: A Knowledge Base Q&A Chatbot (Vector DB)](#scenario-2-a-knowledge-base-qa-chatbot-vector-db)
+  - [Scenario #3: A Database Chatbot (PostgreSQL)](#scenario-3-a-database-chatbot-postgresql)
   - [API Key Management](#api-key-management)
   - [Adapter Information](#adapter-information)
 - [📖 Documentation](#-documentation)
@@ -153,7 +153,7 @@ orbit-chat --url http://localhost:3000 # Default url
 </video>
 
 ### Enabling Chat Memory
-To enable conversation history, you will need to have an instance of MongoDB and adjust the settings in your .env file (copy .env.example to .env). At this time conversation history only works in inference mode. Work is underway to enable memory when adapters are enabled (more about adapters in business use cases section). The two settings are:
+To enable conversation history, you will need to have an instance of MongoDB and adjust the settings in your .env file (copy .env.example to .env). At this time conversation history only works in inference mode. Work is underway to enable memory when adapters are enabled (more about adapters in the scenarios section). The two settings are:
 
 ```bash
 INTERNAL_SERVICES_MONGODB_HOST=localhost
@@ -211,7 +211,7 @@ npm run dev
   Your browser does not support the video tag.
 </video>
 
-## Use Case Examples
+## Scenarios
 
 ORBIT works in two modes: **simple inference** (pass-through to model providers) and **RAG mode** (using retriever adapters). ORBIT uses an **adapter-based approach** where API keys are attached to specific adapters from `config/adapters.yaml`, so API keys represent behaviors or agents. A MongoDB instance is required to enable adapters, otherwise you can only use ORBIT as simple inference pass-through service.
 
@@ -228,7 +228,7 @@ This means one API key = one specific behavior/agent, making it easy to create s
 
 When `language_detection.enabled: true` in `config.yaml`, ORBIT automatically detects the conversation language, so responses and conversations are maintained in the detected language for consistency. Therefore, you don't need to translate your knowledge base—you can work with your data as is.
 
-### Business Use Case #1: A Knowledge Base Q&A Chatbot (SQLite)
+### Scenario #1: A Knowledge Base Q&A Chatbot (SQLite)
 
 **Scenario**: Municipal government wants to provide citizens with instant answers about city services, regulations, and procedures.
 
@@ -269,7 +269,7 @@ Or use the ORBIT chatbot widget. See the [widget documentation](clients/chat-wid
 
 **💡 Extending SQLite**: The `QASSQLRetriever` extends `SQLiteRetriever` with QA-specific enhancements. You can create your own domain specializations by inheriting from any database implementation. See [SQL Retriever Architecture](docs/sql-retriever-architecture.md) for details on creating new database support or domain specializations.
 
-### Business Use Case #2: A Knowledge Base Q&A Chatbot (Vector DB)
+### Scenario #2: A Knowledge Base Q&A Chatbot (Vector DB)
 
 **Scenario**: Municipal recreation department wants to provide citizens with information about community programs, activities, and registration details using semantic search.
 
@@ -306,9 +306,7 @@ python bin/orbit.py key create \
 
 **🔍 Qdrant Alternative**: There's also a Qdrant example under `examples/qdrant/` with a commented adapter in `config/adapters.yaml`. Qdrant provides high-performance vector search with REST API and multiple distance metrics.
 
-### Business Use Case #3: A Database Chatbot (PostgreSQL) - Experimental
-
-> **⚠️ Experimental Feature**: This PostgreSQL intent-based querying is available in development builds and will be released in v1.2.3.
+### Scenario #3: A Database Chatbot (PostgreSQL)
 
 **Scenario**: Customer service team needs to query order data using natural language instead of SQL.
 

@@ -246,12 +246,29 @@ class ConfigurationSummaryLogger:
             # Log adapter-specific configurations
             adapters_config = self.config.get('adapters', [])
             if adapters_config:
+                # Count enabled and disabled adapters
+                enabled_adapters = [adapter for adapter in adapters_config if adapter.get('enabled', True)]
+                disabled_adapters = [adapter for adapter in adapters_config if not adapter.get('enabled', True)]
+                
+                self._log_message(f"Adapters: {len(enabled_adapters)} enabled, {len(disabled_adapters)} disabled", indent=2)
+                
+                # List enabled adapters
+                if enabled_adapters:
+                    enabled_names = [adapter['name'] for adapter in enabled_adapters]
+                    self._log_message(f"Enabled adapters: {', '.join(enabled_names)}", indent=4)
+                
+                # List disabled adapters
+                if disabled_adapters:
+                    disabled_names = [adapter['name'] for adapter in disabled_adapters]
+                    self._log_message(f"Disabled adapters: {', '.join(disabled_names)}", indent=4)
+                
+                # Log adapters with custom fault tolerance
                 fault_tolerant_adapters = [
-                    adapter['name'] for adapter in adapters_config 
+                    adapter['name'] for adapter in enabled_adapters 
                     if adapter.get('fault_tolerance', {}).get('operation_timeout')
                 ]
                 if fault_tolerant_adapters:
-                    self._log_message(f"Adapters with custom fault tolerance: {', '.join(fault_tolerant_adapters)}", indent=2)
+                    self._log_message(f"Adapters with custom fault tolerance: {', '.join(fault_tolerant_adapters)}", indent=4)
         except Exception as e:
             self._log_message(f"Error logging fault tolerance configuration: {str(e)}", level='error')
     

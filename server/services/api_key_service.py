@@ -77,16 +77,21 @@ class ApiKeyService:
     
     def _get_adapter_config(self, adapter_name: str) -> Optional[Dict[str, Any]]:
         """
-        Get adapter configuration by name
+        Get adapter configuration by name (only if enabled)
         
         Args:
             adapter_name: Name of the adapter to find
             
         Returns:
-            Adapter configuration dict or None if not found
+            Adapter configuration dict or None if not found or disabled
         """
         adapters = self.config.get('adapters', [])
-        return next((cfg for cfg in adapters if cfg.get('name') == adapter_name), None)
+        adapter = next((cfg for cfg in adapters if cfg.get('name') == adapter_name), None)
+        
+        # Check if adapter exists and is enabled
+        if adapter and adapter.get('enabled', True):
+            return adapter
+        return None
     
     async def get_api_key_status(self, api_key: str) -> Dict[str, Any]:
         """
@@ -148,9 +153,10 @@ class ApiKeyService:
         if not api_key:
             allow_default = self.config.get('api_keys', {}).get('allow_default', False)
             if allow_default:
-                # Return the first available adapter as default
+                # Return the first available enabled adapter as default
                 available_adapters = self.config.get('adapters', [])
-                default_adapter = available_adapters[0].get('name', 'qa-vector-chroma') if available_adapters else 'qa-vector-chroma'
+                enabled_adapters = [adapter for adapter in available_adapters if adapter.get('enabled', True)]
+                default_adapter = enabled_adapters[0].get('name', 'qa-vector-chroma') if enabled_adapters else 'qa-vector-chroma'
                 if self.verbose:
                     logger.info(f"No API key provided, using default adapter: {default_adapter}")
                 return True, default_adapter, None
@@ -222,7 +228,8 @@ class ApiKeyService:
             # Check if this is an empty API key and defaults are allowed
             if not api_key and self.config.get('api_keys', {}).get('allow_default', False):
                 available_adapters = self.config.get('adapters', [])
-                default_adapter = available_adapters[0].get('name', 'qa-vector-chroma') if available_adapters else 'qa-vector-chroma'
+                enabled_adapters = [adapter for adapter in available_adapters if adapter.get('enabled', True)]
+                default_adapter = enabled_adapters[0].get('name', 'qa-vector-chroma') if enabled_adapters else 'qa-vector-chroma'
                 return default_adapter, None
             raise HTTPException(status_code=401, detail="Invalid or missing API key")
         

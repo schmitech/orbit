@@ -575,7 +575,7 @@ async def test_api_key_status_with_adapter(api_key_service):
     # Create adapter-based key
     result = await api_key_service.create_api_key(
         client_name="Status Test Client",
-        adapter_name="qa-vector-chroma",
+        adapter_name="qa-sql",
         notes="Status test key"
     )
     
@@ -584,7 +584,7 @@ async def test_api_key_status_with_adapter(api_key_service):
     
     assert status is not None
     assert status.get('exists') is True
-    assert status.get('adapter_name') == "qa-vector-chroma"
+    assert status.get('adapter_name') == "qa-sql"
     assert status.get('active') is True
     assert status.get('client_name') == "Status Test Client"
 

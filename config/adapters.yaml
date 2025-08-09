@@ -2,7 +2,11 @@
 # This file contains all adapter definitions and can be imported by config.yaml
 
 adapters:
+  # This is an example of a QA adapter for a SQL database.
+  # It is used as an example of how to create a QA adapter for a SQL database.
+  # Run /examples/sample-db-setup.sh sqlite to create a sample database and api key before using this adapter.
   - name: "qa-sql"
+    enabled: true
     type: "retriever"
     datasource: "sqlite"
     adapter: "qa"
@@ -30,7 +34,8 @@ adapters:
       # Performance optimization
       cache_ttl: 1800  # Cache results for 30 minutes
       
-    # Fault tolerance settings for this adapter
+    # Fault tolerance settings for this adapter. This overrides the default settings in config.yaml
+    # Use this as example for other adapters if you need to override the default settings.
     fault_tolerance:
       operation_timeout: 15.0          # Lower timeout for local database operations
       failure_threshold: 10            # Higher threshold for local operations (more reliable)
@@ -47,7 +52,10 @@ adapters:
       event_handler:
         type: "default"                # Use default filesystem logger
       
+  # This is an example of a QA adapter for a ChromaDB database. (Disabled by default)
+  # It is used as an example of how to create a QA adapter for a ChromaDB database.
   - name: "qa-vector-chroma"
+    enabled: false
     type: "retriever"
     datasource: "chroma"
     adapter: "qa"
@@ -60,52 +68,26 @@ adapters:
       max_results: 5
       return_results: 3
       
-    fault_tolerance:
-      operation_timeout: 25.0
-      failure_threshold: 3
-      recovery_timeout: 60.0
-      success_threshold: 2
-      max_recovery_timeout: 600.0
-      enable_exponential_backoff: true
-      enable_thread_isolation: true
-      enable_process_isolation: false
-      max_retries: 2
-      retry_delay: 1.0
-      cleanup_interval: 1800.0
-      retention_period: 43200.0
-      event_handler:
-        type: "default"
+  # This is an example of a QA adapter for a Qdrant database. (Disabled by default)
+  # It is used as an example of how to create a QA adapter for a Qdrant database.
+  - name: "qa-vector-qdrant"
+    enabled: false
+    type: "retriever"
+    datasource: "qdrant"
+    adapter: "qa"
+    implementation: "retrievers.implementations.qa.QAQdrantRetriever"
+    config:
+      collection: "city"
+      confidence_threshold: 0.3
+      score_scaling_factor: 200.0
+      embedding_provider: null
+      max_results: 5
+      return_results: 3
       
-  # - name: "qa-vector-qdrant"
-  #   type: "retriever"
-  #   datasource: "qdrant"
-  #   adapter: "qa"
-  #   implementation: "retrievers.implementations.qa.QAQdrantRetriever"
-  #   config:
-  #     collection: "city"
-  #     confidence_threshold: 0.3
-  #     score_scaling_factor: 200.0
-  #     embedding_provider: null
-  #     max_results: 5
-  #     return_results: 3
-      
-  #   fault_tolerance:
-  #     operation_timeout: 10.0
-  #     failure_threshold: 2
-  #     recovery_timeout: 45.0
-  #     success_threshold: 1
-  #     max_recovery_timeout: 300.0
-  #     enable_exponential_backoff: true
-  #     enable_thread_isolation: true
-  #     enable_process_isolation: false
-  #     max_retries: 1
-  #     retry_delay: 1.0
-  #     cleanup_interval: 1800.0
-  #     retention_period: 43200.0
-  #     event_handler:
-  #       type: "default"
-      
+  # This is an example of a file adapter for a ChromaDB database. (Disabled by default)
+  # It is used as an example of how to create a file adapter for a ChromaDB database.
   - name: "file-vector"
+    enabled: false
     type: "retriever"
     datasource: "chroma"
     adapter: "file"
@@ -121,25 +103,11 @@ adapters:
       boost_file_uploads: true
       file_content_weight: 1.5
       metadata_weight: 0.8
-      
-    fault_tolerance:
-      operation_timeout: 35.0
-      failure_threshold: 5
-      recovery_timeout: 45.0
-      success_threshold: 3
-      max_recovery_timeout: 300.0
-      enable_exponential_backoff: true
-      enable_thread_isolation: true
-      enable_process_isolation: false
-      max_retries: 3
-      retry_delay: 2.0
-      cleanup_interval: 7200.0
-      retention_period: 172800.0
-      event_handler:
-        type: "default"
         
-  # New refactored implementation with unified base classes
+  # This is an example of a domain adapter for a SQL database. (Disabled by default)
+  # It is used as an example of how to create a domain adapter for a SQL database.
   - name: "intent-sql-postgres"
+    enabled: false
     type: "retriever"
     datasource: "postgres"
     adapter: "intent"
@@ -175,20 +143,3 @@ adapters:
       # Query monitoring (automatically provided by new base)
       enable_query_monitoring: true
       query_timeout: 5000  # 5 seconds
-      
-    # Fault tolerance settings (same as original)
-    fault_tolerance:
-      operation_timeout: 20.0
-      failure_threshold: 5
-      recovery_timeout: 45.0
-      success_threshold: 3
-      max_recovery_timeout: 300.0
-      enable_exponential_backoff: true
-      enable_thread_isolation: true
-      enable_process_isolation: false
-      max_retries: 3
-      retry_delay: 1.0
-      cleanup_interval: 3600.0
-      retention_period: 86400.0
-      event_handler:
-        type: "default"

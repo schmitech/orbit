@@ -31,6 +31,7 @@ Create a separate file for all your adapter definitions:
 
 adapters:
   - name: "qa-sql"
+    enabled: true
     type: "retriever"
     datasource: "sqlite"
     adapter: "qa"
@@ -42,6 +43,7 @@ adapters:
       # ... other config options
 
   - name: "qa-vector-chroma"
+    enabled: false
     type: "retriever"
     datasource: "chroma"
     adapter: "qa"
@@ -55,6 +57,16 @@ adapters:
 
   # ... more adapters
 ```
+
+### The `enabled` Parameter
+
+Each adapter can include an `enabled` parameter to control whether it's loaded and available:
+
+- `enabled: true` - The adapter will be loaded and available for use
+- `enabled: false` - The adapter will be skipped during loading
+- If not specified, defaults to `enabled: true`
+
+This allows you to keep adapter configurations in your file while controlling which ones are active without removing them.
 
 ## Import Features
 

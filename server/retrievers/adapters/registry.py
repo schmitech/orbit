@@ -222,6 +222,12 @@ class AdapterRegistry:
         # Iterate through adapter definitions
         for adapter_def in config['adapters']:
             try:
+                # Skip disabled adapters
+                if not adapter_def.get('enabled', True):
+                    adapter_name = adapter_def.get('name', adapter_def.get('adapter', 'unknown'))
+                    logger.info(f"Skipping disabled adapter: {adapter_name}")
+                    continue
+                
                 # Validate required fields
                 required_fields = ['type', 'datasource', 'adapter', 'implementation']
                 missing_fields = [field for field in required_fields if field not in adapter_def]

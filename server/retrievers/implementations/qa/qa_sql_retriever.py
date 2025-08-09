@@ -43,7 +43,8 @@ class QASSQLRetriever(SQLiteRetriever):
         else:
             # Fallback to searching through adapters list (backward compatibility)
             for adapter in config.get('adapters', []):
-                if (adapter.get('type') == 'retriever' and 
+                if (adapter.get('enabled', True) and
+                    adapter.get('type') == 'retriever' and 
                     adapter.get('datasource') == 'sqlite' and 
                     adapter.get('adapter') == 'qa'):
                     adapter_config = adapter.get('config', {})

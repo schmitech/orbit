@@ -153,6 +153,16 @@ def _log_config_summary(config: Dict[str, Any], source_path: str):
             logger.info(f"Performance: workers={workers}, keep_alive={keep_alive}s, thread_pools=default")
     else:
         logger.info("Performance: using default configuration")
+    
+    # Log adapter configuration summary
+    adapters_config = config.get('adapters', [])
+    if adapters_config:
+        enabled_adapters = [adapter for adapter in adapters_config if adapter.get('enabled', True)]
+        disabled_adapters = [adapter for adapter in adapters_config if not adapter.get('enabled', True)]
+        logger.info(f"Adapters: {len(enabled_adapters)} enabled, {len(disabled_adapters)} disabled")
+        if disabled_adapters:
+            disabled_names = [adapter.get('name', 'unnamed') for adapter in disabled_adapters]
+            logger.info(f"Disabled adapters: {', '.join(disabled_names)}")
 
 
 def _mask_url(url: str) -> str:

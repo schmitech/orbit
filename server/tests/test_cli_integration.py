@@ -641,7 +641,7 @@ class CLITester:
         
         prompt_content = "You are a helpful assistant for API key prompt integration test."
         prompt_file = self.create_temp_prompt_file(prompt_content)
-        adapter_name = "qa-vector-chroma"
+        adapter_name = "qa-sql"
         prompt_name = f"CLI Integration Prompt {int(time.time())}"
         
         result = self.run_command([
@@ -859,7 +859,7 @@ class CLITester:
             return True
         
         # Create a test API key first
-        adapter_name = "file-vector"
+        adapter_name = "qa-sql"
         create_result = self.run_command([
             "key", "create",
             "--adapter", adapter_name,

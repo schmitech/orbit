@@ -132,7 +132,7 @@ class ApiKeyAuthTester:
     async def create_test_api_key(self, client_name: str = None, notes: str = None, adapter_name: str = None) -> Optional[str]:
         """Create a test API key for testing purposes"""
         if not adapter_name:
-            adapter_name = "qa-vector-chroma"  # Default test adapter
+            adapter_name = "qa-sql"  # Default test adapter (enabled)
             
         if not client_name:
             client_name = f"test_client_{int(time.time())}"
@@ -569,7 +569,7 @@ class ApiKeyAuthTester:
         
         # Test creating another adapter-based key
         collection_key = await self.create_test_api_key(
-            adapter_name="qa-vector-chroma",
+            adapter_name="qa-sql",
             client_name="Legacy Test Client", 
             notes="Testing adapter-based key creation"
         )
@@ -623,7 +623,7 @@ class ApiKeyAuthTester:
         
         # Create API key with adapter
         adapter_key = await self.create_test_api_key(
-            adapter_name="qa-vector-chroma",
+            adapter_name="qa-sql",
             client_name="Status Test Client",
             notes="Testing status with adapter info"
         )
@@ -662,7 +662,7 @@ class ApiKeyAuthTester:
         
         # Create API key with adapter
         dual_key = await self.create_test_api_key(
-            adapter_name="file-vector",
+            adapter_name="qa-sql",
             client_name="Dual Compatibility Client",
             notes="Testing adapter-based storage"
         )

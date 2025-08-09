@@ -36,10 +36,11 @@ class FileChromaRetriever(QAChromaRetriever):
             collection: Optional ChromaDB collection
             **kwargs: Additional arguments
         """
-        # Get file-specific adapter config if available
+        # Get file-specific adapter config if available (only if enabled)
         adapter_config = None
         for adapter in config.get('adapters', []):
-            if (adapter.get('type') == 'retriever' and 
+            if (adapter.get('enabled', True) and
+                adapter.get('type') == 'retriever' and 
                 adapter.get('datasource') == 'chroma' and 
                 adapter.get('adapter') == 'file'):
                 adapter_config = adapter.get('config', {})

@@ -59,14 +59,26 @@ class DynamicAdapterManager:
         """Load adapter configurations from config."""
         adapter_configs = self.config.get('adapters', [])
         
+        enabled_count = 0
+        disabled_count = 0
+        
         for adapter_config in adapter_configs:
             adapter_name = adapter_config.get('name')
             if adapter_name:
-                self._adapter_configs[adapter_name] = adapter_config
-                if self.verbose:
-                    self.logger.info(f"Loaded adapter config: {adapter_name}")
+                # Check if adapter is enabled (default to True if not specified)
+                is_enabled = adapter_config.get('enabled', True)
+                
+                if is_enabled:
+                    self._adapter_configs[adapter_name] = adapter_config
+                    enabled_count += 1
+                    if self.verbose:
+                        self.logger.info(f"Loaded adapter config: {adapter_name} (enabled)")
+                else:
+                    disabled_count += 1
+                    if self.verbose:
+                        self.logger.info(f"Skipping disabled adapter: {adapter_name}")
         
-        self.logger.info(f"Loaded {len(self._adapter_configs)} adapter configurations")
+        self.logger.info(f"Loaded {enabled_count} enabled adapter configurations ({disabled_count} disabled)")
     
     async def get_adapter(self, adapter_name: str) -> Any:
         """

@@ -187,8 +187,9 @@ class AdminTester:
             logger.error("✗ No authentication token available (auth is enabled)")
             return False
         
-        # Use an existing adapter from the configuration
-        existing_adapter = "qa-vector-chroma"
+        # Use an existing enabled adapter from the configuration
+        # Note: qa-sql is the only enabled adapter in the current config
+        existing_adapter = "qa-sql"
         
         data = {
             "adapter_name": existing_adapter,
