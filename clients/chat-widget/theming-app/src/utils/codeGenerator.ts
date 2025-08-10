@@ -24,7 +24,7 @@ export const generateImplementationCode = (
 <head>
   <meta charset="UTF-8">
   <title>Chatbot Widget</title>
-  <link rel="stylesheet" href="https://unpkg.com/@schmitech/chatbot-widget@0.4.12/dist/chatbot-widget.css">
+  <link rel="stylesheet" href="https://unpkg.com/@schmitech/chatbot-widget@0.4.13/dist/chatbot-widget.css">
 </head>
 <body>
   <div id="chatbot-widget"></div>
@@ -32,7 +32,7 @@ export const generateImplementationCode = (
   <!-- Widget dependencies -->
   <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-  <script src="https://unpkg.com/@schmitech/chatbot-widget@0.4.12/dist/chatbot-widget.umd.js" crossorigin></script>
+  <script src="https://unpkg.com/@schmitech/chatbot-widget@0.4.13/dist/chatbot-widget.umd.js" crossorigin></script>
 
   <!-- Initialize Widget -->
   <script>

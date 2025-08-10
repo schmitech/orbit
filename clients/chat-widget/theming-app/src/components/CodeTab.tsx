@@ -27,8 +27,7 @@ export const CodeTab: React.FC<CodeTabProps> = ({
   const [localCopied, setLocalCopied] = useState(false);
 
   const generateMinifiedCode = (widgetConfig: WidgetConfig, customColors: CustomColors): string => {
-    // Simple and safe minification approach
-    // Generate a minified version directly with compact JSON
+    // Generate a JavaScript bundle that can be imported
     
     const { systemPrompt, ...widgetConfigWithoutPrompt } = widgetConfig;
     const minifiedConfig = {
@@ -40,10 +39,57 @@ export const CodeTab: React.FC<CodeTabProps> = ({
       }
     };
     
-    // Generate a new minified HTML with compact JSON
-    const minifiedHTML = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Chatbot Widget</title><link rel="stylesheet" href="https://unpkg.com/@schmitech/chatbot-widget@0.4.12/dist/chatbot-widget.css"></head><body><div id="chatbot-widget"></div><script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script><script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script><script src="https://unpkg.com/@schmitech/chatbot-widget@0.4.12/dist/chatbot-widget.umd.js" crossorigin></script><script>window.addEventListener('load',function(){if(!document.getElementById('chatbot-widget')){const container=document.createElement('div');container.id='chatbot-widget';document.body.appendChild(container);}window.initChatbotWidget(${JSON.stringify(minifiedConfig)});});</script></body></html>`;
+    // Generate a self-contained JavaScript bundle
+    const jsBundle = `(function(){
+  // Load dependencies
+  function loadScript(src, onload) {
+    var script = document.createElement('script');
+    script.src = src;
+    script.crossOrigin = 'anonymous';
+    if (onload) script.onload = onload;
+    document.head.appendChild(script);
+  }
+  
+  function loadStyle(href) {
+    var link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = href;
+    document.head.appendChild(link);
+  }
+  
+  // Initialize the widget
+  function initWidget() {
+    // Ensure container exists
+    if (!document.getElementById('chatbot-widget')) {
+      var container = document.createElement('div');
+      container.id = 'chatbot-widget';
+      document.body.appendChild(container);
+    }
     
-    return minifiedHTML;
+    // Initialize with config
+    window.initChatbotWidget(${JSON.stringify(minifiedConfig)});
+  }
+  
+  // Load resources in sequence
+  window.addEventListener('DOMContentLoaded', function() {
+    // Load CSS
+    loadStyle('https://unpkg.com/@schmitech/chatbot-widget@0.4.13/dist/chatbot-widget.css');
+    
+    // Load React
+    loadScript('https://unpkg.com/react@18/umd/react.production.min.js', function() {
+      // Load ReactDOM
+      loadScript('https://unpkg.com/react-dom@18/umd/react-dom.production.min.js', function() {
+        // Load Widget
+        loadScript('https://unpkg.com/@schmitech/chatbot-widget@0.4.13/dist/chatbot-widget.umd.js', function() {
+          // Initialize widget after all dependencies are loaded
+          initWidget();
+        });
+      });
+    });
+  });
+})();`;
+    
+    return jsBundle;
   };
 
   // Get the formatted code based on active tab
@@ -76,7 +122,11 @@ export const CodeTab: React.FC<CodeTabProps> = ({
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-medium text-gray-900">Example of using the widget in your website:</h3>
+        <h3 className="text-sm font-medium text-gray-900">
+          {activeSubTab === 'expanded' 
+            ? 'Example of using the widget in your website:' 
+            : 'Importable JavaScript bundle:'}
+        </h3>
       </div>
 
       {/* Sub-tabs and Download Button */}
@@ -90,7 +140,7 @@ export const CodeTab: React.FC<CodeTabProps> = ({
                 : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
             }`}
           >
-            Expanded
+            HTML
           </button>
           <button
             onClick={() => setActiveSubTab('minified')}
@@ -100,16 +150,17 @@ export const CodeTab: React.FC<CodeTabProps> = ({
                 : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
             }`}
           >
-            Minified
+            JavaScript
           </button>
         </div>
         <button
           onClick={() => {
-            const blob = new Blob([formattedCode], { type: 'text/html' });
+            const isJS = activeSubTab === 'minified';
+            const blob = new Blob([formattedCode], { type: isJS ? 'text/javascript' : 'text/html' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = 'chatbot-widget.html';
+            a.download = isJS ? 'chatbot-widget.js' : 'chatbot-widget.html';
             document.body.appendChild(a);
             a.click();
             setTimeout(() => {
@@ -119,7 +170,7 @@ export const CodeTab: React.FC<CodeTabProps> = ({
           }}
           className="ml-auto px-3 py-2 text-sm font-medium rounded-lg bg-green-100 text-green-800 border border-green-200 hover:bg-green-200 transition-colors"
         >
-          Download HTML
+          Download {activeSubTab === 'minified' ? 'JS' : 'HTML'}
         </button>
       </div>
       
@@ -135,7 +186,7 @@ export const CodeTab: React.FC<CodeTabProps> = ({
         </button>
         <SyntaxHighlighter
           key={activeSubTab}
-          language="html"
+          language={activeSubTab === 'minified' ? 'javascript' : 'html'}
           style={github}
           customStyle={{
             fontSize: '13px',
@@ -156,12 +207,12 @@ export const CodeTab: React.FC<CodeTabProps> = ({
         {/* Version-specific notes */}
         <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
           <h4 className="text-sm font-medium text-gray-900 mb-2">
-            {activeSubTab === 'expanded' ? 'Expanded Version' : 'Minified Version'}
+            {activeSubTab === 'expanded' ? 'HTML Version' : 'JavaScript Bundle'}
           </h4>
           <p className="text-xs text-gray-600">
             {activeSubTab === 'expanded' 
-              ? 'Human-readable format with proper indentation and spacing. Best for development and debugging.'
-              : 'Compressed format with minimal whitespace. Optimized for production use to reduce file size.'
+              ? 'Complete HTML file with proper indentation and spacing. Best for development and debugging.'
+              : 'Self-contained JavaScript bundle that can be imported with a single <script> tag. Handles all dependencies automatically.'
             }
           </p>
         </div>
@@ -172,7 +223,9 @@ export const CodeTab: React.FC<CodeTabProps> = ({
           <ul className="text-xs text-blue-700 space-y-1 list-disc list-inside">
             <li>Replace <code className="bg-blue-100 px-1 rounded">demo-api-key</code> with your actual API key</li>
             <li>Replace <code className="bg-blue-100 px-1 rounded">http://localhost:3000</code> with your production API endpoint</li>
-            <li>This generates a complete HTML file that you can save and open directly in a browser</li>
+            <li>{activeSubTab === 'expanded' 
+              ? 'This generates a complete HTML file that you can save and open directly in a browser' 
+              : 'Add this script to your website with: <script src="chatbot-widget.js"></script>'}</li>
             <li>The system prompt is configured separately via your API dashboard</li>
             <li>Session ID is automatically generated for each user session</li>
             <li>For production, use HTTPS endpoints and ensure CORS is properly configured</li>

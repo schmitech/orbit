@@ -79,6 +79,13 @@ export const useWidgetInitialization = ({
     }
   }, [apiKey]);
 
+  // Update API endpoint when it changes
+  useEffect(() => {
+    if (widgetInitialized.current && window.ChatbotWidget?.setApiUrl) {
+      window.ChatbotWidget.setApiUrl(apiEndpoint);
+    }
+  }, [apiEndpoint]);
+
   // Initialize widget
   const handleInitializeWidget = () => {
     // Double-check to prevent duplicate initialization

@@ -19,6 +19,7 @@
 
 ## 📑 Table of Contents
 
+- [� Table of Contents](#-table-of-contents)
 - [🛰️ What is ORBIT?](#️-what-is-orbit)
 - [🤔 Why ORBIT?](#-why-orbit)
 - [✨ Key Features](#-key-features)
@@ -34,8 +35,8 @@
 - [Scenarios](#scenarios)
   - [Understanding ORBIT's Adapter System](#understanding-orbits-adapter-system)
   - [Multilingual Support](#multilingual-support)
-  - [Scenario #1: A Knowledge Base Q&A Chatbot (SQLite)](#scenario-1-a-knowledge-base-qa-chatbot-sqlite)
-  - [Scenario #2: A Knowledge Base Q&A Chatbot (Vector DB)](#scenario-2-a-knowledge-base-qa-chatbot-vector-db)
+  - [Scenario #1: A Knowledge Base Q\&A Chatbot (SQLite)](#scenario-1-a-knowledge-base-qa-chatbot-sqlite)
+  - [Scenario #2: A Knowledge Base Q\&A Chatbot (Vector DB)](#scenario-2-a-knowledge-base-qa-chatbot-vector-db)
   - [Scenario #3: A Database Chatbot (PostgreSQL)](#scenario-3-a-database-chatbot-postgresql)
   - [API Key Management](#api-key-management)
   - [Adapter Information](#adapter-information)
@@ -43,7 +44,7 @@
   - [Getting Started](#getting-started)
   - [Core Features](#core-features)
   - [Advanced Topics](#advanced-topics)
-- [🤝 Community & Support](#-community--support)
+- [🤝 Community \& Support](#-community--support)
 - [📄 License](#-license)
 
 ## 🛰️ What is ORBIT?
@@ -207,7 +208,7 @@ npm install
 npm run dev
 ```
 
-<video src="https://github.com/user-attachments/assets/779b1275-ad99-4804-87b9-660e673b809c" controls>
+<video src="https://github.com/user-attachments/assets/cc710e9f-89f8-447d-b308-4287bab22b92" controls>
   Your browser does not support the video tag.
 </video>
 
