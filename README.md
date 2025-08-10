@@ -19,7 +19,7 @@
 
 ## 📑 Table of Contents
 
-- [� Table of Contents](#-table-of-contents)
+- [📑 Table of Contents](#-table-of-contents)
 - [🛰️ What is ORBIT?](#️-what-is-orbit)
 - [🤔 Why ORBIT?](#-why-orbit)
 - [✨ Key Features](#-key-features)
@@ -124,9 +124,9 @@ Refer to [Docker Setup Guide](docker/README.md) for instructions on how to deplo
 
 ```bash
 # Download latest release
-curl -L https://github.com/schmitech/orbit/releases/download/v1.2.2/orbit-1.2.2.tar.gz -o orbit-1.2.2.tar.gz
-tar -xzf orbit-1.2.2.tar.gz
-cd orbit-1.2.2
+curl -L https://github.com/schmitech/orbit/releases/download/v1.3.0/orbit-1.3.0.tar.gz -o orbit-1.3.0.tar.gz
+tar -xzf orbit-1.3.0.tar.gz
+cd orbit-1.3.0
 
 # Quick setup with a small model
 cp .env.example .env

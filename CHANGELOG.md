@@ -1,5 +1,37 @@
 # Changelog
 
+## [1.3.0] - 2025-08-09
+
+### Chatbot Widget
+- Chatbot Widget v0.4.13 with bug fixes and UX enhancements
+- Fixed issues in theming application and improved form input handling
+- Enhanced markdown rendering with improved currency values display
+- Fixed scrolling issues during response rendering and improved LaTeX rendering
+- Increased typing effect speed for better user experience
+- Updated widget version in react-example and theme app
+- Widget Theming App: Enhanced question form handling with proper truncation
+
+### SQL Intent & Retrieval System
+- Significant refactoring of SQL Intent Adapter for improved abstraction and reusability
+- Enhanced SQL retriever classes with better inheritance patterns
+- Added comprehensive SQL templates for insights and analytics
+- Improved intent SQL generation utilities and documentation
+- Reorganized SQL intent YAML templates for better maintainability
+- Enhanced unit tests for SQL intent functionality
+
+### Documentation & Configuration
+- Updated adapter configuration with enabled/disabled toggle settings
+- Enhanced documentation for SQL intent features and examples
+- Updated roadmap with current development plans
+- Improved README.md with better organization and maintainer links
+- Added Qdrant deployment instructions
+
+### Core System Updates
+- Updated Ollama provider to new version with chat endpoint interface
+- Enhanced test utilities for better markdown response formatting
+- Improved adapter settings management with configuration controls
+- Fixed duplicate logging issues in inference steps
+
 ## [1.2.2] - 2025-07-30
 
 ### Inference Pipeline & Architecture

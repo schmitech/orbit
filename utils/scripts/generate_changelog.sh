@@ -75,18 +75,22 @@ validate_date() {
     local month="${date_string:5:2}"
     local day="${date_string:8:2}"
     
+    # Remove leading zeros to avoid octal interpretation
+    month=$((10#$month))
+    day=$((10#$day))
+    
     # Basic range validation
     if [[ $year -lt 1900 || $year -gt 2100 ]]; then
         echo "Error: Invalid $date_name. Year must be between 1900-2100: $date_string"
         return 1
     fi
     
-    if [[ $month -lt 01 || $month -gt 12 ]]; then
+    if [[ $month -lt 1 || $month -gt 12 ]]; then
         echo "Error: Invalid $date_name. Month must be between 01-12: $date_string"
         return 1
     fi
     
-    if [[ $day -lt 01 || $day -gt 31 ]]; then
+    if [[ $day -lt 1 || $day -gt 31 ]]; then
         echo "Error: Invalid $date_name. Day must be between 01-31: $date_string"
         return 1
     fi
