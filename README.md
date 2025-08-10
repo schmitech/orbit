@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="docs/images/orbit-logo.png" alt="ORBIT Logo" width="600" style="border: none; outline: none; box-shadow: none;"/>
+  <img src="docs/images/orbit-logo.png" alt="ORBIT Logo" width="500" style="border: none; outline: none; box-shadow: none;"/>
 </div>
 
 <h1 align="center">ORBIT - Open Retrieval-Based Inference Toolkit</h1>
