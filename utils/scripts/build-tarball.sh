@@ -239,7 +239,16 @@ chmod +x dist/build/${PACKAGE_NAME}/examples/sample-db-setup.sh
 # Create tarball
 echo "Creating distribution tarball..."
 cd dist/build
-tar -czf ../${PACKAGE_NAME}.tar.gz ${PACKAGE_NAME}
+# Use --no-xattrs flag on macOS to exclude extended attributes for cross-platform compatibility
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    # macOS - exclude extended attributes and resource fork files for Linux compatibility
+    export COPYFILE_DISABLE=1
+    tar --no-xattrs -czf ../${PACKAGE_NAME}.tar.gz ${PACKAGE_NAME}
+    unset COPYFILE_DISABLE
+else
+    # Linux and others
+    tar -czf ../${PACKAGE_NAME}.tar.gz ${PACKAGE_NAME}
+fi
 cd ../..
 
 # Verify the tarball
