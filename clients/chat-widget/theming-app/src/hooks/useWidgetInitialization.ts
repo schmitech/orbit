@@ -75,14 +75,24 @@ export const useWidgetInitialization = ({
   // Update API key when it changes
   useEffect(() => {
     if (widgetInitialized.current && window.ChatbotWidget?.setApiKey) {
+      if (isDebugEnabled()) {
+        console.log(`🔑 Updating widget API key to: ${apiKey}`);
+      }
       window.ChatbotWidget.setApiKey(apiKey);
+    } else if (widgetInitialized.current) {
+      console.warn('⚠️ Widget does not support setApiKey method - may need to reinitialize');
     }
   }, [apiKey]);
 
   // Update API endpoint when it changes
   useEffect(() => {
     if (widgetInitialized.current && window.ChatbotWidget?.setApiUrl) {
+      if (isDebugEnabled()) {
+        console.log(`🌐 Updating widget API endpoint to: ${apiEndpoint}`);
+      }
       window.ChatbotWidget.setApiUrl(apiEndpoint);
+    } else if (widgetInitialized.current) {
+      console.warn('⚠️ Widget does not support setApiUrl method - may need to reinitialize');
     }
   }, [apiEndpoint]);
 

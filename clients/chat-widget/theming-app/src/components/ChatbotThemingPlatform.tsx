@@ -4,7 +4,7 @@ import { useUIState } from '../hooks/useUIState';
 import { useWidgetInitialization } from '../hooks/useWidgetInitialization';
 import { useApiConfig } from '../hooks/useApiConfig';
 import { useGitHubStats } from '../hooks/useGitHubStats';
-import { WIDGET_CONFIG } from '../utils/widget-config';
+import { WIDGET_CONFIG, isDebugEnabled } from '../utils/widget-config';
 import { useEffect, useState } from 'react';
 
 // Import UI components
@@ -72,6 +72,15 @@ const ChatbotThemingPlatform = () => {
   const [tempApiKey, setTempApiKey] = useState(apiKey);
   const [tempApiEndpoint, setTempApiEndpoint] = useState(apiEndpoint);
 
+  // Keep temp values in sync with actual values when they change externally
+  useEffect(() => {
+    setTempApiKey(apiKey);
+  }, [apiKey]);
+
+  useEffect(() => {
+    setTempApiEndpoint(apiEndpoint);
+  }, [apiEndpoint]);
+
   // Widget initialization hook
   useWidgetInitialization({
     apiKey,
@@ -91,6 +100,12 @@ const ChatbotThemingPlatform = () => {
 
   // Handle API configuration update
   const handleApiUpdate = () => {
+    if (isDebugEnabled()) {
+      console.log('🔄 Updating API configuration:', { 
+        apiKey: tempApiKey, 
+        apiEndpoint: tempApiEndpoint 
+      });
+    }
     setApiKey(tempApiKey);
     setApiEndpoint(tempApiEndpoint);
     setApiUpdateMessage('API configuration updated successfully!');
