@@ -164,7 +164,9 @@ class PipelineChatService:
         except Exception as e:
             logger.error(f"Error storing conversation turn: {str(e)}")
     
-    async def _log_conversation(self, query: str, response: str, client_ip: str, api_key: Optional[str] = None):
+    async def _log_conversation(self, query: str, response: str, client_ip: str, 
+                              api_key: Optional[str] = None, session_id: Optional[str] = None, 
+                              user_id: Optional[str] = None):
         """Log conversation asynchronously."""
         try:
             await self.logger_service.log_conversation(
@@ -173,7 +175,9 @@ class PipelineChatService:
                 ip=client_ip,
                 backend=None,
                 blocked=False,
-                api_key=api_key
+                api_key=api_key,
+                session_id=session_id,
+                user_id=user_id
             )
         except Exception as e:
             logger.error(f"Error logging conversation: {str(e)}", exc_info=True)
@@ -300,9 +304,8 @@ class PipelineChatService:
                     }
                 )
             
-            # Log conversation
-            if api_key:
-                await self._log_conversation(message, response, client_ip, api_key)
+            # Log conversation (always log, not just when API key is present)
+            await self._log_conversation(message, response, client_ip, api_key, session_id, user_id)
             
             # Return response in expected format
             return {
@@ -428,9 +431,8 @@ class PipelineChatService:
                             }
                         )
                     
-                    # Log conversation
-                    if api_key:
-                        await self._log_conversation(message, final_response, client_ip, api_key)
+                    # Log conversation (always log, not just when API key is present)
+                    await self._log_conversation(message, final_response, client_ip, api_key, session_id, user_id)
                     
                     # Send final done marker
                     done_chunk = {"done": True}

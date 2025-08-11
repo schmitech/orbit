@@ -12,7 +12,7 @@ from typing import Dict, Any, Union, List, Optional, TypedDict
 from datetime import datetime
 
 from elasticsearch import AsyncElasticsearch
-from elasticsearch.exceptions import ConnectionError, TransportError, NotFoundError
+from elasticsearch.exceptions import ConnectionError, TransportError, NotFoundError, ApiError
 from fastapi import HTTPException
 
 from utils.text_utils import mask_api_key
@@ -78,13 +78,15 @@ class LoggerService:
 
         try:
             # Create Elasticsearch client using the minimal configuration pattern
+            # Updated for Elasticsearch 9.0.2 compatibility
             client_kwargs = {
                 "basic_auth": (username, password),
                 "verify_certs": False,
                 "ssl_show_warn": False,
                 "request_timeout": 30,
                 "retry_on_timeout": True,
-                "max_retries": 3
+                "max_retries": 3,
+                "http_compress": True  # Enable compression for better performance
             }
                 
             self.es_client = AsyncElasticsearch(
@@ -127,13 +129,20 @@ class LoggerService:
                         settings={
                             "number_of_shards": 1,
                             "number_of_replicas": 0,
-                            "refresh_interval": "1s"
+                            "refresh_interval": "1s",
+                            "analysis": {
+                                "analyzer": {
+                                    "default": {
+                                        "type": "standard"
+                                    }
+                                }
+                            }
                         },
                         mappings={
                             "properties": {
                                 "timestamp": {"type": "date"},
-                                "query": {"type": "text"},
-                                "response": {"type": "text"},
+                                "query": {"type": "text", "analyzer": "standard"},
+                                "response": {"type": "text", "analyzer": "standard"},
                                 "backend": {"type": "keyword"},
                                 "blocked": {"type": "boolean"},
                                 "ip": {"type": "ip"},
@@ -144,7 +153,15 @@ class LoggerService:
                                         "source": {"type": "keyword"},
                                         "originalValue": {"type": "keyword"}
                                     }
-                                }
+                                },
+                                "api_key": {
+                                    "properties": {
+                                        "key": {"type": "keyword"},
+                                        "timestamp": {"type": "date"}
+                                    }
+                                },
+                                "session_id": {"type": "keyword"},
+                                "user_id": {"type": "keyword"}
                             }
                         }
                     )
@@ -217,7 +234,9 @@ class LoggerService:
         ip: Optional[str] = None,
         backend: Optional[str] = None,
         blocked: bool = False,
-        api_key: Optional[str] = None
+        api_key: Optional[str] = None,
+        session_id: Optional[str] = None,
+        user_id: Optional[str] = None
     ) -> None:
         """
         Log a chat interaction to Elasticsearch only.
@@ -229,6 +248,8 @@ class LoggerService:
             backend: The backend used for the response
             blocked: Whether the query was blocked by the guardrail service
             api_key: The API key used for the request
+            session_id: The session ID for the conversation
+            user_id: The user ID if available
         """
         timestamp = datetime.now()
         ip_metadata = self._format_ip_address(ip)
@@ -266,8 +287,14 @@ class LoggerService:
                 "key": mask_api_key(api_key),
                 "timestamp": timestamp.isoformat()
             }
+        
+        if session_id:
+            log_data["session_id"] = session_id
+        
+        if user_id:
+            log_data["user_id"] = user_id
 
-        await self._log_to_elasticsearch(log_data, timestamp, query, response, backend, is_blocked, ip_metadata)
+        await self._log_to_elasticsearch(log_data, timestamp, query, response, backend, is_blocked, ip_metadata, api_key, session_id, user_id)
 
     async def _log_to_elasticsearch(
         self,
@@ -277,7 +304,10 @@ class LoggerService:
         response: str,
         backend: str,
         blocked: bool,
-        ip_metadata: IPMetadata
+        ip_metadata: IPMetadata,
+        api_key: Optional[str] = None,
+        session_id: Optional[str] = None,
+        user_id: Optional[str] = None
     ) -> None:
         """Index the log data into Elasticsearch if enabled."""
         if not (self.config.get("internal_services", {}).get("elasticsearch", {}).get("enabled", False) and self.es_client):
@@ -302,12 +332,25 @@ class LoggerService:
                     "originalValue": ip_metadata["originalValue"]
                 }
             }
+            
+            # Add optional fields if provided
+            if api_key:
+                document["api_key"] = {
+                    "key": api_key,  # Log unmasked API key to Elasticsearch
+                    "timestamp": timestamp.isoformat()
+                }
+            
+            if session_id:
+                document["session_id"] = session_id
+            
+            if user_id:
+                document["user_id"] = user_id
             if self.verbose:
                 logger.info(f"Indexing document to Elasticsearch: {json.dumps(document, indent=2)}")
             index_result = await self.es_client.index(
                 index=self.config["internal_services"]["elasticsearch"]["index"],
                 document=document,
-                refresh=True
+                refresh="wait_for"  # Changed from True to "wait_for" for ES 9.0.2 compatibility
             )
             if self.verbose:
                 logger.info(f"Elasticsearch indexing result: {index_result}")
@@ -317,6 +360,10 @@ class LoggerService:
                     id=index_result["_id"]
                 )
                 logger.info(f"Document verification: {verify_doc}")
+        except ApiError as e:
+            # Handle specific Elasticsearch API errors
+            logger.error(f"Elasticsearch API error: {e.info if hasattr(e, 'info') else e}", exc_info=True)
+            await self._handle_elasticsearch_error(e)
         except Exception as e:
             logger.error(f"Failed to log to Elasticsearch: {e}", exc_info=True)
             # Additional diagnostics
@@ -328,14 +375,39 @@ class LoggerService:
                     logger.info(f"Index exists check: {self.config['internal_services']['elasticsearch']['index']} - {index_exists}")
                     if not index_exists:
                         logger.error("Index does not exist! This should not happen as it is created on startup.")
-                    index_settings = await self.es_client.indices.get(
-                        index=self.config["internal_services"]["elasticsearch"]["index"]
-                    )
-                    logger.info(f"Index settings: {index_settings}")
+                        # Try to recreate the index
+                        await self._setup_elasticsearch_index()
+                    else:
+                        index_settings = await self.es_client.indices.get(
+                            index=self.config["internal_services"]["elasticsearch"]["index"]
+                        )
+                        logger.info(f"Index settings: {index_settings}")
             except Exception as diag_error:
                 logger.error(f"Error during Elasticsearch diagnostics: {diag_error}", exc_info=True)
 
+    async def _handle_elasticsearch_error(self, error: Exception) -> None:
+        """Handle specific Elasticsearch errors and attempt recovery."""
+        error_str = str(error)
+        
+        if "index_not_found_exception" in error_str.lower():
+            logger.warning("Index not found, attempting to recreate...")
+            try:
+                await self._setup_elasticsearch_index()
+                logger.info("Successfully recreated Elasticsearch index")
+            except Exception as e:
+                logger.error(f"Failed to recreate index: {e}")
+        elif "version_conflict" in error_str.lower():
+            logger.warning("Version conflict detected, document may have been updated concurrently")
+        elif "circuit_breaking_exception" in error_str.lower():
+            logger.error("Elasticsearch circuit breaker triggered - system under memory pressure")
+        else:
+            logger.error(f"Unhandled Elasticsearch error type: {error_str}")
+    
     async def close(self) -> None:
         """Close the Elasticsearch client if open."""
         if self.es_client:
-            await self.es_client.close()
+            try:
+                await self.es_client.close()
+                logger.info("Elasticsearch client closed successfully")
+            except Exception as e:
+                logger.error(f"Error closing Elasticsearch client: {e}")

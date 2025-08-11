@@ -20,13 +20,36 @@ import time
 import pytest
 from typing import Optional, Dict, Any
 import os
+from pathlib import Path
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+# Load server port from config
+def get_server_url() -> str:
+    """Get server URL from config file"""
+    try:
+        import yaml
+        # Look for config.yaml in the config directory
+        script_dir = Path(__file__).parent
+        project_root = script_dir.parent.parent
+        config_path = project_root / "config" / "config.yaml"
+        
+        if config_path.exists():
+            with open(config_path, 'r') as f:
+                config = yaml.safe_load(f)
+                port = config.get('general', {}).get('port', 3000)
+                return f"http://localhost:{port}"
+    except Exception as e:
+        logger.warning(f"Failed to read config file: {e}")
+    
+    # Fallback to default
+    return "http://localhost:3000"
+
 # Server configuration
-SERVER_URL = "http://localhost:3000"
+SERVER_URL = get_server_url()
+logger.info(f"Using server URL: {SERVER_URL}")
 DEFAULT_USERNAME = "admin"
 DEFAULT_PASSWORD = "admin123"
 

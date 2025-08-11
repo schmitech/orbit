@@ -434,16 +434,16 @@ class ConfigManager:
         if override_url:
             return override_url.rstrip('/')
         
-        # Prioritize server config for server settings
-        url = self.get('server.default_url', prioritize_server=True)
-        if url:
-            return url.rstrip('/')
-        
-        # Fallback to server config port
+        # First try server config port (prioritize server config)
         server_config = self._load_server_config()
         if server_config and 'general' in server_config:
             port = server_config['general'].get('port', 3000)
             return f"http://localhost:{port}"
+        
+        # Fallback to CLI config
+        url = self.get('server.default_url', prioritize_server=False)
+        if url:
+            return url.rstrip('/')
         
         # Final fallback
         return "http://localhost:3000"

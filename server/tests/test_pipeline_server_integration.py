@@ -14,6 +14,7 @@ from unittest.mock import Mock, AsyncMock
 from typing import Dict, Any
 import sys
 import os
+from pathlib import Path
 
 # Add parent directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -23,9 +24,38 @@ from services.service_factory import ServiceFactory
 from services.pipeline_chat_service import PipelineChatService
 
 
+def load_inference_config() -> Dict[str, Any]:
+    """Load inference configuration from inference.yaml"""
+    try:
+        import yaml
+        script_dir = Path(__file__).parent
+        project_root = script_dir.parent.parent
+        config_path = project_root / "config" / "inference.yaml"
+        
+        if config_path.exists():
+            with open(config_path, 'r') as f:
+                return yaml.safe_load(f)
+    except Exception as e:
+        print(f"Failed to load inference config: {e}")
+    
+    # Fallback to default
+    return {
+        'inference': {
+            'ollama': {
+                'base_url': 'http://localhost:11434',
+                'model': 'llama2'
+            }
+        }
+    }
+
+
 @pytest.fixture
 def test_config():
     """Standard test configuration (pipeline is always active)."""
+    # Load actual inference config
+    inference_config = load_inference_config()
+    ollama_config = inference_config.get('inference', {}).get('ollama', {})
+    
     return {
         'general': {
             'inference_provider': 'ollama',
@@ -37,8 +67,8 @@ def test_config():
         },
         'inference': {
             'ollama': {
-                'model': 'llama2',
-                'base_url': 'http://localhost:11434'
+                'model': ollama_config.get('model', 'llama2'),
+                'base_url': ollama_config.get('base_url', 'http://localhost:11434')
             }
         }
     }
@@ -194,12 +224,16 @@ async def test_pipeline_provider_initialization():
     from inference.pipeline_factory import PipelineFactory
     from inference.pipeline.providers import ProviderFactory
     
+    # Load actual inference config
+    inference_config = load_inference_config()
+    ollama_config = inference_config.get('inference', {}).get('ollama', {})
+    
     config = {
         'general': {'inference_provider': 'ollama'},
         'inference': {
             'ollama': {
-                'base_url': 'http://localhost:11434',
-                'model': 'llama2'
+                'base_url': ollama_config.get('base_url', 'http://localhost:11434'),
+                'model': ollama_config.get('model', 'llama2')
             }
         }
     }
