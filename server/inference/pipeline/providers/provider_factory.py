@@ -39,6 +39,11 @@ class ProviderFactory:
         'vertex': ('vertex_ai_provider', 'VertexAIProvider'),
         'huggingface': ('huggingface_provider', 'HuggingFaceProvider'),
         'azure': ('azure_provider', 'AzureProvider'),
+        'perplexity': ('perplexity_provider', 'PerplexityProvider'),
+        'fireworks': ('fireworks_provider', 'FireworksProvider'),
+        'replicate': ('replicate_provider', 'ReplicateProvider'),
+        'anyscale': ('anyscale_provider', 'AnyscaleProvider'),
+        'nvidia': ('nvidia_provider', 'NvidiaProvider'),
     }
     
     # Cache for loaded provider classes

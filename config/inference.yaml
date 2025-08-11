@@ -21,7 +21,7 @@ inference:
     stream: true
   llama_cpp:
     model_path: "models/gemma-3-1b-it-Q4_0.gguf"
-    chat_format: "chatml"  # Chat format to use (chatml, llama-2, gemma, etc.)
+    chat_format: "gemma"  # Chat format to use (chatml, llama-2, gemma, etc.)
     verbose: false
     temperature: 0.1
     top_p: 0.8
@@ -35,9 +35,8 @@ inference:
     main_gpu: 0
     tensor_split: null
     stop_tokens: [
-      "<|im_start|>", 
-      "<|im_end|>",
-      "<|endoftext|>"
+      "<start_of_turn>",
+      "<end_of_turn>"
     ]
   gemini:
     api_key: ${GOOGLE_API_KEY}
@@ -171,3 +170,42 @@ inference:
     auth_type: "iam"
     time_limit: 10000
     verify: false
+  perplexity:
+    api_key: ${PERPLEXITY_API_KEY}
+    api_base: "https://api.perplexity.ai"
+    model: "llama-3-sonar-small-32k-online"
+    temperature: 0.1
+    top_p: 0.8
+    max_tokens: 1024
+    stream: true
+  fireworks:
+    api_key: ${FIREWORKS_API_KEY}
+    api_base: "https://api.fireworks.ai/inference/v1"
+    model: "accounts/fireworks/models/firellava-13b"
+    temperature: 0.1
+    top_p: 0.8
+    max_tokens: 1024
+    stream: true
+  replicate:
+    api_key: ${REPLICATE_API_KEY}
+    model: "meta/llama-2-70b-chat:02e509c789964a7ea8736978a43525956ef40397be9033abf9fd2badfe68c9e3"
+    temperature: 0.1
+    top_p: 0.8
+    max_tokens: 1024
+    stream: true
+  anyscale:
+    api_key: ${ANYSCALE_API_KEY}
+    api_base: "https://api.endpoints.anyscale.com/v1"
+    model: "meta/Llama-3-8B-Instruct"
+    temperature: 0.1
+    top_p: 0.8
+    max_tokens: 1024
+    stream: true
+  nvidia:
+    api_key: ${NVIDIA_API_KEY}
+    api_base: "http://localhost:8000/v1"
+    model: "meta/llama3-8b-instruct"
+    temperature: 0.1
+    top_p: 0.8
+    max_tokens: 1024
+    stream: true

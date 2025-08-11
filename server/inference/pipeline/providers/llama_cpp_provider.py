@@ -134,7 +134,7 @@ class LlamaCppProvider(LLMProvider):
             text = text.replace(pattern, "")
         
         # Remove any trailing special tokens or incomplete tags
-        text = text.split("<|")[0].strip()
+        text = text.split("<")[0].strip()
         
         # Remove any remaining whitespace artifacts
         text = " ".join(text.split())
@@ -270,7 +270,7 @@ class LlamaCppProvider(LLMProvider):
                                 text = text.replace(pattern, "")
 
                             # Truncate at any control-token boundary
-                            text = text.split("<|")[0]
+                            text = text.split("<")[0]
 
                             if text:
                                 yield text
