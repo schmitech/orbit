@@ -63,7 +63,7 @@ inference:
     max_tokens: 1024
     stream: true
   vertex:
-    project_id: ${GOOGLE_CLOUD_PROJECT}
+    project_id: "your-project-id"
     location: "us-central1"
     model: "gemini-1.5-pro"
     temperature: 0.1

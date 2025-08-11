@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.3.1] - 2025-08-10
+
+### Core System Updates
+- Updated Elasticsearch to 9.1.0
+- Fixed Elasticsearch Logger incompatibility with new inference pipeline
+- Fixed hardcoded port 3000 issues in unit tests and CLI login command
+- Updated build-tarball.sh script to fix Mac-specific tar generation issues
+- Updated README.md with logo improvements and size adjustments
+
 ## [1.3.0] - 2025-08-09
 
 ### Chatbot Widget

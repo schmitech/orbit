@@ -158,7 +158,8 @@ class MockablePipelineChatService(PipelineChatService):
         if not self.chat_history_enabled or not self.chat_history_service or not session_id:
             return
     
-    async def _log_conversation(self, query: str, response: str, client_ip: str, api_key: Optional[str] = None):
+    async def _log_conversation(self, query: str, response: str, client_ip: str, api_key: Optional[str] = None, 
+                               session_id: Optional[str] = None, user_id: Optional[str] = None):
         """Log conversation asynchronously."""
         try:
             await self.logger_service.log_conversation(
