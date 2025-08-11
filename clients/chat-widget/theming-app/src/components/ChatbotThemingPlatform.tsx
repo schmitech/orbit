@@ -115,13 +115,13 @@ const ChatbotThemingPlatform = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-5 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
           {/* Left Column - Customization Panel */}
-          <div className="col-span-3 space-y-6">
+          <div className="lg:col-span-3 space-y-6">
             {/* API Configuration */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-gray-900">Chatbot Widget Theme Builder</h2>
+              <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
+                <h2 className="text-lg font-semibold text-gray-900">ORBIT Chatbot Widget Builder</h2>
                 <div className="flex items-center gap-2">
                   {WIDGET_CONFIG.source === 'local' ? (
                     <div className="px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
@@ -154,7 +154,7 @@ const ChatbotThemingPlatform = () => {
                   placeholder="https://your-api-endpoint.com"
                   className="font-mono text-sm"
                 />
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-wrap gap-2">
                   <div className="flex items-start gap-2">
                     {WIDGET_CONFIG.source === 'local' && (
                       <div className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded">
@@ -237,8 +237,8 @@ const ChatbotThemingPlatform = () => {
           </div>
 
           {/* Right Column - Instructions Panel */}
-          <div className="col-span-2">
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 max-h-screen overflow-y-auto">
+          <div className="lg:col-span-2">
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 lg:max-h-screen lg:overflow-y-auto">
               <div className="text-center mb-8">
                 <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-5">
                   <svg className="w-10 h-10 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">

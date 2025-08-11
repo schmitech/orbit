@@ -37,29 +37,22 @@ export const FormInput: React.FC<FormInputProps> = ({
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value;
 
-    // For numeric inputs, respect provided bounds while allowing empty typing
     if (type === 'number') {
-      // Allow clearing the field for editing
-      if (raw === '') {
-        onChange(raw);
+      const numericValue = raw.replace(/[^0-9]/g, '');
+
+      if (numericValue === '') {
+        onChange('');
         return;
       }
+      
+      const n = Number(numericValue);
 
-      const n = Number(raw);
-      // If not a valid number, just pass through
-      if (Number.isNaN(n)) {
-        onChange(raw);
-        return;
-      }
-
-      // Enforce max immediately to keep field bounded while typing
       if (typeof max === 'number' && n > max) {
         onChange(String(max));
         return;
       }
-
-      // Do not clamp to min on change to avoid blocking partial input (handled onBlur)
-      onChange(raw);
+      
+      onChange(numericValue);
       return;
     }
 
@@ -76,7 +69,9 @@ export const FormInput: React.FC<FormInputProps> = ({
       )}
       <div className="relative">
         <input
-          type={type}
+          type={type === 'number' ? 'text' : type}
+          inputMode={type === 'number' ? 'numeric' : undefined}
+          pattern={type === 'number' ? '[0-9]*' : undefined}
           value={value}
           onChange={handleChange}
           onBlur={onBlur}
