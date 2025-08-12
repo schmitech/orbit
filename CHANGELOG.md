@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.3.2] - 2025-08-12
+
+### Widget Theming App
+- Fixed API key update propagation issues
+- Enhanced responsive design across different devices
+- Improved numeric field validation
+- Fixed API settings update issues
+
+### Inference Pipeline & Adapters
+- Added integration with additional inference services
+- Implemented adapter-level inference provider overriding
+- Fixed inference provider overriding issues by adapters
+
 ## [1.3.1] - 2025-08-10
 
 ### Core System Updates
