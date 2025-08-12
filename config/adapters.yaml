@@ -11,6 +11,7 @@ adapters:
     datasource: "sqlite"
     adapter: "qa"
     implementation: "retrievers.implementations.qa.QASSQLRetriever"
+    # inference_provider: "ollama" # Optional: Override the default inference provider in config.yaml
     config:
       # QA-specific settings
       confidence_threshold: 0.3

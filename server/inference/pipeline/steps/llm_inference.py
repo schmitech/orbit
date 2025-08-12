@@ -45,8 +45,15 @@ class LLMInferenceStep(PipelineStep):
         self.logger.debug("Generating LLM response")
         
         try:
-            llm_provider = self.container.get('llm_provider')
-            
+            llm_provider = None
+            if context.inference_provider:
+                # Get the adapter manager and get the cached/new provider
+                adapter_manager = self.container.get('adapter_manager')
+                llm_provider = await adapter_manager.get_overridden_provider(context.inference_provider)
+            else:
+                # Fallback to default provider
+                llm_provider = self.container.get('llm_provider')
+
             # Build the full prompt
             full_prompt = await self._build_prompt(context)
             context.full_prompt = full_prompt
@@ -89,8 +96,15 @@ class LLMInferenceStep(PipelineStep):
         self.logger.debug("Generating streaming LLM response")
         
         try:
-            llm_provider = self.container.get('llm_provider')
-            
+            llm_provider = None
+            if context.inference_provider:
+                # Get the adapter manager and get the cached/new provider
+                adapter_manager = self.container.get('adapter_manager')
+                llm_provider = await adapter_manager.get_overridden_provider(context.inference_provider)
+            else:
+                # Fallback to default provider
+                llm_provider = self.container.get('llm_provider')
+
             # Build the full prompt
             full_prompt = await self._build_prompt(context)
             context.full_prompt = full_prompt

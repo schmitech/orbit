@@ -22,6 +22,7 @@ class ProcessingContext:
     message: str = ""
     adapter_name: str = ""
     system_prompt_id: Optional[str] = None
+    inference_provider: Optional[str] = None
     context_messages: List[Dict[str, str]] = field(default_factory=list)
     
     # Processing data

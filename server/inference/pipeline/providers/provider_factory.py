@@ -143,6 +143,40 @@ class ProviderFactory:
         
         logging.getLogger(__name__).info(f"Created {provider_name} provider")
         return provider
+
+    @classmethod
+    def create_provider_by_name(cls, provider_name: str, config: Dict[str, Any]) -> LLMProvider:
+        """
+        Create an LLM provider by name, without relying on the global config setting.
+        
+        Args:
+            provider_name: The name of the provider to create
+            config: Application configuration dictionary
+            
+        Returns:
+            An initialized LLM provider instance
+            
+        Raises:
+            ValueError: If the provider is not supported or cannot be loaded
+        """
+        if provider_name not in cls._provider_modules:
+            supported = ', '.join(cls._provider_modules.keys())
+            raise ValueError(f"Unsupported provider '{provider_name}'. Supported providers: {supported}")
+        
+        provider_class = cls._load_provider_class(provider_name)
+        
+        if provider_class is None:
+            supported = ', '.join(cls._provider_modules.keys())
+            raise ValueError(
+                f"Provider '{provider_name}' could not be loaded. "
+                f"This may be due to missing dependencies. "
+                f"Supported providers: {supported}"
+            )
+        
+        provider = provider_class(config)
+        
+        logging.getLogger(__name__).info(f"Created {provider_name} provider instance by name")
+        return provider
     
     @classmethod
     def register_provider(cls, name: str, module_name: str, class_name: str) -> None:

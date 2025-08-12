@@ -43,6 +43,11 @@ class DynamicAdapterManager:
         self._adapter_locks: Dict[str, threading.Lock] = {}
         self._cache_lock = threading.Lock()
         
+        # Cache for initialized inference providers
+        self._provider_cache: Dict[str, Any] = {}
+        self._provider_cache_lock = threading.Lock()
+        self._provider_initializing: Set[str] = set()
+        
         # Thread pool for adapter initialization
         self._thread_pool = ThreadPoolExecutor(max_workers=5)
         
@@ -72,7 +77,11 @@ class DynamicAdapterManager:
                     self._adapter_configs[adapter_name] = adapter_config
                     enabled_count += 1
                     if self.verbose:
-                        self.logger.info(f"Loaded adapter config: {adapter_name} (enabled)")
+                        inference_provider = adapter_config.get('inference_provider')
+                        log_message = f"Loaded adapter config: {adapter_name} (enabled)"
+                        if inference_provider:
+                            log_message += f" with inference provider override: {inference_provider}"
+                        self.logger.info(log_message)
                 else:
                     disabled_count += 1
                     if self.verbose:
@@ -137,6 +146,53 @@ class DynamicAdapterManager:
             # Remove from initializing set
             with self._cache_lock:
                 self._initializing_adapters.discard(adapter_name)
+
+    async def get_overridden_provider(self, provider_name: str) -> Any:
+        """
+        Get an inference provider instance by name, loading and caching it if necessary.
+        This is for providers specified as overrides in adapter configs.
+        """
+        if not provider_name:
+            raise ValueError("Provider name cannot be empty")
+
+        # Check cache
+        if provider_name in self._provider_cache:
+            return self._provider_cache[provider_name]
+
+        # Handle concurrent initialization
+        with self._provider_cache_lock:
+            if provider_name in self._provider_initializing:
+                while provider_name in self._provider_initializing:
+                    await asyncio.sleep(0.1)
+                if provider_name in self._provider_cache:
+                    return self._provider_cache[provider_name]
+            self._provider_initializing.add(provider_name)
+
+        try:
+            self.logger.info(f"Loading and caching new inference provider: {provider_name}")
+            from server.inference.pipeline.providers import ProviderFactory
+            
+            # Create and initialize the provider
+            provider = ProviderFactory.create_provider_by_name(provider_name, self.config)
+            if hasattr(provider, 'initialize'):
+                if asyncio.iscoroutinefunction(provider.initialize):
+                    await provider.initialize()
+                else:
+                    loop = asyncio.get_event_loop()
+                    await loop.run_in_executor(self._thread_pool, provider.initialize)
+
+            # Cache the initialized provider
+            with self._provider_cache_lock:
+                self._provider_cache[provider_name] = provider
+            
+            self.logger.info(f"Successfully cached inference provider: {provider_name}")
+            return provider
+        except Exception as e:
+            self.logger.error(f"Failed to load overridden provider {provider_name}: {str(e)}")
+            raise
+        finally:
+            with self._provider_cache_lock:
+                self._provider_initializing.discard(provider_name)
     
     async def _load_adapter(self, adapter_name: str) -> Any:
         """Load and initialize an adapter asynchronously"""
@@ -189,6 +245,18 @@ class DynamicAdapterManager:
         
         return retriever
     
+    def get_adapter_config(self, adapter_name: str) -> Optional[Dict[str, Any]]:
+        """
+        Get the configuration for a specific adapter.
+        
+        Args:
+            adapter_name: The name of the adapter
+            
+        Returns:
+            The adapter configuration dictionary or None if not found
+        """
+        return self._adapter_configs.get(adapter_name)
+    
     def get_available_adapters(self) -> list[str]:
         """
         Get list of available adapter names.
@@ -240,14 +308,19 @@ class DynamicAdapterManager:
         async def load_adapter_with_timeout(adapter_name: str):
             try:
                 # Load adapter with timeout
-                adapter = await asyncio.wait_for(
+                await asyncio.wait_for(
                     self.get_adapter(adapter_name),
                     timeout=timeout_per_adapter
                 )
+                
+                # Determine the inference provider for logging
+                adapter_config = self.get_adapter_config(adapter_name) or {}
+                inference_provider = adapter_config.get('inference_provider') or self.config.get('general', {}).get('inference_provider', 'default')
+
                 return {
                     "adapter_name": adapter_name,
                     "success": True,
-                    "message": "Preloaded successfully"
+                    "message": f"Preloaded successfully (provider: {inference_provider})"
                 }
             except asyncio.TimeoutError:
                 return {
@@ -346,6 +419,20 @@ class DynamicAdapterManager:
     
     async def close(self) -> None:
         """Clean up all resources."""
+        # Close all cached providers
+        for provider_name, provider in self._provider_cache.items():
+            try:
+                if hasattr(provider, 'close'):
+                    if asyncio.iscoroutinefunction(provider.close):
+                        await provider.close()
+                    else:
+                        provider.close()
+                self.logger.info(f"Closed cached provider: {provider_name}")
+            except Exception as e:
+                self.logger.warning(f"Error closing cached provider {provider_name}: {str(e)}")
+        
+        self._provider_cache.clear()
+
         # Clear all cached adapters
         await self.clear_cache()
         

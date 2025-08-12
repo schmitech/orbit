@@ -58,6 +58,7 @@ ORBIT is a middleware platform that provides a unified API for AI inference, all
 
 ORBIT is actively maintained by [Remsy Schmilinsky](https://schmitech.ai/en/about/).
 
+
 ## 🤔 Why ORBIT?
 
 Unlike cloud-based AI services, ORBIT gives you:
@@ -137,6 +138,8 @@ source venv/bin/activate
 ./bin/orbit.sh --help # CLI tool options
 ./bin/orbit.sh start # logs under /logs/orbit.log
 ```
+
+You can find a large list of available open-weighted inference models at [llm-explorer.com](https://llm-explorer.com/).
 
 <video src="https://github.com/user-attachments/assets/8ea103a6-8b33-4801-adc2-f0e81e03e96e" controls>
   Your browser does not support the video tag.
@@ -222,6 +225,7 @@ Each adapter defines:
 - **Data Source**: SQLite, PostgreSQL, Chroma, Qdrant, etc.
 - **Retrieval Method**: SQL queries, vector search, intent recognition
 - **Behavior**: How the AI responds to queries thorugh custom prompts
+- **Inference Provider**: Optionally specify which LLM provider (e.g., Ollama, OpenAI, Groq) the adapter should use, overriding the global default.
 
 This means one API key = one specific behavior/agent, making it easy to create specialized assistants for different use cases.
 

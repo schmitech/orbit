@@ -59,6 +59,7 @@ The configuration uses a clear hierarchy:
 - `datasource`: The datasource provider (e.g., "sqlite", "chroma")
 - `adapter`: The domain adapter name (e.g., "qa", "generic")
 - `implementation`: The implementation class path
+- `inference_provider`: (Optional) Overrides the default inference provider for this adapter
 - `config`: Adapter-specific configuration
 
 ### Architecture Diagram
