@@ -261,11 +261,22 @@ class PipelineChatService:
             # Get conversation context
             context_messages = await self._get_conversation_context(session_id)
             
+            # Check for adapter-specific inference provider override
+            inference_provider_override = None
+            if adapter_name and hasattr(self, 'pipeline') and self.pipeline.container.has('adapter_manager'):
+                adapter_manager = self.pipeline.container.get('adapter_manager')
+                adapter_config = adapter_manager.get_adapter_config(adapter_name)
+                if adapter_config:
+                    inference_provider_override = adapter_config.get('inference_provider')
+                    if inference_provider_override and self.verbose:
+                        logger.info(f"Using adapter-specific inference provider: {inference_provider_override} for adapter: {adapter_name}")
+            
             # Create processing context
             context = ProcessingContext(
                 message=message,
                 adapter_name=adapter_name,
                 system_prompt_id=str(system_prompt_id) if system_prompt_id else None,
+                inference_provider=inference_provider_override,
                 context_messages=context_messages,
                 user_id=user_id,
                 session_id=session_id,
@@ -351,11 +362,22 @@ class PipelineChatService:
             # Get conversation context
             context_messages = await self._get_conversation_context(session_id)
             
+            # Check for adapter-specific inference provider override
+            inference_provider_override = None
+            if adapter_name and hasattr(self, 'pipeline') and self.pipeline.container.has('adapter_manager'):
+                adapter_manager = self.pipeline.container.get('adapter_manager')
+                adapter_config = adapter_manager.get_adapter_config(adapter_name)
+                if adapter_config:
+                    inference_provider_override = adapter_config.get('inference_provider')
+                    if inference_provider_override and self.verbose:
+                        logger.info(f"Using adapter-specific inference provider: {inference_provider_override} for adapter: {adapter_name}")
+            
             # Create processing context
             context = ProcessingContext(
                 message=message,
                 adapter_name=adapter_name,
                 system_prompt_id=str(system_prompt_id) if system_prompt_id else None,
+                inference_provider=inference_provider_override,
                 context_messages=context_messages,
                 user_id=user_id,
                 session_id=session_id,

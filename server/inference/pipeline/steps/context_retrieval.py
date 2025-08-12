@@ -50,14 +50,6 @@ class ContextRetrievalStep(PipelineStep):
             # Try to get adapter from adapter manager first (dynamic loading)
             if self.container.has('adapter_manager'):
                 adapter_manager = self.container.get('adapter_manager')
-
-                adapter_config = adapter_manager.get_adapter_config(context.adapter_name)
-                if adapter_config:
-                    inference_provider_override = adapter_config.get('inference_provider')
-                    if inference_provider_override:
-                        context.inference_provider = inference_provider_override
-                        self.logger.info(f"Adapter '{context.adapter_name}' overrides inference provider to '{inference_provider_override}'")
-
                 retriever = await adapter_manager.get_adapter(context.adapter_name)
                 self.logger.debug(f"Using dynamic adapter: {context.adapter_name}")
             else:

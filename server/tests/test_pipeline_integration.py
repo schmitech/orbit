@@ -81,6 +81,16 @@ class MockAdapterManager:
     def get_available_adapters(self) -> List[str]:
         """Mock available adapters."""
         return ["test_collection"]
+    
+    def get_adapter_config(self, adapter_name: str) -> Optional[Dict[str, Any]]:
+        """Mock adapter configuration retrieval."""
+        return {
+            "name": adapter_name,
+            "enabled": True,
+            "implementation": "test.implementation.MockRetriever",
+            "adapter": "qa",
+            "datasource": "test"
+        }
 
 
 class MockablePipelineChatService(PipelineChatService):
