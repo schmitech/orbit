@@ -103,6 +103,13 @@ export const initializeWidget = (
 
   const { systemPrompt, ...widgetConfigWithoutPrompt } = widgetConfig;
   
+  // Log the API key being used (masked for security)
+  if (isDebugEnabled()) {
+    const maskedKey = apiKey ? `${apiKey.substring(0, 4)}...${apiKey.substring(Math.max(0, apiKey.length - 4))}` : 'undefined';
+    console.log(`%c🔑 Initializing with API Key: ${maskedKey}`, 'color: #f59e0b; font-weight: bold;');
+    console.log(`%c🌐 Initializing with API Endpoint: ${apiEndpoint}`, 'color: #f59e0b; font-weight: bold;');
+  }
+  
   const config: WidgetInitConfig = {
     apiUrl: apiEndpoint,
     apiKey: apiKey,
@@ -123,6 +130,21 @@ export const initializeWidget = (
       const prefix = isLocal ? '🔧 LOCAL BUILD' : '📦 NPM PACKAGE';
       console.log(`%c✅ Widget initialized successfully with ${prefix}!`, style);
       console.log(`%c🎯 Widget ready for testing in bottom-right corner`, style);
+      
+      // Wait a moment then ensure the widget has access to update methods
+      setTimeout(() => {
+        if (window.ChatbotWidget) {
+          const hasUpdateConfig = typeof window.ChatbotWidget.updateWidgetConfig === 'function';
+          const hasSetApiKey = typeof window.ChatbotWidget.setApiKey === 'function';
+          const hasSetApiUrl = typeof window.ChatbotWidget.setApiUrl === 'function';
+          
+          console.log(`%c🔧 Widget capabilities:`, style, {
+            updateConfig: hasUpdateConfig,
+            setApiKey: hasSetApiKey,
+            setApiUrl: hasSetApiUrl
+          });
+        }
+      }, 100);
     }
   } catch (error) {
     // Always show initialization errors, even in production
@@ -138,12 +160,24 @@ export const updateWidget = (
   widgetConfig: WidgetConfig,
   customColors: CustomColors
 ): void => {
-  if (!window.ChatbotWidget) return;
+  if (!window.ChatbotWidget) {
+    if (isDebugEnabled()) {
+      console.warn('⚠️ Widget not available for update');
+    }
+    return;
+  }
+
+  if (!window.ChatbotWidget.updateWidgetConfig) {
+    if (isDebugEnabled()) {
+      console.warn('⚠️ Widget does not support updateWidgetConfig method');
+    }
+    return;
+  }
 
   const { systemPrompt, ...widgetConfigWithoutPrompt } = widgetConfig;
   
   try {
-    // Update theme
+    // Update theme and configuration
     window.ChatbotWidget.updateWidgetConfig({
       ...widgetConfigWithoutPrompt,
       theme: generateThemeConfig(customColors)
@@ -154,6 +188,13 @@ export const updateWidget = (
       const isLocal = WIDGET_CONFIG.source === 'local';
       const style = isLocal ? 'color: #10b981;' : 'color: #3b82f6;';
       console.log(`%c🔄 Widget updated (${isLocal ? 'LOCAL' : 'NPM'})`, style);
+      console.log(`%c   Updated config:`, style, {
+        header: widgetConfigWithoutPrompt.header.title,
+        welcome: widgetConfigWithoutPrompt.welcome.title,
+        questionsCount: widgetConfigWithoutPrompt.suggestedQuestions.length,
+        maxQuestionLength: widgetConfigWithoutPrompt.maxSuggestedQuestionLength,
+        maxQueryLength: widgetConfigWithoutPrompt.maxSuggestedQuestionQueryLength
+      });
     }
   } catch (error) {
     console.error('Failed to update widget:', error);
@@ -163,8 +204,15 @@ export const updateWidget = (
 // Reset initialization state (useful for development)
 export const resetWidgetInitialization = (): void => {
   widgetInitialized = false;
+  
+  // Also clear any existing widget container to ensure a clean slate
+  const container = document.getElementById('chatbot-widget-container');
+  if (container) {
+    container.remove();
+  }
+  
   if (isDebugEnabled()) {
-    console.log('🔄 Widget initialization state reset');
+    console.log('🔄 Widget initialization state reset and container cleared');
   }
 };
 

@@ -82,7 +82,7 @@ const ChatbotThemingPlatform = () => {
   }, [apiEndpoint]);
 
   // Widget initialization hook
-  useWidgetInitialization({
+  const { reinitializeWidget, forceWidgetUpdate, tryUpdateWidget } = useWidgetInitialization({
     apiKey,
     apiEndpoint,
     widgetConfig,
@@ -102,13 +102,55 @@ const ChatbotThemingPlatform = () => {
   const handleApiUpdate = () => {
     if (isDebugEnabled()) {
       console.log('🔄 Updating API configuration:', { 
-        apiKey: tempApiKey, 
+        apiKey: tempApiKey.substring(0, 4) + '...', 
         apiEndpoint: tempApiEndpoint 
       });
     }
-    setApiKey(tempApiKey);
-    setApiEndpoint(tempApiEndpoint);
-    setApiUpdateMessage('API configuration updated successfully!');
+    
+    // Check if API key or endpoint actually changed
+    const hasApiKeyChanged = tempApiKey !== apiKey;
+    const hasEndpointChanged = tempApiEndpoint !== apiEndpoint;
+    
+    if (hasApiKeyChanged || hasEndpointChanged) {
+      // Update the API configuration state
+      setApiKey(tempApiKey);
+      setApiEndpoint(tempApiEndpoint);
+
+      // Prefer live-updating the existing widget if it supports it
+      const canLiveUpdate = !!(window.ChatbotWidget?.setApiKey && window.ChatbotWidget?.setApiUrl);
+
+      if (canLiveUpdate) {
+        try {
+          if (isDebugEnabled()) {
+            console.log('✅ Live-updating widget API settings without reinitialization');
+          }
+          window.ChatbotWidget!.setApiKey(tempApiKey);
+          window.ChatbotWidget!.setApiUrl(tempApiEndpoint);
+          // Nudge a config update to ensure everything stays connected
+          setTimeout(() => {
+            tryUpdateWidget();
+          }, 50);
+          setApiUpdateMessage('API configuration updated!');
+        } catch (e) {
+          console.warn('Live update failed, falling back to reinitialize:', e);
+          if (isDebugEnabled()) {
+            console.log('🔄 Reinitializing widget with new API configuration (fallback)');
+          }
+          reinitializeWidget(tempApiKey, tempApiEndpoint);
+          setApiUpdateMessage('API configuration updated and widget reinitialized!');
+        }
+      } else {
+        // Fallback: reinitialize only if live-update methods are unavailable
+        if (isDebugEnabled()) {
+          console.log('ℹ️ Widget missing live update methods, reinitializing');
+        }
+        reinitializeWidget(tempApiKey, tempApiEndpoint);
+        setApiUpdateMessage('API configuration updated and widget reinitialized!');
+      }
+    } else {
+      setApiUpdateMessage('No changes detected in API configuration');
+    }
+    
     setTimeout(() => setApiUpdateMessage(''), 3000);
   };
 
