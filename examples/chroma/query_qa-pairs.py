@@ -96,6 +96,10 @@ def load_config():
     config['datasources'] = datasources_config['datasources']
     config['embeddings'] = embeddings_config['embeddings']
     
+    # Also merge the embedding provider config if it exists
+    if 'embedding' in embeddings_config:
+        config['embedding'] = embeddings_config['embedding']
+    
     return config
 
 async def test_chroma_query(test_query: str, collection_name: str = None, use_local: bool = False, db_path: str = "./chroma_db"):
