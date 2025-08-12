@@ -73,9 +73,7 @@ auth:
   # - file: Uses plain text file in ~/.orbit/.env (less secure but visible)
   credential_storage: file
 
-embedding:
-  provider: "ollama"
-  enabled: false
+# Embedding configuration moved to embeddings.yaml
 
 api_keys:
   header_name: "X-API-Key"

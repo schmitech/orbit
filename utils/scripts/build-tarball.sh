@@ -146,7 +146,7 @@ mkdir -p dist/build/${PACKAGE_NAME}
 
 # Create directory structure
 echo "Creating directory structure..."
-mkdir -p dist/build/${PACKAGE_NAME}/{bin,server,install,logs,examples,docker,config}
+mkdir -p dist/build/${PACKAGE_NAME}/{bin,server,install,logs,docker,config}
 
 # Copy core server files (excluding tests directory)
 echo "Copying server files..."
@@ -176,19 +176,8 @@ find bin -type f -not -path "*/\.*" -not -path "*/__pycache__/*" -not -name "*.p
     cp "$file" "dist/build/${PACKAGE_NAME}/$file"
 done
 
-# Sample data and scripts
-echo "Copying sample databases and scripts..."
-find examples -type f \
-    -not -path "*/\.*" \
-    -not -path "*/__pycache__/*" \
-    -not -path "examples/sandbox/*" \
-    -not -path "examples/sandbox/**" \
-    -not -name "*.pyc" \
-    -not -name "*.pyo" \
-    -not -name "*.pyd" | while read file; do
-    mkdir -p "dist/build/${PACKAGE_NAME}/$(dirname "$file")"
-    cp "$file" "dist/build/${PACKAGE_NAME}/$file"
-done
+# Note: Examples directory is excluded from the tarball
+echo "Skipping examples directory (excluded from distribution)..."
 
 # Copy config files
 echo "Copying configuration files..."
@@ -234,7 +223,6 @@ echo "Making scripts executable..."
 chmod +x dist/build/${PACKAGE_NAME}/bin/orbit.py
 chmod +x dist/build/${PACKAGE_NAME}/bin/orbit.sh
 chmod +x dist/build/${PACKAGE_NAME}/install/setup.sh
-chmod +x dist/build/${PACKAGE_NAME}/examples/sample-db-setup.sh
 
 # Create tarball
 echo "Creating distribution tarball..."

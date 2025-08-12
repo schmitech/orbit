@@ -32,6 +32,13 @@
   - [Deploying Locally](#deploying-locally)
   - [ORBIT CLI Chat](#orbit-cli-chat)
   - [Enabling Chat Memory](#enabling-chat-memory)
+- [🌐 API Endpoints](#-api-endpoints)
+  - [Core Chat \& Inference](#core-chat--inference)
+  - [Authentication](#authentication)
+  - [API Key Management (Admin)](#api-key-management-admin)
+  - [System Prompts (Admin)](#system-prompts-admin)
+  - [Health \& Monitoring](#health--monitoring)
+  - [File Management (Experimental)](#file-management-experimental)
 - [Scenarios](#scenarios)
   - [Understanding ORBIT's Adapter System](#understanding-orbits-adapter-system)
   - [Multilingual Support](#multilingual-support)
@@ -214,6 +221,55 @@ npm run dev
 <video src="https://github.com/user-attachments/assets/cc710e9f-89f8-447d-b308-4287bab22b92" controls>
   Your browser does not support the video tag.
 </video>
+
+## 🌐 API Endpoints
+
+ORBIT provides a RESTful API for programmatic access. Here are the key endpoints for getting started:
+
+### Core Chat & Inference
+- `POST /v1/chat` - MCP protocol chat endpoint (JSON-RPC 2.0 format)
+- `GET /health` - Overall system health
+
+### Authentication
+- `POST /auth/login` - User authentication  
+- `POST /auth/logout` - End session
+- `GET /auth/me` - Get current user info
+- `POST /auth/register` - Register new user
+- `POST /auth/change-password` - Change user password
+
+### API Key Management (Admin)
+- `GET /admin/api-keys` - List API keys
+- `POST /admin/api-keys` - Create new API key
+- `DELETE /admin/api-keys/{api_key}` - Delete API key
+- `POST /admin/api-keys/deactivate` - Deactivate API key
+- `GET /admin/api-keys/{api_key}/status` - Get API key status
+
+### System Prompts (Admin)
+- `GET /admin/prompts` - List system prompts
+- `POST /admin/prompts` - Create system prompt
+- `PUT /admin/prompts/{prompt_id}` - Update system prompt
+- `DELETE /admin/prompts/{prompt_id}` - Delete system prompt
+
+### Health & Monitoring
+- `GET /health` - System health overview
+- `GET /health/adapters` - Adapter health status
+- `GET /health/embedding-services` - Embedding service status
+- `GET /health/mongodb-services` - MongoDB connection status
+- `GET /health/ready` - Readiness check
+- `GET /health/system` - System resource usage
+
+### File Management (Experimental)
+- `POST /upload` - Single file upload
+- `POST /upload/batch` - Batch file upload
+- `GET /info/{file_id}` - File information
+- `DELETE /{file_id}` - Delete file
+- `GET /status` - File system status
+
+**API Documentation**: Full API reference with examples is available at `/docs` (Swagger UI) when the server is running.
+
+**Authentication**: Most endpoints require either:
+- Bearer token authentication (for user sessions)
+- API key authentication via `X-API-Key` header (for adapter access)
 
 ## Scenarios
 

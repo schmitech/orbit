@@ -96,14 +96,14 @@ class AdapterRegistry:
             ValueError: If the adapter cannot be found or created
         """
         # Log the attempt to create the adapter
-        logger.info(f"Attempting to create adapter: type={adapter_type}, datasource={datasource}, name={adapter_name}")
+        logger.debug(f"Attempting to create adapter: type={adapter_type}, datasource={datasource}, name={adapter_name}")
         
         # Get adapter info
         adapter_info = self.get(adapter_type, datasource, adapter_name)
         
         if not adapter_info:
             # Try to import dynamically if the adapter is not registered
-            logger.info(f"Adapter not found in registry, attempting dynamic import")
+            logger.debug(f"Adapter not found in registry, attempting dynamic import")
             if self._try_import_adapter(adapter_type, datasource, adapter_name):
                 adapter_info = self.get(adapter_type, datasource, adapter_name)
             
@@ -122,7 +122,7 @@ class AdapterRegistry:
             config = {**adapter_info.get('config', {}), **(override_config or {})}
             
             # Log the attempt to create the adapter instance
-            logger.info(f"Creating adapter instance with config: {config}")
+            logger.debug(f"Creating adapter instance with config: {config}")
             
             # Use factory function if available
             if adapter_info.get('factory_func'):

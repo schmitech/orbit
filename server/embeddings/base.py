@@ -90,19 +90,32 @@ class EmbeddingService(ABC):
 class EmbeddingServiceFactory:
     """
     Factory class for creating embedding service instances based on configuration.
+    Implements singleton pattern to share embedding services across adapters.
     """
     
-    @staticmethod
-    def create_embedding_service(config: Dict[str, Any], provider_name: Optional[str] = None) -> EmbeddingService:
+    _instances: Dict[str, EmbeddingService] = {}
+    _lock = None
+    
+    @classmethod
+    def _get_lock(cls):
+        """Get or create the lock for thread safety."""
+        if cls._lock is None:
+            import threading
+            cls._lock = threading.Lock()
+        return cls._lock
+    
+    @classmethod
+    def create_embedding_service(cls, config: Dict[str, Any], provider_name: Optional[str] = None) -> EmbeddingService:
         """
-        Create an embedding service instance based on configuration.
+        Create or return a cached embedding service instance based on configuration.
+        Implements singleton pattern to share embedding services across adapters.
         
         Args:
             config: The full application configuration
             provider_name: Optional specific provider name to override the one in config
             
         Returns:
-            An initialized embedding service instance
+            An initialized embedding service instance (shared singleton)
             
         Raises:
             ValueError: If the specified provider is not supported
@@ -111,6 +124,39 @@ class EmbeddingServiceFactory:
         if not provider_name:
             provider_name = config.get('embedding', {}).get('provider', 'ollama')
         
+        # Create a cache key that includes provider name and relevant config
+        cache_key = cls._create_cache_key(provider_name, config)
+        
+        # Check if we already have this instance
+        with cls._get_lock():
+            if cache_key in cls._instances:
+                logger = logging.getLogger(__name__)
+                logger.debug(f"Reusing cached embedding service: {provider_name}")
+                return cls._instances[cache_key]
+            
+            # Create new instance
+            logger = logging.getLogger(__name__)
+            logger.debug(f"Creating new embedding service instance: {provider_name}")
+            instance = cls._create_new_instance(provider_name, config)
+            cls._instances[cache_key] = instance
+            return instance
+    
+    @staticmethod
+    def _create_cache_key(provider_name: str, config: Dict[str, Any]) -> str:
+        """Create a cache key for the embedding service based on provider and config."""
+        # Include relevant config parameters that would affect the service instance
+        provider_config = config.get('embeddings', {}).get(provider_name, {})
+        
+        # Create a key based on provider and key config parameters
+        # For most providers, the host/endpoint and model are the distinguishing factors
+        host = provider_config.get('host', provider_config.get('base_url', ''))
+        model = provider_config.get('model', '')
+        
+        return f"{provider_name}:{host}:{model}"
+    
+    @staticmethod
+    def _create_new_instance(provider_name: str, config: Dict[str, Any]) -> EmbeddingService:
+        """Create a new embedding service instance."""
         # Import the appropriate embedding service
         if provider_name == 'ollama':
             from embeddings.ollama import OllamaEmbeddingService
@@ -138,3 +184,38 @@ class EmbeddingServiceFactory:
             return LlamaCppEmbeddingService(provider_config)
         else:
             raise ValueError(f"Unsupported embedding provider: {provider_name}")
+    
+    @classmethod
+    def clear_cache(cls) -> None:
+        """Clear all cached embedding service instances. Useful for testing or reloading."""
+        with cls._get_lock():
+            # Close all cached instances
+            for instance in cls._instances.values():
+                try:
+                    if hasattr(instance, 'close'):
+                        import asyncio
+                        if asyncio.iscoroutinefunction(instance.close):
+                            # For async close methods, we can't await here, so just skip
+                            pass
+                        else:
+                            instance.close()
+                except Exception as e:
+                    logging.getLogger(__name__).warning(f"Error closing embedding service: {e}")
+            
+            cls._instances.clear()
+    
+    @classmethod
+    def get_cached_instances(cls) -> Dict[str, EmbeddingService]:
+        """Get all currently cached embedding service instances. Useful for debugging."""
+        with cls._get_lock():
+            return cls._instances.copy()
+    
+    @classmethod
+    def get_cache_stats(cls) -> Dict[str, Any]:
+        """Get statistics about cached embedding services."""
+        with cls._get_lock():
+            return {
+                "total_cached_instances": len(cls._instances),
+                "cached_providers": list(cls._instances.keys()),
+                "memory_info": f"{len(cls._instances)} embedding service instances cached"
+            }

@@ -16,6 +16,8 @@ from typing import Dict, Any, Optional, Tuple
 from datetime import datetime, UTC
 from fastapi import HTTPException
 from bson import ObjectId
+import threading
+import hashlib
 
 from utils.text_utils import mask_api_key
 from services.mongodb_service import MongoDBService
@@ -25,8 +27,67 @@ logger = logging.getLogger(__name__)
 class ApiKeyService:
     """Service for handling API key authentication and adapter/collection mapping"""
     
+    # Singleton pattern implementation
+    _instances: Dict[str, 'ApiKeyService'] = {}
+    _lock = threading.Lock()
+    
+    def __new__(cls, config: Dict[str, Any], mongodb_service: Optional[MongoDBService] = None):
+        """Create or return existing API key service instance based on configuration"""
+        cache_key = cls._create_cache_key(config, mongodb_service)
+        
+        with cls._lock:
+            if cache_key not in cls._instances:
+                instance = super().__new__(cls)
+                cls._instances[cache_key] = instance
+                logger.debug(f"Created new API key service instance for: {cache_key}")
+            else:
+                logger.debug(f"Reusing existing API key service instance for: {cache_key}")
+            return cls._instances[cache_key]
+    
+    @classmethod
+    def _create_cache_key(cls, config: Dict[str, Any], mongodb_service: Optional[MongoDBService] = None) -> str:
+        """Create a cache key based on MongoDB configuration and collection name"""
+        # Use MongoDB configuration for the cache key since API key service depends on MongoDB
+        mongodb_config = config.get('internal_services', {}).get('mongodb', {})
+        collection_name = config.get('mongodb', {}).get('apikey_collection', 'api_keys')
+        
+        # Create key from MongoDB connection parameters and collection
+        # Don't include mongodb_service ID since we want the same config to produce the same cache key
+        # regardless of whether MongoDB service is provided or created internally
+        key_parts = [
+            mongodb_config.get('host', 'localhost'),
+            str(mongodb_config.get('port', 27017)),
+            mongodb_config.get('database', 'orbit'),
+            collection_name
+        ]
+        
+        # Create hash of the key parts for consistency
+        key_string = '|'.join(key_parts)
+        return hashlib.md5(key_string.encode()).hexdigest()
+    
+    @classmethod
+    def get_cache_stats(cls) -> Dict[str, Any]:
+        """Get statistics about cached API key service instances"""
+        with cls._lock:
+            return {
+                'total_cached_instances': len(cls._instances),
+                'cached_configurations': list(cls._instances.keys()),
+                'memory_info': f"{len(cls._instances)} API key service instances cached"
+            }
+    
+    @classmethod
+    def clear_cache(cls) -> None:
+        """Clear all cached API key service instances (mainly for testing)"""
+        with cls._lock:
+            cls._instances.clear()
+            logger.debug("Cleared API key service cache")
+    
     def __init__(self, config: Dict[str, Any], mongodb_service: Optional[MongoDBService] = None):
         """Initialize the API key service with configuration"""
+        # Avoid re-initialization if this instance was already initialized
+        if hasattr(self, '_singleton_initialized'):
+            return
+            
         self.config = config
         self.verbose = config.get('general', {}).get('verbose', False)
         
@@ -40,8 +101,17 @@ class ApiKeyService:
         self._initialized = False
         self.api_keys_collection = None
         
+        # Mark as initialized to prevent re-initialization
+        self._singleton_initialized = True
+        
     async def initialize(self) -> None:
         """Initialize the service"""
+        # Check if already initialized to prevent duplicate initialization
+        if self._initialized:
+            if self.verbose:
+                logger.debug("API Key Service already initialized, skipping")
+            return
+            
         await self.mongodb.initialize()
         
         # Set up the API keys collection
@@ -405,3 +475,10 @@ class ApiKeyService:
         except Exception as e:
             logger.error(f"Error deleting API key: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Error deleting API key: {str(e)}")
+    
+    async def close(self) -> None:
+        """Close the API key service (does not close shared MongoDB service)"""
+        # Since MongoDB service might be shared, we don't close it
+        # The service itself doesn't maintain any persistent connections beyond MongoDB
+        self._initialized = False
+        self.api_keys_collection = None

@@ -44,11 +44,11 @@ class ChromaRetriever(AbstractVectorRetriever):
         adapter_config = config.get('adapter_config', {})
         if adapter_config and 'collection' in adapter_config:
             self.collection_name = adapter_config['collection']
-            logger.info(f"ChromaRetriever using collection from adapter config: {self.collection_name}")
+            logger.debug(f"ChromaRetriever using collection from adapter config: {self.collection_name}")
         elif 'collection' in self.datasource_config:
             # Fallback to datasource config
             self.collection_name = self.datasource_config['collection']
-            logger.info(f"ChromaRetriever using collection from datasource config: {self.collection_name}")
+            logger.debug(f"ChromaRetriever using collection from datasource config: {self.collection_name}")
         
         # Create a lazy loader for the ChromaDB client
         def create_chroma_client():

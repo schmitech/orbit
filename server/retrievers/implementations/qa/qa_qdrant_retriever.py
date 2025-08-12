@@ -44,7 +44,7 @@ class QAQdrantRetriever(QAVectorRetrieverBase, QdrantRetriever):
         # Ensure collection name is set from adapter config after both parents are initialized
         if self.adapter_config and 'collection' in self.adapter_config:
             self.collection_name = self.adapter_config['collection']
-            logger.info(f"QAQdrantRetriever using collection from adapter config: {self.collection_name}")
+            logger.debug(f"QAQdrantRetriever using collection from adapter config: {self.collection_name}")
         
         # Qdrant-specific parameters
         self.score_threshold = self.adapter_config.get(

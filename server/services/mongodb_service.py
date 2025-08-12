@@ -5,10 +5,13 @@ MongoDB Service
 This service provides a reusable MongoDB connection and database access layer.
 It handles connection initialization, maintenance, and provides helper methods
 for common database operations across multiple services.
+
+Implements singleton pattern to share MongoDB connections across services.
 """
 
 import logging
 import motor.motor_asyncio
+import threading
 from typing import Dict, Any, Optional, List, Union, Tuple, Callable, Awaitable
 from fastapi import HTTPException
 from datetime import datetime
@@ -17,10 +20,47 @@ from bson import ObjectId
 logger = logging.getLogger(__name__)
 
 class MongoDBService:
-    """Service for handling MongoDB connections and operations"""
+    """Service for handling MongoDB connections and operations with singleton pattern"""
+    
+    _instances: Dict[str, 'MongoDBService'] = {}
+    _lock = threading.Lock()
+    
+    def __new__(cls, config: Dict[str, Any]):
+        """
+        Implement singleton pattern for MongoDB service.
+        Returns existing instance if configuration matches.
+        """
+        # Create cache key based on MongoDB configuration
+        cache_key = cls._create_cache_key(config)
+        
+        with cls._lock:
+            if cache_key not in cls._instances:
+                logger.debug(f"Creating new MongoDB service instance for key: {cache_key}")
+                instance = super().__new__(cls)
+                cls._instances[cache_key] = instance
+            else:
+                logger.debug(f"Reusing cached MongoDB service instance for key: {cache_key}")
+            
+            return cls._instances[cache_key]
+    
+    @classmethod
+    def _create_cache_key(cls, config: Dict[str, Any]) -> str:
+        """Create a cache key based on MongoDB configuration."""
+        mongodb_config = config.get('internal_services', {}).get('mongodb', {})
+        
+        # Use host, port, and database to create unique key
+        host = mongodb_config.get('host', 'localhost')
+        port = mongodb_config.get('port', 27017)
+        database = mongodb_config.get('database', 'default')
+        
+        return f"mongodb:{host}:{port}:{database}"
     
     def __init__(self, config: Dict[str, Any]):
         """Initialize the MongoDB service with configuration"""
+        # Prevent re-initialization of singleton instances
+        if hasattr(self, '_initialized') and self._initialized:
+            return
+            
         self.config = config
         self.client = None
         self.database = None
@@ -36,7 +76,10 @@ class MongoDBService:
         mongodb_config = self.config.get('internal_services', {}).get('mongodb', {})
         try:
             # Log MongoDB configuration (without sensitive data)
-            logger.info(f"Initializing MongoDB connection with config: host={mongodb_config.get('host')}, port={mongodb_config.get('port')}, database={mongodb_config.get('database')}")
+            if self.verbose:
+                logger.info(f"Initializing MongoDB connection with config: host={mongodb_config.get('host')}, port={mongodb_config.get('port')}, database={mongodb_config.get('database')}")
+            else:
+                logger.debug(f"Initializing MongoDB connection to {mongodb_config.get('host')}")
 
             host = mongodb_config.get('host', '')
             port = mongodb_config.get('port', '')
@@ -47,7 +90,7 @@ class MongoDBService:
             if "mongodb.net" in host and username and password:
                 # MongoDB Atlas with authentication
                 connection_string = f"mongodb+srv://{username}:{password}@{host}/{database}?retryWrites=true&w=majority"
-                logger.info("Using MongoDB Atlas connection string format")
+                logger.debug("Using MongoDB Atlas connection string format")
             elif username and password:
                 # Local or remote MongoDB with authentication
                 connection_string = f"mongodb://{username}:{password}@{host}:{port}/{database}"
@@ -57,20 +100,25 @@ class MongoDBService:
                 connection_string = f"mongodb://{host}:{port}/{database}"
                 logger.info("Using standard MongoDB connection string format without authentication")
 
-            logger.info(f"Attempting to connect to MongoDB at {host}")
+            logger.debug(f"Attempting to connect to MongoDB at {host}")
 
             # Connect to MongoDB
             self.client = motor.motor_asyncio.AsyncIOMotorClient(connection_string)
-            logger.info("MongoDB client created successfully")
+            logger.debug("MongoDB client created successfully")
 
             # Test the connection
             await self.client.admin.command('ping')
-            logger.info("MongoDB connection test successful")
+            if self.verbose:
+                logger.info("MongoDB connection test successful")
+            else:
+                logger.debug("MongoDB connection test successful")
 
             self.database = self.client[database]
-            logger.info(f"Using database '{database}'")
-
-            logger.info("MongoDB Service initialized successfully")
+            if self.verbose:
+                logger.info(f"Using database '{database}'")
+                logger.info("MongoDB Service initialized successfully")
+            else:
+                logger.debug(f"MongoDB Service initialized successfully for database '{database}'")
             self._initialized = True
         except Exception as e:
             logger.error(f"Failed to initialize MongoDB Service: {str(e)}")
@@ -389,3 +437,34 @@ class MongoDBService:
         collection = self.get_collection(collection_name)
         result = await collection.delete_many(query, session=session)
         return result.deleted_count
+    
+    @classmethod
+    def clear_cache(cls) -> None:
+        """Clear all cached MongoDB service instances. Useful for testing or reloading."""
+        with cls._lock:
+            # Close all cached instances
+            for instance in cls._instances.values():
+                try:
+                    if hasattr(instance, 'close') and instance.client:
+                        instance.client.close()
+                except Exception as e:
+                    logger.warning(f"Error closing MongoDB client: {e}")
+            
+            cls._instances.clear()
+            logger.debug("Cleared all MongoDB service instances from cache")
+    
+    @classmethod
+    def get_cached_instances(cls) -> Dict[str, 'MongoDBService']:
+        """Get all currently cached MongoDB service instances. Useful for debugging."""
+        with cls._lock:
+            return cls._instances.copy()
+    
+    @classmethod
+    def get_cache_stats(cls) -> Dict[str, Any]:
+        """Get statistics about cached MongoDB services."""
+        with cls._lock:
+            return {
+                "total_cached_instances": len(cls._instances),
+                "cached_connections": list(cls._instances.keys()),
+                "memory_info": f"{len(cls._instances)} MongoDB service instances cached"
+            }

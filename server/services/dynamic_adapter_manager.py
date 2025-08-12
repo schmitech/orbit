@@ -225,9 +225,20 @@ class DynamicAdapterManager:
                 **adapter_config_params
             )
             
+            # Create a deep copy of config with the adapter config included
+            import copy
+            config_with_adapter = copy.deepcopy(self.config)
+            config_with_adapter['adapter_config'] = adapter_config_params
+            
+            # Include adapter-level inference provider override if specified
+            if 'inference_provider' in adapter_config:
+                config_with_adapter['inference_provider'] = adapter_config['inference_provider']
+                if self.verbose:
+                    logger.info(f"Setting inference provider override: {adapter_config['inference_provider']} for adapter: {adapter_name}")
+            
             # Create retriever instance
             retriever = retriever_class(
-                config=self.config,
+                config=config_with_adapter,
                 domain_adapter=domain_adapter
             )
             

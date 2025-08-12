@@ -112,6 +112,34 @@ def create_health_router() -> APIRouter:
             logger.error(f"Error resetting circuit breaker: {e}")
             raise HTTPException(status_code=500, detail=str(e))
     
+    @router.get("/embedding-services")
+    async def get_embedding_service_stats():
+        """Get statistics about cached embedding services"""
+        try:
+            from embeddings.base import EmbeddingServiceFactory
+            stats = EmbeddingServiceFactory.get_cache_stats()
+            return stats
+        except Exception as e:
+            logger.error(f"Error getting embedding service stats: {e}")
+            return JSONResponse(
+                status_code=500,
+                content={"error": str(e)}
+            )
+    
+    @router.get("/mongodb-services")
+    async def get_mongodb_service_stats():
+        """Get statistics about cached MongoDB services"""
+        try:
+            from services.mongodb_service import MongoDBService
+            stats = MongoDBService.get_cache_stats()
+            return stats
+        except Exception as e:
+            logger.error(f"Error getting MongoDB service stats: {e}")
+            return JSONResponse(
+                status_code=500,
+                content={"error": str(e)}
+            )
+    
     @router.get("/ready")
     async def readiness_check(adapter_manager = Depends(get_adapter_manager_optional)):
         """Simple readiness check for load balancers - returns UP/DOWN status"""

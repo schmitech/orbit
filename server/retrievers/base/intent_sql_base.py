@@ -137,9 +137,21 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
                 raise Exception("Unable to initialize any embedding provider")
     
     async def _initialize_inference_client(self):
-        """Initialize inference client."""
+        """Initialize inference client with adapter-specific override support."""
         from inference.pipeline.providers.provider_factory import ProviderFactory
-        self.inference_client = ProviderFactory.create_provider(self.config)
+        
+        # Check if there's an inference_provider override in the config
+        # This would be set by the DynamicAdapterManager when it loads the adapter
+        inference_provider = self.config.get('inference_provider')
+        
+        if inference_provider:
+            logger.info(f"Using adapter-specific inference provider: {inference_provider}")
+            self.inference_client = ProviderFactory.create_provider_by_name(inference_provider, self.config)
+        else:
+            # Fall back to default provider
+            logger.info("Using default inference provider from config")
+            self.inference_client = ProviderFactory.create_provider(self.config)
+        
         await self.inference_client.initialize()
     
     def _initialize_chromadb(self):

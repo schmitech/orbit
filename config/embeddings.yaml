@@ -1,3 +1,9 @@
+# Global embedding configuration
+embedding:
+  provider: "ollama"  # Default embedding provider: ollama, openai, cohere, mistral, jina, llama_cpp
+  enabled: true       # Whether embeddings are enabled globally
+
+# Provider-specific configurations
 embeddings:
   llama_cpp:
     model_path: "gguf/nomic-embed-text-v1.5-Q4_0.gguf"
@@ -12,8 +18,8 @@ embeddings:
     embed_type: "llama_embedding"
   ollama:
     base_url: "http://localhost:11434"
-    model: "nomic-embed-text"
-    dimensions: 768
+    model: "bge-m3"
+    dimensions: 1024
   jina:
     api_key: ${JINA_API_KEY}
     base_url: "https://api.jina.ai/v1"

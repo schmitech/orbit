@@ -10,6 +10,8 @@ import logging
 from typing import Dict, Any, Optional, Union, List, Tuple
 import json
 import redis.asyncio as redis
+import threading
+import hashlib
 
 # Optional Redis imports - service will gracefully handle missing dependency
 try:
@@ -23,6 +25,58 @@ logger = logging.getLogger(__name__)
 class RedisService:
     """Service for Redis operations with graceful fallback if Redis is unavailable"""
     
+    # Singleton pattern implementation
+    _instances: Dict[str, 'RedisService'] = {}
+    _lock = threading.Lock()
+    
+    def __new__(cls, config: Dict[str, Any]):
+        """Create or return existing Redis service instance based on configuration"""
+        cache_key = cls._create_cache_key(config)
+        
+        with cls._lock:
+            if cache_key not in cls._instances:
+                instance = super().__new__(cls)
+                cls._instances[cache_key] = instance
+                logger.debug(f"Created new Redis service instance for: {cache_key}")
+            else:
+                logger.debug(f"Reusing existing Redis service instance for: {cache_key}")
+            return cls._instances[cache_key]
+    
+    @classmethod
+    def _create_cache_key(cls, config: Dict[str, Any]) -> str:
+        """Create a cache key based on Redis configuration"""
+        redis_config = config.get('internal_services', {}).get('redis', {})
+        
+        # Create key from connection parameters
+        key_parts = [
+            redis_config.get('host', 'localhost'),
+            str(redis_config.get('port', 6379)),
+            str(redis_config.get('db', 0)),
+            redis_config.get('username', ''),
+            str(redis_config.get('use_ssl', False))
+        ]
+        
+        # Create hash of the key parts for consistency
+        key_string = '|'.join(key_parts)
+        return hashlib.md5(key_string.encode()).hexdigest()
+    
+    @classmethod
+    def get_cache_stats(cls) -> Dict[str, Any]:
+        """Get statistics about cached Redis service instances"""
+        with cls._lock:
+            return {
+                'total_cached_instances': len(cls._instances),
+                'cached_configurations': list(cls._instances.keys()),
+                'memory_info': f"{len(cls._instances)} Redis service instances cached"
+            }
+    
+    @classmethod
+    def clear_cache(cls) -> None:
+        """Clear all cached Redis service instances (mainly for testing)"""
+        with cls._lock:
+            cls._instances.clear()
+            logger.debug("Cleared Redis service cache")
+    
     def __init__(self, config: Dict[str, Any]):
         """
         Initialize the Redis service with configuration
@@ -30,6 +84,10 @@ class RedisService:
         Args:
             config: Application configuration
         """
+        # Avoid re-initialization if this instance was already initialized
+        if hasattr(self, '_singleton_initialized'):
+            return
+            
         self.config = config
         self.verbose = config.get('general', {}).get('verbose', False)
         
@@ -49,6 +107,9 @@ class RedisService:
             except Exception as e:
                 logger.error(f"Failed to initialize Redis: {str(e)}")
                 self.enabled = False
+        
+        # Mark as initialized to prevent re-initialization
+        self._singleton_initialized = True
     
     def _initialize_redis(self) -> None:
         """

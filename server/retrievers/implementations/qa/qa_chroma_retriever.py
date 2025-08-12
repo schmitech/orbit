@@ -43,14 +43,14 @@ class QAChromaRetriever(QAVectorRetrieverBase, ChromaRetriever):
         # Ensure collection name is set from adapter config after both parents are initialized
         if self.adapter_config and 'collection' in self.adapter_config:
             self.collection_name = self.adapter_config['collection']
-            logger.info(f"QAChromaRetriever using collection from adapter config: {self.collection_name}")
+            logger.debug(f"QAChromaRetriever using collection from adapter config: {self.collection_name}")
         
         # Chroma-specific parameters
         self.distance_scaling_factor = self.adapter_config.get(
             'distance_scaling_factor', 200.0
         ) if self.adapter_config else 200.0
         
-        logger.info(f"QAChromaRetriever initialized with distance_scaling_factor={self.distance_scaling_factor}")
+        logger.debug(f"QAChromaRetriever initialized with distance_scaling_factor={self.distance_scaling_factor}")
     
     def get_datasource_name(self) -> str:
         """Return the datasource name."""

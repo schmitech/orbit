@@ -51,6 +51,13 @@ class QAVectorRetrieverBase(AbstractVectorRetriever):
     def _extract_adapter_config(self) -> Optional[Dict[str, Any]]:
         """Extract QA adapter configuration if available."""
         try:
+            # First check if adapter_config was directly passed in the config
+            # This happens when DynamicAdapterManager creates the retriever
+            if 'adapter_config' in self.config:
+                logger.debug(f"Using adapter config passed directly from DynamicAdapterManager")
+                return self.config['adapter_config']
+            
+            # Otherwise fall back to searching through adapters (for backward compatibility)
             datasource_name = self.get_datasource_name()
             logger.debug(f"Extracting adapter config for datasource: {datasource_name}")
             
@@ -95,13 +102,17 @@ class QAVectorRetrieverBase(AbstractVectorRetriever):
             datasource_config = self.config.get('datasources', {}).get(datasource_name, {})
             merged_config = datasource_config.copy()
             
-            logger.info(f"Merging configs for datasource: {datasource_name}")
-            logger.info(f"  Datasource config: {datasource_config}")
-            logger.info(f"  Adapter config: {self.adapter_config}")
-            
-            if self.adapter_config:
+            if self.verbose or logger.isEnabledFor(logging.DEBUG):
+                logger.info(f"Merging configs for datasource: {datasource_name}")
+                logger.info(f"  Datasource config: {datasource_config}")
+                logger.info(f"  Adapter config: {self.adapter_config}")
+                
+                if self.adapter_config:
+                    merged_config.update(self.adapter_config)
+                    logger.info(f"  Merged config: {merged_config}")
+            elif self.adapter_config:
                 merged_config.update(self.adapter_config)
-                logger.info(f"  Merged config: {merged_config}")
+                logger.debug(f"Merged {datasource_name} configs: datasource + adapter")
                 
             # Override max_results and return_results in main config
             if 'max_results' in merged_config:
@@ -123,11 +134,14 @@ class QAVectorRetrieverBase(AbstractVectorRetriever):
             'confidence_threshold', 0.3
         ) if self.adapter_config else 0.3
         
-        # Log initialization
-        logger.info(f"{self.__class__.__name__} initialized with:")
-        logger.info(f"  confidence_threshold={self.confidence_threshold}")
-        logger.info(f"  max_results={self.max_results}")
-        logger.info(f"  return_results={self.return_results}")
+        # Log initialization (only if verbose or debug level)
+        if self.verbose or logger.isEnabledFor(logging.DEBUG):
+            logger.info(f"{self.__class__.__name__} initialized with:")
+            logger.info(f"  confidence_threshold={self.confidence_threshold}")
+            logger.info(f"  max_results={self.max_results}")
+            logger.info(f"  return_results={self.return_results}")
+        else:
+            logger.debug(f"{self.__class__.__name__} initialized with confidence_threshold={self.confidence_threshold}")
     
     async def initialize_domain_adapter(self):
         """Initialize domain adapter if not provided."""
