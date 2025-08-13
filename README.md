@@ -324,7 +324,7 @@ orbit-chat --url http://localhost:3000 --api-key YOUR_API_KEY
 ```
 
 Or use the ORBIT chatbot widget. See the [widget documentation](clients/chat-widget/README.md) for integration details:
-<video src="https://github.com/user-attachments/assets/876d0e5b-d24f-4367-be5a-3f966d97e8b6" controls>
+<video src="https://github.com/user-attachments/assets/54f81887-17c2-420d-a29c-a191eb6d3912" controls>
   Your browser does not support the video tag.
 </video>
 
