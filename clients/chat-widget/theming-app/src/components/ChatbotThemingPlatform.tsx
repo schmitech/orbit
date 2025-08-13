@@ -82,7 +82,7 @@ const ChatbotThemingPlatform = () => {
   }, [apiEndpoint]);
 
   // Widget initialization hook
-  const { reinitializeWidget, forceWidgetUpdate, tryUpdateWidget } = useWidgetInitialization({
+  const { reinitializeWidget, tryUpdateWidget } = useWidgetInitialization({
     apiKey,
     apiEndpoint,
     widgetConfig,
