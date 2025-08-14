@@ -18,6 +18,9 @@ import {
 } from './index';
 
 const ChatbotThemingPlatform = () => {
+  // Check if service is unavailable
+  const isServiceUnavailable = import.meta.env.VITE_UNAVAILABLE_MSG === 'true';
+  
   // Custom hooks for state management
   const { 
     widgetConfig, 
@@ -156,6 +159,17 @@ const ChatbotThemingPlatform = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Service Unavailable Message */}
+      {isServiceUnavailable && (
+        <div className="w-full bg-red-600 text-white py-4 px-4 text-center">
+          <div className="max-w-7xl mx-auto">
+            <p className="text-lg font-medium">
+              ⚠️ The service is temporarily unavailable. We're working to restore access as soon as possible.
+            </p>
+          </div>
+        </div>
+      )}
+      
       <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
           {/* Left Column - Customization Panel */}
