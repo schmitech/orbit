@@ -84,6 +84,12 @@ class LanguageDetectionStep(PipelineStep):
         
         # Store configuration
         self.min_confidence = lang_config.get('min_confidence', 0.7)
+        # Minimum margin between top-2 to accept the winner
+        self.min_margin = lang_config.get('min_margin', 0.2)
+        # Prefer English for ASCII-only text when ambiguous
+        self.prefer_english_for_ascii = lang_config.get('prefer_english_for_ascii', True)
+        # Stickiness to avoid language flapping within a session
+        self.enable_stickiness = lang_config.get('enable_stickiness', True)
         self.fallback_language = lang_config.get('fallback_language', 'en')
         
         self.logger.info(f"Initialized {len(self.backends)} language detection backends: {[b[0] for b in self.backends]}")
@@ -120,7 +126,7 @@ class LanguageDetectionStep(PipelineStep):
         
         try:
             # Detect language using ensemble method
-            result = self._detect_language_ensemble(context.message)
+            result = self._detect_language_ensemble(context.message, previous_language=getattr(context, 'detected_language', None))
             context.detected_language = result.language
             
             # Store additional metadata for debugging
@@ -131,6 +137,8 @@ class LanguageDetectionStep(PipelineStep):
                 'method': result.method,
                 'raw_results': result.raw_results
             })
+            # Persist last detected language to help stabilize across turns
+            context.metadata['last_detected_language'] = result.language
             
             config = self.container.get_or_none('config') or {}
             if config.get('general', {}).get('verbose', False):
@@ -154,12 +162,13 @@ class LanguageDetectionStep(PipelineStep):
         
         return context
     
-    def _detect_language_ensemble(self, text: str) -> DetectionResult:
+    def _detect_language_ensemble(self, text: str, previous_language: Optional[str] = None) -> DetectionResult:
         """
         Detect language using ensemble of multiple backends with confidence scoring.
 
         Args:
             text: The text to analyze
+            previous_language: Previously detected language in this session (if any)
 
         Returns:
             DetectionResult with language, confidence, and metadata
@@ -172,8 +181,11 @@ class LanguageDetectionStep(PipelineStep):
                 raw_results={'reason': 'text_too_short'}
             )
 
+        # Pre-clean text to avoid URL/code bias
+        clean_text = self._clean_text_for_detection(text)
+
         # First try high-confidence script-based detection
-        script_result = self._detect_by_script(text)
+        script_result = self._detect_by_script(clean_text)
         if script_result.confidence > 0.9:
             return script_result
 
@@ -183,7 +195,7 @@ class LanguageDetectionStep(PipelineStep):
         
         for backend_name, weight, detector_func in self.backends:
             try:
-                result = detector_func(text)
+                result = detector_func(clean_text)
                 if result:
                     backend_results.append((result, weight, backend_name))
                     raw_results[backend_name] = result.__dict__ if hasattr(result, '__dict__') else str(result)
@@ -199,6 +211,16 @@ class LanguageDetectionStep(PipelineStep):
                 raw_results=raw_results
             )
 
+        # Heuristic biasing for ASCII/Latin text to avoid Spanish-on-English mistakes
+        ascii_ratio = self._ascii_ratio(clean_text)
+        english_markers = self._count_markers(clean_text.lower(), [
+            r'\bthe\b', r'\band\b', r'\bthis\b', r'\bthat\b', r'\bis\b', r'\bare\b',
+            r'\bwhat\b', r'\bhow\b', r'\bwhy\b', r'\bwhere\b', r'\bcan\b', r'\bplease\b', r'\bthanks?\b'
+        ])
+        spanish_markers = self._count_markers(clean_text.lower(), [
+            r'¿', r'¡', r'[áéíóúñ]', r'\bqué\b', r'\bcomo\b', r'\bcómo\b', r'\bestás?\b', r'\bgracias\b'
+        ])
+
         # Weighted voting
         language_votes = {}
         total_weight = 0
@@ -213,13 +235,48 @@ class LanguageDetectionStep(PipelineStep):
             language_votes[lang] += weighted_score
             total_weight += weight
 
-        # Find best language
-        best_language = max(language_votes.keys(), key=lambda k: language_votes[k])
-        best_confidence = language_votes[best_language] / total_weight if total_weight > 0 else 0
-        
+        # Apply heuristic nudges before finalizing the winner
+        if self.prefer_english_for_ascii and ascii_ratio > 0.95 and english_markers > 0 and spanish_markers == 0:
+            # Nudge English upwards and slightly down-weight Spanish in pure ASCII English-like text
+            language_votes['en'] = language_votes.get('en', 0) + 0.2
+            if 'es' in language_votes:
+                language_votes['es'] = max(0, language_votes['es'] - 0.1)
+
+        # Sort to get top candidates
+        sorted_votes = sorted(language_votes.items(), key=lambda kv: kv[1], reverse=True)
+        best_language, best_score = sorted_votes[0]
+        second_score = sorted_votes[1][1] if len(sorted_votes) > 1 else 0.0
+        best_confidence = (best_score / total_weight) if total_weight > 0 else 0.0
+
         # If script detection had moderate confidence, boost it
         if script_result.confidence > 0.5 and script_result.language == best_language:
             best_confidence = min(0.95, best_confidence + 0.2)
+
+        # Enforce minimum margin and confidence; prefer previous or English if ambiguous
+        if best_confidence < self.min_confidence or (best_score - second_score) < self.min_margin:
+            # Prefer sticky previous language when enabled and plausible
+            if self.enable_stickiness and previous_language and previous_language in language_votes:
+                return DetectionResult(
+                    language=previous_language,
+                    confidence=min(0.9, max(best_confidence, 0.7)),
+                    method='sticky_previous',
+                    raw_results={'reason': 'below_threshold_or_margin', 'votes': language_votes, 'raw': raw_results}
+                )
+            # Prefer English for high ASCII ratio without strong Spanish markers
+            if self.prefer_english_for_ascii and ascii_ratio > 0.95 and spanish_markers == 0:
+                return DetectionResult(
+                    language='en',
+                    confidence=0.75,
+                    method='heuristic_ascii_bias',
+                    raw_results={'reason': 'below_threshold_or_margin', 'votes': language_votes, 'raw': raw_results}
+                )
+            # Fallback
+            return DetectionResult(
+                language=self.fallback_language,
+                confidence=best_confidence,
+                method='threshold_fallback',
+                raw_results={'votes': language_votes, 'raw': raw_results}
+            )
 
         return DetectionResult(
             language=best_language,
@@ -282,6 +339,31 @@ class LanguageDetectionStep(PipelineStep):
             method='script_detection',
             raw_results={'reason': 'no_patterns_matched'}
         )
+
+    def _clean_text_for_detection(self, text: str) -> str:
+        """Lightweight cleaning to remove tokens that confuse detectors."""
+        # Remove URLs and emails
+        text = re.sub(r'https?://\S+|www\.\S+', ' ', text)
+        text = re.sub(r'\b\S+@\S+\.[A-Za-z]{2,}\b', ' ', text)
+        # Remove code fences/inline code
+        text = re.sub(r'```[\s\S]*?```', ' ', text)
+        text = re.sub(r'`[^`]*`', ' ', text)
+        # Collapse excessive punctuation and numbers
+        text = re.sub(r'[0-9_\-]{3,}', ' ', text)
+        text = re.sub(r'\s+', ' ', text).strip()
+        return text
+
+    def _ascii_ratio(self, text: str) -> float:
+        """Compute ratio of ASCII letters/digits/spaces to total characters."""
+        if not text:
+            return 1.0
+        total = len(text)
+        ascii_count = sum(1 for c in text if ord(c) < 128)
+        return ascii_count / total if total else 1.0
+
+    def _count_markers(self, text_lower: str, patterns: List[str]) -> int:
+        """Count occurrences of any patterns in text."""
+        return sum(1 for p in patterns if re.search(p, text_lower))
 
     def _detect_langdetect(self, text: str) -> Optional[DetectionResult]:
         """Detect language using langdetect library."""

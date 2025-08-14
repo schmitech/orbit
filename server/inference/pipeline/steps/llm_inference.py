@@ -243,9 +243,17 @@ class LLMInferenceStep(PipelineStep):
             return ""
         
         detected_language = getattr(context, 'detected_language', None)
+        detection_meta = getattr(context, 'language_detection_meta', {}) or {}
+        # Config thresholds
+        min_conf = lang_detect_config.get('min_confidence', 0.8)
+        prefer_ascii_en = lang_detect_config.get('prefer_english_for_ascii', True)
         
         if not detected_language:
-            # No detection available, use generic instruction
+            # No detection available, prefer safe default to English for ASCII-only messages
+            msg = context.message or ""
+            ascii_ratio = (sum(1 for c in msg if ord(c) < 128) / len(msg)) if msg else 1.0
+            if prefer_ascii_en and ascii_ratio > 0.95:
+                return "\nIMPORTANT: Reply entirely in English. Do not include any other language."
             return "\nIMPORTANT: Reply in the same language the user is using. Always match the user's language. Do not provide translations or explanations in other languages."
         
         # Language-specific instructions for better consistency
@@ -269,8 +277,24 @@ class LLMInferenceStep(PipelineStep):
         }
         
         language_name = language_names.get(detected_language, detected_language.upper())
+
+        # If detection is low-confidence or heuristic, default to a safe English instruction for ASCII text
+        method = detection_meta.get('method') or detection_meta.get('method', '')
+        confidence = float(detection_meta.get('confidence', 0.0))
+        msg = context.message or ""
+        ascii_ratio = (sum(1 for c in msg if ord(c) < 128) / len(msg)) if msg else 1.0
+
+        low_conf_or_heuristic = confidence < min_conf or method in (
+            'threshold_fallback', 'heuristic_ascii_bias', 'all_backends_failed', 'length_fallback'
+        )
+        if prefer_ascii_en and ascii_ratio > 0.95 and low_conf_or_heuristic:
+            return "\nIMPORTANT: The user's message appears to be in English or ambiguous. Default to English and respond entirely in English. Do not include translations or any non-English text."
         
         # More specific instruction based on detected language
+        # If detection says English, enforce English strongly
+        if detected_language == 'en':
+            return "\nIMPORTANT: Respond entirely in English. Do not include any non-English words or translations."
+
         instruction = f"\nIMPORTANT: The user is writing in {language_name}. You must respond entirely in {language_name}. Do not include translations, explanations in other languages, or bilingual responses. Write naturally as a native {language_name} speaker would."
         
         if config.get('general', {}).get('verbose', False):

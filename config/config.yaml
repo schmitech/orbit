@@ -24,13 +24,12 @@ language_detection:
   enabled: false
   backends: 
     - "langdetect"
-    - "langid" 
-    - "pycld2"
   backend_weights:
-    langdetect: 1.0
-    langid: 1.2
-    pycld2: 1.5
-  min_confidence: 0.7
+    langdetect: 1.5
+  min_confidence: 0.8
+  min_margin: 0.2
+  prefer_english_for_ascii: true
+  enable_stickiness: true
   fallback_language: "en"
 
 performance:
