@@ -470,7 +470,6 @@ View available adapters and their configurations:
 - [Content Moderation](docs/llm-guard-service.md) - Safety features
 
 ### Advanced Topics
-- [API Reference](docs/api-reference.md) - Complete API documentation
 - [Development Roadmap](docs/roadmap/README.md) - What's coming next
 - [Contributing Guide](CONTRIBUTING.md) - Join the project
 - [SQL Retriever Architecture](docs/sql-retriever-architecture.md) - Extend database support
