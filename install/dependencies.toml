@@ -5,7 +5,7 @@
 description = "Core dependencies"
 dependencies = [
     "setuptools>=77.0.3,<80",
-    "ollama==0.5.2",
+    "ollama==0.5.3",
     "motor>=3.7.1",
     "pymongo>=4.13.0",
     "redis>=6.2.0",
@@ -88,14 +88,15 @@ dependencies = []
 description = "Development and testing dependencies"
 extends = "minimal"
 dependencies = [
-    "pytest>=8.4.0",
+    "pytest>=8.4.1",
     "pytest-asyncio>=1.1.0",
     "pytest-cov>=6.1.1",
     "black>=25.1.0",
-    "flake8>=7.2.0",
-    "mypy>=1.16.0",
+    "flake8>=7.3.0",
+    "mypy>=1.17.1",
     "faker>=37.5.3",
-    "pre-commit>=4.2.0"
+    "pre-commit>=4.2.0",
+    "locust>=2.38.1"
 ]
 
 # Custom profile example - users can add their own

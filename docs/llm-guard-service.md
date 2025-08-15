@@ -90,7 +90,29 @@ llm_guard:
   enabled: true                           # Enable/disable the service
   service:
     base_url: "http://localhost:8000"     # LLM Guard API base URL
-    timeout: 30                           # Request timeout (seconds)
+    timeout: 30                           # Backward-compatible total timeout (seconds)
+    # Optional fine-grained timeouts and resiliency settings
+    # connect_timeout: 5                  # TCP connect timeout (seconds)
+    # read_timeout: 30                    # Socket read timeout (seconds); defaults to `timeout`
+    # total_timeout: 30                   # Session total timeout (seconds); defaults to `timeout`
+    # request_timeout: 10                 # Per-request timeout (seconds); defaults to min(total_timeout, 10)
+
+    # Retry behavior
+    # max_attempts: 2                     # Number of attempts per request
+    # backoff_factor: 0.4                 # Exponential backoff base for retries
+    # retry_status_codes:                 # HTTP codes that should trigger retry
+    #   - 500
+    #   - 502
+    #   - 503
+    #   - 504
+
+    # Health check settings
+    # health_interval: 30                 # Seconds to cache positive health status
+    # health_timeout: 5                   # Timeout for /health endpoint (seconds)
+
+    # Circuit breaker
+    # failure_threshold: 3                # Consecutive failures before opening the circuit
+    # circuit_reset_timeout: 60           # Seconds to keep circuit open before retrying
   security:
     risk_threshold: 0.6                   # Default risk threshold (0.0-1.0)
   fallback:
@@ -102,7 +124,15 @@ llm_guard:
 | Setting | Type | Default | Description |
 |---------|------|---------|-------------|
 | `service.base_url` | string | `"http://localhost:8000"` | LLM Guard API base URL |
-| `service.timeout` | integer | `30` | Request timeout in seconds |
+| `service.timeout` | integer | `30` | Session total timeout in seconds (backward compatible) |
+| `service.request_timeout` | integer | `min(total_timeout, 10)` | Per-request timeout in seconds |
+| `service.max_attempts` | integer | `2` | Max attempts per request |
+| `service.backoff_factor` | float | `0.4` | Exponential backoff base |
+| `service.retry_status_codes` | list | `[500, 502, 503, 504]` | HTTP codes that trigger retry |
+| `service.health_interval` | integer | `30` | Cache TTL for successful health check |
+| `service.health_timeout` | integer | `5` | Health check timeout |
+| `service.failure_threshold` | integer | `3` | Failures before opening circuit |
+| `service.circuit_reset_timeout` | integer | `60` | Seconds to keep circuit open |
 | `security.risk_threshold` | float | `0.6` | Default risk threshold (0.0-1.0) |
 | `fallback.on_error` | string | `"allow"` | Fallback behavior when service unavailable |
 
@@ -111,9 +141,10 @@ llm_guard:
 The service uses sensible defaults for all other settings:
 
 - **API Version**: `v1`
-- **Connect Timeout**: `10` seconds
-- **Retry Attempts**: `3` with exponential backoff
-- **Health Check**: `/health` endpoint, 30s interval, 5s timeout
+- **Connect Timeout**: `5` seconds (configurable)
+- **Per-request Timeout**: `min(total_timeout, 10)` seconds
+- **Retry Attempts**: `2` with exponential backoff (configurable)
+- **Health Check**: `/health` endpoint, 30s interval, 5s timeout (configurable)
 - **Available Scanners**: 7 input scanners, 4 output scanners
 - **Content Validation**: 10,000 character limit, `["prompt", "response"]` types
 - **Metadata**: Client name `"orbit-server"`, version `"1.0.0"`
@@ -351,19 +382,20 @@ When the LLM Guard service is unavailable, you can configure different fallback 
 }
 ```
 
-### Retry Logic
+### Retry Logic & Circuit Breaker
 
-The service implements exponential backoff retry logic:
+The service implements exponential backoff with a small number of attempts, plus a circuit breaker to prevent cascading failures:
 
-```python
-# Retry configuration (hardcoded defaults)
-max_attempts = 3
-backoff_factor = 0.3
-retry_delays = [0.3, 0.6, 1.2]  # seconds
-
-# Status codes that trigger retries
-retry_status_codes = [500, 502, 503, 504]
+```yaml
+llm_guard:
+  service:
+    max_attempts: 2           # attempts per request
+    backoff_factor: 0.4       # retry backoff
+    failure_threshold: 3      # open circuit after 3 consecutive failures
+    circuit_reset_timeout: 60 # keep circuit open for 60s
 ```
+
+While the circuit is open, security checks short‑circuit and follow the configured fallback behavior (e.g., `on_error: "allow"`).
 
 ---
 

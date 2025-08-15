@@ -482,7 +482,8 @@ class ServiceFactory:
         
         if is_enabled:
             from services.llm_guard_service import LLMGuardService
-            app.state.llm_guard_service = LLMGuardService(self.config)
+            # Ensure singleton usage to avoid multiple instantiations
+            app.state.llm_guard_service = LLMGuardService.get_instance(self.config)
             self.logger.info("Initializing LLM Guard Service...")
             try:
                 await app.state.llm_guard_service.initialize()

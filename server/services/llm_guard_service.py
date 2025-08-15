@@ -25,9 +25,22 @@ logger = logging.getLogger(__name__)
 
 class LLMGuardService:
     """Service for LLM Guard security checking and content sanitization"""
+
+    # Basic singleton support to avoid multiple instantiations
+    _instance = None
+
+    @classmethod
+    def get_instance(cls, config: Dict[str, Any]) -> "LLMGuardService":
+        if cls._instance is None:
+            cls._instance = cls(config)
+        return cls._instance
     
     def __init__(self, config: Dict[str, Any]):
         """Initialize the LLM Guard service with configuration"""
+        # If already initialized via singleton path, bail early
+        if getattr(self, "_initialized_config", False):
+            return
+
         self.config = config
         self.verbose = config.get('general', {}).get('verbose', False)
         
@@ -48,21 +61,24 @@ class LLMGuardService:
         self.base_url = service_config.get('base_url', 'http://localhost:8000')
         self.api_version = 'v1'  # Default API version
         
-        # Timeout settings - simplified to single timeout value
+        # Timeout settings
+        # Keep prior behavior for backward compat, but add a per-request override
         self.timeout = service_config.get('timeout', 30)
-        self.connect_timeout = 10  # Default connect timeout
-        self.read_timeout = self.timeout
-        self.total_timeout = self.timeout
+        self.connect_timeout = service_config.get('connect_timeout', 5)
+        self.read_timeout = service_config.get('read_timeout', self.timeout)
+        self.total_timeout = service_config.get('total_timeout', self.timeout)
+        # Per-request total timeout used for guard calls; defaults to min(total, 10)
+        self.request_timeout = service_config.get('request_timeout', min(self.total_timeout, 10))
         
-        # Retry configuration - use defaults
-        self.max_attempts = 3
-        self.backoff_factor = 0.3
-        self.retry_status_codes = [500, 502, 503, 504]
+        # Retry configuration - now configurable
+        self.max_attempts = int(service_config.get('max_attempts', 2))
+        self.backoff_factor = float(service_config.get('backoff_factor', 0.4))
+        self.retry_status_codes = service_config.get('retry_status_codes', [500, 502, 503, 504])
         
-        # Health check settings - use defaults
+        # Health check settings
         self.health_endpoint = '/health'
-        self.health_interval = 30
-        self.health_timeout = 5
+        self.health_interval = int(service_config.get('health_interval', 30))
+        self.health_timeout = int(service_config.get('health_timeout', 5))
         
         # Security check defaults - load from configuration
         security_config = self.llm_guard_config.get('security', {})
@@ -108,12 +124,19 @@ class LLMGuardService:
         self.max_content_length = 10000
         self.valid_content_types = ['prompt', 'response']
         
+        # Circuit breaker configuration
+        self.failure_threshold = int(service_config.get('failure_threshold', 3))
+        self.circuit_reset_timeout = int(service_config.get('circuit_reset_timeout', 60))
+
         # Initialize state - always initialize these attributes
         self._session: Optional[aiohttp.ClientSession] = None
         self._last_health_check = 0
         self._service_healthy = None
         self._initialized = False
         self._service_available = False
+        self._failure_count = 0
+        self._circuit_open_until = 0.0
+        self._initialized_config = True
         
         if not self.enabled:
             logger.info("🚫 LLM Guard service is disabled")
@@ -175,6 +198,22 @@ class LLMGuardService:
         self._initialized = True
         self._service_available = True
         logger.info("✅ LLM Guard service initialized successfully")
+
+    def _is_circuit_open(self) -> bool:
+        """Return True if circuit breaker is currently open."""
+        return time.time() < self._circuit_open_until
+
+    def _trip_circuit(self) -> None:
+        """Open the circuit to prevent further calls for a cooldown period."""
+        self._circuit_open_until = time.time() + self.circuit_reset_timeout
+        self._service_available = False
+        logger.warning(
+            f"🔌 LLM Guard circuit opened for {self.circuit_reset_timeout}s after repeated failures"
+        )
+
+    def _record_success(self) -> None:
+        self._failure_count = 0
+        self._service_available = True
     
     async def _check_service_health(self) -> bool:
         """Check if the LLM Guard service is healthy"""
@@ -250,7 +289,7 @@ class LLMGuardService:
             }
         
         # Check if service is available (initialized and healthy)
-        if not self._service_available:
+        if not self._service_available or self._is_circuit_open():
             logger.warning("🚫 LLM Guard service is not available (health check failed during initialization), returning safe response")
             return {
                 "is_safe": True,
@@ -320,7 +359,7 @@ class LLMGuardService:
                     logger.info(f"👤 User ID: {user_id}")
             
             result = await self._make_request_with_retry("POST", url, payload)
-            
+
             if self.verbose:
                 elapsed = (time.time() - start_time) * 1000
                 logger.info(f"⏱️ LLM Guard security check completed in {elapsed:.2f}ms")
@@ -378,7 +417,7 @@ class LLMGuardService:
             }
         
         # Check if service is available (initialized and healthy)
-        if not self._service_available:
+        if not self._service_available or self._is_circuit_open():
             logger.warning("🚫 LLM Guard service is not available (health check failed during initialization), returning original content")
             return {
                 "sanitized_content": content,
@@ -444,7 +483,7 @@ class LLMGuardService:
             }
         
         # Check if service is available (initialized and healthy)
-        if not self._service_available:
+        if not self._service_available or self._is_circuit_open():
             logger.warning("🚫 LLM Guard service is not available (health check failed during initialization), returning configured defaults")
             return {
                 "input_scanners": self.available_input_scanners,
@@ -473,25 +512,30 @@ class LLMGuardService:
         """Make HTTP request with retry logic"""
         if not self._session:
             raise RuntimeError("Service not initialized")
-        
+
         # Check if service is available
-        if not self._service_available:
+        if not self._service_available or self._is_circuit_open():
             raise RuntimeError("LLM Guard service is not available (health check failed during initialization)")
-        
+
         last_exception = None
-        
+
         for attempt in range(self.max_attempts):
             try:
                 kwargs = {}
                 if data is not None:
                     kwargs['json'] = data
-                
+                # Apply a stricter per-request total timeout to avoid long hangs
+                kwargs['timeout'] = aiohttp.ClientTimeout(total=self.request_timeout)
+
                 async with self._session.request(method, url, **kwargs) as response:
                     if response.status in self.retry_status_codes:
                         if attempt < self.max_attempts - 1:
                             delay = self.backoff_factor * (2 ** attempt)
                             logger.warning(f"Request failed with status {response.status}, retrying in {delay}s")
                             await asyncio.sleep(delay)
+                            self._failure_count += 1
+                            if self._failure_count >= self.failure_threshold:
+                                self._trip_circuit()
                             continue
                     
                     # Handle 422 errors with detailed logging
@@ -505,7 +549,10 @@ class LLMGuardService:
                             pass
                     
                     response.raise_for_status()
-                    return await response.json()
+                    result = await response.json()
+                    # Success resets breaker state
+                    self._record_success()
+                    return result
                     
             except Exception as e:
                 last_exception = e
@@ -513,11 +560,17 @@ class LLMGuardService:
                     delay = self.backoff_factor * (2 ** attempt)
                     logger.warning(f"Request attempt {attempt + 1} failed: {sanitize_error_message(str(e))}, retrying in {delay}s")
                     await asyncio.sleep(delay)
+                    self._failure_count += 1
+                    if self._failure_count >= self.failure_threshold:
+                        self._trip_circuit()
                     continue
                 else:
                     break
-        
+
         # All retries exhausted
+        self._failure_count += 1
+        if self._failure_count >= self.failure_threshold:
+            self._trip_circuit()
         raise last_exception or RuntimeError("All retry attempts failed")
     
     async def _handle_service_error(self, content: str, error: Exception) -> Dict[str, Any]:
@@ -613,7 +666,7 @@ class LLMGuardService:
             return False
         
         # If service is not available (failed initialization), return False
-        if not self._service_available:
+        if not self._service_available or self._is_circuit_open():
             return False
             
         return await self._check_service_health()
@@ -641,4 +694,6 @@ class LLMGuardService:
             await self._session.close()
             self._session = None
         
-        logger.info("LLM Guard service closed") 
+        logger.info("LLM Guard service closed")
+        # Allow re-creation if needed
+        type(self)._instance = None

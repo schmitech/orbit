@@ -64,6 +64,7 @@ def main():
         "--asyncio-mode=auto",
         "-k", "not test_ollama and not vllm and not elasticsearch",
         "--ignore=tests/vllm/",
+        "--ignore=tests/perf/",
         "--ignore=test_elasticsearch_integration.py",
         "--ignore=test_elasticsearch_live.py"
     ])
