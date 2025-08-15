@@ -205,7 +205,12 @@ class TestUserCleanup:
                 "cli_comprehensive_", 
                 "pwd_test_",
                 "defaultuser_",
-                "user_to_delete_"
+                "user_to_delete_",
+                "lookup_test_",
+                "activation_test_",
+                "debug_test_user_",
+                "test_activation_user",
+                "test_user"  # Be careful with this one - it's quite generic
             ]
             
             deleted_count = 0
