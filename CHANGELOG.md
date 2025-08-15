@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.3.3] - 2025-08-14
+
+### Testing & Quality Assurance
+- Update Test Cleanup Scripts - Improve test clean up scripts to further remove any leftover after running the unit tests
+
+### Core System Updates
+- Language Detection Fixes - Resolve issues related to incorrect language detection
+
+### UI & Demo Applications
+- Theming App Update - Add new env variable to toggle display unavailable message during maintenance
+
 ## [1.3.2] - 2025-08-12
 
 ### Widget Theming App

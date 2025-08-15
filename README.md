@@ -132,9 +132,9 @@ Refer to [Docker Setup Guide](docker/README.md) for instructions on how to deplo
 
 ```bash
 # Download latest release
-curl -L https://github.com/schmitech/orbit/releases/download/v1.3.2/orbit-1.3.2.tar.gz -o orbit-1.3.2.tar.gz
-tar -xzf orbit-1.3.2.tar.gz
-cd orbit-1.3.2
+curl -L https://github.com/schmitech/orbit/releases/download/v1.3.3/orbit-1.3.3.tar.gz -o orbit-1.3.3.tar.gz
+tar -xzf orbit-1.3.3.tar.gz
+cd orbit-1.3.3
 
 # Quick setup with a small model
 cp .env.example .env
