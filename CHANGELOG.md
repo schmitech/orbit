@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.3.4] - 2025-08-15
+
+### Core System Updates
+- LLM-Guard Service: Resolve issues with llm guard service causing the server to stop responding, included more settings to improve resiliency
+
+### UI & Demo Applications
+- Theming App Improvements: Improve the default themes for the widget theming app
+
+### Testing & Quality Assurance
+- Performance Testing: Added perf tests using locust library
+
+### Development & Dependencies
+- Updated dev dependencies in toml file
+
 ## [1.3.3] - 2025-08-14
 
 ### Testing & Quality Assurance
