@@ -166,20 +166,37 @@ export const ThemeTab: React.FC<ThemeTabProps> = ({
                   background: theme.colors.background
                 }}
               >
+                {/* Color palette preview */}
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="flex space-x-2">
+                  <div className="grid grid-cols-3 gap-1 w-20 h-16">
                     <div 
-                      className="w-12 h-6 rounded-full opacity-80"
+                      className="rounded-tl-lg"
+                      style={{ backgroundColor: theme.colors.primary }}
+                    />
+                    <div 
+                      className="rounded-tr-lg"
+                      style={{ backgroundColor: theme.colors.secondary }}
+                    />
+                    <div 
+                      className="rounded-bl-lg"
                       style={{ backgroundColor: theme.colors.userBubble }}
                     />
                     <div 
-                      className="w-12 h-6 rounded-full opacity-60"
+                      className="rounded-br-lg"
                       style={{ backgroundColor: theme.colors.assistantBubble }}
+                    />
+                    <div 
+                      className="rounded-lg"
+                      style={{ backgroundColor: theme.colors.suggestedBackground }}
+                    />
+                    <div 
+                      className="rounded-lg"
+                      style={{ backgroundColor: theme.colors.inputBackground }}
                     />
                   </div>
                 </div>
                 <div 
-                  className="absolute bottom-0 left-0 right-0 h-1/3 bg-gradient-to-t opacity-30"
+                  className="absolute bottom-0 left-0 right-0 h-1/3 bg-gradient-to-t opacity-20"
                   style={{ 
                     background: `linear-gradient(to top, ${theme.colors.primary}, transparent)` 
                   }}
