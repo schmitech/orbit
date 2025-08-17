@@ -66,7 +66,8 @@ ORBIT is a middleware platform that provides a unified API for AI inference, all
 ORBIT is actively maintained by [Remsy Schmilinsky](https://schmitech.ai/en/about/).
 
 
-_Don’t let ORBIT drift alone 🛰️. Drop a ⭐ if you like it!._
+_Don’t let ORBIT drift alone 🛰️. Drop a ⭐ if you like it!._  
+
 <a href="https://github.com/schmitech/orbit" target="_blank">
   <img src="https://img.shields.io/github/stars/schmitech/orbit?style=social&label=Star" alt="GitHub stars">
 </a>
