@@ -52,13 +52,16 @@ class OpenAIProvider(LLMProvider):
             await self.initialize()
         
         try:
-            response = await self.client.chat.completions.create(
-                model=self.model,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=self.temperature,
-                max_tokens=self.max_tokens,
+            # Build parameters using new API
+            params = {
+                "model": self.model,
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": self.temperature,
+                "max_completion_tokens": self.max_tokens,
                 **kwargs
-            )
+            }
+            
+            response = await self.client.chat.completions.create(**params)
             
             return response.choices[0].message.content
             
@@ -81,14 +84,17 @@ class OpenAIProvider(LLMProvider):
             await self.initialize()
         
         try:
-            stream = await self.client.chat.completions.create(
-                model=self.model,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=self.temperature,
-                max_tokens=self.max_tokens,
-                stream=True,
+            # Build parameters using new API
+            params = {
+                "model": self.model,
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": self.temperature,
+                "max_completion_tokens": self.max_tokens,
+                "stream": True,
                 **kwargs
-            )
+            }
+            
+            stream = await self.client.chat.completions.create(**params)
             
             async for chunk in stream:
                 if chunk.choices[0].delta.content:
@@ -124,11 +130,11 @@ class OpenAIProvider(LLMProvider):
             if not self.client:
                 await self.initialize()
             
-            # Try a simple test request
+            # Try a simple test request using new API
             await self.client.chat.completions.create(
                 model=self.model,
                 messages=[{"role": "user", "content": "test"}],
-                max_tokens=5
+                max_completion_tokens=5
             )
             
             return True

@@ -55,13 +55,9 @@ It's designed for developers and organizations who want to build and deploy AI-p
 Get ORBIT running in minutes.
 
 ### 1. Deploy with Docker
-The easiest way to get started is with Docker. This handles all dependencies for you.
-
-<details>
-<summary><b>Click for Docker Instructions</b></summary>
 
 Refer to the [Docker Setup Guide](docker/README.md) for detailed instructions on how to deploy ORBIT as a Docker container.
-</details>
+
 
 ### 2. Deploy Locally
 
@@ -86,7 +82,7 @@ Your ORBIT instance is now running at `http://localhost:3000`.
 Use the `orbit-chat` CLI tool to interact with your instance.
 
 ```bash
-# Install the client if you haven't already
+# The ORBIT chat client is already available after installation.
 pip install schmitech-orbit-client
 
 # Start chatting!
@@ -100,34 +96,45 @@ orbit-chat --url http://localhost:3000
 
 ORBIT uses a powerful **Adapter system** to connect your data to AI models. An API key is tied to a specific adapter, effectively creating a specialized "agent" for a certain task. Here are a few examples:
 
-### Scenario 1: Knowledge Base Q&A (Vector DB)
+### Scenario 1: Knowledge Base Q&A
 Provide instant, semantically-aware answers from a knowledge base. Perfect for customer support or internal documentation.
 
 **Sample Questions:**
 - "What are the summer camp programs for kids?"
 - "How do I register for the contemporary dance class?"
 
-<video src="https://github.com/user-attachments/assets/54f81887-17c2-420d-a29c-a191eb6d3912" controls>
-  Your browser does not support the video tag.
-</video>
-
 <details>
 <summary><b>Click for Setup Instructions</b></summary>
 
+
+_NOTE: You need an instance of MongoDB to enable adapters_
+
 ```bash
-# Set up Chroma vector database with Q&A data
-./examples/sample-db-setup.sh chroma
+#Login as admin first. Default password is admin123. You should change after installing ORBIT.
+./bin/orbit.sh login
 
-# Create an API key for the vector adapter
-python bin/orbit.py key create \
-  --adapter qa-vector-chroma \
-  --name "Recreation Programs Assistant" \
-  --prompt-file examples/prompts/examples/activity/activity-assistant-normal-prompt.txt
+# Set up SQL Lite database with Q&A data
+./examples/sample-db-setup.sh sqlite
+```
 
-# Start chatting with your new key
-orbit-chat --url http://localhost:3000 --api-key YOUR_API_KEY
+<video src="https://github.com/user-attachments/assets/b54659fe-2172-4754-b9ff-68292f7efcb1" controls>
+  Your browser does not support the video tag.
+</video>
+
+```bash
+# Test using node client
+cd clients/node-api
+npm install
+npm run build
+npm run test-query-from-pairs ../../examples/city-qa-pairs.json "http://localhost:3000" "your-api-key" 5 134444
 ```
 </details>
+
+
+<video src="https://github.com/user-attachments/assets/e6487006-02da-4927-a4f3-04be7c6a3a22" controls>
+  Your browser does not support the video tag.
+</video>
+
 
 ### Scenario 2: Chat with Your SQL Database
 Ask questions about your data in natural language and get answers without writing SQL.
@@ -136,7 +143,7 @@ Ask questions about your data in natural language and get answers without writin
 - "Show me all orders from John Smith"
 - "What are the top 10 customers by order value?"
 
-<video src="https://github.com/user-attachments/assets/fffdb719-5cd2-4bc5-9570-84b238de50a1" controls>
+<video src="https://github.com/user-attachments/assets/d33dfb10-1668-4b05-ba83-ae3c294001ad" controls>
   Your browser does not support the video tag.
 </video>
 
@@ -167,7 +174,7 @@ orbit-chat --url http://localhost:3000 --api-key YOUR_API_KEY
 
 ## ⭐ Like this project? Give it a star!
 
-If you find ORBIT useful, please consider giving it a star on GitHub. It helps more people discover the project and motivates continued development.
+If you find ORBIT useful, please consider giving it a star on GitHub. It helps more people discover the project.
 
 <a href="https://github.com/schmitech/orbit" target="_blank">
   <img src="https://img.shields.io/github/stars/schmitech/orbit?style=for-the-badge&logo=github&label=Star%20Us" alt="GitHub stars">

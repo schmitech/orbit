@@ -448,6 +448,10 @@ class ConfigManager:
         # Final fallback
         return "http://localhost:3000"
     
+    def get_verbose_setting(self) -> bool:
+        """Get the verbose setting from server configuration."""
+        return self._get_server_config_value('general.verbose', False)
+    
     def get_timeout(self) -> int:
         """Get request timeout."""
         return self.get('server.timeout', 30)
@@ -1327,7 +1331,8 @@ class ApiManager:
         # Set secure permissions on the file
         DEFAULT_ENV_FILE.chmod(0o600)
         logger.debug("Saved authentication token to plain text file storage")
-        logger.info("Using plain text storage - token is visible in ~/.orbit/.env")
+        if self.config_manager.get_verbose_setting():
+            logger.info("Using plain text storage - token is visible in ~/.orbit/.env")
     
     def _save_token_to_file_fallback(self, token: str) -> None:
         """Fallback: Save token to file with improved security measures"""
