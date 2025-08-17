@@ -89,12 +89,24 @@ pip install schmitech-orbit-client
 orbit-chat --url http://localhost:3000
 ```
 
+#### ORBIT Installation:
+
 <div align="center">
   <video src="https://github.com/user-attachments/assets/8ea103a6-8b33-4801-adc2-f0e81e03e96e" controls>
     Your browser does not support the video tag.
   </video>
   <br/>
   <i>Installing ORBIT locally using the 'orbit-chat' python tool.</i>
+</div>
+
+#### ORBIT Chat CLI Tool:
+
+<div align="center">
+  <video src="https://github.com/user-attachments/assets/db46e91c-4cb7-44b4-b576-8c1d19176f0a" controls>
+    Your browser does not support the video tag.
+  </video>
+  <br/>
+  <i>Using 'orbit-chat' tool. Add -h for usage.</i>
 </div>
 
 ### 4. Chat with ORBIT using the Web Widget
