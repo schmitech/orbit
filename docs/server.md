@@ -513,7 +513,7 @@ sudo certbot renew
 
 ---
 
-# System Prompts for Open Inference Server
+# System Prompts
 
 This feature allows you to create, manage, and associate system prompts with API keys. When a client uses an API key, the server automatically uses the associated system prompt to guide the LLM's responses.
 

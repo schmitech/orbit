@@ -1,5 +1,5 @@
 """
-Services package for the Open Inference Server.
+Services package for ORBIT.
 This package contains business logic services.
 """
 

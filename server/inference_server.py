@@ -35,7 +35,7 @@ class InferenceServer:
     A modular inference server built with FastAPI that provides chat endpoints
     with LLM integration and vector database retrieval capabilities.
 
-    This class serves as the main entry point for the Open Inference Server application.
+    This class serves as the main entry point for the ORBIT server.
     It manages the application lifecycle, including initialization, configuration,
     service management, and graceful shutdown.
 
@@ -116,9 +116,9 @@ class InferenceServer:
         
         # Initialize FastAPI app with lifespan manager
         self.app = FastAPI(
-            title="Open Inference Server",
+            title="ORBIT",
             description="A FastAPI server with chat endpoint and RAG capabilities",
-            version="1.0.0",
+            version="1.3.4",
             lifespan=self._create_lifespan_manager()
         )
         

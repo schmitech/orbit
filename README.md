@@ -77,7 +77,7 @@ source venv/bin/activate
 ```
 Your ORBIT instance is now running at `http://localhost:3000`.
 
-### 3. Chat with ORBIT
+### 3. Chat with ORBIT using the CLI tool
 
 Use the `orbit-chat` CLI tool to interact with your instance.
 
@@ -88,108 +88,31 @@ pip install schmitech-orbit-client
 # Start chatting!
 orbit-chat --url http://localhost:3000
 ```
-<video src="https://github.com/user-attachments/assets/db46e91c-4cb7-44b4-b576-8c1d19176f0a" controls>
-  Your browser does not support the video tag.
-</video>
 
-## ✨ What Can You Build with ORBIT?
+<div align="center">
+  <video src="https://github.com/user-attachments/assets/8ea103a6-8b33-4801-adc2-f0e81e03e96e" controls>
+    Your browser does not support the video tag.
+  </video>
+  <br/>
+  <i>Installing ORBIT locally using the 'orbit-chat' python tool.</i>
+</div>
 
-ORBIT uses a powerful **Adapter system** to connect your data to AI models. An API key is tied to a specific adapter, effectively creating a specialized "agent" for a certain task. Here are a few examples:
-
-### Scenario 1: Knowledge Base Q&A
-Provide instant, semantically-aware answers from a knowledge base. Perfect for customer support or internal documentation.
-
-**Sample Questions:**
-- "What are the summer camp programs for kids?"
-- "How do I register for the contemporary dance class?"
-
-<details>
-<summary><b>Click for Setup Instructions</b></summary>
-
-
-_NOTE: You need an instance of MongoDB to enable adapters_
-
+### 4. Chat with ORBIT using the Web Widget
 ```bash
-#Login as admin first. Default password is admin123. You should change after installing ORBIT.
-./bin/orbit.sh login
-
-# Set up SQL Lite database with Q&A data
-./examples/sample-db-setup.sh sqlite
-```
-
-<video src="https://github.com/user-attachments/assets/b54659fe-2172-4754-b9ff-68292f7efcb1" controls>
-  Your browser does not support the video tag.
-</video>
-
-```bash
-# Test using node client
-cd clients/node-api
+cd clients/chat-widget/react-example/
 npm install
-npm run build
-npm run test-query-from-pairs ../../examples/city-qa-pairs.json "http://localhost:3000" "your-api-key" 5 134444
+npm run dev
 ```
-</details>
 
-
-<video src="https://github.com/user-attachments/assets/e6487006-02da-4927-a4f3-04be7c6a3a22" controls>
-  Your browser does not support the video tag.
-</video>
-
-
-### Scenario 2: Chat with Your SQL Database
-Ask questions about your data in natural language and get answers without writing SQL.
-
-**Sample Questions:**
-- "Show me all orders from John Smith"
-- "What are the top 10 customers by order value?"
-
-<video src="https://github.com/user-attachments/assets/d33dfb10-1668-4b05-ba83-ae3c294001ad" controls>
-  Your browser does not support the video tag.
-</video>
-
-<details>
-<summary><b>Click for Setup Instructions</b></summary>
-
-```bash
-# Set up PostgreSQL with a sample schema and data
-cd examples/postgres
-cp env.example .env
-# (Update .env with your PostgreSQL connection details)
-python /db_utils/setup_schema.py
-python /db_utils/customer-order.py --action insert --clean --customers 100 --orders 1000
-
-# Create an API key for the SQL intent adapter
-python bin/orbit.py key create \
-  --adapter intent-sql-postgres \
-  --name "Order Management Assistant" \
-  --prompt-file examples/postgres/prompts/customer-assistant-enhanced-prompt.txt
-
-# Start chatting with your new key
-orbit-chat --url http://localhost:3000 --api-key YOUR_API_KEY
-```
-</details>
+<div align="center">
+  <video src="https://github.com/user-attachments/assets/675861ed-c6a9-4dd7-9a46-1acf79d9b4e8" controls>
+    Your browser does not support the video tag.
+  </video>
+  <br/>
+  <i>Chatting with ORBIT using the react widget. The widget is available as an <a href="https://www.npmjs.com/package/@schmitech/chatbot-widget">NPM package</a></i>
+</div>
 
 ---
-
-
-## ⭐ Like this project? Give it a star!
-
-If you find ORBIT useful, please consider giving it a star on GitHub. It helps more people discover the project.
-
-<a href="https://github.com/schmitech/orbit" target="_blank">
-  <img src="https://img.shields.io/github/stars/schmitech/orbit?style=for-the-badge&logo=github&label=Star%20Us" alt="GitHub stars">
-</a>
-
-<a href="https://star-history.com/#schmitech/orbit&Date">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=schmitech/orbit&type=Date&theme=dark" />
-    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=schmitech/orbit&type=Date" />
-    <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=schmitech/orbit&type=Date" />
-  </picture>
-</a>
-
----
-
 
 ## 🏗️ Architecture Overview
 
@@ -226,6 +149,123 @@ If you find ORBIT useful, please consider giving it a star on GitHub. It helps m
 - **Vector DBs** (Optional): Chroma, Qdrant, Pinecone, Milvus for semantic search
 - **SQL DBs** (Optional): PostgreSQL, MySQL, SQLite for structured data retrieval
 </details>
+
+---
+
+## ✨ What Can You Build with ORBIT?
+
+ORBIT uses a flexible [adapter architecture](docs/adapters.md) to connect your data to AI models. An API key is tied to a specific adapter, effectively creating a specialized "agent" for a certain task. Here are a few examples:
+
+### Scenario 1: Knowledge Base Q&A
+Provide instant, semantically-aware answers from a knowledge base. Perfect for customer support or internal documentation.
+
+**Sample Questions:**
+- "What are the summer camp programs for kids?"
+- "How do I register for the contemporary dance class?"
+
+_NOTE: You need an instance of MongoDB to enable adapters_
+
+### Setup the sample SQLite Database with Q/A records about a municipality.
+
+Here's the [Sample Q/A datasets](examples/city-qa-pairs.json) for this example. The knowledge base corresponds to a municipal services assistant.
+
+```bash
+#Login as admin first. Default password is admin123. You should change after installing ORBIT.
+./bin/orbit.sh login
+
+# Set up SQL Lite database with Q&A data
+./examples/sample-db-setup.sh sqlite
+```
+
+<div align="center">
+  <video src="https://github.com/user-attachments/assets/b54659fe-2172-4754-b9ff-68292f7efcb1" controls>
+    Your browser does not support the video tag.
+  </video>
+  <br/>
+  <i>Setting up the sample SQLite Q/A dataset</i>
+</div>
+
+### Testing with the node client:
+
+```bash
+# Test using node client
+cd clients/node-api
+npm install
+npm run build
+npm run test-query-from-pairs ../../examples/city-qa-pairs.json "http://localhost:3000" "your-api-key" 5 134444
+```
+
+<div align="center">
+  <video src="https://github.com/user-attachments/assets/e6487006-02da-4927-a4f3-04be7c6a3a22"" controls>
+    Your browser does not support the video tag.
+  </video>
+  <br/>
+  <i>Testing the Q/A Adapter using the node API client</i>
+</div>
+
+### Testing with the react chat widget:
+
+<div align="center">
+  <video src="https://github.com/user-attachments/assets/e9fb6eeb-f56f-4487-9a5d-1b24f1af9f6a"" controls>
+    Your browser does not support the video tag.
+  </video>
+  <br/>
+  <i>Testing the Q/A Adapter using the ORBIT Web Widget</i>
+</div>
+
+
+### Scenario 2: Chat with Your SQL Database
+Ask questions about your data in natural language and get answers without writing SQL.
+
+**Sample Questions:**
+- "Show me all orders from John Smith"
+- "What are the top 10 customers by order value?"
+
+```bash
+# Set up PostgreSQL with a sample schema and data
+cd examples/postgres
+cp env.example .env
+# (Update .env with your PostgreSQL connection details)
+python /db_utils/setup_schema.py
+python /db_utils/customer-order.py --action insert --clean --customers 100 --orders 1000
+
+# Create an API key for the SQL intent adapter
+python bin/orbit.py key create \
+  --adapter intent-sql-postgres \
+  --name "Order Management Assistant" \
+  --prompt-file examples/postgres/prompts/customer-assistant-enhanced-prompt.txt
+
+# Start chatting with your new key
+orbit-chat --url http://localhost:3000 --api-key YOUR_API_KEY
+```
+
+<div align="center">
+  <video src="https://github.com/user-attachments/assets/d33dfb10-1668-4b05-ba83-ae3c294001ad"" controls>
+    Your browser does not support the video tag.
+  </video>
+  <br/>
+  <i>Testing the SQL Intent Adapter using the ORBIT CLI tool</i>
+</div>
+
+---
+
+## ⭐ Like this project? Give it a star!
+
+If you find ORBIT useful, please consider giving it a star on GitHub. It helps more people discover the project.
+
+<a href="https://github.com/schmitech/orbit" target="_blank">
+  <img src="https://img.shields.io/github/stars/schmitech/orbit?style=for-the-badge&logo=github&label=Star%20Us" alt="GitHub stars">
+</a>
+
+<a href="https://star-history.com/#schmitech/orbit&Date">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=schmitech/orbit&type=Date&theme=dark" />
+    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=schmitech/orbit&type=Date" />
+    <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=schmitech/orbit&type=Date" />
+  </picture>
+</a>
+
+---
 
 ## 📖 Documentation
 

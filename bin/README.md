@@ -1,6 +1,6 @@
 # ORBIT CLI
 
-A command-line interface for managing the Open Inference Server, similar to AWS CLI or Azure CLI.
+A command-line interface for managing ORBIT, similar to AWS CLI or Azure CLI.
 
 ## Overview
 

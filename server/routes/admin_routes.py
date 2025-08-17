@@ -1,5 +1,5 @@
 """
-Admin routes for the Open Inference Server.
+Admin routes for ORBIT.
 
 This module contains all admin-related endpoints including:
 - API key management

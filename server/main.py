@@ -1,8 +1,8 @@
 """
-Open Inference Server - Main Application
+ORBIT Server - Main Application
 =======================================
 
-Entry point for the Open Inference Server application.
+Entry point for the ORBIT server.
 This script creates and runs the InferenceServer class.
 
 Architecture Overview:
@@ -29,9 +29,9 @@ configure_mongodb_logging()
 
 # Create a global app instance for direct use by uvicorn in development mode
 app = FastAPI(
-    title="ORBIT Open Inference Server",
+    title="ORBIT",
     description="MCP inference server with RAG capabilities",
-    version="1.0.0"
+    version="1.3.4"
 )
 
 def create_app() -> FastAPI:
@@ -57,7 +57,7 @@ def create_app() -> FastAPI:
 
 def parse_arguments():
     """Parse command line arguments."""
-    parser = argparse.ArgumentParser(description='Open Inference Server')
+    parser = argparse.ArgumentParser(description='ORBIT')
     parser.add_argument('--config', type=str, help='Path to configuration file')
     return parser.parse_args()
 

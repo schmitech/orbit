@@ -635,7 +635,7 @@ class OutputFormatter:
 
 # Enhanced Server Controller with better error handling
 class ServerController:
-    """Controller class for managing the Open Inference Server process."""
+    """Controller class for managing the Inference Server process."""
     
     def __init__(self, pid_file: str = "server.pid"):
         """
@@ -2552,7 +2552,7 @@ class OrbitCLI:
         """Create the argument parser for the CLI."""
         parser = argparse.ArgumentParser(
             prog='orbit',
-            description='ORBIT Control CLI - Enterprise-grade Open Inference Server management',
+            description='ORBIT Control CLI - ORBIT management',
             formatter_class=argparse.RawDescriptionHelpFormatter,
             epilog="""
 For more information about a specific command, use:
