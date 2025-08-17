@@ -67,9 +67,8 @@ ORBIT is actively maintained by [Remsy Schmilinsky](https://schmitech.ai/en/abou
 
 
 _Don’t let ORBIT drift alone 🛰️. Drop a ⭐ if you like it!._
-
-<a href="https://github.com/schmitech/orbit">
-  <img src="https://img.shields.io/github/stars/schmitech/orbit.svg?style=social&label=Star&maxAge=2592000" alt="GitHub stars">
+<a href="https://github.com/schmitech/orbit" target="_blank">
+  <img src="https://img.shields.io/github/stars/schmitech/orbit?style=social&label=Star" alt="GitHub stars">
 </a>
 
 ## 🤔 Why ORBIT?
