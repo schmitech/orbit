@@ -236,16 +236,40 @@ Ask questions about your data in natural language and get answers without writin
 ```bash
 # Set up PostgreSQL with a sample schema and data
 cd examples/postgres
-cp env.example .env
-# (Update .env with your PostgreSQL connection details)
-python /db_utils/setup_schema.py
-python /db_utils/customer-order.py --action insert --clean --customers 100 --orders 1000
 
-# Create an API key for the SQL intent adapter
+# Update with  your connection parameters
+cp env.example .env
+
+# Test connection
+python test_connection.py
+
+# Create the DB
+python setup_schema.py
+
+# Install faker to generate synthetic data
+pip install faker
+
+# Add sample data
+python customer-order.py --action insert --clean --customers 100 --orders 1000
+
+# Create an API key for the SQL intent adapter.
+# Make sure you are logged in as admin if auth is enabled in `/config/config.yaml`.
 python bin/orbit.py key create \
   --adapter intent-sql-postgres \
   --name "Order Management Assistant" \
   --prompt-file examples/postgres/prompts/customer-assistant-enhanced-prompt.txt
+
+#make sure the sample SQL intent adapter is enabled in `/config/adapters.yaml`
+- name: "intent-sql-postgres"
+    enabled: false
+    type: "retriever"
+    datasource: "postgres"
+    adapter: "intent"
+    implementation: "retrievers.implementations.intent.IntentPostgreSQLRetriever"
+    inference_provider: "ollama"
+
+# Start or restart the server
+./bin/orbit.sh start --delete-logs
 
 # Start chatting with your new key
 orbit-chat --url http://localhost:3000 --api-key YOUR_API_KEY
