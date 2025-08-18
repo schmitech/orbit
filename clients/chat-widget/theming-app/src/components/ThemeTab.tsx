@@ -148,7 +148,7 @@ export const ThemeTab: React.FC<ThemeTabProps> = ({
     <div className="space-y-6">
       {/* Theme Presets */}
       <div>
-        <h3 className="text-sm font-medium text-gray-900 mb-4">Premium Theme Collection</h3>
+        <h3 className="text-sm font-medium text-gray-900 mb-4">Theme Collection</h3>
         <div className="grid grid-cols-3 gap-4">
           {Object.entries(themes).map(([key, theme]) => (
             <button
@@ -224,9 +224,9 @@ export const ThemeTab: React.FC<ThemeTabProps> = ({
         >
           <div className="space-y-3">
             {[
-              { key: 'primary', label: 'Primary Color (Header & Minimized Button)' },
-              { key: 'secondary', label: 'Secondary Color (Send Button)' },
-              { key: 'background', label: 'Background Color' }
+              { key: 'primary', label: 'Header & Minimized Button Background' },
+              { key: 'secondary', label: 'Input Border & Send Button' },
+              { key: 'inputBackground', label: 'Chat Window Background' }
             ].map(({ key, label }) => (
               <ColorPicker
                 key={key}
@@ -246,10 +246,10 @@ export const ThemeTab: React.FC<ThemeTabProps> = ({
         >
           <div className="space-y-3">
             {[
-              { key: 'textPrimary', label: 'Primary Text Color' },
-              { key: 'textSecondary', label: 'Secondary Text Color' },
-              { key: 'textInverse', label: 'Inverse Text Color' },
-              { key: 'suggestedText', label: 'Suggested Question Text Color' }
+              { key: 'textInverse', label: 'Header' },
+              { key: 'textPrimary', label: 'Title' },
+              { key: 'textSecondary', label: 'Description' },
+              { key: 'suggestedText', label: 'Suggested Questions' }
             ].map(({ key, label }) => (
               <ColorPicker
                 key={key}
@@ -269,30 +269,10 @@ export const ThemeTab: React.FC<ThemeTabProps> = ({
         >
           <div className="space-y-3">
             {[
-              { key: 'userBubble', label: 'User Bubble Color' },
+              { key: 'userBubble', label: 'User Bubble Background' },
               { key: 'userText', label: 'User Text Color' },
-              { key: 'assistantBubble', label: 'Assistant Bubble Color' }
-            ].map(({ key, label }) => (
-              <ColorPicker
-                key={key}
-                label={label}
-                value={customColors[key]}
-                onChange={(value) => onUpdateColor(key as keyof CustomColors, value)}
-              />
-            ))}
-          </div>
-        </SectionToggle>
-
-        {/* Input Field */}
-        <SectionToggle
-          title="Input Field"
-          isExpanded={expandedSections.inputField}
-          onToggle={() => onToggleSection('inputField')}
-        >
-          <div className="space-y-3">
-            {[
-              { key: 'inputBackground', label: 'Input Background Color' },
-              { key: 'inputBorder', label: 'Input Border Color' }
+              { key: 'assistantBubble', label: 'Assistant Bubble Background' },
+              { key: 'assistantText', label: 'Assistant Text Color' }
             ].map(({ key, label }) => (
               <ColorPicker
                 key={key}

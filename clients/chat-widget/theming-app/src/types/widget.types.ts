@@ -10,6 +10,7 @@ export interface CustomColors {
     userBubble: string;
     assistantBubble: string;
     userText: string;
+    assistantText: string;
     suggestedText: string;
     chatButtonBg: string;
     chatButtonHover: string;
@@ -55,6 +56,7 @@ export interface CustomColors {
       user: string;
       assistant: string;
       userText: string;
+      assistantText: string;
     };
     suggestedQuestions: {
       text: string;
@@ -84,7 +86,6 @@ export interface CustomColors {
     mainColors: boolean;
     textColors: boolean;
     messageBubbles: boolean;
-    inputField: boolean;
     chatButton: boolean;
     iconSelection: boolean;
   }

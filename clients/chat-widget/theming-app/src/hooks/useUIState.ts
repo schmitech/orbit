@@ -8,7 +8,6 @@ export const useUIState = () => {
     mainColors: true,
     textColors: true,
     messageBubbles: true,
-    inputField: true,
     chatButton: true,
     iconSelection: true
   });
@@ -33,7 +32,6 @@ export const useUIState = () => {
       mainColors: true,
       textColors: true,
       messageBubbles: true,
-      inputField: true,
       chatButton: true,
       iconSelection: true
     });
@@ -45,7 +43,6 @@ export const useUIState = () => {
       mainColors: false,
       textColors: false,
       messageBubbles: false,
-      inputField: false,
       chatButton: false,
       iconSelection: false
     });

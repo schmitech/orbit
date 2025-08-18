@@ -23,7 +23,8 @@ export const generateThemeConfig = (customColors: CustomColors): ThemeConfig => 
   message: {
     user: customColors.userBubble,
     assistant: customColors.assistantBubble,
-    userText: customColors.userText
+    userText: customColors.userText,
+    assistantText: customColors.assistantText
   },
   suggestedQuestions: {
     text: customColors.suggestedText

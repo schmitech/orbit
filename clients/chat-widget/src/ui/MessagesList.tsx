@@ -178,7 +178,7 @@ export const MessagesList: React.FC<MessagesListProps> = ({
                 return (
                   <div
                     key={index}
-                    className="flex items-center w-full px-1 py-1.5 text-lg rounded-xl"
+                    className="flex items-center w-full px-1 py-1.5 text-base rounded-xl"
                     style={{
                       minHeight: '36px',
                       background: 'transparent',
@@ -191,7 +191,7 @@ export const MessagesList: React.FC<MessagesListProps> = ({
                           focusInput();
                         }, CHAT_CONSTANTS.ANIMATIONS.TOGGLE_DELAY);
                       }}
-                      className="truncate hover:text-primary transition-colors duration-200 cursor-pointer w-full text-lg"
+                      className="truncate hover:text-primary transition-colors duration-200 cursor-pointer w-full text-base"
                       style={{
                         color: theme.suggestedQuestions.text,
                         fontWeight: 500,
