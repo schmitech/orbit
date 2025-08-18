@@ -179,12 +179,13 @@ export let CHAT_CONSTANTS = {
   }
 
   @keyframes float {
-    0%, 100% { transform: translateY(0px) rotate(0deg); }
-    33% { transform: translateY(-3px) rotate(1deg); }
-    66% { transform: translateY(2px) rotate(-1deg); }
+    0%, 100% { transform: translateY(0px) rotate(0deg) scale(1); }
+    25% { transform: translateY(-8px) rotate(2deg) scale(1.02); }
+    50% { transform: translateY(-4px) rotate(-1deg) scale(1); }
+    75% { transform: translateY(-6px) rotate(1deg) scale(1.01); }
   }
   .animate-float {
-    animation: float 6s ease-in-out infinite;
+    animation: float 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
   
   @keyframes dotBlink {

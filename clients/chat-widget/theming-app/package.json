@@ -20,7 +20,7 @@
     "widget:copy": "node scripts/copy-widget-files.js"
   },
   "dependencies": {
-    "@schmitech/chatbot-widget": "^0.4.13",
+    "@schmitech/chatbot-widget": "^0.4.14",
     "@types/react-syntax-highlighter": "^15.5.13",
     "lucide-react": "^0.514.0",
     "prettier": "^3.6.2",

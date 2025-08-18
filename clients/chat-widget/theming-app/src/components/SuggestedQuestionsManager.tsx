@@ -29,7 +29,7 @@ export const SuggestedQuestionsManager: React.FC<SuggestedQuestionsManagerProps>
         <h3 className="text-sm font-medium text-gray-900">Suggested Questions</h3>
         <Button
           onClick={onAddQuestion}
-          disabled={questions.length >= 5}
+          disabled={questions.length >= 6}
           variant="ghost"
           size="sm"
         >

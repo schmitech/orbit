@@ -227,13 +227,19 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
     'Info': 'Info',
     'Lightbulb': 'Lightbulb',
     'Sparkles': 'Sparkles',
+    'Headphones': 'Headphones',
+    'LifeBuoy': 'LifeBuoy',
     
     // People
     'Bot': 'Bot',
+    'Brain': 'Brain',
+    'Cpu2': 'Cpu',
     'User': 'User',
     'Users': 'Users',
     'UserCheck': 'UserCheck',
     'UserPlus': 'UserPlus',
+    'UserRound': 'UserRound',
+    'Smile': 'Smile',
     
     // Communication
     'Phone': 'Phone',
@@ -246,7 +252,6 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
     'Heart': 'Heart',
     'Star': 'Star',
     'ThumbsUp': 'ThumbsUp',
-    'Smile': 'Smile',
     'Laugh': 'Laugh',
     
     // Settings and Tools

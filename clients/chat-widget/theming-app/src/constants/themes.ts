@@ -5,21 +5,21 @@ export const defaultCustomColors: CustomColors = {
   primary: '#2563eb',              // cobalt
   secondary: '#7c3aed',            // vivid violet accent
   background: '#ffffff',
-  textPrimary: '#0f172a',          // slate-900
-  textSecondary: '#475569',        // slate-600
+  textPrimary: '#111827',          // darker for title
+  textSecondary: '#6b7280',        // lighter gray for description
   textInverse: '#ffffff',
   inputBackground: '#f8fafc',      // slate-50
   inputBorder: '#e5e7eb',          // gray-200
   userBubble: '#2563eb',
   assistantBubble: '#f8fafc',
   userText: '#ffffff',
-  assistantText: '#0f172a',
-  suggestedText: '#1d4ed8',
+  assistantText: '#374151',
+  suggestedText: '#2563eb',        // blue for suggested questions
   chatButtonBg: '#2563eb',
   chatButtonHover: '#1d4ed8',
   iconColor: '#ffffff',
   iconBorderColor: '#2563eb',
-  buttonBorderColor: 'transparent',
+  buttonBorderColor: '#2563eb',
   iconName: 'MessageSquare'
 };
 
@@ -65,23 +65,23 @@ export const themes: Record<string, Theme> = {
     name: 'Nebula',
     colors: {
       primary: '#1d4ed8',                 // cobalt
-      secondary: '#60a5fa',               // bright sky-blue accent
+      secondary: '#3b82f6',               // blue-500 - better contrast for send button
       background: '#f8fafc',              // soft gray-blue
-      textPrimary: '#0f172a',             // near-black navy
-      textSecondary: '#1e3a8a',
+      textPrimary: '#111827',             // dark for title
+      textSecondary: '#475569',            // slate-600 - darker gray for better contrast
       textInverse: '#ffffff',
       inputBackground: '#e0f2fe',
       inputBorder: '#93c5fd',
       userBubble: '#1d4ed8',
       assistantBubble: '#e0f2fe',
       userText: '#ffffff',
-      assistantText: '#0f172a',
-      suggestedText: '#1e3a8a',
+      assistantText: '#334155',
+      suggestedText: '#1d4ed8',            // blue for questions
       chatButtonBg: '#1d4ed8',
       chatButtonHover: '#1e3a8a',
       iconColor: '#ffffff',
       iconBorderColor: '#1d4ed8',
-      buttonBorderColor: 'transparent',
+      buttonBorderColor: '#1d4ed8',
       iconName: 'MessageSquare'
     }
   },
@@ -90,23 +90,23 @@ export const themes: Record<string, Theme> = {
     name: 'Ocean',
     colors: {
       primary: '#0284c7',
-      secondary: '#38bdf8',
+      secondary: '#0ea5e9',               // sky-500 - better contrast for send button
       background: '#f0f9ff',
-      textPrimary: '#0c4a6e',
-      textSecondary: '#0369a1',
+      textPrimary: '#0f172a',
+      textSecondary: '#475569',            // slate-600 - darker for better contrast
       textInverse: '#ffffff',
       inputBackground: '#e0f2fe',
       inputBorder: '#7dd3fc',
       userBubble: '#0284c7',
       assistantBubble: '#e0f2fe',
       userText: '#ffffff',
-      assistantText: '#0c4a6e',
-      suggestedText: '#0369a1',
+      assistantText: '#374151',
+      suggestedText: '#0284c7',            // ocean blue for questions
       chatButtonBg: '#0284c7',
       chatButtonHover: '#0369a1',
       iconColor: '#ffffff',
       iconBorderColor: '#0284c7',
-      buttonBorderColor: 'transparent',
+      buttonBorderColor: '#0284c7',
       iconName: 'MessageSquare'
     }
   },
@@ -116,23 +116,23 @@ export const themes: Record<string, Theme> = {
     name: 'Evergreen',
     colors: {
       primary: '#14532d',                 // deep forest green
-      secondary: '#4ade80',               // modern green accent
+      secondary: '#16a34a',               // green-600 - better contrast for send button
       background: '#f0fdf4',              // light green-tinted
-      textPrimary: '#052e16',
-      textSecondary: '#166534',
+      textPrimary: '#111827',             // dark for title
+      textSecondary: '#4b5563',            // gray-600 - darker for better contrast
       textInverse: '#ffffff',
       inputBackground: '#dcfce7',
       inputBorder: '#86efac',
       userBubble: '#166534',
       assistantBubble: '#dcfce7',
       userText: '#ffffff',
-      assistantText: '#052e16',
-      suggestedText: '#14532d',
+      assistantText: '#374151',
+      suggestedText: '#166534',            // green for questions
       chatButtonBg: '#166534',
       chatButtonHover: '#14532d',
       iconColor: '#ffffff',
       iconBorderColor: '#166534',
-      buttonBorderColor: 'transparent',
+      buttonBorderColor: '#166534',
       iconName: 'MessageSquare'
     }
   },
@@ -142,10 +142,10 @@ export const themes: Record<string, Theme> = {
     name: 'Twilight',
     colors: {
       primary: '#6d28d9',
-      secondary: '#8b5cf6',
+      secondary: '#a855f7',               // purple-500 - better contrast for send button
       background: '#1f1b3a',
       textPrimary: '#e9d5ff',
-      textSecondary: '#c4b5fd',
+      textSecondary: '#a78bfa',            // violet-400 - lighter for better contrast
       textInverse: '#ffffff',
       inputBackground: '#2a265a',
       inputBorder: '#4c1d95',
@@ -158,7 +158,7 @@ export const themes: Record<string, Theme> = {
       chatButtonHover: '#5b21b6',
       iconColor: '#ffffff',
       iconBorderColor: '#6d28d9',
-      buttonBorderColor: 'transparent',
+      buttonBorderColor: '#6d28d9',
       iconName: 'MessageSquare'
     }
   },
@@ -167,23 +167,23 @@ export const themes: Record<string, Theme> = {
     name: 'Lavender',
     colors: {
       primary: '#7e22ce',
-      secondary: '#8b5fd3',
+      secondary: '#9333ea',               // purple-600 - better contrast for send button
       background: '#fbfaff',
-      textPrimary: '#4a3d5c',
-      textSecondary: '#6b5d7a',
+      textPrimary: '#1f2937',
+      textSecondary: '#4b5563',            // gray-600 - darker for better contrast
       textInverse: '#ffffff',
       inputBackground: '#f3eff7',
       inputBorder: '#d4c9e0',
       userBubble: '#7e22ce',
       assistantBubble: '#f3eff7',
       userText: '#ffffff',
-      assistantText: '#4a3d5c',
-      suggestedText: '#6b5d7a',
+      assistantText: '#374151',
+      suggestedText: '#7e22ce',            // purple for questions
       chatButtonBg: '#7e22ce',
       chatButtonHover: '#6b21a8',
       iconColor: '#ffffff',
       iconBorderColor: '#7e22ce',
-      buttonBorderColor: 'transparent',
+      buttonBorderColor: '#7e22ce',
       iconName: 'MessageSquare'
     }
   },
@@ -192,10 +192,10 @@ export const themes: Record<string, Theme> = {
     name: 'Midnight',
     colors: {
       primary: '#1d4ed8',
-      secondary: '#3b82f6',
+      secondary: '#6366f1',               // indigo-500 - better contrast for send button
       background: '#0f172a',
       textPrimary: '#e0e7ff',
-      textSecondary: '#a5b4fc',
+      textSecondary: '#818cf8',            // indigo-400 - lighter for better contrast
       textInverse: '#ffffff',
       inputBackground: '#1e293b',
       inputBorder: '#334155',
@@ -208,7 +208,7 @@ export const themes: Record<string, Theme> = {
       chatButtonHover: '#1e40af',
       iconColor: '#ffffff',
       iconBorderColor: '#1d4ed8',
-      buttonBorderColor: 'transparent',
+      buttonBorderColor: '#1d4ed8',
       iconName: 'MessageSquare'
     }
   },
@@ -222,7 +222,7 @@ export const themes: Record<string, Theme> = {
       secondary: '#6b7280',               // slate-500
       background: '#111827',              // slate-900
       textPrimary: '#f3f4f6',
-      textSecondary: '#9ca3af',
+      textSecondary: '#9ca3af',            // slate-400 - lighter for better contrast
       textInverse: '#ffffff',
       inputBackground: '#1f2937',
       inputBorder: '#374151',
@@ -235,7 +235,7 @@ export const themes: Record<string, Theme> = {
       chatButtonHover: '#4b5563',
       iconColor: '#ffffff',
       iconBorderColor: '#374151',
-      buttonBorderColor: 'transparent',
+      buttonBorderColor: '#374151',
       iconName: 'MessageSquare'
     }
   },
@@ -244,10 +244,10 @@ export const themes: Record<string, Theme> = {
     name: 'Carbon',
     colors: {
       primary: '#111111',
-      secondary: '#2d2d2d',
+      secondary: '#525252',               // neutral-600 - better contrast for send button
       background: '#0a0a0a',
       textPrimary: '#e5e5e5',
-      textSecondary: '#a3a3a3',
+      textSecondary: '#737373',            // neutral-500 - darker for better contrast
       textInverse: '#ffffff',
       inputBackground: '#141414',
       inputBorder: '#262626',
@@ -260,7 +260,7 @@ export const themes: Record<string, Theme> = {
       chatButtonHover: '#1f1f1f',
       iconColor: '#ffffff',
       iconBorderColor: '#111111',
-      buttonBorderColor: 'transparent',
+      buttonBorderColor: '#111111',
       iconName: 'MessageSquare'
     }
   },
@@ -270,23 +270,23 @@ export const themes: Record<string, Theme> = {
     name: 'Sapphire',
     colors: {
       primary: '#2563eb',
-      secondary: '#3b82f6',
+      secondary: '#1d4ed8',               // blue-700 - better contrast for send button
       background: '#f8fafc',
-      textPrimary: '#102a43',
-      textSecondary: '#1e3a5f',
+      textPrimary: '#0f172a',
+      textSecondary: '#475569',            // slate-600 - darker for better contrast
       textInverse: '#ffffff',
       inputBackground: '#e6f2ff',
       inputBorder: '#90cdf4',
       userBubble: '#3b82f6',
       assistantBubble: '#e6f2ff',
       userText: '#ffffff',
-      assistantText: '#102a43',
-      suggestedText: '#1e3a5f',
+      assistantText: '#374151',
+      suggestedText: '#2563eb',            // blue for questions
       chatButtonBg: '#2563eb',
       chatButtonHover: '#1d4ed8',
       iconColor: '#ffffff',
       iconBorderColor: '#2563eb',
-      buttonBorderColor: 'transparent',
+      buttonBorderColor: '#2563eb',
       iconName: 'MessageSquare'
     }
   }
