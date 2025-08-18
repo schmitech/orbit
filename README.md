@@ -39,13 +39,13 @@ ORBIT is an open-source middleware platform that provides a unified API for AI i
 
 It's designed for developers and organizations who want to build and deploy AI-powered applications with full control over their infrastructure, data, and costs.
 
-| Feature                 | Description                                                                                             |
-| ----------------------- | ------------------------------------------------------------------------------------------------------- |
-| 🔒 **Run AI Locally**   | No cloud dependencies or per-token costs. Your data and models stay within your network.                |
-| 🔌 **Connect Your Data**| Built-in RAG support for SQL, Vector DBs (Chroma, Qdrant), and local files.                             |
-| 🚀 **Deploy Anywhere**  | Run on any machine using Docker or Python. On-premise, private cloud, or your local development machine. |
-| 🔧 **Model Agnostic**   | Supports major model serving backends like Ollama, vLLM, and llama.cpp.                                 |
-| 🛡️ **Secure & Compliant**| Built-in authentication, API key management, content moderation, and audit trails for enterprise needs. |
+| Feature | Description |
+|---------|-------------|
+| 🔒 **Run AI Locally** | No cloud dependencies or per-token costs. Your data and models stay within your network. |
+| 🔌 **Connect Your Data** | Built-in RAG support for SQL, Vector DBs (Chroma, Qdrant), and local files. |
+| 🚀 **Deploy Anywhere** | Run on any machine using Docker or Python. On-premise, private cloud, or your local development machine. |
+| 🔧 **Model Agnostic** | Supports major model serving backends like Ollama, vLLM, and llama.cpp. |
+| 🛡️ **Secure** | Built-in authentication, API key management, content moderation, and audit trails for enterprise needs. |
 
 ---
 

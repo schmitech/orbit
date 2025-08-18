@@ -16,54 +16,70 @@ interface ThemeTabProps {
 
 // Icon categories for better UX
 const iconCategories = {
-  'Chat & Communication': [
+  'Chat & Messaging': [
     'MessageSquare', 'MessageCircle', 'MessageCircleMore', 'MessageSquareText', 
-    'MessageSquareDots', 'Send', 'Reply'
+    'MessageSquareDots', 'Send', 'Mail', 'Phone'
   ],
-  'Help & Info': [
-    'HelpCircle', 'Info', 'Lightbulb', 'Sparkles'
+  'Help & Support': [
+    'HelpCircle', 'Info', 'Lightbulb', 'Headphones', 'LifeBuoy'
   ],
-  'AI & Technology': [
-    'Bot', 'Brain', 'Cpu', 'Chip', 'Zap', 'Target'
+  'AI & Bot': [
+    'Bot', 'Brain', 'Sparkles', 'Zap', 'Cpu2'
   ],
-  'People & Users': [
-    'User', 'Users', 'UserCheck', 'UserPlus', 'UserMinus'
+  'People & Service': [
+    'User', 'Users', 'UserRound', 'Smile', 'Heart'
   ],
-  'Search & Discovery': [
-    'Search', 'Filter'
+  'General': [
+    'Star', 'Bell', 'Settings', 'Home', 'Play'
   ]
 };
 
 // Simple SVG icon component for preview
 const IconPreview: React.FC<{ iconName: string; className?: string }> = ({ iconName, className = "w-5 h-5" }) => {
   const iconPaths: Record<string, string> = {
+    // Chat & Messaging
     'MessageSquare': 'M14 9a2 2 0 0 1-2 2H6l-4 4V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2z M18 9h2a2 2 0 0 1 2 2v11l-4-4h-6a2 2 0 0 1-2-2v-1',
     'MessageCircle': 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z',
     'MessageCircleMore': 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z M12 12h.01 M16 12h.01 M8 12h.01',
     'MessageSquareText': 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z M13 8H7 M17 12H7',
     'MessageSquareDots': 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z M12 11h.01 M16 11h.01 M8 11h.01',
-    'Send': 'M22 3L12 13l-10-10z',
-    'Reply': 'M9 17l-4-4 4-4 M20 18v-2a4 4 0 0 0-4-4H4',
+    'Send': 'M22 2 11 13 M22 2l-7 20-4-9-9-4 20-7z',
+    'Mail': 'M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z M22 6l-10 7L2 6',
+    'Phone': 'M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z',
+    
+    // Help & Support
     'HelpCircle': 'M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3 M12 17h.01',
     'Info': 'M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z M12 16v-4 M12 8h.01',
     'Lightbulb': 'M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5 M9 18h6 M10 22h4',
-    'Sparkles': 'M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.582a.5.5 0 0 1 0 .962L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z',
+    'Headphones': 'M3 14v3a3 3 0 0 0 3 3h2l-2-2v-8a3 3 0 0 1 6 0v8l-2 2h2a3 3 0 0 0 3-3v-3 M12 2a8 8 0 0 0-8 8v4h2v-4a6 6 0 1 1 12 0v4h2v-4a8 8 0 0 0-8-8z',
+    'LifeBuoy': 'M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z M12 8c2.209 0 4 1.791 4 4s-1.791 4-4 4-4-1.791-4-4 1.791-4 4-4z M4.93 4.93l4.24 4.24 M14.83 14.83l4.24 4.24 M14.83 9.17l4.24-4.24 M9.17 14.83l-4.24 4.24',
+    
+    // AI & Bot
     'Bot': 'M12 8V4H8 M4 8h16v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8z M2 14h2 M20 14h2 M15 13v2 M9 13v2',
     'Brain': 'M12 4.5a2.5 2.5 0 0 0-4.96-.46 2.5 2.5 0 0 0-1.98 3 2.5 2.5 0 0 0-1.32 4.24 3 3 0 0 0 .34 5.58 2.5 2.5 0 0 0 2.96 3.08A2.5 2.5 0 0 0 9.5 22c1.05 0 2.05-.25 2.96-.73A2.5 2.5 0 0 0 16.5 22c1.05 0 2.05-.25 2.96-.73a2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-1.98-3A2.5 2.5 0 0 0 12 4.5z',
-    'Cpu': 'M4 4h16v16H4z M9 9h6v6H9z M9 1v2 M15 1v2 M9 21v2 M15 21v2 M1 9h2 M1 15h2 M21 9h2 M21 15h2',
-    'Chip': 'M6 6h12v12H6z M4 10v4 M20 10v4 M10 4h4 M10 20h4',
+    'Sparkles': 'M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.582a.5.5 0 0 1 0 .962L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z',
     'Zap': 'M13 2L3 14h9l-1 8 10-12h-9l1-8z',
-    'Target': 'M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z M12 18c3.314 0 6-2.686 6-6s-2.686-6-6-6-6 2.686-6 6 2.686 6 6 6z M12 14c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2z',
+    'Cpu2': 'M4 4h16v16H4z M9 9h6v6H9z M9 1v6 M15 1v6 M9 17v6 M15 17v6 M1 9h6 M17 9h6 M1 15h6 M17 15h6',
+    
+    // People & Service
     'User': 'M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2 M12 11c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4z',
     'Users': 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2 M9 11c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4z M22 21v-2a4 4 0 0 0-3-3.87 M16 3.13a4 4 0 0 1 0 7.75',
-    'UserCheck': 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2 M9 11c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4z M16 11l2 2 4-4',
-    'UserPlus': 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2 M9 11c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4z M20 8v6 M23 11h-6',
-    'UserMinus': 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2 M9 11c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4z M23 11h-6',
-    'Search': 'M11 19c4.418 0 8-3.582 8-8s-3.582-8-8-8-8 3.582-8 8 3.582 8 8 8z M21 21l-4.35-4.35',
-    'Filter': 'M22 3H2l8 9.46V19l4 2v-8.54L22 3z'
+    'UserRound': 'M18 20a6 6 0 0 0-12 0 M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8z',
+    'Smile': 'M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z M8 14s1.5 2 4 2 4-2 4-2 M9 9h.01 M15 9h.01',
+    'Heart': 'M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z',
+    
+    // General
+    'Star': 'M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z',
+    'Bell': 'M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9 M13.73 21a2 2 0 0 1-3.46 0',
+    'Settings': 'M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
+    'Home': 'M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z M9 22V12h6v10',
+    'Play': 'm9 12 3-7 3 7-3 7-3-7z M6.2 3h11.6c.5 0 .8.3.8.8v16.4c0 .4-.4.8-.8.8H6.2c-.4 0-.8-.4-.8-.8V3.8c0-.5.4-.8.8-.8z'
   };
 
   const path = iconPaths[iconName] || iconPaths['MessageSquare'];
+  
+  // Handle multi-path icons
+  const pathElements = path.includes(' M ') ? path.split(' M ') : [path];
   
   return (
     <svg 
@@ -163,41 +179,9 @@ export const ThemeTab: React.FC<ThemeTabProps> = ({
               <div 
                 className="h-24 w-full relative"
                 style={{ 
-                  background: theme.colors.background
+                  background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.secondary})`
                 }}
-              >
-                {/* Color palette preview */}
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="grid grid-cols-3 gap-1 w-20 h-16">
-                    <div 
-                      className="rounded-tl-lg"
-                      style={{ backgroundColor: theme.colors.primary }}
-                    />
-                    <div 
-                      className="rounded-tr-lg"
-                      style={{ backgroundColor: theme.colors.secondary }}
-                    />
-                    <div 
-                      className="rounded-bl-lg"
-                      style={{ backgroundColor: theme.colors.userBubble }}
-                    />
-                    <div 
-                      className="rounded-br-lg"
-                      style={{ backgroundColor: theme.colors.assistantBubble }}
-                    />
-                    <div 
-                      className="rounded-lg"
-                      style={{ backgroundColor: theme.colors.inputBackground }}
-                    />
-                  </div>
-                </div>
-                <div 
-                  className="absolute bottom-0 left-0 right-0 h-1/3 bg-gradient-to-t opacity-20"
-                  style={{ 
-                    background: `linear-gradient(to top, ${theme.colors.primary}, transparent)` 
-                  }}
-                />
-              </div>
+              />
               <div className="p-3 bg-white border-t border-gray-100">
                 <span className="text-sm font-semibold text-gray-800 block">{theme.name}</span>
                 <span className="text-xs text-gray-500 mt-1 block">Sophisticated & Elegant</span>

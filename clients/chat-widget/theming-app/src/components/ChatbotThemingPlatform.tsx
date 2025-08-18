@@ -294,7 +294,7 @@ const ChatbotThemingPlatform = () => {
 
           {/* Right Column - Instructions Panel */}
           <div className="lg:col-span-2">
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 lg:max-h-screen lg:overflow-y-auto">
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
               <div className="text-center mb-8">
                 <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-5">
                   <svg className="w-10 h-10 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">

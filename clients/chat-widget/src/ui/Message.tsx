@@ -66,7 +66,7 @@ export const Message: React.FC<MessageProps> = ({
         )}
         style={{
           background: message.role === 'user' ? theme.message.user : theme.message.assistant,
-          color: message.role === 'user' ? theme.message.userText : theme.text.primary,
+          color: message.role === 'user' ? theme.message.userText : (theme.message.assistantText || theme.text.primary),
           border: message.role === 'assistant' ? `1px solid ${theme.input.border}` : 'none',
           width: '100%',
           maxWidth: '85%',

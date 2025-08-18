@@ -38,8 +38,13 @@ cat > .env.local << EOF
 VITE_WIDGET_SOURCE=local
 VITE_LOCAL_WIDGET_JS_PATH=/dist/chatbot-widget.umd.js
 VITE_LOCAL_WIDGET_CSS_PATH=/dist/chatbot-widget.css
-VITE_NPM_WIDGET_VERSION=0.4.11
-VITE_WIDGET_DEBUG=true
+VITE_NPM_WIDGET_VERSION=0.4.13
+VITE_WIDGET_DEBUG=false
+VITE_PROMPT_ENABLED=false
+VITE_DEFAULT_API_ENDPOINT=http://localhost:3000
+VITE_GITHUB_OWNER=schmitech
+VITE_GITHUB_REPO=orbit
+VITE_UNAVAILABLE_MSG=false
 EOF
 
 echo -e "${GREEN}✅ Environment configured${NC}"

@@ -19,6 +19,7 @@ export interface ChatConfig {
       user: string;
       userText: string;
       assistant: string;
+      assistantText?: string;
     };
     suggestedQuestions: {
       background: string;
