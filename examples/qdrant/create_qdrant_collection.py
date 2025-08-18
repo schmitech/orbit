@@ -185,16 +185,45 @@ async def ingest_to_qdrant(
             print(f"Deleting existing collection: {collection_name}")
             client.delete_collection(collection_name)
         
-        # Create new collection with proper vector configuration
+        # Create new collection with an optimized configuration
         print(f"Creating new collection: {collection_name}")
         client.create_collection(
             collection_name=collection_name,
             vectors_config=VectorParams(
                 size=dimensions,
-                distance=Distance.COSINE
+                distance=Distance.COSINE,
+                on_disk=True  # Use on-disk storage for larger datasets
+            ),
+            # HNSW config for tuning performance-accuracy trade-off
+            hnsw_config=models.HnswConfigDiff(
+                m=16,  # Number of bi-directional links for each new element
+                ef_construct=100  # Number of candidates for best neighbors search
+            ),
+            # Scalar quantization for memory optimization
+            quantization_config=models.ScalarQuantization(
+                scalar=models.ScalarQuantizationConfig(
+                    type=models.ScalarType.INT8,
+                    quantile=0.99,  # Use 99th percentile for quantization
+                    always_ram=True  # Keep quantized vectors in RAM
+                )
             )
         )
         print(f"Successfully created collection: {collection_name}")
+
+        # Create a payload index on the 'question' field for hybrid search
+        print("Creating payload index for 'question' field...")
+        client.create_payload_index(
+            collection_name=collection_name,
+            field_name="question",
+            field_schema=models.TextIndexParams(
+                type="text",
+                tokenizer=models.TokenizerType.WORD,
+                min_token_len=2,
+                max_token_len=20,
+                lowercase=True
+            )
+        )
+        print("Successfully created payload index for 'question'.")
         
     except Exception as e:
         print(f"Error creating collection: {str(e)}")
