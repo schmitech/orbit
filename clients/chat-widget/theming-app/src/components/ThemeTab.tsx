@@ -187,10 +187,6 @@ export const ThemeTab: React.FC<ThemeTabProps> = ({
                     />
                     <div 
                       className="rounded-lg"
-                      style={{ backgroundColor: theme.colors.suggestedBackground }}
-                    />
-                    <div 
-                      className="rounded-lg"
                       style={{ backgroundColor: theme.colors.inputBackground }}
                     />
                   </div>
@@ -252,7 +248,8 @@ export const ThemeTab: React.FC<ThemeTabProps> = ({
             {[
               { key: 'textPrimary', label: 'Primary Text Color' },
               { key: 'textSecondary', label: 'Secondary Text Color' },
-              { key: 'textInverse', label: 'Inverse Text Color' }
+              { key: 'textInverse', label: 'Inverse Text Color' },
+              { key: 'suggestedText', label: 'Suggested Question Text Color' }
             ].map(({ key, label }) => (
               <ColorPicker
                 key={key}
@@ -296,28 +293,6 @@ export const ThemeTab: React.FC<ThemeTabProps> = ({
             {[
               { key: 'inputBackground', label: 'Input Background Color' },
               { key: 'inputBorder', label: 'Input Border Color' }
-            ].map(({ key, label }) => (
-              <ColorPicker
-                key={key}
-                label={label}
-                value={customColors[key]}
-                onChange={(value) => onUpdateColor(key as keyof CustomColors, value)}
-              />
-            ))}
-          </div>
-        </SectionToggle>
-
-        {/* Suggested Questions */}
-        <SectionToggle
-          title="Suggested Questions"
-          isExpanded={expandedSections.suggestedQuestions}
-          onToggle={() => onToggleSection('suggestedQuestions')}
-        >
-          <div className="space-y-3">
-            {[
-              { key: 'suggestedBackground', label: 'Background Color' },
-              { key: 'suggestedHoverBackground', label: 'Hover Background Color' },
-              { key: 'suggestedText', label: 'Text Color' }
             ].map(({ key, label }) => (
               <ColorPicker
                 key={key}

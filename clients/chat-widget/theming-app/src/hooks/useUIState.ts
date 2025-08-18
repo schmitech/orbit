@@ -9,7 +9,6 @@ export const useUIState = () => {
     textColors: true,
     messageBubbles: true,
     inputField: true,
-    suggestedQuestions: true,
     chatButton: true,
     iconSelection: true
   });
@@ -35,7 +34,6 @@ export const useUIState = () => {
       textColors: true,
       messageBubbles: true,
       inputField: true,
-      suggestedQuestions: true,
       chatButton: true,
       iconSelection: true
     });
@@ -48,7 +46,6 @@ export const useUIState = () => {
       textColors: false,
       messageBubbles: false,
       inputField: false,
-      suggestedQuestions: false,
       chatButton: false,
       iconSelection: false
     });

@@ -26,8 +26,6 @@ export const generateThemeConfig = (customColors: CustomColors): ThemeConfig => 
     userText: customColors.userText
   },
   suggestedQuestions: {
-    background: customColors.suggestedBackground,
-    hoverBackground: customColors.suggestedHoverBackground,
     text: customColors.suggestedText
   },
   chatButton: {
