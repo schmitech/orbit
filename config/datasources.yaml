@@ -30,7 +30,6 @@ datasources:
     embedding_provider: null
   pinecone:
     api_key: ${DATASOURCE_PINECONE_API_KEY}
-    host: ${DATASOURCE_PINECONE_HOST}
     namespace: "default"
     embedding_provider: null
   elasticsearch:

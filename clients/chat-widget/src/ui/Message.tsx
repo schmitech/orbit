@@ -11,14 +11,14 @@ export interface MessageProps {
   isLatestAssistantMessage: boolean;
   showTypingAnimation: boolean;
   theme: any; // TODO: Type this properly
-  copiedMessageId: number | null;
-  onCopyToClipboard: (text: string, messageIndex: number) => void;
-  onMarkMessageAnimated: (index: number, messagesLength: number, scrollToBottom: () => void) => void;
+  copiedMessageId: string | null;
+  onCopyToClipboard: (text: string, messageId: string) => void;
+  onMarkMessageAnimated: (id: string, messagesLength: number, scrollToBottom: () => void) => void;
   messagesLength: number;
   scrollToBottom: () => void;
   inputRef: React.RefObject<HTMLTextAreaElement>;
-  hasBeenAnimated: (index: number) => boolean;
-  typingProgressRef: React.MutableRefObject<Map<number, number>>;
+  hasBeenAnimated: (id: string) => boolean;
+  typingProgressRef: React.MutableRefObject<Map<string, number>>;
   isTypingRef: React.MutableRefObject<boolean>;
   setIsAnimating: (value: boolean) => void;
   formatTime: (date: Date) => string;
@@ -86,17 +86,18 @@ export const Message: React.FC<MessageProps> = ({
                 <span className="dot">.</span>
               </span>
             </div>
-          ) : !hasBeenAnimated(index) && isLatestAssistantMessage ? (
+          ) : !hasBeenAnimated(message.id) && isLatestAssistantMessage ? (
             <TypingEffect
               content={message.content}
-              onComplete={() => onMarkMessageAnimated(index, messagesLength, scrollToBottom)}
-              messageIndex={index}
+              onComplete={() => onMarkMessageAnimated(message.id, messagesLength, scrollToBottom)}
+              messageId={message.id}
               inputRef={inputRef}
               hasBeenAnimated={hasBeenAnimated}
               typingProgressRef={typingProgressRef}
               isTypingRef={isTypingRef}
               setIsAnimating={setIsAnimating}
               scrollToBottom={scrollToBottom}
+              isStreaming={showTypingAnimation}
             />
           ) : (
             <MarkdownRenderer content={message.content} />
@@ -122,7 +123,7 @@ export const Message: React.FC<MessageProps> = ({
           {message.role === 'assistant' && !showTypingAnimation && (
             <div className="relative">
               <button 
-                onClick={() => onCopyToClipboard(message.content, index)}
+                onClick={() => onCopyToClipboard(message.content, message.id)}
                 className="ml-2 p-1 rounded-full"
                 style={{
                   color: theme.text.secondary,
@@ -150,9 +151,9 @@ export const Message: React.FC<MessageProps> = ({
                 }}
                 aria-label="Copy to clipboard"
               >
-                {copiedMessageId === index ? <Check size={16} /> : <Copy size={16} />}
+                {copiedMessageId === message.id ? <Check size={16} /> : <Copy size={16} />}
               </button>
-              {copiedMessageId === index && (
+              {copiedMessageId === message.id && (
                 <div
                   className="absolute bottom-full right-0 mb-1 px-2 py-1 text-xs rounded-md shadow-sm animate-fade-in-out whitespace-nowrap"
                   style={{

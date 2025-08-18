@@ -243,7 +243,7 @@
 
         <div class="api-url-form">
             <input type="text" id="api-url" placeholder="API URL (e.g., http://localhost:3000)" value="http://localhost:3000">
-            <input type="text" id="api-key" placeholder="API Key" value="demo-api-key" required>
+            <input type="text" id="api-key" placeholder="API Key" value="demo-key" required>
             <button onclick="updateApiUrl()">Update API Settings</button>
         </div>
 
@@ -1334,11 +1334,11 @@
         function initWidget() {
             if (!widgetInitialized) {
                 const apiUrl = document.getElementById('api-url').value || 'http://localhost:3000';
-                const apiKey = document.getElementById('api-key').value || 'demo-api-key';
+                const apiKey = document.getElementById('api-key').value || 'demo-key';
                 
                 if (!apiKey) {
                     alert('API key is required. Using default demo key.');
-                    document.getElementById('api-key').value = 'demo-api-key';
+                    document.getElementById('api-key').value = 'demo-key';
                 }
 
                 // Ensure the container exists
@@ -1396,11 +1396,11 @@
                 }
                 
                 const apiUrl = document.getElementById('api-url').value || 'http://localhost:3000';
-                const apiKey = document.getElementById('api-key').value || 'demo-api-key';
+                const apiKey = document.getElementById('api-key').value || 'demo-key';
                 
                 if (!apiKey) {
                     alert('API key is required. Using default demo key.');
-                    document.getElementById('api-key').value = 'demo-api-key';
+                    document.getElementById('api-key').value = 'demo-key';
                 }
                 
                 // Configure the API first

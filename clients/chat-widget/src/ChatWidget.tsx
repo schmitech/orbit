@@ -36,7 +36,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
   const [isOpen, setIsOpen] = useState(false);
   const [hasNewMessage, setHasNewMessage] = useState(false);
   const [isButtonHovered, setIsButtonHovered] = useState(false);
-  const [copiedMessageId, setCopiedMessageId] = useState<number | null>(null);
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
 
   // Use animation management hook
   const {
@@ -174,10 +174,10 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
     }
   };
 
-  const copyToClipboard = async (text: string, messageIndex: number) => {
+  const copyToClipboard = async (text: string, messageId: string) => {
     try {
       await navigator.clipboard.writeText(text);
-      setCopiedMessageId(messageIndex);
+      setCopiedMessageId(messageId);
       setTimeout(() => {
         setCopiedMessageId(null);
       }, CHAT_CONSTANTS.ANIMATIONS.COPY_FEEDBACK_DURATION);

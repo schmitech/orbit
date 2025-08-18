@@ -5,13 +5,15 @@ import { CHAT_CONSTANTS } from '../shared/styles';
 export interface TypingEffectProps {
   content: string;
   onComplete: () => void;
-  messageIndex: number;
+  messageId: string;
   inputRef: React.RefObject<HTMLTextAreaElement>;
-  hasBeenAnimated: (index: number) => boolean;
-  typingProgressRef: React.MutableRefObject<Map<number, number>>;
+  hasBeenAnimated: (id: string) => boolean;
+  typingProgressRef: React.MutableRefObject<Map<string, number>>;
   isTypingRef: React.MutableRefObject<boolean>;
   setIsAnimating: (value: boolean) => void;
   scrollToBottom: () => void;
+  // Whether the assistant is still streaming tokens for this message
+  isStreaming?: boolean;
 }
 
 /**
@@ -66,13 +68,14 @@ const isIncompleteMarkdownToken = (text: string): boolean => {
 export const TypingEffect: React.FC<TypingEffectProps> = ({
   content,
   onComplete,
-  messageIndex,
+  messageId,
   inputRef,
   hasBeenAnimated,
   typingProgressRef,
   isTypingRef,
   setIsAnimating,
   scrollToBottom,
+  isStreaming = true,
 }) => {
   // State for displayed content
   const [displayedContent, setDisplayedContent] = useState('');
@@ -97,13 +100,27 @@ export const TypingEffect: React.FC<TypingEffectProps> = ({
 
   // Skip animation for already animated messages
   useEffect(() => {
-    if (hasBeenAnimated(messageIndex)) {
+    if (hasBeenAnimated(messageId)) {
       setDisplayedContent(content);
       setIsThinking(false);
       hasCompletedRef.current = true;
       return;
     }
-  }, [hasBeenAnimated, messageIndex, content]);
+  }, [hasBeenAnimated, messageId, content]);
+
+  // Complete animation function
+  const completeAnimation = useCallback(() => {
+    if (hasCompletedRef.current) return;
+    
+    hasCompletedRef.current = true;
+    isLocallyAnimatingRef.current = false;
+    isTypingRef.current = false;
+    setIsAnimating(false);
+    setDisplayedContent(content);
+    typingProgressRef.current.set(messageId, content.length);
+    onComplete();
+    scrollToBottom();
+  }, [content, messageId, onComplete, scrollToBottom, setIsAnimating, isTypingRef, typingProgressRef]);
 
   // Animation function
   const animate = useCallback(() => {
@@ -133,7 +150,7 @@ export const TypingEffect: React.FC<TypingEffectProps> = ({
       setDisplayedContent(potentialContent);
       
       // Save progress
-      typingProgressRef.current.set(messageIndex, currentIndexRef.current);
+      typingProgressRef.current.set(messageId, currentIndexRef.current);
       
       // Scroll to bottom periodically (every 10 characters or on newlines)
       const justTypedNewline = potentialContent.includes('\n') && potentialContent.lastIndexOf('\n') > potentialContent.length - 10;
@@ -146,24 +163,19 @@ export const TypingEffect: React.FC<TypingEffectProps> = ({
         setTimeout(() => animate(), 5); // 5ms delay between characters (3x faster)
       });
     } else if (targetLength > 0 && currentIndexRef.current === targetLength) {
-      // Animation complete
+      // We've caught up to the currently available content.
+      // If streaming is still in progress, pause animation and wait for more tokens.
+      // Only mark complete once streaming has fully finished.
+      if (isStreaming) {
+        isLocallyAnimatingRef.current = false;
+        // Keep typing state true so UI knows we're mid-stream
+        isTypingRef.current = true;
+        return;
+      }
+      // Streaming finished and we've fully rendered: complete animation
       completeAnimation();
     }
-  }, [content, messageIndex, typingProgressRef, scrollToBottom]);
-
-  // Complete animation function
-  const completeAnimation = useCallback(() => {
-    if (hasCompletedRef.current) return;
-    
-    hasCompletedRef.current = true;
-    isLocallyAnimatingRef.current = false;
-    isTypingRef.current = false;
-    setIsAnimating(false);
-    setDisplayedContent(content);
-    typingProgressRef.current.set(messageIndex, content.length);
-    onComplete();
-    scrollToBottom();
-  }, [content, messageIndex, onComplete, scrollToBottom, setIsAnimating, isTypingRef, typingProgressRef]);
+  }, [content, messageId, typingProgressRef, scrollToBottom, isStreaming, completeAnimation, isTypingRef]);
 
   // Skip animation on user input
   const skipAnimation = useCallback(() => {
@@ -178,7 +190,7 @@ export const TypingEffect: React.FC<TypingEffectProps> = ({
 
   // Start or continue animation when content changes
   useEffect(() => {
-    if (hasCompletedRef.current || hasBeenAnimated(messageIndex)) {
+    if (hasCompletedRef.current || hasBeenAnimated(messageId)) {
       return;
     }
 
@@ -196,11 +208,17 @@ export const TypingEffect: React.FC<TypingEffectProps> = ({
       isTypingRef.current = true;
       setIsAnimating(true);
       
-      // Restore progress if available
-      const savedProgress = typingProgressRef.current.get(messageIndex) || 0;
-      if (savedProgress > 0 && savedProgress < contentLength) {
-        currentIndexRef.current = savedProgress;
-        setDisplayedContent(content.slice(0, savedProgress));
+      // Restore progress if available. Fallback to the current index or currently displayed length.
+      const savedProgress = typingProgressRef.current.get(messageId);
+      const fallbackProgress = Math.max(currentIndexRef.current, displayedContent.length);
+      const resumeFrom = Math.min(
+        contentLength,
+        savedProgress !== undefined ? savedProgress : fallbackProgress
+      );
+
+      if (resumeFrom > 0 && resumeFrom <= contentLength) {
+        currentIndexRef.current = resumeFrom;
+        setDisplayedContent(content.slice(0, resumeFrom));
         setIsThinking(false);
       } else {
         currentIndexRef.current = 0;
@@ -211,7 +229,7 @@ export const TypingEffect: React.FC<TypingEffectProps> = ({
     }
 
     lastContentLengthRef.current = contentLength;
-  }, [content, messageIndex, animate, hasBeenAnimated, setIsAnimating, isTypingRef, typingProgressRef]);
+  }, [content, messageId, animate, hasBeenAnimated, setIsAnimating, isTypingRef, typingProgressRef, displayedContent.length]);
 
   // Handle user input to skip animation
   useEffect(() => {
@@ -243,11 +261,8 @@ export const TypingEffect: React.FC<TypingEffectProps> = ({
         }
         hiddenAt = Date.now();
       } else if (hiddenAt && !hasCompletedRef.current) {
-        // Resume or skip based on time away
-        const awayTime = Date.now() - hiddenAt;
-        if (awayTime > CHAT_CONSTANTS.ANIMATIONS.VISIBILITY_SKIP_THRESHOLD) {
-          skipAnimation();
-        } else if (isLocallyAnimatingRef.current) {
+        // Resume typing where it left off; do not fast-forward on return
+        if (isLocallyAnimatingRef.current) {
           animate();
         }
         hiddenAt = null;
@@ -257,6 +272,21 @@ export const TypingEffect: React.FC<TypingEffectProps> = ({
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [animate, skipAnimation]);
+
+  // When streaming finishes, finalize animation if we've already caught up
+  useEffect(() => {
+    if (!isStreaming && !hasCompletedRef.current) {
+      const contentLength = content.length;
+      if (contentLength === 0) return;
+      if (currentIndexRef.current >= contentLength) {
+        completeAnimation();
+      } else if (!isLocallyAnimatingRef.current) {
+        // Ensure we resume to finish any remaining characters
+        isLocallyAnimatingRef.current = true;
+        animate();
+      }
+    }
+  }, [isStreaming, content.length, completeAnimation, animate]);
 
   // Render
   if (isThinking && content.length === 0) {

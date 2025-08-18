@@ -20,12 +20,12 @@ export interface MessagesListProps {
   handleScroll: () => void;
   sendMessage: (message: string) => void;
   focusInput: () => void;
-  copiedMessageId: number | null;
-  onCopyToClipboard: (text: string, messageIndex: number) => void;
-  onMarkMessageAnimated: (index: number, messagesLength: number, scrollToBottom: () => void) => void;
+  copiedMessageId: string | null;
+  onCopyToClipboard: (text: string, messageId: string) => void;
+  onMarkMessageAnimated: (id: string, messagesLength: number, scrollToBottom: () => void) => void;
   inputRef: React.RefObject<HTMLTextAreaElement>;
-  hasBeenAnimated: (index: number) => boolean;
-  typingProgressRef: React.MutableRefObject<Map<number, number>>;
+  hasBeenAnimated: (id: string) => boolean;
+  typingProgressRef: React.MutableRefObject<Map<string, number>>;
   isTypingRef: React.MutableRefObject<boolean>;
   setIsAnimating: (value: boolean) => void;
   formatTime: (date: Date) => string;
@@ -215,7 +215,7 @@ export const MessagesList: React.FC<MessagesListProps> = ({
             
             return (
               <Message
-                key={index}
+                key={msg.id}
                 message={msg}
                 index={index}
                 isLatestAssistantMessage={isLatestAssistantMessage}

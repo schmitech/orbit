@@ -33,8 +33,26 @@ export const defaultWidgetConfig: WidgetConfig = {
     description: 'How can I help you today?'
   },
   suggestedQuestions: [
-    { text: 'What can you help me with?', query: 'What can you help me with today?' },
-    { text: 'How do I get started?',      query: 'How do I get started with this service?' }
+    {
+      text: 'What is the Theming App?',
+      query: 'What is the ORBIT chat widget Theming App and what can I do with it?'
+    },
+    {
+      text: 'How can I customize colors?',
+      query: 'Explain how to customize theme colors (primary, secondary, text, bubbles, input, suggested chips, chat button, icon) in the Theming App.'
+    },
+    {
+      text: 'Where do I set the API key?',
+      query: 'Where do I enter the API key and API endpoint in the Theming App, and what happens when I click Update API Settings?'
+    },
+    {
+      text: 'How do I export code?',
+      query: 'How do I export the widget configuration from the Code tab as HTML or a JavaScript bundle, and which values must I replace before deploying?'
+    },
+    {
+      text: 'Is it in beta and free?',
+      query: 'Are the ORBIT widget and Theming App in beta, and are they free to use during the beta period?'
+    }
   ],
   maxSuggestedQuestionLength: 120,
   maxSuggestedQuestionQueryLength: 200,
