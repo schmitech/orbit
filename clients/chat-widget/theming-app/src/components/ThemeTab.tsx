@@ -91,9 +91,6 @@ const IconPreview: React.FC<{ iconName: string; className?: string }> = ({ iconN
 
   const path = iconPaths[iconName] || iconPaths['MessageSquare'];
   
-  // Handle multi-path icons
-  const pathElements = path.includes(' M ') ? path.split(' M ') : [path];
-  
   return (
     <svg 
       className={className} 
