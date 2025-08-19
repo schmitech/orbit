@@ -20,7 +20,7 @@ inference:
     max_tokens: 1024
     stream: true
   llama_cpp:
-    model_path: "models/gemma-3-1b-it-Q4_0.gguf"
+    model_path: "models/gemma-3-270m-it-Q8_0.gguf"
     chat_format: "gemma"  # Chat format to use (chatml, llama-2, gemma, etc.)
     verbose: false
     temperature: 0.1
