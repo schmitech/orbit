@@ -189,12 +189,51 @@ export const ThemeTab: React.FC<ThemeTabProps> = ({
               <div 
                 className="h-24 w-full relative"
                 style={{ 
-                  background: `linear-gradient(135deg, ${theme.colors.primary}, ${theme.colors.secondary})`
+                  background: theme.colors.background
                 }}
-              />
+              >
+                {/* Show primary color as a header bar */}
+                <div 
+                  className="absolute top-0 left-0 right-0 h-8"
+                  style={{ background: theme.colors.primary }}
+                />
+                
+                {/* Show secondary color as a small accent */}
+                <div 
+                  className="absolute bottom-4 right-4 w-8 h-8 rounded-full"
+                  style={{ background: theme.colors.secondary }}
+                />
+                
+                {/* Show text colors with sample text */}
+                <div className="absolute top-10 left-3 right-3">
+                  <div 
+                    className="text-xs font-semibold mb-1 truncate"
+                    style={{ color: theme.colors.textPrimary }}
+                  >
+                    {theme.name}
+                  </div>
+                  <div 
+                    className="text-xs truncate"
+                    style={{ color: theme.colors.textSecondary }}
+                  >
+                    Sample text
+                  </div>
+                </div>
+              </div>
               <div className="p-3 bg-white border-t border-gray-100">
                 <span className="text-sm font-semibold text-gray-800 block">{theme.name}</span>
-                <span className="text-xs text-gray-500 mt-1 block">Sophisticated & Elegant</span>
+                <span className="text-xs text-gray-500 mt-1 block">
+                  {key === 'nebula' && 'Deep blue with soft accents'}
+                  {key === 'ocean' && 'Sky blue with gentle tones'}
+                  {key === 'sage' && 'Forest green with natural feel'}
+                  {key === 'twilight' && 'Dark teal with subtle highlights'}
+                  {key === 'lavender' && 'Soft purple with gentle warmth'}
+                  {key === 'midnight' && 'Dark blue with vibrant accents'}
+                  {key === 'obsidian' && 'Professional slate gray'}
+                  {key === 'carbon' && 'Pure black with clean lines'}
+                  {key === 'sapphire' && 'Bright cyan with fresh energy'}
+                  {!['nebula', 'ocean', 'sage', 'twilight', 'lavender', 'midnight', 'obsidian', 'carbon', 'sapphire'].includes(key) && 'Custom theme'}
+                </span>
               </div>
               {selectedTheme === key && (
                 <div className="absolute top-2 right-2 bg-indigo-500 text-white rounded-full p-1">
