@@ -5,7 +5,7 @@ This module defines the interface for LLM providers in the pipeline architecture
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, AsyncGenerator
+from typing import Dict, Any, AsyncGenerator, Optional
 
 class LLMProvider(ABC):
     """
@@ -17,7 +17,7 @@ class LLMProvider(ABC):
     """
     
     @abstractmethod
-    async def initialize(self) -> None:
+    async def initialize(self, clock_service: Optional[Any] = None) -> None:
         """Initialize the LLM provider."""
         pass
     

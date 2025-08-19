@@ -48,6 +48,7 @@ class ProcessingContext:
     user_id: Optional[str] = None
     session_id: Optional[str] = None
     api_key: Optional[str] = None
+    timezone: Optional[str] = None
     
     def has_error(self) -> bool:
         """Check if the context has an error."""

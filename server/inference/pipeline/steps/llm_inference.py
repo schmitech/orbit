@@ -159,6 +159,11 @@ class LLMInferenceStep(PipelineStep):
         # Build the complete prompt
         parts = [system_prompt]
         
+        # Add time instruction
+        time_instruction = self._build_time_instruction(context)
+        if time_instruction:
+            parts.append(time_instruction)
+        
         # Add language matching instruction based on detection
         language_instruction = self._build_language_instruction(context)
         if language_instruction:
@@ -178,6 +183,25 @@ class LLMInferenceStep(PipelineStep):
         parts.append("Assistant:")
         
         return "\n".join(parts)
+    
+    def _build_time_instruction(self, context: ProcessingContext) -> str:
+        """
+        Build time instruction based on clock service and context.
+        """
+        if not self.container.has('clock_service'):
+            return ""
+            
+        clock_service = self.container.get('clock_service')
+        if not clock_service or not clock_service.enabled:
+            return ""
+            
+        timezone = getattr(context, 'timezone', None)
+        current_time_str = clock_service.get_current_time_str(timezone)
+        
+        if current_time_str:
+            return f"System: The current date and time is {current_time_str}."
+        
+        return ""
     
     async def _get_system_prompt(self, context: ProcessingContext) -> str:
         """

@@ -31,7 +31,7 @@ class PipelineChatService:
     
     def __init__(self, config: Dict[str, Any], logger_service, 
                  chat_history_service=None, llm_guard_service=None, moderator_service=None,
-                 retriever=None, reranker_service=None, prompt_service=None):
+                 retriever=None, reranker_service=None, prompt_service=None, clock_service=None):
         """
         Initialize the pipeline chat service.
         
@@ -44,6 +44,7 @@ class PipelineChatService:
             retriever: Optional retriever service
             reranker_service: Optional reranker service
             prompt_service: Optional prompt service
+            clock_service: Optional clock service
         """
         self.config = config
         self.verbose = is_true_value(config.get('general', {}).get('verbose', False))
@@ -55,13 +56,20 @@ class PipelineChatService:
         # Messages configuration
         self.messages_config = config.get('messages', {})
         
-        # Create pipeline factory and pipeline
+        # Create pipeline factory
         self.pipeline_factory = PipelineFactory(config)
         
         # Create adapter manager for dynamic retrieval
         from services.dynamic_adapter_manager import DynamicAdapterManager
         adapter_manager = DynamicAdapterManager(config)
         
+        # Store services for direct access
+        self.logger_service = logger_service
+        self.chat_history_service = chat_history_service
+        self.llm_guard_service = llm_guard_service
+        self.moderator_service = moderator_service
+        self.clock_service = clock_service
+
         self.pipeline = self.pipeline_factory.create_pipeline_with_services(
             retriever=retriever,
             reranker_service=reranker_service,
@@ -70,17 +78,12 @@ class PipelineChatService:
             moderator_service=moderator_service,
             chat_history_service=chat_history_service,
             logger_service=logger_service,
-            adapter_manager=adapter_manager
+            adapter_manager=adapter_manager,
+            clock_service=self.clock_service
         )
         
         # Store pipeline reference for async initialization
         self._pipeline_initialized = False
-        
-        # Store services for direct access
-        self.logger_service = logger_service
-        self.chat_history_service = chat_history_service
-        self.llm_guard_service = llm_guard_service
-        self.moderator_service = moderator_service
         
         # Thread-safe queue for streaming responses
         self._stream_queues = {}
@@ -263,11 +266,13 @@ class PipelineChatService:
             
             # Check for adapter-specific inference provider override
             inference_provider_override = None
+            timezone = None
             if adapter_name and hasattr(self, 'pipeline') and self.pipeline.container.has('adapter_manager'):
                 adapter_manager = self.pipeline.container.get('adapter_manager')
                 adapter_config = adapter_manager.get_adapter_config(adapter_name)
                 if adapter_config:
                     inference_provider_override = adapter_config.get('inference_provider')
+                    timezone = adapter_config.get('config', {}).get('timezone')
                     if inference_provider_override and self.verbose:
                         logger.info(f"Using adapter-specific inference provider: {inference_provider_override} for adapter: {adapter_name}")
             
@@ -280,7 +285,8 @@ class PipelineChatService:
                 context_messages=context_messages,
                 user_id=user_id,
                 session_id=session_id,
-                api_key=api_key
+                api_key=api_key,
+                timezone=timezone
             )
             
             # Process through pipeline
@@ -364,11 +370,13 @@ class PipelineChatService:
             
             # Check for adapter-specific inference provider override
             inference_provider_override = None
+            timezone = None
             if adapter_name and hasattr(self, 'pipeline') and self.pipeline.container.has('adapter_manager'):
                 adapter_manager = self.pipeline.container.get('adapter_manager')
                 adapter_config = adapter_manager.get_adapter_config(adapter_name)
                 if adapter_config:
                     inference_provider_override = adapter_config.get('inference_provider')
+                    timezone = adapter_config.get('config', {}).get('timezone')
                     if inference_provider_override and self.verbose:
                         logger.info(f"Using adapter-specific inference provider: {inference_provider_override} for adapter: {adapter_name}")
             
@@ -381,7 +389,8 @@ class PipelineChatService:
                 context_messages=context_messages,
                 user_id=user_id,
                 session_id=session_id,
-                api_key=api_key
+                api_key=api_key,
+                timezone=timezone
             )
             
             # Buffer to accumulate the complete response

@@ -221,6 +221,9 @@ class ServiceFactory:
         # Initialize Logger Service (always needed)
         await self._initialize_logger_service(app)
         
+        # Initialize Clock Service
+        await self._initialize_clock_service(app)
+        
         # Initialize Moderator Service if enabled
         await self._initialize_moderator_service(app)
         
@@ -245,6 +248,7 @@ class ServiceFactory:
         chat_history_service = getattr(app.state, 'chat_history_service', None)
         llm_guard_service = getattr(app.state, 'llm_guard_service', None)
         moderator_service = getattr(app.state, 'moderator_service', None)
+        clock_service = getattr(app.state, 'clock_service', None)
         
         # Use pipeline-based chat service (now the default)
         from services.pipeline_chat_service import PipelineChatService
@@ -256,7 +260,8 @@ class ServiceFactory:
             moderator_service=moderator_service,
             retriever=getattr(app.state, 'retriever', None),
             reranker_service=getattr(app.state, 'reranker_service', None),
-            prompt_service=getattr(app.state, 'prompt_service', None)
+            prompt_service=getattr(app.state, 'prompt_service', None),
+            clock_service=clock_service
         )
         # Initialize the pipeline provider
         await app.state.chat_service.initialize()
@@ -439,6 +444,17 @@ class ServiceFactory:
         app.state.logger_service = LoggerService(self.config)
         await app.state.logger_service.initialize_elasticsearch()
         self.logger.info("Logger Service initialized successfully")
+    
+    async def _initialize_clock_service(self, app: FastAPI) -> None:
+        """Initialize the Clock Service."""
+        clock_config = self.config.get('clock_service', {'enabled': False})
+        if clock_config.get('enabled'):
+            from services.clock_service import ClockService
+            app.state.clock_service = ClockService(clock_config)
+            self.logger.info("ClockService initialized successfully.")
+        else:
+            app.state.clock_service = None
+            self.logger.info("ClockService is disabled in configuration.")
     
     async def _initialize_moderator_service(self, app: FastAPI) -> None:
         """Initialize Moderator Service if enabled."""

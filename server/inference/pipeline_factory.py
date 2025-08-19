@@ -38,7 +38,8 @@ class PipelineFactory:
         moderator_service=None,
         chat_history_service=None,
         logger_service=None,
-        adapter_manager=None
+        adapter_manager=None,
+        clock_service=None
     ) -> ServiceContainer:
         """
         Create a service container with all required services.
@@ -52,6 +53,7 @@ class PipelineFactory:
             chat_history_service: Optional chat history service
             logger_service: Optional logger service
             adapter_manager: Optional dynamic adapter manager
+            clock_service: Optional clock service
             
         Returns:
             Configured service container
@@ -92,6 +94,9 @@ class PipelineFactory:
         
         if logger_service:
             container.register_singleton('logger_service', logger_service)
+            
+        if clock_service:
+            container.register_singleton('clock_service', clock_service)
         
         self.logger.info(f"Created service container with {len(container.list_services())} services")
         return container
@@ -149,6 +154,7 @@ class PipelineFactory:
         chat_history_service=None,
         logger_service=None,
         adapter_manager=None,
+        clock_service=None,
         pipeline_type: str = "auto"
     ) -> InferencePipeline:
         """
@@ -166,6 +172,7 @@ class PipelineFactory:
             chat_history_service: Optional chat history service
             logger_service: Optional logger service
             adapter_manager: Optional dynamic adapter manager
+            clock_service: Optional clock service
             pipeline_type: Type of pipeline to create
             
         Returns:
@@ -179,7 +186,8 @@ class PipelineFactory:
             moderator_service=moderator_service,
             chat_history_service=chat_history_service,
             logger_service=logger_service,
-            adapter_manager=adapter_manager
+            adapter_manager=adapter_manager,
+            clock_service=clock_service
         )
         
         return self.create_pipeline(container, pipeline_type) 
