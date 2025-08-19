@@ -3,14 +3,76 @@ Qdrant implementation of the AbstractVectorRetriever interface
 """
 
 import logging
+import threading
+import asyncio
 from typing import Dict, Any, List, Optional
+
 from fastapi import HTTPException
+from qdrant_client import QdrantClient
 
 from ...base.abstract_vector_retriever import AbstractVectorRetriever
 from ...base.base_retriever import RetrieverFactory
 
 # Configure logging
 logger = logging.getLogger(__name__)
+
+# Singleton manager for Qdrant clients to avoid redundant connections
+class QdrantClientManager:
+    _clients: Dict[str, QdrantClient] = {}
+    _locks: Dict[str, asyncio.Lock] = {}
+    _connected: Dict[str, bool] = {}
+    _manager_lock = threading.Lock()
+
+    @classmethod
+    def get_client(cls, host: str, port: int, **kwargs) -> QdrantClient:
+        api_key = kwargs.get('api_key')
+        key = f"{host}:{port}:{api_key}"
+        with cls._manager_lock:
+            if key not in cls._clients:
+                logger.info(f"Creating new Qdrant client instance for {host}:{port}")
+                cls._clients[key] = QdrantClient(host=host, port=port, **kwargs)
+                cls._locks[key] = asyncio.Lock()
+                cls._connected[key] = False
+            else:
+                logger.info(f"Reusing existing Qdrant client instance for {host}:{port}")
+            return cls._clients[key]
+
+    @classmethod
+    async def test_connection(cls, client: QdrantClient, host: str, port: int, api_key: Optional[str]):
+        key = f"{host}:{port}:{api_key}"
+        if key not in cls._locks:
+            with cls._manager_lock:
+                if key not in cls._locks:
+                    cls._locks[key] = asyncio.Lock()
+                    cls._connected[key] = False
+        
+        lock = cls._locks[key]
+        async with lock:
+            if not cls._connected.get(key):
+                logger.info(f"Testing Qdrant connection for {host}:{port}...")
+                try:
+                    collections = client.get_collections()
+                    logger.info(f"Successfully connected to Qdrant. Found {len(collections.collections)} collections")
+                    cls._connected[key] = True
+                except Exception as e:
+                    logger.error(f"Failed to connect to Qdrant at {host}:{port}: {e}")
+                    cls._connected[key] = False
+                    raise
+            else:
+                logger.info(f"Connection to {host}:{port} already verified.")
+
+    @classmethod
+    def is_connected(cls, host: str, port: int, api_key: Optional[str]) -> bool:
+        key = f"{host}:{port}:{api_key}"
+        with cls._manager_lock:
+            return cls._connected.get(key, False)
+
+    @classmethod
+    def set_connected_status(cls, host: str, port: int, api_key: Optional[str], status: bool):
+        key = f"{host}:{port}:{api_key}"
+        with cls._manager_lock:
+            if key in cls._connected:
+                cls._connected[key] = status
 
 class QdrantRetriever(AbstractVectorRetriever):
     """Qdrant implementation of the AbstractVectorRetriever interface"""
@@ -65,19 +127,11 @@ class QdrantRetriever(AbstractVectorRetriever):
         return 'qdrant'
 
     async def initialize_client(self, test_connection: bool = False) -> None:
-        """Initialize the Qdrant client.
-        
-        Args:
-            test_connection: Whether to test the connection during initialization.
-                           Set to False during server startup to avoid blocking.
-        """
+        """Initialize the Qdrant client using the client manager."""
         try:
-            from qdrant_client import QdrantClient
-            
             logger.info(f"Initializing Qdrant client for {self.host}:{self.port} with timeout={self.timeout}")
             
-            # Initialize Qdrant client (this is fast, doesn't actually connect)
-            self.qdrant_client = QdrantClient(
+            self.qdrant_client = QdrantClientManager.get_client(
                 host=self.host,
                 port=self.port,
                 timeout=self.timeout,
@@ -87,29 +141,18 @@ class QdrantRetriever(AbstractVectorRetriever):
                 https=self.https
             )
             
-            logger.info(f"Qdrant client created successfully at {self.host}:{self.port}")
-            
-            # Only test connection if explicitly requested
             if test_connection:
-                try:
-                    logger.info("Testing Qdrant connection by fetching collections...")
-                    collections = self.qdrant_client.get_collections()
-                    logger.info(f"Successfully connected to Qdrant. Found {len(collections.collections)} collections")
-                except Exception as e:
-                    logger.error(f"Failed to connect to Qdrant: {str(e)}")
-                    raise
+                await QdrantClientManager.test_connection(self.qdrant_client, self.host, self.port, self.api_key)
                 
-                # Set collection if we have a collection name from config
                 if self.collection_name:
                     try:
                         await self.set_collection(self.collection_name)
                         logger.info(f"QdrantRetriever initialized with collection: {self.collection_name}")
                     except Exception as e:
                         logger.error(f"Failed to set collection during initialization: {str(e)}")
-                        # Don't raise here - let it be handled during actual usage
             else:
                 logger.info("Qdrant client initialized (connection will be tested on first use)")
-            
+
         except ImportError:
             error_msg = "qdrant-client package is required for Qdrant retriever. Install with: pip install qdrant-client"
             logger.error(error_msg)
@@ -123,8 +166,9 @@ class QdrantRetriever(AbstractVectorRetriever):
         """Close the Qdrant client."""
         try:
             # Qdrant client doesn't have an explicit close method
+            # We also don't want to close the shared client.
             self.qdrant_client = None
-            logger.info("Qdrant client closed")
+            logger.info("Qdrant client reference released")
         except Exception as e:
             logger.error(f"Error closing Qdrant client: {str(e)}")
     
@@ -134,13 +178,18 @@ class QdrantRetriever(AbstractVectorRetriever):
             await self.initialize_client(test_connection=True)
             return
         
-        # Test connection if we haven't done so yet
+        if not QdrantClientManager.is_connected(self.host, self.port, self.api_key):
+             logger.warning(f"Connection to {self.host}:{self.port} is not marked as active. Re-initializing.")
+             await self.initialize_client(test_connection=True)
+             return
+
         try:
             # Quick test - just get collections count
             collections = self.qdrant_client.get_collections()
             logger.debug(f"Connection verified - found {len(collections.collections)} collections")
         except Exception as e:
             logger.warning(f"Connection test failed: {str(e)}, reinitializing...")
+            QdrantClientManager.set_connected_status(self.host, self.port, self.api_key, False)
             await self.initialize_client(test_connection=True)
 
     async def set_collection(self, collection_name: str) -> None:
