@@ -4,17 +4,17 @@ Ollama moderator implementation using Gemma 3:12b with JSON-based moderation.
 
 import logging
 import asyncio
-import aiohttp
 import json
-import os
 from typing import Dict, Any, List, Optional
 
 from .base import ModeratorService, ModerationResult
+from utils.ollama_utils import OllamaBaseService
 
 # Configure logging
 logger = logging.getLogger(__name__)
 
-class OllamaModerator(ModeratorService):
+
+class OllamaModerator(ModeratorService, OllamaBaseService):
     """
     Implementation of the content moderation service using Ollama with Gemma 3:12b.
     """
@@ -26,35 +26,13 @@ class OllamaModerator(ModeratorService):
         Args:
             config: Configuration dictionary for Ollama
         """
-        super().__init__(config)
+        ModeratorService.__init__(self, config)
+        OllamaBaseService.__init__(self, config, 'moderators')
         
         # Get configuration from the moderators.ollama section
         ollama_config = config.get('moderators', {}).get('ollama', {})
         
-        self.base_url = ollama_config.get('base_url', 'http://localhost:11434')
-        self.model = ollama_config.get('model', 'gemma3:12b')  # Using Gemma 3 12b by default
         self.batch_size = ollama_config.get('batch_size', 1)
-        self.verbose = config.get('general', {}).get('verbose', False)  # Get verbose from general config
-        
-        # Initialize session
-        self.session = None
-        self._session_lock = asyncio.Lock()
-        self.initialized = False
-    
-    async def _get_session(self) -> aiohttp.ClientSession:
-        """
-        Get or create an aiohttp client session.
-        Uses a lock to prevent multiple session creations.
-        
-        Returns:
-            An aiohttp ClientSession
-        """
-        async with self._session_lock:
-            if self.session is None or self.session.closed:
-                connector = aiohttp.TCPConnector(limit=10, limit_per_host=5)
-                timeout = aiohttp.ClientTimeout(total=60, connect=30)
-                self.session = aiohttp.ClientSession(connector=connector, timeout=timeout)
-            return self.session
     
     async def initialize(self) -> bool:
         """
@@ -64,13 +42,13 @@ class OllamaModerator(ModeratorService):
             True if initialization was successful, False otherwise
         """
         try:
-            # Check if the connection works
-            if await self.verify_connection():
-                if self.verbose:
-                    logger.info(f"✅ Initialized Ollama moderation service with model {self.model}")
-                self.initialized = True
-                return True
-            return False
+            # Use base class initialization with chat endpoint
+            success = await OllamaBaseService.initialize(self, warmup_endpoint='chat')
+            
+            if success and self.config.verbose:
+                logger.info(f"✅ Initialized Ollama moderation service with model {self.config.model}")
+            
+            return success
         except Exception as e:
             logger.error(f"❌ Failed to initialize Ollama moderation service: {str(e)}")
             return False
@@ -89,11 +67,8 @@ class OllamaModerator(ModeratorService):
             if not self.initialized:
                 await self.initialize()
             
-            if self.verbose:
-                logger.info(f"🔍 Moderating content with {self.model}: {content[:50]}...")
-            
-            # Get a session
-            session = await self._get_session()
+            if self.config.verbose:
+                logger.info(f"🔍 Moderating content with {self.config.model}: {content[:50]}...")
             
             # System prompt for JSON-based moderation (similar to Anthropic approach)
             system_prompt = """
@@ -117,136 +92,143 @@ class OllamaModerator(ModeratorService):
             No other text or explanations.
             """
             
-            # Send the request to Ollama
-            async with session.post(
-                f"{self.base_url}/api/chat",
-                json={
-                    "model": self.model,
-                    "messages": [
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_message}
-                    ],
-                    "stream": False,
-                    "temperature": 0.0,  # Using 0 temperature for consistency
-                    "max_tokens": 100  # Limit response length to ensure we get complete JSON
-                }
-            ) as response:
-                if response.status != 200:
-                    error_text = await response.text()
-                    logger.error(f"❌ Ollama API error: {error_text}")
-                    return ModerationResult(
-                        is_flagged=True,
-                        categories={},
-                        provider="ollama",
-                        model=self.model,
-                        error=f"API error: {error_text}"
-                    )
+            async def _moderate():
+                # Get a session
+                session = await self.session_manager.get_session()
                 
-                data = await response.json()
-            
-            # Extract the response
-            response_text = data.get("message", {}).get("content", "").strip()
-            
-            # Try to fix common JSON parsing issues
-            if response_text.startswith("```json"):
-                response_text = response_text.replace("```json", "", 1)
-            if response_text.endswith("```"):
-                response_text = response_text.replace("```", "", 1)
-            response_text = response_text.strip()
-            
-            # Clean up the response text - remove newlines and extra whitespace
-            response_text = ' '.join(response_text.split())
-            
-            # Handle incomplete JSON responses more intelligently
-            if not response_text.endswith("}"):
-                logger.warning(f"⚠️ Received incomplete JSON from Ollama: {response_text}")
-                
-                # Try to interpret partial responses
-                response_lower = response_text.lower()
-                
-                # If the model says "unsafe" or similar, treat as unsafe (check this first)
-                if any(word in response_lower for word in ["unsafe", "bad", "harmful", "dangerous", "inappropriate", "block"]):
-                    logger.info(f"🔍 Interpreting partial response '{response_text}' as unsafe")
-                    return ModerationResult(
-                        is_flagged=True,
-                        categories={"interpreted": 0.8},
-                        provider="ollama",
-                        model=self.model,
-                        error=f"Partial response interpreted: {response_text}"
-                    )
-                
-                # If the model just says "safe" or similar, treat as safe
-                if any(word in response_lower for word in ["safe", "ok", "good", "fine", "acceptable", "pass"]):
-                    logger.info(f"🔍 Interpreting partial response '{response_text}' as safe")
-                    return ModerationResult(
-                        is_flagged=False,
-                        categories={"interpreted": 0.5},
-                        provider="ollama",
-                        model=self.model,
-                        error=f"Partial response interpreted: {response_text}"
-                    )
-                
-                # Default to flagging the content when we get invalid JSON
-                return ModerationResult(
-                    is_flagged=True,
-                    categories={"error": 1.0},
-                    provider="ollama",
-                    model=self.model,
-                    error=f"Invalid JSON response: {response_text}"
-                )
-            
-            # Parse the JSON response
-            try:
-                result = json.loads(response_text)
-                
-                # Check for required fields
-                if "is_flagged" not in result:
-                    logger.warning(f"⚠️ Ollama response missing 'is_flagged' field: {response_text}")
-                    result["is_flagged"] = True  # Default to flagged if missing
-                
-                if "categories" not in result:
-                    logger.warning(f"⚠️ Ollama response missing 'categories' field: {response_text}")
-                    result["categories"] = {}
-                
-                is_flagged = result["is_flagged"]
-                categories = result["categories"]
-                
-                # Only log high confidence categories in verbose mode
-                if self.verbose:
-                    # Log high confidence categories
-                    high_confidence_categories = {k: v for k, v in categories.items() if v > 0.5}
-                    if high_confidence_categories:
-                        logger.info(f"⚠️ Content flagged for: {high_confidence_categories}")
+                # Send the request to Ollama
+                async with session.post(
+                    f"{self.config.base_url}/api/chat",
+                    json={
+                        "model": self.config.model,
+                        "messages": [
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": user_message}
+                        ],
+                        "stream": False,
+                        "temperature": 0.0,  # Using 0 temperature for consistency
+                        "max_tokens": 100  # Limit response length to ensure we get complete JSON
+                    }
+                ) as response:
+                    if response.status != 200:
+                        error_text = await response.text()
+                        logger.error(f"❌ Ollama API error: {error_text}")
+                        return ModerationResult(
+                            is_flagged=True,
+                            categories={},
+                            provider="ollama",
+                            model=self.config.model,
+                            error=f"API error: {error_text}"
+                        )
                     
-                    if is_flagged:
-                        logger.info(f"🛑 Ollama flagged content as unsafe")
-                    else:
-                        logger.info(f"✅ Ollama determined content is safe")
+                    data = await response.json()
                 
-                return ModerationResult(
-                    is_flagged=is_flagged,
-                    categories=categories,
-                    provider="ollama",
-                    model=self.model
-                )
-            except json.JSONDecodeError as json_error:
-                logger.error(f"❌ Failed to parse Ollama response as JSON: {response_text}")
-                logger.error(f"JSON error: {str(json_error)}")
-                # If we can't parse the response, default to flagging the content
-                return ModerationResult(
-                    is_flagged=True,
-                    categories={"parse_error": 1.0},
-                    provider="ollama",
-                    model=self.model,
-                    error=f"Failed to parse response: {response_text}"
-                )
+                # Extract the response
+                response_text = data.get("message", {}).get("content", "").strip()
+                
+                # Try to fix common JSON parsing issues
+                if response_text.startswith("```json"):
+                    response_text = response_text.replace("```json", "", 1)
+                if response_text.endswith("```"):
+                    response_text = response_text.replace("```", "", 1)
+                response_text = response_text.strip()
+                
+                # Clean up the response text - remove newlines and extra whitespace
+                response_text = ' '.join(response_text.split())
+                
+                # Handle incomplete JSON responses more intelligently
+                if not response_text.endswith("}"):
+                    logger.warning(f"⚠️ Received incomplete JSON from Ollama: {response_text}")
+                    
+                    # Try to interpret partial responses
+                    response_lower = response_text.lower()
+                    
+                    # If the model says "unsafe" or similar, treat as unsafe (check this first)
+                    if any(word in response_lower for word in ["unsafe", "bad", "harmful", "dangerous", "inappropriate", "block"]):
+                        logger.info(f"🔍 Interpreting partial response '{response_text}' as unsafe")
+                        return ModerationResult(
+                            is_flagged=True,
+                            categories={"interpreted": 0.8},
+                            provider="ollama",
+                            model=self.config.model,
+                            error=f"Partial response interpreted: {response_text}"
+                        )
+                    
+                    # If the model just says "safe" or similar, treat as safe
+                    if any(word in response_lower for word in ["safe", "ok", "good", "fine", "acceptable", "pass"]):
+                        logger.info(f"🔍 Interpreting partial response '{response_text}' as safe")
+                        return ModerationResult(
+                            is_flagged=False,
+                            categories={"interpreted": 0.5},
+                            provider="ollama",
+                            model=self.config.model,
+                            error=f"Partial response interpreted: {response_text}"
+                        )
+                    
+                    # Default to flagging the content when we get invalid JSON
+                    return ModerationResult(
+                        is_flagged=True,
+                        categories={"error": 1.0},
+                        provider="ollama",
+                        model=self.config.model,
+                        error=f"Invalid JSON response: {response_text}"
+                    )
+                
+                # Parse the JSON response
+                try:
+                    result = json.loads(response_text)
+                    
+                    # Check for required fields
+                    if "is_flagged" not in result:
+                        logger.warning(f"⚠️ Ollama response missing 'is_flagged' field: {response_text}")
+                        result["is_flagged"] = True  # Default to flagged if missing
+                    
+                    if "categories" not in result:
+                        logger.warning(f"⚠️ Ollama response missing 'categories' field: {response_text}")
+                        result["categories"] = {}
+                    
+                    is_flagged = result["is_flagged"]
+                    categories = result["categories"]
+                    
+                    # Only log high confidence categories in verbose mode
+                    if self.config.verbose:
+                        # Log high confidence categories
+                        high_confidence_categories = {k: v for k, v in categories.items() if v > 0.5}
+                        if high_confidence_categories:
+                            logger.info(f"⚠️ Content flagged for: {high_confidence_categories}")
+                        
+                        if is_flagged:
+                            logger.info(f"🛑 Ollama flagged content as unsafe")
+                        else:
+                            logger.info(f"✅ Ollama determined content is safe")
+                    
+                    return ModerationResult(
+                        is_flagged=is_flagged,
+                        categories=categories,
+                        provider="ollama",
+                        model=self.config.model
+                    )
+                except json.JSONDecodeError as json_error:
+                    logger.error(f"❌ Failed to parse Ollama response as JSON: {response_text}")
+                    logger.error(f"JSON error: {str(json_error)}")
+                    # If we can't parse the response, default to flagging the content
+                    return ModerationResult(
+                        is_flagged=True,
+                        categories={"parse_error": 1.0},
+                        provider="ollama",
+                        model=self.config.model,
+                        error=f"Failed to parse response: {response_text}"
+                    )
+            
+            # Execute with retry logic
+            return await self.retry_handler.execute_with_retry(_moderate)
                 
         except Exception as e:
             logger.error(f"❌ Error in Ollama moderation: {str(e)}")
             return ModerationResult(
                 is_flagged=True,  # Default to blocking on error
                 provider="ollama",
-                model=self.model,
+                model=self.config.model,
                 error=f"Request error: {str(e)}"
             )
     
@@ -278,64 +260,58 @@ class OllamaModerator(ModeratorService):
         Returns:
             True if the connection is working, False otherwise
         """
+        # First use the base verifier
+        if not await self.connection_verifier.verify_connection():
+            logger.warning(f"⚠️ Model {self.config.model} not found in Ollama")
+            logger.warning(f"⚠️ Please pull the model with: ollama pull {self.config.model}")
+            return False
+        
+        # Test with a simple moderation request
         try:
-            session = await self._get_session()
-            
-            # First check if the API is up
-            async with session.get(f"{self.base_url}/api/tags") as response:
-                if response.status != 200:
-                    logger.error(f"❌ Failed to connect to Ollama API: {response.status}")
-                    return False
+            async def _test_moderation():
+                session = await self.session_manager.get_session()
                 
-                # Check if model is available
-                data = await response.json()
-                models = [model.get('name') for model in data.get('models', [])]
+                system_prompt = """
+                You are a content moderation system. Analyze the content and determine if it violates any safety policies.
+                You must respond with ONLY a valid, complete JSON object in this exact format:
+                {"is_flagged": false, "categories": {"hate": 0.01, "harassment": 0.01, "sexual": 0.01, "violence": 0.01}}
                 
-                if not any(m == self.model or m.split(':')[0] == self.model for m in models):
-                    logger.warning(f"⚠️ Model {self.model} not found in Ollama. Available models: {models}")
-                    logger.warning(f"⚠️ Please pull the model with: ollama pull {self.model}")
-                    return False
-            
-            # Test with a simple moderation request
-            system_prompt = """
-            You are a content moderation system. Analyze the content and determine if it violates any safety policies.
-            You must respond with ONLY a valid, complete JSON object in this exact format:
-            {"is_flagged": false, "categories": {"hate": 0.01, "harassment": 0.01, "sexual": 0.01, "violence": 0.01}}
-            
-            IMPORTANT: You must respond with ONLY the JSON object. No other text, no explanations, no markdown formatting.
-            """
-            
-            test_message = """
-            Analyze this content for safety violations: "What is the capital of France?"
-            
-            Respond with ONLY a valid JSON object in this format:
-            {"is_flagged": false, "categories": {"hate": 0.01, "harassment": 0.01, "sexual": 0.01, "violence": 0.01}}
-            
-            No other text or explanations.
-            """
-            
-            async with session.post(
-                f"{self.base_url}/api/chat",
-                json={
-                    "model": self.model,
-                    "messages": [
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": test_message}
-                    ],
-                    "stream": False,
-                    "temperature": 0.0,
-                    "max_tokens": 50
-                }
-            ) as response:
-                if response.status != 200:
-                    logger.error(f"❌ Failed to test moderation: {response.status}")
-                    return False
+                IMPORTANT: You must respond with ONLY the JSON object. No other text, no explanations, no markdown formatting.
+                """
                 
-                # Successfully connected
-                if self.verbose:
-                    logger.info(f"✅ Connection to Ollama verified with model {self.model}")
-                return True
+                test_message = """
+                Analyze this content for safety violations: "What is the capital of France?"
                 
+                Respond with ONLY a valid JSON object in this format:
+                {"is_flagged": false, "categories": {"hate": 0.01, "harassment": 0.01, "sexual": 0.01, "violence": 0.01}}
+                
+                No other text or explanations.
+                """
+                
+                async with session.post(
+                    f"{self.config.base_url}/api/chat",
+                    json={
+                        "model": self.config.model,
+                        "messages": [
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": test_message}
+                        ],
+                        "stream": False,
+                        "temperature": 0.0,
+                        "max_tokens": 50
+                    }
+                ) as response:
+                    if response.status != 200:
+                        logger.error(f"❌ Failed to test moderation: {response.status}")
+                        return False
+                    
+                    # Successfully connected
+                    if self.config.verbose:
+                        logger.info(f"✅ Connection to Ollama verified with model {self.config.model}")
+                    return True
+            
+            return await self.retry_handler.execute_with_retry(_test_moderation)
+            
         except Exception as e:
             logger.error(f"❌ Error verifying connection to Ollama: {str(e)}")
             return False
@@ -344,13 +320,4 @@ class OllamaModerator(ModeratorService):
         """
         Close the moderation service and release any resources.
         """
-        try:
-            if self.session and not self.session.closed:
-                await self.session.close()
-                if self.verbose:
-                    logger.info("Closed Ollama session")
-        except Exception as e:
-            logger.error(f"❌ Error closing Ollama session: {str(e)}")
-        finally:
-            self.session = None
-            self.initialized = False
+        await OllamaBaseService.close(self)

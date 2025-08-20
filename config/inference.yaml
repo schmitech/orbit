@@ -10,6 +10,18 @@ inference:
     num_threads: 8
     model: "gemma3:1b"
     stream: true
+    # Retry configuration for handling cold starts
+    retry:
+      enabled: true
+      max_retries: 5
+      initial_wait_ms: 2000  # Start with 2 seconds
+      max_wait_ms: 30000     # Max 30 seconds per retry
+      exponential_base: 2    # Exponential backoff multiplier
+    # Timeout configuration
+    timeout:
+      connect: 10000         # 10 seconds for connection
+      total: 120000          # 2 minutes total timeout
+      warmup: 60000          # 1 minute for initial warmup
   vllm:
     host: "localhost"
     port: 8000
