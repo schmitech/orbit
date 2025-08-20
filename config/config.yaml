@@ -106,6 +106,11 @@ logging:
     metal:
       level: "ERROR"
 
+clock_service:
+  enabled: false
+  default_timezone: "America/Toronto"
+  format: "%A, %B %d, %Y at %I:%M:%S %p %Z"
+
 internal_services:
   elasticsearch:
     enabled: false

@@ -6,7 +6,7 @@ inference:
     top_k: 20
     repeat_penalty: 1.1
     num_predict: 1024
-    num_ctx: 8192
+    num_ctx: 2048
     num_threads: 8
     model: "gemma3:1b"
     stream: true
@@ -17,19 +17,19 @@ inference:
     temperature: 0.1
     top_p: 0.8
     top_k: 20
-    max_tokens: 1024
+    max_tokens: 2048
     stream: true
   llama_cpp:
     model_path: "models/gemma-3-270m-it-Q8_0.gguf"
     chat_format: "gemma"  # Chat format to use (chatml, llama-2, gemma, etc.)
     verbose: false
-    temperature: 0.1
-    top_p: 0.8
-    top_k: 20
+    temperature: 1.0
+    top_p: 0.95
+    top_k: 64
     max_tokens: 1024
-    repeat_penalty: 1.1
-    n_ctx: 1024
-    n_threads: 4
+    repeat_penalty: 1.2
+    n_ctx: 2048
+    n_threads: 8
     stream: true
     n_gpu_layers: 0  # For GPU/Metal support
     main_gpu: 0
@@ -93,7 +93,7 @@ inference:
     model: "gpt-5-nano"
     temperature: 1
     top_p: 0.8
-    max_tokens: 1024
+    max_tokens: 2048
     stream: true
   mistral:
     api_key: ${MISTRAL_API_KEY}

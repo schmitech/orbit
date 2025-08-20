@@ -250,9 +250,14 @@ def send_streaming_request(url: str, api_key: Optional[str], message: str, sessi
     except Exception as e:
         print(f"Request failed: {str(e)}")
 
+
 def send_tools_request(url: str, api_key: Optional[str], session_id: str) -> None:
     """
     Send a tools request using JSON-RPC format.
+
+    NOTE: The current server implementation only supports the 'chat' tool and will
+    return an error for this request. This function demonstrates the expected
+    client behavior for a generic tool call.
     
     Args:
         url: The server URL
@@ -269,12 +274,6 @@ def send_tools_request(url: str, api_key: Optional[str], session_id: str) -> Non
             "parameters": {
                 "location": "San Francisco",
                 "unit": "celsius"
-            }
-        },
-        {
-            "name": "calculator",
-            "parameters": {
-                "expression": "2 + 2"
             }
         }
     ]
@@ -308,26 +307,18 @@ def send_tools_request(url: str, api_key: Optional[str], session_id: str) -> Non
             response_data = response.json()
             
             # Print response info
-            print(f"Response received in {end_time - start_time:.2f} seconds:")
+            print(f"\nResponse received in {end_time - start_time:.2f} seconds:")
             print(f"JSON-RPC: {response_data.get('jsonrpc')}")
             print(f"ID: {response_data.get('id')}")
             
-            # Handle MCP format tool results
             if "result" in response_data:
-                if "output" in response_data["result"] and "tools" in response_data["result"]["output"]:
-                    print("\nTool results:")
-                    for result in response_data["result"]["output"]["tools"]:
-                        print(f"- Tool: {result.get('name')}")
-                        print(f"  Status: {result.get('status', 'completed')}")
-                        print(f"  Result: {result.get('output')}")
-                # Handle legacy format
-                elif "tool_results" in response_data["result"]:
-                    print("\nTool results:")
-                    for result in response_data["result"]["tool_results"]:
-                        print(f"- Tool: {result.get('tool_name')}")
-                        print(f"  Status: {result.get('status')}")
-                        print(f"  Result: {result.get('result')}")
-            
+                print("\nTool results:")
+                print(json.dumps(response_data["result"], indent=2))
+
+            elif "error" in response_data:
+                print(f"\nError: {response_data['error'].get('code')} - {response_data['error'].get('message')}")
+                print("(This is expected as the server currently only supports the 'chat' tool)")
+
             # Print full JSON response
             print("\nFull JSON response:")
             print(json.dumps(response_data, indent=2))
@@ -355,6 +346,16 @@ def main():
                        help="Session ID to use (default: generates a new UUID). Can be any non-empty string.")
     
     args = parser.parse_args()
+
+    # Validate and fix URL
+    url = args.url
+    if not url.endswith("/v1/chat"):
+        if url.endswith("/"):
+            url = f"{url}v1/chat"
+        else:
+            url = f"{url}/v1/chat"
+        print(f"[Info] URL adjusted to: {url}")
+
     
     # Generate or use provided session ID
     session_id = args.session_id if args.session_id else str(uuid.uuid4())
@@ -362,7 +363,7 @@ def main():
     # Print configuration
     print("MCP Protocol Client Test")
     print("=======================")
-    print(f"Server URL: {args.url}")
+    print(f"Server URL: {url}")
     if args.api_key:
         print(f"API key: {args.api_key[:4]}...{args.api_key[-4:]}")
     else:
@@ -372,16 +373,16 @@ def main():
     
     if args.tools:
         print("Request type: Tools")
-        send_tools_request(args.url, args.api_key, session_id)
+        send_tools_request(url, args.api_key, session_id)
     else:
         print(f"Request type: {'Streaming' if args.stream else 'Non-streaming'}")
         print(f"Message: {args.message}")
         
         # Send request
         if args.stream:
-            send_streaming_request(args.url, args.api_key, args.message, session_id)
+            send_streaming_request(url, args.api_key, args.message, session_id)
         else:
-            send_non_streaming_request(args.url, args.api_key, args.message, session_id)
+            send_non_streaming_request(url, args.api_key, args.message, session_id)
 
 if __name__ == "__main__":
     main()
