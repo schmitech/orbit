@@ -25,7 +25,11 @@ class OllamaEmbeddingService(EmbeddingService, OllamaBaseService):
         OllamaBaseService.__init__(self, config, 'embeddings')
         
         # Get dimensions from config, or set to None to determine dynamically
-        self.dimensions = config.get('dimensions')
+        self.dimensions = self.config.dimensions
+        
+        # Debug logging for configuration (only in verbose mode)
+        if self.config.verbose:
+            self.logger.info(f"Ollama Embedding Config - Model: {self.config.model}, Dimensions: {self.dimensions}, Base URL: {self.config.base_url}")
     
     async def initialize(self) -> bool:
         """
@@ -38,12 +42,47 @@ class OllamaEmbeddingService(EmbeddingService, OllamaBaseService):
         success = await OllamaBaseService.initialize(self, warmup_endpoint='embeddings')
         
         if success:
-            # Determine the dimensionality of the model
+            # Test what dimensions the model actually produces
+            await self._check_actual_dimensions()
+            
+            # Report the final dimensions (after any resizing)
             dimensions = await self.get_dimensions()
-            self.dimensions = dimensions
-            self.logger.info(f"Initialized Ollama embedding service with model {self.config.model} ({dimensions} dimensions)")
+            self.logger.info(f"Initialized Ollama embedding service with model {self.config.model}")
+            self.logger.info(f"Output dimensions: {dimensions} (configured: {self.config.dimensions})")
         
         return success
+    
+    async def _check_actual_dimensions(self) -> None:
+        """Check what dimensions the model actually produces."""
+        # Skip if we've already checked
+        if hasattr(self, '_actual_dims_checked'):
+            return
+            
+        try:
+            session = await self.session_manager.get_session()
+            url = f"{self.config.base_url}/api/embeddings"
+            payload = {
+                "model": self.config.model,
+                "prompt": "test"
+            }
+            
+            async with session.post(url, json=payload) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    embedding = data.get('embedding', [])
+                    actual_dims = len(embedding)
+                    
+                    if self.config.dimensions and actual_dims != self.config.dimensions:
+                        self.logger.warning(
+                            f"Model {self.config.model} produces {actual_dims}-dimensional embeddings, "
+                            f"but config specifies {self.config.dimensions}. Embeddings will be resized."
+                        )
+                    else:
+                        self.logger.info(f"Model {self.config.model} produces {actual_dims}-dimensional embeddings")
+                    
+                    self._actual_dims_checked = True
+        except Exception as e:
+            self.logger.error(f"Error checking actual dimensions: {str(e)}")
     
     async def embed_query(self, text: str) -> List[float]:
         """
@@ -68,6 +107,13 @@ class OllamaEmbeddingService(EmbeddingService, OllamaBaseService):
                 "prompt": text
             }
             
+            # Try to set dimensions if configured (some models support this)
+            if self.config.dimensions:
+                payload["options"] = {
+                    "num_ctx": self.config.dimensions,
+                    "embedding_size": self.config.dimensions
+                }
+            
             self.logger.debug(f"Sending embedding request to {url} for text: {text[:50]}...")
             
             async with session.post(url, json=payload) as response:
@@ -83,6 +129,19 @@ class OllamaEmbeddingService(EmbeddingService, OllamaBaseService):
                 if not embedding or not isinstance(embedding, list) or len(embedding) == 0:
                     self.logger.error(f"Received invalid embedding from Ollama: {embedding}")
                     raise ValueError(f"Received invalid embedding from Ollama")
+                
+                # Check if actual dimensions match configured dimensions
+                actual_dims = len(embedding)
+                if self.config.dimensions and actual_dims != self.config.dimensions:
+                    self.logger.warning(
+                        f"Dimension mismatch: Model {self.config.model} returned {actual_dims} dimensions, "
+                        f"but config specifies {self.config.dimensions}."
+                    )
+                    
+                    # Option to resize embeddings to match expected dimensions
+                    if self.config.dimensions:
+                        embedding = self._resize_embedding(embedding, self.config.dimensions)
+                        self.logger.info(f"Resized embedding from {actual_dims} to {self.config.dimensions} dimensions")
                     
                 self.logger.debug(f"Successfully generated embedding with {len(embedding)} dimensions")
                 return embedding
@@ -97,6 +156,7 @@ class OllamaEmbeddingService(EmbeddingService, OllamaBaseService):
     async def embed_documents(self, texts: List[str]) -> List[List[float]]:
         """
         Generate embeddings for multiple documents with retry logic.
+        Processes documents in parallel batches for better performance.
         
         Args:
             texts: A list of document texts to embed
@@ -108,12 +168,55 @@ class OllamaEmbeddingService(EmbeddingService, OllamaBaseService):
             if not await self.initialize():
                 raise ValueError("Failed to initialize embedding service")
         
-        embeddings = []
-        for text in texts:
-            embedding = await self.embed_query(text)
-            embeddings.append(embedding)
+        if not texts:
+            return []
         
-        return embeddings
+        # Process in parallel batches for better performance
+        import asyncio
+        batch_size = 5  # Process 5 texts at a time to avoid overwhelming Ollama
+        all_embeddings = []
+        
+        for i in range(0, len(texts), batch_size):
+            batch = texts[i:i + batch_size]
+            
+            # Create tasks for parallel processing
+            tasks = [self.embed_query(text) for text in batch]
+            
+            # Wait for all tasks in this batch to complete
+            try:
+                batch_embeddings = await asyncio.gather(*tasks, return_exceptions=True)
+                
+                # Handle any exceptions in the batch
+                for j, result in enumerate(batch_embeddings):
+                    if isinstance(result, Exception):
+                        self.logger.error(f"Failed to embed document {i+j}: {result}")
+                        # Retry individually for failed embeddings
+                        try:
+                            result = await self.embed_query(batch[j])
+                        except Exception as e:
+                            self.logger.error(f"Retry failed for document {i+j}: {e}")
+                            # Use empty embedding as fallback
+                            result = [0.0] * (self.dimensions or 768)
+                    
+                    all_embeddings.append(result)
+                
+                # Log progress for large batches
+                if len(texts) > 20 and (i + batch_size) % 20 == 0:
+                    self.logger.debug(f"Processed {min(i + batch_size, len(texts))}/{len(texts)} documents")
+                    
+            except Exception as e:
+                self.logger.error(f"Batch processing failed, falling back to sequential: {e}")
+                # Fall back to sequential processing for this batch
+                for text in batch:
+                    try:
+                        embedding = await self.embed_query(text)
+                        all_embeddings.append(embedding)
+                    except Exception as e:
+                        self.logger.error(f"Failed to embed document: {e}")
+                        # Use empty embedding as fallback
+                        all_embeddings.append([0.0] * (self.dimensions or 768))
+        
+        return all_embeddings
     
     async def get_dimensions(self) -> int:
         """
@@ -123,7 +226,9 @@ class OllamaEmbeddingService(EmbeddingService, OllamaBaseService):
             The number of dimensions in the embedding vectors
         """
         # If dimensions are specified in config, use that value
+        # This will be the output dimensions after any resizing
         if self.dimensions:
+            self.logger.debug(f"Using configured dimensions: {self.dimensions}")
             return self.dimensions
         
         # Create a test embedding to determine dimensions
@@ -139,21 +244,30 @@ class OllamaEmbeddingService(EmbeddingService, OllamaBaseService):
                 if response.status != 200:
                     error_text = await response.text()
                     self.logger.error(f"Error from Ollama: {error_text}")
-                    # Default fallback dimensions
-                    self.dimensions = 768
+                    # Use configured dimensions as fallback if available, otherwise default to 768
+                    fallback_dimensions = self.config.dimensions if self.config.dimensions else 768
+                    self.dimensions = fallback_dimensions
+                    self.logger.warning(f"Using fallback dimensions: {fallback_dimensions}")
                     return self.dimensions
                 
                 data = await response.json()
                 embedding = data.get('embedding', [])
-                self.dimensions = len(embedding)
+                actual_dimensions = len(embedding)
+                # Only log if we haven't logged this before
+                if not hasattr(self, '_dims_logged'):
+                    self.logger.debug(f"Model {self.config.model} returned {actual_dimensions} dimensions")
+                    self._dims_logged = True
+                self.dimensions = actual_dimensions
                 return self.dimensions
         
         try:
             return await self.retry_handler.execute_with_retry(_get_dims)
         except Exception as e:
             self.logger.error(f"Failed to determine embedding dimensions: {str(e)}")
-            # Default fallback dimensions
-            self.dimensions = 768
+            # Use configured dimensions as fallback if available, otherwise default to 768
+            fallback_dimensions = self.config.dimensions if self.config.dimensions else 768
+            self.dimensions = fallback_dimensions
+            self.logger.warning(f"Using fallback dimensions after exception: {fallback_dimensions}")
             return self.dimensions
     
     async def verify_connection(self) -> bool:
@@ -200,6 +314,32 @@ class OllamaEmbeddingService(EmbeddingService, OllamaBaseService):
                 return False
         
         return True
+    
+    def _resize_embedding(self, embedding: List[float], target_size: int) -> List[float]:
+        """
+        Resize an embedding vector to match the target dimensions.
+        
+        Args:
+            embedding: The original embedding vector
+            target_size: The target number of dimensions
+            
+        Returns:
+            Resized embedding vector
+        """
+        current_size = len(embedding)
+        
+        if current_size == target_size:
+            return embedding
+        elif current_size > target_size:
+            # Truncate: Take first target_size dimensions
+            self.logger.debug(f"Truncating embedding from {current_size} to {target_size} dimensions")
+            return embedding[:target_size]
+        else:
+            # Pad: Add zeros to reach target size
+            self.logger.debug(f"Padding embedding from {current_size} to {target_size} dimensions")
+            padded = embedding.copy()
+            padded.extend([0.0] * (target_size - current_size))
+            return padded
     
     async def close(self) -> None:
         """

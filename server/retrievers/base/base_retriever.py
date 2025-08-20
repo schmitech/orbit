@@ -61,6 +61,9 @@ class BaseRetriever(ABC):
             
         self.config = config
         
+        # Initialize logger for this instance
+        self.logger = logging.getLogger(self.__class__.__name__)
+        
         # Use provided datasource config or get it from the config
         self.datasource_config = datasource_config or self._get_datasource_config()
         
@@ -303,7 +306,11 @@ class VectorDBRetriever(BaseRetriever):
             from embeddings.base import EmbeddingServiceFactory
             self.embeddings = EmbeddingServiceFactory.create_embedding_service(
                 self.config, embedding_provider)
-            await self.embeddings.initialize()
+            # Only initialize if not already initialized (singleton may be pre-initialized)
+            if not self.embeddings.initialized:
+                await self.embeddings.initialize()
+            else:
+                self.logger.debug(f"Embedding service already initialized, skipping initialization")
             self.using_new_embedding_service = True
         else:
             # Fall back to legacy Ollama embeddings

@@ -18,8 +18,20 @@ embeddings:
     embed_type: "llama_embedding"
   ollama:
     base_url: "http://localhost:11434"
-    model: "bge-m3"
-    dimensions: 1024
+    model: "nomic-embed-text"
+    dimensions: 768
+    # Retry configuration for handling cold starts
+    retry:
+      enabled: true
+      max_retries: 5
+      initial_wait_ms: 2000  # Start with 2 seconds
+      max_wait_ms: 30000     # Max 30 seconds per retry
+      exponential_base: 2    # Exponential backoff multiplier
+    # Timeout configuration
+    timeout:
+      connect: 10000         # 10 seconds for connection
+      total: 60000           # 1 minute total timeout
+      warmup: 45000          # 45 seconds for initial warmup
   jina:
     api_key: ${JINA_API_KEY}
     base_url: "https://api.jina.ai/v1"

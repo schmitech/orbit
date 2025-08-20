@@ -160,8 +160,8 @@ class EmbeddingServiceFactory:
         # Import the appropriate embedding service
         if provider_name == 'ollama':
             from embeddings.ollama import OllamaEmbeddingService
-            provider_config = config.get('embeddings', {}).get('ollama', {})
-            return OllamaEmbeddingService(provider_config)
+            # Pass the full config so the service has all context
+            return OllamaEmbeddingService(config)
         elif provider_name == 'openai':
             from embeddings.openai import OpenAIEmbeddingService
             provider_config = config.get('embeddings', {}).get('openai', {})

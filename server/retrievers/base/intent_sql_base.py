@@ -121,8 +121,12 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
             else:
                 self.embedding_client = EmbeddingServiceFactory.create_embedding_service(self.config)
             
-            await self.embedding_client.initialize()
-            logger.info(f"Successfully initialized {embedding_provider} embedding provider")
+            # Only initialize if not already initialized (singleton may be pre-initialized)
+            if not self.embedding_client.initialized:
+                await self.embedding_client.initialize()
+                logger.info(f"Successfully initialized {embedding_provider} embedding provider")
+            else:
+                logger.debug(f"Embedding service already initialized, skipping initialization")
             
         except Exception as e:
             logger.warning(f"Failed to initialize {embedding_provider}: {e}")
@@ -130,8 +134,12 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
             
             try:
                 self.embedding_client = EmbeddingServiceFactory.create_embedding_service(self.config, 'ollama')
-                await self.embedding_client.initialize()
-                logger.info("Successfully initialized Ollama fallback embedding provider")
+                # Only initialize if not already initialized (singleton may be pre-initialized)
+                if not self.embedding_client.initialized:
+                    await self.embedding_client.initialize()
+                    logger.info("Successfully initialized Ollama fallback embedding provider")
+                else:
+                    logger.debug(f"Ollama embedding service already initialized, skipping initialization")
             except Exception as fallback_error:
                 logger.error(f"Failed to initialize fallback embedding provider: {fallback_error}")
                 raise Exception("Unable to initialize any embedding provider")
@@ -221,6 +229,10 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
             documents = []
             metadatas = []
             
+            # Collect all valid templates and their texts first
+            valid_templates = []
+            embedding_texts = []
+            
             for template in templates:
                 if not isinstance(template, dict):
                     continue
@@ -230,18 +242,66 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
                     continue
                 
                 embedding_text = self._create_embedding_text(template)
-                
+                valid_templates.append(template)
+                embedding_texts.append(embedding_text)
+            
+            # Use batch embedding if available, otherwise process in smaller batches
+            if embedding_texts:
                 try:
-                    embedding = await self.embedding_client.embed_query(embedding_text)
+                    # Try to use batch embedding if the service supports it
+                    if hasattr(self.embedding_client, 'embed_documents'):
+                        logger.info(f"Using batch embedding for {len(embedding_texts)} templates")
+                        batch_embeddings = await self.embedding_client.embed_documents(embedding_texts)
+                        
+                        for template, embedding_text, embedding in zip(valid_templates, embedding_texts, batch_embeddings):
+                            if embedding:
+                                ids.append(template.get('id'))
+                                embeddings.append(embedding)
+                                documents.append(embedding_text)
+                                metadatas.append(self._create_template_metadata(template))
+                    else:
+                        # Fall back to individual embedding with parallel processing
+                        logger.info(f"Processing {len(embedding_texts)} templates individually")
+                        import asyncio
+                        
+                        # Process in batches of 5 to avoid overwhelming the service
+                        batch_size = 5
+                        for i in range(0, len(valid_templates), batch_size):
+                            batch_templates = valid_templates[i:i+batch_size]
+                            batch_texts = embedding_texts[i:i+batch_size]
+                            
+                            # Create tasks for parallel processing
+                            tasks = [self.embedding_client.embed_query(text) for text in batch_texts]
+                            batch_results = await asyncio.gather(*tasks, return_exceptions=True)
+                            
+                            for template, embedding_text, result in zip(batch_templates, batch_texts, batch_results):
+                                if isinstance(result, Exception):
+                                    logger.error(f"Failed to get embedding for template {template.get('id')}: {result}")
+                                    continue
+                                if result:
+                                    ids.append(template.get('id'))
+                                    embeddings.append(result)
+                                    documents.append(embedding_text)
+                                    metadatas.append(self._create_template_metadata(template))
+                            
+                            # Log progress for long operations
+                            if len(valid_templates) > 20 and (i + batch_size) % 20 == 0:
+                                logger.info(f"Processed {min(i + batch_size, len(valid_templates))}/{len(valid_templates)} templates")
                     
-                    if embedding:
-                        ids.append(template_id)
-                        embeddings.append(embedding)
-                        documents.append(embedding_text)
-                        metadatas.append(self._create_template_metadata(template))
                 except Exception as e:
-                    logger.error(f"Failed to get embedding for template {template_id}: {e}")
-                    continue
+                    logger.error(f"Failed to get embeddings for templates: {e}")
+                    # Fall back to sequential processing if batch fails
+                    for template, embedding_text in zip(valid_templates, embedding_texts):
+                        try:
+                            embedding = await self.embedding_client.embed_query(embedding_text)
+                            if embedding:
+                                ids.append(template.get('id'))
+                                embeddings.append(embedding)
+                                documents.append(embedding_text)
+                                metadatas.append(self._create_template_metadata(template))
+                        except Exception as e:
+                            logger.error(f"Failed to get embedding for template {template.get('id')}: {e}")
+                            continue
             
             if ids:
                 self.template_collection.add(

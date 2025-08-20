@@ -36,6 +36,10 @@ class AbstractVectorRetriever(BaseRetriever):
         """
         super().__init__(config=config, domain_adapter=domain_adapter, **kwargs)
         
+        # Ensure logger is initialized (in case parent didn't do it)
+        if not hasattr(self, 'logger'):
+            self.logger = logging.getLogger(self.__class__.__name__)
+        
         # Store embeddings
         self.embeddings = embeddings
         
@@ -75,7 +79,11 @@ class AbstractVectorRetriever(BaseRetriever):
             from embeddings.base import EmbeddingServiceFactory
             self.embeddings = EmbeddingServiceFactory.create_embedding_service(
                 self.config, embedding_provider)
-            await self.embeddings.initialize()
+            # Only initialize if not already initialized (singleton may be pre-initialized)
+            if not self.embeddings.initialized:
+                await self.embeddings.initialize()
+            else:
+                self.logger.debug(f"Embedding service already initialized, skipping initialization")
             self.using_new_embedding_service = True
         else:
             # Fall back to legacy Ollama embeddings

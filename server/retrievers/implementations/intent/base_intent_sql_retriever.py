@@ -194,9 +194,12 @@ class BaseIntentSQLRetriever(BaseRetriever):
                 # Let factory use default from config
                 self.embedding_client = EmbeddingServiceFactory.create_embedding_service(self.config)
             
-            # Initialize the embedding client
-            await self.embedding_client.initialize()
-            logger.info(f"Successfully initialized {embedding_provider} embedding provider")
+            # Initialize the embedding client (only if not already initialized)
+            if not self.embedding_client.initialized:
+                await self.embedding_client.initialize()
+                logger.info(f"Successfully initialized {embedding_provider} embedding provider")
+            else:
+                logger.debug(f"Embedding service already initialized, skipping initialization")
             
         except Exception as e:
             logger.warning(f"Failed to initialize {embedding_provider} embedding provider: {str(e)}")
@@ -205,8 +208,12 @@ class BaseIntentSQLRetriever(BaseRetriever):
             # Fallback to Ollama which is more likely to be available locally
             try:
                 self.embedding_client = EmbeddingServiceFactory.create_embedding_service(self.config, 'ollama')
-                await self.embedding_client.initialize()
-                logger.info("Successfully initialized Ollama fallback embedding provider")
+                # Initialize only if not already initialized
+                if not self.embedding_client.initialized:
+                    await self.embedding_client.initialize()
+                    logger.info("Successfully initialized Ollama fallback embedding provider")
+                else:
+                    logger.debug(f"Ollama embedding service already initialized, skipping initialization")
             except Exception as fallback_error:
                 logger.error(f"Failed to initialize fallback embedding provider: {str(fallback_error)}")
                 raise Exception("Unable to initialize any embedding provider. Please check your configuration.")
