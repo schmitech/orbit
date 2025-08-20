@@ -27,7 +27,9 @@ export const generateThemeConfig = (customColors: CustomColors): ThemeConfig => 
     assistantText: customColors.assistantText
   },
   suggestedQuestions: {
-    text: customColors.suggestedText
+    text: customColors.suggestedText,
+    background: customColors.background,
+    highlightedBackground: customColors.highlightedBackground
   },
   chatButton: {
     background: customColors.chatButtonBg,

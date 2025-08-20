@@ -151,12 +151,12 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           }}
         />
         
-        {/* Send Button - Professional positioning */}
+        {/* Send Button - Perfectly centered */}
         <button
           onClick={handleSendMessage}
           disabled={!message.trim() || isLoading}
           className={clsx(
-            "absolute right-2 top-1/2 transform -translate-y-1/2 rounded-xl flex items-center justify-center shrink-0 overflow-hidden group",
+            "absolute right-3 top-1/2 transform -translate-y-1/2 rounded-xl shrink-0 overflow-hidden group",
             message.trim() && !isLoading
               ? "hover:scale-105 transition-all duration-300"
               : "cursor-not-allowed opacity-50"
@@ -166,9 +166,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               ? `linear-gradient(135deg, ${theme.secondary}, ${theme.secondary}e6)` 
               : 'linear-gradient(135deg, #e5e7eb, #f3f4f6)',
             color: message.trim() && !isLoading ? 'white' : '#9ca3af',
-            width: '48px',
-            height: '44px',
-            minHeight: '44px',
+            width: '44px',
+            height: '40px',
+            minHeight: '40px',
             padding: '0',
             border: 'none',
             boxShadow: 'none',
@@ -178,7 +178,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             flexShrink: 0,
             position: 'absolute',
             zIndex: 10,
-            transform: 'translateY(-50%)'
+            transform: 'translateY(-50%)',
+            right: '12px'
           }}
           aria-label="Send message"
         >
@@ -190,14 +191,25 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             }}
           />
           
-          {/* Send icon */}
-          <Send 
-            size={CHAT_CONSTANTS.BUTTON_SIZES.ICON_SIZES.SEND} 
-            className="transition-transform duration-200 drop-shadow-sm" 
-            style={{
-              strokeWidth: 2
-            }}
-          />
+          {/* Send icon - centered with flexbox */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '100%',
+            height: '100%',
+            position: 'relative'
+          }}>
+            <Send 
+              size={CHAT_CONSTANTS.BUTTON_SIZES.ICON_SIZES.SEND} 
+              className="transition-transform duration-200 drop-shadow-sm" 
+              style={{
+                strokeWidth: 2,
+                position: 'relative',
+                display: 'block'
+              }}
+            />
+          </div>
         </button>
         
 

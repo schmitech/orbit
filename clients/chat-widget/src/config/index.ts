@@ -24,7 +24,7 @@ export interface ChatConfig {
     suggestedQuestions: {
       background: string;
       text: string;
-      hoverBackground: string;
+      highlightedBackground: string;
     };
     chatButton: {
       background: string;
@@ -66,7 +66,7 @@ export const defaultTheme = {
   suggestedQuestions: {
     background: '#F3F4F6',
     text: '#1F2937',
-    hoverBackground: '#E5E7EB'
+    highlightedBackground: '#FEF3C7'
   },
   chatButton: {
     background: '#ffffff',

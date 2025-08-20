@@ -91,7 +91,7 @@ The `LLMProvider` implementations (e.g., `OllamaProvider`) have been updated to:
 "What are today's top headlines?"
 ```
 
-**Modified Prompt Sent to LLM (with `timezone: "America/Los_Angeles"`):**
+**Modified Prompt Sent to LLM (with `timezone: "America/Toronto"`):**
 ```
 System: The current date and time is Tuesday, August 19, 2025 at 02:45:15 PM PDT.
 

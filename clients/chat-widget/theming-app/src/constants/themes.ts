@@ -15,6 +15,7 @@ export const defaultCustomColors: CustomColors = {
   userText: '#ffffff',
   assistantText: '#374151',
   suggestedText: '#2563eb',        // blue for suggested questions
+  highlightedBackground: '#fef3c7', // light yellow for highlighted state
   chatButtonBg: '#2563eb',
   chatButtonHover: '#1d4ed8',
   iconColor: '#ffffff',
@@ -25,31 +26,31 @@ export const defaultCustomColors: CustomColors = {
 
 export const defaultWidgetConfig: WidgetConfig = {
   header: {
-    title: 'Chat Assistant'
+    title: 'My Custom AI Assistant'
   },
   welcome: {
-    title: 'Hello! 👋',
-    description: 'How can I help you today?'
+    title: '👋 How may I help you today?',
+    description: 'I\'m your AI assistant, ready to help with any questions you might have.'
   },
   suggestedQuestions: [
     {
-      text: 'What is the Theming App?',
+      text: '🤔 What is the Theming App?',
       query: 'What is the ORBIT chat widget Theming App and what can I do with it?'
     },
     {
-      text: 'How can I customize colors?',
+      text: '🎨 How can I customize colors?',
       query: 'Explain how to customize theme colors (primary, secondary, text, bubbles, input, suggested chips, chat button, icon) in the Theming App.'
     },
     {
-      text: 'Where do I set the API key?',
+      text: '🔑 Where do I set the API key?',
       query: 'Where do I enter the API key and API endpoint in the Theming App, and what happens when I click Update API Settings?'
     },
     {
-      text: 'How do I export code?',
+      text: '📤 How do I export code?',
       query: 'How do I export the widget configuration from the Code tab as HTML or a JavaScript bundle, and which values must I replace before deploying?'
     },
     {
-      text: 'Is it in beta and free?',
+      text: '🧪 Is it in beta and free?',
       query: 'Are the ORBIT widget and Theming App in beta, and are they free to use during the beta period?'
     }
   ],
@@ -75,6 +76,7 @@ export const themes: Record<string, Theme> = {
       userText: '#ffffff',
       assistantText: '#334155',
       suggestedText: '#1d4ed8',            // blue for questions
+      highlightedBackground: '#dbeafe', // light blue for highlighted state
       chatButtonBg: '#1d4ed8',
       chatButtonHover: '#1e3a8a',
       iconColor: '#ffffff',
@@ -100,6 +102,7 @@ export const themes: Record<string, Theme> = {
       userText: '#ffffff',
       assistantText: '#374151',
       suggestedText: '#0284c7',            // ocean blue for questions
+      highlightedBackground: '#e0f2fe', // light cyan for highlighted state
       chatButtonBg: '#0284c7',
       chatButtonHover: '#0369a1',
       iconColor: '#ffffff',
@@ -126,6 +129,7 @@ export const themes: Record<string, Theme> = {
       userText: '#ffffff',
       assistantText: '#374151',
       suggestedText: '#166534',            // green for questions
+      highlightedBackground: '#dcfce7', // light green for highlighted state
       chatButtonBg: '#166534',
       chatButtonHover: '#14532d',
       iconColor: '#ffffff',
@@ -152,6 +156,7 @@ export const themes: Record<string, Theme> = {
       userText: '#ffffff',
       assistantText: '#ccfbf1',
       suggestedText: '#14b8a6',
+      highlightedBackground: '#1e4e4b', // lighter teal for highlighted state
       chatButtonBg: '#0d9488',
       chatButtonHover: '#155e75',
       iconColor: '#ffffff',
@@ -176,6 +181,7 @@ export const themes: Record<string, Theme> = {
       userText: '#ffffff',
       assistantText: '#374151',
       suggestedText: '#a21caf',
+      highlightedBackground: '#fae8ff', // light lavender for highlighted state
       chatButtonBg: '#a21caf',
       chatButtonHover: '#86198f',
       iconColor: '#ffffff',
@@ -201,6 +207,7 @@ export const themes: Record<string, Theme> = {
       userText: '#ffffff',
       assistantText: '#e0e7ff',
       suggestedText: '#c7d2fe',
+      highlightedBackground: '#ddcf3c', // lighter indigo for highlighted state
       chatButtonBg: '#1e40af',
       chatButtonHover: '#1e3a8a',
       iconColor: '#ffffff',
@@ -228,6 +235,7 @@ export const themes: Record<string, Theme> = {
       userText: '#f3f4f6',
       assistantText: '#f3f4f6',
       suggestedText: '#d1d5db',
+      highlightedBackground: '#ddcf3c', // lighter gray for highlighted state
       chatButtonBg: '#374151',
       chatButtonHover: '#4b5563',
       iconColor: '#ffffff',
@@ -253,6 +261,7 @@ export const themes: Record<string, Theme> = {
       userText: '#f5f5f5',
       assistantText: '#e5e5e5',
       suggestedText: '#a3a3a3',
+      highlightedBackground: '#ddcf3c', // lighter charcoal for highlighted state
       chatButtonBg: '#111111',
       chatButtonHover: '#1f1f1f',
       iconColor: '#ffffff',
@@ -279,6 +288,7 @@ export const themes: Record<string, Theme> = {
       userText: '#ffffff',
       assistantText: '#0e7490',
       suggestedText: '#06b6d4',
+      highlightedBackground: '#cffafe', // light cyan for highlighted state
       chatButtonBg: '#06b6d4',
       chatButtonHover: '#0891b2',
       iconColor: '#ffffff',

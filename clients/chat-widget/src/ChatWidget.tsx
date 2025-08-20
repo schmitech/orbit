@@ -99,6 +99,10 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
         theme: {
           ...prev.theme,
           ...event.detail.theme,
+          suggestedQuestions: {
+            ...prev.theme?.suggestedQuestions,
+            ...event.detail.theme?.suggestedQuestions
+          },
           chatButton: {
             ...prev.theme?.chatButton,
             ...event.detail.theme?.chatButton

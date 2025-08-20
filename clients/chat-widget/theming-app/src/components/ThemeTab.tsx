@@ -175,7 +175,7 @@ export const ThemeTab: React.FC<ThemeTabProps> = ({
       {/* Theme Presets */}
       <div>
         <h3 className="text-sm font-medium text-gray-900 mb-4">Theme Collection</h3>
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
           {Object.entries(themes).map(([key, theme]) => (
             <button
               key={key}
@@ -259,7 +259,8 @@ export const ThemeTab: React.FC<ThemeTabProps> = ({
             {[
               { key: 'primary', label: 'Header & Minimized Button Background' },
               { key: 'secondary', label: 'Input Border & Send Button' },
-              { key: 'inputBackground', label: 'Chat Window Background' }
+              { key: 'inputBackground', label: 'Chat Window Background' },
+              { key: 'highlightedBackground', label: 'Suggested Questions Highlighted Background' }
             ].map(({ key, label }) => (
               <ColorPicker
                 key={key}

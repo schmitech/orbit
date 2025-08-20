@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import type { CustomColors } from '../types/widget.types';
-import { defaultCustomColors, themes } from '../constants/themes';
+import { themes } from '../constants/themes';
 
 export const useThemeCustomization = () => {
-  const [selectedTheme, setSelectedTheme] = useState('modern');
-  const [customColors, setCustomColors] = useState<CustomColors>(defaultCustomColors);
+  const [selectedTheme, setSelectedTheme] = useState('nebula');
+  const [customColors, setCustomColors] = useState<CustomColors>(themes.nebula.colors);
 
   // Apply theme preset
   const applyTheme = (themeName: keyof typeof themes) => {
@@ -32,8 +32,8 @@ export const useThemeCustomization = () => {
 
   // Reset to default colors
   const resetColors = () => {
-    setCustomColors(defaultCustomColors);
-    setSelectedTheme('modern');
+    setCustomColors(themes.nebula.colors);
+    setSelectedTheme('nebula');
   };
 
   return {

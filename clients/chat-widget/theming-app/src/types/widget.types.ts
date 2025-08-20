@@ -12,6 +12,7 @@ export interface CustomColors {
     userText: string;
     assistantText: string;
     suggestedText: string;
+    highlightedBackground: string;
     chatButtonBg: string;
     chatButtonHover: string;
     iconColor: string;
@@ -60,6 +61,8 @@ export interface CustomColors {
     };
     suggestedQuestions: {
       text: string;
+      background: string;
+      highlightedBackground: string;
     };
     chatButton: {
       background: string;

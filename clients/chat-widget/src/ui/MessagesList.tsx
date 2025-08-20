@@ -154,18 +154,18 @@ export const MessagesList: React.FC<MessagesListProps> = ({
 
       {/* Empty State - Welcome Screen */}
       {messages.length === 0 ? (
-        <div className="py-4">
+        <div className="py-2">
           <div className="w-full px-3 mb-6">
             <div className="max-w-lg mx-auto sm:max-w-2xl">
-              <h4 className="font-bold text-xl mb-4 px-1" style={{ color: theme.text.primary }}>{currentConfig.welcome.title}</h4>
-              <p className="text-lg px-1 py-2" style={{ color: theme.text.secondary }}>
+              <h4 className="font-bold text-xl mb-2 px-1 mt-3" style={{ color: theme.text.primary }}>{currentConfig.welcome.title}</h4>
+              <p className="text-lg px-1" style={{ color: theme.text.secondary }}>
                 {currentConfig.welcome.description}
               </p>
             </div>
           </div>
           <div className="w-full px-3">
-            <div className="flex flex-col gap-2 max-w-lg mx-auto sm:max-w-2xl">
-              {currentConfig.suggestedQuestions.slice(0, 6).map((question: any, index: number) => {
+            <div className="flex flex-col gap-3 max-w-lg mx-auto sm:max-w-2xl">
+              {currentConfig.suggestedQuestions.slice(0, 5).map((question: any, index: number) => {
                 const maxQueryLen = maxSuggestedQuestionQueryLength ?? CHAT_CONSTANTS.MAX_SUGGESTED_QUESTION_QUERY_LENGTH;
                 const maxDisplayLen = maxSuggestedQuestionLength ?? CHAT_CONSTANTS.MAX_SUGGESTED_QUESTION_LENGTH;
                 const safeQuery = question.query?.length > maxQueryLen
@@ -176,31 +176,75 @@ export const MessagesList: React.FC<MessagesListProps> = ({
                   : question.text;
 
                 return (
-                  <div
+                  <button
                     key={index}
-                    className="flex items-center w-full px-1 py-1.5 text-base rounded-xl"
+                    onClick={() => {
+                      sendMessage(safeQuery);
+                      setTimeout(() => {
+                        focusInput();
+                      }, CHAT_CONSTANTS.ANIMATIONS.TOGGLE_DELAY);
+                    }}
+                    className="group w-full text-left transition-all duration-300 ease-in-out transform hover:scale-[1.02] active:scale-[0.98]"
                     style={{
-                      minHeight: '36px',
+                      minHeight: '48px',
                       background: 'transparent',
                     }}
+                    title={safeQuery}
                   >
-                    <span
-                      onClick={() => {
-                        sendMessage(safeQuery);
-                        setTimeout(() => {
-                          focusInput();
-                        }, CHAT_CONSTANTS.ANIMATIONS.TOGGLE_DELAY);
-                      }}
-                      className="truncate hover:text-primary transition-colors duration-200 cursor-pointer w-full text-base"
+                    <div
+                      className="w-full px-4 py-3 rounded-xl border transition-all duration-300 ease-in-out cursor-pointer group-hover:shadow-md group-active:shadow-sm"
                       style={{
+                        background: theme.suggestedQuestions.background || '#ffffff',
+                        borderColor: theme.suggestedQuestions.text || '#e5e7eb',
                         color: theme.suggestedQuestions.text,
                         fontWeight: 500,
+                        boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
                       }}
-                      title={safeQuery}
+                      onMouseEnter={(e) => {
+                        // Apply highlighted background immediately on hover
+                        e.currentTarget.style.background = theme.suggestedQuestions.highlightedBackground || '#f8fafc';
+                        e.currentTarget.style.borderColor = theme.primary;
+                        e.currentTarget.style.transform = 'translateY(-1px)';
+                        e.currentTarget.style.boxShadow = '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)';
+                        
+                        // Change text color to ensure good contrast with highlighted background
+                        const textSpan = e.currentTarget.querySelector('span');
+                        if (textSpan) {
+                          // Use a darker color for better readability on light backgrounds
+                          textSpan.style.color = '#1F2937'; // Dark gray for good contrast
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = theme.suggestedQuestions.background || '#ffffff';
+                        e.currentTarget.style.borderColor = theme.suggestedQuestions.text || '#e5e7eb';
+                        e.currentTarget.style.transform = 'translateY(0)';
+                        e.currentTarget.style.boxShadow = '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)';
+                        
+                        // Reset text color back to original theme color
+                        const textSpan = e.currentTarget.querySelector('span');
+                        if (textSpan) {
+                          textSpan.style.color = theme.suggestedQuestions.text || '#1F2937';
+                          // Also remove any inline styles that might persist
+                          textSpan.style.removeProperty('color');
+                        }
+                      }}
                     >
-                      {displayText}
-                    </span>
-                  </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-base leading-relaxed transition-colors duration-200">
+                          {displayText}
+                        </span>
+                        <div 
+                          className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 transform translate-x-1 group-hover:translate-x-0"
+                          style={{ color: theme.primary }}
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M5 12h14"/>
+                            <path d="m12 5 7 7-7 7"/>
+                          </svg>
+                        </div>
+                      </div>
+                    </div>
+                  </button>
                 );
               })}
             </div>

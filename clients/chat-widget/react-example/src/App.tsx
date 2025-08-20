@@ -18,7 +18,7 @@ import { useEffect, useRef } from 'react';
  * - header: { title: string }
  * - welcome: { title: string, description: string }
  * - suggestedQuestions: Array<{ text: string, query: string }>
- * - maxSuggestedQuestionLength: number (default: 50)
+ * - maxSuggestedQuestionLength: number (default: 120)
  * - maxSuggestedQuestionQueryLength: number (default: 200)
  * - theme: { comprehensive theme object - see below }
  * 
@@ -29,7 +29,7 @@ import { useEffect, useRef } from 'react';
  * - text: { primary: string, secondary: string, inverse: string }
  * - input: { background: string, border: string }
  * - message: { user: string, assistant: string, userText: string }
- * - suggestedQuestions: { background: string, hoverBackground: string, text: string }
+ * - suggestedQuestions: { background: string, text: string, highlightedBackground: string }
  * - chatButton: { background: string, hoverBackground: string }
  */
 
@@ -139,7 +139,7 @@ function App() {
         ],
         
         // Optional: Customize length limits for suggested questions
-        maxSuggestedQuestionLength: 60,      // Display length limit (default: 50)
+        maxSuggestedQuestionLength: 60,      // Display length limit (default: 120)
         maxSuggestedQuestionQueryLength: 200, // Query length limit (default: 200)
         
         // Theme configuration (all properties are optional)
@@ -166,14 +166,15 @@ function App() {
           message: {
             user: '#2563eb',      // User message bubble color
             assistant: '#f8fafc', // Assistant message bubble color
-            userText: '#ffffff'   // User message text color
+            userText: '#ffffff',  // User message text color
+            assistantText: '#374151' // Assistant message text color (optional)
           },
           
           // Suggested questions styling
           suggestedQuestions: {
             background: '#eff6ff',    // Background color
-            hoverBackground: '#dbeafe', // Hover background color
-            text: '#1e40af'          // Text color
+            text: '#1e40af',          // Text color
+            highlightedBackground: '#dbeafe' // Hover background color
           },
           
           // Chat button styling

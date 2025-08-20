@@ -158,7 +158,7 @@ window.addEventListener('load', function() {
         ],
         
         // Optional: Customize length limits for suggested questions
-        maxSuggestedQuestionLength: 60,      // Display length limit (default: 50)
+        maxSuggestedQuestionLength: 60,      // Display length limit (default: 120)
         maxSuggestedQuestionQueryLength: 300, // Query length limit (default: 200)
         
         // Theme configuration
@@ -185,14 +185,15 @@ window.addEventListener('load', function() {
           message: {
             user: '#4f46e5',      // User message bubble color
             userText: '#ffffff',  // User message text color
-            assistant: '#f8fafc'  // Assistant message bubble color
+            assistant: '#f8fafc', // Assistant message bubble color
+            assistantText: '#374151' // Assistant message text color
           },
           
           // Suggested questions styling
           suggestedQuestions: {
-            background: '#fff7ed',    // Background color
-            hoverBackground: '#ffedd5', // Hover background color
-            text: '#4338ca'          // Text color
+            background: '#f3f4f6',    // Background color
+            text: '#1f2937',          // Text color
+            highlightedBackground: '#fef3c7' // Hover background color
           },
           
           // Chat button styling
@@ -228,8 +229,8 @@ window.addEventListener('load', function() {
 | `containerSelector` | string | CSS selector for custom container (defaults to bottom-right corner) |
 | `header` | object | Widget header configuration |
 | `welcome` | object | Welcome message configuration |
-| `suggestedQuestions` | array | Array of suggested question buttons (max 50 chars per question, max 200 chars per query) |
-| `maxSuggestedQuestionLength` | number | Maximum display length for suggested question text (default: 50) |
+| `suggestedQuestions` | array | Array of suggested question buttons (max 120 chars per question, max 200 chars per query) |
+| `maxSuggestedQuestionLength` | number | Maximum display length for suggested question text (default: 120) |
 | `maxSuggestedQuestionQueryLength` | number | Maximum length for suggested question queries sent to API (default: 200) |
 | `theme` | object | Theme customization options |
 | `icon` | string | Widget icon type |
@@ -381,13 +382,14 @@ theme: {
   },
   message: {
     user: string;           // User message bubble color
-    assistant: string;      // Assistant message bubble color
     userText: string;       // User message text color
+    assistant: string;      // Assistant message bubble color
+    assistantText?: string; // Assistant message text color (optional)
   },
   suggestedQuestions: {
     background: string;      // Suggested questions background
-    hoverBackground: string; // Suggested questions hover background
     text: string;           // Suggested questions text color
+    highlightedBackground: string; // Suggested questions hover background
   },
   chatButton: {
     background: string;      // Chat button background
@@ -422,7 +424,7 @@ The widget provides flexible length controls for suggested questions:
 ### Display Length (`maxSuggestedQuestionLength`)
 - Controls how much text is shown on the suggestion buttons
 - Default: 120 characters
-- Text longer than this limit will be truncated with "..." 
+- Text longer than this limit will be truncated with "..."
 - Example: "This is a very long question that will be truncated..." 
 
 ### Query Length (`maxSuggestedQuestionQueryLength`) 
@@ -523,7 +525,7 @@ theme: {
       query: string;       // Question to send when clicked (truncated based on maxSuggestedQuestionQueryLength)
     }
   ],
-  maxSuggestedQuestionLength?: number;      // Display length limit (default: 50)
+  maxSuggestedQuestionLength?: number;      // Display length limit (default: 120)
   maxSuggestedQuestionQueryLength?: number; // Query length limit (default: 200)
   theme: { /* theme object */ }
 }

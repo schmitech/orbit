@@ -1,5 +1,6 @@
 import type { WidgetConfig, CustomColors } from '../types/widget.types';
 import { generateThemeConfig } from './widgetUtils';
+import { WIDGET_CONFIG } from './widget-config';
 
 // Generate implementation code (without system prompt)
 export const generateImplementationCode = (
@@ -24,7 +25,7 @@ export const generateImplementationCode = (
 <head>
   <meta charset="UTF-8">
   <title>Chatbot Widget</title>
-  <link rel="stylesheet" href="https://unpkg.com/@schmitech/chatbot-widget@0.4.14/dist/chatbot-widget.css">
+  <link rel="stylesheet" href="https://unpkg.com/@schmitech/chatbot-widget@${WIDGET_CONFIG.npm.version}/dist/chatbot-widget.css">
 </head>
 <body>
   <div id="chatbot-widget"></div>
@@ -32,7 +33,7 @@ export const generateImplementationCode = (
   <!-- Widget dependencies -->
   <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-  <script src="https://unpkg.com/@schmitech/chatbot-widget@0.4.14/dist/chatbot-widget.umd.js" crossorigin></script>
+  <script src="https://unpkg.com/@schmitech/chatbot-widget@${WIDGET_CONFIG.npm.version}/dist/chatbot-widget.umd.js" crossorigin></script>
 
   <!-- Initialize Widget -->
   <script>

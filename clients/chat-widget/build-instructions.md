@@ -55,11 +55,27 @@ The build outputs are located in `widget/dist`:
 
 ## 🎨 Customization
 
-See `demo.html` for customization examples:
+### Using the Theming App
 
+The easiest way to customize your widget is through our interactive theming application:
+
+1. **Navigate to the theming app:**
 ```bash
-python3 -m http.server 8080
+cd theming-app
+npm install
+npm run dev
 ```
+
+2. **Open in browser:** Navigate to `http://localhost:5173`
+
+3. **Customize your widget:**
+   - Choose from 9 pre-built themes (Nebula, Ocean, Evergreen, etc.)
+   - Adjust colors for header, buttons, text, and backgrounds
+   - Customize suggested questions and welcome messages
+   - Set your API key and endpoint
+   - Export the final configuration as HTML or JavaScript
+
+4. **Live preview:** See changes in real-time as you customize
 
 ---
 

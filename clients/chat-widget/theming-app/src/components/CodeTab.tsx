@@ -4,6 +4,7 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { github } from 'react-syntax-highlighter/dist/esm/styles/hljs';
 import type { WidgetConfig, CustomColors } from '../types/widget.types';
 import { generateThemeConfig } from '../utils/widgetUtils';
+import { WIDGET_CONFIG } from '../utils/widget-config';
 
 interface CodeTabProps {
   widgetConfig: WidgetConfig;
@@ -73,14 +74,14 @@ export const CodeTab: React.FC<CodeTabProps> = ({
   // Load resources in sequence
   window.addEventListener('DOMContentLoaded', function() {
     // Load CSS
-    loadStyle('https://unpkg.com/@schmitech/chatbot-widget@0.4.14/dist/chatbot-widget.css');
+    loadStyle('https://unpkg.com/@schmitech/chatbot-widget@${WIDGET_CONFIG.npm.version}/dist/chatbot-widget.css');
     
     // Load React
     loadScript('https://unpkg.com/react@18/umd/react.production.min.js', function() {
       // Load ReactDOM
       loadScript('https://unpkg.com/react-dom@18/umd/react-dom.production.min.js', function() {
         // Load Widget
-        loadScript('https://unpkg.com/@schmitech/chatbot-widget@0.4.14/dist/chatbot-widget.umd.js', function() {
+        loadScript('https://unpkg.com/@schmitech/chatbot-widget@${WIDGET_CONFIG.npm.version}/dist/chatbot-widget.umd.js', function() {
           // Initialize widget after all dependencies are loaded
           initWidget();
         });
