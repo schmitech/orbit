@@ -62,6 +62,11 @@ class DynamicAdapterManager:
         
     def _load_adapter_configs(self):
         """Load adapter configurations from config."""
+        inference_only = self.config.get('general', {}).get('inference_only', False)
+        if inference_only:
+            self.logger.info("Inference-only mode is enabled. Skipping adapter loading.")
+            return
+        
         adapter_configs = self.config.get('adapters', [])
         
         enabled_count = 0
