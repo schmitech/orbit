@@ -1,5 +1,35 @@
 # Changelog
 
+## [1.3.5] - 2025-08-20
+
+### Core System Updates
+- Clock Service: Introduced clock service for context-aware date/time based on specified timezone
+- Ollama Provider: Fixed issues with Ollama cold starts and reduced code redundancy for Ollama services
+- Ollama Embeddings: Fixed issues with Ollama embeddings dimensions settings and Qdrant intent adapter
+
+### Chatbot Widget
+- Chat Widget v0.4.15: Significant updates to theming app and general UX improvements
+- Chat Widget v0.4.14: New NPM version with icon list updates and theming app improvements
+- Widget Updates: Further improvements to chatbot widget behavior and theming app
+- Theming App Fixes: Enhanced theming application with improved color presets and thumbnails
+
+### Vector Retrieval & RAG
+- Qdrant Retriever: Fixed repetitive initialization calls by moving connection check to singleton instance
+- Pinecone Integration: Added Pinecone scripts similar to Chroma and Qdrant for better vector database support
+
+### Documentation & Configuration
+- README Updates: Multiple updates including stargazer snippet, SQL intent adapter examples, and video content
+- Theme Presets: Updated color themes presets for better customization options
+- Configuration Updates: Added clock_service to config.yaml and updated inference.yaml with llama_cpp parameters
+
+### Testing & Quality Assurance
+- Test Updates: Fixed errors in test_mcp_client.py and improved test coverage
+- MCP Client: Updated test_mcp_client.py for better reliability
+
+### Development & Dependencies
+- Gemma Model: Added Gemma3 270m as default for basic installation
+- Examples: Updated NPM widget version in react-example and improved Qdrant collection creation scripts
+
 ## [1.3.4] - 2025-08-15
 
 ### Core System Updates

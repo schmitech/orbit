@@ -63,13 +63,13 @@ Refer to the [Docker Setup Guide](docker/README.md) for detailed instructions on
 
 ```bash
 # Download the latest release
-curl -L https://github.com/schmitech/orbit/releases/download/v1.3.4/orbit-1.3.4.tar.gz -o orbit-1.3.4.tar.gz
-tar -xzf orbit-1.3.4.tar.gz
-cd orbit-1.3.4
+curl -L https://github.com/schmitech/orbit/releases/download/v1.3.5/orbit-1.3.5.tar.gz -o orbit-1.3.5.tar.gz
+tar -xzf orbit-1.3.5.tar.gz
+cd orbit-1.3.5
 
 # Run the quick setup script (downloads a small model)
 cp .env.example .env
-./install/setup.sh --profile minimal --download-gguf gemma3-1b
+./install/setup.sh --profile minimal --download-gguf gemma3-270m
 
 # Start the ORBIT server
 source venv/bin/activate
