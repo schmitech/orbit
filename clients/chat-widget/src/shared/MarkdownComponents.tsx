@@ -4,6 +4,8 @@ import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import remarkGfm from 'remark-gfm';
 import 'katex/dist/katex.min.css';
+// Load mhchem for chemistry support
+import 'katex/dist/contrib/mhchem.js';
 import '../MarkdownStyles.css';
 
 /**
@@ -47,6 +49,30 @@ export const preprocessMarkdown = (content: string): string => {
   try {
     // Normalize line endings
     let processed = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    
+    // Auto-detect and wrap common math patterns that might not have delimiters
+    // This helps catch expressions like "x^2 + y^2 = z^2" and wrap them properly
+    const mathPatterns = [
+      // Equations with equals sign and math operators
+      /(?:^|\s)([a-zA-Z0-9]+\s*[\^_]\s*[a-zA-Z0-9{}]+(?:\s*[+\-*/]\s*[a-zA-Z0-9]+\s*[\^_]\s*[a-zA-Z0-9{}]+)*\s*=\s*[^$\n]+)(?:\s|$)/g,
+      // Fractions not already wrapped
+      /(?:^|\s)(\\frac\{[^}]+\}\{[^}]+\})(?:\s|$)/g,
+      // Square roots, integrals, sums not already wrapped
+      /(?:^|\s)(\\(?:sqrt|int|sum|prod|lim|log|ln|sin|cos|tan|exp)\b[^$\n]{0,50})(?:\s|$)/g,
+      // Chemical formulas (e.g., H2O, CO2, Ca(OH)2)
+      /(?:^|\s)([A-Z][a-z]?(?:\d+)?(?:\([A-Z][a-z]?(?:\d+)?\))?(?:\d+)?(?:[+\-]\d*)?)+(?:\s|$)/g,
+    ];
+    
+    // Wrap detected patterns in $ delimiters if not already wrapped
+    mathPatterns.forEach(pattern => {
+      processed = processed.replace(pattern, (match, expr) => {
+        // Check if already wrapped in $ or $$
+        if (match.includes('$')) return match;
+        // Check if it's inside a code block (rough check)
+        if (match.includes('`')) return match;
+        return match.replace(expr, `$${expr}$`);
+      });
+    });
 
     // 0) Mask code blocks/inline code so we never touch them
     const { masked, masks } = maskCodeSegments(processed);
@@ -86,14 +112,29 @@ export const preprocessMarkdown = (content: string): string => {
     processed = processed.replace(/\\\[([\s\S]*?)\\\]/g, (_m, p1) => `\n$$${p1}$$\n`);
     processed = processed.replace(/\\\(([\s\S]*?)\\\)/g, (_m, p1) => `$${p1}$`);
 
-    // 3) Protect stray $ that aren’t math (e.g., isolated dollar signs in prose)
+    // 3) Protect stray $ that aren't math (e.g., isolated dollar signs in prose)
     //    If we see $word$ that doesn't look like math, escape both sides.
     processed = processed.replace(
       /(?<!\\)\$(?!\$)([^$\n]+?)(?<!\\)\$(?!\$)/g,
       (m, inner) => {
-        // Looks like math if letters/symbols typical for LaTeX appear
-        const isProbablyMath =
-          /[a-zA-Z\\{}_^]|[+\-*/=<>]|\\frac|\\sum|\\int|\\alpha|\\beta|\\gamma/.test(inner);
+        // Much more aggressive math detection - assume math unless it's clearly currency
+        const isLikelyCurrency = /^\d+(?:,\d{3})*(?:\.\d{2})?$/.test(inner.trim());
+        const hasBackslash = /\\/.test(inner);
+        const hasMathOperators = /[+\-*/=<>^_{}()]/.test(inner);
+        const hasLettersAndNumbers = /[a-zA-Z].*\d|\d.*[a-zA-Z]/.test(inner);
+        const hasGreekLetters = /\\(?:alpha|beta|gamma|delta|epsilon|theta|lambda|mu|pi|sigma|omega)/.test(inner);
+        const hasMathFunctions = /\\(?:frac|sqrt|sum|int|lim|log|ln|sin|cos|tan|exp)/.test(inner);
+        
+        // It's probably math if it has any math-like characteristics
+        const isProbablyMath = !isLikelyCurrency && (
+          hasBackslash || 
+          hasMathOperators || 
+          hasLettersAndNumbers || 
+          hasGreekLetters || 
+          hasMathFunctions ||
+          inner.length > 1 // Single characters are likely variables
+        );
+        
         if (isProbablyMath) return m;
         return `\\$${inner}\\$`;
       }
@@ -155,11 +196,36 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
     ? [remarkGfm]
     : [[remarkMath, { singleDollarTextMath: true }], remarkGfm];
 
-  const rehypePlugins = disableMath ? [] : [rehypeKatex];
+  const rehypePlugins = disableMath ? [] : [
+    [rehypeKatex, {
+      // KaTeX options for better rendering
+      throwOnError: false, // Don't crash on invalid LaTeX
+      errorColor: '#cc0000',
+      strict: false, // Allow more flexible syntax
+      trust: true, // Enable all KaTeX features including chemistry
+      // mhchem is loaded automatically when imported above
+      macros: {
+        // Add other useful macros (mhchem provides \ce and \pu)
+        "\\RR": "\\mathbb{R}",
+        "\\NN": "\\mathbb{N}",
+        "\\ZZ": "\\mathbb{Z}",
+        "\\QQ": "\\mathbb{Q}",
+        "\\CC": "\\mathbb{C}",
+        // Common shortcuts
+        "\\dx": "\\,dx",
+        "\\dy": "\\,dy",
+        "\\dt": "\\,dt",
+        "\\dz": "\\,dz",
+      }
+    }]
+  ];
 
   return (
     <div className={`markdown-content ${className}`}>
-      <ReactMarkdown remarkPlugins={remarkPlugins as any} rehypePlugins={rehypePlugins}>
+      <ReactMarkdown 
+        remarkPlugins={remarkPlugins as any} 
+        rehypePlugins={rehypePlugins as any}
+      >
         {processedContent}
       </ReactMarkdown>
     </div>
