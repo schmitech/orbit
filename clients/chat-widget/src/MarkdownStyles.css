@@ -98,7 +98,7 @@
 /* Tables - with horizontal scroll wrapper */
 .markdown-content table {
   border-collapse: collapse;
-  font-size: 0.85em;
+  font-size: 0.75em;
   margin: 12px 0;
   display: block;
   overflow-x: auto;
@@ -154,7 +154,7 @@
 /* Make tables more compact on smaller chat areas */
 @media (max-width: 480px) {
   .markdown-content table {
-    font-size: 0.8em;
+    font-size: 0.7em;
   }
   .markdown-content th, .markdown-content td {
     padding: 4px 6px;
