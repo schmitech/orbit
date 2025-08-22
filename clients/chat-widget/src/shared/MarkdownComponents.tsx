@@ -70,6 +70,22 @@ export const preprocessMarkdown = (content: string): string => {
         if (match.includes('$')) return match;
         // Check if it's inside a code block (rough check)
         if (match.includes('`')) return match;
+        // Avoid wrapping single-letter words like "I" that are not math
+        const trimmed = String(expr ?? '').trim();
+        if (/^[A-Za-z]$/.test(trimmed)) return match;
+
+        // Heuristics: only auto-wrap if it clearly looks like math or chemistry
+        const looksLikeMath = /[\\^_+=<>]|\\\b(?:frac|sqrt|sum|int|lim|log|ln|sin|cos|tan|exp)\b/.test(trimmed);
+        const hasDigit = /\d/.test(trimmed);
+        const hasParens = /[()]/.test(trimmed);
+        const uppercaseCount = (trimmed.match(/[A-Z]/g) || []).length;
+        const lowercaseCount = (trimmed.match(/[a-z]/g) || []).length;
+        const hasTwoElementTokens = uppercaseCount >= 2; // e.g., NaCl, CO2 (with digits handled separately)
+
+        const looksLikeChemistry = hasDigit || hasParens || (hasTwoElementTokens && lowercaseCount > 0);
+
+        if (!looksLikeMath && !looksLikeChemistry) return match;
+
         return match.replace(expr, `$${expr}$`);
       });
     });
