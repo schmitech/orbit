@@ -7,7 +7,6 @@ import { useGitHubStats } from '../hooks/useGitHubStats';
 import { WIDGET_CONFIG, isDebugEnabled } from '../utils/widget-config';
 import { useEffect, useState } from 'react';
 
-// Import UI components
 import { 
   TabNavigation, 
   FormInput,
@@ -18,10 +17,9 @@ import {
 } from './index';
 
 const ChatbotThemingPlatform = () => {
-  // Check if service is unavailable
+  
   const isServiceUnavailable = import.meta.env.VITE_UNAVAILABLE_MSG === 'true';
   
-  // Custom hooks for state management
   const { 
     widgetConfig, 
     updateSuggestedQuestion,
