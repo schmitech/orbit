@@ -135,7 +135,7 @@ npm run dev
 
 **ORBIT Server** (`/server/`): FastAPI-based inference middleware
 - **Inference Layer**: Supports multiple LLM providers (OpenAI, Anthropic, Cohere, Ollama, etc.) via unified interface
-- **RAG System**: Retrieval-Augmented Generation with SQL, Vector DB, and file-based adapters
+- **RAG System**: Retrieval-Augmented Generation with SQL and Vector DB adapters (file-based / multimodal retrieval underway, it will be available in release 2.0.0)
 - **Authentication**: PBKDF2-SHA256 with bearer tokens, MongoDB-backed sessions
 - **Fault Tolerance**: Circuit breaker pattern with exponential backoff for provider failures
 - **Content Moderation**: Multi-layered safety with LLM Guard and configurable moderators
