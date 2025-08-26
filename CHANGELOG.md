@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.3.6] - 2025-08-26
+
+### Retrievers
+- Remove ununsed file adapter, clean up code.
+
+### Examples
+- Improve postgres cusotmer orders data generator (SQL intent adapter).
+- Fix markdown issues in chat-app.
+
 ## [1.3.5] - 2025-08-20
 
 ### Core System Updates
