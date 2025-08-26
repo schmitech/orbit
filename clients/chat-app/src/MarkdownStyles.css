@@ -90,21 +90,77 @@
   opacity: 0.8;
 }
 
-/* Tables */
+/* Table wrapper for horizontal scrolling */
+.markdown-content {
+  position: relative;
+}
+
+/* Tables - with horizontal scroll wrapper */
 .markdown-content table {
-  width: 100%;
   border-collapse: collapse;
-  font-size: 0.9em;
+  font-size: 0.75em;
   margin: 12px 0;
-  display: block; /* For overflow */
+  display: block;
   overflow-x: auto;
+  overflow-y: hidden;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+  white-space: nowrap; /* Force table to extend horizontally */
 }
-.markdown-content thead { background-color: rgba(0, 0, 0, 0.05); }
-.markdown-content th, .markdown-content td {
-  padding: 8px 12px;
+
+/* Table body structure */
+.markdown-content tbody,
+.markdown-content thead {
+  display: table;
+  width: auto; /* Let it size based on content */
+  min-width: 100%; /* But at least fill the container */
+}
+
+.markdown-content thead { 
+  background-color: rgba(0, 0, 0, 0.05); 
+}
+
+.markdown-content th, 
+.markdown-content td {
+  padding: 6px 10px;
   border: 1px solid rgba(0, 0, 0, 0.2);
+  white-space: nowrap; /* Keep content on one line for horizontal scroll */
+  line-height: 1.4;
+  vertical-align: top;
+  min-width: fit-content; /* Cells expand to fit their content */
 }
-.markdown-content th { font-weight: 600; text-align: left; }
+
+/* For cells with long content, allow controlled wrapping */
+.markdown-content td {
+  max-width: 300px; /* Maximum width before forcing wrap */
+  white-space: normal; /* Allow wrapping for long content */
+  word-break: keep-all; /* But don't break words like bank_transfer */
+}
+
+/* Special handling for URLs/emails - more aggressive breaking */
+.markdown-content td a,
+.markdown-content td:has(a) {
+  word-break: break-all;
+  display: inline-block;
+  max-width: 250px;
+}
+
+.markdown-content th { 
+  font-weight: 600; 
+  text-align: left;
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+/* Make tables more compact on smaller chat areas */
+@media (max-width: 480px) {
+  .markdown-content table {
+    font-size: 0.7em;
+  }
+  .markdown-content th, .markdown-content td {
+    padding: 4px 6px;
+    min-width: 60px;
+  }
+}
 
 /* Horizontal rules */
 .markdown-content hr {

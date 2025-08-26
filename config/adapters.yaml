@@ -86,26 +86,6 @@ adapters:
       max_results: 5
       return_results: 3
       timezone: "America/Toronto"
-      
-  # This is an example of a file adapter for a ChromaDB database. (Disabled by default)
-  # It is used as an example of how to create a file adapter for a ChromaDB database.
-  - name: "file-vector"
-    enabled: false
-    type: "retriever"
-    datasource: "chroma"
-    adapter: "file"
-    implementation: "retrievers.implementations.file.FileChromaRetriever"
-    config:
-      confidence_threshold: 0.1
-      distance_scaling_factor: 150.0
-      embedding_provider: null
-      max_results: 10
-      return_results: 5
-      # File-specific settings
-      include_file_metadata: true
-      boost_file_uploads: true
-      file_content_weight: 1.5
-      metadata_weight: 0.8
         
   # This is an example of a domain adapter for a SQL database. (Disabled by default)
   # It is used as an example of how to create a domain adapter for a SQL database.
@@ -115,6 +95,7 @@ adapters:
     datasource: "postgres"
     adapter: "intent"
     implementation: "retrievers.implementations.intent.IntentPostgreSQLRetriever"
+    inference_provider: "ollama"
     config:
       # Path to the domain definition file
       domain_config_path: "config/sql_intent_templates/examples/customer-orders/customer_order_domain.yaml"

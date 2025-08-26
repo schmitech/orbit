@@ -25,38 +25,27 @@
 
 </div>
 
-<div align="center">
-  <video src="https://github.com/user-attachments/assets/116dcd19-3485-41d2-996c-7317353b5b34" controls>
-    Your browser does not support the video tag.
-  </video>
-  <br/>
-  <i>A sneak peek of the ORBIT chat UI in action.</i>
-</div>
-
 ## 🛰️ What is ORBIT?
 
-ORBIT is an open-source middleware platform that provides a unified API for AI inference. It acts as a central gateway, allowing you to connect various local and remote AI models with your private data sources like SQL databases, vector stores, and local files.
-
-It's designed for developers and organizations who want to build and deploy AI-powered applications with full control over their infrastructure, data, and costs.
-
-| Feature | Description |
-|---------|-------------|
-| 🔒 **Run AI Locally** | No cloud dependencies or per-token costs. Your data and models stay within your network. |
-| 🔌 **Connect Your Data** | Built-in RAG support for SQL, Vector DBs (Chroma, Qdrant), and local files. |
-| 🚀 **Deploy Anywhere** | Run on any machine using Docker or Python. On-premise, private cloud, or your local development machine. |
-| 🔧 **Model Agnostic** | Supports major model serving backends like Ollama, vLLM, and llama.cpp. |
-| 🛡️ **Secure** | Built-in authentication, API key management, content moderation, and audit trails for enterprise needs. |
+ORBIT (Open Retreival-Based Inference Toolkit) is a middleware platform that provides a unified API for AI inference. It acts as a central gateway, allowing you to connect various local and remote AI models with your private data sources like SQL databases, vector stores, and local files.
 
 ---
 
+<div align="center">
+  <video src="https://github.com/user-attachments/assets/b183678f-d2de-40c8-b969-74e71c3c96d9" controls>
+    Your browser does not support the video tag.
+  </video>
+  <br/>
+  <i>ORBIT in action extracting data insights from an e-commerce database.</i>
+</div>
+
+---
 
 ## 🚀 Quick Start
 
-Get ORBIT running in minutes.
-
 ### 1. Deploy with Docker
 
-Refer to the [Docker Setup Guide](docker/README.md) for detailed instructions on how to deploy ORBIT as a Docker container.
+Refer to the [Docker Setup Guide](docker/README.md).
 
 
 ### 2. Deploy Locally
@@ -68,7 +57,7 @@ tar -xzf orbit-1.3.5.tar.gz
 cd orbit-1.3.5
 
 # Run the quick setup script (downloads a small model)
-cp .env.example .env
+cp env.example .env
 ./install/setup.sh --profile minimal --download-gguf gemma3-270m
 
 # Start the ORBIT server

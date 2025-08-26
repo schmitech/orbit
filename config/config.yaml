@@ -62,7 +62,7 @@ messages:
   collection_not_found: "I couldn't find the requested collection. Please make sure the collection exists before querying it."
 
 auth:
-  enabled: false
+  enabled: true
   session_duration_hours: 12
   default_admin_username: admin
   default_admin_password: ${ORBIT_DEFAULT_ADMIN_PASSWORD}
@@ -153,26 +153,6 @@ chat_history:
   user:
     header_name: "X-User-ID"
     required: false
-
-file_upload:
-  enabled: true
-  max_size_mb: 10
-  max_files_per_batch: 10
-  allowed_extensions:
-    - ".txt"
-    - ".pdf"
-    - ".docx"
-    - ".doc"
-    - ".xlsx"
-    - ".xls"
-    - ".csv"
-    - ".md"
-    - ".json"
-  upload_directory: "uploads"
-  save_to_disk: true
-  auto_store_in_vector_db: true
-  chunk_size: 1000
-  chunk_overlap: 200
 
 safety:
   enabled: false

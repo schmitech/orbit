@@ -157,15 +157,6 @@ class OrbitInferenceServerUser(HttpUser):
                 response.success()
             else:
                 response.failure(f"Prompts list failed: {response.status_code}")
-    
-    @task(1)
-    def file_upload_status(self):
-        """Test file upload status endpoint."""
-        with self.client.get("/upload/status", catch_response=True) as response:
-            if response.status_code == 200:
-                response.success()
-            else:
-                response.failure(f"File status check failed: {response.status_code}")
 
 
 class HealthCheckUser(HttpUser):

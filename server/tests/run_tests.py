@@ -62,11 +62,9 @@ def main():
         str(SCRIPT_DIR),
         "-v",
         "--asyncio-mode=auto",
-        "-k", "not test_ollama and not vllm and not elasticsearch",
+        "-k", "not test_ollama and not vllm",
         "--ignore=tests/vllm/",
-        "--ignore=tests/perf/",
-        "--ignore=test_elasticsearch_integration.py",
-        "--ignore=test_elasticsearch_live.py"
+        "--ignore=tests/perf/"
     ])
 
 if __name__ == "__main__":

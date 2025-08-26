@@ -52,11 +52,11 @@ export function MessageList({ messages, onRegenerate, isLoading }: MessageListPr
         <div className="absolute inset-0 bg-gradient-to-br from-transparent via-slate-50/30 to-transparent dark:via-slate-800/30 pointer-events-none"></div>
         
         <div className="text-center max-w-lg relative z-10">
-          <div className="relative mb-4">
+          <div className="relative mb-3">
             <img 
               src={orbitLogo} 
               alt="ORBIT" 
-              className="w-48 h-48 object-contain mx-auto drop-shadow-lg" 
+              className="w-64 h-64 object-contain mx-auto drop-shadow-lg" 
             />
           </div>
           

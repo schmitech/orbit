@@ -16,7 +16,7 @@ Each adapter definition has the following key properties:
 - `enabled`: A boolean to enable or disable the adapter.
 - `type`: The type of component, which is `"retriever"` for all retrievers.
 - `datasource`: The underlying data source type (e.g., `sqlite`, `qdrant`, `postgres`). This determines which base retriever implementation is used.
-- `adapter`: The domain-specific adapter to use (e.g., `qa`, `file`, `intent`). This controls how data is processed and interpreted.
+- `adapter`: The domain-specific adapter to use (e.g., `qa`, `intent`). This controls how data is processed and interpreted.
 - `implementation`: The full Python path to the retriever's implementation class (e.g., `retrievers.implementations.qa.QASSQLRetriever`).
 - `config`: A dictionary of settings specific to this adapter instance, such as confidence thresholds, collection names, or feature flags.
 
@@ -38,7 +38,7 @@ A Domain Adapter is a component that provides the domain-specific logic for a re
 - Applying domain-specific filtering or ranking to results.
 - Extracting direct answers from the retrieved context.
 
-The `adapter` key in the configuration determines which domain adapter is plugged into the retriever. This allows the same retriever implementation (e.g., `QdrantRetriever`) to be used for different purposes (e.g., QA, file search) just by changing the configuration.
+The `adapter` key in the configuration determines which domain adapter is plugged into the retriever. This allows the same retriever implementation (e.g., `QdrantRetriever`) to be used for different purposes just by changing the configuration.
 
 ### 4. Adapter Registry
 
@@ -111,7 +111,6 @@ ORBIT comes with a variety of pre-built retriever implementations and domain ada
 | **QA (Vector)** | `QAChromaRetriever` | `chroma` | Specialized for QA over ChromaDB. |
 | | `QAQdrantRetriever` | `qdrant` | Specialized for QA over Qdrant. |
 | **QA (SQL)** | `QASSQLRetriever` | `sqlite` | Specialized for QA over SQLite using text similarity. |
-| **File (Vector)** | `FileChromaRetriever` | `chroma` | Optimized for searching uploaded file content in ChromaDB. |
 | **Intent (SQL)** | `IntentPostgreSQLRetriever` | `postgres` | A powerful text-to-SQL retriever for PostgreSQL. |
 | | `IntentMySQLRetriever` | `mysql` | A powerful text-to-SQL retriever for MySQL. |
 | **Generic Vector**| `ChromaRetriever` | `chroma` | Generic retriever for ChromaDB. |
@@ -129,7 +128,6 @@ ORBIT comes with a variety of pre-built retriever implementations and domain ada
 | Name (`adapter`) | Class Name | Description |
 | :--- | :--- | :--- |
 | `qa` | `QADocumentAdapter` | Formats documents for question-answering tasks. |
-| `file` | `ChromaFileAdapter` | Processes and formats content from uploaded files (PDFs, CSVs, etc.). |
 | `intent` | `IntentAdapter` | Manages domain knowledge and templates for text-to-SQL translation. |
 | `generic` | `GenericDocumentAdapter` | Provides basic, general-purpose document formatting. |
 
@@ -173,27 +171,9 @@ This adapter uses the `QAQdrantRetriever` to perform QA over a Qdrant vector dat
     max_results: 5
 ```
 
-### Example 3: File Search over Vector (Chroma)
-
-This adapter is configured to search through uploaded files stored in ChromaDB using the `FileChromaRetriever` and the `file` domain adapter.
-
-```yaml
-- name: "file-vector"
-  enabled: false
-  type: "retriever"
-  datasource: "chroma"
-  adapter: "file"
-  implementation: "retrievers.implementations.file.FileChromaRetriever"
-  config:
-    confidence_threshold: 0.1
-    max_results: 10
-    include_file_metadata: true
-    boost_file_uploads: true
-```
-
 ### Example 4: Intent-to-SQL (PostgreSQL)
 
-This adapter uses the powerful `IntentPostgreSQLRetriever` to translate natural language questions into SQL queries for a PostgreSQL database.
+This adapter uses the `IntentPostgreSQLRetriever` to translate natural language questions into SQL queries for a PostgreSQL database.
 
 ```yaml
 - name: "intent-sql-postgres"
