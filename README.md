@@ -46,23 +46,6 @@ With ORBIT, you can:
   <img src="docs/images/why-orbit.png" width="800" alt="Why ORBIT" />
 </div>
 
-<div align="center">
-  <video src="https://github.com/user-attachments/assets/b183678f-d2de-40c8-b969-74e71c3c96d9" controls>
-    Your browser does not support the video tag.
-  </video>
-  <br/>
-  <i>ORBIT in action extracting data insights from an e-commerce database.</i>
-</div>
-
-### Testing the SQL intent adapetr using the chatbot widget:
-
-<div align="center">
-  <video src="https://github.com/user-attachments/assets/b183678f-d2de-40c8-b969-74e71c3c96d9" controls>
-    Your browser does not support the video tag.
-  </video>
-  <br/>
-  <i>ORBIT in action extracting data insights from an e-commerce database.</i>
-</div>
 ---
 
 ## 🚀 Quick Start
@@ -294,6 +277,16 @@ orbit-chat --url http://localhost:3000 --api-key YOUR_API_KEY
   </video>
   <br/>
   <i>Testing the SQL Intent Adapter using the ORBIT CLI tool</i>
+</div>
+
+#### Testing the SQL intent adapter using the chatbot widget:
+
+<div align="center">
+  <video src="https://github.com/user-attachments/assets/b183678f-d2de-40c8-b969-74e71c3c96d9" controls>
+    Your browser does not support the video tag.
+  </video>
+  <br/>
+  <i>ORBIT in action extracting data insights from an e-commerce database.</i>
 </div>
 
 ---
