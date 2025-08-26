@@ -31,6 +31,21 @@ ORBIT (Open Retreival-Based Inference Toolkit) is a middleware platform that pro
 
 ---
 
+## 🤔 Why ORBIT?
+
+ORBIT was created to solve a growing challenge: organizations want to harness the power of AI, but without sending sensitive data to third-party cloud services or being locked into proprietary platforms. Existing solutions often require complex integrations, lack flexibility, or force you to compromise on privacy and control.
+
+With ORBIT, you can:
+- **Keep your data private**: All processing happens on your infrastructure—no data leaves your environment.
+- **Connect any model, any data**: Integrate local or remote LLMs, SQL or vector databases, all through a unified API.
+- **Stay in control**: No subscriptions, no vendor lock-in, and full transparency.
+- **Accelerate AI adoption**: Rapidly build, test, and deploy AI-powered applications tailored to your business needs.
+
+
+<div align="center">
+  <img src="docs/images/why-orbit.png" width="800" alt="Why ORBIT" />
+</div>
+
 <div align="center">
   <video src="https://github.com/user-attachments/assets/b183678f-d2de-40c8-b969-74e71c3c96d9" controls>
     Your browser does not support the video tag.
@@ -39,6 +54,15 @@ ORBIT (Open Retreival-Based Inference Toolkit) is a middleware platform that pro
   <i>ORBIT in action extracting data insights from an e-commerce database.</i>
 </div>
 
+### Testing the SQL intent adapetr using the chatbot widget:
+
+<div align="center">
+  <video src="https://github.com/user-attachments/assets/b183678f-d2de-40c8-b969-74e71c3c96d9" controls>
+    Your browser does not support the video tag.
+  </video>
+  <br/>
+  <i>ORBIT in action extracting data insights from an e-commerce database.</i>
+</div>
 ---
 
 ## 🚀 Quick Start
