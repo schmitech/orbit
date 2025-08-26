@@ -100,17 +100,17 @@ orbit-chat --url http://localhost:3000
 
 ### 4. Chat with ORBIT using the Web Widget
 ```bash
-cd clients/chat-widget/react-example/
+cd clients/chat-widget/theming-app/
 npm install
 npm run dev
 ```
 
 <div align="center">
-  <video src="https://github.com/user-attachments/assets/675861ed-c6a9-4dd7-9a46-1acf79d9b4e8" controls>
+  <video src="https://github.com/user-attachments/assets/efbb2e83-6956-4f58-a69e-ac71bc5c194b" controls>
     Your browser does not support the video tag.
   </video>
   <br/>
-  <i>Chatting with ORBIT using the react widget. The widget is available as an <a href="https://www.npmjs.com/package/@schmitech/chatbot-widget">NPM package</a></i>
+  <i>Chatting with ORBIT using the widget theming app. The widget is available as an <a href="https://www.npmjs.com/package/@schmitech/chatbot-widget">NPM package</a></i>
 </div>
 
 ---
