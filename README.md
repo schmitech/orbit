@@ -43,7 +43,7 @@ With ORBIT, you can:
 
 
 <div align="center">
-  <img src="docs/images/orbit-animation.gif" width="800" alt="Why ORBIT" />
+  <img src="docs/images/why-orbit.png" width="800" alt="Why ORBIT" />
 </div>
 
 ---
