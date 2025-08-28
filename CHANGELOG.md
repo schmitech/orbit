@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.3.7] - 2025-08-29
+
+### Monitoring
+- Added prometheus dashboard for real-time reosurce monitoring
+
 ## [1.3.6] - 2025-08-26
 
 ### Retrievers

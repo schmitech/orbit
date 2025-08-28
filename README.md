@@ -59,9 +59,9 @@ Refer to the [Docker Setup Guide](docker/README.md).
 
 ```bash
 # Download the latest release
-curl -L https://github.com/schmitech/orbit/releases/download/v1.3.6/orbit-1.3.6.tar.gz -o orbit-1.3.6.tar.gz
-tar -xzf orbit-1.3.6.tar.gz
-cd orbit-1.3.6
+curl -L https://github.com/schmitech/orbit/releases/download/v1.3.7/orbit-1.3.7.tar.gz -o orbit-1.3.7.tar.gz
+tar -xzf orbit-1.3.7.tar.gz
+cd orbit-1.3.7
 
 # Run the quick setup script (downloads a small model)
 cp env.example .env
