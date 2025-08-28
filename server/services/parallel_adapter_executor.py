@@ -1014,6 +1014,12 @@ class ParallelAdapterExecutor:
     
     def get_circuit_breaker_status(self) -> Dict[str, Any]:
         """Get status of all circuit breakers"""
+        # Ensure circuit breakers are initialized for all adapters
+        if not self.circuit_breakers and hasattr(self.adapter_manager, 'get_available_adapters'):
+            # Initialize circuit breakers for all available adapters
+            for adapter_name in self.adapter_manager.get_available_adapters():
+                self._get_circuit_breaker(adapter_name)
+        
         return {
             name: cb.get_status()
             for name, cb in self.circuit_breakers.items()

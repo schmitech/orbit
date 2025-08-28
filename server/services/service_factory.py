@@ -221,6 +221,9 @@ class ServiceFactory:
         # Initialize Logger Service (always needed)
         await self._initialize_logger_service(app)
         
+        # Initialize Metrics Service (for monitoring dashboard)
+        await self._initialize_metrics_service(app)
+        
         # Initialize Clock Service
         await self._initialize_clock_service(app)
         
@@ -444,6 +447,27 @@ class ServiceFactory:
         app.state.logger_service = LoggerService(self.config)
         await app.state.logger_service.initialize_elasticsearch()
         self.logger.info("Logger Service initialized successfully")
+    
+    async def _initialize_metrics_service(self, app: FastAPI) -> None:
+        """Initialize Metrics Service for monitoring."""
+        try:
+            # Check if monitoring is enabled in configuration
+            monitoring_config = self.config.get('monitoring', {})
+            monitoring_enabled = monitoring_config.get('enabled', True)
+            
+            if not monitoring_enabled:
+                app.state.metrics_service = None
+                self.logger.info("Metrics Service disabled by configuration")
+                return
+            
+            from services.metrics_service import MetricsService
+            app.state.metrics_service = MetricsService(self.config)
+            await app.state.metrics_service.start_collection()
+            self.logger.info("Metrics Service initialized successfully")
+        except Exception as e:
+            self.logger.warning(f"Failed to initialize Metrics Service: {str(e)}")
+            # Don't fail startup if metrics service fails
+            app.state.metrics_service = None
     
     async def _initialize_clock_service(self, app: FastAPI) -> None:
         """Initialize the Clock Service."""

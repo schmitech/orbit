@@ -35,6 +35,7 @@ class MiddlewareConfigurator:
         This method sets up:
         - CORS middleware for cross-origin requests
         - Custom logging middleware for request/response tracking
+        - Metrics middleware for monitoring
         
         The CORS middleware is configured to allow all origins, methods, and headers
         for development. In production, this should be restricted to specific origins.
@@ -49,6 +50,9 @@ class MiddlewareConfigurator:
         
         # Configure request logging middleware
         MiddlewareConfigurator._configure_logging_middleware(app, logger)
+        
+        # Configure metrics middleware (if available)
+        MiddlewareConfigurator._configure_metrics_middleware(app, logger)
     
     @staticmethod
     def _configure_cors_middleware(app: FastAPI, config: Dict[str, Any]) -> None:
@@ -126,3 +130,22 @@ class MiddlewareConfigurator:
             )
             
             return response
+    
+    @staticmethod
+    def _configure_metrics_middleware(app: FastAPI, logger: logging.Logger) -> None:
+        """
+        Configure metrics middleware for monitoring requests.
+        
+        Args:
+            app: The FastAPI application instance
+            logger: Logger instance for metrics logging
+        """
+        try:
+            # Use explicit package import to avoid module resolution issues
+            from server.middleware.metrics_middleware import MetricsMiddleware
+            app.add_middleware(MetricsMiddleware)
+            logger.info("Metrics middleware configured successfully")
+        except ImportError:
+            logger.warning("MetricsMiddleware not available - metrics collection disabled")
+        except Exception as e:
+            logger.warning(f"Failed to configure metrics middleware: {e}")

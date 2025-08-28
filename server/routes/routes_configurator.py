@@ -327,6 +327,15 @@ class RouteConfigurator:
         health_router = create_health_router()
         app.include_router(health_router)
         self.logger.info("Health routes registered")
+        
+        # Include dashboard routes for monitoring
+        try:
+            from routes.dashboard_routes import create_dashboard_router
+            dashboard_router = create_dashboard_router()
+            app.include_router(dashboard_router)
+            self.logger.info("Dashboard routes registered")
+        except Exception as e:
+            self.logger.warning(f"Failed to register dashboard routes: {e}")
     
     async def _process_mcp_request(
         self, 

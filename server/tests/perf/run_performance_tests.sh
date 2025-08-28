@@ -20,6 +20,9 @@ RUN_TIME="5m"
 OUTPUT_DIR="results"
 SCENARIO="basic"
 
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 # Function to print colored output
 print_status() {
     echo -e "${BLUE}[INFO]${NC} $1"
@@ -95,7 +98,7 @@ run_basic_test() {
     print_status "Running basic performance test..."
     
     locust \
-        --locustfile=locustfile.py \
+        --locustfile="$SCRIPT_DIR/locustfile.py" \
         --host="$HOST" \
         --users="$USERS" \
         --spawn-rate="$SPAWN_RATE" \
@@ -115,7 +118,7 @@ run_health_test() {
     export LOCUST_USER_CLASSES="HealthCheckUser"
     
     locust \
-        --locustfile=locustfile.py \
+        --locustfile="$SCRIPT_DIR/locustfile.py" \
         --host="$HOST" \
         --users="$USERS" \
         --spawn-rate="$SPAWN_RATE" \
@@ -153,7 +156,7 @@ run_admin_test() {
     
     # Use all user classes but focus on admin operations
     locust \
-        --locustfile=locustfile.py \
+        --locustfile="$SCRIPT_DIR/locustfile.py" \
         --host="$HOST" \
         --users="$USERS" \
         --spawn-rate="$SPAWN_RATE" \
@@ -174,7 +177,7 @@ run_stress_test() {
     STRESS_SPAWN_RATE=$((SPAWN_RATE * 2))
     
     locust \
-        --locustfile=locustfile.py \
+        --locustfile="$SCRIPT_DIR/locustfile.py" \
         --host="$HOST" \
         --users="$STRESS_USERS" \
         --spawn-rate="$STRESS_SPAWN_RATE" \
@@ -194,7 +197,7 @@ run_endurance_test() {
     ENDURANCE_TIME="30m"
     
     locust \
-        --locustfile=locustfile.py \
+        --locustfile="$SCRIPT_DIR/locustfile.py" \
         --host="$HOST" \
         --users="$USERS" \
         --spawn-rate="$SPAWN_RATE" \

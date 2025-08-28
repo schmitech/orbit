@@ -327,6 +327,10 @@ class InferenceServer:
         if hasattr(app.state, 'redis_service'):
             add_shutdown_task(app.state.redis_service, 'Redis Service')
         
+        # Close Metrics service
+        if hasattr(app.state, 'metrics_service'):
+            add_shutdown_task(app.state.metrics_service, 'Metrics Service')
+        
         # Close Chat History service
         if hasattr(app.state, 'chat_history_service'):
             add_shutdown_task(app.state.chat_history_service, 'Chat History Service')

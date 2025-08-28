@@ -166,6 +166,49 @@ def _log_config_summary(config: Dict[str, Any], source_path: str):
         if disabled_adapters:
             disabled_names = [adapter.get('name', 'unnamed') for adapter in disabled_adapters]
             logger.info(f"Disabled adapters: {', '.join(disabled_names)}")
+    
+    # Log monitoring configuration
+    monitoring_config = config.get('monitoring', {})
+    if monitoring_config:
+        monitoring_enabled = monitoring_config.get('enabled', True)
+        metrics_config = monitoring_config.get('metrics', {})
+        
+        if monitoring_enabled:
+            collection_interval = metrics_config.get('collection_interval', 5)
+            time_window = metrics_config.get('time_window', 300)
+            prometheus_enabled = metrics_config.get('prometheus', {}).get('enabled', True)
+            dashboard_enabled = metrics_config.get('dashboard', {}).get('enabled', True)
+            websocket_interval = metrics_config.get('dashboard', {}).get('websocket_update_interval', 5)
+            
+            features = []
+            if prometheus_enabled:
+                features.append("prometheus")
+            if dashboard_enabled:
+                features.append("dashboard")
+            
+            logger.info(f"Monitoring: enabled - features=({', '.join(features)}), "
+                       f"collection_interval={collection_interval}s, time_window={time_window}s, "
+                       f"websocket_update={websocket_interval}s")
+            
+            # Log alert thresholds if configured
+            alerts_config = monitoring_config.get('alerts', {})
+            if alerts_config:
+                thresholds = []
+                if 'cpu_threshold' in alerts_config:
+                    thresholds.append(f"cpu={alerts_config['cpu_threshold']}%")
+                if 'memory_threshold' in alerts_config:
+                    thresholds.append(f"memory={alerts_config['memory_threshold']}%")
+                if 'error_rate_threshold' in alerts_config:
+                    thresholds.append(f"error_rate={alerts_config['error_rate_threshold']}%")
+                if 'response_time_threshold' in alerts_config:
+                    thresholds.append(f"response_time={alerts_config['response_time_threshold']}ms")
+                
+                if thresholds:
+                    logger.info(f"Monitoring Alert Thresholds: {', '.join(thresholds)}")
+        else:
+            logger.info("Monitoring: disabled")
+    else:
+        logger.info("Monitoring: using default settings")
 
 
 def _mask_url(url: str) -> str:

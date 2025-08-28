@@ -212,3 +212,19 @@ llm_guard:
 reranker:
   provider: "ollama"
   enabled: false
+
+monitoring:
+  enabled: false                    # Enable/disable monitoring dashboard
+  metrics:
+    collection_interval: 5         # Seconds between metric collections
+    time_window: 300              # Seconds of historical data to keep (5 minutes)
+    prometheus:
+      enabled: true               # Enable Prometheus endpoint at /metrics
+    dashboard:
+      enabled: true               # Enable web dashboard at /dashboard
+      websocket_update_interval: 5 # Seconds between WebSocket updates
+  alerts:                         # Alert thresholds (future use)
+    cpu_threshold: 90             # Alert when CPU > 90%
+    memory_threshold: 85          # Alert when memory > 85%
+    error_rate_threshold: 5       # Alert when error rate > 5%
+    response_time_threshold: 5000 # Alert when avg response time > 5000ms
