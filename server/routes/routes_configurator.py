@@ -11,10 +11,13 @@ This module handles all route setup and configuration, including:
 import json
 import uuid
 import logging
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from fastapi import FastAPI, Request, Depends, HTTPException, Response
 from fastapi.responses import StreamingResponse
 from bson import ObjectId
+from pydantic import BaseModel
+
+from utils import is_true_value
 
 from utils import is_true_value
 from models.schema import MCPJsonRpcRequest, MCPJsonRpcResponse
@@ -277,9 +280,14 @@ class RouteConfigurator:
             return Response(status_code=204)
     
     def _configure_chat_endpoint(self, app: FastAPI, dependencies: Dict[str, Any]) -> None:
-        """Configure the main chat endpoint with MCP protocol support."""
-        @app.post("/v1/chat")
-        async def mcp_chat_endpoint(
+        """Configure the main chat endpoint."""
+        class ChatRequest(BaseModel):
+            messages: List[Dict[str, str]]
+            stream: bool = False
+
+        @app.post("/v1/chat", operation_id="chat")
+        async def chat_endpoint(
+            chat_request: ChatRequest,
             request: Request,
             chat_service = Depends(dependencies['get_chat_service']),
             api_key_result: tuple[str, Optional[ObjectId]] = Depends(dependencies['get_api_key']),
@@ -287,14 +295,45 @@ class RouteConfigurator:
             user_id: Optional[str] = Depends(dependencies['get_user_id'])
         ):
             """
-            Process an MCP protocol chat request and return a response
-            
-            This endpoint implements the MCP protocol using JSON-RPC 2.0 format
-            with the tools/call method and chat tool.
+            Process a chat request and return a response.
+            This endpoint is now a standard RESTful endpoint.
+            The fastapi-mcp library will expose it as an MCP tool.
             """
-            return await self._process_mcp_request(
-                request, chat_service, api_key_result, session_id, user_id
-            )
+            adapter_name, system_prompt_id = api_key_result
+            client_ip = request.headers.get("X-Forwarded-For", request.client.host if request.client else "unknown")
+            api_key = request.headers.get(self.config.get('api_keys', {}).get('header_name', 'X-API-Key'))
+
+            # Extract the last user message
+            user_messages = [m for m in chat_request.messages if m.get("role") == "user"]
+            if not user_messages:
+                raise HTTPException(status_code=400, detail="No user message found in request")
+            
+            last_user_message = user_messages[-1].get("content", "")
+
+            if chat_request.stream:
+                async def stream_generator():
+                    async for chunk in chat_service.process_chat_stream(
+                        message=last_user_message,
+                        client_ip=client_ip,
+                        adapter_name=adapter_name,
+                        system_prompt_id=system_prompt_id,
+                        api_key=api_key,
+                        session_id=session_id,
+                        user_id=user_id
+                    ):
+                        yield chunk
+                return StreamingResponse(stream_generator(), media_type="text/event-stream")
+            else:
+                result = await chat_service.process_chat(
+                    message=last_user_message,
+                    client_ip=client_ip,
+                    adapter_name=adapter_name,
+                    system_prompt_id=system_prompt_id,
+                    api_key=api_key,
+                    session_id=session_id,
+                    user_id=user_id
+                )
+                return result
     
     def _configure_health_endpoint(self, app: FastAPI, dependencies: Dict[str, Any]) -> None:
         """Configure the health check endpoint."""
@@ -337,389 +376,4 @@ class RouteConfigurator:
         except Exception as e:
             self.logger.warning(f"Failed to register dashboard routes: {e}")
     
-    async def _process_mcp_request(
-        self, 
-        request: Request, 
-        chat_service, 
-        api_key_result: tuple[str, Optional[ObjectId]], 
-        session_id: str, 
-        user_id: Optional[str]
-    ):
-        """Process MCP protocol requests."""
-        adapter_name, system_prompt_id = api_key_result
-        
-        # Extract the API key and client info
-        api_key = request.headers.get("X-API-Key")
-        masked_api_key = f"***{api_key[-4:]}" if api_key else "***"
-        client_ip = request.headers.get("X-Forwarded-For", request.client.host if request.client else "unknown")
-        
-        # Enhanced verbose logging
-        if is_true_value(self.config.get('general', {}).get('verbose', False)):
-            self._log_request_details(session_id, client_ip, adapter_name, system_prompt_id, masked_api_key, request.method, user_id, request.headers)
-        
-        # Get request body
-        try:
-            body = await request.json()
-            if is_true_value(self.config.get('general', {}).get('verbose', False)):
-                self.logger.debug("Request Body:")
-                self.logger.debug(json.dumps(body, indent=2))
-        except Exception as e:
-            self.logger.error(f"Failed to parse request body for session {session_id}: {str(e)}")
-            raise HTTPException(status_code=400, detail=f"Invalid request body: {str(e)}")
-        
-        # Validate JSON-RPC request format
-        if not all(key in body for key in ["jsonrpc", "method", "params", "id"]):
-            self.logger.error("Invalid request format: missing required JSON-RPC fields")
-            raise HTTPException(status_code=400, detail="Invalid request format: missing required JSON-RPC fields")
-        
-        try:
-            jsonrpc_request = MCPJsonRpcRequest(**body)
-            # Enhanced verbose logging for JSON-RPC request
-            if is_true_value(self.config.get('general', {}).get('verbose', False)):
-                self.logger.debug("JSON-RPC Request Details:")
-                self.logger.debug(f"  Method: {jsonrpc_request.method}")
-                self.logger.debug(f"  ID: {jsonrpc_request.id}")
-                self.logger.debug("  Params:")
-                self.logger.debug(json.dumps(jsonrpc_request.params, indent=2))
-        except Exception as e:
-            self.logger.error(f"Failed to parse JSON-RPC request: {str(e)}")
-            raise HTTPException(status_code=400, detail=f"Invalid request format: {str(e)}")
-        
-        return await self._handle_mcp_method(
-            jsonrpc_request, chat_service, client_ip, adapter_name, 
-            system_prompt_id, api_key, session_id, user_id
-        )
     
-    def _log_request_details(self, session_id: str, client_ip: str, adapter_name: str, 
-                           system_prompt_id: Optional[ObjectId], masked_api_key: str, 
-                           method: str, user_id: Optional[str], headers) -> None:
-        """Log detailed request information for debugging."""
-        self.logger.debug("=" * 50)
-        self.logger.debug("Incoming MCP Request Details:")
-        self.logger.debug(f"Session ID: {session_id}")
-        self.logger.debug(f"Client IP: {client_ip}")
-        self.logger.debug(f"Adapter: {adapter_name}")
-        self.logger.debug(f"System Prompt ID: {system_prompt_id}")
-        self.logger.debug(f"API Key: {masked_api_key}")
-        self.logger.debug(f"Request Method: {method}")
-        if user_id:
-            self.logger.debug(f"User ID: {user_id}")
-        self.logger.debug("Request Headers:")
-        for header, value in headers.items():
-            if header.lower() == "x-api-key":
-                self.logger.debug(f"  {header}: {masked_api_key}")
-            else:
-                self.logger.debug(f"  {header}: {value}")
-    
-    async def _handle_mcp_method(
-        self, 
-        jsonrpc_request: MCPJsonRpcRequest, 
-        chat_service, 
-        client_ip: str, 
-        adapter_name: str, 
-        system_prompt_id: Optional[ObjectId], 
-        api_key: str, 
-        session_id: str, 
-        user_id: Optional[str]
-    ):
-        """Handle MCP protocol method calls."""
-        try:
-            # Handle the tools/call method for chat
-            if jsonrpc_request.method == "tools/call":
-                return await self._handle_chat_tool(
-                    jsonrpc_request, chat_service, client_ip, adapter_name,
-                    system_prompt_id, api_key, session_id, user_id
-                )
-            else:
-                # Method not supported
-                return MCPJsonRpcResponse(
-                    jsonrpc="2.0",
-                    error={
-                        "code": -32601,
-                        "message": f"Method not found: {jsonrpc_request.method}"
-                    },
-                    id=jsonrpc_request.id
-                )
-        except Exception as e:
-            self.logger.error(f"Error in MCP endpoint: {str(e)}")
-            return MCPJsonRpcResponse(
-                jsonrpc="2.0",
-                error={
-                    "code": -32603,
-                    "message": f"Internal error: {str(e)}"
-                },
-                id=jsonrpc_request.id
-            )
-    
-    async def _handle_chat_tool(
-        self, 
-        jsonrpc_request: MCPJsonRpcRequest, 
-        chat_service, 
-        client_ip: str, 
-        adapter_name: str, 
-        system_prompt_id: Optional[ObjectId], 
-        api_key: str, 
-        session_id: str, 
-        user_id: Optional[str]
-    ):
-        """Handle chat tool requests."""
-        # Validate tool name is "chat"
-        tool_name = jsonrpc_request.params.get("name", "")
-        if tool_name != "chat":
-            if is_true_value(self.config.get('general', {}).get('verbose', False)):
-                self.logger.debug(f"Unsupported tool requested: {tool_name}")
-            return MCPJsonRpcResponse(
-                jsonrpc="2.0",
-                error={
-                    "code": -32601,
-                    "message": f"Tool not supported: {tool_name}"
-                },
-                id=jsonrpc_request.id
-            )
-        
-        # Extract arguments
-        arguments = jsonrpc_request.params.get("arguments", {})
-        messages = arguments.get("messages", [])
-        
-        if is_true_value(self.config.get('general', {}).get('verbose', False)):
-            self.logger.debug("Chat Arguments:")
-            self.logger.debug(f"  Stream: {arguments.get('stream', False)}")
-            self.logger.debug(f"  Message Count: {len(messages)}")
-            self.logger.debug("  Messages:")
-            for msg in messages:
-                self.logger.debug(f"    Role: {msg.get('role')}")
-                self.logger.debug(f"    Content Length: {len(msg.get('content', ''))}")
-        
-        if not messages:
-            self.logger.error("No messages provided in request")
-            return MCPJsonRpcResponse(
-                jsonrpc="2.0",
-                error={
-                    "code": -32602,
-                    "message": "Invalid params: missing messages"
-                },
-                id=jsonrpc_request.id
-            )
-        
-        # Extract the last user message
-        user_messages = [m for m in messages if m.get("role") == "user"]
-        if not user_messages:
-            self.logger.error("No user message found in request")
-            return MCPJsonRpcResponse(
-                jsonrpc="2.0",
-                error={
-                    "code": -32602,
-                    "message": "Invalid params: no user message found"
-                },
-                id=jsonrpc_request.id
-            )
-        
-        # Get the last user message content
-        last_user_message = user_messages[-1].get("content", "")
-        
-        if is_true_value(self.config.get('general', {}).get('verbose', False)):
-            self.logger.debug(f"Processing user message (length: {len(last_user_message)})")
-        
-        # Check for streaming parameter
-        stream = arguments.get("stream", False)
-        
-        if is_true_value(self.config.get('general', {}).get('verbose', False)):
-            self.logger.debug(f"Streaming mode: {'enabled' if stream else 'disabled'}")
-
-        # Handle streaming vs non-streaming
-        if stream:
-            return await self._handle_streaming_chat(
-                jsonrpc_request, chat_service, last_user_message, client_ip,
-                adapter_name, system_prompt_id, api_key, session_id, user_id
-            )
-        else:
-            return await self._handle_non_streaming_chat(
-                jsonrpc_request, chat_service, last_user_message, client_ip,
-                adapter_name, system_prompt_id, api_key, session_id, user_id
-            )
-    
-    async def _handle_streaming_chat(
-        self, jsonrpc_request: MCPJsonRpcRequest, chat_service, message: str,
-        client_ip: str, adapter_name: str, system_prompt_id: Optional[ObjectId],
-        api_key: str, session_id: str, user_id: Optional[str]
-    ):
-        """Handle streaming chat responses."""
-        async def stream_generator():
-            try:
-                # Send the first chunk to establish the stream
-                start_response = {
-                    "jsonrpc": "2.0", 
-                    "id": jsonrpc_request.id,
-                    "result": {
-                        "type": "start"
-                    }
-                }
-                yield f'data: {json.dumps(start_response)}\n\n'
-                
-                # Process message in streaming mode
-                buffer = ""
-                async for chunk in chat_service.process_chat_stream(
-                    message=message,
-                    client_ip=client_ip,
-                    adapter_name=adapter_name,
-                    system_prompt_id=system_prompt_id,
-                    api_key=api_key,
-                    session_id=session_id,
-                    user_id=user_id
-                ):
-                    # Process chunk data
-                    try:
-                        if chunk.startswith("data: "):
-                            chunk = chunk[6:].strip()  # Remove "data: " prefix
-                        
-                        chunk_data = json.loads(chunk)
-                        
-                        # Handle error responses (including moderation blocks)
-                        if "error" in chunk_data:
-                            # Format the error response as a complete message
-                            error_response = {
-                                "jsonrpc": "2.0",
-                                "id": jsonrpc_request.id,
-                                "result": {
-                                    "name": "chat",
-                                    "type": "complete",
-                                    "output": {
-                                        "messages": [
-                                            {
-                                                "role": "assistant",
-                                                "content": chunk_data["error"]
-                                            }
-                                        ]
-                                    }
-                                }
-                            }
-                            yield f"data: {json.dumps(error_response)}\n\n"
-                            yield f"data: [DONE]\n\n"
-                            return
-                        
-                        # Skip done messages
-                        if chunk_data.get("done", False):
-                            continue
-                        
-                        # Extract content
-                        content = chunk_data.get("response", "")
-                        if content:
-                            # Add to buffer
-                            buffer += content
-                            
-                            # Format response as per MCP
-                            chunk_response = {
-                                "jsonrpc": "2.0", 
-                                "id": jsonrpc_request.id,
-                                "result": {
-                                    "name": "chat",
-                                    "type": "chunk",
-                                    "chunk": {
-                                        "content": content,
-                                        "role": "assistant"
-                                    }
-                                }
-                            }
-                            
-                            yield f"data: {json.dumps(chunk_response)}\n\n"
-                    except json.JSONDecodeError:
-                        # If not valid JSON, try to extract text content directly
-                        if chunk:
-                            buffer += chunk
-                            chunk_response = {
-                                "jsonrpc": "2.0", 
-                                "id": jsonrpc_request.id,
-                                "result": {
-                                    "name": "chat",
-                                    "type": "chunk",
-                                    "chunk": {
-                                        "content": chunk,
-                                        "role": "assistant"
-                                    }
-                                }
-                            }
-                            yield f"data: {json.dumps(chunk_response)}\n\n"
-            
-                # Send final message with complete response
-                final_response = {
-                    "jsonrpc": "2.0",
-                    "id": jsonrpc_request.id,
-                    "result": {
-                        "name": "chat",
-                        "type": "complete",
-                        "output": {
-                            "messages": [
-                                {
-                                    "role": "assistant",
-                                    "content": buffer
-                                }
-                            ]
-                        }
-                    }
-                }
-                
-                yield f"data: {json.dumps(final_response)}\n\n"
-                yield f"data: [DONE]\n\n"
-                
-            except Exception as e:
-                self.logger.error(f"Error in MCP streaming: {str(e)}")
-                error_response = {
-                    "jsonrpc": "2.0",
-                    "id": jsonrpc_request.id,
-                    "error": {
-                        "code": -32603,
-                        "message": f"Internal error: {str(e)}"
-                    }
-                }
-                yield f"data: {json.dumps(error_response)}\n\n"
-                yield f"data: [DONE]\n\n"
-        
-        return StreamingResponse(
-            stream_generator(),
-            media_type="text/event-stream"
-        )
-    
-    async def _handle_non_streaming_chat(
-        self, jsonrpc_request: MCPJsonRpcRequest, chat_service, message: str,
-        client_ip: str, adapter_name: str, system_prompt_id: Optional[ObjectId],
-        api_key: str, session_id: str, user_id: Optional[str]
-    ):
-        """Handle non-streaming chat responses."""
-        # Process the chat message (non-streaming)
-        result = await chat_service.process_chat(
-            message=message,
-            client_ip=client_ip,
-            adapter_name=adapter_name,
-            system_prompt_id=system_prompt_id,
-            api_key=api_key,
-            session_id=session_id,
-            user_id=user_id
-        )
-        
-        # Handle error responses (including moderation blocks)
-        if "error" in result:
-            return MCPJsonRpcResponse(
-                jsonrpc="2.0",
-                error={
-                    "code": result["error"].get("code", -32603),
-                    "message": result["error"].get("message", "Unknown error")
-                },
-                id=jsonrpc_request.id
-            )
-        
-        # Format the response as per MCP
-        return MCPJsonRpcResponse(
-            jsonrpc="2.0",
-            result={
-                "name": "chat",
-                "output": {
-                    "messages": [
-                        {
-                            "role": "assistant",
-                            "content": result.get("response", "")
-                        }
-                    ]
-                }
-            },
-            id=jsonrpc_request.id
-        )

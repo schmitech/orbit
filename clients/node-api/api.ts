@@ -32,50 +32,16 @@ export interface StreamResponse {
   done: boolean;
 }
 
+// The server now returns this directly for non-streaming chat
 export interface ChatResponse {
   response: string;
+  sources?: any[];
 }
 
-// MCP Protocol interfaces
-interface MCPRequest {
-  jsonrpc: "2.0";
-  method: string;
-  params: {
-    name: string;
-    arguments: {
-      messages?: Array<{
-        role: string;
-        content: string;
-      }>;
-      stream?: boolean;
-      tools?: Array<{
-        name: string;
-        parameters: Record<string, any>;
-      }>;
-    };
-  };
-  id: string;
-}
-
-interface MCPResponse {
-  jsonrpc: "2.0";
-  id: string;
-  result?: {
-    type?: "start" | "chunk" | "complete";
-    chunk?: {
-      content: string;
-    };
-    output?: {
-      messages: Array<{
-        role: string;
-        content: string;
-      }>;
-    };
-  };
-  error?: {
-    code: number;
-    message: string;
-  };
+// The request body for the /v1/chat endpoint
+interface ChatRequest {
+  messages: Array<{ role: string; content: string; }>;
+  stream: boolean;
 }
 
 export class ApiClient {
@@ -157,36 +123,13 @@ export class ApiClient {
     };
   }
 
-  // Create MCP request
-  private createMCPRequest(message: string, stream: boolean = true): MCPRequest {
+  // Create Chat request
+  private createChatRequest(message: string, stream: boolean = true): ChatRequest {
     return {
-      jsonrpc: "2.0",
-      method: "tools/call",
-      params: {
-        name: "chat",
-        arguments: {
-          messages: [
-            { role: "user", content: message }
-          ],
-          stream
-        }
-      },
-      id: Date.now().toString(36) + Math.random().toString(36).substring(2)
-    };
-  }
-
-  // Create MCP tools request
-  private createMCPToolsRequest(tools: Array<{ name: string; parameters: Record<string, any> }>): MCPRequest {
-    return {
-      jsonrpc: "2.0",
-      method: "tools/call",
-      params: {
-        name: "tools",
-        arguments: {
-          tools
-        }
-      },
-      id: Date.now().toString(36) + Math.random().toString(36).substring(2)
+      messages: [
+        { role: "user", content: message }
+      ],
+      stream
     };
   }
 
@@ -206,7 +149,7 @@ export class ApiClient {
             'Content-Type': 'application/json',
             'Accept': stream ? 'text/event-stream' : 'application/json'
           },
-          body: JSON.stringify(this.createMCPRequest(message, stream)),
+          body: JSON.stringify(this.createChatRequest(message, stream)),
         }),
         signal: controller.signal
       });
@@ -220,13 +163,10 @@ export class ApiClient {
 
       if (!stream) {
         // Handle non-streaming response
-        const data = await response.json() as MCPResponse;
-        if (data.error) {
-          throw new Error(`MCP Error: ${data.error.message}`);
-        }
-        if (data.result?.output?.messages?.[0]?.content) {
+        const data = await response.json() as ChatResponse;
+        if (data.response) {
           yield {
-            text: data.result.output.messages[0].content,
+            text: data.response,
             done: true
           };
         }
@@ -261,69 +201,46 @@ export class ApiClient {
             if (line && line.startsWith('data: ')) {
               const jsonText = line.slice(6).trim();
               
-              // Check for [DONE] message or empty data lines
               if (!jsonText || jsonText === '[DONE]') {
                 yield { text: '', done: true };
                 return;
               }
 
               try {
-                const data = JSON.parse(jsonText) as MCPResponse;
+                const data = JSON.parse(jsonText);
                 
                 if (data.error) {
-                  throw new Error(`MCP Error: ${data.error.message}`);
+                  throw new Error(`Server Error: ${data.error.message}`);
                 }
                 
-                // Handle MCP protocol format - server sends chunks of new text directly
-                if (data.result?.type === 'chunk' && data.result.chunk?.content) {
+                if (data.response) {
                   hasReceivedContent = true;
-                  yield { text: data.result.chunk.content, done: false };
-                } else if (data.result?.type === 'complete') {
-                  // Final piece of content or just the done signal
-                  const finalText = data.result.output?.messages?.[0]?.content ?? '';
-                  // Only yield final text if we haven't received incremental chunks
-                  if (!hasReceivedContent && finalText) {
-                    yield { text: finalText, done: true };
-                  } else {
+                  yield { text: data.response, done: data.done || false };
+                }
+
+                if (data.done) {
                     yield { text: '', done: true };
-                  }
-                  return;
-                } else if ('response' in data && typeof data.response === 'string') {
-                  // Handle direct server response format (legacy compatibility)
-                  const isDone = 'done' in data && data.done === true;
-                  
-                  if (isDone) {
-                    // For final response, only yield if we haven't received incremental chunks
-                    if (!hasReceivedContent && data.response) {
-                      yield { text: data.response, done: true };
-                    } else {
-                      yield { text: '', done: true };
-                    }
                     return;
-                  } else {
-                    // For incremental chunks, always yield
-                    hasReceivedContent = true;
-                    yield { text: data.response, done: false };
-                  }
                 }
                 
               } catch (parseError) {
-                console.warn('Error parsing JSON chunk:', parseError);
+                console.warn('Error parsing JSON chunk:', parseError, 'Chunk:', jsonText);
               }
+            } else if (line) {
+                // Handle raw text chunks that are not in SSE format
+                hasReceivedContent = true;
+                yield { text: line, done: false };
             }
           }
           
-          // Keep remaining incomplete line in buffer
           buffer = buffer.slice(lineStartIndex);
           
-          // Prevent buffer from growing too large
           if (buffer.length > 1000000) { // 1MB limit
             console.warn('Buffer too large, truncating...');
             buffer = buffer.slice(-500000); // Keep last 500KB
           }
         }
         
-        // If we exit the while loop naturally, ensure we send a done signal
         if (hasReceivedContent) {
           yield { text: '', done: true };
         }
@@ -338,33 +255,9 @@ export class ApiClient {
       } else if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
         throw new Error('Could not connect to the server. Please check if the server is running.');
       } else {
-        // Re-throw the error to be caught by the caller
         throw error;
       }
     }
-  }
-
-  // New function to send tools request
-  public async sendToolsRequest(tools: Array<{ name: string; parameters: Record<string, any> }>): Promise<MCPResponse> {
-    const response = await fetch(`${this.apiUrl}/v1/chat`, this.getFetchOptions({
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(this.createMCPToolsRequest(tools)),
-    }));
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Network response was not ok: ${response.status} ${errorText}`);
-    }
-
-    const data = await response.json() as MCPResponse;
-    if (data.error) {
-      throw new Error(`MCP Error: ${data.error.message}`);
-    }
-
-    return data;
   }
 }
 
@@ -388,13 +281,4 @@ export async function* streamChat(
   }
   
   yield* defaultClient.streamChat(message, stream);
-}
-
-// Legacy sendToolsRequest function that uses the default client
-export async function sendToolsRequest(tools: Array<{ name: string; parameters: Record<string, any> }>): Promise<MCPResponse> {
-  if (!defaultClient) {
-    throw new Error('API not configured. Please call configureApi() with your server URL before using any API functions.');
-  }
-  
-  return defaultClient.sendToolsRequest(tools);
 }

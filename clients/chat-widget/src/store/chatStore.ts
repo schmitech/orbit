@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { streamChat, configureApi } from '@schmitech/chatbot-api';
+import { ApiClient } from '@schmitech/chatbot-api';
 import { getApiUrl, getApiKey } from '../index';
 import { getOrCreateSessionId, setSessionId } from '../utils/sessionManager';
 import { CHAT_CONSTANTS } from '../shared/styles';
@@ -23,12 +23,12 @@ interface ChatState {
   getSessionId: () => string;
 }
 
-// Initialize API configuration
-let apiConfigured = false;
+// Initialize API client
+let apiClient: ApiClient | null = null;
 
-function ensureApiConfigured(): boolean {
-  if (apiConfigured) {
-    return true;
+function ensureApiClient(): ApiClient | null {
+  if (apiClient) {
+    return apiClient;
   }
 
   try {
@@ -52,7 +52,7 @@ function ensureApiConfigured(): boolean {
 
       if (!apiUrl || !apiKey) {
         console.warn('API URL or API Key not configured');
-        return false;
+        return null;
       }
 
       // Handle session ID
@@ -65,14 +65,13 @@ function ensureApiConfigured(): boolean {
         sessionId = getOrCreateSessionId();
       }
 
-      configureApi(apiUrl, apiKey, sessionId);
-      apiConfigured = true;
-      return true;
+      apiClient = new ApiClient({ apiUrl, apiKey, sessionId });
+      return apiClient;
     }
   } catch (err) {
-    console.error('Failed to configure API:', err);
+    console.error('Failed to create API client:', err);
   }
-  return false;
+  return null;
 }
 
 // Helper function to generate unique IDs
@@ -102,8 +101,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
       if (content.length > maxLen) {
         safeContent = content.substring(0, maxLen);
       }
-      // Ensure API is configured before sending message
-      if (!ensureApiConfigured()) {
+      // Ensure API client is available
+      const client = ensureApiClient();
+      if (!client) {
         throw new Error('API not properly configured');
       }
       // Add user message
@@ -118,8 +118,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }));
       let receivedAnyText = false;
       try {
-        // Use the streamChat function from chatbot-api
-        for await (const chunk of streamChat(safeContent)) {
+        // Use the streamChat method from ApiClient instance
+        for await (const chunk of client.streamChat(safeContent)) {
           if (chunk.text) {
             // Append the text to the last message
             get().appendToLastMessage(chunk.text);
@@ -166,7 +166,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     // Note: We're NOT clearing the session here, just the messages
     // If you want to start a completely new session, you would also call:
     // clearSession();
-    // apiConfigured = false;
-    // ensureApiConfigured();
+    // apiClient = null;
+    // ensureApiClient();
   }
 }));

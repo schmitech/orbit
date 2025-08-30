@@ -9,6 +9,7 @@ from contextlib import asynccontextmanager
 import uvicorn
 from fastapi import FastAPI
 from dotenv import load_dotenv
+from fastapi_mcp import FastApiMCP
 
 # Load environment variables
 load_dotenv()
@@ -129,6 +130,15 @@ class InferenceServer:
         # Configure middleware and routes
         MiddlewareConfigurator.configure_middleware(self.app, self.config, self.logger)
         self.route_configurator.configure_routes(self.app)
+
+        # Initialize MCP server
+        self.logger.info("Initializing MCP server with fastapi-mcp")
+        self.mcp_server = FastApiMCP(
+            self.app,
+            name="ORBIT",
+            description="ORBIT MCP Server"
+        )
+        self.mcp_server.mount_http(mount_path="/mcp")
         
         self.logger.info("InferenceServer initialized")
 
