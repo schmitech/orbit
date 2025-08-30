@@ -63,6 +63,10 @@ class MetricsService:
         if not self.enabled:
             logger.info("Metrics collection disabled by configuration")
             return
+        
+        # Get current process for process-specific metrics
+        self.process = psutil.Process(os.getpid())
+        self.process.cpu_percent(interval=None)  # Initialize CPU measurement
             
         # Prepare registry with optional multiprocess support
         self.registry = CollectorRegistry()
@@ -236,39 +240,44 @@ class MetricsService:
         """Continuously collect system metrics"""
         while True:
             try:
-                # Collect CPU and memory
-                cpu_percent = psutil.cpu_percent(interval=None)  # Non-blocking call
-                memory = psutil.virtual_memory()
-                memory_mb = round(memory.used / (1024 * 1024), 2)
-                
+                # Collect CPU and memory for the current process
+                cpu_percent = self.process.cpu_percent(interval=None)
+                memory_info = self.process.memory_info()
+                memory_mb = round(memory_info.rss / (1024 * 1024), 2)
+
                 # Update gauges
                 self.cpu_usage.set(cpu_percent)
                 self.memory_usage.set(memory_mb)
-                
+
                 # Calculate request rate
                 now = time.time()
                 cutoff = now - 60  # Last minute
                 recent_requests = [t for t in self.request_timestamps if t > cutoff]
                 requests_per_second = len(recent_requests) / 60.0 if recent_requests else 0
-                
+
                 # Calculate error rate
                 recent_errors = [t for t in self.error_timestamps if t > cutoff]
                 error_rate = (len(recent_errors) / len(recent_requests) * 100) if recent_requests else 0
-                
+
                 # Calculate average response time
                 avg_response_time = sum(self.response_times) / len(self.response_times) if self.response_times else 0
-                
+
                 # Store time series data
                 timestamp = datetime.now().isoformat()
                 self.time_series_data['cpu'].append(cpu_percent)
-                self.time_series_data['memory'].append(memory.percent)
+                
+                # Calculate memory percentage relative to total system memory
+                total_mem = psutil.virtual_memory().total
+                memory_percent = (memory_info.rss / total_mem) * 100 if total_mem > 0 else 0
+                self.time_series_data['memory'].append(memory_percent)
+
                 self.time_series_data['requests_per_second'].append(requests_per_second)
                 self.time_series_data['error_rate'].append(error_rate)
                 self.time_series_data['response_time'].append(avg_response_time * 1000)  # Convert to ms
                 self.time_series_data['timestamps'].append(timestamp)
-                
+
                 await asyncio.sleep(self.collection_interval)
-                
+
             except Exception as e:
                 logger.error(f"Error collecting system metrics: {e}")
                 await asyncio.sleep(self.collection_interval)
@@ -359,7 +368,7 @@ class MetricsService:
         """Get metrics formatted for dashboard display"""
         uptime_seconds = time.time() - self._start_time
         uptime_str = self._format_uptime(uptime_seconds)
-        
+
         # Calculate current rates
         now = time.time()
         cutoff = now - 60
@@ -367,12 +376,20 @@ class MetricsService:
         requests_per_second = len(recent_requests) / 60.0 if recent_requests else 0
         recent_errors = [t for t in self.error_timestamps if t > cutoff]
         error_rate = (len(recent_errors) / len(recent_requests) * 100) if recent_requests else 0
+
+        # Process-specific metrics
+        process_cpu_percent = self.process.cpu_percent(interval=None)
+        process_memory_info = self.process.memory_info()
+        process_memory_gb = round(process_memory_info.rss / (1024 * 1024 * 1024), 2)
+
+        total_memory = psutil.virtual_memory()
+        process_memory_percent = round((process_memory_info.rss / total_memory.total) * 100, 1) if total_memory.total > 0 else 0
         
         return {
             'system': {
-                'cpu_percent': round(psutil.cpu_percent(interval=None), 1),
-                'memory_gb': round(psutil.virtual_memory().used / (1024 * 1024 * 1024), 2),
-                'memory_percent': round(psutil.virtual_memory().percent, 1),
+                'cpu_percent': round(process_cpu_percent, 1),
+                'memory_gb': process_memory_gb,
+                'memory_percent': process_memory_percent,
                 'disk_usage_percent': round(psutil.disk_usage('/').percent, 1),
                 'uptime': uptime_str,
                 'uptime_seconds': uptime_seconds
