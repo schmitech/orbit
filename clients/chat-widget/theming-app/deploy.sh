@@ -35,10 +35,10 @@ echo -e "\n${BLUE}🔧 Checking environment configuration...${NC}"
 
 # Create or update .env.local
 cat > .env.local << EOF
-VITE_WIDGET_SOURCE=local
+VITE_WIDGET_SOURCE=npm
 VITE_LOCAL_WIDGET_JS_PATH=/dist/chatbot-widget.umd.js
 VITE_LOCAL_WIDGET_CSS_PATH=/dist/chatbot-widget.css
-VITE_NPM_WIDGET_VERSION=0.4.18
+VITE_NPM_WIDGET_VERSION=0.4.19
 VITE_WIDGET_DEBUG=false
 VITE_PROMPT_ENABLED=false
 VITE_DEFAULT_API_ENDPOINT=http://localhost:3000
