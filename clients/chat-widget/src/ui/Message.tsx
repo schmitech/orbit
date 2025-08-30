@@ -78,13 +78,12 @@ export const Message: React.FC<MessageProps> = ({
         {/* Message Content */}
         {message.role === 'assistant' ? (
           !message.content ? (
-            <div className="text-gray-500">
-              <span className="font-medium">Thinking</span>
-              <span className="animate-dots ml-1">
-                <span className="dot">.</span>
-                <span className="dot">.</span>
-                <span className="dot">.</span>
-              </span>
+            <div className="flex items-center gap-2">
+              <div className="typing-dots-container">
+                <div className="typing-dot"></div>
+                <div className="typing-dot"></div>
+                <div className="typing-dot"></div>
+              </div>
             </div>
           ) : !hasBeenAnimated(message.id) && isLatestAssistantMessage ? (
             <TypingEffect

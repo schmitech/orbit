@@ -188,29 +188,43 @@ export let CHAT_CONSTANTS = {
     animation: float 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
   
-  @keyframes dotBlink {
-    0%, 50%, 100% { opacity: 0.3; }
-    25%, 75% { opacity: 1; }
+  /* Modern typing dots animation */
+  @keyframes dotWave {
+    0%, 60%, 100% {
+      transform: translateY(0) scale(1);
+      background-color: #9ca3af;
+    }
+    30% {
+      transform: translateY(-10px) scale(1.1);
+      background-color: #6b7280;
+    }
   }
-  .animate-dots {
+  
+  .typing-dots-container {
     display: inline-flex;
-    margin-left: 4px;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 0;
   }
-  .animate-dots .dot {
-    font-size: 1.2em;
-    line-height: 0.5;
-    opacity: 0.3;
-    animation: dotBlink 1.6s infinite;
-    color: #6b7280;
+  
+  .typing-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: #9ca3af;
+    animation: dotWave 1.4s ease-in-out infinite;
   }
-  .animate-dots .dot:nth-child(1) {
+  
+  .typing-dot:nth-child(1) {
     animation-delay: 0s;
   }
-  .animate-dots .dot:nth-child(2) {
-    animation-delay: 0.3s;
+  
+  .typing-dot:nth-child(2) {
+    animation-delay: 0.2s;
   }
-  .animate-dots .dot:nth-child(3) {
-    animation-delay: 0.6s;
+  
+  .typing-dot:nth-child(3) {
+    animation-delay: 0.4s;
   }
 
   /* Glassmorphism effects */

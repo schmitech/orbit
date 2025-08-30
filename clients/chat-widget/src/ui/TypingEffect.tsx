@@ -249,28 +249,58 @@ export const TypingEffect: React.FC<TypingEffectProps> = ({
     };
   }, [inputRef, skipAnimation]);
 
-  // Handle visibility changes
+  // Handle visibility changes and window focus/blur
   useEffect(() => {
     let hiddenAt: number | null = null;
+    let isPaused = false;
     
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
+    const pauseAnimation = () => {
+      if (!isPaused && isLocallyAnimatingRef.current) {
         // Pause animation
         if (animationFrameRef.current) {
           cancelAnimationFrame(animationFrameRef.current);
         }
+        isPaused = true;
         hiddenAt = Date.now();
-      } else if (hiddenAt && !hasCompletedRef.current) {
+      }
+    };
+    
+    const resumeAnimation = () => {
+      if (isPaused && hiddenAt && !hasCompletedRef.current) {
         // Resume typing where it left off; do not fast-forward on return
         if (isLocallyAnimatingRef.current) {
           animate();
         }
+        isPaused = false;
         hiddenAt = null;
       }
     };
+    
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        pauseAnimation();
+      } else {
+        resumeAnimation();
+      }
+    };
+    
+    const handleWindowBlur = () => {
+      pauseAnimation();
+    };
+    
+    const handleWindowFocus = () => {
+      resumeAnimation();
+    };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('blur', handleWindowBlur);
+    window.addEventListener('focus', handleWindowFocus);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('blur', handleWindowBlur);
+      window.removeEventListener('focus', handleWindowFocus);
+    };
   }, [animate, skipAnimation]);
 
   // When streaming finishes, finalize animation if we've already caught up
@@ -291,13 +321,12 @@ export const TypingEffect: React.FC<TypingEffectProps> = ({
   // Render
   if (isThinking && content.length === 0) {
     return (
-      <div className="text-gray-500">
-        <span className="font-medium">Thinking</span>
-        <span className="animate-dots ml-1">
-          <span className="dot">.</span>
-          <span className="dot">.</span>
-          <span className="dot">.</span>
-        </span>
+      <div className="flex items-center gap-2">
+        <div className="typing-dots-container">
+          <div className="typing-dot"></div>
+          <div className="typing-dot"></div>
+          <div className="typing-dot"></div>
+        </div>
       </div>
     );
   }
