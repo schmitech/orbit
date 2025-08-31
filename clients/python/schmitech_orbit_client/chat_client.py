@@ -24,6 +24,7 @@ from prompt_toolkit.history import FileHistory
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.styles import Style
+from prompt_toolkit.shortcuts import CompleteStyle
 
 # Initialize Rich console
 console = Console()
@@ -43,32 +44,35 @@ WARNING_STYLE = "bold yellow"
 # Conversation history for /clear command
 conversation_history = []
 
-# Dark theme for prompt_toolkit with beautiful completion styling
+# Dark theme for prompt_toolkit with completion styling
 prompt_style = Style.from_dict({
-    # Completion menu styling - full dark theme
-    'completion-menu': 'bg:#1a1b26 fg:#a9b1d6',  # Dark navy background
-    'completion-menu.completion': 'bg:#1a1b26 fg:#a9b1d6',  # Unselected items 
-    'completion-menu.completion.current': 'bg:#1a1b26 fg:#e0af68 bold',  # Selected item - yellow text
-    'completion-menu.meta': 'bg:#1a1b26 fg:#565f89',  # Description text - muted gray
-    'completion-menu.meta.current': 'bg:#1a1b26 fg:#9ece6a',  # Selected description - green
-    
-    # Multi-column completion styling
+    # Completion menu styling
+    'completion-menu': 'bg:#1a1b26 fg:#a9b1d6',
+    'completion-menu.completion': 'bg:#1a1b26 fg:#a9b1d6',
+    'completion-menu.completion.current': 'bg:#1a1b26 fg:#e0af68 bold',
+
+    # 🔧 Descriptions (meta) — remove gray background
+    'completion-menu.meta': 'bg:default fg:#565f89',
+    'completion-menu.meta.current': 'bg:default fg:#9ece6a',
+
+    # Some prompt_toolkit builds use these selectors for meta text; set them too
+    'completion-menu.meta.completion': 'bg:default fg:#565f89',
+    'completion-menu.meta.completion.current': 'bg:default fg:#9ece6a',
+
+    # Multi-column variants (cover both spellings used across versions)
     'completion-menu.multi-column': 'bg:#1a1b26 fg:#a9b1d6',
-    'completion-menu.multi-column.meta': 'bg:#1a1b26 fg:#565f89',
-    'completion-menu.multi-column-meta': 'bg:#1a1b26 fg:#565f89',
-    
-    # Ensure all completion areas have dark background
+    'completion-menu.multi-column.meta': 'bg:default fg:#565f89',
+    'completion-menu.multi-column-meta': 'bg:default fg:#565f89',
+
+    # Base completion + scrollbar + prompt colors (unchanged)
     'completion': 'bg:#1a1b26',
-    
-    # Scrollbar styling  
     'scrollbar.background': 'bg:#24283b',
-    'scrollbar.button': 'bg:#414868', 
+    'scrollbar.button': 'bg:#414868',
     'scrollbar.arrow': 'bg:#c0caf5',
-    
-    # Input line styling
-    'prompt': 'fg:#7aa2f7 bold',  # Blue prompt
-    '': 'fg:#c0caf5',  # Default text color
+    'prompt': 'fg:#7aa2f7 bold',
+    '': 'fg:#c0caf5',
 })
+
 
 class SlashCommandCompleter(Completer):
     """Custom completer for slash commands."""
@@ -114,7 +118,9 @@ class SlashCommandCompleter(Completer):
                         command, 
                         start_position=-len(word),
                         display=command,  # Just show the command
-                        display_meta=self.command_descriptions.get(command, '')  # Description in meta
+                        display_meta=self.command_descriptions.get(command, ''),  # Description in meta
+                        style='bg:#1a1b26 fg:#a9b1d6',  # Style for unselected
+                        selected_style='bg:#1a1b26 fg:#e0af68 bold'  # Style for selected
                     )
 
 def create_default_config():
@@ -417,7 +423,7 @@ def main():
         history=FileHistory(HISTORY_FILE),
         completer=SlashCommandCompleter(),
         style=prompt_style,
-        complete_style='multi_column'  # Better layout for completions
+        complete_style=CompleteStyle.COLUMN  # Single column for better style control
     )
 
     # Welcome banner
@@ -458,7 +464,7 @@ def main():
                         history=FileHistory(HISTORY_FILE),
                         completer=SlashCommandCompleter(),
                         style=prompt_style,
-                        complete_style='multi_column'
+                        complete_style=CompleteStyle.COLUMN
                     )
                 continue
             
