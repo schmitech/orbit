@@ -1,9 +1,22 @@
 # Changelog
 
+## [1.4.0] - 2025-08-31
+
+### Core System Updates
+- FastAPI MCP: Replaced existing MCP implementation with FastAPI MCP library for cleaner and more maintainable code
+- Monitoring Dashboard: Added new monitoring dashboard for real-time resource monitoring
+
+### Chatbot Widget
+- Chat Widget v0.4.18: New NPM version with improved UX and bug fixes
+- Chat Widget Fixes: Fixed issue when switching windows on desktop and replaced thinking animation with moving 3 dots
+
+### Python Client
+- Python Client v1.0.0: Introduced interactive session commands with better user experience
+ 
 ## [1.3.7] - 2025-08-29
 
 ### Monitoring
-- Added prometheus dashboard for real-time reosurce monitoring
+- Added prometheus dashboard for real-time resource monitoring
 
 ## [1.3.6] - 2025-08-26
 
