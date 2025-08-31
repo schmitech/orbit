@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Version: 1.6.0 - Enhanced with Rich library
+# Version: 1.0.0
 import requests
 import json
 import sys
