@@ -36,7 +36,7 @@ HISTORY_FILE = os.path.join(CONFIG_DIR, "chat_history")
 
 # Rich styles configuration
 USER_STYLE = "bold blue"
-ASSISTANT_STYLE = "bold green"
+ASSISTANT_STYLE = "#73daca"
 SYSTEM_STYLE = "cyan"
 ERROR_STYLE = "bold red"
 WARNING_STYLE = "bold yellow"
