@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Version: 1.2.0 - Updated for MCP protocol
+# Version: 1.6.0 - Enhanced with Rich library
 import requests
 import json
 import sys
@@ -7,321 +7,503 @@ import time
 import argparse
 import re
 import uuid
-from colorama import Fore, Style, init
+import os
+import toml
+import importlib.metadata
+from rich.console import Console
+from rich.panel import Panel
+from rich.markdown import Markdown
+from rich.live import Live
+from rich.text import Text
+from rich.table import Table
+from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.prompt import Prompt
+from rich.syntax import Syntax
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
-from prompt_toolkit.styles import Style as PromptStyle
-from prompt_toolkit.formatted_text import HTML
-import os
+from prompt_toolkit.completion import Completer, Completion
+from prompt_toolkit.styles import Style
 
-# Initialize colorama for cross-platform colored terminal output
-init()
+# Initialize Rich console
+console = Console()
 
-# Ensure history directory exists
-os.makedirs(os.path.expanduser("~/.orbit_client_history"), exist_ok=True)
-HISTORY_FILE = os.path.expanduser("~/.orbit_client_history/chat_history")
+# --- Configuration --- #
+CONFIG_DIR = os.path.expanduser("~/.orbit")
+CONFIG_FILE = os.path.join(CONFIG_DIR, "client.toml")
+HISTORY_FILE = os.path.join(CONFIG_DIR, "chat_history")
 
-# Create a prompt session with history
-session = PromptSession(history=FileHistory(HISTORY_FILE))
+# Rich styles configuration
+USER_STYLE = "bold blue"
+ASSISTANT_STYLE = "bold green"
+SYSTEM_STYLE = "cyan"
+ERROR_STYLE = "bold red"
+WARNING_STYLE = "bold yellow"
 
-# Define prompt_toolkit styles
-prompt_style = PromptStyle.from_dict({
-    'you': '#0000ff bold',     # blue
-    'assistant': '#00aa00 bold', # green
-    'system': '#00aaaa',       # cyan
-    'error': '#aa0000',        # red
+# Conversation history for /clear command
+conversation_history = []
+
+# Dark theme for prompt_toolkit with beautiful completion styling
+prompt_style = Style.from_dict({
+    # Completion menu styling - full dark theme
+    'completion-menu': 'bg:#1a1b26 fg:#a9b1d6',  # Dark navy background
+    'completion-menu.completion': 'bg:#1a1b26 fg:#a9b1d6',  # Unselected items 
+    'completion-menu.completion.current': 'bg:#1a1b26 fg:#e0af68 bold',  # Selected item - yellow text
+    'completion-menu.meta': 'bg:#1a1b26 fg:#565f89',  # Description text - muted gray
+    'completion-menu.meta.current': 'bg:#1a1b26 fg:#9ece6a',  # Selected description - green
+    
+    # Multi-column completion styling
+    'completion-menu.multi-column': 'bg:#1a1b26 fg:#a9b1d6',
+    'completion-menu.multi-column.meta': 'bg:#1a1b26 fg:#565f89',
+    'completion-menu.multi-column-meta': 'bg:#1a1b26 fg:#565f89',
+    
+    # Ensure all completion areas have dark background
+    'completion': 'bg:#1a1b26',
+    
+    # Scrollbar styling  
+    'scrollbar.background': 'bg:#24283b',
+    'scrollbar.button': 'bg:#414868', 
+    'scrollbar.arrow': 'bg:#c0caf5',
+    
+    # Input line styling
+    'prompt': 'fg:#7aa2f7 bold',  # Blue prompt
+    '': 'fg:#c0caf5',  # Default text color
 })
 
+class SlashCommandCompleter(Completer):
+    """Custom completer for slash commands."""
+    
+    def __init__(self):
+        self.commands = [
+            "/help",
+            "/clear",
+            "/clear-history", 
+            "/reset-session",
+            "/status",
+            "/debug",
+            "/timing",
+            "/debug-request",
+            "/version",
+            "/quit"
+        ]
+        
+        self.command_descriptions = {
+            "/help": "Show available commands",
+            "/clear": "Clear conversation display",
+            "/clear-history": "Clear persistent history file",
+            "/reset-session": "Generate new session ID",
+            "/status": "Show current status",
+            "/debug": "Toggle debug mode",
+            "/timing": "Toggle timing display",
+            "/debug-request": "Debug next request",
+            "/version": "Show client version",
+            "/quit": "Exit the client"
+        }
+    
+    def get_completions(self, document, complete_event):
+        """Generate completions for the current document."""
+        text = document.text_before_cursor
+        
+        # Only provide completions if we're at the start of a line and it begins with /
+        if text.startswith('/'):
+            word = text
+            for command in self.commands:
+                if command.startswith(word):
+                    # Calculate how many characters to replace
+                    yield Completion(
+                        command, 
+                        start_position=-len(word),
+                        display=command,  # Just show the command
+                        display_meta=self.command_descriptions.get(command, '')  # Description in meta
+                    )
+
+def create_default_config():
+    """Creates a default config file for the user."""
+    default_content = (
+        "[defaults]\n"
+        "# URL of your ORBIT server\n"
+        "url = \"http://localhost:3000\"\n\n"
+        "# Your API key for the ORBIT server\n"
+        "# api_key = \"your_api_key_here\"\n"
+    )
+    try:
+        with open(CONFIG_FILE, "w") as f:
+            f.write(default_content)
+        console.print(f"✅ Successfully created default config file at: [green]{CONFIG_FILE}[/green]")
+        console.print("Please edit it to add your API key before running again.", style=WARNING_STYLE)
+    except Exception as e:
+        console.print(f"Error creating config file: {e}", style=ERROR_STYLE)
+
+def load_config():
+    """Loads configuration from the TOML file, with interactive setup."""
+    os.makedirs(CONFIG_DIR, exist_ok=True)
+    defaults = {
+        "url": "http://localhost:3000",
+        "api_key": None
+    }
+    
+    if not os.path.exists(CONFIG_FILE):
+        try:
+            console.print(f"⚠️  Config file not found at [yellow]{CONFIG_FILE}[/yellow]")
+            answer = Prompt.ask(
+                "Would you like to create a default one?",
+                choices=["y", "n"],
+                default="y"
+            ).lower().strip()
+            
+            if answer == 'y':
+                create_default_config()
+                # Exit after creating config so user can edit it
+                sys.exit(0)
+            else:
+                console.print("Skipping config file creation. Please provide required arguments via flags.", style=WARNING_STYLE)
+        except (KeyboardInterrupt, EOFError):
+            console.print("\nSetup cancelled. Exiting.", style=WARNING_STYLE)
+            sys.exit(0)
+        return defaults
+
+    try:
+        with open(CONFIG_FILE, "r") as f:
+            config_data = toml.load(f).get("defaults", {})
+        return {**defaults, **config_data}
+    except Exception as e:
+        console.print(f"Error reading config file {CONFIG_FILE}: {e}", style=ERROR_STYLE)
+        return defaults
+
 def clean_response(text):
-    """Clean any artifacts or strange characters from the response without removing non-English text"""
-    # Fix missing spaces after punctuation (for Latin-based languages)
-    # But exclude decimal points in numbers (e.g., $70.83)
-    text = re.sub(r'([.,!?:;])(?!\d)([A-Za-z0-9])', r'\1 \2', text)
-    
-    # Fix missing spaces between sentences (for Latin-based languages)
+    """Cleans up model response text."""
+    text = re.sub(r'([.,!?:;])(?!\]d)([A-Za-z0-9])', r'\1 \2', text)
     text = re.sub(r'([.!?])([A-Z])', r'\1 \2', text)
-    
-    # Fix missing spaces between words (for Latin-based languages)
-    text = re.sub(r'([a-z])([A-Z])', r'\1 \2', text)
-    
-    # Remove any markdown formatting
-    text = re.sub(r'\*+', '', text)  # Remove asterisks
-    text = re.sub(r'`+', '', text)   # Remove backticks
-    text = re.sub(r'#+\s*', '', text) # Remove heading markers
-    
-    # Remove any model identifier prefixes
     prefixes = ["Assistant:", "A:", "Model:", "AI:", "Gemma:", "Assistant: "]
     for prefix in prefixes:
         if text.lower().startswith(prefix.lower()):
             text = text[len(prefix):].lstrip()
-    
-    # Normalize whitespace while preserving intentional line breaks and Unicode characters
-    lines = text.split('\n')
-    lines = [line.strip() for line in lines]
-    normalized_lines = []
-    
-    for line in lines:
-        if line:
-            # Only normalize multiple spaces within a line
-            normalized_line = re.sub(r' +', ' ', line)
-            normalized_lines.append(normalized_line)
-    
-    text = '\n'.join(normalized_lines)
-    
     return text.strip()
 
-def stream_chat(url, message, api_key=None, session_id=None, debug=False):
-    """
-    Stream a chat response from the server using MCP protocol, displaying it gradually like a chatbot.
+def handle_slash_command(command, session_id, args, session=None):
+    """Handle slash commands like /help, /clear, etc."""
+    cmd = command.lower().strip()
     
-    Args:
-        url (str): The chat server URL
-        message (str): The message to send to the chat server
-        api_key (str): Optional API key for authentication
-        session_id (str): Session ID for tracking the conversation
-        debug (bool): Whether to show debug information
+    if cmd == "/help":
+        help_table = Table(title="🔧 Available Commands", show_header=True)
+        help_table.add_column("Command", style="cyan", width=20)
+        help_table.add_column("Description", style="white")
         
-    Returns:
-        tuple: (response_text, latency_info)
-    """
-    # Ensure URL ends with correct endpoint
+        commands = [
+            ("/help", "Show this help message"),
+            ("/clear", "Clear conversation display"),
+            ("/clear-history", "Clear persistent command history file"),
+            ("/reset-session", "Generate a new session ID"),
+            ("/status", "Show current session and server info"),
+            ("/debug", "Toggle debug mode on/off"),
+            ("/timing", "Toggle timing display on/off"),
+            ("/debug-request", "Show next request details for debugging"),
+            ("/version", "Show client version"),
+            ("/quit", "Exit the chat client"),
+        ]
+        
+        for cmd, desc in commands:
+            help_table.add_row(cmd, desc)
+        
+        console.print(help_table)
+        return True, session_id, args, False
+    
+    elif cmd == "/clear":
+        # Clear the screen and conversation history
+        console.clear()
+        conversation_history.clear()
+        
+        # Redisplay welcome banner with proper newlines
+        welcome_panel = Panel.fit(
+            f"[bold cyan]Welcome to the Orbit Chat Client![/bold cyan]\n\n"
+            f"[cyan]Server URL:[/cyan] {args.url}\n"
+            f"[cyan]Session ID:[/cyan] {session_id}\n\n"
+            f"[dim]Type 'exit' or 'quit' to end the conversation[/dim]\n"
+            f"[dim]Type '/help' for available commands[/dim]",
+            title="🚀 ORBIT Chat",
+            border_style="cyan"
+        )
+        console.print(welcome_panel)
+        console.print("✨ Conversation cleared!", style="green")
+        return True, session_id, args, False
+    
+    elif cmd == "/clear-history":
+        # Clear the persistent history file
+        try:
+            if os.path.exists(HISTORY_FILE):
+                # Truncate the history file instead of deleting it
+                open(HISTORY_FILE, 'w').close()
+                # Also clear the in-memory history if session is provided
+                if session and hasattr(session, 'history'):
+                    session.history.store = []  # Clear the in-memory history
+                console.print("🗑️  Persistent command history cleared!", style="green")
+                console.print("💡 Restart the client for complete history reset", style="dim cyan")
+            else:
+                console.print("ℹ️  No history file found to clear", style="yellow")
+        except Exception as e:
+            console.print(f"❌ Error clearing history: {e}", style=ERROR_STYLE)
+        return True, session_id, args, True  # True indicates history was cleared
+    
+    elif cmd == "/reset-session":
+        new_session_id = str(uuid.uuid4())
+        console.print(f"🔄 Session reset! New ID: [cyan]{new_session_id}[/cyan]")
+        return True, new_session_id, args, False
+    
+    elif cmd == "/status":
+        status_table = Table(title="📊 Current Status", show_header=False)
+        status_table.add_column("Property", style="cyan")
+        status_table.add_column("Value", style="white")
+        
+        status_table.add_row("Server URL", args.url)
+        status_table.add_row("Session ID", session_id)
+        status_table.add_row("API Key", "***" + args.api_key[-4:] if args.api_key else "Not set")
+        status_table.add_row("Debug Mode", "On" if args.debug else "Off")
+        status_table.add_row("Show Timing", "On" if args.show_timing else "Off")
+        status_table.add_row("Messages in History", str(len(conversation_history)))
+        
+        console.print(status_table)
+        return True, session_id, args, False
+    
+    elif cmd == "/debug":
+        args.debug = not args.debug
+        status = "enabled" if args.debug else "disabled"
+        console.print(f"🐛 Debug mode {status}", style="yellow")
+        return True, session_id, args, False
+    
+    elif cmd == "/timing":
+        args.show_timing = not args.show_timing
+        status = "enabled" if args.show_timing else "disabled"
+        console.print(f"⏱️ Timing display {status}", style="yellow")
+        return True, session_id, args, False
+    
+    elif cmd == "/debug-request":
+        # Temporarily enable debug for the next request
+        console.print("🔍 Debug mode enabled for next request", style="yellow")
+        args.debug = True
+        return True, session_id, args, False
+    
+    elif cmd == "/version":
+        try:
+            version = importlib.metadata.version("schmitech-orbit-client")
+        except importlib.metadata.PackageNotFoundError:
+            version = "0.0.0 (not installed)"
+        console.print(f"🚀 Orbit Chat Client v{version}", style="cyan")
+        return True, session_id, args, False
+    
+    elif cmd == "/quit":
+        return False, session_id, args, False  # False indicates exit, goodbye handled in main loop
+    
+    else:
+        console.print(f"❌ Unknown command: [red]{command}[/red]", style="yellow")
+        console.print("💡 Type [cyan]/help[/cyan] to see available commands")
+        return True, session_id, args, False
+
+def stream_chat(url, message, api_key=None, session_id=None, debug=False, progress=None):
+    """Streams a chat response from the server with rich formatting."""
     if not url.endswith('/v1/chat'):
         url = url.rstrip('/') + '/v1/chat'
         
     headers = {
         "Content-Type": "application/json",
-        "Accept": "text/event-stream"
+        "Accept": "text/event-stream",
+        "X-Session-ID": session_id
     }
-    
     if api_key:
         headers["X-API-Key"] = api_key
     
-    # Add session ID to headers
-    if session_id:
-        headers["X-Session-ID"] = session_id
-    
-    # Create MCP request data using uuid for ID (consistent with test_mcp_client.py)
-    data = {
-        "jsonrpc": "2.0",
-        "method": "tools/call",
-        "params": {
-            "name": "chat",
-            "arguments": {
-                "messages": [
-                    {"role": "user", "content": message}
-                ],
-                "stream": True
-            }
-        },
-        "id": str(uuid.uuid4())  # Use UUID instead of timestamp
-    }
+    data = {"messages": [{"role": "user", "content": message}], "stream": True}
     
     if debug:
-        print(f"\n{Fore.YELLOW}Debug - Request URL:{Style.RESET_ALL} {url}")
-        print(f"\n{Fore.YELLOW}Debug - Request Headers:{Style.RESET_ALL}")
-        print(json.dumps({k: v if k != 'X-API-Key' else f'***{v[-4:]}' for k, v in headers.items()}, indent=2))
-        print(f"\n{Fore.YELLOW}Debug - Request Body:{Style.RESET_ALL}")
-        print(json.dumps(data, indent=2))
+        debug_table = Table(title="Debug Information", show_header=False)
+        debug_table.add_row("Request URL", url)
+        debug_table.add_row("Headers", json.dumps({k: v if k != 'X-API-Key' else f'***{v[-4:]}' for k, v in headers.items()}, indent=2))
+        debug_table.add_row("Body", json.dumps(data, indent=2))
+        console.print(debug_table)
     
     try:
-        # Start timing - track when we send the request
         start_time = time.time()
         first_token_time = None
-        
-        with requests.post(url, headers=headers, json=data, stream=True) as response:
+        with requests.post(url, headers=headers, json=data, stream=True, timeout=60) as response:
             if response.status_code != 200:
-                print(f"{Fore.RED}Error: Server returned status code {response.status_code}{Style.RESET_ALL}")
+                # Stop progress immediately on error
+                if progress:
+                    progress.stop()
+                console.print(f"❌ Error: Server returned status code {response.status_code}", style=ERROR_STYLE)
+                try:
+                    error_detail = response.json()
+                    console.print(f"Error details: {error_detail}", style=ERROR_STYLE)
+                except:
+                    console.print(f"Error response: {response.text}", style=ERROR_STYLE)
                 if debug:
-                    print(f"Response: {response.text}")
+                    console.print(Panel(response.text, title="Full Response", border_style="red"))
                 return None, None
             
-            # Process the streaming response
             full_response = ""
-            last_displayed_length = 0
-            buffer = ""  # Buffer for accumulating MCP response
+            buffer = ""
+            response_text = Text("", style=ASSISTANT_STYLE)
             
-            for line in response.iter_lines():
-                if line:
+            # Start Live display first
+            live = Live(response_text, console=console, refresh_per_second=30, transient=False)
+            live.start()
+            
+            try:
+                for line in response.iter_lines():
+                    if not line:
+                        continue
                     try:
-                        # Decode the line
                         line = line.decode('utf-8')
-                        
-                        # Skip if not a data line or empty line
                         if not line.startswith('data: '):
                             continue
-                            
-                        # Skip empty data lines
-                        data_text = line[6:].strip()  # Skip "data: " prefix
-                        if not data_text:
+                        data_text = line[6:].strip()
+                        if not data_text or data_text == "[DONE]":
                             continue
-                            
-                        # Check for [DONE] message
-                        if data_text == "[DONE]":
-                            if debug:
-                                print(f"\n{Fore.YELLOW}Debug - Stream complete{Style.RESET_ALL}")
-                            break
-                            
-                        # Parse the JSON data
-                        try:
-                            data = json.loads(data_text)
-                        except json.JSONDecodeError as e:
-                            # Only log JSON decode errors if we're in debug mode
-                            if debug:
-                                print(f"\n{Fore.YELLOW}Debug - Skipping malformed JSON: {e}{Style.RESET_ALL}")
-                            continue
-                        
-                        # Record time of first token
+                        chunk_data = json.loads(data_text)
                         if first_token_time is None:
                             first_token_time = time.time()
-                        
-                        # Handle MCP protocol response
-                        if "result" in data:
-                            # Handle error responses (including moderation blocks)
-                            if "error" in data["result"]:
-                                error_msg = data["result"]["error"].get("message", "Unknown error")
-                                print(f"\n{Fore.RED}Error: {error_msg}{Style.RESET_ALL}")
-                                full_response = error_msg
-                                break
-                                
-                            if "type" in data["result"]:
-                                # Handle different chunk types
-                                chunk_type = data["result"]["type"]
-                                if chunk_type == "start":
-                                    continue
-                                elif chunk_type == "chunk" and "chunk" in data["result"]:
-                                    content = data["result"]["chunk"].get("content", "")
-                                    if content:  # Only add non-empty content
-                                        buffer += content
-                                elif chunk_type == "complete":
-                                    # Handle complete response
-                                    if "output" in data["result"] and "messages" in data["result"]["output"]:
-                                        messages = data["result"]["output"]["messages"]
-                                        if messages and messages[0].get("role") == "assistant":
-                                            # For moderation responses, the content might be empty
-                                            # but we should still display the message
-                                            if not messages[0].get("content"):
-                                                buffer = "I'm sorry, but I cannot respond to that message as it may violate content safety guidelines."
-                                            else:
-                                                buffer = messages[0].get("content", "")
-                                    elif "response" in data["result"]:
-                                        # Handle direct response field
-                                        buffer = data["result"]["response"]
-                            elif "response" in data["result"]:
-                                # Handle direct response field
-                                buffer = data["result"]["response"]
-                            else:
-                                continue
-                        else:
-                            continue
-                            
-                        # Use the accumulated buffer for display
-                        content = buffer
-                        
-                        if content:  # Only display if we have content
-                            # We already have the fixed text from the server, just clean it for display
-                            clean_content = clean_response(content)
-                            
-                            # Only display new characters since the last update
-                            if len(clean_content) > last_displayed_length:
-                                new_text = clean_content[last_displayed_length:]
-                                
-                                # Display character by character
-                                for char in new_text:
-                                    print(char, end='', flush=True)
-                                    time.sleep(0.02)  # 20ms delay per character
-                                
-                                # Update our last position
-                                last_displayed_length = len(clean_content)
-                                full_response = clean_content
-                            
-                    except json.JSONDecodeError as e:
-                        if debug:
-                            print(f"\n{Fore.RED}Error decoding JSON: {e}{Style.RESET_ALL}")
-                        continue
+                            # Stop the progress spinner immediately on first token
+                            if progress:
+                                progress.stop()
+                                progress = None
+                        if "response" in chunk_data:
+                            buffer += chunk_data.get("response", "")
+                        elif "error" in chunk_data:
+                            error_msg = chunk_data.get("error", "Unknown error")
+                            if isinstance(error_msg, dict):
+                                error_msg = error_msg.get("message", "Unknown error")
+                            console.print(f"\n❌ Error from server: {error_msg}", style=ERROR_STYLE)
+                            return error_msg, None
+                        clean_content = clean_response(buffer)
+                        response_text.plain = clean_content
+                        full_response = clean_content
                     except Exception as e:
                         if debug:
-                            print(f"\n{Fore.RED}Error processing chunk: {e}{Style.RESET_ALL}")
+                            console.print(f"\n❌ Error processing chunk: {e}", style=ERROR_STYLE)
                         continue
+            finally:
+                live.stop()
             
-            # Calculate timing information
             end_time = time.time()
             total_time = end_time - start_time
-            
-            # Only calculate time to first token if we received one
-            time_to_first_token = None
-            if first_token_time is not None:
-                time_to_first_token = first_token_time - start_time
-            
-            # Prepare timing information
-            timing_info = {
-                "total_time": total_time,
-                "time_to_first_token": time_to_first_token
-            }
-            
-            print("\n")
-            return full_response, timing_info
-            
+            time_to_first_token = first_token_time - start_time if first_token_time else None
+            return full_response, {"total_time": total_time, "time_to_first_token": time_to_first_token}
     except requests.exceptions.RequestException as e:
-        print(f"{Fore.RED}Error connecting to server: {e}{Style.RESET_ALL}")
+        # Stop progress on connection error
+        if progress:
+            progress.stop()
+        console.print(f"❌ Error connecting to server: {e}", style=ERROR_STYLE)
         return None, None
 
 def main():
-    parser = argparse.ArgumentParser(description="Chat Client for Testing Chat Server")
-    parser.add_argument("--url", default="http://localhost:3000", help="Chat server URL (will be appended with /v1/chat)")
-    parser.add_argument("--api-key", help="API key for authentication")
-    parser.add_argument("--session-id", help="Session ID to use (default: generates a new UUID). Can be any non-empty string.")
-    parser.add_argument("--debug", action="store_true", help="Enable debug mode")
-    parser.add_argument("--show-timing", action="store_true", help="Show latency timing information")
+    try:
+        version = importlib.metadata.version("schmitech-orbit-client")
+    except importlib.metadata.PackageNotFoundError:
+        version = "0.0.0 (not installed)"
+
+    config = load_config()
+    parser = argparse.ArgumentParser(description="Chat Client for ORBIT Server", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument("-v", "--version", action="version", version=f"%(prog)s {version}")
+    parser.add_argument("--url", default=config.get("url"), help="Chat server URL")
+    parser.add_argument("--api-key", default=config.get("api_key"), help="API key for authentication")
+    parser.add_argument("--session-id", default=config.get("session_id"), help="Session ID to use")
+    parser.add_argument("--debug", action="store_true", default=config.get("debug"), help="Enable debug mode")
+    parser.add_argument("--show-timing", action="store_true", default=config.get("show_timing"), help="Show latency timing information")
     args = parser.parse_args()
-    
-    # Generate or use provided session ID
+
+    # The API key is optional. If not provided, the server will decide whether to allow the request.
+    # For a local server, this usually works fine. For a remote server, you will likely need an API key.
+
     session_id = args.session_id if args.session_id else str(uuid.uuid4())
-    
-    # Use colorama for system messages
-    print(f"{Fore.CYAN}Welcome to the Orbit Chat Client!{Style.RESET_ALL}")
-    print(f"{Fore.CYAN}Server URL: {args.url}{Style.RESET_ALL}")
-    print(f"{Fore.CYAN}Session ID: {session_id}{Style.RESET_ALL}")
-    print(f"{Fore.CYAN}Type 'exit' or 'quit' to end the conversation.{Style.RESET_ALL}")
-    print(f"{Fore.CYAN}You can use arrow keys to navigate, up/down for history.{Style.RESET_ALL}")
+    session = PromptSession(
+        history=FileHistory(HISTORY_FILE),
+        completer=SlashCommandCompleter(),
+        style=prompt_style,
+        complete_style='multi_column'  # Better layout for completions
+    )
+
+    # Welcome banner
+    welcome_panel = Panel.fit(
+        f"[bold cyan]Welcome to the Orbit Chat Client![/bold cyan]\n\n"
+        f"[cyan]Server URL:[/cyan] {args.url}\n"
+        f"[cyan]Session ID:[/cyan] {session_id}\n\n"
+        f"[dim]Type 'exit' or 'quit' to end the conversation[/dim]\n"
+        f"[dim]Type '/help' for available commands[/dim]",
+        title="🚀 ORBIT Chat",
+        border_style="cyan"
+    )
+    console.print(welcome_panel)
     
     while True:
         try:
-            # Use a plain text prompt without ANSI color codes
+            # Use rich prompt for user input
+            console.print()
             user_input = session.prompt(
                 "You: ",
                 auto_suggest=AutoSuggestFromHistory()
             )
-            
+            # Skip empty input
+            if not user_input.strip():
+                continue
+                
             if user_input.lower() in ["exit", "quit"]:
-                print(f"{Fore.CYAN}Goodbye!{Style.RESET_ALL}")
                 break
             
-            # Print assistant indicator before response
-            print(f"\n{Fore.GREEN}Assistant:{Style.RESET_ALL} ", end="", flush=True)
+            # Handle slash commands
+            if user_input.startswith('/'):
+                continue_chat, session_id, args, history_cleared = handle_slash_command(user_input, session_id, args, session)
+                if not continue_chat:
+                    break
+                if history_cleared:
+                    # Recreate the session with fresh history
+                    session = PromptSession(
+                        history=FileHistory(HISTORY_FILE),
+                        completer=SlashCommandCompleter(),
+                        style=prompt_style,
+                        complete_style='multi_column'
+                    )
+                continue
             
-            # Stream the response and capture timing info
+            # Add to conversation history
+            conversation_history.append({"role": "user", "content": user_input})
+            
+            # Show spinner only (no text)
+            console.print()
+            progress = Progress(
+                SpinnerColumn(style="cyan"),
+                transient=True,
+                console=console,
+                refresh_per_second=10
+            )
+            progress.start()
+            task = progress.add_task("", total=None)
+            
+            # Start streaming response - progress will be stopped inside stream_chat
             response, timing_info = stream_chat(
-                args.url, 
-                user_input, 
-                api_key=args.api_key,
-                session_id=session_id,
-                debug=args.debug
+                args.url, user_input, api_key=args.api_key, session_id=session_id, debug=args.debug,
+                progress=progress
             )
             
-            # Display timing information if requested
-            if args.show_timing and timing_info:
-                print(f"\n{Fore.YELLOW}Latency Metrics:{Style.RESET_ALL}")
-                print(f"  Total time: {timing_info['total_time']:.3f}s")
-                if timing_info['time_to_first_token'] is not None:
-                    print(f"  Time to first token: {timing_info['time_to_first_token']:.3f}s")
-                print(f"  Streaming time: {(timing_info['total_time'] - timing_info['time_to_first_token']):.3f}s")
+            # Add assistant response to conversation history
+            if response:
+                conversation_history.append({"role": "assistant", "content": response})
             
+            if args.show_timing and timing_info and timing_info.get('time_to_first_token') is not None:
+                streaming_time = timing_info['total_time'] - timing_info['time_to_first_token']
+                
+                # Create timing table
+                timing_table = Table(title="⏱️  Latency Metrics", show_header=False)
+                timing_table.add_column("Metric", style="cyan")
+                timing_table.add_column("Value", style="yellow")
+                timing_table.add_row("Total time", f"{timing_info['total_time']:.3f}s")
+                timing_table.add_row("Time to first token", f"{timing_info['time_to_first_token']:.3f}s")
+                timing_table.add_row("Streaming time", f"{streaming_time:.3f}s")
+                console.print(timing_table)
         except KeyboardInterrupt:
-            print(f"\n{Fore.CYAN}Conversation ended by user.{Style.RESET_ALL}")
+            console.print("\n[yellow]Interrupted by user[/yellow]")
             break
         except Exception as e:
-            print(f"{Fore.RED}An error occurred: {e}{Style.RESET_ALL}")
+            console.print(f"\n❌ An error occurred: {e}", style=ERROR_STYLE)
+
+    console.print("\n[bold cyan]👋 Goodbye![/bold cyan]")
 
 if __name__ == "__main__":
     main()
