@@ -1,18 +1,9 @@
 <div align="center">
   <a href="https://github.com/schmitech/orbit">
-    <img src="docs/images/orbit-logo.png" alt="ORBIT Logo" width="350" style="border: none; outline: none; box-shadow: none;"/>
+    <img src="docs/images/orbit-logo.png" alt="ORBIT Logo" width="500" style="border: none; outline: none; box-shadow: none;"/>
   </a>
 </div>
-
-<h1 align="center">ORBIT - Your Private, On-Prem AI Gateway</h1>
-<h3 align="center"><em>Open Retrieval-Based Inference Toolkit</em></h3>
-
-<div align="center">
   
-<p align="center">
-  <strong>Build powerful AI solutions on your own infrastructure. No subscription fees, total data control.</strong>
-</p>
-
 <p align="center">
   <a href="https://opensource.org/licenses/Apache-2.0"><img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg" alt="License"></a>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.12+-blue.svg" alt="Python"></a>
@@ -25,26 +16,7 @@
 
 </div>
 
-## 🛰️ What is ORBIT?
-
 ORBIT (Open Retreival-Based Inference Toolkit) is a middleware platform that provides a unified API for AI inference. It acts as a central gateway, allowing you to connect various local and remote AI models with your private data sources like SQL databases, vector stores, and local files.
-
----
-
-## 🤔 Why ORBIT?
-
-ORBIT was created to solve a growing challenge: organizations want to harness the power of AI, but without sending sensitive data to third-party cloud services or being locked into proprietary platforms. Existing solutions often require complex integrations, lack flexibility, or force you to compromise on privacy and control.
-
-With ORBIT, you can:
-- **Keep your data private**: All processing happens on your infrastructure—no data leaves your environment.
-- **Connect any model, any data**: Integrate local or remote LLMs, SQL or vector databases, all through a unified API.
-- **Stay in control**: No subscriptions, no vendor lock-in, and full transparency.
-- **Accelerate AI adoption**: Rapidly build, test, and deploy AI-powered applications tailored to your business needs.
-
-
-<div align="center">
-  <img src="docs/images/why-orbit.png" width="800" alt="Why ORBIT" />
-</div>
 
 ---
 
@@ -82,23 +54,11 @@ Use the `orbit-chat` CLI tool to interact with your instance.
 pip install schmitech-orbit-client
 
 # Start chatting!
-orbit-chat --url http://localhost:3000
+orbit-chat
 ```
 
-#### ORBIT Installation:
-
 <div align="center">
-  <video src="https://github.com/user-attachments/assets/8ea103a6-8b33-4801-adc2-f0e81e03e96e" controls>
-    Your browser does not support the video tag.
-  </video>
-  <br/>
-  <i>Installing ORBIT locally using the 'orbit-chat' python tool.</i>
-</div>
-
-#### ORBIT Chat CLI Tool:
-
-<div align="center">
-  <video src="https://github.com/user-attachments/assets/db46e91c-4cb7-44b4-b576-8c1d19176f0a" controls>
+  <video src="https://github.com/user-attachments/assets/7c8c1db5-7016-41e3-9920-97bbe7a6d0af" controls>
     Your browser does not support the video tag.
   </video>
   <br/>
@@ -149,6 +109,22 @@ npm run dev
 - React-based chat application with Zustand state management
 - Embeddable chat widget with theming support
 - Node.js and Python API client libraries
+
+### Client Libraries
+
+New language clients are available under `clients/` with examples and integration tests:
+
+- Elixir: `clients/elixir` — `make deps`, `make example`, `ORBIT_INTEGRATION=1 make test`
+- Swift: `clients/swift` — `make example`, `ORBIT_INTEGRATION=1 make test`
+- Kotlin: `clients/kotlin` — `make example`, `ORBIT_INTEGRATION=1 make test`
+- Scala: `clients/scala` — `make example`, `ORBIT_INTEGRATION=1 make test`
+- PHP: `clients/php` — `make example`, `ORBIT_INTEGRATION=1 make test`
+- Haskell: `clients/haskell` — `make example`
+- Clojure: `clients/clojure` — `make example`, `ORBIT_INTEGRATION=1 make test`
+- Perl: `clients/perl` — `make example`, `ORBIT_INTEGRATION=1 make test`
+- R: `clients/r` — `make example`, `ORBIT_INTEGRATION=1 make test`
+
+Set `ORBIT_INTEGRATION=1` to enable integration tests. Optionally set `ORBIT_URL` (defaults to `http://localhost:3000`).
 
 ### Dependencies
 
@@ -211,17 +187,6 @@ npm run test-query-from-pairs ../../examples/city-qa-pairs.json "http://localhos
   <i>Testing the Q/A Adapter using the node API client</i>
 </div>
 
-### Testing with the react chat widget:
-
-<div align="center">
-  <video src="https://github.com/user-attachments/assets/e9fb6eeb-f56f-4487-9a5d-1b24f1af9f6a"" controls>
-    Your browser does not support the video tag.
-  </video>
-  <br/>
-  <i>Testing the Q/A Adapter using the ORBIT Web Widget</i>
-</div>
-
-
 ### Scenario 2: Chat with Your SQL Database
 Ask questions about your data in natural language and get answers without writing SQL.
 
@@ -277,16 +242,6 @@ orbit-chat --url http://localhost:3000 --api-key YOUR_API_KEY
   </video>
   <br/>
   <i>Testing the SQL Intent Adapter using the ORBIT CLI tool</i>
-</div>
-
-#### Testing the SQL intent adapter using the chatbot widget:
-
-<div align="center">
-  <video src="https://github.com/user-attachments/assets/b183678f-d2de-40c8-b969-74e71c3c96d9" controls>
-    Your browser does not support the video tag.
-  </video>
-  <br/>
-  <i>ORBIT in action extracting data insights from an e-commerce database.</i>
 </div>
 
 ---

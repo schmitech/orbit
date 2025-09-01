@@ -127,8 +127,8 @@ async function runTest() {
       }
     }
     
-    // Configure the API
-    configureApi(apiUrl, apiKey, sessionId);
+    // Configure the API - pass undefined instead of null for optional parameters
+    configureApi(apiUrl, apiKey || undefined, sessionId || undefined);
     
     console.log('🚀 Starting chat stream...\n');
     process.stdout.write('🤖 Assistant: ');
