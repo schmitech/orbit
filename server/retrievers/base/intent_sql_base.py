@@ -5,8 +5,6 @@ with database-specific implementations to reduce duplication.
 
 import logging
 import traceback
-import chromadb
-from chromadb.config import Settings
 from typing import Dict, Any, List, Optional, Tuple
 from abc import abstractmethod
 
@@ -60,8 +58,8 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
         # Initialize service clients
         self.embedding_client = None
         self.inference_client = None
-        self.chroma_client = None
-        self.template_collection = None
+        self.store_manager = None
+        self.template_store = None
         
         # Domain-aware components
         self.parameter_extractor = None
@@ -83,10 +81,10 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
             # Initialize inference client
             await self._initialize_inference_client()
             
-            # Initialize ChromaDB for template storage
-            self._initialize_chromadb()
+            # Initialize vector store for template storage
+            await self._initialize_vector_store()
             
-            # Load templates into ChromaDB
+            # Load templates into vector store
             await self._load_templates()
             
             # Initialize domain-aware components
@@ -162,49 +160,104 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
         
         await self.inference_client.initialize()
     
-    def _initialize_chromadb(self):
-        """Initialize ChromaDB for template storage."""
+    async def _initialize_vector_store(self):
+        """Initialize vector store for template storage using the new store system."""
         try:
-            chroma_persist = self.intent_config.get('chroma_persist', False)
-            chroma_persist_path = self.intent_config.get('chroma_persist_path', './chroma_db')
+            # Import store components
+            from vector_stores.services.template_embedding_store import TemplateEmbeddingStore
             
-            if chroma_persist:
-                self.chroma_client = chromadb.PersistentClient(
-                    path=chroma_persist_path,
-                    settings=Settings(anonymized_telemetry=False)
-                )
-                logger.info(f"Initialized persistent ChromaDB at: {chroma_persist_path}")
+            # Initialize template embedding store directly (without StoreManager)
+            vector_config = self.intent_config.get('vector_store', {})
+            
+            # Set default configuration if not provided
+            persist_path = self.intent_config.get('chroma_persist_path', './chroma_db/intent_templates')
+            is_persistent = self.intent_config.get('chroma_persist', True)  # Default to True for persistence
+            
+            if not vector_config:
+                vector_config = {
+                    'type': 'chroma',
+                    'persist_directory': persist_path if is_persistent else None,
+                    'collection_name': self.template_collection_name,
+                    'ephemeral': not is_persistent
+                }
             else:
-                self.chroma_client = chromadb.Client(Settings(
-                    is_persistent=False,
-                    anonymized_telemetry=False
-                ))
-                logger.info("Initialized in-memory ChromaDB")
+                # Ensure persistence settings are applied from intent_config
+                if 'persist_directory' not in vector_config:
+                    vector_config['persist_directory'] = persist_path if is_persistent else None
+                if 'ephemeral' not in vector_config:
+                    vector_config['ephemeral'] = not is_persistent
             
-            self.template_collection = self.chroma_client.get_or_create_collection(
-                name=self.template_collection_name,
-                metadata={"hnsw:space": "cosine"}
+            logger.info(f"Debug: Vector store config - persist_directory: {vector_config.get('persist_directory')}, ephemeral: {vector_config.get('ephemeral')}")
+            
+            # Create template embedding store
+            self.template_store = TemplateEmbeddingStore(
+                store_name='intent_templates',
+                store_type=vector_config.get('type', 'chroma'),
+                collection_name=self.template_collection_name,
+                config=vector_config
             )
             
-            logger.info(f"Initialized ChromaDB collection: {self.template_collection_name}")
+            # Initialize the template store
+            if hasattr(self.template_store, 'initialize'):
+                await self.template_store.initialize()
+                
+            # Clear existing templates if they have wrong dimensions
+            try:
+                # Get the expected dimension from current embedding client
+                test_embedding = await self.embedding_client.embed_query("test")
+                expected_dim = len(test_embedding) if test_embedding else 768
+                logger.info(f"Expected embedding dimension from current client: {expected_dim}")
+                
+                stats = await self.template_store.get_statistics()
+                existing_dim = stats.get('collection_metadata', {}).get('dimension')
+                
+                if existing_dim and existing_dim != expected_dim:
+                    logger.warning(f"Existing collection has wrong dimension ({existing_dim}), expected {expected_dim}, recreating collection")
+                    
+                    # Delete the collection entirely and recreate with correct dimension
+                    if hasattr(self.template_store, '_vector_store'):
+                        vector_store = self.template_store._vector_store
+                        collection_name = self.template_store.collection_name
+                        
+                        # Delete the collection
+                        if await vector_store.collection_exists(collection_name):
+                            await vector_store.delete_collection(collection_name)
+                            logger.info(f"Deleted collection {collection_name}")
+                        
+                        # Recreate with correct dimension
+                        await vector_store.create_collection(collection_name, dimension=expected_dim)
+                        logger.info(f"Recreated collection {collection_name} with dimension {expected_dim}")
+                        
+            except Exception as e:
+                logger.warning(f"Could not check/clear collection dimensions: {e}")
             
+            # Set the embedding client if the store supports it
+            if hasattr(self.template_store, 'set_embedding_client'):
+                self.template_store.set_embedding_client(self.embedding_client)
+            
+            # Initialize the domain adapter embeddings if it supports it
+            if hasattr(self.domain_adapter, 'initialize_embeddings'):
+                # Pass the template store directly since we don't have a store manager
+                await self.domain_adapter.initialize_embeddings()
+            
+            logger.info(f"Initialized vector store for template collection: {self.template_collection_name}")
+            
+        except ImportError as e:
+            logger.warning(f"Vector store system not available, falling back to basic operation: {e}")
+            # System will work without vector store, just without similarity search
+            self.template_store = None
         except Exception as e:
-            logger.error(f"Error initializing ChromaDB: {e}")
-            raise
+            logger.error(f"Error initializing vector store: {e}")
+            # Continue without vector store - system can still work with exact matching
+            logger.warning("Intent retriever will operate without vector store support")
+            self.template_store = None
     
     async def _load_templates(self):
-        """Load SQL templates from the adapter into ChromaDB."""
+        """Load SQL templates from the adapter into vector store."""
         try:
-            chroma_persist = self.intent_config.get('chroma_persist', False)
-            force_reload = self.intent_config.get('force_reload_templates', False)
-            
-            if chroma_persist and not force_reload:
-                existing_count = self.template_collection.count()
-                if existing_count > 0:
-                    logger.info(f"Found {existing_count} existing templates in persistent ChromaDB")
-                    if not self.intent_config.get('reload_templates_on_start', True):
-                        logger.info("Skipping template reload")
-                        return
+            if not self.template_store:
+                logger.warning("Template store not initialized, skipping template loading")
+                return
             
             templates = self.domain_adapter.get_all_templates()
             
@@ -212,24 +265,39 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
                 logger.warning("No templates found in template library")
                 return
             
-            logger.info(f"Loading {len(templates)} templates into ChromaDB")
+            logger.info(f"Loading {len(templates)} templates into vector store")
             
-            # Clear existing templates
+            # Check if we should reload templates
+            force_reload = self.intent_config.get('force_reload_templates', False)
+            reload_on_start = self.intent_config.get('reload_templates_on_start', True)
+            
+            # Also force reload if dimensions have changed
+            dimension_changed = False
             try:
-                all_ids = self.template_collection.get()['ids']
-                if all_ids:
-                    self.template_collection.delete(ids=all_ids)
-                    logger.info(f"Cleared {len(all_ids)} existing templates")
+                stats = await self.template_store.get_statistics()
+                existing_dim = stats.get('collection_metadata', {}).get('dimension')
+                test_embedding = await self.embedding_client.embed_query("test")
+                expected_dim = len(test_embedding) if test_embedding else 768
+                if existing_dim and existing_dim != expected_dim:
+                    dimension_changed = True
+                    logger.info(f"Dimension changed from {existing_dim} to {expected_dim}, forcing reload")
             except:
                 pass
             
-            # Prepare data for ChromaDB
-            ids = []
-            embeddings = []
-            documents = []
-            metadatas = []
+            if not force_reload and not reload_on_start and not dimension_changed:
+                # Check if templates already exist
+                try:
+                    existing_count = await self.template_store.get_template_count()
+                    if existing_count > 0:
+                        logger.info(f"Found {existing_count} existing templates, skipping reload")
+                        return
+                except:
+                    pass
             
-            # Collect all valid templates and their texts first
+            # Load templates into the template store
+            loaded_count = 0
+            
+            # Prepare templates for batch embedding
             valid_templates = []
             embedding_texts = []
             
@@ -241,76 +309,73 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
                 if not template_id:
                     continue
                 
+                # Create embedding text for the template
                 embedding_text = self._create_embedding_text(template)
                 valid_templates.append(template)
                 embedding_texts.append(embedding_text)
             
-            # Use batch embedding if available, otherwise process in smaller batches
+            # Batch generate embeddings for all templates
+            embeddings = []
             if embedding_texts:
                 try:
-                    # Try to use batch embedding if the service supports it
-                    if hasattr(self.embedding_client, 'embed_documents'):
-                        logger.info(f"Using batch embedding for {len(embedding_texts)} templates")
-                        batch_embeddings = await self.embedding_client.embed_documents(embedding_texts)
-                        
-                        for template, embedding_text, embedding in zip(valid_templates, embedding_texts, batch_embeddings):
-                            if embedding:
-                                ids.append(template.get('id'))
-                                embeddings.append(embedding)
-                                documents.append(embedding_text)
-                                metadatas.append(self._create_template_metadata(template))
-                    else:
-                        # Fall back to individual embedding with parallel processing
-                        logger.info(f"Processing {len(embedding_texts)} templates individually")
-                        import asyncio
-                        
-                        # Process in batches of 5 to avoid overwhelming the service
-                        batch_size = 5
-                        for i in range(0, len(valid_templates), batch_size):
-                            batch_templates = valid_templates[i:i+batch_size]
-                            batch_texts = embedding_texts[i:i+batch_size]
-                            
-                            # Create tasks for parallel processing
-                            tasks = [self.embedding_client.embed_query(text) for text in batch_texts]
-                            batch_results = await asyncio.gather(*tasks, return_exceptions=True)
-                            
-                            for template, embedding_text, result in zip(batch_templates, batch_texts, batch_results):
-                                if isinstance(result, Exception):
-                                    logger.error(f"Failed to get embedding for template {template.get('id')}: {result}")
-                                    continue
-                                if result:
-                                    ids.append(template.get('id'))
-                                    embeddings.append(result)
-                                    documents.append(embedding_text)
-                                    metadatas.append(self._create_template_metadata(template))
-                            
-                            # Log progress for long operations
-                            if len(valid_templates) > 20 and (i + batch_size) % 20 == 0:
-                                logger.info(f"Processed {min(i + batch_size, len(valid_templates))}/{len(valid_templates)} templates")
-                    
+                    logger.info(f"Generating embeddings for {len(embedding_texts)} templates in batch...")
+                    embeddings = await self.embedding_client.embed_documents(embedding_texts)
+                    logger.info(f"Successfully generated {len(embeddings)} embeddings")
                 except Exception as e:
-                    logger.error(f"Failed to get embeddings for templates: {e}")
-                    # Fall back to sequential processing if batch fails
-                    for template, embedding_text in zip(valid_templates, embedding_texts):
+                    logger.error(f"Failed to batch generate embeddings: {e}")
+                    logger.info("Falling back to individual embedding generation...")
+                    # Fallback to individual generation
+                    for text in embedding_texts:
                         try:
-                            embedding = await self.embedding_client.embed_query(embedding_text)
-                            if embedding:
-                                ids.append(template.get('id'))
-                                embeddings.append(embedding)
-                                documents.append(embedding_text)
-                                metadatas.append(self._create_template_metadata(template))
-                        except Exception as e:
-                            logger.error(f"Failed to get embedding for template {template.get('id')}: {e}")
-                            continue
+                            embedding = await self.embedding_client.embed_query(text)
+                            embeddings.append(embedding)
+                        except Exception as e2:
+                            logger.error(f"Failed to generate embedding: {e2}")
+                            embeddings.append(None)
             
-            if ids:
-                self.template_collection.add(
-                    ids=ids,
-                    embeddings=embeddings,
-                    documents=documents,
-                    metadatas=metadatas
-                )
-                logger.info(f"Successfully loaded {len(ids)} templates into ChromaDB")
+            # Prepare templates with embeddings
+            templates_with_embeddings = []
+            for i, (template, embedding) in enumerate(zip(valid_templates, embeddings)):
+                if embedding:
+                    template_id = template.get('id')
+                    template_data = {
+                        'sql': template.get('sql', ''),
+                        'description': template.get('description', ''),
+                        'category': template.get('category', 'general'),
+                        'parameters': template.get('parameters', []),
+                        'examples': template.get('nl_examples', [])
+                    }
+                    templates_with_embeddings.append((template_id, template_data, embedding))
+            
+            # Batch add templates to the store
+            if templates_with_embeddings:
+                try:
+                    logger.info(f"Debug: About to add {len(templates_with_embeddings)} templates with embeddings to store")
+                    results = await self.template_store.batch_add_templates(templates_with_embeddings)
+                    loaded_count = sum(1 for success in results.values() if success)
+                    logger.info(f"Successfully loaded {loaded_count} templates into vector store")
+                    
+                    # Verify the templates are actually in the store
+                    try:
+                        post_stats = await self.template_store.get_statistics()
+                        logger.info(f"Debug: After loading - total templates: {post_stats.get('total_templates', 0)}")
+                    except Exception as e:
+                        logger.warning(f"Debug: Could not get post-load stats: {e}")
+                        
+                except Exception as e:
+                    logger.error(f"Failed to add templates to store: {e}")
+                    import traceback
+                    logger.error(traceback.format_exc())
+            
+            if loaded_count == 0:
+                logger.warning("No templates were loaded into vector store")
+                # Debug: check if we have templates from the adapter
+                logger.info(f"Debug: Found {len(templates)} templates from adapter")
+                if templates:
+                    logger.info(f"Debug: First template ID: {templates[0].get('id', 'NO_ID')}")
+                    logger.info(f"Debug: Template has description: {bool(templates[0].get('description'))}")
+            else:
+                logger.info(f"Successfully loaded {loaded_count} templates into vector store")
             
         except Exception as e:
             logger.error(f"Error loading templates: {e}")
@@ -455,36 +520,100 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
     async def _find_best_templates(self, query: str) -> List[Dict[str, Any]]:
         """Find best matching templates for the query."""
         try:
-            query_embedding = await self.embedding_client.embed_query(query)
+            if not self.template_store:
+                logger.warning("Template store not available, cannot perform similarity search")
+                return []
             
+            # Debug: Check template store stats
+            try:
+                stats = await self.template_store.get_statistics()
+                total_templates = stats.get('total_templates', 0)
+                cached_templates = stats.get('cached_templates', 0)
+                collection_name = stats.get('collection_name', 'unknown')
+                logger.info(f"Debug: Template store - total: {total_templates}, cached: {cached_templates}, collection: {collection_name}")
+                logger.info(f"Debug: Full stats: {stats}")
+                
+                # Debug: Try to fetch a few vectors directly from ChromaDB to verify they exist
+                if self.template_store and hasattr(self.template_store, '_vector_store'):
+                    vector_store = self.template_store._vector_store
+                    collections = await vector_store.list_collections()
+                    logger.info(f"Debug: Available collections: {collections}")
+                    
+                    collection_info = await vector_store.get_collection_info(self.template_collection_name)
+                    logger.info(f"Debug: Collection {self.template_collection_name} info: {collection_info}")
+                    
+                    # Try a direct query with no filtering to see if any vectors exist
+                    test_embedding = [0.1] * 3072  # Dummy embedding matching dimension
+                    test_results = await vector_store.search_vectors(
+                        query_vector=test_embedding,
+                        limit=5,
+                        collection_name=self.template_collection_name
+                    )
+                    logger.info(f"Debug: Direct test search returned {len(test_results)} results")
+                    if test_results:
+                        logger.info(f"Debug: First result: {test_results[0]}")
+            except Exception as e:
+                logger.warning(f"Debug: Could not get template store stats: {e}")
+            
+            # Get query embedding
+            query_embedding = await self.embedding_client.embed_query(query)
             if not query_embedding:
                 logger.error("Failed to get query embedding")
                 return []
             
-            results = self.template_collection.query(
-                query_embeddings=[query_embedding],
-                n_results=self.max_templates,
-                include=['metadatas', 'distances', 'documents']
+            logger.info(f"Debug: Got query embedding of length {len(query_embedding)}")
+            
+            # Check dimension compatibility
+            stats = await self.template_store.get_statistics()
+            collection_dim = stats.get('collection_metadata', {}).get('dimension')
+            if collection_dim and collection_dim != len(query_embedding):
+                logger.error(f"Dimension mismatch: query embedding has {len(query_embedding)} dims, collection has {collection_dim} dims")
+                logger.error("This will prevent similarity search from working. Collection needs to be recreated with matching dimensions.")
+                return []
+            
+            # Search for similar templates
+            search_results = await self.template_store.search_similar_templates(
+                query_embedding=query_embedding,
+                limit=self.max_templates,
+                threshold=self.confidence_threshold
             )
             
-            if not results['ids'] or not results['ids'][0]:
+            logger.info(f"Debug: Search with threshold {self.confidence_threshold} returned {len(search_results) if search_results else 0} results")
+            
+            # If no results with high threshold, try with a lower threshold for debugging
+            if not search_results:
+                logger.info("Debug: Trying search with lower threshold (0.1)")
+                search_results = await self.template_store.search_similar_templates(
+                    query_embedding=query_embedding,
+                    limit=self.max_templates,
+                    threshold=0.1  # Much lower threshold
+                )
+                logger.info(f"Debug: Search with threshold 0.1 returned {len(search_results) if search_results else 0} results")
+            
+            if not search_results:
                 return []
             
             templates = []
-            for i, template_id in enumerate(results['ids'][0]):
+            for result in search_results:
+                template_id = result.get('template_id')
                 template = self.domain_adapter.get_template_by_id(template_id)
                 if template:
-                    similarity = 1 - results['distances'][0][i]
+                    # Merge template data with search result
                     templates.append({
                         'template': template,
-                        'similarity': similarity,
-                        'embedding_text': results['documents'][0][i]
+                        'similarity': result.get('score', 0),
+                        'embedding_text': result.get('description', '')
                     })
+                else:
+                    logger.warning(f"Debug: Template {template_id} not found in adapter")
             
+            logger.info(f"Debug: Returning {len(templates)} templates")
             return templates
             
         except Exception as e:
             logger.error(f"Error finding templates: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             return []
     
     async def _extract_parameters(self, query: str, template: Dict[str, Any]) -> Dict[str, Any]:

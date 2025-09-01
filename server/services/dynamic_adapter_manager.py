@@ -259,6 +259,36 @@ class DynamicAdapterManager:
             else:
                 await loop.run_in_executor(self._thread_pool, retriever.initialize)
         
+        # Initialize embeddings for intent adapters that support it
+        if hasattr(retriever, 'domain_adapter') and retriever.domain_adapter:
+            domain_adapter = retriever.domain_adapter
+            if hasattr(domain_adapter, 'initialize_embeddings'):
+                # Try to get store manager from multiple sources
+                store_manager = None
+                
+                # First, check app state for store manager
+                if self.app_state:
+                    store_manager = getattr(self.app_state, 'store_manager', None)
+                    if not store_manager:
+                        # Check for vector_store_manager (legacy name)
+                        store_manager = getattr(self.app_state, 'vector_store_manager', None)
+                
+                # If no store manager in app state, create one if vector stores are configured
+                if not store_manager:
+                    try:
+                        from vector_stores.base.store_manager import StoreManager
+                        store_manager = StoreManager()
+                        self.logger.info(f"Created new StoreManager for adapter {adapter_name}")
+                    except ImportError:
+                        self.logger.warning("Vector store system not available")
+                
+                if store_manager:
+                    self.logger.info(f"Initializing embeddings for adapter {adapter_name} with store manager")
+                    await domain_adapter.initialize_embeddings(store_manager)
+                else:
+                    self.logger.info(f"Initializing embeddings for adapter {adapter_name} without store manager")
+                    await domain_adapter.initialize_embeddings()
+        
         return retriever
     
     def get_adapter_config(self, adapter_name: str) -> Optional[Dict[str, Any]]:

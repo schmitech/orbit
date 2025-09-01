@@ -1,0 +1,60 @@
+# Store layer configuration for ORBIT system
+# This file configures the unified storage layer that separates storage concerns from business logic
+
+# Store manager configuration
+store_manager:
+  enabled: true
+  cleanup_interval: 300  # 5 minutes
+  ephemeral_max_age: 3600  # 1 hour
+  auto_cleanup: true
+
+# Vector stores configuration
+vector_stores:
+  # ChromaDB configuration
+  chroma:
+    enabled: true
+    default_config:
+      store_type: "vector"
+      connection_params:
+        persist_directory: "./chroma_db"  # Set to null for ephemeral storage
+        distance_function: "cosine"  # cosine, l2, ip
+        allow_reset: false
+        # Note: dimension is dynamically set based on embedding provider
+      pool_size: 5
+      timeout: 30
+      cache_ttl: 1800  # 30 minutes
+      ephemeral: false
+      auto_cleanup: true
+
+  # Pinecone configuration (if enabled)
+  pinecone:
+    enabled: false
+    default_config:
+      store_type: "vector"
+      connection_params:
+        api_key: "${DATASOURCE_PINECONE_API_KEY}"
+        host: "${DATASOURCE_PINECONE_HOST}"
+        index_name: "orbit-index"
+        # Note: dimension is dynamically set based on embedding provider
+      timeout: 30
+      cache_ttl: 1800
+
+  # Qdrant configuration (if enabled)
+  qdrant:
+    enabled: false
+    default_config:
+      store_type: "vector"
+      connection_params:
+        host: "${DATASOURCE_QDRANT_HOST}"
+        port: "${DATASOURCE_QDRANT_PORT}"
+        api_key: "${DATASOURCE_QDRANT_API_KEY}"
+        # Note: dimension is dynamically set based on embedding provider
+      timeout: 30
+
+# Store-specific performance settings
+performance:
+  # Vector store settings
+  vector:
+    batch_size: 100
+    max_concurrent_searches: 10
+    embedding_cache_size: 1000

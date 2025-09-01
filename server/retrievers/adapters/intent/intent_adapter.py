@@ -329,6 +329,75 @@ class IntentAdapter(DocumentAdapter):
         Compatibility method to match retriever's expected interface.
         """
         return self.apply_domain_specific_filtering(context_items, query)
+    
+    async def initialize_embeddings(self, store_manager=None):
+        """
+        Initialize embeddings using the vector store system.
+        This method integrates with the new unified store architecture.
+        
+        Args:
+            store_manager: Optional StoreManager instance for managing vector stores
+        """
+        logger.info("Initializing embeddings for intent adapter")
+        
+        # Store reference to store manager if provided
+        if store_manager:
+            self.store_manager = store_manager
+            logger.info("Store manager registered with intent adapter")
+        
+        # Check if we have template library to embed
+        if self.template_library and hasattr(self, 'store_manager'):
+            try:
+                # Get or create template embedding store
+                from vector_stores.services.template_embedding_store import TemplateEmbeddingStore
+                
+                # Initialize template embedding store if not already present
+                import asyncio
+                if asyncio.iscoroutinefunction(self.store_manager.get_store):
+                    template_store = await self.store_manager.get_store('template_embeddings')
+                else:
+                    template_store = self.store_manager.get_store('template_embeddings')
+                if not template_store:
+                    # Create new template embedding store
+                    logger.info("Creating new template embedding store")
+                    
+                    # Get vector store configuration from stores.yaml
+                    vector_config = self.config.get('vector_store', {})
+                    if not vector_config:
+                        # Use default ChromaDB configuration
+                        vector_config = {
+                            'type': 'chroma',
+                            'persist_directory': './chroma_db',
+                            'collection_name': 'intent_templates'
+                        }
+                    
+                    template_store = TemplateEmbeddingStore(
+                        store_name='template_embeddings',
+                        store_type=vector_config.get('type', 'chroma'),
+                        collection_name=vector_config.get('collection_name', 'intent_templates'),
+                        config=vector_config
+                    )
+                    # Store managers don't have register_store method, they manage stores internally
+                    # Just keep a reference to our template store
+                    pass
+                    
+                    # Initialize the template store
+                    if hasattr(template_store, 'initialize'):
+                        await template_store.initialize()
+                
+                self.template_store = template_store
+                logger.info("Template embedding store initialized")
+                
+            except Exception as e:
+                logger.warning(f"Failed to initialize template embeddings: {e}")
+                logger.info("Intent adapter will work without vector store support")
+        else:
+            if not self.template_library:
+                logger.info("No template library loaded, skipping embedding initialization")
+            if not hasattr(self, 'store_manager'):
+                logger.info("No store manager available, skipping embedding initialization")
+        
+        return True
 
 
 # Register adapter with the global registry for dynamic loading

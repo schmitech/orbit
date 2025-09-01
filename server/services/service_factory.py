@@ -209,6 +209,9 @@ class ServiceFactory:
         # Initialize Prompt Service
         await self._initialize_prompt_service(app)
         
+        # Initialize Vector Store Manager (for adapters that need it)
+        await self._initialize_vector_store_manager(app)
+        
         # Initialize Dynamic Adapter Manager
         await self._initialize_adapter_manager(app)
         
@@ -409,7 +412,7 @@ class ServiceFactory:
             # Preload all adapters in parallel to prevent sequential blocking
             if available_adapters:
                 self.logger.info("Starting parallel adapter preloading...")
-                preload_results = await base_adapter_manager.preload_all_adapters(timeout_per_adapter=25.0)
+                preload_results = await base_adapter_manager.preload_all_adapters(timeout_per_adapter=60.0)
                 
                 # Log preloading results
                 successful_adapters = [name for name, result in preload_results.items() if result["success"]]
@@ -565,3 +568,53 @@ class ServiceFactory:
         except Exception as e:
             self.logger.error(f"Failed to initialize Reranker Service: {str(e)}")
             app.state.reranker_service = None
+    
+    async def _initialize_vector_store_manager(self, app: FastAPI) -> None:
+        """Initialize Vector Store Manager for adapters that need vector storage.
+        
+        This is initialized lazily - the manager is created but stores are only
+        initialized when adapters actually request them.
+        """
+        try:
+            # Check if vector stores configuration exists
+            vector_stores_config = self.config.get('vector_stores', {})
+            
+            # Check if any vector store is enabled
+            vector_stores_enabled = False
+            for store_type in ['chroma', 'pinecone', 'qdrant']:
+                if vector_stores_config.get(store_type, {}).get('enabled', False):
+                    vector_stores_enabled = True
+                    break
+            
+            if not vector_stores_enabled:
+                app.state.vector_store_manager = None
+                app.state.store_manager = None
+                self.logger.info("No vector stores enabled in configuration")
+                return
+            
+            # Import and create the store manager
+            from vector_stores import get_store_manager
+            
+            # Look for stores configuration file
+            stores_config_path = self.config.get('stores_config_path', 'config/stores.yaml')
+            
+            # Create the store manager (singleton)
+            store_manager = get_store_manager(stores_config_path)
+            app.state.vector_store_manager = store_manager  # Keep for backward compatibility
+            app.state.store_manager = store_manager  # New unified name
+            
+            self.logger.info("Store Manager initialized (lazy loading enabled)")
+            
+            # Log available store types
+            stats = app.state.vector_store_manager.get_statistics()
+            self.logger.info(f"Available vector store types: {stats.get('available_store_types', [])}")
+            
+        except ImportError as e:
+            self.logger.warning(f"Vector stores module not available: {e}")
+            app.state.vector_store_manager = None
+            app.state.store_manager = None
+        except Exception as e:
+            self.logger.warning(f"Failed to initialize Store Manager: {e}")
+            # Don't fail startup if vector stores fail
+            app.state.vector_store_manager = None
+            app.state.store_manager = None
