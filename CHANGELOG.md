@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.4.1] - 2025-09-01
+
+### SQL Intent & Retrieval System
+- Intent Adapter Redesign: Introduced better design for SQL intent adapter with new configurable vector stores service
+- SQL Adapter Fixes: Fixed config loading issues with SQL adapters and updated package version for commercial profile
+
+### Python Chat Client
+- Minor improvements: Updated chat-client (assistant text color and removal of warning about api-keys). Published new version 1.0.1.
+
+### Testing & Quality Assurance
+- Unit Test Fixes: Fixed intent retriever unit tests and removed unneeded tests
+
+### Documentation & Configuration
+- Updated ORBIT logo across the project
+
 ## [1.4.0] - 2025-08-31
 
 ### Core System Updates
