@@ -13,8 +13,13 @@ from unittest.mock import patch, MagicMock, AsyncMock, Mock
 # Add the server directory to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
-from retrievers.implementations.intent.intent_postgresql_retriever import IntentPostgreSQLRetriever
-from retrievers.adapters.intent.intent_adapter import IntentAdapter
+# Mock vector stores import to prevent dependency issues in tests
+with patch.dict('sys.modules', {
+    'vector_stores': MagicMock(),
+    'vector_stores.TemplateEmbeddingStore': MagicMock()
+}):
+    from retrievers.implementations.intent.intent_postgresql_retriever import IntentPostgreSQLRetriever
+    from retrievers.adapters.intent.intent_adapter import IntentAdapter
 from retrievers.implementations.intent.domain_aware_extractor import DomainAwareParameterExtractor
 from retrievers.implementations.intent.domain_aware_response_generator import DomainAwareResponseGenerator
 from retrievers.implementations.intent.template_reranker import TemplateReranker
@@ -92,17 +97,33 @@ class TestIntentPostgreSQLRetriever:
     
     @pytest.fixture
     def mock_chroma_collection(self):
-        """Mock ChromaDB collection"""
+        """Mock template store for testing"""
         collection = MagicMock()
         collection.add = MagicMock()
         collection.delete = MagicMock()
         collection.get = MagicMock(return_value={'ids': []})
+        
+        # Mock the new template store interface methods
+        collection.search_similar_templates = AsyncMock(return_value=[
+            {
+                'template_id': 'find_customer',
+                'score': 0.8,  # Similarity score
+                'description': 'Find customer by ID'
+            }
+        ])
+        collection.get_statistics = AsyncMock(return_value={'collection_metadata': {'dimension': 768}})
+        collection.get_template_count = AsyncMock(return_value=1)
+        collection.initialize = AsyncMock()
+        collection.set_embedding_client = MagicMock()
+        
+        # Keep old ChromaDB-style methods for backward compatibility in tests
         collection.query = MagicMock(return_value={
             'ids': [['find_customer']],
             'distances': [[0.2]],  # Distance = 0.2, similarity = 0.8
             'documents': [['Find customer by ID']],
             'metadatas': [[{'template_id': 'find_customer'}]]
         })
+        
         return collection
     
     @pytest.fixture
@@ -133,16 +154,17 @@ class TestIntentPostgreSQLRetriever:
         """Test service initialization"""
         with patch('embeddings.base.EmbeddingServiceFactory') as mock_embed_factory:
             with patch('inference.pipeline.providers.provider_factory.ProviderFactory') as mock_inf_factory:
-                with patch('chromadb.Client') as mock_chroma_client:
+                with patch.object(retriever, '_initialize_vector_store') as mock_vector_store_init:
                     with patch.object(retriever, 'create_connection') as mock_conn_create:
                         # Setup mocks
                         mock_embed_factory.create_embedding_service.return_value = mock_embedding_client
                         mock_inf_factory.create_provider.return_value = mock_inference_client
                         mock_conn_create.return_value = MagicMock()  # Mock connection
                         
-                        mock_chroma = MagicMock()
-                        mock_chroma.get_or_create_collection.return_value = mock_chroma_collection
-                        mock_chroma_client.return_value = mock_chroma
+                        # Mock the _initialize_vector_store method to set template_store directly
+                        def mock_vector_store_init_side_effect():
+                            retriever.template_store = mock_chroma_collection
+                        mock_vector_store_init.side_effect = mock_vector_store_init_side_effect
                         
                         # Initialize
                         await retriever.initialize()
@@ -150,7 +172,11 @@ class TestIntentPostgreSQLRetriever:
                         # Verify services initialized
                         assert retriever.embedding_client == mock_embedding_client
                         assert retriever.inference_client == mock_inference_client
-                        assert retriever.template_collection == mock_chroma_collection
+                        # The template_store should be the result of our mock
+                        assert retriever.template_store == mock_chroma_collection
+                        
+                        # Verify the mock method was called
+                        mock_vector_store_init.assert_called_once()
     
     @pytest.mark.asyncio
     async def test_create_embedding_text(self, retriever):
@@ -188,7 +214,7 @@ class TestIntentPostgreSQLRetriever:
     async def test_find_best_templates(self, retriever, mock_embedding_client, mock_chroma_collection):
         """Test finding best matching templates"""
         retriever.embedding_client = mock_embedding_client
-        retriever.template_collection = mock_chroma_collection
+        retriever.template_store = mock_chroma_collection
         
         templates = await retriever._find_best_templates("Show me customer 123")
         
@@ -199,8 +225,8 @@ class TestIntentPostgreSQLRetriever:
         # Verify embedding was created
         mock_embedding_client.embed_query.assert_called_once_with("Show me customer 123")
         
-        # Verify ChromaDB query
-        mock_chroma_collection.query.assert_called_once()
+        # Verify template store search
+        mock_chroma_collection.search_similar_templates.assert_called_once()
     
     @pytest.mark.asyncio
     async def test_extract_parameters(self, retriever, mock_inference_client):
@@ -291,7 +317,7 @@ class TestIntentPostgreSQLRetriever:
         # Setup services
         retriever.embedding_client = mock_embedding_client
         retriever.inference_client = mock_inference_client
-        retriever.template_collection = mock_chroma_collection
+        retriever.template_store = mock_chroma_collection
         
         # Mock methods
         retriever.execute_query = AsyncMock(return_value=[
@@ -309,15 +335,10 @@ class TestIntentPostgreSQLRetriever:
     async def test_get_relevant_context_no_templates(self, retriever, mock_embedding_client, mock_chroma_collection):
         """Test when no matching templates found"""
         retriever.embedding_client = mock_embedding_client
-        retriever.template_collection = mock_chroma_collection
+        retriever.template_store = mock_chroma_collection
         
         # Mock empty template results
-        mock_chroma_collection.query.return_value = {
-            'ids': [[]],
-            'distances': [[]],
-            'documents': [[]],
-            'metadatas': [[]]
-        }
+        mock_chroma_collection.search_similar_templates.return_value = []
         
         results = await retriever.get_relevant_context("Unknown query")
         
@@ -329,16 +350,17 @@ class TestIntentPostgreSQLRetriever:
     async def test_get_relevant_context_low_confidence(self, retriever, mock_embedding_client, mock_chroma_collection):
         """Test when template confidence is below threshold"""
         retriever.embedding_client = mock_embedding_client
-        retriever.template_collection = mock_chroma_collection
+        retriever.template_store = mock_chroma_collection
         retriever.confidence_threshold = 0.9  # Set high threshold
         
-        # Mock low confidence result (distance 0.5 = similarity 0.5)
-        mock_chroma_collection.query.return_value = {
-            'ids': [['find_customer']],
-            'distances': [[0.5]],
-            'documents': [['Find customer']],
-            'metadatas': [[{'template_id': 'find_customer'}]]
-        }
+        # Mock low confidence result (similarity 0.5, below threshold 0.9)
+        mock_chroma_collection.search_similar_templates.return_value = [
+            {
+                'template_id': 'find_customer',
+                'score': 0.5,  # Below threshold
+                'description': 'Find customer'
+            }
+        ]
         
         results = await retriever.get_relevant_context("Show customer maybe")
         
