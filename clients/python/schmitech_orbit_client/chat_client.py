@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Version: 1.0.0
+# Version: 1.0.1
 import requests
 import json
 import sys
@@ -36,7 +36,7 @@ HISTORY_FILE = os.path.join(CONFIG_DIR, "chat_history")
 
 # Rich styles configuration
 USER_STYLE = "bold blue"
-ASSISTANT_STYLE = "#73daca"
+ASSISTANT_STYLE = "#e5e5e5"  # Light gray for assistant
 SYSTEM_STYLE = "cyan"
 ERROR_STYLE = "bold red"
 WARNING_STYLE = "bold yellow"
@@ -136,7 +136,6 @@ def create_default_config():
         with open(CONFIG_FILE, "w") as f:
             f.write(default_content)
         console.print(f"✅ Successfully created default config file at: [green]{CONFIG_FILE}[/green]")
-        console.print("Please edit it to add your API key before running again.", style=WARNING_STYLE)
     except Exception as e:
         console.print(f"Error creating config file: {e}", style=ERROR_STYLE)
 
@@ -159,8 +158,7 @@ def load_config():
             
             if answer == 'y':
                 create_default_config()
-                # Exit after creating config so user can edit it
-                sys.exit(0)
+                console.print("📝 Config file created! You can edit it later if needed.", style="green")
             else:
                 console.print("Skipping config file creation. Please provide required arguments via flags.", style=WARNING_STYLE)
         except (KeyboardInterrupt, EOFError):
@@ -178,8 +176,24 @@ def load_config():
 
 def clean_response(text):
     """Cleans up model response text."""
+    # First, protect currency patterns from being modified
+    currency_patterns = []
+    def protect_currency(match):
+        placeholder = f"__CURRENCY_{len(currency_patterns)}__"
+        currency_patterns.append(match.group(0))
+        return placeholder
+    
+    # Protect currency amounts (e.g., $12,144.32, $1,234.56)
+    text = re.sub(r'\$\d{1,3}(?:,\d{3})*(?:\.\d+)?', protect_currency, text)
+    
+    # Apply the original cleaning logic
     text = re.sub(r'([.,!?:;])(?!\]d)([A-Za-z0-9])', r'\1 \2', text)
     text = re.sub(r'([.!?])([A-Z])', r'\1 \2', text)
+    
+    # Restore currency patterns
+    for i, pattern in enumerate(currency_patterns):
+        text = text.replace(f"__CURRENCY_{i}__", pattern)
+    
     prefixes = ["Assistant:", "A:", "Model:", "AI:", "Gemma:", "Assistant: "]
     for prefix in prefixes:
         if text.lower().startswith(prefix.lower()):

@@ -95,7 +95,6 @@ adapters:
     datasource: "postgres"
     adapter: "intent"
     implementation: "retrievers.implementations.intent.IntentPostgreSQLRetriever"
-    inference_provider: "ollama"
     config:
       # Path to the domain definition file
       domain_config_path: "config/sql_intent_templates/examples/customer-orders/customer_order_domain.yaml"
@@ -106,7 +105,7 @@ adapters:
         - "config/sql_intent_templates/examples/customer-orders/comparative_analysis_templates.yaml"
       # Name for the vector store collection for templates
       template_collection_name: "intent_query_templates"
-      confidence_threshold: 0.75
+      confidence_threshold: 0.4
       # Embedding provider for template matching (null = use default)
       embedding_provider: null
       # Maximum templates to consider
@@ -116,8 +115,8 @@ adapters:
       # ChromaDB persistence settings
       chroma_persist: true  # Set to true to persist embeddings between runs
       chroma_persist_path: "./chroma_db/intent_templates"  # Path for persistent storage
-      reload_templates_on_start: true  # Whether to reload templates on startup (when using persistent storage)
-      force_reload_templates: true  # Force reload even if templates exist in persistent storage
+      reload_templates_on_start: false  # Whether to reload templates on startup (when using persistent storage)
+      force_reload_templates: false  # Force reload even if templates exist in persistent storage
       
       # Unified retriever features
       use_connection_pool: true  # Enable connection pooling

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "schmitech-orbit-client"
-version = "1.0.0"
+version = "1.0.1"
 description = "An MCP Python client for interacting with Orbit chat servers"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -18,7 +18,6 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
-    "python-dotenv>=1.0.0",
     "requests>=2.31.0",
     "colorama>=0.4.6",
     "prompt-toolkit>=3.0.52",

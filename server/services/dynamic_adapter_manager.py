@@ -233,7 +233,7 @@ class DynamicAdapterManager:
             # Create a deep copy of config with the adapter config included
             import copy
             config_with_adapter = copy.deepcopy(self.config)
-            config_with_adapter['adapter_config'] = adapter_config_params
+            config_with_adapter['config'] = adapter_config_params
             
             # Include adapter-level inference provider override if specified
             if 'inference_provider' in adapter_config:

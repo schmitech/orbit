@@ -28,7 +28,7 @@ class IntentAdapter(DocumentAdapter):
     def __init__(self, 
                  domain_config_path: Optional[str] = None,
                  template_library_path: Optional[Union[str, List[str]]] = None,
-                 confidence_threshold: float = 0.75,
+                 confidence_threshold: float = 0.1,
                  verbose: bool = False,
                  config: Dict[str, Any] = None,
                  **kwargs):
@@ -363,18 +363,24 @@ class IntentAdapter(DocumentAdapter):
                     
                     # Get vector store configuration from stores.yaml
                     vector_config = self.config.get('vector_store', {})
+                    # Get the collection name from adapter config, falling back to default
+                    collection_name = self.config.get('template_collection_name', 'intent_query_templates')
+                    
                     if not vector_config:
                         # Use default ChromaDB configuration
                         vector_config = {
                             'type': 'chroma',
                             'persist_directory': './chroma_db',
-                            'collection_name': 'intent_templates'
+                            'collection_name': collection_name
                         }
+                    else:
+                        # Ensure the collection name from adapter config is used
+                        vector_config['collection_name'] = collection_name
                     
                     template_store = TemplateEmbeddingStore(
                         store_name='template_embeddings',
                         store_type=vector_config.get('type', 'chroma'),
-                        collection_name=vector_config.get('collection_name', 'intent_templates'),
+                        collection_name=collection_name,
                         config=vector_config
                     )
                     # Store managers don't have register_store method, they manage stores internally
@@ -415,7 +421,7 @@ def register_intent_adapter():
             adapter_name="intent",
             implementation='retrievers.adapters.intent.intent_adapter.IntentAdapter',
             config={
-                'confidence_threshold': 0.75,
+                'confidence_threshold': 0.1,
                 'verbose': False
             }
         )
@@ -429,7 +435,7 @@ def register_intent_adapter():
                 adapter_name="intent",
                 implementation='retrievers.adapters.intent.intent_adapter.IntentAdapter',
                 config={
-                    'confidence_threshold': 0.75,
+                    'confidence_threshold': 0.1,
                     'verbose': False
                 }
             )

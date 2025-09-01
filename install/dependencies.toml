@@ -38,7 +38,7 @@ dependencies = [
     "langid>=1.1.6",
     "pycld2>=0.42",
     "psycopg2-binary>=2.9.10",
-    "schmitech-orbit-client==1.0.0",
+    "schmitech-orbit-client==1.0.1",
     "markdown>=3.8.2",
     "nh3>=0.3.0",
     "ftfy>=6.3.1",

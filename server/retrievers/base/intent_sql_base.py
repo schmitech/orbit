@@ -52,8 +52,13 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
         
         # Intent-specific settings
         self.template_collection_name = self.intent_config.get('template_collection_name', 'intent_query_templates')
-        self.confidence_threshold = self.intent_config.get('confidence_threshold', 0.75)
+        self.confidence_threshold = self.intent_config.get('confidence_threshold', 0.1)
         self.max_templates = self.intent_config.get('max_templates', 5)
+        
+        # Debug configuration values if verbose is enabled
+        if self.verbose:
+            logger.info(f"Intent config loaded - confidence_threshold: {self.confidence_threshold}, template_collection_name: {self.template_collection_name}, max_templates: {self.max_templates}")
+            logger.info(f"Intent config keys: {list(self.intent_config.keys())}")
         
         # Initialize service clients
         self.embedding_client = None
@@ -187,7 +192,8 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
                 if 'ephemeral' not in vector_config:
                     vector_config['ephemeral'] = not is_persistent
             
-            logger.info(f"Debug: Vector store config - persist_directory: {vector_config.get('persist_directory')}, ephemeral: {vector_config.get('ephemeral')}")
+            if self.verbose:
+                logger.info(f"Vector store config - persist_directory: {vector_config.get('persist_directory')}, ephemeral: {vector_config.get('ephemeral')}")
             
             # Create template embedding store
             self.template_store = TemplateEmbeddingStore(
@@ -350,17 +356,19 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
             # Batch add templates to the store
             if templates_with_embeddings:
                 try:
-                    logger.info(f"Debug: About to add {len(templates_with_embeddings)} templates with embeddings to store")
+                    if self.verbose:
+                        logger.info(f"Adding {len(templates_with_embeddings)} templates with embeddings to store")
                     results = await self.template_store.batch_add_templates(templates_with_embeddings)
                     loaded_count = sum(1 for success in results.values() if success)
                     logger.info(f"Successfully loaded {loaded_count} templates into vector store")
                     
                     # Verify the templates are actually in the store
-                    try:
-                        post_stats = await self.template_store.get_statistics()
-                        logger.info(f"Debug: After loading - total templates: {post_stats.get('total_templates', 0)}")
-                    except Exception as e:
-                        logger.warning(f"Debug: Could not get post-load stats: {e}")
+                    if self.verbose:
+                        try:
+                            post_stats = await self.template_store.get_statistics()
+                            logger.info(f"Vector store now contains {post_stats.get('total_templates', 0)} templates")
+                        except Exception as e:
+                            logger.debug(f"Could not get post-load stats: {e}")
                         
                 except Exception as e:
                     logger.error(f"Failed to add templates to store: {e}")
@@ -369,13 +377,10 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
             
             if loaded_count == 0:
                 logger.warning("No templates were loaded into vector store")
-                # Debug: check if we have templates from the adapter
-                logger.info(f"Debug: Found {len(templates)} templates from adapter")
-                if templates:
-                    logger.info(f"Debug: First template ID: {templates[0].get('id', 'NO_ID')}")
-                    logger.info(f"Debug: Template has description: {bool(templates[0].get('description'))}")
+                if self.verbose and templates:
+                    logger.info(f"Found {len(templates)} templates from adapter but none were loaded")
             else:
-                logger.info(f"Successfully loaded {loaded_count} templates into vector store")
+                logger.info(f"Template loading complete: {loaded_count} templates loaded")
             
         except Exception as e:
             logger.error(f"Error loading templates: {e}")
@@ -524,36 +529,16 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
                 logger.warning("Template store not available, cannot perform similarity search")
                 return []
             
-            # Debug: Check template store stats
-            try:
-                stats = await self.template_store.get_statistics()
-                total_templates = stats.get('total_templates', 0)
-                cached_templates = stats.get('cached_templates', 0)
-                collection_name = stats.get('collection_name', 'unknown')
-                logger.info(f"Debug: Template store - total: {total_templates}, cached: {cached_templates}, collection: {collection_name}")
-                logger.info(f"Debug: Full stats: {stats}")
-                
-                # Debug: Try to fetch a few vectors directly from ChromaDB to verify they exist
-                if self.template_store and hasattr(self.template_store, '_vector_store'):
-                    vector_store = self.template_store._vector_store
-                    collections = await vector_store.list_collections()
-                    logger.info(f"Debug: Available collections: {collections}")
-                    
-                    collection_info = await vector_store.get_collection_info(self.template_collection_name)
-                    logger.info(f"Debug: Collection {self.template_collection_name} info: {collection_info}")
-                    
-                    # Try a direct query with no filtering to see if any vectors exist
-                    test_embedding = [0.1] * 3072  # Dummy embedding matching dimension
-                    test_results = await vector_store.search_vectors(
-                        query_vector=test_embedding,
-                        limit=5,
-                        collection_name=self.template_collection_name
-                    )
-                    logger.info(f"Debug: Direct test search returned {len(test_results)} results")
-                    if test_results:
-                        logger.info(f"Debug: First result: {test_results[0]}")
-            except Exception as e:
-                logger.warning(f"Debug: Could not get template store stats: {e}")
+            # Check template store stats
+            if self.verbose:
+                try:
+                    stats = await self.template_store.get_statistics()
+                    total_templates = stats.get('total_templates', 0)
+                    cached_templates = stats.get('cached_templates', 0)
+                    collection_name = stats.get('collection_name', 'unknown')
+                    logger.info(f"Template store stats - total: {total_templates}, cached: {cached_templates}, collection: {collection_name}")
+                except Exception as e:
+                    logger.debug(f"Could not get template store stats: {e}")
             
             # Get query embedding
             query_embedding = await self.embedding_client.embed_query(query)
@@ -561,15 +546,19 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
                 logger.error("Failed to get query embedding")
                 return []
             
-            logger.info(f"Debug: Got query embedding of length {len(query_embedding)}")
+            if self.verbose:
+                logger.info(f"Query embedding generated with {len(query_embedding)} dimensions")
             
             # Check dimension compatibility
-            stats = await self.template_store.get_statistics()
-            collection_dim = stats.get('collection_metadata', {}).get('dimension')
-            if collection_dim and collection_dim != len(query_embedding):
-                logger.error(f"Dimension mismatch: query embedding has {len(query_embedding)} dims, collection has {collection_dim} dims")
-                logger.error("This will prevent similarity search from working. Collection needs to be recreated with matching dimensions.")
-                return []
+            try:
+                stats = await self.template_store.get_statistics()
+                collection_dim = stats.get('collection_metadata', {}).get('dimension')
+                if collection_dim and collection_dim != len(query_embedding):
+                    logger.error(f"Dimension mismatch: query embedding has {len(query_embedding)} dims, collection has {collection_dim} dims")
+                    logger.error("This will prevent similarity search from working. Collection needs to be recreated with matching dimensions.")
+                    return []
+            except Exception as e:
+                logger.debug(f"Could not verify dimension compatibility: {e}")
             
             # Search for similar templates
             search_results = await self.template_store.search_similar_templates(
@@ -578,17 +567,13 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
                 threshold=self.confidence_threshold
             )
             
-            logger.info(f"Debug: Search with threshold {self.confidence_threshold} returned {len(search_results) if search_results else 0} results")
-            
-            # If no results with high threshold, try with a lower threshold for debugging
-            if not search_results:
-                logger.info("Debug: Trying search with lower threshold (0.1)")
-                search_results = await self.template_store.search_similar_templates(
-                    query_embedding=query_embedding,
-                    limit=self.max_templates,
-                    threshold=0.1  # Much lower threshold
-                )
-                logger.info(f"Debug: Search with threshold 0.1 returned {len(search_results) if search_results else 0} results")
+            if self.verbose:
+                if search_results:
+                    scores = [f"{result.get('score', 0):.3f}" for result in search_results]
+                    scores_str = ", ".join(scores)
+                    logger.info(f"Similarity search with threshold {self.confidence_threshold} returned {len(search_results)} results with scores: [{scores_str}]")
+                else:
+                    logger.info(f"Similarity search with threshold {self.confidence_threshold} returned 0 results")
             
             if not search_results:
                 return []
@@ -605,9 +590,11 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
                         'embedding_text': result.get('description', '')
                     })
                 else:
-                    logger.warning(f"Debug: Template {template_id} not found in adapter")
+                    if self.verbose:
+                        logger.warning(f"Template {template_id} not found in adapter")
             
-            logger.info(f"Debug: Returning {len(templates)} templates")
+            if self.verbose:
+                logger.info(f"Found {len(templates)} matching templates for query")
             return templates
             
         except Exception as e:
