@@ -139,16 +139,16 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
               Chat Preferences
             </h3>
 
-            {/* Voice Input */}
+            {/* Voice Responses */}
             <div className="flex items-center justify-between opacity-50">
               <div className="flex items-center gap-2">
-                <Mic className="w-4 h-4 text-gray-400 dark:text-gray-500" />
+                <Volume2 className="w-4 h-4 text-gray-400 dark:text-gray-500" />
                 <div>
                   <label className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                    Voice Input
+                    Voice Responses
                   </label>
                   <p className="text-xs text-gray-400 dark:text-gray-500">
-                    Enable microphone for voice messages (Coming soon)
+                    Enable text-to-speech for AI responses (Coming soon)
                   </p>
                 </div>
               </div>

@@ -56,7 +56,7 @@ export function MessageList({ messages, onRegenerate, isLoading }: MessageListPr
             <img 
               src={orbitLogo} 
               alt="ORBIT" 
-              className="w-64 h-64 object-contain mx-auto drop-shadow-lg" 
+              className="w-56 h-56 object-contain mx-auto drop-shadow-lg" 
             />
           </div>
           
