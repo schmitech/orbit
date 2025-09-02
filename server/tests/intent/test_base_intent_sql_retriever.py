@@ -1,5 +1,5 @@
 """
-Tests for the BaseIntentSQLRetriever abstract base class
+Tests for the IntentSQLRetriever base class
 """
 
 import pytest
@@ -17,12 +17,12 @@ from datetime import datetime, date
 # Add the server directory to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
-from retrievers.implementations.intent.base_intent_sql_retriever import BaseIntentSQLRetriever
+from retrievers.base.intent_sql_base import IntentSQLRetriever
 from retrievers.adapters.intent.intent_adapter import IntentAdapter
 
 
-class MockIntentSQLRetriever(BaseIntentSQLRetriever):
-    """Concrete implementation of BaseIntentSQLRetriever for testing"""
+class MockIntentSQLRetriever(IntentSQLRetriever):
+    """Concrete implementation of IntentSQLRetriever for testing"""
     
     def __init__(self, config: Dict[str, Any], domain_adapter=None, connection=None, **kwargs):
         super().__init__(config=config, domain_adapter=domain_adapter, connection=connection, **kwargs)
@@ -31,6 +31,36 @@ class MockIntentSQLRetriever(BaseIntentSQLRetriever):
     def _get_datasource_name(self) -> str:
         """Return the name of this datasource for config lookup"""
         return "test_sql"
+    
+    def get_default_port(self) -> int:
+        """Get default port for the database type."""
+        return 5432
+    
+    def get_default_database(self) -> str:
+        """Get default database name."""
+        return "testdb"
+    
+    def get_default_username(self) -> str:
+        """Get default username."""
+        return "testuser"
+    
+    async def create_connection(self) -> Any:
+        """Create database connection."""
+        return self.mock_connection
+    
+    def get_test_query(self) -> str:
+        """Get test query for connection validation."""
+        return "SELECT 1"
+    
+    async def _execute_raw_query(self, query: str, params: Optional[Any] = None) -> List[Any]:
+        """Execute raw query and return raw results."""
+        results = await self.execute_query(query, params)
+        return results
+    
+    async def _close_connection(self) -> None:
+        """Close the database connection."""
+        if self.connection:
+            self.connection = None
         
     def _create_database_connection(self):
         """Create a mock database connection"""
@@ -88,8 +118,8 @@ class MockIntentSQLRetriever(BaseIntentSQLRetriever):
         return len(intersection) / len(union) if union else 0.0
 
 
-class TestBaseIntentSQLRetriever:
-    """Test suite for BaseIntentSQLRetriever"""
+class TestIntentSQLRetriever:
+    """Test suite for IntentSQLRetriever"""
     
     @pytest.fixture
     def sample_domain_config(self):
@@ -212,7 +242,7 @@ class TestBaseIntentSQLRetriever:
                     'database': 'testdb'
                 }
             },
-            'config': {
+            'adapter_config': {
                 'domain_config_path': domain_path,
                 'template_library_path': template_path,
                 'template_collection_name': 'test_templates',
@@ -291,7 +321,7 @@ class TestBaseIntentSQLRetriever:
     @pytest.mark.asyncio
     async def test_initialization_with_default_adapter(self, mock_config):
         """Test retriever initialization creates IntentAdapter if not provided"""
-        with patch('retrievers.implementations.intent.base_intent_sql_retriever.IntentAdapter') as mock_adapter_class:
+        with patch('retrievers.base.intent_sql_base.IntentAdapter') as mock_adapter_class:
             mock_adapter = MagicMock()
             mock_adapter_class.return_value = mock_adapter
             
@@ -320,7 +350,7 @@ class TestBaseIntentSQLRetriever:
                     # Verify services initialized
                     assert retriever.embedding_client == mock_embedding_client
                     assert retriever.inference_client == mock_inference_client
-                    assert retriever.template_collection == mock_chroma_collection
+                    assert retriever.template_store is not None  # Uses template_store instead
                     assert retriever.parameter_extractor is not None
                     assert retriever.response_generator is not None
                     assert retriever.template_reranker is not None
@@ -408,22 +438,22 @@ class TestBaseIntentSQLRetriever:
         assert converted['status'] == 'active'
     
     @pytest.mark.asyncio
-    async def test_calculate_simple_similarity(self, retriever):
-        """Test simple text similarity calculation"""
+    async def test_calculate_similarity(self, retriever):
+        """Test text similarity calculation using the existing method"""
         text1 = "show me customer orders"
         text2 = "display customer purchases"
         
-        similarity = retriever._calculate_simple_similarity(text1, text2)
+        similarity = retriever._calculate_similarity(text1, text2)
         
         # Should have some overlap with "customer"
         assert 0.0 < similarity < 1.0
         
         # Test identical texts
-        similarity_identical = retriever._calculate_simple_similarity(text1, text1)
+        similarity_identical = retriever._calculate_similarity(text1, text1)
         assert similarity_identical == 1.0
         
         # Test completely different texts
-        similarity_different = retriever._calculate_simple_similarity("hello world", "goodbye universe")
+        similarity_different = retriever._calculate_similarity("hello world", "goodbye universe")
         assert similarity_different == 0.0
     
     @pytest.mark.asyncio
@@ -526,26 +556,32 @@ class TestBaseIntentSQLRetriever:
         assert error == "Template has no SQL query"
     
     @pytest.mark.asyncio
-    async def test_fallback_template_matching(self, retriever):
-        """Test fallback template matching when embeddings fail"""
+    async def test_template_matching_fallback(self, retriever):
+        """Test that template matching works when no templates are found"""
         query = "show customer orders"
         
-        matches = retriever._fallback_template_matching(query)
+        # Mock empty template store
+        mock_template_store = MagicMock()
+        mock_template_store.search_similar_templates = AsyncMock(return_value=[])
+        retriever.template_store = mock_template_store
+        retriever.embedding_client = AsyncMock()
+        retriever.embedding_client.embed_query = AsyncMock(return_value=[0.1] * 768)
         
-        # Should find matches based on text similarity
-        assert len(matches) >= 0  # May be 0 if no good matches
-        
-        # If matches found, they should have similarity scores
-        for match in matches:
-            assert 'template' in match
-            assert 'similarity' in match
-            assert 0.0 <= match['similarity'] <= 1.0
+        # Should return empty list when no templates match
+        matches = await retriever._find_best_templates(query)
+        assert len(matches) == 0
     
     @pytest.mark.asyncio
     async def test_find_best_templates(self, retriever, mock_embedding_client, mock_chroma_collection):
         """Test finding best matching templates"""
         retriever.embedding_client = mock_embedding_client
-        retriever.template_collection = mock_chroma_collection
+        
+        # Mock the template store
+        mock_template_store = MagicMock()
+        mock_template_store.search_similar_templates = AsyncMock(return_value=[
+            {'template_id': 'find_customer_by_id', 'score': 0.8, 'description': 'Find customer by ID'}
+        ])
+        retriever.template_store = mock_template_store
         
         templates = await retriever._find_best_templates("Show me customer 123")
         
@@ -556,14 +592,17 @@ class TestBaseIntentSQLRetriever:
         # Verify embedding was created
         mock_embedding_client.embed_query.assert_called_once_with("Show me customer 123")
         
-        # Verify ChromaDB query
-        mock_chroma_collection.query.assert_called_once()
+        # Verify template store query
+        mock_template_store.search_similar_templates.assert_called_once()
     
     @pytest.mark.asyncio
     async def test_find_best_templates_embedding_failure(self, retriever, mock_embedding_client, mock_chroma_collection):
         """Test template finding when embedding fails"""
         retriever.embedding_client = mock_embedding_client
-        retriever.template_collection = mock_chroma_collection
+        
+        # Mock the template store
+        mock_template_store = MagicMock()
+        retriever.template_store = mock_template_store
         
         # Make embedding fail
         mock_embedding_client.embed_query.side_effect = Exception("Embedding failed")
@@ -623,15 +662,11 @@ class TestBaseIntentSQLRetriever:
     async def test_get_relevant_context_no_templates(self, retriever, mock_embedding_client, mock_chroma_collection):
         """Test context retrieval when no templates match"""
         retriever.embedding_client = mock_embedding_client
-        retriever.template_collection = mock_chroma_collection
         
-        # Mock empty template results
-        mock_chroma_collection.query.return_value = {
-            'ids': [[]],
-            'distances': [[]],
-            'documents': [[]],
-            'metadatas': [[]]
-        }
+        # Mock template store with no results
+        mock_template_store = MagicMock()
+        mock_template_store.search_similar_templates = AsyncMock(return_value=[])
+        retriever.template_store = mock_template_store
         
         results = await retriever.get_relevant_context("unknown query")
         
