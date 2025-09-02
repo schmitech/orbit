@@ -35,8 +35,8 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
         """
         super().__init__(config=config, connection=connection, **kwargs)
         
-        # Get intent-specific configuration
-        self.intent_config = config.get('config', {})
+        # Get intent-specific configuration from standardized key
+        self.intent_config = config.get('adapter_config', {})
         
         # Create IntentAdapter if not provided
         if not domain_adapter:
