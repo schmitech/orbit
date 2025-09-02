@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.4.2] - 2025-09-01
+
+### SQL Intent & Retrieval System
+- Adapter issues: Fix issues with adapter config loading
+
 ## [1.4.1] - 2025-09-01
 
 ### SQL Intent & Retrieval System
