@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { ApiClient } from '@schmitech/chatbot-api';
+import { configureApi, streamChat } from '@schmitech/chatbot-api';
 import { getApiUrl, getApiKey } from '../index';
 import { getOrCreateSessionId, setSessionId } from '../utils/sessionManager';
 import { CHAT_CONSTANTS } from '../shared/styles';
@@ -23,12 +23,12 @@ interface ChatState {
   getSessionId: () => string;
 }
 
-// Initialize API client
-let apiClient: ApiClient | null = null;
+// Track if API is configured
+let isApiConfigured = false;
 
-function ensureApiClient(): ApiClient | null {
-  if (apiClient) {
-    return apiClient;
+function ensureApiConfigured(): boolean {
+  if (isApiConfigured) {
+    return true;
   }
 
   try {
@@ -52,7 +52,7 @@ function ensureApiClient(): ApiClient | null {
 
       if (!apiUrl || !apiKey) {
         console.warn('API URL or API Key not configured');
-        return null;
+        return false;
       }
 
       // Handle session ID
@@ -65,13 +65,14 @@ function ensureApiClient(): ApiClient | null {
         sessionId = getOrCreateSessionId();
       }
 
-      apiClient = new ApiClient({ apiUrl, apiKey, sessionId });
-      return apiClient;
+      configureApi(apiUrl, apiKey, sessionId);
+      isApiConfigured = true;
+      return true;
     }
   } catch (err) {
-    console.error('Failed to create API client:', err);
+    console.error('Failed to configure API:', err);
   }
-  return null;
+  return false;
 }
 
 // Helper function to generate unique IDs
@@ -101,9 +102,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       if (content.length > maxLen) {
         safeContent = content.substring(0, maxLen);
       }
-      // Ensure API client is available
-      const client = ensureApiClient();
-      if (!client) {
+      // Ensure API is configured
+      if (!ensureApiConfigured()) {
         throw new Error('API not properly configured');
       }
       // Add user message
@@ -118,8 +118,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }));
       let receivedAnyText = false;
       try {
-        // Use the streamChat method from ApiClient instance
-        for await (const chunk of client.streamChat(safeContent)) {
+        // Use the streamChat function
+        for await (const chunk of streamChat(safeContent)) {
           if (chunk.text) {
             // Append the text to the last message
             get().appendToLastMessage(chunk.text);
