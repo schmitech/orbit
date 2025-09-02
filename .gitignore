@@ -62,3 +62,4 @@ package-lock.json
 sqlite_db
 CLAUDE.md
 .rag_history
+.gradle
