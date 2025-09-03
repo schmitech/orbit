@@ -200,6 +200,7 @@ const ChatbotThemingPlatform = () => {
                   onChange={setTempApiKey}
                   placeholder="your-api-key"
                   className="font-mono text-sm"
+                  maxLength={50}
                 />
                 <FormInput
                   label="API Endpoint"
@@ -207,6 +208,7 @@ const ChatbotThemingPlatform = () => {
                   onChange={setTempApiEndpoint}
                   placeholder="https://your-api-endpoint.com"
                   className="font-mono text-sm"
+                  maxLength={50}
                 />
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <div className="flex items-start gap-2">
