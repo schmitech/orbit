@@ -7,6 +7,7 @@ import logging
 import traceback
 from typing import Dict, Any, List, Optional, Tuple
 from fastapi import HTTPException
+from qdrant_client.http.exceptions import UnexpectedResponse
 
 from .qa_vector_base import QAVectorRetrieverBase
 from ...base.base_retriever import RetrieverFactory
@@ -112,6 +113,11 @@ class QAQdrantRetriever(QAVectorRetrieverBase, QdrantRetriever):
             if not self.qdrant_client:
                 logger.error("Failed to initialize Qdrant client")
                 return []
+            
+            # Check if collection exists before querying
+            if not self.qdrant_client.collection_exists(collection_name=collection_name):
+                logger.warning(f"Qdrant collection '{collection_name}' does not exist. Returning empty results.")
+                return []
                 
             if self.verbose:
                 logger.info(f"Querying Qdrant collection: {collection_name}")
@@ -122,9 +128,18 @@ class QAQdrantRetriever(QAVectorRetrieverBase, QdrantRetriever):
                 limit=max_results,
                 with_payload=True
             )
+        except UnexpectedResponse as e:
+            # Handle specific Qdrant HTTP exceptions gracefully
+            if e.status_code == 404:
+                logger.warning(f"Qdrant collection '{collection_name}' not found (404). Returning empty results.")
+                return []
+            else:
+                logger.error(f"Unexpected Qdrant response (status {e.status_code}): {str(e)}")
+                return []
         except Exception as e:
             logger.error(f"Error querying Qdrant: {str(e)}")
-            logger.error(traceback.format_exc())
+            if self.verbose:
+                logger.error(traceback.format_exc())
             return []
     
     def extract_document_data(self, result: Any) -> Tuple[str, Dict[str, Any], float]:

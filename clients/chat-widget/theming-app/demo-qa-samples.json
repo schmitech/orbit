@@ -4,6 +4,10 @@
         "answer": "This is a platform for customizing the ORBIT chat widget."
     },
     {
+        "question": "Are the ORBIT widget and Theming App in beta, and are they free to use during the beta period?",
+        "answer": "Yes. During the beta period the ORBIT widget and Theming App are free to use at no charge."
+    },
+    {
         "question": "How do I customize the widget?",
         "answer": "You can customize the widget by changing the theme, the system prompt, and the widget configuration."
     },
@@ -246,5 +250,57 @@
     {
         "question": "Any CI/CD examples?",
         "answer": "You can use environment variables like VITE_WIDGET_SOURCE and VITE_WIDGET_DEBUG in your pipeline, similar to local usage."
+    },
+    {
+        "question": "How can I deploy the theming app locally?",
+        "answer": "You can use the `deploy.sh` script, which copies the necessary widget files and configures the environment for local development."
+    },
+    {
+        "question": "What is the purpose of the VITE_WIDGET_SOURCE environment variable?",
+        "answer": "It toggles the widget source between 'local' (for testing local changes) and 'npm' (for using the published package)."
+    },
+    {
+        "question": "What's the difference between `npm run dev:local` and `npm run dev:npm`?",
+        "answer": "`dev:local` starts the development server using the local build of the widget from the `../dist` directory. `dev:npm` uses the published version of the widget from NPM."
+    },
+    {
+        "question": "How can I check if my local widget build is set up correctly?",
+        "answer": "Run `npm run widget:check`. This script verifies that the widget files exist, checks their age, and provides recommendations for your `.env.local` configuration."
+    },
+    {
+        "question": "What parts of the chat button can I customize?",
+        "answer": "In the 'Theme' tab, under 'Chat Button', you can customize the background color, hover background color, icon color, icon border color, and the main button border color."
+    },
+    {
+        "question": "How do I change the chat button icon?",
+        "answer": "Go to the 'Theme' tab and open the 'Icon Selection' section. You can choose from a categorized list of icons."
+    },
+    {
+        "question": "What are the character limits for suggested questions?",
+        "answer": "You can configure the max length for both the display text (what the user sees) and the query (what is sent to the API) in the 'Content' tab under 'Character Limits'."
+    },
+    {
+        "question": "My local build isn't loading. What should I do?",
+        "answer": "First, make sure you have built the widget by running `npm run build` in the `chat-widget` directory. Then, run `npm run widget:check` in the `theming-app` directory to verify paths. Also, check the browser's developer console for errors."
+    },
+    {
+        "question": "What is the difference between the HTML and JavaScript export options in the 'Code' tab?",
+        "answer": "The HTML option provides a full, readable HTML file that's good for learning or development. The JavaScript option provides a single, self-contained JS bundle that you can easily drop into a production site."
+    },
+    {
+        "question": "Does the exported JavaScript bundle include React?",
+        "answer": "Yes, the JavaScript bundle automatically loads React and ReactDOM from a CDN, so you don't need to have them on your site already."
+    },
+    {
+        "question": "How does the theming app update the widget's API key and endpoint without a full reload?",
+        "answer": "The app first attempts a live update using `window.ChatbotWidget.setApiKey()` and `setApiUrl()`. If those functions are not available on the widget, it falls back to reinitializing the entire widget."
+    },
+    {
+        "question": "Where can I find the default configuration for the widget?",
+        "answer": "The default widget configuration, including welcome messages and suggested questions, is defined in `src/constants/themes.ts` within the `defaultWidgetConfig` object."
+    },
+    {
+        "question": "What are the available theme presets?",
+        "answer": "The app includes several presets like Nebula, Ocean, Evergreen, Twilight, Lavender, Midnight, Granite, Carbon, and Sapphire, which you can select and then customize further."
     }
 ]

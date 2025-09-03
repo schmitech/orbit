@@ -99,12 +99,17 @@ class ChromaRetriever(AbstractVectorRetriever):
         
         # Set collection if we have a collection name from config
         if self.collection_name:
+            logger.debug(f"Setting collection: {self.collection_name}")
             try:
                 await self.set_collection(self.collection_name)
-                logger.info(f"ChromaRetriever initialized with collection: {self.collection_name}")
+            except HTTPException:
+                # The error is already logged in set_collection, just re-raise
+                raise
             except Exception as e:
-                logger.error(f"Failed to set collection during initialization: {str(e)}")
-                # Don't raise here - let it be handled during actual usage
+                logger.error(f"Unexpected error setting collection: {str(e)}")
+                raise
+        else:
+            logger.warning("No collection name provided during initialization")
 
     async def close_client(self) -> None:
         """Close the ChromaDB client."""
@@ -123,33 +128,50 @@ class ChromaRetriever(AbstractVectorRetriever):
             raise ValueError("Collection name cannot be empty")
             
         try:
-            # Try to get the collection using the lazy-loaded client
+            # First, check if the collection exists by listing all collections
+            existing_collections = [col.name for col in self.chroma_client.list_collections()]
+            
+            if collection_name not in existing_collections:
+                # Check if we should auto-create the collection
+                auto_create = self.datasource_config.get('auto_create_collection', False)
+                
+                if auto_create:
+                    try:
+                        logger.info(f"Auto-creating collection '{collection_name}'...")
+                        self.collection = self.chroma_client.create_collection(name=collection_name)
+                        self.collection_name = collection_name
+                        logger.info(f"Successfully created collection: {collection_name}")
+                        return
+                    except Exception as create_error:
+                        error_msg = f"Failed to auto-create collection '{collection_name}': {str(create_error)}"
+                        logger.error(error_msg)
+                        raise HTTPException(status_code=500, detail=error_msg)
+                else:
+                    # Log warning with available collections
+                    available = ', '.join(existing_collections) if existing_collections else 'none'
+                    class_name = self.__class__.__name__
+                    logger.warning(f"[{class_name}] Collection '{collection_name}' not found. Available: [{available}]")
+                    
+                    # Raise error with user-friendly message
+                    custom_msg = self.config.get('messages', {}).get('collection_not_found', 
+                                f"Collection '{collection_name}' not found. Available collections: {available}")
+                    raise HTTPException(status_code=404, detail=custom_msg)
+            
+            # Collection exists, proceed to get it
             self.collection = self.chroma_client.get_collection(name=collection_name)
             self.collection_name = collection_name
-            if self.verbose:
-                logger.info(f"Switched to collection: {collection_name}")
+            # Use class name in log for better clarity
+            class_name = self.__class__.__name__
+            logger.info(f"[{class_name}] Successfully connected to existing collection: {collection_name}")
+            
+        except HTTPException:
+            # Re-raise HTTP exceptions as-is
+            raise
         except Exception as e:
-            # Check if this is a "collection does not exist" error
-            if "does not exist" in str(e):
-                # Try to create the collection
-                try:
-                    logger.info(f"Collection '{collection_name}' does not exist. Attempting to create it...")
-                    self.collection = self.chroma_client.create_collection(name=collection_name)
-                    self.collection_name = collection_name
-                    logger.info(f"Successfully created collection: {collection_name}")
-                except Exception as create_error:
-                    # If creation fails, return a helpful error message
-                    error_msg = f"Collection '{collection_name}' does not exist and could not be created: {str(create_error)}"
-                    logger.error(error_msg)
-                    # Access configuration directly
-                    custom_msg = self.config.get('messages', {}).get('collection_not_found', 
-                                "Collection not found. Please ensure the collection exists before querying.")
-                    raise HTTPException(status_code=404, detail=custom_msg)
-            else:
-                # For other errors, preserve the original behavior
-                error_msg = f"Failed to switch collection: {str(e)}"
-                logger.error(error_msg)
-                raise HTTPException(status_code=500, detail=error_msg)
+            # Handle unexpected errors
+            error_msg = f"Failed to set collection '{collection_name}': {str(e)}"
+            logger.error(error_msg)
+            raise HTTPException(status_code=500, detail=error_msg)
 
     async def vector_search(self, query_embedding: List[float], top_k: int) -> List[Dict[str, Any]]:
         """

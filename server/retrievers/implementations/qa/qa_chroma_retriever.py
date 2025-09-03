@@ -154,42 +154,6 @@ class QAChromaRetriever(QAVectorRetrieverBase, ChromaRetriever):
     def _add_database_specific_metadata(self, context_item: Dict, result: Any, score: float):
         """Add ChromaDB-specific metadata."""
         context_item["metadata"]["distance"] = score  # Keep original distance for debugging
-    
-    async def set_collection(self, collection_name: str) -> None:
-        """Set the current collection for retrieval."""
-        if self.verbose:
-            logger.info(f"[QAChromaRetriever] set_collection called with collection_name='{collection_name}'")
-        
-        if not collection_name:
-            raise ValueError("Collection name cannot be empty")
-        
-        try:
-            # Try to get the collection using the lazy-loaded client
-            self.collection = self.chroma_client.get_collection(name=collection_name)
-            self.collection_name = collection_name
-            if self.verbose:
-                logger.info(f"[QAChromaRetriever] Switched to collection: {collection_name}")
-        except Exception as e:
-            # Check if this is a "collection does not exist" error
-            if "does not exist" in str(e):
-                # Try to create the collection
-                try:
-                    if self.verbose:
-                        logger.info(f"[QAChromaRetriever] Collection '{collection_name}' does not exist. Attempting to create it...")
-                    self.collection = self.chroma_client.create_collection(name=collection_name)
-                    self.collection_name = collection_name
-                    if self.verbose:
-                        logger.info(f"[QAChromaRetriever] Successfully created collection: {collection_name}")
-                except Exception as create_error:
-                    error_msg = f"Collection '{collection_name}' does not exist and could not be created: {str(create_error)}"
-                    logger.error(f"[QAChromaRetriever] {error_msg}")
-                    custom_msg = self.config.get('messages', {}).get('collection_not_found', 
-                                "Collection not found. Please ensure the collection exists before querying.")
-                    raise HTTPException(status_code=404, detail=custom_msg)
-            else:
-                error_msg = f"Failed to switch collection: {str(e)}"
-                logger.error(f"[QAChromaRetriever] {error_msg}")
-                raise HTTPException(status_code=500, detail=error_msg)
             
 # Register the QA-specialized retriever with the factory
 RetrieverFactory.register_retriever('qa_chroma', QAChromaRetriever)
