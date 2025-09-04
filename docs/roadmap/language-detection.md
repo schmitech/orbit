@@ -80,6 +80,24 @@ The final phase will focus on optimizing the system for speed and ensuring its r
   - **Test Dataset:** Curate a dataset with 100+ samples per language, including various text lengths and mixed-language examples.
   - **Benchmarking:** Establish performance benchmarks to track detection speed.
 
+## Known Issues and Recent Fixes
+
+### Language Stickiness Issue (Fixed)
+- **Problem**: The `enable_stickiness` feature was causing false language detections to persist across entire sessions, leading to responses in wrong languages (Italian, Portuguese) when users were writing in English.
+- **Root Cause**: Once a false positive detection occurred, the sticky behavior would maintain that language for all subsequent messages.
+- **Solution Applied**: 
+  - Disabled stickiness in config (`enable_stickiness: false`)
+  - Increased confidence thresholds (`min_confidence: 0.85`, `min_margin: 0.3`)
+  - Modified LLM instruction logic to only force non-English responses with high confidence (≥85%)
+- **Trade-offs**: While this fixes false positives, it may require non-English speakers to write more obviously in their language for consistent detection.
+
+### Recommended Stickiness Implementation (Future)
+If re-enabling stickiness, consider:
+- **Soft Stickiness**: Only stick when initial detection confidence was >90%
+- **Session Reset**: Add mechanism to explicitly reset detected language
+- **User Preference**: Allow users to set preferred language in session
+- **Confidence Decay**: Reduce stickiness weight over time or after ambiguous messages
+
 ## Success Metrics
 
 These metrics will be used to validate the successful implementation of the features in this roadmap.
@@ -88,3 +106,4 @@ These metrics will be used to validate the successful implementation of the feat
 - **Performance**: <50ms average detection time
 - **Coverage**: Support for 50+ languages
 - **Reliability**: <0.1% failure rate
+- **False Positive Rate**: <1% for English text being detected as other languages
