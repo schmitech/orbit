@@ -23,19 +23,23 @@ general:
 
 language_detection:
   enabled: false
-  backends: 
+  backends:
     - "langdetect"
+    - "langid"
+    - "pycld2"
   backend_weights:
-    langdetect: 1.5
-  min_confidence: 0.8
-  min_margin: 0.2
-  prefer_english_for_ascii: true
-  enable_stickiness: true
+    langdetect: 1.0
+    langid: 1.2
+    pycld2: 1.5
+  min_confidence: 0.7
+  min_margin: 0.3
+  prefer_english_for_ascii: false
+  enable_stickiness: false
   fallback_language: "en"
 
 performance:
-  workers: 4                        # Number of uvicorn workers
-  keep_alive_timeout: 30            # Uvicorn keep-alive timeout
+  workers: 4
+  keep_alive_timeout: 30
   
   thread_pools:
     io_workers: 50              # Up from 10

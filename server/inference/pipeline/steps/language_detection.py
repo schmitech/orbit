@@ -6,13 +6,27 @@ This step detects the language of the user's message for better language matchin
 
 import logging
 import re
+import math
 from typing import Dict, Any, Optional, List, Tuple
 from dataclasses import dataclass
-from langdetect import detect_langs, LangDetectException, DetectorFactory
+try:
+    from langdetect import detect_langs, LangDetectException, DetectorFactory
+    LANGDETECT_AVAILABLE = True
+except ImportError:
+    LANGDETECT_AVAILABLE = False
+    # Provide dummies to avoid NameError if referenced
+    detect_langs = None
+    class LangDetectException(Exception):
+        pass
+    class DetectorFactory:
+        seed = 0
 from ..base import PipelineStep, ProcessingContext
 
-# Seed the language detector for deterministic results
-DetectorFactory.seed = 0
+# Seed the language detector for deterministic results when available
+try:
+    DetectorFactory.seed = 0
+except Exception:
+    pass
 
 try:
     import langid
@@ -71,8 +85,8 @@ class LanguageDetectionStep(PipelineStep):
             'pycld2': 1.5
         })
         
-        # Always available - langdetect
-        if 'langdetect' in enabled_backends:
+        # Only include langdetect if installed
+        if 'langdetect' in enabled_backends and LANGDETECT_AVAILABLE:
             self.backends.append(('langdetect', backend_weights.get('langdetect', 1.0), self._detect_langdetect))
         
         # Optional backends
@@ -221,6 +235,25 @@ class LanguageDetectionStep(PipelineStep):
             r'¿', r'¡', r'[áéíóúñ]', r'\bqué\b', r'\bcomo\b', r'\bcómo\b', r'\bestás?\b', r'\bgracias\b'
         ])
 
+        # Strong safeguard: short, high-ASCII English-looking questions
+        # This prevents false positives like classifying
+        # "How do I export code?" as Portuguese.
+        if self.prefer_english_for_ascii:
+            lower = clean_text.lower()
+            # Very high ASCII ratio and short prompt
+            if ascii_ratio > 0.98 and len(clean_text) <= 120:
+                # Starts with common English interrogatives/auxiliaries or contains please/thanks
+                if re.search(r'^(how|what|why|where|when|who|can|could|should|would|is|are|does|do)\b', lower) \
+                   or re.search(r'\b(please|thanks)\b', lower):
+                    # No obvious non-English diacritics/markers
+                    if spanish_markers == 0 and not re.search(r'[áéíóúñçãõàâêô]', lower):
+                        return DetectionResult(
+                            language='en',
+                            confidence=0.9,
+                            method='heuristic_ascii_bias',
+                            raw_results={'reason': 'english_question_heuristic'}
+                        )
+
         # Weighted voting
         language_votes = {}
         total_weight = 0
@@ -228,6 +261,16 @@ class LanguageDetectionStep(PipelineStep):
         for result, weight, backend_name in backend_results:
             lang = result.language if hasattr(result, 'language') else result
             conf = result.confidence if hasattr(result, 'confidence') else 0.8
+            # Normalize confidence into [0, 1] to avoid negative/invalid values from some libraries (e.g., langid)
+            if not isinstance(conf, (int, float)):
+                conf = 0.8
+            if conf < 0.0 or conf > 1.0:
+                # Attempt to map arbitrary score to a probability using a logistic transform
+                try:
+                    conf = 1.0 / (1.0 + math.exp(-float(conf)))
+                except Exception:
+                    conf = 0.0 if conf < 0.0 else 1.0
+            conf = max(0.0, min(1.0, conf))
             
             weighted_score = conf * weight
             if lang not in language_votes:
@@ -247,6 +290,8 @@ class LanguageDetectionStep(PipelineStep):
         best_language, best_score = sorted_votes[0]
         second_score = sorted_votes[1][1] if len(sorted_votes) > 1 else 0.0
         best_confidence = (best_score / total_weight) if total_weight > 0 else 0.0
+        # Clamp to [0, 1] for stability
+        best_confidence = max(0.0, min(1.0, best_confidence))
 
         # If script detection had moderate confidence, boost it
         if script_result.confidence > 0.5 and script_result.language == best_language:
@@ -263,7 +308,9 @@ class LanguageDetectionStep(PipelineStep):
                     raw_results={'reason': 'below_threshold_or_margin', 'votes': language_votes, 'raw': raw_results}
                 )
             # Prefer English for high ASCII ratio without strong Spanish markers
-            if self.prefer_english_for_ascii and ascii_ratio > 0.95 and spanish_markers == 0:
+            lower = clean_text.lower()
+            if self.prefer_english_for_ascii and ascii_ratio > 0.95 and spanish_markers == 0 \
+               and (english_markers > 0 or re.search(r'^(how|what|why|where|when|who|can|could|should|would|is|are|does|do)\b', lower) or re.search(r'\b(please|thanks)\b', lower)):
                 return DetectionResult(
                     language='en',
                     confidence=0.75,
@@ -385,12 +432,27 @@ class LanguageDetectionStep(PipelineStep):
         if not LANGID_AVAILABLE:
             return None
         try:
-            lang, confidence = langid.classify(text)
-            return DetectionResult(
-                language=lang,
-                confidence=confidence,
-                method='langid'
-            )
+            # Prefer rank() to get comparable scores; convert via softmax to obtain a probability
+            if hasattr(langid, 'rank'):
+                ranked = langid.rank(text)
+                if ranked:
+                    # ranked is list of (lang, score), scores may be log-probs; use softmax over top-K
+                    top_k = ranked[:5]
+                    max_score = max(s for _, s in top_k)
+                    exps = [math.exp(s - max_score) for _, s in top_k]
+                    total = sum(exps) or 1.0
+                    probs = [e / total for e in exps]
+                    lang = top_k[0][0]
+                    confidence = probs[0]
+                    return DetectionResult(language=lang, confidence=confidence, method='langid')
+            # Fallback to classify(); map score to probability via logistic transform
+            lang, score = langid.classify(text)
+            try:
+                confidence = 1.0 / (1.0 + math.exp(-float(score)))
+            except Exception:
+                confidence = 0.7
+            confidence = max(0.0, min(1.0, confidence))
+            return DetectionResult(language=lang, confidence=confidence, method='langid')
         except Exception:
             pass
         return None

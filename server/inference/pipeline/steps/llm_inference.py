@@ -319,7 +319,13 @@ class LLMInferenceStep(PipelineStep):
         if detected_language == 'en':
             return "\nIMPORTANT: Respond entirely in English. Do not include any non-English words or translations."
 
-        instruction = f"\nIMPORTANT: The user is writing in {language_name}. You must respond entirely in {language_name}. Do not include translations, explanations in other languages, or bilingual responses. Write naturally as a native {language_name} speaker would."
+        # For non-English detection with high confidence, instruct to respond in detected language
+        # BUT add safety check for low confidence or when user seems to be writing English
+        if confidence >= 0.85 and method not in ('threshold_fallback', 'heuristic_ascii_bias', 'sticky_previous'):
+            instruction = f"\nIMPORTANT: The user is writing in {language_name}. You must respond entirely in {language_name}. Do not include translations, explanations in other languages, or bilingual responses. Write naturally as a native {language_name} speaker would."
+        else:
+            # For low confidence non-English detection, let the model decide based on actual content
+            instruction = "\nIMPORTANT: Match the language of the user's message. If the user is writing in English, respond in English. If they're writing in another language, respond in that same language."
         
         if config.get('general', {}).get('verbose', False):
             self.logger.info(f"DEBUG: Using language instruction for {language_name} ({detected_language})")
