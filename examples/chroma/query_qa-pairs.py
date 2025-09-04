@@ -184,14 +184,28 @@ async def test_chroma_query(test_query: str, collection_name: str = None, use_lo
                 results['metadatas'][0],
                 results['distances'][0]
             )):
-                similarity = 1 - distance
-                print(f"\nResult {i+1} (similarity: {similarity:.4f}):")
-                if 'question' in metadata and 'answer' in metadata:
-                    print(f"Question: {metadata['question']}")
-                    print(f"Answer: {metadata['answer']}")
+                # Calculate confidence the same way as QAChromaRetriever
+                # With cosine distance: confidence = 1.0 - (distance / 2.0)
+                distance_scaling_factor = 2.0  # Same as in config/adapters.yaml
+                
+                if distance <= 0:
+                    confidence = 1.0
+                elif distance >= 2:
+                    confidence = 0.0
                 else:
-                    print(f"Document: {doc[:100]}...")  # Show first 100 chars of doc
-                    print(f"Metadata: {metadata}")
+                    confidence = 1.0 - (distance / 2.0)
+                
+                print(f"\nResult {i+1}:")
+                print(f"  Raw Distance: {distance:.4f}")
+                print(f"  Confidence: {confidence:.4f} (1 - distance/{distance_scaling_factor})")
+                print(f"  Would pass threshold 0.3: {'YES' if confidence >= 0.3 else 'NO'}")
+                
+                if 'question' in metadata and 'answer' in metadata:
+                    print(f"  Question: {metadata['question']}")
+                    print(f"  Answer: {metadata['answer']}")
+                else:
+                    print(f"  Document: {doc[:100]}...")  # Show first 100 chars of doc
+                    print(f"  Metadata: {metadata}")
         else:
             print("No results found")
             

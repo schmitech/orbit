@@ -214,14 +214,24 @@ async def test_qdrant_query(test_query: str, collection_name: str = None):
         
         if search_results:
             for i, result in enumerate(search_results):
-                print(f"\nResult {i+1} (score: {result.score:.4f}):")
+                # Calculate confidence the same way as QAQdrantRetriever
+                # Qdrant returns similarity scores (0-1), confidence = score * score_scaling_factor
+                score = result.score
+                score_scaling_factor = 1.0  # Same as in config/adapters.yaml
+                confidence = score * score_scaling_factor
+                
+                print(f"\nResult {i+1}:")
+                print(f"  Raw Score: {score:.4f}")
+                print(f"  Confidence: {confidence:.4f} (score * {score_scaling_factor})")
+                print(f"  Would pass threshold 0.3: {'YES' if confidence >= 0.3 else 'NO'}")
+                
                 payload = result.payload
                 if 'question' in payload and 'answer' in payload:
-                    print(f"Question: {payload['question']}")
-                    print(f"Answer: {payload['answer']}")
+                    print(f"  Question: {payload['question']}")
+                    print(f"  Answer: {payload['answer']}")
                 else:
-                    print(f"Content: {payload.get('content', 'N/A')}")
-                    print(f"Payload: {payload}")
+                    print(f"  Content: {payload.get('content', 'N/A')}")
+                    print(f"  Payload: {payload}")
         else:
             print("No results found")
             

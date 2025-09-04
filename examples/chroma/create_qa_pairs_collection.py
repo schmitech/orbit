@@ -139,17 +139,22 @@ async def ingest_to_chroma(
         # First try to get the collection (it might already exist)
         try:
             collection = client.get_collection(name=collection_name)
-            print(f"Accessing existing collection: {collection_name}")
-            # Delete and recreate if using local mode
-            if use_local:
-                client.delete_collection(name=collection_name)
-                print(f"Deleted existing collection: {collection_name}")
-                collection = client.create_collection(name=collection_name)
-                print(f"Successfully recreated collection: {collection_name}")
+            print(f"Found existing collection: {collection_name}")
+            # Always delete and recreate to ensure correct metric
+            client.delete_collection(name=collection_name)
+            print(f"Deleted existing collection: {collection_name}")
+            collection = client.create_collection(
+                name=collection_name,
+                metadata={"hnsw:space": "cosine"}
+            )
+            print(f"Successfully recreated collection: {collection_name} with cosine similarity")
         except Exception:
-            # Collection doesn't exist, create it
-            collection = client.create_collection(name=collection_name)
-            print(f"Successfully created new collection: {collection_name}")
+            # Collection doesn't exist, create it with cosine similarity
+            collection = client.create_collection(
+                name=collection_name,
+                metadata={"hnsw:space": "cosine"}
+            )
+            print(f"Successfully created new collection: {collection_name} with cosine similarity")
         
     except Exception as e:
         # If creation fails but contains a specific error about collection already existing
@@ -162,8 +167,11 @@ async def ingest_to_chroma(
                 # Now delete and recreate
                 client.delete_collection(name=collection_name)
                 print(f"Deleted existing collection: {collection_name}")
-                collection = client.create_collection(name=collection_name)
-                print(f"Successfully recreated collection: {collection_name}")
+                collection = client.create_collection(
+                    name=collection_name,
+                    metadata={"hnsw:space": "cosine"}
+                )
+                print(f"Successfully recreated collection: {collection_name} with cosine similarity")
             except Exception as inner_e:
                 print(f"Error accessing existing collection: {str(inner_e)}")
                 raise Exception(f"Cannot create or access collection: {str(e)}")
@@ -349,7 +357,10 @@ async def ingest_to_chroma(
                 results['metadatas'][0],
                 results['distances'][0]
             )):
-                print(f"\nResult {i+1} (similarity: {1-distance:.4f}):")
+                # With cosine similarity, distance is actually 1 - similarity
+                # So smaller distance means higher similarity (0 = identical, 2 = opposite)
+                similarity = 1 - distance if distance <= 2 else 0
+                print(f"\nResult {i+1} (cosine similarity: {similarity:.4f}):")
                 print(f"Question: {metadata['question']}")
                 print(f"Answer: {metadata['answer']}")
     except Exception as e:
