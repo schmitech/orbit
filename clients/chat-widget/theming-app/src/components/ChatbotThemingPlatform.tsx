@@ -19,6 +19,7 @@ import {
 const ChatbotThemingPlatform = () => {
   
   const isServiceUnavailable = import.meta.env.VITE_UNAVAILABLE_MSG === 'true';
+  const isEndpointFieldEnabled = import.meta.env.VITE_ENDPOINT_FIELD_ENABLED === 'true';
   
   const { 
     widgetConfig, 
@@ -104,18 +105,20 @@ const ChatbotThemingPlatform = () => {
     if (isDebugEnabled()) {
       console.log('🔄 Updating API configuration:', { 
         apiKey: tempApiKey.substring(0, 4) + '...', 
-        apiEndpoint: tempApiEndpoint 
+        apiEndpoint: isEndpointFieldEnabled ? tempApiEndpoint : 'endpoint field disabled'
       });
     }
     
     // Check if API key or endpoint actually changed
     const hasApiKeyChanged = tempApiKey !== apiKey;
-    const hasEndpointChanged = tempApiEndpoint !== apiEndpoint;
+    const hasEndpointChanged = isEndpointFieldEnabled && tempApiEndpoint !== apiEndpoint;
     
     if (hasApiKeyChanged || hasEndpointChanged) {
       // Update the API configuration state
       setApiKey(tempApiKey);
-      setApiEndpoint(tempApiEndpoint);
+      if (isEndpointFieldEnabled) {
+        setApiEndpoint(tempApiEndpoint);
+      }
 
       // Prefer live-updating the existing widget if it supports it
       const canLiveUpdate = !!(window.ChatbotWidget?.setApiKey && window.ChatbotWidget?.setApiUrl);
@@ -126,7 +129,9 @@ const ChatbotThemingPlatform = () => {
             console.log('✅ Live-updating widget API settings without reinitialization');
           }
           window.ChatbotWidget!.setApiKey(tempApiKey);
-          window.ChatbotWidget!.setApiUrl(tempApiEndpoint);
+          if (isEndpointFieldEnabled) {
+            window.ChatbotWidget!.setApiUrl(tempApiEndpoint);
+          }
           // Nudge a config update to ensure everything stays connected
           setTimeout(() => {
             tryUpdateWidget();
@@ -137,7 +142,7 @@ const ChatbotThemingPlatform = () => {
           if (isDebugEnabled()) {
             console.log('🔄 Reinitializing widget with new API configuration (fallback)');
           }
-          reinitializeWidget(tempApiKey, tempApiEndpoint);
+          reinitializeWidget(tempApiKey, isEndpointFieldEnabled ? tempApiEndpoint : apiEndpoint);
           setApiUpdateMessage('API configuration updated and widget reinitialized!');
         }
       } else {
@@ -145,7 +150,7 @@ const ChatbotThemingPlatform = () => {
         if (isDebugEnabled()) {
           console.log('ℹ️ Widget missing live update methods, reinitializing');
         }
-        reinitializeWidget(tempApiKey, tempApiEndpoint);
+        reinitializeWidget(tempApiKey, isEndpointFieldEnabled ? tempApiEndpoint : apiEndpoint);
         setApiUpdateMessage('API configuration updated and widget reinitialized!');
       }
     } else {
@@ -202,14 +207,16 @@ const ChatbotThemingPlatform = () => {
                   className="font-mono text-sm"
                   maxLength={50}
                 />
-                <FormInput
-                  label="API Endpoint"
-                  value={tempApiEndpoint}
-                  onChange={setTempApiEndpoint}
-                  placeholder="https://your-api-endpoint.com"
-                  className="font-mono text-sm"
-                  maxLength={50}
-                />
+                {isEndpointFieldEnabled && (
+                  <FormInput
+                    label="API Endpoint"
+                    value={tempApiEndpoint}
+                    onChange={setTempApiEndpoint}
+                    placeholder="https://your-api-endpoint.com"
+                    className="font-mono text-sm"
+                    maxLength={50}
+                  />
+                )}
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <div className="flex items-start gap-2">
                     {WIDGET_CONFIG.source === 'local' && (
