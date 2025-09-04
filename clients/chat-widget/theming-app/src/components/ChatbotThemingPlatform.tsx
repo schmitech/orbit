@@ -92,6 +92,45 @@ const ChatbotThemingPlatform = () => {
     activeTab
   });
 
+  // Helper function to safely update widget API settings
+  const updateWidgetApiSettings = (newApiKey: string, newEndpoint: string): boolean => {
+    try {
+      if (!window.ChatbotWidget) {
+        console.warn('Widget not available for API update');
+        return false;
+      }
+
+      let success = true;
+
+      // Update API key if method is available
+      if (typeof window.ChatbotWidget.setApiKey === 'function') {
+        window.ChatbotWidget.setApiKey(newApiKey);
+        if (isDebugEnabled()) {
+          console.log('✅ API key updated successfully');
+        }
+      } else {
+        console.warn('Widget does not support setApiKey method');
+        success = false;
+      }
+
+      // Update API URL if method is available
+      if (typeof window.ChatbotWidget.setApiUrl === 'function') {
+        window.ChatbotWidget.setApiUrl(newEndpoint);
+        if (isDebugEnabled()) {
+          console.log('✅ API endpoint updated successfully');
+        }
+      } else {
+        console.warn('Widget does not support setApiUrl method');
+        success = false;
+      }
+
+      return success;
+    } catch (error) {
+      console.error('Error updating widget API settings:', error);
+      return false;
+    }
+  };
+
   // Copy to clipboard handler
   const handleCopyCode = async () => {
     const success = await copyToClipboard(widgetConfig, customColors);
@@ -109,54 +148,58 @@ const ChatbotThemingPlatform = () => {
       });
     }
     
+    // Validate inputs
+    if (!tempApiKey || tempApiKey.trim() === '') {
+      setApiUpdateMessage('❌ API key cannot be empty');
+      setTimeout(() => setApiUpdateMessage(''), 3000);
+      return;
+    }
+
     // Check if API key or endpoint actually changed
     const hasApiKeyChanged = tempApiKey !== apiKey;
-    const hasEndpointChanged = isEndpointFieldEnabled && tempApiEndpoint !== apiEndpoint;
+    const hasEndpointChanged = isEndpointFieldEnabled && (tempApiEndpoint !== apiEndpoint);
     
-    if (hasApiKeyChanged || hasEndpointChanged) {
-      // Update the API configuration state
-      setApiKey(tempApiKey);
-      if (isEndpointFieldEnabled) {
-        setApiEndpoint(tempApiEndpoint);
-      }
-
-      // Prefer live-updating the existing widget if it supports it
-      const canLiveUpdate = !!(window.ChatbotWidget?.setApiKey && window.ChatbotWidget?.setApiUrl);
-
-      if (canLiveUpdate) {
-        try {
-          if (isDebugEnabled()) {
-            console.log('✅ Live-updating widget API settings without reinitialization');
-          }
-          window.ChatbotWidget!.setApiKey(tempApiKey);
-          if (isEndpointFieldEnabled) {
-            window.ChatbotWidget!.setApiUrl(tempApiEndpoint);
-          }
-          // Nudge a config update to ensure everything stays connected
-          setTimeout(() => {
-            tryUpdateWidget();
-          }, 50);
-          setApiUpdateMessage('API configuration updated!');
-        } catch (e) {
-          console.warn('Live update failed, falling back to reinitialize:', e);
-          if (isDebugEnabled()) {
-            console.log('🔄 Reinitializing widget with new API configuration (fallback)');
-          }
-          reinitializeWidget(tempApiKey, isEndpointFieldEnabled ? tempApiEndpoint : apiEndpoint);
-          setApiUpdateMessage('API configuration updated and widget reinitialized!');
-        }
-      } else {
-        // Fallback: reinitialize only if live-update methods are unavailable
-        if (isDebugEnabled()) {
-          console.log('ℹ️ Widget missing live update methods, reinitializing');
-        }
-        reinitializeWidget(tempApiKey, isEndpointFieldEnabled ? tempApiEndpoint : apiEndpoint);
-        setApiUpdateMessage('API configuration updated and widget reinitialized!');
-      }
-    } else {
+    if (!hasApiKeyChanged && !hasEndpointChanged) {
       setApiUpdateMessage('No changes detected in API configuration');
+      setTimeout(() => setApiUpdateMessage(''), 3000);
+      return;
+    }
+
+    // Determine the effective endpoint to use
+    const effectiveEndpoint = isEndpointFieldEnabled ? tempApiEndpoint : apiEndpoint;
+    
+    // Update the React state first
+    setApiKey(tempApiKey);
+    if (isEndpointFieldEnabled) {
+      setApiEndpoint(tempApiEndpoint);
+    }
+
+    // Try to update the widget using the helper function
+    const updateSuccess = updateWidgetApiSettings(tempApiKey, effectiveEndpoint);
+
+    if (updateSuccess) {
+      // Successfully updated via live methods
+      if (isDebugEnabled()) {
+        console.log('✅ Widget API settings updated successfully');
+      }
+      
+      // Trigger a config update to ensure everything is synced
+      setTimeout(() => {
+        tryUpdateWidget();
+      }, 100);
+      
+      setApiUpdateMessage('✅ API configuration updated successfully!');
+    } else {
+      // Live update failed or not supported, reinitialize the widget
+      if (isDebugEnabled()) {
+        console.log('🔄 Live update not available, reinitializing widget');
+      }
+      
+      reinitializeWidget(tempApiKey, effectiveEndpoint);
+      setApiUpdateMessage('✅ API configuration updated (widget reinitialized)');
     }
     
+    // Clear message after 3 seconds
     setTimeout(() => setApiUpdateMessage(''), 3000);
   };
 

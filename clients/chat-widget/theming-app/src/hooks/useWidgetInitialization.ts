@@ -139,29 +139,33 @@ export const useWidgetInitialization = ({
     return () => clearTimeout(timeoutId);
   }, [customColors, widgetConfig, tryUpdateWidget]);
 
-  // Update API key when it changes
-  useEffect(() => {
-    if (widgetInitialized.current && window.ChatbotWidget?.setApiKey) {
-      if (isDebugEnabled()) {
-        console.log(`🔑 Updating widget API key to: ${apiKey}`);
-      }
-      window.ChatbotWidget.setApiKey(apiKey);
-    } else if (widgetInitialized.current) {
-      console.warn('⚠️ Widget does not support setApiKey method - may need to reinitialize');
-    }
-  }, [apiKey]);
+  // Note: API key and endpoint updates are now handled explicitly through
+  // the handleApiUpdate function in ChatbotThemingPlatform to avoid conflicts
+  // with manual updates. These effects are commented out but kept for reference.
+  
+  // // Update API key when it changes
+  // useEffect(() => {
+  //   if (widgetInitialized.current && window.ChatbotWidget?.setApiKey) {
+  //     if (isDebugEnabled()) {
+  //       console.log(`🔑 Updating widget API key to: ${apiKey}`);
+  //     }
+  //     window.ChatbotWidget.setApiKey(apiKey);
+  //   } else if (widgetInitialized.current) {
+  //     console.warn('⚠️ Widget does not support setApiKey method - may need to reinitialize');
+  //   }
+  // }, [apiKey]);
 
-  // Update API endpoint when it changes
-  useEffect(() => {
-    if (widgetInitialized.current && window.ChatbotWidget?.setApiUrl) {
-      if (isDebugEnabled()) {
-        console.log(`🌐 Updating widget API endpoint to: ${apiEndpoint}`);
-      }
-      window.ChatbotWidget.setApiUrl(apiEndpoint);
-    } else if (widgetInitialized.current) {
-      console.warn('⚠️ Widget does not support setApiUrl method - may need to reinitialize');
-    }
-  }, [apiEndpoint]);
+  // // Update API endpoint when it changes
+  // useEffect(() => {
+  //   if (widgetInitialized.current && window.ChatbotWidget?.setApiUrl) {
+  //     if (isDebugEnabled()) {
+  //       console.log(`🌐 Updating widget API endpoint to: ${apiEndpoint}`);
+  //     }
+  //     window.ChatbotWidget.setApiUrl(apiEndpoint);
+  //   } else if (widgetInitialized.current) {
+  //     console.warn('⚠️ Widget does not support setApiUrl method - may need to reinitialize');
+  //   }
+  // }, [apiEndpoint]);
 
   // Initialize widget
   const handleInitializeWidget = (forceApiKey?: string, forceApiEndpoint?: string) => {
