@@ -290,7 +290,9 @@ class QAVectorRetrieverBase(AbstractVectorRetriever):
                 logger.info(f"  - Resolved collection: {resolved_collection}")
             
             if resolved_collection:
-                await self.set_collection(resolved_collection)
+                # Only set collection if it's not already set or if it has changed
+                if not hasattr(self, 'collection_name') or self.collection_name != resolved_collection:
+                    await self.set_collection(resolved_collection)
             else:
                 logger.error("No collection name could be resolved!")
                 logger.error("Available sources:")

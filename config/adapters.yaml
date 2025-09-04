@@ -6,7 +6,7 @@ adapters:
   # It is used as an example of how to create a QA adapter for a SQL database.
   # Run /examples/sample-db-setup.sh sqlite to create a sample database and api key before using this adapter.
   - name: "qa-sql"
-    enabled: true
+    enabled: false
     type: "retriever"
     datasource: "sqlite"
     adapter: "qa"
@@ -64,15 +64,13 @@ adapters:
     config:
       collection: "city"
       confidence_threshold: 0.3
-      distance_scaling_factor: 200.0
+      distance_scaling_factor: 2.0
       embedding_provider: null
       max_results: 5
       return_results: 3
       timezone: "America/Toronto"
-      
-  # This is an example of a QA adapter for a Qdrant database. (Disabled by default)
-  # It is used as an example of how to create a QA adapter for a Qdrant database.
-  - name: "qa-vector-qdrant"
+
+  - name: "qa-vector-qdrant-city"
     enabled: false
     type: "retriever"
     datasource: "qdrant"
@@ -81,14 +79,27 @@ adapters:
     config:
       collection: "city"
       confidence_threshold: 0.3
-      score_scaling_factor: 200.0
+      score_scaling_factor: 1.0
       embedding_provider: null
       max_results: 5
       return_results: 3
       timezone: "America/Toronto"
-        
-  # This is an example of a domain adapter for a SQL database. (Disabled by default)
-  # It is used as an example of how to create a domain adapter for a SQL database.
+
+  - name: "qa-vector-qdrant-demo"
+    enabled: false
+    type: "retriever"
+    datasource: "qdrant"
+    adapter: "qa"
+    implementation: "retrievers.implementations.qa.QAQdrantRetriever"
+    config:
+      collection: "demo"
+      confidence_threshold: 0.3
+      score_scaling_factor: 1.0
+      embedding_provider: null
+      max_results: 5
+      return_results: 3
+      timezone: "America/Toronto"
+
   - name: "intent-sql-postgres"
     enabled: false
     type: "retriever"

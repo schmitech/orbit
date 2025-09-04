@@ -137,10 +137,14 @@ class ChromaRetriever(AbstractVectorRetriever):
                 
                 if auto_create:
                     try:
-                        logger.info(f"Auto-creating collection '{collection_name}'...")
-                        self.collection = self.chroma_client.create_collection(name=collection_name)
+                        logger.info(f"Auto-creating collection '{collection_name}' with cosine similarity...")
+                        # Create collection with cosine similarity metric to match Qdrant behavior
+                        self.collection = self.chroma_client.create_collection(
+                            name=collection_name,
+                            metadata={"hnsw:space": "cosine"}
+                        )
                         self.collection_name = collection_name
-                        logger.info(f"Successfully created collection: {collection_name}")
+                        logger.info(f"Successfully created collection: {collection_name} with cosine similarity")
                         return
                     except Exception as create_error:
                         error_msg = f"Failed to auto-create collection '{collection_name}': {str(create_error)}"
@@ -209,10 +213,16 @@ class ChromaRetriever(AbstractVectorRetriever):
                 distances = results['distances'][0] if results['distances'] else [0.0] * len(documents)
                 
                 for doc, metadata, distance in zip(documents, metadatas, distances):
+                    # With cosine similarity, Chroma returns distances where:
+                    # 0 = identical vectors, 2 = opposite vectors
+                    # Convert to similarity score (0-1) like Qdrant
+                    similarity_score = 1.0 - (distance / 2.0) if distance <= 2 else 0.0
+                    
                     search_results.append({
                         'document': doc,
                         'metadata': metadata or {},
-                        'distance': float(distance)
+                        'distance': float(distance),
+                        'score': similarity_score  # Add similarity score like Qdrant
                     })
             
             return search_results
@@ -223,18 +233,30 @@ class ChromaRetriever(AbstractVectorRetriever):
 
     def calculate_similarity_from_distance(self, distance: float) -> float:
         """
-        Convert ChromaDB L2 distance to similarity score.
-        ChromaDB uses L2 distance where smaller values = more similar.
+        Convert ChromaDB cosine distance to similarity score.
+        With cosine similarity metric, ChromaDB returns distances where:
+        - 0 = identical vectors (similarity = 1)
+        - 1 = orthogonal vectors (similarity = 0)
+        - 2 = opposite vectors (similarity = -1)
+        
+        We normalize this to 0-1 range where 1 = most similar.
         
         Args:
-            distance: L2 distance from ChromaDB
+            distance: Cosine distance from ChromaDB (0-2)
             
         Returns:
             Similarity score between 0 and 1
         """
-        # ChromaDB-specific distance scaling
-        # Using sigmoid-like function optimized for L2 distance
-        return 1.0 / (1.0 + (distance / self.distance_scaling_factor))
+        # Convert cosine distance to similarity score
+        # Distance range [0, 2] maps to similarity [1, -1]
+        # We normalize to [0, 1] for consistency with Qdrant
+        if distance <= 0:
+            return 1.0
+        elif distance >= 2:
+            return 0.0
+        else:
+            # Linear conversion: distance 0->1, distance 2->0
+            return 1.0 - (distance / 2.0)
 
 # Register the retriever with the factory
 RetrieverFactory.register_retriever('chroma', ChromaRetriever) 

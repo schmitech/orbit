@@ -238,9 +238,10 @@ class BaseRetriever(ABC):
             if debug_mode:
                 logger.info(f"Resolved collection: {resolved_collection}")
                 
-            # Set the collection
+            # Set the collection only if it's not already set or if it has changed
             if resolved_collection:
-                await self.set_collection(resolved_collection)
+                if not hasattr(self, 'collection_name') or self.collection_name != resolved_collection:
+                    await self.set_collection(resolved_collection)
             
             # Subclasses should implement the actual retrieval logic
             return []

@@ -46,11 +46,12 @@ class QAChromaRetriever(QAVectorRetrieverBase, ChromaRetriever):
             logger.debug(f"QAChromaRetriever using collection from adapter config: {self.collection_name}")
         
         # Chroma-specific parameters
+        # With cosine similarity, we don't need aggressive scaling
         self.distance_scaling_factor = self.adapter_config.get(
-            'distance_scaling_factor', 200.0
-        ) if self.adapter_config else 200.0
+            'distance_scaling_factor', 2.0  # Changed from 200.0 to 2.0 for cosine distance
+        ) if self.adapter_config else 2.0
         
-        logger.debug(f"QAChromaRetriever initialized with distance_scaling_factor={self.distance_scaling_factor}")
+        logger.debug(f"QAChromaRetriever initialized with distance_scaling_factor={self.distance_scaling_factor} (cosine mode)")
     
     def get_datasource_name(self) -> str:
         """Return the datasource name."""
@@ -75,12 +76,23 @@ class QAChromaRetriever(QAVectorRetrieverBase, ChromaRetriever):
     
     def convert_score_to_confidence(self, score: float) -> float:
         """
-        Convert ChromaDB L2 distance to confidence value.
+        Convert ChromaDB cosine distance to confidence value.
         
-        ChromaDB returns L2 distances where smaller values = more similar.
-        Convert to similarity score between 0 and 1.
+        With cosine similarity metric, ChromaDB returns distances where:
+        - 0 = identical vectors (similarity = 1)
+        - 1 = orthogonal vectors (similarity = 0) 
+        - 2 = opposite vectors (similarity = -1)
+        
+        Convert to similarity score between 0 and 1 to match Qdrant.
         """
-        return 1.0 / (1.0 + (score / self.distance_scaling_factor))
+        # Direct conversion from cosine distance to similarity
+        if score <= 0:
+            return 1.0
+        elif score >= 2:
+            return 0.0
+        else:
+            # Linear conversion: distance 0->1, distance 2->0
+            return 1.0 - (score / 2.0)
     
     async def query_vector_database(self, 
                                   query_embedding: List[float], 
@@ -154,6 +166,7 @@ class QAChromaRetriever(QAVectorRetrieverBase, ChromaRetriever):
     def _add_database_specific_metadata(self, context_item: Dict, result: Any, score: float):
         """Add ChromaDB-specific metadata."""
         context_item["metadata"]["distance"] = score  # Keep original distance for debugging
+        context_item["metadata"]["cosine_similarity"] = self.convert_score_to_confidence(score)  # Add converted similarity
             
 # Register the QA-specialized retriever with the factory
 RetrieverFactory.register_retriever('qa_chroma', QAChromaRetriever)
