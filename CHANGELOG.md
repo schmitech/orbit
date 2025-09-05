@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.4.3] - 2025-09-04
+
+### Core System Updates
+- Improved Chroma and Qdrant vector retrievers with enhanced results confidence scoring logic
+- Enhanced language detection steps for better accuracy
+
+### Chatbot Theming Platform
+- Fixed bugs preventing updates of API keys
+- Added ability to toggle endpoint field on/off and updated deploy script
+- Limited number of characters for API key and endpoint fields
+
+### Documentation & Configuration
+- Updated scripts for Chroma and Qdrant vector databases
+- Removed outdated MCP details as they are no longer used
+
 ## [1.4.2] - 2025-09-01
 
 ### SQL Intent & Retrieval System
