@@ -9,6 +9,8 @@
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.12+-blue.svg" alt="Python"></a>
   <a href="https://www.docker.com/"><img src="https://img.shields.io/badge/docker-%230db7ed.svg?logo=docker&logoColor=white" alt="Docker"></a>
   <a href="https://github.com/schmitech/orbit/releases"><img src="https://img.shields.io/github/v/release/schmitech/orbit" alt="Release"></a>
+  <a href="https://pypi.org/project/schmitech-orbit-client/"><img src="https://img.shields.io/pypi/v/schmitech-orbit-client?label=PyPI%20client" alt="PyPI"></a>
+  <a href="https://www.npmjs.com/package/@schmitech/chatbot-widget"><img src="https://img.shields.io/npm/v/@schmitech/chatbot-widget.svg?logo=npm&label=Widget%20NPM" alt="NPM"></a>
   <a href="https://github.com/schmitech/orbit" target="_blank">
     <img src="https://img.shields.io/github/stars/schmitech/orbit?style=social&label=Star" alt="GitHub stars">
   </a>
@@ -16,7 +18,21 @@
 
 </div>
 
-ORBIT (Open Retrieval-Based Inference Toolkit) is a middleware platform that provides a unified API for AI inference. It acts as a central gateway, allowing you to connect various local and remote AI models with your private data sources like SQL databases, vector stores, and local files.
+# ORBIT – Unified, self‑hosted AI inference with your data
+
+ORBIT (Open Retrieval-Based Inference Toolkit) is a middleware platform that provides a unified API for AI inference. It acts as a central gateway, allowing you to connect various local and remote AI models with your private data sources like SQL databases and vector stores.
+
+ORBIT gives you a single, consistent API to run LLMs (local or cloud) against your private data sources with portability, performance, high-availability, and security at the core.
+
+
+<p align="center">
+  <a href="#-quick-start">Quick Start</a> •
+  <a href="#-why-orbit">Why ORBIT</a> •
+  <a href="#%EF%B8%8F-architecture-overview">Architecture</a> •
+  <a href="#-what-can-you-build-with-orbit">Examples</a> •
+  <a href="#-documentation">Docs</a> •
+  <a href="https://github.com/schmitech/orbit/issues">Issues</a>
+</p>
 
 ---
 
@@ -24,7 +40,13 @@ ORBIT (Open Retrieval-Based Inference Toolkit) is a middleware platform that pro
 
 ### 1. Deploy with Docker
 
-Refer to the [Docker Setup Guide](docker/README.md).
+Refer to the [Docker Setup Guide](docker/README.md) or run from the `docker/` directory:
+
+```bash
+cd docker
+chmod +x docker-init.sh orbit-docker.sh
+./docker-init.sh --build --profile minimal
+```
 
 
 ### 2. Deploy Locally
@@ -36,7 +58,7 @@ tar -xzf orbit-1.4.3.tar.gz
 cd orbit-1.4.3
 
 # Run the quick setup script (downloads a small model)
-cp env.example .env
+cp .env.example .env
 ./install/setup.sh --profile minimal --download-gguf gemma3-270m
 
 # Start the ORBIT server
@@ -50,7 +72,6 @@ Your ORBIT instance is now running at `http://localhost:3000`.
 Use the `orbit-chat` CLI tool to interact with your instance.
 
 ```bash
-# The ORBIT chat client is already available after installation.
 pip install schmitech-orbit-client
 
 # Start chatting!
@@ -67,17 +88,17 @@ orbit-chat
 
 ### 4. Chat with ORBIT using the Web Widget
 ```bash
-cd clients/chat-widget/theming-app/
+cd clients/chat-app
 npm install
 npm run dev
 ```
 
 <div align="center">
-  <video src="https://github.com/user-attachments/assets/efbb2e83-6956-4f58-a69e-ac71bc5c194b" controls>
+  <video src="https://github.com/user-attachments/assets/54dd384c-55fe-42fa-bbca-f9bb68e536fd" controls>
     Your browser does not support the video tag.
   </video>
   <br/>
-  <i>Chatting with ORBIT using the widget theming app. The widget is available as an <a href="https://www.npmjs.com/package/@schmitech/chatbot-widget">NPM package</a></i>
+  <i>Chatting with ORBIT using the React client.
 </div>
 
 ---
@@ -157,7 +178,7 @@ Here's the [Sample Q/A datasets](examples/city-qa-pairs.json) for this example. 
 #Login as admin first. Default password is admin123. You should change after installing ORBIT.
 ./bin/orbit.sh login
 
-# Set up SQL Lite database with Q&A data
+# Set up SQLite database with Q&A data
 ./examples/sample-db-setup.sh sqlite
 ```
 
@@ -180,7 +201,7 @@ npm run test-query-from-pairs ../../examples/city-qa-pairs.json "http://localhos
 ```
 
 <div align="center">
-  <video src="https://github.com/user-attachments/assets/e6487006-02da-4927-a4f3-04be7c6a3a22"" controls>
+  <video src="https://github.com/user-attachments/assets/e6487006-02da-4927-a4f3-04be7c6a3a22" controls>
     Your browser does not support the video tag.
   </video>
   <br/>
@@ -237,7 +258,7 @@ orbit-chat --url http://localhost:3000 --api-key YOUR_API_KEY
 ```
 
 <div align="center">
-  <video src="https://github.com/user-attachments/assets/d33dfb10-1668-4b05-ba83-ae3c294001ad"" controls>
+  <video src="https://github.com/user-attachments/assets/d33dfb10-1668-4b05-ba83-ae3c294001ad" controls>
     Your browser does not support the video tag.
   </video>
   <br/>
