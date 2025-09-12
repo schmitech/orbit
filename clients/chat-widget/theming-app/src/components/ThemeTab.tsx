@@ -226,23 +226,6 @@ export const ThemeTab: React.FC<ThemeTabProps> = ({
                       </div>
                     </div>
                   </div>
-                  
-                  {/* User Message */}
-                  <div className="flex items-start justify-end">
-                    <div 
-                      className="rounded-lg px-2 py-1 max-w-[70%]"
-                      style={{ 
-                        background: theme.colors.userBubble || theme.colors.secondary,
-                      }}
-                    >
-                      <div 
-                        className="text-[9px] leading-tight"
-                        style={{ color: theme.colors.userText || '#ffffff' }}
-                      >
-                        I need assistance
-                      </div>
-                    </div>
-                  </div>
                 </div>
                 
                 {/* Input Area */}
@@ -269,25 +252,6 @@ export const ThemeTab: React.FC<ThemeTabProps> = ({
                       <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
                     </svg>
                   </div>
-                </div>
-                
-                {/* Floating Chat Button Preview (bottom right) */}
-                <div 
-                  className="absolute bottom-8 right-2 w-6 h-6 rounded-full shadow-md flex items-center justify-center"
-                  style={{ 
-                    background: theme.colors.chatButtonBg || theme.colors.primary,
-                    border: `1px solid ${theme.colors.buttonBorderColor || 'transparent'}`
-                  }}
-                >
-                  <svg 
-                    className="w-3 h-3" 
-                    viewBox="0 0 24 24" 
-                    fill="none" 
-                    stroke={theme.colors.iconColor || '#ffffff'}
-                    strokeWidth="2"
-                  >
-                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                  </svg>
                 </div>
               </div>
               <div className="p-3 bg-white border-t border-gray-100">
