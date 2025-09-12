@@ -187,37 +187,107 @@ export const ThemeTab: React.FC<ThemeTabProps> = ({
               }`}
             >
               <div 
-                className="h-24 w-full relative"
+                className="h-32 w-full relative border border-gray-200"
                 style={{ 
-                  background: theme.colors.background
+                  background: theme.colors.inputBackground || theme.colors.background
                 }}
               >
-                {/* Show primary color as a header bar */}
+                {/* Chat Header */}
                 <div 
-                  className="absolute top-0 left-0 right-0 h-8"
+                  className="absolute top-0 left-0 right-0 h-8 flex items-center px-3 shadow-sm"
                   style={{ background: theme.colors.primary }}
-                />
+                >
+                  <div className="flex items-center space-x-2">
+                    <div className="w-2 h-2 rounded-full bg-white/30"></div>
+                    <div 
+                      className="text-[10px] font-medium"
+                      style={{ color: theme.colors.textInverse || '#ffffff' }}
+                    >
+                      Chat Support
+                    </div>
+                  </div>
+                </div>
                 
-                {/* Show secondary color as a small accent */}
+                {/* Chat Messages Preview */}
+                <div className="absolute top-10 left-2 right-2 space-y-2">
+                  {/* Assistant Message */}
+                  <div className="flex items-start space-x-1">
+                    <div 
+                      className="rounded-lg px-2 py-1 max-w-[70%]"
+                      style={{ 
+                        background: theme.colors.assistantBubble || '#f3f4f6',
+                      }}
+                    >
+                      <div 
+                        className="text-[9px] leading-tight"
+                        style={{ color: theme.colors.assistantText || theme.colors.textPrimary }}
+                      >
+                        Hello! How can I help?
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* User Message */}
+                  <div className="flex items-start justify-end">
+                    <div 
+                      className="rounded-lg px-2 py-1 max-w-[70%]"
+                      style={{ 
+                        background: theme.colors.userBubble || theme.colors.secondary,
+                      }}
+                    >
+                      <div 
+                        className="text-[9px] leading-tight"
+                        style={{ color: theme.colors.userText || '#ffffff' }}
+                      >
+                        I need assistance
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Input Area */}
                 <div 
-                  className="absolute bottom-4 right-4 w-8 h-8 rounded-full"
-                  style={{ background: theme.colors.secondary }}
-                />
+                  className="absolute bottom-0 left-0 right-0 h-7 border-t flex items-center px-2"
+                  style={{ 
+                    borderColor: theme.colors.secondary,
+                    background: theme.colors.inputBackground || theme.colors.background
+                  }}
+                >
+                  <div className="flex-1 flex items-center">
+                    <div 
+                      className="text-[8px]"
+                      style={{ color: theme.colors.textSecondary }}
+                    >
+                      Type a message...
+                    </div>
+                  </div>
+                  <div 
+                    className="w-4 h-4 rounded flex items-center justify-center"
+                    style={{ background: theme.colors.secondary }}
+                  >
+                    <svg className="w-2 h-2 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                      <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
+                    </svg>
+                  </div>
+                </div>
                 
-                {/* Show text colors with sample text */}
-                <div className="absolute top-10 left-3 right-3">
-                  <div 
-                    className="text-xs font-semibold mb-1 truncate"
-                    style={{ color: theme.colors.textPrimary }}
+                {/* Floating Chat Button Preview (bottom right) */}
+                <div 
+                  className="absolute bottom-8 right-2 w-6 h-6 rounded-full shadow-md flex items-center justify-center"
+                  style={{ 
+                    background: theme.colors.chatButtonBg || theme.colors.primary,
+                    border: `1px solid ${theme.colors.buttonBorderColor || 'transparent'}`
+                  }}
+                >
+                  <svg 
+                    className="w-3 h-3" 
+                    viewBox="0 0 24 24" 
+                    fill="none" 
+                    stroke={theme.colors.iconColor || '#ffffff'}
+                    strokeWidth="2"
                   >
-                    {theme.name}
-                  </div>
-                  <div 
-                    className="text-xs truncate"
-                    style={{ color: theme.colors.textSecondary }}
-                  >
-                    Sample text
-                  </div>
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                  </svg>
                 </div>
               </div>
               <div className="p-3 bg-white border-t border-gray-100">
@@ -236,7 +306,7 @@ export const ThemeTab: React.FC<ThemeTabProps> = ({
                 </span>
               </div>
               {selectedTheme === key && (
-                <div className="absolute top-2 right-2 bg-indigo-500 text-white rounded-full p-1">
+                <div className="absolute top-2 right-2 bg-indigo-500 text-white rounded-full p-1 shadow-md">
                   <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                   </svg>
