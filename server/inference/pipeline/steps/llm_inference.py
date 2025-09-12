@@ -177,7 +177,9 @@ class LLMInferenceStep(PipelineStep):
         
         # Add explicit instruction right before the question
         if context.formatted_context:
-            parts.append("\n<IMPORTANT>\nYou MUST answer using ONLY the information provided in the Context section above. Do NOT add any additional information, suggestions, or details that are not explicitly mentioned in the context. If the exact answer is in the context, provide it. If not, say you don't know.\n</IMPORTANT>")
+            parts.append("\n<IMPORTANT>\nWhen answering, you MUST prioritize information from the 'Context' section. If the 'Context' section does not contain the answer, you may use the information provided in the system prompt (at the beginning). If the answer is not found in either the 'Context' or the system prompt, you must state that you don't know the answer. Your response should ONLY contain the answer and nothing else. Do not add any conversational text, suggestions, or any information not directly found in the provided context or system prompt.\n</IMPORTANT>")
+        else:
+            parts.append("\n<IMPORTANT>\nAnswer any questions based on the information in the system prompt. If the user's input doesn't seem to be a question, provide a brief, neutral acknowledgement (e.g., 'OK'). Do not introduce yourself unless you are specifically asked who you are.\n</IMPORTANT>")
         
         parts.append(f"\nUser: {context.message}")
         parts.append("Assistant:")
