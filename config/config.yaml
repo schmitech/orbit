@@ -31,8 +31,8 @@ language_detection:
     langdetect: 1.0
     langid: 1.2
     pycld2: 1.5
-  min_confidence: 0.7
-  min_margin: 0.3
+  min_confidence: 0.5
+  min_margin: 0.1
   prefer_english_for_ascii: false
   enable_stickiness: false
   fallback_language: "en"
