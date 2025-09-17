@@ -247,6 +247,8 @@ const ChatbotThemingPlatform = () => {
                   value={tempApiKey}
                   onChange={setTempApiKey}
                   placeholder="your-api-key"
+                  type="password"
+                  showPasswordToggle={true}
                   className="font-mono text-sm"
                   maxLength={50}
                 />

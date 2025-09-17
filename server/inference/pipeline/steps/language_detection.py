@@ -360,11 +360,31 @@ class LanguageDetectionStep(PipelineStep):
                     raw_results={'pattern': pattern, 'matched_script': lang_code}
                 )
 
+        # High-confidence phrase patterns for French short questions.
+        # These help disambiguate cases like "Qui es tu?" that are often misclassified
+        # as Spanish or English by statistical backends on short ASCII text.
+        french_phrase_patterns: List[str] = [
+            r"\bqui\s+es[- ]?tu\b",                    # qui es-tu / qui es tu
+            r"\bqui\s+êtes[- ]?vous\b",               # qui êtes-vous (with accent)
+            r"\bqui\s+etes[- ]?vous\b",               # qui etes vous (without accent)
+            r"\best[- ]?ce\s+que\b",                  # est-ce que
+        ]
+
+        for pattern in french_phrase_patterns:
+            if re.search(pattern, text_lower):
+                return DetectionResult(
+                    language='fr',
+                    confidence=0.95,
+                    method='phrase_pattern_detection',
+                    raw_results={'pattern': pattern}
+                )
+
         # High-confidence word patterns for Latin scripts
         word_patterns = [
             ('es', [r'¿', r'\baño\b', r'\bestá\b', r'\bqué\b'], 0.9),
             ('pt', [r'\bção\b', r'\bvocê\b', r'\bporque\b', r'\bestão\b'], 0.9),
-            ('fr', [r"\bc'est\b", r"\bqu'est-ce\b", r'\bvoilà\b', r'\bparce\b'], 0.9),
+            # Add common accentless/variant forms to better catch French without punctuation
+            ('fr', [r"\bc[’']?est\b", r"\bqu'est-ce\b", r'\bvoilà\b', r'\bvoila\b', r'\bparce\b', r'\best[- ]?ce\b'], 0.9),
             ('de', [r'[äöüß]', r'\bund\b', r'\bdas\b', r'\bist\b'], 0.85),
             ('it', [r'\bperché\b', r'\banche\b', r'\bquesto\b', r'\bdopo\b'], 0.85),
         ]
