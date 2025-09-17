@@ -100,7 +100,8 @@
   border-collapse: collapse;
   font-size: 0.75em;
   margin: 12px 0;
-  display: block;
+  table-layout: fixed;
+  width: 100%;
   overflow-x: auto;
   overflow-y: hidden;
   max-width: 100%;
@@ -111,7 +112,6 @@
 /* Table body structure */
 .markdown-content tbody,
 .markdown-content thead {
-  display: table;
   width: auto; /* Let it size based on content */
   min-width: 100%; /* But at least fill the container */
 }
