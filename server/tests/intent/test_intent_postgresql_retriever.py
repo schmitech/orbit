@@ -41,7 +41,7 @@ class TestIntentPostgreSQLRetriever:
                     'password': 'test'
                 }
             },
-            'config': {
+            'adapter_config': {
                 'domain_config_path': 'test_domain.yaml',
                 'template_library_path': 'test_templates.yaml',
                 'template_collection_name': 'test_templates',
