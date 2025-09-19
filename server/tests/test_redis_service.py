@@ -29,6 +29,9 @@ load_dotenv(env_path)
 @fixture(scope="function")
 async def redis_service():
     """Fixture to create and cleanup Redis service"""
+    # Clear any existing Redis service instances to avoid singleton issues
+    RedisService.clear_cache()
+    
     # Get raw environment variables
     redis_host = os.getenv("INTERNAL_SERVICES_REDIS_HOST")
     redis_port = int(os.getenv("INTERNAL_SERVICES_REDIS_PORT", 6379))
@@ -49,7 +52,7 @@ async def redis_service():
                 'username': redis_username,
                 'password': redis_password,
                 'db': 0,
-                'use_ssl': False  # Your Redis instance doesn't use SSL
+                'use_ssl': False  # Redis Cloud works without SSL
             }
         },
         'general': {
@@ -78,6 +81,8 @@ async def redis_service():
     
     # Cleanup after tests
     await service.aclose()
+    # Clear cache again after cleanup to ensure clean state for next test
+    RedisService.clear_cache()
 
 @pytest.mark.asyncio
 async def test_basic_operations(redis_service: RedisService):
