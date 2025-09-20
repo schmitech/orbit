@@ -10,8 +10,8 @@ from abc import abstractmethod
 
 from .base_sql_database import BaseSQLDatabaseRetriever
 from retrievers.adapters.intent.intent_adapter import IntentAdapter
-from retrievers.implementations.intent.domain_aware_extractor import DomainAwareParameterExtractor
-from retrievers.implementations.intent.domain_aware_response_generator import DomainAwareResponseGenerator
+from retrievers.implementations.intent.domain.extraction import DomainParameterExtractor
+from retrievers.implementations.intent.domain.response import DomainResponseGenerator
 from retrievers.implementations.intent.template_reranker import TemplateReranker
 
 logger = logging.getLogger(__name__)
@@ -94,8 +94,8 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
             
             # Initialize domain-aware components
             domain_config = self.domain_adapter.get_domain_config()
-            self.parameter_extractor = DomainAwareParameterExtractor(self.inference_client, domain_config)
-            self.response_generator = DomainAwareResponseGenerator(self.inference_client, domain_config)
+            self.parameter_extractor = DomainParameterExtractor(self.inference_client, domain_config)
+            self.response_generator = DomainResponseGenerator(self.inference_client, domain_config)
             self.template_reranker = TemplateReranker(domain_config)
             
             if self.verbose:
@@ -466,8 +466,8 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
                 # Extract parameters
                 if self.parameter_extractor:
                     parameters = await self.parameter_extractor.extract_parameters(query, template)
-                    is_valid, validation_errors = self.parameter_extractor.validate_parameters(parameters, template)
-                    if not is_valid:
+                    validation_errors = self.parameter_extractor.validate_parameters(parameters)
+                    if validation_errors:
                         if self.verbose:
                             logger.debug(f"Parameter validation failed for template {template.get('id')}: {validation_errors}")
                         continue

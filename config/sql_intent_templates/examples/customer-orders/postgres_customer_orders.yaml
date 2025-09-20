@@ -1,4 +1,129 @@
 templates:
+  - id: find_order_by_id
+    version: "1.0.0"
+    description: "Find a specific order by its order ID/number"
+    nl_examples:
+      - "Show me order 12345"
+      - "Find order number 67890"
+      - "Get details for order #98765"
+      - "Order 54321 details"
+      - "What's in order 11111?"
+      - "Look up order ID 22222"
+      - "Show order #33333"
+      - "Find order with ID 44444"
+      - "Order number 55555 information"
+      - "Get order 66666"
+      - "Pull up order 77777"
+      - "Display order #88888"
+      - "I need order 99999"
+      - "Show me the order 10001"
+      - "What is order number 20002?"
+    parameters:
+      - name: order_id
+        type: integer
+        description: "Order ID/number to search for"
+        required: true
+        aliases: ["id", "order_number", "order_num", "number"]
+    sql_template: |
+      SELECT o.*, c.name as customer_name, c.email as customer_email,
+             c.phone as customer_phone, c.city as customer_city,
+             c.country as customer_country
+      FROM orders o
+      JOIN customers c ON o.customer_id = c.id
+      WHERE o.id = %(order_id)s
+    result_format: "summary"
+    tags: ["order", "id", "number", "specific", "lookup", "find", "details"]
+    semantic_tags:
+      action: "lookup"
+      primary_entity: "order"
+      qualifiers: ["by_id", "specific"]
+    approved: true
+
+  - id: find_multiple_orders_by_ids
+    version: "1.0.0"
+    description: "Find multiple orders by their IDs/numbers"
+    nl_examples:
+      - "Show me orders 12345, 67890, and 54321"
+      - "Find orders 11111 and 22222"
+      - "Get orders #98765, #87654, #76543"
+      - "Orders 10001, 10002, 10003"
+      - "Look up order numbers 20001 through 20005"
+      - "Show orders between 30000 and 30010"
+      - "Find order IDs 40001 to 40003"
+      - "Orders from 50000 to 50005"
+      - "Get orders in range 60000-60010"
+      - "Pull orders 70001, 70002, 70003, 70004"
+    parameters:
+      - name: order_ids
+        type: string
+        description: "Comma-separated list of order IDs or range (e.g., '12345,67890' or '10000-10005')"
+        required: true
+        aliases: ["ids", "order_numbers", "numbers"]
+    sql_template: |
+      SELECT o.*, c.name as customer_name, c.email as customer_email,
+             c.city as customer_city, c.country as customer_country
+      FROM orders o
+      JOIN customers c ON o.customer_id = c.id
+      WHERE o.id = ANY(string_to_array(%(order_ids)s::text, ',')::integer[])
+      ORDER BY o.id
+      LIMIT 100
+    result_format: "table"
+    tags: ["order", "multiple", "ids", "numbers", "list", "range", "batch"]
+    semantic_tags:
+      action: "lookup_list"
+      primary_entity: "order"
+      qualifiers: ["by_ids", "multiple"]
+    approved: true
+
+  - id: find_recent_order_by_order_id_pattern
+    version: "1.0.0"
+    description: "Find recent orders matching a specific ID pattern or range"
+    nl_examples:
+      - "Show me all orders starting with 100"
+      - "Find orders in the 2000s"
+      - "Get orders between 5000 and 6000"
+      - "Orders from 10000 onwards"
+      - "Show recent orders above 20000"
+      - "Find orders with IDs greater than 30000"
+      - "Orders numbered 40000 and up"
+      - "Get all orders after 50000"
+      - "Show orders with ID over 60000"
+      - "Recent orders starting from 70000"
+    parameters:
+      - name: min_order_id
+        type: integer
+        description: "Minimum order ID to search from"
+        required: false
+        aliases: ["from_id", "starting_id", "min_id"]
+      - name: max_order_id
+        type: integer
+        description: "Maximum order ID to search up to"
+        required: false
+        aliases: ["to_id", "ending_id", "max_id"]
+      - name: days_back
+        type: integer
+        description: "Number of days to look back"
+        required: false
+        default: 30
+    sql_template: |
+      SELECT o.*, c.name as customer_name, c.email as customer_email,
+             c.city as customer_city, c.country as customer_country
+      FROM orders o
+      JOIN customers c ON o.customer_id = c.id
+      WHERE 1=1
+        {% if min_order_id %}AND o.id >= %(min_order_id)s{% endif %}
+        {% if max_order_id %}AND o.id <= %(max_order_id)s{% endif %}
+        AND o.order_date >= CURRENT_DATE - INTERVAL '%(days_back)s days'
+      ORDER BY o.id DESC
+      LIMIT 100
+    result_format: "table"
+    tags: ["order", "range", "pattern", "recent", "id", "starting", "above", "greater"]
+    semantic_tags:
+      action: "find_list"
+      primary_entity: "order"
+      qualifiers: ["by_id_range", "recent"]
+    approved: true
+
   - id: find_order_by_customer_name
     version: "1.0.0"
     description: "Find orders for a customer by their name"

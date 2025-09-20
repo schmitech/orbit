@@ -8,7 +8,7 @@ from enum import Enum
 from typing import Dict, Any, Optional, List
 from dataclasses import dataclass
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -70,8 +70,8 @@ class BaseStore(ABC):
         self.config = config
         self.status = StoreStatus.UNINITIALIZED
         self._lock = asyncio.Lock()
-        self._created_at = datetime.utcnow()
-        self._last_accessed = datetime.utcnow()
+        self._created_at = datetime.now(timezone.utc)
+        self._last_accessed = datetime.now(timezone.utc)
         self._operation_count = 0
         
         logger.info(f"Initializing {self.__class__.__name__} with config: {config.name}")
@@ -148,7 +148,7 @@ class BaseStore(ABC):
     
     def update_access_time(self):
         """Update the last accessed timestamp."""
-        self._last_accessed = datetime.utcnow()
+        self._last_accessed = datetime.now(timezone.utc)
         self._operation_count += 1
     
     async def get_stats(self) -> Dict[str, Any]:

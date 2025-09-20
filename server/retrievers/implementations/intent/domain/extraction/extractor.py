@@ -66,7 +66,8 @@ class DomainParameterExtractor:
         # Map extracted values to template parameters
         for param in template_params:
             param_name = param['name']
-            param_type = param.get('data_type', 'string')
+            # Handle both 'type' and 'data_type' for backward compatibility
+            param_type = param.get('type') or param.get('data_type', 'string')
 
             # Check if we have a direct match
             value = None
@@ -88,6 +89,10 @@ class DomainParameterExtractor:
                     user_query, entity, field, param_type
                 )
 
+            # If still no value and this is not an entity field, try template parameter extraction
+            if value is None and not (entity and field):
+                value = self.value_extractor.extract_template_parameter(user_query, param)
+
             # Store the value if found
             if value is not None:
                 # Validate the value
@@ -100,6 +105,9 @@ class DomainParameterExtractor:
                     else:
                         logger.warning(f"Validation failed for {param_name}: {error_msg}")
                 else:
+                    # Ensure string type for certain parameters that need it
+                    if param_type == 'string' and not isinstance(value, str):
+                        value = str(value)
                     parameters[param_name] = value
 
         # Second pass: Use LLM for missing required parameters

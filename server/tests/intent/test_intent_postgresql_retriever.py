@@ -20,8 +20,12 @@ with patch.dict('sys.modules', {
 }):
     from retrievers.implementations.intent.intent_postgresql_retriever import IntentPostgreSQLRetriever
     from retrievers.adapters.intent.intent_adapter import IntentAdapter
-from retrievers.implementations.intent.domain_aware_extractor import DomainAwareParameterExtractor
-from retrievers.implementations.intent.domain_aware_response_generator import DomainAwareResponseGenerator
+from retrievers.implementations.intent.domain.extraction import DomainParameterExtractor
+from retrievers.implementations.intent.domain.response import DomainResponseGenerator
+
+# Alias for backward compatibility in tests
+DomainAwareParameterExtractor = DomainParameterExtractor
+DomainAwareResponseGenerator = DomainResponseGenerator
 from retrievers.implementations.intent.template_reranker import TemplateReranker
 
 

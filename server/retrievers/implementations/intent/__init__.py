@@ -3,8 +3,8 @@ Intent retriever implementation for SQL datasources
 """
 
 from .intent_postgresql_retriever import IntentPostgreSQLRetriever
-from .domain_aware_extractor import DomainAwareParameterExtractor
-from .domain_aware_response_generator import DomainAwareResponseGenerator
+from .domain.extraction import DomainParameterExtractor
+from .domain.response import DomainResponseGenerator
 from .template_reranker import TemplateReranker
 from .domain import DomainConfig
 
@@ -17,8 +17,8 @@ except ImportError:
 
 __all__ = [
     'IntentPostgreSQLRetriever',
-    'DomainAwareParameterExtractor',
-    'DomainAwareResponseGenerator',
+    'DomainParameterExtractor',
+    'DomainResponseGenerator',
     'TemplateReranker',
     'DomainConfig'
 ]
