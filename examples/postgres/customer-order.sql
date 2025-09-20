@@ -4,7 +4,7 @@ DROP TABLE IF EXISTS customers CASCADE;
 
 -- Create customers table
 CREATE TABLE customers (
-    id SERIAL PRIMARY KEY,
+    id INTEGER PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
     phone VARCHAR(20),
@@ -17,7 +17,7 @@ CREATE TABLE customers (
 
 -- Create orders table
 CREATE TABLE orders (
-    id SERIAL PRIMARY KEY,
+    id INTEGER PRIMARY KEY,
     customer_id INTEGER NOT NULL,
     order_date DATE NOT NULL,
     total DECIMAL(10, 2) NOT NULL,

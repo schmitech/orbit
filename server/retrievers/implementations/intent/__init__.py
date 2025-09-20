@@ -6,6 +6,7 @@ from .intent_postgresql_retriever import IntentPostgreSQLRetriever
 from .domain_aware_extractor import DomainAwareParameterExtractor
 from .domain_aware_response_generator import DomainAwareResponseGenerator
 from .template_reranker import TemplateReranker
+from .domain import DomainConfig
 
 # Conditionally import MySQL retriever only if mysql.connector is available
 try:
@@ -16,9 +17,10 @@ except ImportError:
 
 __all__ = [
     'IntentPostgreSQLRetriever',
-    'DomainAwareParameterExtractor', 
+    'DomainAwareParameterExtractor',
     'DomainAwareResponseGenerator',
-    'TemplateReranker'
+    'TemplateReranker',
+    'DomainConfig'
 ]
 
 # Add MySQL retriever to __all__ only if available

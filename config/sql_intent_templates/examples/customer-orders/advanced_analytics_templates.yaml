@@ -154,40 +154,68 @@ templates:
           customer_id,
           COUNT(*) as order_count,
           AVG(total) as avg_order_value,
+          MIN(total) as min_order_value,
+          MAX(total) as max_order_value,
           MIN(order_date) as first_order,
           MAX(order_date) as last_order,
           MAX(order_date) - MIN(order_date) as customer_lifespan,
           CASE 
             WHEN COUNT(*) = 1 THEN 0
             ELSE (MAX(order_date) - MIN(order_date)) / (COUNT(*) - 1)
-          END as avg_days_between_orders
+          END as avg_days_between_orders,
+          STDDEV(total) as order_value_stddev,
+          PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY total) as median_order_value
         FROM orders
         WHERE order_date >= CURRENT_DATE - INTERVAL '%(days_back)s days'
           AND status != 'cancelled'
         GROUP BY customer_id
         HAVING COUNT(*) >= 2
+      ),
+      pattern_summary AS (
+        SELECT 
+          CASE 
+            WHEN avg_days_between_orders <= 7 THEN 'Weekly buyers (≤7 days)'
+            WHEN avg_days_between_orders <= 30 THEN 'Monthly buyers (8-30 days)'
+            WHEN avg_days_between_orders <= 60 THEN 'Bi-monthly buyers (31-60 days)'
+            WHEN avg_days_between_orders <= 90 THEN 'Quarterly buyers (61-90 days)'
+            ELSE 'Infrequent buyers (>90 days)'
+          END as purchase_pattern,
+          COUNT(*) as customer_count,
+          ROUND(AVG(avg_days_between_orders), 1) as avg_days_between_orders,
+          ROUND(AVG(avg_order_value), 2) as avg_order_value,
+          ROUND(AVG(order_count), 1) as avg_orders_per_customer,
+          ROUND(MIN(avg_order_value), 2) as min_avg_order_value,
+          ROUND(MAX(avg_order_value), 2) as max_avg_order_value,
+          ROUND(AVG(median_order_value), 2) as median_order_value,
+          ROUND(AVG(order_value_stddev), 2) as avg_order_value_stddev,
+          ROUND(AVG(customer_lifespan), 1) as avg_customer_lifespan_days,
+          ROUND(MIN(customer_lifespan), 1) as min_customer_lifespan_days,
+          ROUND(MAX(customer_lifespan), 1) as max_customer_lifespan_days
+        FROM customer_patterns
+        GROUP BY 
+          CASE 
+            WHEN avg_days_between_orders <= 7 THEN 'Weekly buyers (≤7 days)'
+            WHEN avg_days_between_orders <= 30 THEN 'Monthly buyers (8-30 days)'
+            WHEN avg_days_between_orders <= 60 THEN 'Bi-monthly buyers (31-60 days)'
+            WHEN avg_days_between_orders <= 90 THEN 'Quarterly buyers (61-90 days)'
+            ELSE 'Infrequent buyers (>90 days)'
+          END
       )
       SELECT 
-        CASE 
-          WHEN avg_days_between_orders <= 7 THEN 'Weekly buyers (≤7 days)'
-          WHEN avg_days_between_orders <= 30 THEN 'Monthly buyers (8-30 days)'
-          WHEN avg_days_between_orders <= 60 THEN 'Bi-monthly buyers (31-60 days)'
-          WHEN avg_days_between_orders <= 90 THEN 'Quarterly buyers (61-90 days)'
-          ELSE 'Infrequent buyers (>90 days)'
-        END as purchase_pattern,
-        COUNT(*) as customer_count,
-        ROUND(AVG(avg_days_between_orders), 1) as avg_days_between_orders,
-        ROUND(AVG(avg_order_value), 2) as avg_order_value,
-        ROUND(AVG(order_count), 1) as avg_orders_per_customer
-      FROM customer_patterns
-      GROUP BY 
-        CASE 
-          WHEN avg_days_between_orders <= 7 THEN 'Weekly buyers (≤7 days)'
-          WHEN avg_days_between_orders <= 30 THEN 'Monthly buyers (8-30 days)'
-          WHEN avg_days_between_orders <= 60 THEN 'Bi-monthly buyers (31-60 days)'
-          WHEN avg_days_between_orders <= 90 THEN 'Quarterly buyers (61-90 days)'
-          ELSE 'Infrequent buyers (>90 days)'
-        END
+        purchase_pattern,
+        customer_count,
+        avg_days_between_orders,
+        avg_order_value,
+        min_avg_order_value,
+        max_avg_order_value,
+        median_order_value,
+        avg_order_value_stddev,
+        avg_orders_per_customer,
+        avg_customer_lifespan_days,
+        min_customer_lifespan_days,
+        max_customer_lifespan_days,
+        ROUND((customer_count * 100.0 / SUM(customer_count) OVER()), 1) as percentage_of_customers
+      FROM pattern_summary
       ORDER BY avg_days_between_orders
     result_format: "table"
     tags: ["purchase", "patterns", "buying", "habits", "behavior", "often", "typically"]

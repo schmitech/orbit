@@ -582,14 +582,15 @@ def get_connection():
 
 
 def insert_customers(conn, count=100):
-    """Insert fake customer data with unique emails."""
+    """Insert fake customer data with unique emails and random IDs."""
     cursor = conn.cursor()
     customers = []
     inserted_count = 0
     attempts = 0
     max_attempts = count * 10  # Prevent infinite loops
+    used_customer_ids = set()  # Track used customer IDs to ensure uniqueness
     
-    print(f"Inserting {count} customers with unique emails...")
+    print(f"Inserting {count} customers with unique emails and random IDs...")
     
     while inserted_count < count and attempts < max_attempts:
         attempts += 1
@@ -599,7 +600,25 @@ def insert_customers(conn, count=100):
         random_suffix = fake.random_number(digits=4)
         unique_email = f"{fake.user_name()}{timestamp}{random_suffix}@{fake.domain_name()}"
         
+        # Generate a unique random customer ID (6-8 digits, fits in INTEGER range)
+        customer_id_attempts = 0
+        customer_id = None
+        
+        while customer_id_attempts < 1000:
+            candidate_id = random.randint(100000, 99999999)  # 6-8 digits, fits in INTEGER
+            if candidate_id not in used_customer_ids:
+                customer_id = candidate_id
+                used_customer_ids.add(customer_id)
+                break
+            customer_id_attempts += 1
+        
+        if customer_id is None:
+            # Fallback: use timestamp-based ID if we can't find a unique random one
+            customer_id = int(datetime.now().timestamp() * 100) % 100000000  # 8 digits max
+            used_customer_ids.add(customer_id)
+        
         customer = (
+            customer_id,  # Random customer ID
             fake.name(),
             unique_email,
             fake['en_CA'].phone_number()[:20],
@@ -610,12 +629,10 @@ def insert_customers(conn, count=100):
         
         try:
             cursor.execute("""
-                INSERT INTO customers (name, email, phone, address, city, country)
-                VALUES (%s, %s, %s, %s, %s, %s)
-                RETURNING id
+                INSERT INTO customers (id, name, email, phone, address, city, country)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
             """, customer)
             
-            customer_id = cursor.fetchone()[0]
             customers.append(customer_id)
             inserted_count += 1
             
@@ -623,8 +640,8 @@ def insert_customers(conn, count=100):
                 print(f"  Progress: {inserted_count}/{count} customers inserted")
                 
         except psycopg2.IntegrityError as e:
-            if "customers_email_key" in str(e):
-                # Email already exists, continue to next attempt
+            if "customers_email_key" in str(e) or "customers_pkey" in str(e):
+                # Email or ID already exists, continue to next attempt
                 continue
             else:
                 # Other integrity error, re-raise
@@ -634,7 +651,7 @@ def insert_customers(conn, count=100):
     print(f"✓ Inserted {inserted_count} customers (after {attempts} attempts)")
     
     if inserted_count < count:
-        print(f"⚠️  Could only insert {inserted_count} customers due to email conflicts")
+        print(f"⚠️  Could only insert {inserted_count} customers due to email/ID conflicts")
     
     return customers
 
@@ -676,6 +693,7 @@ def insert_orders(conn, customer_ids, count=500, use_api=True, batch_size=100, c
         print("  ✓ Address cache populated")
     
     orders_batch = []
+    used_order_ids = set()  # Track used order IDs to ensure uniqueness
     
     for i in range(count):
         # Random date within the last week (7 days) to today for more recent diversity
@@ -699,7 +717,26 @@ def insert_orders(conn, customer_ids, count=500, use_api=True, batch_size=100, c
                 print(f"    Generating addresses... {i + 1}/{count} orders...", end="\r")
             shipping_address = address_generator.get_realistic_address(destination)
         
+        # Generate a unique random order ID (8-9 digits, fits in INTEGER range)
+        max_attempts = 1000  # Prevent infinite loops
+        attempts = 0
+        order_id = None
+        
+        while attempts < max_attempts:
+            candidate_id = random.randint(10000000, 999999999)  # 8-9 digits, fits in INTEGER
+            if candidate_id not in used_order_ids:
+                order_id = candidate_id
+                used_order_ids.add(order_id)
+                break
+            attempts += 1
+        
+        if order_id is None:
+            # Fallback: use timestamp-based ID if we can't find a unique random one
+            order_id = int(datetime.now().timestamp() * 1000) % 1000000000  # 9 digits max
+            used_order_ids.add(order_id)
+        
         order = (
+            order_id,  # Random order ID
             random.choice(customer_ids),
             order_date.date(),
             total,
@@ -715,9 +752,9 @@ def insert_orders(conn, customer_ids, count=500, use_api=True, batch_size=100, c
         if len(orders_batch) >= batch_size or i == count - 1:
             # Use executemany for batch insert
             cursor.executemany("""
-                INSERT INTO orders (customer_id, order_date, total, status, 
+                INSERT INTO orders (id, customer_id, order_date, total, status, 
                                   shipping_address, payment_method, created_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             """, orders_batch)
             
             # Commit based on commit frequency
@@ -824,7 +861,7 @@ def drop_and_recreate_tables(conn):
     # Recreate customers table
     cursor.execute("""
         CREATE TABLE customers (
-            id SERIAL PRIMARY KEY,
+            id INTEGER PRIMARY KEY,
             name VARCHAR(255) NOT NULL,
             email VARCHAR(255) UNIQUE NOT NULL,
             phone VARCHAR(20),
@@ -839,7 +876,7 @@ def drop_and_recreate_tables(conn):
     # Recreate orders table
     cursor.execute("""
         CREATE TABLE orders (
-            id SERIAL PRIMARY KEY,
+            id INTEGER PRIMARY KEY,
             customer_id INTEGER NOT NULL,
             order_date DATE NOT NULL,
             total DECIMAL(10, 2) NOT NULL,
