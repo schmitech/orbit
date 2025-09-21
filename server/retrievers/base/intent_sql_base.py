@@ -95,7 +95,7 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
             # Initialize domain-aware components
             domain_config = self.domain_adapter.get_domain_config()
             self.parameter_extractor = DomainParameterExtractor(self.inference_client, domain_config)
-            self.response_generator = DomainResponseGenerator(self.inference_client, domain_config)
+            self.response_generator = DomainResponseGenerator(domain_config)
             self.template_reranker = TemplateReranker(domain_config)
             
             if self.verbose:
@@ -482,20 +482,43 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
                         logger.debug(f"Template {template.get('id')} execution failed: {error}")
                     continue
                 
-                # Generate response
+                # Format response using domain-aware generator
                 if self.response_generator:
-                    response = await self.response_generator.generate_response(
-                        query, results, template, error=None
-                    )
-                    
+                    formatted_data = self.response_generator.format_response_data(results, template)
+
+                    # Create content string from formatted data
+                    content_parts = []
+                    if formatted_data.get("message"):
+                        content_parts.append(formatted_data["message"])
+
+                    # Add summary or table based on format
+                    if formatted_data.get("summary"):
+                        content_parts.append(formatted_data["summary"])
+                    elif formatted_data.get("table") and formatted_data["table"].get("rows"):
+                        # Format a simple table representation
+                        table_data = formatted_data["table"]
+                        columns = table_data["columns"]
+                        rows = table_data["rows"][:10]  # Limit to first 10 rows
+
+                        table_text = " | ".join(columns) + "\n"
+                        table_text += "-" * len(table_text) + "\n"
+                        for row in rows:
+                            table_text += " | ".join(str(v) for v in row) + "\n"
+
+                        content_parts.append(f"Found {formatted_data['result_count']} results:\n{table_text}")
+
+                    if not content_parts:
+                        # Fallback to simple result summary
+                        content_parts.append(f"Query executed successfully. Found {len(results)} results.")
+
                     return [{
-                        "content": response,
+                        "content": "\n\n".join(content_parts),
                         "metadata": {
                             "source": "intent",
                             "template_id": template.get('id'),
                             "query_intent": template.get('description', ''),
                             "parameters_used": parameters,
-                            "results": results,
+                            "formatted_data": formatted_data,
                             "similarity": similarity,
                             "result_count": len(results),
                             "domain_aware": True
