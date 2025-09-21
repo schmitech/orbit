@@ -5,6 +5,7 @@ Facade for domain-aware parameter extraction
 import logging
 from typing import Dict, Any, Optional, List
 from ...domain import DomainConfig
+from ...domain_strategies.registry import DomainStrategyRegistry
 from .pattern_builder import PatternBuilder
 from .value_extractor import ValueExtractor
 from .llm_fallback import LLMFallback
@@ -32,6 +33,11 @@ class DomainParameterExtractor:
 
         self.inference_client = inference_client
 
+        # Get domain strategy from registry
+        self.domain_strategy = DomainStrategyRegistry.get_strategy(
+            self.domain_config.domain_name
+        )
+
         # Initialize components
         self._initialize_components()
 
@@ -41,8 +47,12 @@ class DomainParameterExtractor:
         self.pattern_builder = PatternBuilder(self.domain_config)
         self.patterns = self.pattern_builder.build_patterns()
 
-        # Initialize extractor
-        self.value_extractor = ValueExtractor(self.domain_config, self.patterns)
+        # Initialize extractor WITH domain strategy
+        self.value_extractor = ValueExtractor(
+            self.domain_config,
+            self.patterns,
+            self.domain_strategy
+        )
 
         # Initialize LLM fallback
         self.llm_fallback = LLMFallback(self.inference_client, self.domain_config)

@@ -171,12 +171,21 @@ class TestDomainStrategyRegistry:
         class TestStrategy(DomainStrategy):
             def get_domain_names(self):
                 return ["test_domain"]
-            
+
             def calculate_domain_boost(self, template_info, query, domain_config):
                 return 0.5
-            
+
             def get_pattern_matchers(self):
                 return {}
+
+            def extract_domain_parameters(self, query, param, domain_config):
+                return None
+
+            def get_semantic_extractors(self):
+                return {}
+
+            def get_summary_field_priority(self, field_name, field_config):
+                return 0
         
         # Register custom strategy
         DomainStrategyRegistry.register_strategy("test_domain", TestStrategy)
@@ -234,11 +243,71 @@ class TestCustomDomainStrategy:
                     'patient': self._contains_patient_pattern,
                     'medical': self._contains_medical_pattern
                 }
-            
+
+            def extract_domain_parameters(self, query, param, domain_config):
+                """Extract healthcare-specific parameters"""
+                param_name = param.get('name', '')
+
+                # Example: extract patient MRN
+                if 'mrn' in param_name.lower() or 'patient_id' in param_name.lower():
+                    import re
+                    # Look for patterns like MRN123456 or P123456
+                    match = re.search(r'(?:mrn|patient)\s*[:\-]?\s*([A-Z]?\d{6,8})', query, re.IGNORECASE)
+                    if match:
+                        return match.group(1)
+
+                return None
+
+            def get_semantic_extractors(self):
+                """Return healthcare semantic extractors"""
+                return {
+                    'patient_identifier': lambda q, t: self._extract_patient_id(q),
+                    'diagnosis_code': lambda q, t: self._extract_diagnosis_code(q),
+                }
+
+            def get_summary_field_priority(self, field_name, field_config):
+                """Get field priority for healthcare summaries"""
+                healthcare_priorities = {
+                    'mrn': 100,
+                    'patient_id': 100,
+                    'patient_name': 90,
+                    'diagnosis': 85,
+                    'admission_date': 80,
+                    'doctor': 75,
+                    'room': 70,
+                }
+
+                if field_name in healthcare_priorities:
+                    return healthcare_priorities[field_name]
+
+                # Pattern-based fallback
+                field_lower = field_name.lower()
+                if 'id' in field_lower or 'mrn' in field_lower:
+                    return 95
+                if 'name' in field_lower:
+                    return 85
+                if 'date' in field_lower:
+                    return 75
+
+                return 0
+
+            def _extract_patient_id(self, query):
+                """Extract patient ID from query"""
+                import re
+                match = re.search(r'(?:mrn|patient)\s*[:\-]?\s*([A-Z]?\d{6,8})', query, re.IGNORECASE)
+                return match.group(1) if match else None
+
+            def _extract_diagnosis_code(self, query):
+                """Extract diagnosis code from query"""
+                import re
+                # ICD-10 pattern: Letter followed by 2 digits, optional dot, optional more digits
+                match = re.search(r'([A-Z]\d{2}\.?\d*)', query, re.IGNORECASE)
+                return match.group(1) if match else None
+
             def _contains_patient_pattern(self, text):
                 patient_terms = ['patient', 'mrn', 'medical record']
                 return any(term in text for term in patient_terms)
-            
+
             def _contains_medical_pattern(self, text):
                 medical_terms = ['diagnosis', 'symptom', 'treatment', 'medication']
                 return any(term in text for term in medical_terms)
