@@ -633,10 +633,36 @@ templates:
         aliases: ["date", "on_date", "specific_date"]
         example: "2025-07-20"
     sql_template: |
+      WITH input_params AS (
+        SELECT 
+          CASE 
+            WHEN %(order_date)s = 'TODAY' THEN CURRENT_DATE
+            WHEN %(order_date)s ~ '^\d{4}-\d{2}-\d{2}$' THEN to_date(%(order_date)s, 'YYYY-MM-DD')
+            WHEN %(order_date)s ~ '^\d{2}/\d{2}/\d{4}$' THEN to_date(%(order_date)s, 'MM/DD/YYYY')
+            WHEN %(order_date)s ~ '^\d{2}-\d{2}-\d{4}$' THEN to_date(%(order_date)s, 'MM-DD-YYYY')
+            WHEN %(order_date)s ~ '^[A-Za-z]+ \d{1,2}[a-z]{0,2}(,? \d{4})?$' THEN
+              to_date(
+                REGEXP_REPLACE(
+                  REGEXP_REPLACE(%(order_date)s, '(st|nd|rd|th)', '', 'gi'),
+                  ',',
+                  '',
+                  'g'
+                ) ||
+                CASE 
+                  WHEN %(order_date)s ~ '\d{4}' THEN ''
+                  ELSE ' ' || EXTRACT(YEAR FROM CURRENT_DATE)::text
+                END,
+                'Month DD YYYY'
+              )
+            ELSE NULL
+          END as order_date
+      )
       SELECT o.*, c.name as customer_name, c.email as customer_email
       FROM orders o
       JOIN customers c ON o.customer_id = c.id
-      WHERE DATE(o.order_date) = %(order_date)s
+      CROSS JOIN input_params ip
+      WHERE ip.order_date IS NOT NULL
+        AND DATE(o.order_date) = ip.order_date
       ORDER BY o.order_date DESC, o.total DESC
       LIMIT 100
     result_format: "table"
@@ -669,22 +695,55 @@ templates:
         type: decimal
         description: "Minimum order amount (use for 'above/over' queries)"
         required: false
+        default: null
         aliases: ["above", "over", "greater_than", "minimum"]
       - name: max_amount
         type: decimal
         description: "Maximum order amount (use for 'below/under' queries)"
         required: false
+        default: null
         aliases: ["below", "under", "less_than", "maximum"]
     sql_template: |
+      WITH input_params AS (
+        SELECT 
+          CASE 
+            WHEN %(order_date)s = 'TODAY' THEN CURRENT_DATE
+            WHEN %(order_date)s ~ '^\d{4}-\d{2}-\d{2}$' THEN to_date(%(order_date)s, 'YYYY-MM-DD')
+            WHEN %(order_date)s ~ '^\d{2}/\d{2}/\d{4}$' THEN to_date(%(order_date)s, 'MM/DD/YYYY')
+            WHEN %(order_date)s ~ '^\d{2}-\d{2}-\d{4}$' THEN to_date(%(order_date)s, 'MM-DD-YYYY')
+            WHEN %(order_date)s ~ '^[A-Za-z]+ \d{1,2}[a-z]{0,2}(,? \d{4})?$' THEN
+              to_date(
+                REGEXP_REPLACE(
+                  REGEXP_REPLACE(%(order_date)s, '(st|nd|rd|th)', '', 'gi'),
+                  ',',
+                  '',
+                  'g'
+                ) ||
+                CASE 
+                  WHEN %(order_date)s ~ '\d{4}' THEN ''
+                  ELSE ' ' || EXTRACT(YEAR FROM CURRENT_DATE)::text
+                END,
+                'Month DD YYYY'
+              )
+            ELSE NULL
+          END as order_date,
+          CASE 
+            WHEN %(min_amount)s IS NULL THEN NULL
+            ELSE %(min_amount)s::numeric
+          END as min_amount,
+          CASE 
+            WHEN %(max_amount)s IS NULL THEN NULL
+            ELSE %(max_amount)s::numeric
+          END as max_amount
+      )
       SELECT o.*, c.name as customer_name, c.email as customer_email
       FROM orders o
       JOIN customers c ON o.customer_id = c.id
-      WHERE DATE(o.order_date) = %(order_date)s
-        AND (
-          (%(min_amount)s IS NOT NULL AND o.total >= %(min_amount)s) OR
-          (%(max_amount)s IS NOT NULL AND o.total <= %(max_amount)s) OR
-          (%(min_amount)s IS NULL AND %(max_amount)s IS NULL)
-        )
+      CROSS JOIN input_params ip
+      WHERE ip.order_date IS NOT NULL
+        AND DATE(o.order_date) = ip.order_date
+        AND (ip.min_amount IS NULL OR o.total >= ip.min_amount)
+        AND (ip.max_amount IS NULL OR o.total <= ip.max_amount)
       ORDER BY o.order_date DESC, o.total DESC
       LIMIT 100
     result_format: "table"
@@ -1262,6 +1321,30 @@ templates:
         aliases: ["start_date", "since_date", "from", "since"]
         example: "2025-08-01"
     sql_template: |
+      WITH input_params AS (
+        SELECT 
+          CASE 
+            WHEN %(from_date)s = 'TODAY' THEN CURRENT_DATE
+            WHEN %(from_date)s ~ '^\d{4}-\d{2}-\d{2}$' THEN to_date(%(from_date)s, 'YYYY-MM-DD')
+            WHEN %(from_date)s ~ '^\d{2}/\d{2}/\d{4}$' THEN to_date(%(from_date)s, 'MM/DD/YYYY')
+            WHEN %(from_date)s ~ '^\d{2}-\d{2}-\d{4}$' THEN to_date(%(from_date)s, 'MM-DD-YYYY')
+            WHEN %(from_date)s ~ '^[A-Za-z]+ \d{1,2}[a-z]{0,2}(,? \d{4})?$' THEN
+              to_date(
+                REGEXP_REPLACE(
+                  REGEXP_REPLACE(%(from_date)s, '(st|nd|rd|th)', '', 'gi'),
+                  ',',
+                  '',
+                  'g'
+                ) ||
+                CASE 
+                  WHEN %(from_date)s ~ '\d{4}' THEN ''
+                  ELSE ' ' || EXTRACT(YEAR FROM CURRENT_DATE)::text
+                END,
+                'Month DD YYYY'
+              )
+            ELSE NULL
+          END as from_date
+      )
       SELECT 
         c.id as customer_id,
         c.name as customer_name,
@@ -1275,7 +1358,9 @@ templates:
         COALESCE(SUM(o.total), 0) as total_spent
       FROM customers c
       LEFT JOIN orders o ON c.id = o.customer_id
-      WHERE DATE(c.created_at) >= %(from_date)s
+      CROSS JOIN input_params ip
+      WHERE ip.from_date IS NOT NULL
+        AND DATE(c.created_at) >= ip.from_date
       GROUP BY c.id, c.name, c.email, c.phone, c.city, c.country, c.created_at
       ORDER BY c.created_at DESC
       LIMIT 100

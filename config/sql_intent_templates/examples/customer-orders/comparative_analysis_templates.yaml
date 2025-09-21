@@ -30,28 +30,28 @@ templates:
             WHEN %(period_type)s = 'week' THEN 
               CASE 
                 WHEN order_date >= DATE_TRUNC('week', CURRENT_DATE) THEN 'Current Period'
-                WHEN order_date >= DATE_TRUNC('week', CURRENT_DATE) - INTERVAL '%(periods_back)s weeks' 
+                WHEN order_date >= DATE_TRUNC('week', CURRENT_DATE) - (%(periods_back)s * INTERVAL '1 week') 
                      AND order_date < DATE_TRUNC('week', CURRENT_DATE) THEN 'Previous Period'
                 ELSE 'Other'
               END
             WHEN %(period_type)s = 'month' THEN
               CASE 
                 WHEN order_date >= DATE_TRUNC('month', CURRENT_DATE) THEN 'Current Period'
-                WHEN order_date >= DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '%(periods_back)s months' 
+                WHEN order_date >= DATE_TRUNC('month', CURRENT_DATE) - (%(periods_back)s * INTERVAL '1 month') 
                      AND order_date < DATE_TRUNC('month', CURRENT_DATE) THEN 'Previous Period'
                 ELSE 'Other'
               END
             WHEN %(period_type)s = 'quarter' THEN
               CASE 
                 WHEN order_date >= DATE_TRUNC('quarter', CURRENT_DATE) THEN 'Current Period'
-                WHEN order_date >= DATE_TRUNC('quarter', CURRENT_DATE) - INTERVAL '%(periods_back)s quarters' 
+                WHEN order_date >= DATE_TRUNC('quarter', CURRENT_DATE) - (%(periods_back)s * INTERVAL '1 quarter') 
                      AND order_date < DATE_TRUNC('quarter', CURRENT_DATE) THEN 'Previous Period'
                 ELSE 'Other'
               END
             ELSE
               CASE 
                 WHEN order_date >= DATE_TRUNC('year', CURRENT_DATE) THEN 'Current Period'
-                WHEN order_date >= DATE_TRUNC('year', CURRENT_DATE) - INTERVAL '%(periods_back)s years' 
+                WHEN order_date >= DATE_TRUNC('year', CURRENT_DATE) - (%(periods_back)s * INTERVAL '1 year') 
                      AND order_date < DATE_TRUNC('year', CURRENT_DATE) THEN 'Previous Period'
                 ELSE 'Other'
               END
@@ -64,38 +64,38 @@ templates:
         WHERE status != 'cancelled'
           AND order_date >= 
             CASE 
-              WHEN %(period_type)s = 'week' THEN DATE_TRUNC('week', CURRENT_DATE) - INTERVAL '%(periods_back)s weeks'
-              WHEN %(period_type)s = 'month' THEN DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '%(periods_back)s months'
-              WHEN %(period_type)s = 'quarter' THEN DATE_TRUNC('quarter', CURRENT_DATE) - INTERVAL '%(periods_back)s quarters'
-              ELSE DATE_TRUNC('year', CURRENT_DATE) - INTERVAL '%(periods_back)s years'
+              WHEN %(period_type)s = 'week' THEN DATE_TRUNC('week', CURRENT_DATE) - (%(periods_back)s * INTERVAL '1 week')
+              WHEN %(period_type)s = 'month' THEN DATE_TRUNC('month', CURRENT_DATE) - (%(periods_back)s * INTERVAL '1 month')
+              WHEN %(period_type)s = 'quarter' THEN DATE_TRUNC('quarter', CURRENT_DATE) - (%(periods_back)s * INTERVAL '1 quarter')
+              ELSE DATE_TRUNC('year', CURRENT_DATE) - (%(periods_back)s * INTERVAL '1 year')
             END
         GROUP BY 
           CASE 
             WHEN %(period_type)s = 'week' THEN 
               CASE 
                 WHEN order_date >= DATE_TRUNC('week', CURRENT_DATE) THEN 'Current Period'
-                WHEN order_date >= DATE_TRUNC('week', CURRENT_DATE) - INTERVAL '%(periods_back)s weeks' 
+                WHEN order_date >= DATE_TRUNC('week', CURRENT_DATE) - (%(periods_back)s * INTERVAL '1 week') 
                      AND order_date < DATE_TRUNC('week', CURRENT_DATE) THEN 'Previous Period'
                 ELSE 'Other'
               END
             WHEN %(period_type)s = 'month' THEN
               CASE 
                 WHEN order_date >= DATE_TRUNC('month', CURRENT_DATE) THEN 'Current Period'
-                WHEN order_date >= DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '%(periods_back)s months' 
+                WHEN order_date >= DATE_TRUNC('month', CURRENT_DATE) - (%(periods_back)s * INTERVAL '1 month') 
                      AND order_date < DATE_TRUNC('month', CURRENT_DATE) THEN 'Previous Period'
                 ELSE 'Other'
               END
             WHEN %(period_type)s = 'quarter' THEN
               CASE 
                 WHEN order_date >= DATE_TRUNC('quarter', CURRENT_DATE) THEN 'Current Period'
-                WHEN order_date >= DATE_TRUNC('quarter', CURRENT_DATE) - INTERVAL '%(periods_back)s quarters' 
+                WHEN order_date >= DATE_TRUNC('quarter', CURRENT_DATE) - (%(periods_back)s * INTERVAL '1 quarter') 
                      AND order_date < DATE_TRUNC('quarter', CURRENT_DATE) THEN 'Previous Period'
                 ELSE 'Other'
               END
             ELSE
               CASE 
                 WHEN order_date >= DATE_TRUNC('year', CURRENT_DATE) THEN 'Current Period'
-                WHEN order_date >= DATE_TRUNC('year', CURRENT_DATE) - INTERVAL '%(periods_back)s years' 
+                WHEN order_date >= DATE_TRUNC('year', CURRENT_DATE) - (%(periods_back)s * INTERVAL '1 year') 
                      AND order_date < DATE_TRUNC('year', CURRENT_DATE) THEN 'Previous Period'
                 ELSE 'Other'
               END
@@ -359,37 +359,52 @@ templates:
         required: false
         default: 30
     sql_template: |
-      WITH behavior_comparison AS (
+      WITH input_params AS (
+        SELECT 
+          CASE 
+            WHEN %(comparison_date)s ~ '^\d{4}-\d{2}-\d{2}$' THEN to_date(%(comparison_date)s, 'YYYY-MM-DD')
+            WHEN %(comparison_date)s ~ '^\d{2}/\d{2}/\d{4}$' THEN to_date(%(comparison_date)s, 'MM/DD/YYYY')
+            WHEN %(comparison_date)s ~ '^\d{2}-\d{2}-\d{4}$' THEN to_date(%(comparison_date)s, 'MM-DD-YYYY')
+            WHEN %(comparison_date)s ~ '^[A-Za-z]+ \d{1,2}, \d{4}$' THEN to_date(%(comparison_date)s, 'Month DD, YYYY')
+            WHEN %(comparison_date)s ~ '^[A-Za-z]+ \d{1,2}$' THEN to_date(%(comparison_date)s || ' ' || EXTRACT(YEAR FROM CURRENT_DATE)::text, 'Month DD YYYY')
+            ELSE NULL
+          END as comparison_date,
+          COALESCE(%(days_before)s, 30)::int as days_before,
+          COALESCE(%(days_after)s, 30)::int as days_after
+      ),
+      behavior_comparison AS (
         SELECT 
           customer_id,
           CASE 
-            WHEN order_date < %(comparison_date)s THEN 'Before'
+            WHEN order_date < ip.comparison_date THEN 'Before'
             ELSE 'After'
           END as period,
           COUNT(*) as orders,
           SUM(total) as total_spent,
           AVG(total) as avg_order_value
         FROM orders
-        WHERE order_date >= %(comparison_date)s - INTERVAL '%(days_before)s days'
-          AND order_date <= %(comparison_date)s + INTERVAL '%(days_after)s days'
+        CROSS JOIN input_params ip
+        WHERE ip.comparison_date IS NOT NULL
+          AND order_date >= ip.comparison_date - ip.days_before * INTERVAL '1 day'
+          AND order_date <= ip.comparison_date + ip.days_after * INTERVAL '1 day'
           AND status != 'cancelled'
         GROUP BY customer_id, 
           CASE 
-            WHEN order_date < %(comparison_date)s THEN 'Before'
+            WHEN order_date < ip.comparison_date THEN 'Before'
             ELSE 'After'
           END
       )
       SELECT 
-        period,
+        bc.period,
         COUNT(DISTINCT customer_id) as active_customers,
         SUM(orders) as total_orders,
         ROUND(AVG(orders), 1) as avg_orders_per_customer,
         ROUND(SUM(total_spent), 2) as total_revenue,
         ROUND(AVG(total_spent), 2) as avg_customer_spending,
         ROUND(AVG(avg_order_value), 2) as avg_order_value
-      FROM behavior_comparison
-      GROUP BY period
-      ORDER BY period
+      FROM behavior_comparison bc
+      GROUP BY bc.period
+      ORDER BY bc.period
     result_format: "table"
     tags: ["compare", "before", "after", "behavior", "changed", "patterns", "date", "analysis"]
     semantic_tags:
