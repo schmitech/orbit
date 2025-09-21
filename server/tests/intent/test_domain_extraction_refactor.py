@@ -240,10 +240,11 @@ class TestDomainExtractionRefactor:
         # Verify order_id comes first (highest priority)
         assert summary_fields[0] == "order_id"
 
-    def test_response_formatter_without_domain_strategy(self):
-        """Test that ResponseFormatter falls back to generic prioritization without strategy"""
+    def test_response_formatter_with_generic_strategy(self):
+        """Test that ResponseFormatter works with a generic domain strategy"""
         from retrievers.implementations.intent.domain.response.formatters import ResponseFormatter
         from retrievers.implementations.intent.domain import DomainConfig
+        from retrievers.implementations.intent.domain_strategies.registry import DomainStrategyRegistry
 
         # Create domain config
         domain_config = DomainConfig({
@@ -261,8 +262,11 @@ class TestDomainExtractionRefactor:
             }
         })
 
-        # Test without domain strategy
-        formatter = ResponseFormatter(domain_config, None)
+        # Get generic strategy (will be None for unknown domain)
+        strategy = DomainStrategyRegistry.get_strategy("Generic")
+        
+        # Test with generic strategy (None)
+        formatter = ResponseFormatter(domain_config, strategy)
         
         # Sample result data
         sample_result = {

@@ -100,13 +100,11 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
             from ..implementations.intent.domain_strategies.registry import DomainStrategyRegistry
             from ..implementations.intent.domain import DomainConfig
             
-            # Convert dict to DomainConfig if needed
+            # Ensure domain_config is a DomainConfig object
             if isinstance(domain_config, dict):
-                domain_config_obj = DomainConfig(domain_config)
-            else:
-                domain_config_obj = domain_config
+                domain_config = DomainConfig(domain_config)
                 
-            domain_strategy = DomainStrategyRegistry.get_strategy(domain_config_obj.domain_name)
+            domain_strategy = DomainStrategyRegistry.get_strategy(domain_config.domain_name)
             
             self.response_generator = DomainResponseGenerator(domain_config, domain_strategy)
             self.template_reranker = TemplateReranker(domain_config)

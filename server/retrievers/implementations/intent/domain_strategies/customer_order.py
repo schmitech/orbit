@@ -114,11 +114,21 @@ class CustomerOrderStrategy(DomainStrategy):
             return True
         
         # Check for order status values from domain config
-        fields = domain_config.get('fields', {}).get('order', {})
-        status_field = fields.get('status', {})
-        if status_values := status_field.get('enum_values', []):
-            if any(status.lower() in text for status in status_values):
-                return True
+        if hasattr(domain_config, 'entities') and 'order' in domain_config.entities:
+            # DomainConfig object
+            order_entity = domain_config.entities['order']
+            if 'status' in order_entity.fields:
+                status_field = order_entity.fields['status']
+                if hasattr(status_field, 'enum_values') and status_field.enum_values:
+                    if any(status.lower() in text for status in status_field.enum_values):
+                        return True
+        elif isinstance(domain_config, dict) and 'fields' in domain_config:
+            # Dictionary format (backward compatibility)
+            fields = domain_config.get('fields', {}).get('order', {})
+            status_field = fields.get('status', {})
+            if status_values := status_field.get('enum_values', []):
+                if any(status.lower() in text for status in status_values):
+                    return True
         
         return False
     
@@ -131,11 +141,21 @@ class CustomerOrderStrategy(DomainStrategy):
             return True
 
         # Check for payment method values from domain config
-        fields = domain_config.get('fields', {}).get('order', {})
-        payment_field = fields.get('payment_method', {})
-        if payment_values := payment_field.get('enum_values', []):
-            if any(payment.lower().replace('_', ' ') in text for payment in payment_values):
-                return True
+        if hasattr(domain_config, 'entities') and 'order' in domain_config.entities:
+            # DomainConfig object
+            order_entity = domain_config.entities['order']
+            if 'payment_method' in order_entity.fields:
+                payment_field = order_entity.fields['payment_method']
+                if hasattr(payment_field, 'enum_values') and payment_field.enum_values:
+                    if any(payment.lower().replace('_', ' ') in text for payment in payment_field.enum_values):
+                        return True
+        elif isinstance(domain_config, dict) and 'fields' in domain_config:
+            # Dictionary format (backward compatibility)
+            fields = domain_config.get('fields', {}).get('order', {})
+            payment_field = fields.get('payment_method', {})
+            if payment_values := payment_field.get('enum_values', []):
+                if any(payment.lower().replace('_', ' ') in text for payment in payment_values):
+                    return True
 
         return False
 

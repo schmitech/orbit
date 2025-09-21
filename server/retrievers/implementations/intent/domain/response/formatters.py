@@ -13,8 +13,8 @@ logger = logging.getLogger(__name__)
 class ResponseFormatter:
     """Handles deterministic formatting of result data"""
 
-    def __init__(self, domain_config: DomainConfig, domain_strategy: Optional[Any] = None):
-        """Initialize formatter with domain configuration and optional domain strategy"""
+    def __init__(self, domain_config: DomainConfig, domain_strategy: Any):
+        """Initialize formatter with domain configuration and domain strategy"""
         self.domain_config = domain_config
         self.domain_strategy = domain_strategy
 
@@ -234,39 +234,22 @@ class ResponseFormatter:
         return "\n".join(summaries)
 
     def _get_summary_fields(self, sample_result: Dict) -> List[str]:
-        """Determine which fields are most important for summary"""
+        """Determine which fields are most important for summary using domain strategy"""
         field_priorities = []
 
         for field_name in sample_result.keys():
-            priority = 0
-
-            # Check domain configuration for priority
             field_config = self._find_field_config(field_name)
-            if field_config:
-                # Use configured priority if available
-                if hasattr(field_config, 'summary_priority') and field_config.summary_priority is not None:
-                    priority = field_config.summary_priority
-                # Or use semantic type priority
-                elif hasattr(field_config, 'semantic_type') and self.domain_strategy:
-                    semantic_priorities = {
-                        'identifier': 100,
-                        'person_name': 90,
-                        'monetary_amount': 85,
-                        'status': 80,
-                        'timestamp': 75,
-                        'location': 70,
-                        'contact_info': 65,
-                    }
-                    priority = semantic_priorities.get(field_config.semantic_type, 0)
-
-            # Ask domain strategy for priority
-            if self.domain_strategy and priority == 0:
+            
+            # Get priority from domain strategy (if available)
+            if self.domain_strategy:
                 priority = self.domain_strategy.get_summary_field_priority(field_name, field_config)
-
-            # Generic fallback based on field patterns
+            else:
+                priority = 0
+            
+            # If no priority from strategy, use generic fallback
             if priority == 0:
                 priority = self._get_generic_field_priority(field_name)
-                # If still no priority, give it a very low priority to ensure it's included
+                # Ensure all fields are included with at least priority 1
                 if priority == 0:
                     priority = 1
 

@@ -12,9 +12,13 @@ logger = logging.getLogger(__name__)
 class TemplateReranker:
     """Rerank templates using domain-specific rules and vocabulary"""
     
-    def __init__(self, domain_config: Optional[Dict[str, Any]] = None):
-        self.domain_config = domain_config or {}
-        self.domain_name = self.domain_config.get('domain_name', '').lower()
+    def __init__(self, domain_config: Any):
+        self.domain_config = domain_config
+        # Handle both DomainConfig objects and dictionaries
+        if hasattr(domain_config, 'domain_name'):
+            self.domain_name = domain_config.domain_name.lower()
+        else:
+            self.domain_name = domain_config.get('domain_name', '').lower()
         
         # Get domain-specific strategy if available
         self.domain_strategy = None
@@ -93,15 +97,12 @@ class TemplateReranker:
     def _calculate_entity_boost(self, query_lower: str, primary_entity: str) -> float:
         """Calculate boost for entity matches"""
         boost = 0.0
-        vocabulary = self.domain_config.get('vocabulary', {})
-        entity_synonyms = vocabulary.get('entity_synonyms', {})
-        
         # Check primary entity name
         if primary_entity.lower() in query_lower:
             boost += 0.2
         
         # Check entity synonyms
-        synonyms = entity_synonyms.get(primary_entity, [])
+        synonyms = self.domain_config.get_entity_synonyms(primary_entity)
         for synonym in synonyms:
             if synonym.lower() in query_lower:
                 boost += 0.15
@@ -112,8 +113,7 @@ class TemplateReranker:
     def _calculate_action_boost(self, query_lower: str, action: str) -> float:
         """Calculate boost for action verb matches"""
         boost = 0.0
-        vocabulary = self.domain_config.get('vocabulary', {})
-        action_verbs = vocabulary.get('action_verbs', {})
+        action_verbs = self.domain_config.vocabulary.get('action_verbs', {})
         
         # Check if action or its synonyms are in query
         verbs = action_verbs.get(action, [])
