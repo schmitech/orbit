@@ -1,5 +1,30 @@
 domain_name: E-Commerce
 description: Customer order management system
+
+# NEW: Domain metadata for strategy selection
+domain_type: ecommerce
+semantic_types:
+  order_identifier:
+    description: "Unique identifier for an order"
+    patterns: ["order", "id", "number"]
+  monetary_amount:
+    description: "Currency amounts"
+    patterns: ["amount", "total", "price", "cost"]
+  time_period:
+    description: "Time duration"
+    patterns: ["days", "weeks", "months"]
+  person_name:
+    description: "Customer or person name"
+    patterns: ["name", "customer", "client"]
+  contact_email:
+    description: "Email address"
+    patterns: ["email", "mail", "contact"]
+  order_status:
+    description: "Order status or state"
+    patterns: ["status", "state", "condition"]
+  date_value:
+    description: "Date values in various formats"
+    patterns: ["date", "day", "time", "when", "on"]
 entities:
   customer:
     name: customer
@@ -66,6 +91,12 @@ fields:
       - client name
       - buyer name
       enum_values: null
+      # NEW: Semantic metadata
+      semantic_type: person_name
+      summary_priority: 9
+      extraction_hints:
+        look_for_quotes: true
+        capitalization_required: true
     email:
       name: email
       data_type: string
@@ -79,6 +110,10 @@ fields:
       validation_rules: []
       aliases: []
       enum_values: null
+      # NEW: Semantic metadata
+      semantic_type: contact_email
+      summary_priority: 8
+      extraction_pattern: '\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
     phone:
       name: phone
       data_type: string
@@ -131,6 +166,12 @@ fields:
       validation_rules: []
       aliases: []
       enum_values: null
+      # NEW: Semantic metadata
+      semantic_type: date_value
+      summary_priority: 7
+      extraction_hints:
+        formats: ["YYYY-MM-DD", "DD-MM-YYYY", "MM/DD/YYYY", "Month DD, YYYY"]
+        relative_terms: ["today", "yesterday", "this week", "last month"]
   order:
     id:
       name: id
@@ -145,6 +186,12 @@ fields:
       validation_rules: []
       aliases: []
       enum_values: null
+      # NEW: Semantic metadata
+      semantic_type: order_identifier
+      summary_priority: 10
+      extraction_hints:
+        patterns: ["order #", "order number", "#"]
+        numeric_required: true
     customer_id:
       name: customer_id
       data_type: integer
@@ -171,6 +218,13 @@ fields:
       validation_rules: []
       aliases: []
       enum_values: null
+      # NEW: Semantic metadata
+      semantic_type: date_value
+      summary_priority: 9
+      extraction_hints:
+        formats: ["YYYY-MM-DD", "DD-MM-YYYY", "MM/DD/YYYY", "Month DD, YYYY"]
+        relative_terms: ["today", "yesterday", "this week", "last month"]
+        patterns: ["on", "from", "since", "after", "before"]
     total:
       name: total
       data_type: decimal
@@ -184,6 +238,12 @@ fields:
       validation_rules: []
       aliases: []
       enum_values: null
+      # NEW: Semantic metadata
+      semantic_type: monetary_amount
+      summary_priority: 8
+      extraction_hints:
+        currency_symbols: ["$", "USD", "dollars"]
+        decimal_places: 2
     status:
       name: status
       data_type: enum
@@ -202,6 +262,9 @@ fields:
       - shipped
       - delivered
       - cancelled
+      # NEW: Semantic metadata
+      semantic_type: order_status
+      summary_priority: 8
     payment_method:
       name: payment_method
       data_type: enum
@@ -310,6 +373,27 @@ vocabulary:
     this month: '30'
     last month: '60'
     this year: '365'
+  date_formats:
+    iso_date: 'YYYY-MM-DD'
+    european_date: 'DD-MM-YYYY'
+    us_date: 'MM/DD/YYYY'
+    us_date_dash: 'MM-DD-YYYY'
+    natural_date: 'Month DD, YYYY'
+    short_date: 'Mon DD, YYYY'
   value_expressions: {}
-  common_phrases: {}
+  common_phrases:
+    date_phrases:
+      - "on [date]"
+      - "from [date]"
+      - "since [date]"
+      - "after [date]"
+      - "before [date]"
+      - "between [date] and [date]"
+      - "from [date] to [date]"
+    date_examples:
+      - "on July 20th 2025"
+      - "from 20-09-2025"
+      - "since 2025-07-20"
+      - "after 09/20/2025"
+      - "before 20-07-2025"
 metadata: {}

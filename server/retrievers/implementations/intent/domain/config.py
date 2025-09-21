@@ -22,6 +22,11 @@ class FieldConfig:
     aggregatable: bool = False
     description: Optional[str] = None
     validation_rules: Dict[str, Any] = field(default_factory=dict)
+    # NEW: Semantic metadata for domain-agnostic extraction and prioritization
+    semantic_type: Optional[str] = None
+    summary_priority: Optional[int] = None
+    extraction_pattern: Optional[str] = None
+    extraction_hints: Optional[Dict[str, Any]] = field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, field_name: str, config: Dict[str, Any]) -> 'FieldConfig':
@@ -36,7 +41,12 @@ class FieldConfig:
             sortable=config.get('sortable', False),
             aggregatable=config.get('aggregatable', False),
             description=config.get('description'),
-            validation_rules=config.get('validation_rules', {})
+            validation_rules=config.get('validation_rules', {}),
+            # NEW: Parse semantic metadata
+            semantic_type=config.get('semantic_type'),
+            summary_priority=config.get('summary_priority'),
+            extraction_pattern=config.get('extraction_pattern'),
+            extraction_hints=config.get('extraction_hints', {})
         )
 
 
@@ -80,6 +90,10 @@ class DomainConfig:
         self.config = config or {}
         self.domain_name = self.config.get('domain_name', 'unknown')
         self.description = self.config.get('description', '')
+
+        # NEW: Parse domain metadata for strategy selection
+        self.domain_type = self.config.get('domain_type', 'generic')
+        self.semantic_types = self.config.get('semantic_types', {})
 
         # Parse entities and fields
         self.entities: Dict[str, EntityConfig] = {}
@@ -201,6 +215,15 @@ class DomainConfig:
                 return field_name
 
         return None
+
+    def get_fields_by_semantic_type(self, semantic_type: str) -> List[FieldConfig]:
+        """Get all fields with a specific semantic type"""
+        fields = []
+        for entity in self.entities.values():
+            for field in entity.fields.values():
+                if field.semantic_type == semantic_type:
+                    fields.append(field)
+        return fields
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert back to dictionary format for compatibility"""

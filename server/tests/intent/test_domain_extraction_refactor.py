@@ -340,3 +340,223 @@ class TestDomainExtractionRefactor:
         
         # Check that the first 5 fields match expected order
         assert summary_fields[:5] == expected_order
+
+    def test_semantic_types_in_domain_config(self):
+        """Test that semantic types are properly parsed from domain configuration"""
+        from retrievers.implementations.intent.domain import DomainConfig
+
+        # Create domain config with semantic types
+        config_with_semantics = {
+            "domain_name": "E-Commerce",
+            "domain_type": "ecommerce",
+            "semantic_types": {
+                "order_identifier": {
+                    "description": "Unique identifier for an order",
+                    "patterns": ["order", "id", "number"]
+                },
+                "monetary_amount": {
+                    "description": "Currency amounts",
+                    "patterns": ["amount", "total", "price", "cost"]
+                },
+                "person_name": {
+                    "description": "Customer or person name",
+                    "patterns": ["name", "customer", "client"]
+                }
+            },
+            "entities": {
+                "order": {
+                    "name": "order"
+                },
+                "customer": {
+                    "name": "customer"
+                }
+            },
+            "fields": {
+                "order": {
+                    "id": {
+                        "name": "id",
+                        "data_type": "integer",
+                        "semantic_type": "order_identifier",
+                        "summary_priority": 10
+                    },
+                    "total": {
+                        "name": "total",
+                        "data_type": "decimal",
+                        "semantic_type": "monetary_amount",
+                        "summary_priority": 8
+                    }
+                },
+                "customer": {
+                    "name": {
+                        "name": "name",
+                        "data_type": "string",
+                        "semantic_type": "person_name",
+                        "summary_priority": 9,
+                        "extraction_pattern": r"[A-Z][a-z]+ [A-Z][a-z]+",
+                        "extraction_hints": {
+                            "look_for_quotes": True,
+                            "capitalization_required": True
+                        }
+                    }
+                }
+            }
+        }
+
+        domain_config = DomainConfig(config_with_semantics)
+
+        # Test domain metadata
+        assert domain_config.domain_type == "ecommerce"
+        assert "order_identifier" in domain_config.semantic_types
+        assert "monetary_amount" in domain_config.semantic_types
+        assert "person_name" in domain_config.semantic_types
+
+        # Test semantic type parsing
+        semantic_type_config = domain_config.semantic_types["order_identifier"]
+        assert semantic_type_config["description"] == "Unique identifier for an order"
+        assert "order" in semantic_type_config["patterns"]
+
+        # Test fields with semantic metadata
+        order_id_field = domain_config.get_field("order", "id")
+        assert order_id_field is not None
+        assert order_id_field.semantic_type == "order_identifier"
+        assert order_id_field.summary_priority == 10
+
+        customer_name_field = domain_config.get_field("customer", "name")
+        assert customer_name_field is not None
+        assert customer_name_field.semantic_type == "person_name"
+        assert customer_name_field.summary_priority == 9
+        assert customer_name_field.extraction_pattern == r"[A-Z][a-z]+ [A-Z][a-z]+"
+        assert customer_name_field.extraction_hints["look_for_quotes"] is True
+
+    def test_get_fields_by_semantic_type(self):
+        """Test the get_fields_by_semantic_type method"""
+        from retrievers.implementations.intent.domain import DomainConfig
+
+        config = {
+            "domain_name": "E-Commerce",
+            "entities": {
+                "order": {
+                    "name": "order"
+                },
+                "customer": {
+                    "name": "customer"
+                }
+            },
+            "fields": {
+                "order": {
+                    "id": {
+                        "name": "id",
+                        "data_type": "integer",
+                        "semantic_type": "order_identifier"
+                    },
+                    "order_number": {
+                        "name": "order_number",
+                        "data_type": "string",
+                        "semantic_type": "order_identifier"
+                    },
+                    "total": {
+                        "name": "total",
+                        "data_type": "decimal",
+                        "semantic_type": "monetary_amount"
+                    }
+                },
+                "customer": {
+                    "name": {
+                        "name": "name",
+                        "data_type": "string",
+                        "semantic_type": "person_name"
+                    }
+                }
+            }
+        }
+
+        domain_config = DomainConfig(config)
+
+        # Test getting fields by semantic type
+        order_identifier_fields = domain_config.get_fields_by_semantic_type("order_identifier")
+        assert len(order_identifier_fields) == 2
+        assert any(f.name == "id" for f in order_identifier_fields)
+        assert any(f.name == "order_number" for f in order_identifier_fields)
+
+        monetary_amount_fields = domain_config.get_fields_by_semantic_type("monetary_amount")
+        assert len(monetary_amount_fields) == 1
+        assert monetary_amount_fields[0].name == "total"
+
+        person_name_fields = domain_config.get_fields_by_semantic_type("person_name")
+        assert len(person_name_fields) == 1
+        assert person_name_fields[0].name == "name"
+
+        # Test non-existent semantic type
+        non_existent_fields = domain_config.get_fields_by_semantic_type("non_existent")
+        assert len(non_existent_fields) == 0
+
+    def test_response_formatter_with_semantic_priorities(self):
+        """Test that ResponseFormatter uses semantic type priorities"""
+        from retrievers.implementations.intent.domain.response.formatters import ResponseFormatter
+        from retrievers.implementations.intent.domain import DomainConfig
+
+        # Create domain config with semantic priorities
+        config = {
+            "domain_name": "E-Commerce",
+            "entities": {
+                "order": {
+                    "name": "order"
+                }
+            },
+            "fields": {
+                "order": {
+                    "id": {
+                        "name": "id",
+                        "data_type": "integer",
+                        "semantic_type": "order_identifier",
+                        "summary_priority": 10
+                    },
+                    "customer_name": {
+                        "name": "customer_name",
+                        "data_type": "string",
+                        "semantic_type": "person_name",
+                        "summary_priority": 9
+                    },
+                    "total": {
+                        "name": "total",
+                        "data_type": "decimal",
+                        "semantic_type": "monetary_amount",
+                        "summary_priority": 8
+                    },
+                    "status": {
+                        "name": "status",
+                        "data_type": "string",
+                        "semantic_type": "order_status",
+                        "summary_priority": 7
+                    },
+                    "description": {
+                        "name": "description",
+                        "data_type": "string"
+                        # No semantic type or priority
+                    }
+                }
+            }
+        }
+
+        domain_config = DomainConfig(config)
+        formatter = ResponseFormatter(domain_config, None)  # No domain strategy
+
+        # Sample result data
+        sample_result = {
+            "id": 12345,
+            "customer_name": "John Doe",
+            "total": 99.99,
+            "status": "shipped",
+            "description": "Large order with expedited shipping"
+        }
+
+        # Get summary fields - should use semantic priorities
+        summary_fields = formatter._get_summary_fields(sample_result)
+
+        # Verify fields are ordered by explicit summary priority (highest first)
+        # Expected order: id=10, customer_name=9, total=8, status=7, description=generic fallback
+        assert summary_fields[0] == "id"
+        assert summary_fields[1] == "customer_name"
+        assert summary_fields[2] == "total"
+        assert summary_fields[3] == "status"
+        assert summary_fields[4] == "description"

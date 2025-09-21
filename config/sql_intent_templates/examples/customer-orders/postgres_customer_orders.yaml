@@ -77,7 +77,7 @@ templates:
 
   - id: find_recent_order_by_order_id_pattern
     version: "1.0.0"
-    description: "Find recent orders matching a specific ID pattern or range"
+    description: "Find orders matching a specific ID pattern or range (optionally filtered by time period)"
     nl_examples:
       - "Show me all orders starting with 100"
       - "Find orders in the 2000s"
@@ -102,9 +102,9 @@ templates:
         aliases: ["to_id", "ending_id", "max_id"]
       - name: days_back
         type: integer
-        description: "Number of days to look back"
+        description: "Number of days to look back (optional - if not provided, searches all orders)"
         required: false
-        default: 30
+        default: null
     sql_template: |
       SELECT o.*, c.name as customer_name, c.email as customer_email,
              c.city as customer_city, c.country as customer_country
@@ -113,15 +113,15 @@ templates:
       WHERE 1=1
         {% if min_order_id %}AND o.id >= %(min_order_id)s{% endif %}
         {% if max_order_id %}AND o.id <= %(max_order_id)s{% endif %}
-        AND o.order_date >= CURRENT_DATE - INTERVAL '%(days_back)s days'
+        {% if days_back %}AND o.order_date >= CURRENT_DATE - INTERVAL '%(days_back)s days'{% endif %}
       ORDER BY o.id DESC
       LIMIT 100
     result_format: "table"
-    tags: ["order", "range", "pattern", "recent", "id", "starting", "above", "greater"]
+    tags: ["order", "range", "pattern", "id", "starting", "above", "greater"]
     semantic_tags:
       action: "find_list"
       primary_entity: "order"
-      qualifiers: ["by_id_range", "recent"]
+      qualifiers: ["by_id_range"]
     approved: true
 
   - id: find_order_by_customer_name
@@ -639,6 +639,8 @@ templates:
             WHEN %(order_date)s = 'TODAY' THEN CURRENT_DATE
             WHEN %(order_date)s ~ '^\d{4}-\d{2}-\d{2}$' THEN to_date(%(order_date)s, 'YYYY-MM-DD')
             WHEN %(order_date)s ~ '^\d{2}/\d{2}/\d{4}$' THEN to_date(%(order_date)s, 'MM/DD/YYYY')
+            WHEN %(order_date)s ~ '^\d{2}-\d{2}-\d{4}$' AND 
+                 CAST(SPLIT_PART(%(order_date)s, '-', 1) AS INTEGER) > 12 THEN to_date(%(order_date)s, 'DD-MM-YYYY')
             WHEN %(order_date)s ~ '^\d{2}-\d{2}-\d{4}$' THEN to_date(%(order_date)s, 'MM-DD-YYYY')
             WHEN %(order_date)s ~ '^[A-Za-z]+ \d{1,2}[a-z]{0,2}(,? \d{4})?$' THEN
               to_date(
@@ -710,6 +712,8 @@ templates:
             WHEN %(order_date)s = 'TODAY' THEN CURRENT_DATE
             WHEN %(order_date)s ~ '^\d{4}-\d{2}-\d{2}$' THEN to_date(%(order_date)s, 'YYYY-MM-DD')
             WHEN %(order_date)s ~ '^\d{2}/\d{2}/\d{4}$' THEN to_date(%(order_date)s, 'MM/DD/YYYY')
+            WHEN %(order_date)s ~ '^\d{2}-\d{2}-\d{4}$' AND 
+                 CAST(SPLIT_PART(%(order_date)s, '-', 1) AS INTEGER) > 12 THEN to_date(%(order_date)s, 'DD-MM-YYYY')
             WHEN %(order_date)s ~ '^\d{2}-\d{2}-\d{4}$' THEN to_date(%(order_date)s, 'MM-DD-YYYY')
             WHEN %(order_date)s ~ '^[A-Za-z]+ \d{1,2}[a-z]{0,2}(,? \d{4})?$' THEN
               to_date(
@@ -1327,6 +1331,8 @@ templates:
             WHEN %(from_date)s = 'TODAY' THEN CURRENT_DATE
             WHEN %(from_date)s ~ '^\d{4}-\d{2}-\d{2}$' THEN to_date(%(from_date)s, 'YYYY-MM-DD')
             WHEN %(from_date)s ~ '^\d{2}/\d{2}/\d{4}$' THEN to_date(%(from_date)s, 'MM/DD/YYYY')
+            WHEN %(from_date)s ~ '^\d{2}-\d{2}-\d{4}$' AND 
+                 CAST(SPLIT_PART(%(from_date)s, '-', 1) AS INTEGER) > 12 THEN to_date(%(from_date)s, 'DD-MM-YYYY')
             WHEN %(from_date)s ~ '^\d{2}-\d{2}-\d{4}$' THEN to_date(%(from_date)s, 'MM-DD-YYYY')
             WHEN %(from_date)s ~ '^[A-Za-z]+ \d{1,2}[a-z]{0,2}(,? \d{4})?$' THEN
               to_date(

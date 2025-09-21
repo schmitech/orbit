@@ -234,19 +234,26 @@ class ResponseFormatter:
         return "\n".join(summaries)
 
     def _get_summary_fields(self, sample_result: Dict) -> List[str]:
-        """Determine which fields are most important for summary using domain strategy"""
+        """Determine which fields are most important for summary using domain strategy and semantic metadata"""
         field_priorities = []
 
         for field_name in sample_result.keys():
             field_config = self._find_field_config(field_name)
-            
-            # Get priority from domain strategy (if available)
-            if self.domain_strategy:
+            priority = 0
+
+            # First, check for explicit summary_priority in field config
+            if field_config and field_config.summary_priority is not None:
+                priority = field_config.summary_priority
+
+            # If no explicit priority, check domain strategy (if available)
+            elif self.domain_strategy:
                 priority = self.domain_strategy.get_summary_field_priority(field_name, field_config)
-            else:
-                priority = 0
-            
-            # If no priority from strategy, use generic fallback
+
+            # If still no priority, check semantic type priorities
+            if priority == 0 and field_config and field_config.semantic_type:
+                priority = self._get_semantic_type_priority(field_config.semantic_type)
+
+            # If no priority from any source, use generic fallback
             if priority == 0:
                 priority = self._get_generic_field_priority(field_name)
                 # Ensure all fields are included with at least priority 1
@@ -258,6 +265,42 @@ class ResponseFormatter:
         # Sort by priority and return top fields
         field_priorities.sort(key=lambda x: x[1], reverse=True)
         return [field for field, _ in field_priorities[:5]]
+
+    def _get_semantic_type_priority(self, semantic_type: str) -> int:
+        """Get priority based on semantic type"""
+        semantic_priorities = {
+            'order_identifier': 100,
+            'person_name': 90,
+            'monetary_amount': 85,
+            'order_status': 80,
+            'contact_email': 75,
+            'identifier': 90,
+            'status': 80,
+            'timestamp': 75,
+            'location': 70,
+            'contact_info': 65,
+        }
+
+        # Check direct semantic type match
+        if semantic_type in semantic_priorities:
+            return semantic_priorities[semantic_type]
+
+        # Check for partial matches
+        semantic_lower = semantic_type.lower()
+        if 'identifier' in semantic_lower or 'id' in semantic_lower:
+            return 90
+        if 'name' in semantic_lower:
+            return 85
+        if 'amount' in semantic_lower or 'money' in semantic_lower:
+            return 80
+        if 'status' in semantic_lower or 'state' in semantic_lower:
+            return 75
+        if 'date' in semantic_lower or 'time' in semantic_lower:
+            return 70
+        if 'email' in semantic_lower or 'contact' in semantic_lower:
+            return 65
+
+        return 0
 
     def _get_generic_field_priority(self, field_name: str) -> int:
         """Generic priority based on common patterns"""
