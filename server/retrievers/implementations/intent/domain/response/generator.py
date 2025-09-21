@@ -16,7 +16,7 @@ class DomainResponseGenerator:
     Returns formatted data suitable for the inference pipeline.
     """
 
-    def __init__(self, domain_config: Optional[Dict[str, Any]] = None):
+    def __init__(self, domain_config: Optional[Dict[str, Any]] = None, domain_strategy: Optional[Any] = None):
         """Initialize the domain response generator"""
         # Convert dict config to DomainConfig if needed
         if isinstance(domain_config, dict):
@@ -26,8 +26,8 @@ class DomainResponseGenerator:
         else:
             self.domain_config = DomainConfig({})
 
-        # Initialize formatter
-        self.formatter = ResponseFormatter(self.domain_config)
+        # Initialize formatter with domain strategy
+        self.formatter = ResponseFormatter(self.domain_config, domain_strategy)
 
         logger.info(f"Initialized DomainResponseGenerator for {self.domain_config.domain_name}")
 

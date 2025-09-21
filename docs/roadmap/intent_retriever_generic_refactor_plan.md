@@ -51,15 +51,51 @@
 
 **Result:** Core extraction logic is now completely domain-agnostic while maintaining full backward compatibility.
 
-### 🔄 Phase 2: NEXT STEPS
-- **Primary Goal:** Make ResponseFormatter configuration-driven
-- **Target:** Remove hardcoded summary field selection in `_get_summary_fields()`
-- **Files to modify:**
-  - `server/retrievers/implementations/intent/domain/response/formatters.py`
-  - Update to use `get_summary_field_priority()` from domain strategy
+### ✅ Phase 2: COMPLETED (Sep 21, 2025)
 
-### ⏳ Phase 3-5: PENDING
-- Phase 3: Enhance domain configuration schema (semantic types, priorities)
+**Goal:** Make ResponseFormatter configuration-driven by removing hardcoded summary field selection.
+
+**Files Modified:**
+- `server/retrievers/implementations/intent/domain/response/formatters.py` - Refactored `_get_summary_fields()`
+- `server/retrievers/implementations/intent/domain/response/generator.py` - Added domain strategy support
+- `server/retrievers/base/intent_sql_base.py` - Wired domain strategy to response generator
+- `server/tests/intent/test_domain_extraction_refactor.py` - Added comprehensive tests
+
+**Key Achievements:**
+1. **ResponseFormatter Refactoring:**
+   - Added optional `domain_strategy` parameter to constructor
+   - Replaced hardcoded keyword matching with strategy-driven prioritization
+   - Added support for configuration-based field priorities
+   - Implemented semantic type-based prioritization
+   - Added generic fallback for domains without strategies
+
+2. **Domain Strategy Integration:**
+   - ResponseFormatter now uses `get_summary_field_priority()` from domain strategy
+   - Maintains backward compatibility with existing code
+   - Ensures all fields are included (even with low priority)
+
+3. **Comprehensive Testing:**
+   - Added 3 new test cases covering all scenarios
+   - Verified strategy-driven prioritization works correctly
+   - Verified generic fallback works without strategy
+   - Verified correct priority hierarchy ordering
+   - All existing tests continue to pass (9/9)
+
+4. **Bug Fix:**
+   - Fixed AttributeError when domain_config is a dictionary
+   - Added proper type checking and conversion to DomainConfig object
+
+**Result:** ResponseFormatter is now fully domain-agnostic and configuration-driven while maintaining complete backward compatibility.
+
+### 🔄 Phase 3: NEXT STEPS
+- **Primary Goal:** Enhance domain configuration schema with semantic types and priorities
+- **Target:** Add semantic metadata to domain YAML configuration
+- **Files to modify:**
+  - `server/retrievers/implementations/intent/domain/config.py` - Add semantic metadata support
+  - Domain YAML files - Add semantic types and priorities
+  - `config/sql_intent_templates/examples/customer-orders/customer_order_domain.yaml` - Example implementation
+
+### ⏳ Phase 4-5: PENDING
 - Phase 4: Implement GenericDomainStrategy for new domains
 - Phase 5: Integration and comprehensive testing
 
@@ -866,24 +902,30 @@ This configuration alone would enable the system to handle healthcare queries wi
 
 ## Quick Resume Guide
 
-### To Continue Phase 2:
+### Phase 2: ✅ COMPLETED (Dec 21, 2024)
+- ResponseFormatter is now configuration-driven
+- Domain strategy integration complete
+- All tests passing (9/9)
+- Backward compatibility maintained
 
-1. **Objective:** Make ResponseFormatter use domain strategy for summary field selection
-2. **Start with:** `server/retrievers/implementations/intent/domain/response/formatters.py:235-264`
-3. **Target method:** `_get_summary_fields()` - replace hardcoded keyword matching
+### To Continue Phase 3:
+
+1. **Objective:** Enhance domain configuration schema with semantic types and priorities
+2. **Start with:** `server/retrievers/implementations/intent/domain/config.py`
+3. **Target:** Add semantic metadata support to DomainConfig and FieldConfig classes
 4. **Implementation:**
-   - Add optional `domain_strategy` parameter to `ResponseFormatter.__init__()`
-   - Update `_get_summary_fields()` to call `domain_strategy.get_summary_field_priority()`
-   - Provide generic fallback when no strategy available
-5. **Wire in:** Update callers to pass domain strategy to ResponseFormatter
-6. **Test:** Verify customer order summaries still work correctly
+   - Add `semantic_type` and `summary_priority` fields to FieldConfig
+   - Add `domain_type` and `semantic_types` to DomainConfig
+   - Update domain YAML files with semantic metadata
+5. **Example:** Update `config/sql_intent_templates/examples/customer-orders/customer_order_domain.yaml`
+6. **Test:** Verify semantic types work with existing ResponseFormatter
 
-### Key Files for Phase 2:
-- `server/retrievers/implementations/intent/domain/response/formatters.py` (main target)
-- `server/retrievers/implementations/intent/domain/response/generator.py` (likely needs wiring)
-- `server/tests/intent/test_domain_extraction_refactor.py` (add ResponseFormatter tests)
+### Key Files for Phase 3:
+- `server/retrievers/implementations/intent/domain/config.py` (main target)
+- `config/sql_intent_templates/examples/customer-orders/customer_order_domain.yaml` (example)
+- `server/tests/intent/test_domain_extraction_refactor.py` (add semantic type tests)
 
 ### Validation:
-- All existing tests pass
-- Customer order summary formatting unchanged
-- New test verifies strategy-driven field prioritization
+- Domain configuration supports semantic metadata
+- Customer order domain uses semantic types
+- ResponseFormatter leverages semantic types for prioritization

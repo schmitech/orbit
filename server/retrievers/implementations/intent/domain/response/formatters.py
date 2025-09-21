@@ -13,9 +13,10 @@ logger = logging.getLogger(__name__)
 class ResponseFormatter:
     """Handles deterministic formatting of result data"""
 
-    def __init__(self, domain_config: DomainConfig):
-        """Initialize formatter with domain configuration"""
+    def __init__(self, domain_config: DomainConfig, domain_strategy: Optional[Any] = None):
+        """Initialize formatter with domain configuration and optional domain strategy"""
         self.domain_config = domain_config
+        self.domain_strategy = domain_strategy
 
     def format_results(self, results: List[Dict], template: Dict) -> List[Dict]:
         """Format results according to domain field configurations"""
@@ -234,31 +235,60 @@ class ResponseFormatter:
 
     def _get_summary_fields(self, sample_result: Dict) -> List[str]:
         """Determine which fields are most important for summary"""
-        summary_fields = []
+        field_priorities = []
 
-        # Priority order for common field types
-        priority_patterns = [
-            ('id', ['id', 'number', 'code']),
-            ('name', ['name', 'title', 'description']),
-            ('amount', ['amount', 'total', 'price', 'cost']),
-            ('date', ['date', 'created', 'updated']),
-            ('status', ['status', 'state', 'condition'])
-        ]
+        for field_name in sample_result.keys():
+            priority = 0
 
-        for category, patterns in priority_patterns:
-            for field in sample_result.keys():
-                field_lower = field.lower()
-                if any(pattern in field_lower for pattern in patterns):
-                    if field not in summary_fields:
-                        summary_fields.append(field)
-                        break
+            # Check domain configuration for priority
+            field_config = self._find_field_config(field_name)
+            if field_config:
+                # Use configured priority if available
+                if hasattr(field_config, 'summary_priority') and field_config.summary_priority is not None:
+                    priority = field_config.summary_priority
+                # Or use semantic type priority
+                elif hasattr(field_config, 'semantic_type') and self.domain_strategy:
+                    semantic_priorities = {
+                        'identifier': 100,
+                        'person_name': 90,
+                        'monetary_amount': 85,
+                        'status': 80,
+                        'timestamp': 75,
+                        'location': 70,
+                        'contact_info': 65,
+                    }
+                    priority = semantic_priorities.get(field_config.semantic_type, 0)
 
-        # If we don't have enough fields, add more
-        if len(summary_fields) < 3:
-            for field in sample_result.keys():
-                if field not in summary_fields:
-                    summary_fields.append(field)
-                if len(summary_fields) >= 5:
-                    break
+            # Ask domain strategy for priority
+            if self.domain_strategy and priority == 0:
+                priority = self.domain_strategy.get_summary_field_priority(field_name, field_config)
 
-        return summary_fields[:5]  # Limit to 5 fields
+            # Generic fallback based on field patterns
+            if priority == 0:
+                priority = self._get_generic_field_priority(field_name)
+                # If still no priority, give it a very low priority to ensure it's included
+                if priority == 0:
+                    priority = 1
+
+            field_priorities.append((field_name, priority))
+
+        # Sort by priority and return top fields
+        field_priorities.sort(key=lambda x: x[1], reverse=True)
+        return [field for field, _ in field_priorities[:5]]
+
+    def _get_generic_field_priority(self, field_name: str) -> int:
+        """Generic priority based on common patterns"""
+        field_lower = field_name.lower()
+
+        if 'id' in field_lower:
+            return 50
+        if 'name' in field_lower or 'title' in field_lower:
+            return 45
+        if 'status' in field_lower or 'state' in field_lower:
+            return 40
+        if 'date' in field_lower or 'time' in field_lower:
+            return 35
+        if 'amount' in field_lower or 'total' in field_lower or 'price' in field_lower:
+            return 30
+
+        return 0
