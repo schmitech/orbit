@@ -183,6 +183,10 @@ class CustomerOrderStrategy(DomainStrategy):
         if 'days' in param_name.lower():
             return self._extract_days(query)
 
+        # Customer ID extraction
+        if 'customer' in param_name.lower() and 'id' in param_name.lower():
+            return self._extract_customer_id(query, param_type)
+
         return None
 
     def _extract_order_id(self, query: str, param_type: str) -> Optional[Any]:
@@ -201,6 +205,27 @@ class CustomerOrderStrategy(DomainStrategy):
                     return int(match.group(1))
                 except ValueError:
                     continue
+        return None
+
+    def _extract_customer_id(self, query: str, param_type: str) -> Optional[Any]:
+        """Extract a customer identifier from the query"""
+        customer_patterns = [
+            r'customer\s+(?:number\s+|#\s*|id\s+)?(\d+)',
+            r'customer\s*(\d{3,})',
+            r'customer_id\s*(\d+)',
+        ]
+
+        for pattern in customer_patterns:
+            match = re.search(pattern, query, re.IGNORECASE)
+            if match:
+                value = match.group(1)
+                if param_type in {'integer', 'int'}:
+                    try:
+                        return int(value)
+                    except ValueError:
+                        continue
+                return value
+
         return None
 
     def _extract_order_ids(self, query: str) -> Optional[str]:

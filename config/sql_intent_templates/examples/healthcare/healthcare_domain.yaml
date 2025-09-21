@@ -1,0 +1,87 @@
+domain_name: Healthcare
+description: Patient health record management system
+domain_type: generic
+
+semantic_types:
+  patient_identifier:
+    description: "Unique patient identifier"
+    patterns: ["patient", "pid", "mrn"]
+    regex_patterns:
+      - 'MRN\s*[:#-]?\s*([A-Z]?\d{6,8})'
+  diagnosis_code:
+    description: "ICD or diagnosis codes"
+    patterns: ["diagnosis", "icd", "condition"]
+    regex_patterns:
+      - 'ICD(?:-\d{1,2})?[:\s]*([A-Z]\d{2}\.?\d*)'
+  medication_name:
+    description: "Medication reference"
+    patterns: ["medication", "drug", "prescription"]
+  person_name:
+    description: "Patient full name"
+    patterns: ["name", "patient"]
+    regex_patterns:
+      - '"([^"]+)"'
+  encounter_date:
+    description: "Date of patient encounter"
+    patterns: ["visit", "encounter", "date", "seen"]
+    regex_patterns:
+      - "\\b\\d{4}-\\d{2}-\\d{2}\\b"
+
+entities:
+  patient:
+    name: patient
+    entity_type: primary
+    table_name: patients
+    description: Patient demographic information
+    searchable_fields:
+      - patient_id
+      - full_name
+      - email
+    common_filters:
+      - primary_physician
+      - encounter_date
+
+fields:
+  patient:
+    patient_id:
+      name: patient_id
+      data_type: string
+      semantic_type: patient_identifier
+      summary_priority: 100
+      searchable: true
+      filterable: true
+      extraction_pattern: 'MRN\s*[:#-]?\s*([A-Z]?\d{6,8})'
+    full_name:
+      name: full_name
+      data_type: string
+      semantic_type: person_name
+      summary_priority: 95
+      searchable: true
+      extraction_hints:
+        look_for_quotes: true
+        capitalization_required: true
+    diagnosis_code:
+      name: diagnosis_code
+      data_type: string
+      semantic_type: diagnosis_code
+      summary_priority: 90
+      extraction_hints:
+        regex_patterns:
+          - 'ICD(?:-\d{1,2})?[:\s]*([A-Z]\d{2}\.?\d*)'
+    medication:
+      name: medication
+      data_type: string
+      semantic_type: medication_name
+      summary_priority: 70
+      extraction_hints:
+        patterns: ["medication", "drug", "prescribed"]
+        look_for_quotes: true
+    encounter_date:
+      name: encounter_date
+      data_type: date
+      semantic_type: encounter_date
+      summary_priority: 80
+      filterable: true
+      extraction_hints:
+        formats: ["YYYY-MM-DD", "MM/DD/YYYY", "Month DD, YYYY"]
+        relative_terms: ["today", "yesterday", "last visit"]

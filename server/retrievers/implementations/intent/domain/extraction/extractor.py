@@ -35,7 +35,8 @@ class DomainParameterExtractor:
 
         # Get domain strategy from registry
         self.domain_strategy = DomainStrategyRegistry.get_strategy(
-            self.domain_config.domain_name
+            self.domain_config.domain_name,
+            self.domain_config,
         )
 
         # Initialize components
@@ -115,6 +116,12 @@ class DomainParameterExtractor:
                     else:
                         logger.warning(f"Validation failed for {param_name}: {error_msg}")
                 else:
+                    coerced = self._coerce_parameter_value(value, param_type, param_name)
+                    if coerced is None and value is not None:
+                        # Coercion failed for a non-null value, skip storing
+                        continue
+                    value = coerced
+
                     # Ensure string type for certain parameters that need it
                     if param_type == 'string' and not isinstance(value, str):
                         value = str(value)
@@ -144,6 +151,19 @@ class DomainParameterExtractor:
                         user_query, param, template_desc
                     )
                     if value is not None:
+                        param_type = param.get('type') or param.get('data_type', 'string')
+                        coerced = self._coerce_parameter_value(value, param_type, param['name'])
+                        if coerced is None and value is not None:
+                            logger.debug(
+                                "Skipping LLM value for %s: unable to coerce %r to %s",
+                                param['name'],
+                                value,
+                                param_type,
+                            )
+                            continue
+                        value = coerced
+                        if param_type == 'string' and not isinstance(value, str):
+                            value = str(value)
                         parameters[param['name']] = value
 
         # Apply defaults for missing optional parameters
@@ -180,3 +200,25 @@ class DomainParameterExtractor:
             Dictionary of validation errors (empty if all valid)
         """
         return self.validator.validate_all(parameters)
+
+    def _coerce_parameter_value(self, value: Any, param_type: str, param_name: str) -> Optional[Any]:
+        """Attempt to coerce values for standalone parameters."""
+        if value is None:
+            return None
+
+        param_type = (param_type or 'string').lower()
+        try:
+            if param_type in {'integer', 'int'}:
+                return int(str(value).strip())
+            if param_type in {'decimal', 'float', 'number'}:
+                return float(str(value).strip())
+        except (ValueError, TypeError):
+            logger.debug(
+                "Parameter %s expected %s but received %r",
+                param_name,
+                param_type,
+                value,
+            )
+            return None
+
+        return value

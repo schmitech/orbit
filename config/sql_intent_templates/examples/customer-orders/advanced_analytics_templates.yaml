@@ -20,9 +20,9 @@ templates:
       WITH customer_order_timeline AS (
         SELECT 
           customer_id,
-          MIN(order_date) as first_order,
-          MAX(order_date) as last_order,
-          COUNT(*) as total_orders
+          MIN(order_date)::date AS first_order_date,
+          MAX(order_date)::date AS last_order_date,
+          COUNT(*) AS total_orders
         FROM orders 
         WHERE order_date >= CURRENT_DATE - INTERVAL '%(days_back)s days'
           AND status != 'cancelled'
@@ -36,10 +36,10 @@ templates:
             WHEN total_orders BETWEEN 3 AND 5 THEN 'Regular customers (3-5 orders)'
             WHEN total_orders BETWEEN 6 AND 10 THEN 'Loyal customers (6-10 orders)'
             ELSE 'VIP customers (10+ orders)'
-          END as customer_type,
-          COUNT(*) as customer_count,
-          AVG(total_orders) as avg_orders_per_customer,
-          AVG(last_order - first_order) as avg_customer_lifespan_days
+          END AS customer_type,
+          COUNT(*) AS customer_count,
+          AVG(total_orders)::numeric AS avg_orders_per_customer,
+          AVG((last_order_date - first_order_date))::numeric AS avg_customer_lifespan_days
         FROM customer_order_timeline
         GROUP BY 
           CASE 
@@ -53,9 +53,9 @@ templates:
       SELECT 
         customer_type,
         customer_count,
-        ROUND(customer_count * 100.0 / SUM(customer_count) OVER(), 2) as percentage,
-        ROUND(avg_orders_per_customer, 1) as avg_orders,
-        ROUND(avg_customer_lifespan_days, 0) as avg_lifespan_days
+        ROUND(customer_count * 100.0 / SUM(customer_count) OVER(), 2) AS percentage,
+        ROUND(avg_orders_per_customer, 1) AS avg_orders,
+        ROUND(avg_customer_lifespan_days, 1) AS avg_lifespan_days
       FROM retention_stats
       ORDER BY customer_count DESC
     result_format: "table"
@@ -97,8 +97,8 @@ templates:
           c.country,
           COUNT(o.id) as total_orders,
           SUM(o.total) as total_spent,
-          MAX(o.order_date) as last_order_date,
-          CURRENT_DATE - MAX(o.order_date) as days_since_last_order,
+          MAX(o.order_date)::date as last_order_date,
+          CURRENT_DATE - MAX(o.order_date)::date as days_since_last_order,
           AVG(o.total) as avg_order_value
         FROM customers c
         LEFT JOIN orders o ON c.id = o.customer_id AND o.status != 'cancelled'
@@ -156,12 +156,12 @@ templates:
           AVG(total) as avg_order_value,
           MIN(total) as min_order_value,
           MAX(total) as max_order_value,
-          MIN(order_date) as first_order,
-          MAX(order_date) as last_order,
-          MAX(order_date) - MIN(order_date) as customer_lifespan,
+          MIN(order_date)::date as first_order_date,
+          MAX(order_date)::date as last_order_date,
+          (MAX(order_date)::date - MIN(order_date)::date) as customer_lifespan_days,
           CASE 
             WHEN COUNT(*) = 1 THEN 0
-            ELSE (MAX(order_date) - MIN(order_date)) / (COUNT(*) - 1)
+            ELSE (MAX(order_date)::date - MIN(order_date)::date)::numeric / (COUNT(*) - 1)
           END as avg_days_between_orders,
           STDDEV(total) as order_value_stddev,
           PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY total) as median_order_value
@@ -181,16 +181,16 @@ templates:
             ELSE 'Infrequent buyers (>90 days)'
           END as purchase_pattern,
           COUNT(*) as customer_count,
-          ROUND(AVG(avg_days_between_orders), 1) as avg_days_between_orders,
-          ROUND(AVG(avg_order_value), 2) as avg_order_value,
-          ROUND(AVG(order_count), 1) as avg_orders_per_customer,
-          ROUND(MIN(avg_order_value), 2) as min_avg_order_value,
-          ROUND(MAX(avg_order_value), 2) as max_avg_order_value,
-          ROUND(AVG(median_order_value), 2) as median_order_value,
-          ROUND(AVG(order_value_stddev), 2) as avg_order_value_stddev,
-          ROUND(AVG(customer_lifespan), 1) as avg_customer_lifespan_days,
-          ROUND(MIN(customer_lifespan), 1) as min_customer_lifespan_days,
-          ROUND(MAX(customer_lifespan), 1) as max_customer_lifespan_days
+          ROUND(AVG(avg_days_between_orders)::numeric, 1) as avg_days_between_orders,
+          ROUND(AVG(avg_order_value)::numeric, 2) as avg_order_value,
+          ROUND(AVG(order_count)::numeric, 1) as avg_orders_per_customer,
+          ROUND(MIN(avg_order_value)::numeric, 2) as min_avg_order_value,
+          ROUND(MAX(avg_order_value)::numeric, 2) as max_avg_order_value,
+          ROUND(AVG(median_order_value)::numeric, 2) as median_order_value,
+          ROUND(AVG(order_value_stddev)::numeric, 2) as avg_order_value_stddev,
+          ROUND(AVG(customer_lifespan_days)::numeric, 1) as avg_customer_lifespan_days,
+          ROUND(MIN(customer_lifespan_days)::numeric, 1) as min_customer_lifespan_days,
+          ROUND(MAX(customer_lifespan_days)::numeric, 1) as max_customer_lifespan_days
         FROM customer_patterns
         GROUP BY 
           CASE 

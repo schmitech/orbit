@@ -7,7 +7,15 @@ from .milvus_retriever import MilvusRetriever
 from .pinecone_retriever import PineconeRetriever
 from .elasticsearch_retriever import ElasticsearchRetriever
 from .redis_retriever import RedisRetriever
-from .qdrant_retriever import QdrantRetriever
+try:  # Optional dependency
+    from .qdrant_retriever import QdrantRetriever
+except ModuleNotFoundError:  # pragma: no cover - optional import guard
+    QdrantRetriever = None
+
+    import logging
+
+    logger = logging.getLogger(__name__)
+    logger.debug("qdrant_client not installed; QdrantRetriever unavailable")
 
 __all__ = [
     'ChromaRetriever',
@@ -15,5 +23,7 @@ __all__ = [
     'PineconeRetriever',
     'ElasticsearchRetriever',
     'RedisRetriever',
-    'QdrantRetriever'
-] 
+]
+
+if QdrantRetriever is not None:
+    __all__.append('QdrantRetriever')

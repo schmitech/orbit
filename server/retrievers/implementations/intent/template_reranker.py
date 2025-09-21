@@ -3,7 +3,9 @@ Template reranking system for Intent retriever using domain-specific rules
 """
 
 import logging
-from typing import Dict, List, Any, Optional
+from typing import Any, Dict, List
+
+from .domain import DomainConfig
 from .domain_strategies.registry import DomainStrategyRegistry
 
 logger = logging.getLogger(__name__)
@@ -13,19 +15,22 @@ class TemplateReranker:
     """Rerank templates using domain-specific rules and vocabulary"""
     
     def __init__(self, domain_config: Any):
-        self.domain_config = domain_config
-        # Handle both DomainConfig objects and dictionaries
-        if hasattr(domain_config, 'domain_name'):
-            self.domain_name = domain_config.domain_name.lower()
+        if isinstance(domain_config, DomainConfig):
+            self.domain_config = domain_config
         else:
-            self.domain_name = domain_config.get('domain_name', '').lower()
-        
-        # Get domain-specific strategy if available
-        self.domain_strategy = None
-        if self.domain_name:
-            self.domain_strategy = DomainStrategyRegistry.get_strategy(self.domain_name)
-            if not self.domain_strategy:
-                logger.info(f"No specific strategy for domain '{self.domain_name}', using generic reranking only")
+            self.domain_config = DomainConfig(domain_config or {})
+
+        self.domain_name = self.domain_config.domain_name.lower()
+
+        self.domain_strategy = DomainStrategyRegistry.get_strategy(
+            self.domain_config.domain_name,
+            self.domain_config,
+        )
+        if not self.domain_strategy and self.domain_name:
+            logger.info(
+                "No specific strategy for domain '%s', using generic reranking only",
+                self.domain_name,
+            )
     
     def rerank_templates(self, templates: List[Dict], user_query: str) -> List[Dict]:
         """Rerank templates using domain-specific rules and generic rules"""

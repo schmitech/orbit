@@ -661,6 +661,7 @@ def insert_orders(conn, customer_ids, count=500, use_api=True, batch_size=100, c
     cursor = conn.cursor()
     
     print(f"Inserting {count} orders with international shipping addresses...")
+    print(f"  Data will be spread across the last 24 months for better historical analytics")
     print(f"  Using batch size: {batch_size}")
     print(f"  Committing every: {commit_every} orders")
     
@@ -696,8 +697,8 @@ def insert_orders(conn, customer_ids, count=500, use_api=True, batch_size=100, c
     used_order_ids = set()  # Track used order IDs to ensure uniqueness
     
     for i in range(count):
-        # Random date within the last week (7 days) to today for more recent diversity
-        days_ago = random.randint(0, 7)
+        # Random date within the last 24 months for better historical analytics data
+        days_ago = random.randint(0, 730)  # Random days within last 24 months (730 days)
         order_date = datetime.now() - timedelta(days=days_ago)
         
         # Random total between $10 and $1000
@@ -779,10 +780,10 @@ def query_recent_activity(conn, customer_id):
     cursor = conn.cursor(cursor_factory=RealDictCursor)
     
     query = """
-        SELECT c.name, o.order_date, o.total
+        SELECT c.name, o.order_date, o.total, o.created_at
         FROM customers c
         INNER JOIN orders o ON c.id = o.customer_id
-        WHERE o.created_at >= NOW() - INTERVAL '7 days'
+        WHERE o.created_at >= NOW() - INTERVAL '24 months'
         AND c.id = %s
         ORDER BY o.created_at DESC
         LIMIT 20

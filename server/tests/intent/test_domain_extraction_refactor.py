@@ -6,6 +6,11 @@ after the refactoring to use DomainStrategy pattern.
 
 import pytest
 import asyncio
+import os
+import sys
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+
 from retrievers.implementations.intent.domain.extraction.extractor import DomainParameterExtractor
 
 # Mock inference client for testing
@@ -262,10 +267,15 @@ class TestDomainExtractionRefactor:
             }
         })
 
-        # Get generic strategy (will be None for unknown domain)
-        strategy = DomainStrategyRegistry.get_strategy("Generic")
-        
-        # Test with generic strategy (None)
+        strategy = DomainStrategyRegistry.get_strategy(
+            domain_config.domain_name,
+            domain_config,
+        )
+
+        # Ensure generic fallback is provided
+        assert strategy is not None
+        assert strategy.__class__.__name__ == "GenericDomainStrategy"
+
         formatter = ResponseFormatter(domain_config, strategy)
         
         # Sample result data

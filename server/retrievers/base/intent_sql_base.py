@@ -104,7 +104,10 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
             if isinstance(domain_config, dict):
                 domain_config = DomainConfig(domain_config)
                 
-            domain_strategy = DomainStrategyRegistry.get_strategy(domain_config.domain_name)
+            domain_strategy = DomainStrategyRegistry.get_strategy(
+                domain_config.domain_name,
+                domain_config,
+            )
             
             self.response_generator = DomainResponseGenerator(domain_config, domain_strategy)
             self.template_reranker = TemplateReranker(domain_config)

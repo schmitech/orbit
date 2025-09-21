@@ -37,6 +37,16 @@ class ValueExtractor:
             if range_value:
                 return range_value
 
+        if self.domain_strategy and entity_name and field_name:
+            param_context = self._build_field_param_context(entity_name, field_name, data_type)
+            value = self.domain_strategy.extract_domain_parameters(
+                user_query,
+                param_context,
+                self.domain_config
+            )
+            if value is not None:
+                return value
+
         # Try context-based extraction
         return self._extract_from_context(user_query, entity_name, field_name, data_type)
 
@@ -48,6 +58,24 @@ class ValueExtractor:
             value_str = match.groups()[-1] if match.groups() else match.group(0)
             return self._parse_value(value_str, data_type)
         return None
+
+    def _build_field_param_context(self, entity_name: str, field_name: str, data_type: str) -> Dict[str, Any]:
+        """Build a template-like parameter definition for an entity field"""
+        param_context = {
+            'name': field_name,
+            'entity': entity_name,
+            'field': field_name,
+            'type': data_type,
+            'data_type': data_type,
+        }
+
+        field_config = self.domain_config.get_field(entity_name, field_name)
+        if field_config:
+            if field_config.semantic_type and 'semantic_type' not in param_context:
+                param_context['semantic_type'] = field_config.semantic_type
+            if field_config.extraction_hints and 'extraction_hints' not in param_context:
+                param_context['extraction_hints'] = field_config.extraction_hints
+        return param_context
 
     def _extract_range(self, user_query: str, entity_name: str, field_name: str,
                        data_type: str) -> Optional[Dict[str, Any]]:

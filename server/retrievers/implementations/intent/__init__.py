@@ -1,28 +1,38 @@
-"""
-Intent retriever implementation for SQL datasources
-"""
+"""Intent retriever implementation for SQL datasources."""
 
-from .intent_postgresql_retriever import IntentPostgreSQLRetriever
+import logging
+
 from .domain.extraction import DomainParameterExtractor
 from .domain.response import DomainResponseGenerator
 from .template_reranker import TemplateReranker
 from .domain import DomainConfig
 
+logger = logging.getLogger(__name__)
+
+try:  # Optional dependency on psycopg2
+    from .intent_postgresql_retriever import IntentPostgreSQLRetriever
+except ModuleNotFoundError:  # pragma: no cover - optional import guard
+    IntentPostgreSQLRetriever = None
+    logger.debug("psycopg2 not installed; IntentPostgreSQLRetriever unavailable")
+
 # Conditionally import MySQL retriever only if mysql.connector is available
 try:
     from .intent_mysql_retriever import IntentMySQLRetriever
     _mysql_available = True
-except ImportError:
+except ImportError:  # pragma: no cover - optional import guard
+    IntentMySQLRetriever = None
     _mysql_available = False
+    logger.debug("MySQL client libraries not installed; IntentMySQLRetriever unavailable")
 
 __all__ = [
-    'IntentPostgreSQLRetriever',
     'DomainParameterExtractor',
     'DomainResponseGenerator',
     'TemplateReranker',
     'DomainConfig'
 ]
 
-# Add MySQL retriever to __all__ only if available
-if _mysql_available:
+if IntentPostgreSQLRetriever is not None:
+    __all__.append('IntentPostgreSQLRetriever')
+
+if _mysql_available and IntentMySQLRetriever is not None:
     __all__.append('IntentMySQLRetriever')
