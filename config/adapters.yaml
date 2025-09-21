@@ -6,7 +6,7 @@ adapters:
   # It is used as an example of how to create a QA adapter for a SQL database.
   # Run /examples/sample-db-setup.sh sqlite to create a sample database and api key before using this adapter.
   - name: "qa-sql"
-    enabled: false
+    enabled: true
     type: "retriever"
     datasource: "sqlite"
     adapter: "qa"
@@ -61,6 +61,8 @@ adapters:
     datasource: "chroma"
     adapter: "qa"
     implementation: "retrievers.implementations.qa.QAChromaRetriever"
+    inference_provider: "ollama"
+    embedding_provider: "ollama"
     config:
       collection: "city"
       confidence_threshold: 0.3
@@ -76,6 +78,8 @@ adapters:
     datasource: "qdrant"
     adapter: "qa"
     implementation: "retrievers.implementations.qa.QAQdrantRetriever"
+    inference_provider: "ollama"
+    embedding_provider: "openai"
     config:
       collection: "city"
       confidence_threshold: 0.3
@@ -91,6 +95,8 @@ adapters:
     datasource: "qdrant"
     adapter: "qa"
     implementation: "retrievers.implementations.qa.QAQdrantRetriever"
+    inference_provider: "ollama"
+    embedding_provider: "openai"
     config:
       collection: "demo"
       confidence_threshold: 0.3
@@ -106,6 +112,8 @@ adapters:
     datasource: "postgres"
     adapter: "intent"
     implementation: "retrievers.implementations.intent.IntentPostgreSQLRetriever"
+    inference_provider: "openai"
+    embedding_provider: "openai"
     config:
       # Path to the domain definition file
       domain_config_path: "config/sql_intent_templates/examples/customer-orders/customer_order_domain.yaml"

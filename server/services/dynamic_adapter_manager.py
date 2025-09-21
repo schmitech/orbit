@@ -242,6 +242,16 @@ class DynamicAdapterManager:
                 if self.verbose:
                     logger.info(f"Setting inference provider override: {adapter_config['inference_provider']} for adapter: {adapter_name}")
             
+            # Include adapter-level embedding provider override if specified
+            if 'embedding_provider' in adapter_config:
+                # Ensure the 'embedding' key exists
+                if 'embedding' not in config_with_adapter:
+                    config_with_adapter['embedding'] = {}
+                
+                config_with_adapter['embedding']['provider'] = adapter_config['embedding_provider']
+                if self.verbose:
+                    logger.info(f"Setting embedding provider override: {adapter_config['embedding_provider']} for adapter: {adapter_name}")
+
             # Create retriever instance
             retriever = retriever_class(
                 config=config_with_adapter,
