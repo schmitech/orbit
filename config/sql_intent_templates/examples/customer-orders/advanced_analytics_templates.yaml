@@ -66,7 +66,7 @@ templates:
       qualifiers: ["retention", "repeat_behavior"]
     approved: true
 
-  - id: customer_churn_risk_analysis
+  - id: customer_churn_risk_analysis # FIXME
     version: "1.0.0"
     description: "Identify customers at risk of churning based on order patterns"
     nl_examples:
@@ -132,7 +132,7 @@ templates:
       qualifiers: ["churn_risk", "at_risk"]
     approved: true
 
-  - id: purchase_pattern_analysis
+  - id: purchase_pattern_analysis # FIXME
     version: "1.0.0"
     description: "Analyze customer purchase patterns and buying habits"
     nl_examples:
@@ -225,7 +225,7 @@ templates:
       qualifiers: ["purchase_patterns", "buying_habits"]
     approved: true
 
-  - id: order_value_distribution_analysis
+  - id: order_value_distribution_analysis # FIXME
     version: "1.0.0"
     description: "Analyze the distribution of order values and identify patterns"
     nl_examples:
@@ -336,7 +336,7 @@ templates:
       qualifiers: ["geographical", "regional"]
     approved: true
 
-  - id: customer_acquisition_analysis
+  - id: customer_acquisition_analysis # FIXME
     version: "1.0.0"
     description: "Analyze customer acquisition trends and new customer behavior"
     nl_examples:

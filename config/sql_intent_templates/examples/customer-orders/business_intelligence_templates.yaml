@@ -38,7 +38,7 @@ templates:
       qualifiers: ["monthly", "growth"]
     approved: true
 
-  - id: daily_sales_summary
+  - id: daily_sales_summary # FIXME
     version: "1.0.0"
     description: "Daily sales summary and performance metrics"
     nl_examples:
@@ -113,7 +113,7 @@ templates:
       qualifiers: ["daily", "performance"]
     approved: true
 
-  - id: customer_order_frequency_analysis
+  - id: customer_order_frequency_analysis # FIXME
     version: "1.0.0"
     description: "Analyze how frequently customers place orders"
     nl_examples:
@@ -197,7 +197,7 @@ templates:
       qualifiers: ["time_periods", "busiest"]
     approved: true
 
-  - id: revenue_by_customer_segment
+  - id: revenue_by_customer_segment # FIXME
     version: "1.0.0"
     description: "Analyze revenue contribution by customer segments"
     nl_examples:
@@ -350,7 +350,7 @@ templates:
       qualifiers: ["average", "trends"]
     approved: true
 
-  - id: customer_lifetime_value_distribution
+  - id: customer_lifetime_value_distribution # FIXME
     version: "1.0.0"
     description: "Show distribution of customer lifetime values"
     nl_examples:

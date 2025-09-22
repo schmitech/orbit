@@ -124,7 +124,7 @@ templates:
       qualifiers: ["period_comparison", "growth"]
     approved: true
 
-  - id: compare_customer_segments_performance
+  - id: compare_customer_segments_performance # FIXME
     version: "1.0.0"
     description: "Compare performance between different customer segments"
     nl_examples:
@@ -186,7 +186,7 @@ templates:
       qualifiers: ["segment_comparison", "performance"]
     approved: true
 
-  - id: geographic_performance_comparison
+  - id: geographic_performance_comparison # FIXME
     version: "1.0.0"
     description: "Compare sales performance between different geographic regions"
     nl_examples:
@@ -256,7 +256,7 @@ templates:
       qualifiers: ["geographic_comparison", "regional"]
     approved: true
 
-  - id: order_status_performance_comparison
+  - id: order_status_performance_comparison # FIXME
     version: "1.0.0"
     description: "Compare order fulfillment performance and success rates"
     nl_examples:
@@ -332,7 +332,7 @@ templates:
       qualifiers: ["status_comparison", "fulfillment"]
     approved: true
 
-  - id: customer_behavior_before_after_comparison
+  - id: customer_behavior_before_after_comparison # FIXME
     version: "1.0.0"
     description: "Compare customer behavior before and after a specific date"
     nl_examples:
@@ -453,7 +453,7 @@ templates:
       qualifiers: ["weekly", "trends"]
     approved: true
 
-  - id: high_vs_low_value_order_comparison
+  - id: high_vs_low_value_order_comparison # FIXME
     version: "1.0.0"
     description: "Compare characteristics of high value vs low value orders"
     nl_examples:

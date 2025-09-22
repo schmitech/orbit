@@ -613,7 +613,7 @@ templates:
       qualifiers: ["by_status", "by_time_period"]
     approved: true
 
-  - id: find_orders_by_exact_date
+  - id: find_orders_by_exact_date # FIXME
     version: "1.0.0"
     description: "Find orders placed on a specific exact date"
     nl_examples:
@@ -675,7 +675,7 @@ templates:
       qualifiers: ["by_exact_date"]
     approved: true
 
-  - id: find_orders_by_amount_and_date
+  - id: find_orders_by_amount_and_date # FIXME
     version: "1.0.0"
     description: "Find orders above/below a specific amount on an exact date"
     nl_examples:
@@ -1036,7 +1036,7 @@ templates:
       qualifiers: ["top_by_spending", "buyers"]
     approved: true
 
-  - id: find_customer_by_email
+  - id: find_customer_by_email # FIXME
     version: "1.0.0"
     description: "Find customer information by their email address"
     nl_examples:
@@ -1139,7 +1139,7 @@ templates:
       qualifiers: ["inactive", "dormant", "not_recent"]
     approved: true
 
-  - id: find_orders_by_shipping_country
+  - id: find_orders_by_shipping_country # FIXME
     version: "1.0.0"
     description: "Find orders by their shipping destination country"
     nl_examples:
@@ -1177,7 +1177,7 @@ templates:
       qualifiers: ["by_shipping_country", "international"]
     approved: true
 
-  - id: find_international_orders_by_amount
+  - id: find_international_orders_by_amount # FIXME
     version: "1.0.0"
     description: "Find international orders above a specific amount"
     nl_examples:
@@ -1217,7 +1217,7 @@ templates:
       qualifiers: ["international", "by_amount"]
     approved: true
 
-  - id: find_international_vs_domestic_orders
+  - id: find_international_vs_domestic_orders  # FIXME
     version: "1.0.0"
     description: "Find orders that are international (shipped outside home country)"
     nl_examples:
