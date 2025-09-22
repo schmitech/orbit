@@ -25,6 +25,31 @@ semantic_types:
   date_value:
     description: "Date values in various formats"
     patterns: ["date", "day", "time", "when", "on"]
+    regex_patterns:
+      - '\b\d{4}-\d{2}-\d{2}\b'  # YYYY-MM-DD
+      - '\b\d{2}/\d{2}/\d{4}\b'  # MM/DD/YYYY
+  city_name:
+    description: "City or location names"
+    patterns: ["city", "location", "from the", "in", "located in"]
+  payment_method:
+    description: "Payment method types"
+    patterns: ["payment", "pay", "paid", "method"]
+
+# Vocabulary for natural language understanding
+vocabulary:
+  entity_synonyms:
+    customer: ["client", "buyer", "purchaser", "user", "account holder"]
+    order: ["purchase", "transaction", "sale", "invoice", "receipt"]
+  action_verbs:
+    find: ["show", "list", "get", "find", "display", "retrieve", "lookup", "search"]
+    calculate: ["sum", "total", "calculate", "compute", "aggregate", "count"]
+    filter: ["filter", "only", "just", "where", "with", "having"]
+    sort: ["sort", "order", "arrange", "rank"]
+  field_synonyms:
+    name: ["customer name", "client name", "buyer name"]
+    total: ["amount", "sum", "grand total", "price"]
+    status: ["state", "condition", "stage"]
+
 entities:
   customer:
     name: customer
