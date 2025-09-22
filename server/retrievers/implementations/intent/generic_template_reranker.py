@@ -5,6 +5,7 @@ Generic template reranking system with pluggable domain strategies
 import logging
 from typing import Dict, List, Any, Optional
 from .reranking_strategies import RerankingStrategy, RerankingStrategyFactory
+from .template_processor import TemplateProcessor
 
 logger = logging.getLogger(__name__)
 
@@ -15,6 +16,7 @@ class GenericTemplateReranker:
     def __init__(self, domain_config: Optional[Dict[str, Any]] = None):
         self.domain_config = domain_config or {}
         self.domain_name = self.domain_config.get('domain_name', '').lower()
+        self.template_processor = TemplateProcessor(self.domain_config)
         
         # Create domain-specific strategy if available
         self.domain_strategy = None
@@ -31,7 +33,15 @@ class GenericTemplateReranker:
         query_lower = user_query.lower()
         
         for template_info in templates:
-            template = template_info['template']
+            if 'raw_template' not in template_info:
+                template_info['raw_template'] = template_info.get('template', {})
+
+            template = self.template_processor.render_template_structure(
+                template_info['raw_template'],
+                preserve_unknown=True,
+            )
+            template_info['template'] = template
+            template_info['resolved_template'] = template
             boost = 0.0
             
             # Apply domain-specific boosting if available

@@ -7,6 +7,7 @@ from typing import Any, Dict, List
 
 from .domain import DomainConfig
 from .domain_strategies.registry import DomainStrategyRegistry
+from .template_processor import TemplateProcessor
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +22,8 @@ class TemplateReranker:
             self.domain_config = DomainConfig(domain_config or {})
 
         self.domain_name = self.domain_config.domain_name.lower()
+
+        self.template_processor = TemplateProcessor(self.domain_config)
 
         self.domain_strategy = DomainStrategyRegistry.get_strategy(
             self.domain_config.domain_name,
@@ -37,7 +40,17 @@ class TemplateReranker:
         query_lower = user_query.lower()
         
         for template_info in templates:
-            template = template_info['template']
+            # Preserve the original template for downstream consumers
+            if 'raw_template' not in template_info:
+                template_info['raw_template'] = template_info.get('template', {})
+
+            template = self.template_processor.render_template_structure(
+                template_info['raw_template'],
+                preserve_unknown=True,
+            )
+            template_info['template'] = template
+            template_info['resolved_template'] = template
+
             boost = 0.0
             
             # Apply domain-specific boosting if available

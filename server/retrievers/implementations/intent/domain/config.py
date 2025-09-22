@@ -54,27 +54,55 @@ class FieldConfig:
 class EntityConfig:
     """Configuration for a domain entity"""
     name: str
+    entity_type: Optional[str] = None
+    table_name: Optional[str] = None
     display_name: Optional[str] = None
     description: Optional[str] = None
-    fields: Dict[str, FieldConfig] = field(default_factory=dict)
+    primary_key: Optional[str] = None
+    display_name_field: Optional[str] = None
     relationships: Dict[str, Dict] = field(default_factory=dict)
+    searchable_fields: List[str] = field(default_factory=list)
+    common_filters: List[str] = field(default_factory=list)
+    default_sort_field: Optional[str] = None
+    default_sort_order: Optional[str] = None
+    metadata: Dict[str, Any] = field(default_factory=dict)
+    fields: Dict[str, FieldConfig] = field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, entity_name: str, config: Dict[str, Any], fields_config: Dict[str, Any]) -> 'EntityConfig':
         """Create EntityConfig from dictionary"""
         entity = cls(
             name=entity_name,
+            entity_type=config.get('entity_type'),
+            table_name=config.get('table_name'),
             display_name=config.get('display_name', entity_name),
-            description=config.get('description')
+            description=config.get('description'),
+            primary_key=config.get('primary_key'),
+            display_name_field=config.get('display_name_field'),
+            relationships=config.get('relationships', {}),
+            searchable_fields=config.get('searchable_fields', []) or [],
+            common_filters=config.get('common_filters', []) or [],
+            default_sort_field=config.get('default_sort_field'),
+            default_sort_order=config.get('default_sort_order'),
+            metadata={k: v for k, v in config.items() if k not in {
+                'entity_type',
+                'table_name',
+                'display_name',
+                'description',
+                'primary_key',
+                'display_name_field',
+                'relationships',
+                'searchable_fields',
+                'common_filters',
+                'default_sort_field',
+                'default_sort_order',
+            }}
         )
 
         # Add fields
         entity_fields = fields_config.get(entity_name, {})
         for field_name, field_data in entity_fields.items():
             entity.fields[field_name] = FieldConfig.from_dict(field_name, field_data)
-
-        # Add relationships if present
-        entity.relationships = config.get('relationships', {})
 
         return entity
 
@@ -116,10 +144,12 @@ class DomainConfig:
         entities = self.config.get('entities', {})
         fields = self.config.get('fields', {})
 
+        self.entity_order: List[str] = []
         for entity_name, entity_data in entities.items():
             self.entities[entity_name] = EntityConfig.from_dict(
                 entity_name, entity_data, fields
             )
+            self.entity_order.append(entity_name)
 
     def get_entity(self, entity_name: str) -> Optional[EntityConfig]:
         """Get entity configuration by name"""
@@ -179,6 +209,31 @@ class DomainConfig:
     def get_business_rule(self, rule_name: str) -> Optional[Dict[str, Any]]:
         """Get business rule configuration"""
         return self.business_rules.get(rule_name)
+
+    def get_entities_by_type(self, entity_type: str) -> List[EntityConfig]:
+        """Return entities matching the requested entity_type"""
+        return [entity for entity in self.entities.values() if entity.entity_type == entity_type]
+
+    def get_primary_entity(self) -> Optional[EntityConfig]:
+        """Return the primary entity if configured"""
+        primaries = self.get_entities_by_type('primary')
+        if primaries:
+            return primaries[0]
+
+        # Fallback to first entity when no explicit primary is defined
+        if self.entity_order:
+            return self.entities.get(self.entity_order[0])
+        return None
+
+    def get_secondary_entities(self) -> List[EntityConfig]:
+        """Return non-primary entities"""
+        primary = self.get_primary_entity()
+        secondary = []
+        for entity in self.entities.values():
+            if primary and entity.name == primary.name:
+                continue
+            secondary.append(entity)
+        return secondary
 
     def find_entity_by_synonym(self, synonym: str) -> Optional[str]:
         """Find entity name by synonym"""

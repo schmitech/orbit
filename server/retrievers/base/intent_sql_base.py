@@ -13,6 +13,7 @@ from retrievers.adapters.intent.intent_adapter import IntentAdapter
 from retrievers.implementations.intent.domain.extraction import DomainParameterExtractor
 from retrievers.implementations.intent.domain.response import DomainResponseGenerator
 from retrievers.implementations.intent.template_reranker import TemplateReranker
+from retrievers.implementations.intent.template_processor import TemplateProcessor
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +71,7 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
         self.parameter_extractor = None
         self.response_generator = None
         self.template_reranker = None
+        self.template_processor: Optional[TemplateProcessor] = None
     
     async def initialize(self) -> None:
         """Initialize intent-specific features and database connection."""
@@ -111,6 +113,7 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
             
             self.response_generator = DomainResponseGenerator(domain_config, domain_strategy)
             self.template_reranker = TemplateReranker(domain_config)
+            self.template_processor = TemplateProcessor(domain_config)
             
             if self.verbose:
                 logger.info(f"{self.__class__.__name__} initialization complete")
@@ -705,10 +708,10 @@ JSON:"""
                     formatted_parameters[param_name] = f"%{cleaned_value}%"
             
             sql_query = self._process_sql_template(sql_template, formatted_parameters)
-            
+
             if self.verbose:
                 logger.info(f"Executing SQL: {sql_query}")
-            
+
             results = await self.execute_query(sql_query, formatted_parameters)
             
             return results, None
@@ -721,8 +724,18 @@ JSON:"""
     def _process_sql_template(self, sql_template: str, parameters: Dict[str, Any]) -> str:
         """Process SQL template with parameter substitution."""
         try:
+            if self.template_processor:
+                rendered = self.template_processor.render_sql(
+                    sql_template,
+                    parameters=parameters,
+                    preserve_unknown=False,
+                )
+                if '{{' in rendered or '{%' in rendered:
+                    logger.debug("Rendered SQL still contains unresolved delimiters: %s", rendered)
+                return rendered
+
             import re
-            
+
             def replace_if_block(match):
                 param_name = match.group(1).strip()
                 content = match.group(2)

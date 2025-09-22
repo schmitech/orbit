@@ -4,10 +4,20 @@ Demonstrates massive code reduction - from ~200 lines to ~50 lines.
 """
 
 import logging
-import psycopg2
-from psycopg2.extras import RealDictCursor
-from psycopg2 import pool
 from typing import Dict, Any, List, Optional
+
+try:
+    import psycopg2
+    from psycopg2.extras import RealDictCursor
+    from psycopg2 import pool
+    _OperationalError = psycopg2.OperationalError
+except ImportError:  # pragma: no cover - optional dependency for tests
+    psycopg2 = None
+    RealDictCursor = None
+    pool = None
+
+    class _OperationalError(Exception):
+        """Fallback when psycopg2 is unavailable."""
 
 from retrievers.base.intent_sql_base import IntentSQLRetriever
 from retrievers.base.base_retriever import RetrieverFactory
@@ -48,6 +58,9 @@ class IntentPostgreSQLRetriever(IntentSQLRetriever):
     async def create_connection(self) -> Any:
         """Create PostgreSQL connection or connection pool."""
         try:
+            if psycopg2 is None:
+                raise ImportError("psycopg2 not available. Install with: pip install psycopg2-binary")
+
             if self.use_connection_pool and not self.connection_pool:
                 # Create connection pool
                 self.connection_pool = psycopg2.pool.SimpleConnectionPool(
@@ -127,7 +140,7 @@ class IntentPostgreSQLRetriever(IntentSQLRetriever):
         try:
             # Check connection health before executing
             if not self._is_connection_alive():
-                raise psycopg2.OperationalError("connection already closed")
+                raise _OperationalError("connection already closed")
             
             cursor = self.connection.cursor()
             cursor.execute(query, params)
