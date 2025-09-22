@@ -6,34 +6,72 @@ domain_type: ecommerce
 semantic_types:
   order_identifier:
     description: "Unique identifier for an order"
-    patterns: ["order", "id", "number"]
+    patterns: ["order", "id", "number", "#"]
+    regex_patterns:
+      - 'order\s+(?:number\s+|#\s*|id\s+)?(\d+)'
+      - '#\s*(\d+)'
+      - '\b(\d{4,})\b'  # 4+ digit numbers as fallback
+  customer_identifier:
+    description: "Unique identifier for a customer"
+    patterns: ["customer", "client", "buyer", "user"]
+    regex_patterns:
+      - 'customer\s+(?:number\s+|#\s*|id\s+)?(\d+)'
+      - 'customer\s*(\d{3,})'
   monetary_amount:
     description: "Currency amounts"
-    patterns: ["amount", "total", "price", "cost"]
-  time_period:
-    description: "Time duration"
-    patterns: ["days", "weeks", "months"]
+    patterns: ["amount", "total", "price", "cost", "sum"]
+    regex_patterns:
+      - '\$\s*(\d+(?:,\d{3})*(?:\.\d{2})?)'  # $500, $1,000.50
+      - '(\d+(?:,\d{3})*(?:\.\d{2})?)\s*(?:dollars?|usd)'  # 500 dollars
+      - '(?:above|below|over|under|than|exceeds?|less than|greater than)\s+\$?\s*(\d+(?:,\d{3})*(?:\.\d{2})?)\b(?!\s*days?)'
+  time_period_days:
+    description: "Time duration in days"
+    patterns: ["days", "weeks", "months", "period", "time"]
+    regex_patterns:
+      - '(?:last|past|previous|within)\s+(\d+)\s+days?'
+      - '(\d+)\s+days?\s+(?:ago|back)'
+      - '(?:in|within)\s+(?:the\s+)?(?:last|past)\s+(\d+)\s+days?'
   person_name:
     description: "Customer or person name"
-    patterns: ["name", "customer", "client"]
-  contact_email:
+    patterns: ["name", "customer", "client", "buyer"]
+    regex_patterns:
+      - '"([^"]+)"'  # Quoted names
+      - "'([^']+)'"  # Single quoted names
+      - '\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b'  # Capitalized names
+      - '(?:mr|mrs|ms|dr|prof)\.?\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)'  # Names with titles
+  email_address:
     description: "Email address"
     patterns: ["email", "mail", "contact"]
-  order_status:
+    regex_patterns:
+      - '\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
+  phone_number:
+    description: "Phone number"
+    patterns: ["phone", "tel", "mobile", "cell"]
+    regex_patterns:
+      - '\b(\d{3}[-.\s]?\d{3}[-.\s]?\d{4})\b'  # 123-456-7890
+      - '\b\((\d{3})\)\s?(\d{3})[-.\s]?(\d{4})\b'  # (123) 456-7890
+  status_value:
     description: "Order status or state"
-    patterns: ["status", "state", "condition"]
+    patterns: ["status", "state", "condition", "stage"]
+    enum_values: ["pending", "processing", "shipped", "delivered", "cancelled", "refunded"]
   date_value:
     description: "Date values in various formats"
     patterns: ["date", "day", "time", "when", "on"]
     regex_patterns:
       - '\b\d{4}-\d{2}-\d{2}\b'  # YYYY-MM-DD
       - '\b\d{2}/\d{2}/\d{4}\b'  # MM/DD/YYYY
+      - '\b\d{2}-\d{2}-\d{4}\b'  # DD-MM-YYYY
+      - '\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2}(?:st|nd|rd|th)?,?\s+\d{4}\b'
   city_name:
     description: "City or location names"
-    patterns: ["city", "location", "from the", "in", "located in"]
+    patterns: ["city", "location", "area", "region"]
+    regex_patterns:
+      - '(?:in|from|at)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)(?:\s+city)?'
+      - 'city\s+of\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)'
   payment_method:
     description: "Payment method types"
     patterns: ["payment", "pay", "paid", "method"]
+    enum_values: ["credit_card", "debit_card", "paypal", "cash", "bank_transfer", "check"]
 
 # Vocabulary for natural language understanding
 vocabulary:
@@ -136,9 +174,8 @@ fields:
       aliases: []
       enum_values: null
       # NEW: Semantic metadata
-      semantic_type: contact_email
+      semantic_type: email_address
       summary_priority: 8
-      extraction_pattern: '\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
     phone:
       name: phone
       data_type: string
@@ -152,6 +189,8 @@ fields:
       validation_rules: []
       aliases: []
       enum_values: null
+      semantic_type: phone_number
+      summary_priority: 6
     city:
       name: city
       data_type: string
@@ -165,6 +204,8 @@ fields:
       validation_rules: []
       aliases: []
       enum_values: null
+      semantic_type: city_name
+      summary_priority: 5
     country:
       name: country
       data_type: string
@@ -230,6 +271,8 @@ fields:
       validation_rules: []
       aliases: []
       enum_values: null
+      semantic_type: customer_identifier
+      summary_priority: 8
     order_date:
       name: order_date
       data_type: datetime
@@ -288,7 +331,7 @@ fields:
       - delivered
       - cancelled
       # NEW: Semantic metadata
-      semantic_type: order_status
+      semantic_type: status_value
       summary_priority: 8
     payment_method:
       name: payment_method
@@ -308,6 +351,8 @@ fields:
       - paypal
       - bank_transfer
       - cash
+      semantic_type: payment_method
+      summary_priority: 7
     shipping_address:
       name: shipping_address
       data_type: string
@@ -334,6 +379,8 @@ fields:
       validation_rules: []
       aliases: []
       enum_values: null
+      semantic_type: city_name
+      summary_priority: 4
     shipping_country:
       name: shipping_country
       data_type: string
