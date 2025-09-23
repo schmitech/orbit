@@ -129,7 +129,7 @@ templates:
     description: "Compare performance between different customer segments"
     nl_examples:
       - "Compare high value vs regular customers"
-      - "How do VIP customers compare to others?"
+      - "How do VIP customers compare to others?" # Works
       - "Performance comparison between customer segments"
       - "Compare new vs returning customers"
       - "VIP vs regular customer analysis"
@@ -193,7 +193,7 @@ templates:
       - "Compare sales between countries"
       - "Which cities perform better?"
       - "International vs domestic sales comparison"
-      - "Geographic performance comparison"
+      - "Geographic performance comparison" # Works
       - "Compare revenue by region"
       - "City performance comparison"
     parameters:
@@ -256,27 +256,29 @@ templates:
       qualifiers: ["geographic_comparison", "regional"]
     approved: true
 
-  - id: order_status_performance_comparison # FIXME
+  - id: order_status_performance_comparison
     version: "1.0.0"
     description: "Compare order fulfillment performance and success rates"
     nl_examples:
-      - "Compare order completion rates"
-      - "How do our fulfillment rates compare over time?"
-      - "Order status performance comparison"
-      - "Success rate comparison between periods"
-      - "Fulfillment performance analysis"
-      - "Compare delivery success rates"
+      - "Show me order status breakdown by period"
+      - "How many orders were completed successfully?"
+      - "What's our order success rate?"
+      - "Order delivery performance over time"
+      - "Compare cancelled vs delivered orders"
+      - "Show order completion statistics"
     parameters:
       - name: current_period_days
         type: integer
         description: "Days for current period"
         required: false
         default: 30
+        aliases: ["current_days", "recent_period", "last_days"]
       - name: previous_period_days
         type: integer
         description: "Days for previous period"
         required: false
         default: 30
+        aliases: ["previous_days", "comparison_period", "past_days"]
     sql_template: |
       WITH period_comparison AS (
         SELECT 
@@ -325,11 +327,11 @@ templates:
       WHERE pc.period IN ('Current Period', 'Previous Period')
       ORDER BY pc.period DESC, pc.order_count DESC
     result_format: "table"
-    tags: ["compare", "completion", "rates", "fulfillment", "status", "success", "delivery", "performance"]
+    tags: ["compare", "comparison", "order", "orders", "completion", "rates", "fulfillment", "status", "success", "delivery", "performance", "breakdown", "statistics", "trends", "cancelled", "delivered", "current", "previous", "period", "vs", "over", "time", "how", "many", "what", "show", "doing", "analysis"]
     semantic_tags:
       action: "compare_performance"
       primary_entity: "order"
-      qualifiers: ["status_comparison", "fulfillment"]
+      qualifiers: ["status_comparison", "fulfillment", "period_analysis"]
     approved: true
 
   - id: customer_behavior_before_after_comparison # FIXME

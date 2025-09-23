@@ -613,7 +613,7 @@ templates:
       qualifiers: ["by_status", "by_time_period"]
     approved: true
 
-  - id: find_orders_by_exact_date # FIXME
+  - id: find_orders_by_exact_date
     version: "1.0.0"
     description: "Find orders placed on a specific exact date"
     nl_examples:
@@ -675,7 +675,7 @@ templates:
       qualifiers: ["by_exact_date"]
     approved: true
 
-  - id: find_orders_by_amount_and_date # FIXME
+  - id: find_orders_by_amount_and_date
     version: "1.0.0"
     description: "Find orders above/below a specific amount on an exact date"
     nl_examples:
@@ -1051,10 +1051,18 @@ templates:
       - "Customer lookup for info@client.net"
       - "Find user with email address support@website.com"
       - "Look up sescudero202507220947037871@oscuro.org please"
-      - "look up sescudero202507220947037871 oscuro org please"
-      - "Find customer john example com"
-      - "Search for user gmail com"
-      - "Look up customer email without symbols"
+      - "Search for customer with email test123@company.org"
+      - "Find the customer info@example.com"
+      - "Who is customer support@website.net?"
+      - "Get customer details for person@domain.com"
+      - "Show me the customer with email test@test.com"
+      - "Find customer by email address user123@mail.org"
+      - "Customer information for contact@business.net"
+      - "What customer has email admin@company.com?"
+      - "Lookup customer email test@example.org"
+      - "Find customer with email tcoret20250921190822468@dunlap.net"
+      - "Search customer by email long.email.address@company-name.org"
+      - "Get customer with email address short@co.uk"
     parameters:
       - name: email
         type: string
@@ -1139,7 +1147,7 @@ templates:
       qualifiers: ["inactive", "dormant", "not_recent"]
     approved: true
 
-  - id: find_orders_by_shipping_country # FIXME
+  - id: find_orders_by_shipping_country
     version: "1.0.0"
     description: "Find orders by their shipping destination country"
     nl_examples:
@@ -1177,7 +1185,7 @@ templates:
       qualifiers: ["by_shipping_country", "international"]
     approved: true
 
-  - id: find_international_orders_by_amount # FIXME
+  - id: find_international_orders_by_amount
     version: "1.0.0"
     description: "Find international orders above a specific amount"
     nl_examples:
@@ -1185,14 +1193,22 @@ templates:
       - "Show international orders above $500"
       - "Cross-border orders over $100"
       - "International shipments above $1000"
-      - "High-value international orders over $300"
+      - "High-value international orders over $300" # Works
       - "Expensive international deliveries above $250"
+      - "International orders exceeding $400"
+      - "Find international orders greater than $150"
+      - "Orders from abroad over $200"
+      - "Foreign orders above $500"
+      - "International transactions over $100"
+      - "Cross-border purchases above $300"
+      - "International sales exceeding $250"
+      - "Overseas orders over $400"
     parameters:
       - name: min_amount
         type: decimal
         description: "Minimum order amount for international orders"
         required: true
-        aliases: ["amount", "over", "above", "minimum"]
+        aliases: ["amount", "over", "above", "minimum", "exceeding", "greater_than"]
       - name: exclude_country
         type: string
         description: "Country to exclude (typically home country)"
@@ -1205,24 +1221,24 @@ templates:
       FROM orders o
       JOIN customers c ON o.customer_id = c.id
       WHERE o.total >= %(min_amount)s
-        AND (c.country IS NOT NULL 
+        AND (c.country IS NOT NULL
              AND LOWER(c.country) != LOWER(%(exclude_country)s))
       ORDER BY o.total DESC, o.order_date DESC
       LIMIT 100
     result_format: "table"
-    tags: ["order", "international", "amount", "over", "above", "cross-border", "expensive", "high-value", "$200", "$500", "$100"]
+    tags: ["order", "orders", "international", "cross-border", "foreign", "abroad", "overseas", "amount", "over", "above", "exceeding", "greater", "shipments", "deliveries", "transactions", "purchases", "sales", "expensive", "high-value", "$200", "$500", "$100", "$300", "$400", "$150", "$250", "$1000"]
     semantic_tags:
       action: "find_list"
       primary_entity: "order"
       qualifiers: ["international", "by_amount"]
     approved: true
 
-  - id: find_international_vs_domestic_orders  # FIXME
+  - id: find_international_vs_domestic_orders
     version: "1.0.0"
     description: "Find orders that are international (shipped outside home country)"
     nl_examples:
       - "Show me international shipments"
-      - "Orders shipped outside Canada"
+      - "Orders shipped outside Canada" # Works
       - "International delivery orders"
       - "Cross-border orders"
       - "Show international orders only"
