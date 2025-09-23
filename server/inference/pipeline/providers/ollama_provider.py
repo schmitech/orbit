@@ -39,9 +39,30 @@ class OllamaProvider(LLMProvider, OllamaBaseService):
         # Additional inference-specific settings
         self.top_p = ollama_config.get('top_p', 0.8)
         self.top_k = ollama_config.get('top_k', 20)
+        self.min_p = ollama_config.get('min_p', 0.0)
+        self.typical_p = ollama_config.get('typical_p', 0.7)
         self.repeat_penalty = ollama_config.get('repeat_penalty', 1.1)
+        self.repeat_last_n = ollama_config.get('repeat_last_n', 33)
+        self.presence_penalty = ollama_config.get('presence_penalty', 0.0)
+        self.frequency_penalty = ollama_config.get('frequency_penalty', 0.0)
         self.num_predict = ollama_config.get('num_predict', 1024)
         self.num_ctx = ollama_config.get('num_ctx', 8192)
+        self.num_keep = ollama_config.get('num_keep', 5)
+        self.penalize_newline = ollama_config.get('penalize_newline', False)
+        self.stop = ollama_config.get('stop', [])
+        self.num_batch = ollama_config.get('num_batch', 2)
+        self.num_gpu = ollama_config.get('num_gpu', 0)
+        self.main_gpu = ollama_config.get('main_gpu', 0)
+        self.low_vram = ollama_config.get('low_vram', False)
+        self.use_mmap = ollama_config.get('use_mmap', True)
+        self.use_mlock = ollama_config.get('use_mlock', False)
+        self.vocab_only = ollama_config.get('vocab_only', False)
+        self.numa = ollama_config.get('numa', False)
+        self.seed = ollama_config.get('seed')
+        # Mirostat sampling
+        self.mirostat = ollama_config.get('mirostat', 0)
+        self.mirostat_tau = ollama_config.get('mirostat_tau', 0.8)
+        self.mirostat_eta = ollama_config.get('mirostat_eta', 0.6)
         self.stream = ollama_config.get('stream', True)
     
     async def initialize(self, clock_service: Optional[Any] = None) -> None:
@@ -76,17 +97,47 @@ class OllamaProvider(LLMProvider, OllamaBaseService):
             
             if use_chat_api:
                 # Use chat endpoint for OpenAI-compatible models
+                options = {
+                    "temperature": self.config.temperature,
+                    "top_p": self.top_p,
+                    "top_k": self.top_k,
+                    "min_p": self.min_p,
+                    "typical_p": self.typical_p,
+                    "repeat_penalty": self.repeat_penalty,
+                    "repeat_last_n": self.repeat_last_n,
+                    "presence_penalty": self.presence_penalty,
+                    "frequency_penalty": self.frequency_penalty,
+                    "mirostat": self.mirostat,
+                    "mirostat_tau": self.mirostat_tau,
+                    "mirostat_eta": self.mirostat_eta,
+                    "num_ctx": self.num_ctx,
+                    "num_keep": self.num_keep,
+                    "penalize_newline": self.penalize_newline,
+                    "num_batch": self.num_batch,
+                    "num_gpu": self.num_gpu,
+                    "main_gpu": self.main_gpu,
+                    "low_vram": self.low_vram,
+                    "use_mmap": self.use_mmap,
+                    "use_mlock": self.use_mlock,
+                    "vocab_only": self.vocab_only,
+                    "numa": self.numa,
+                }
+                
+                # Add seed if specified
+                if self.seed is not None:
+                    options["seed"] = self.seed
+                
+                # Filter out None values
+                options = {k: v for k, v in options.items() if v is not None}
+                
                 async with session.post(
                     f"{self.config.base_url}/api/chat",
                     json={
                         "model": self.config.model,
                         "messages": [{"role": "user", "content": prompt}],
                         "stream": False,
-                        "temperature": self.config.temperature,
-                        "top_p": self.top_p,
-                        "top_k": self.top_k,
-                        "repeat_penalty": self.repeat_penalty,
-                        "max_tokens": self.num_predict,
+                        "options": options,
+                        "stop": self.stop if self.stop else None,
                         **kwargs
                     }
                 ) as response:
@@ -99,17 +150,47 @@ class OllamaProvider(LLMProvider, OllamaBaseService):
                     response_text = data.get("message", {}).get("content", "")
             else:
                 # Use generate endpoint for traditional Ollama models
+                options = {
+                    "temperature": self.config.temperature,
+                    "top_p": self.top_p,
+                    "top_k": self.top_k,
+                    "min_p": self.min_p,
+                    "typical_p": self.typical_p,
+                    "repeat_penalty": self.repeat_penalty,
+                    "repeat_last_n": self.repeat_last_n,
+                    "presence_penalty": self.presence_penalty,
+                    "frequency_penalty": self.frequency_penalty,
+                    "mirostat": self.mirostat,
+                    "mirostat_tau": self.mirostat_tau,
+                    "mirostat_eta": self.mirostat_eta,
+                    "num_ctx": self.num_ctx,
+                    "num_keep": self.num_keep,
+                    "penalize_newline": self.penalize_newline,
+                    "num_batch": self.num_batch,
+                    "num_gpu": self.num_gpu,
+                    "main_gpu": self.main_gpu,
+                    "low_vram": self.low_vram,
+                    "use_mmap": self.use_mmap,
+                    "use_mlock": self.use_mlock,
+                    "vocab_only": self.vocab_only,
+                    "numa": self.numa,
+                }
+                
+                # Add seed if specified
+                if self.seed is not None:
+                    options["seed"] = self.seed
+                
+                # Filter out None values
+                options = {k: v for k, v in options.items() if v is not None}
+                
                 async with session.post(
                     f"{self.config.base_url}/api/generate",
                     json={
                         "model": self.config.model,
                         "prompt": prompt,
                         "stream": False,
-                        "temperature": self.config.temperature,
-                        "top_p": self.top_p,
-                        "top_k": self.top_k,
-                        "repeat_penalty": self.repeat_penalty,
-                        "num_predict": self.num_predict,
+                        "options": options,
+                        "stop": self.stop if self.stop else None,
                         **kwargs
                     }
                 ) as response:
@@ -156,17 +237,47 @@ class OllamaProvider(LLMProvider, OllamaBaseService):
                 
                 if use_chat_api:
                     # Use chat endpoint for OpenAI-compatible models
+                    options = {
+                        "temperature": self.config.temperature,
+                        "top_p": self.top_p,
+                        "top_k": self.top_k,
+                        "min_p": self.min_p,
+                        "typical_p": self.typical_p,
+                        "repeat_penalty": self.repeat_penalty,
+                        "repeat_last_n": self.repeat_last_n,
+                        "presence_penalty": self.presence_penalty,
+                        "frequency_penalty": self.frequency_penalty,
+                        "mirostat": self.mirostat,
+                        "mirostat_tau": self.mirostat_tau,
+                        "mirostat_eta": self.mirostat_eta,
+                        "num_ctx": self.num_ctx,
+                        "num_keep": self.num_keep,
+                        "penalize_newline": self.penalize_newline,
+                        "num_batch": self.num_batch,
+                        "num_gpu": self.num_gpu,
+                        "main_gpu": self.main_gpu,
+                        "low_vram": self.low_vram,
+                        "use_mmap": self.use_mmap,
+                        "use_mlock": self.use_mlock,
+                        "vocab_only": self.vocab_only,
+                        "numa": self.numa,
+                    }
+                    
+                    # Add seed if specified
+                    if self.seed is not None:
+                        options["seed"] = self.seed
+                    
+                    # Filter out None values
+                    options = {k: v for k, v in options.items() if v is not None}
+                    
                     async with session.post(
                         f"{self.config.base_url}/api/chat",
                         json={
                             "model": self.config.model,
                             "messages": [{"role": "user", "content": prompt}],
                             "stream": True,
-                            "temperature": self.config.temperature,
-                            "top_p": self.top_p,
-                            "top_k": self.top_k,
-                            "repeat_penalty": self.repeat_penalty,
-                            "max_tokens": self.num_predict,
+                            "options": options,
+                            "stop": self.stop if self.stop else None,
                             **kwargs
                         }
                     ) as response:
@@ -197,17 +308,47 @@ class OllamaProvider(LLMProvider, OllamaBaseService):
                                 continue
                 else:
                     # Use generate endpoint for traditional Ollama models
+                    options = {
+                        "temperature": self.config.temperature,
+                        "top_p": self.top_p,
+                        "top_k": self.top_k,
+                        "min_p": self.min_p,
+                        "typical_p": self.typical_p,
+                        "repeat_penalty": self.repeat_penalty,
+                        "repeat_last_n": self.repeat_last_n,
+                        "presence_penalty": self.presence_penalty,
+                        "frequency_penalty": self.frequency_penalty,
+                        "mirostat": self.mirostat,
+                        "mirostat_tau": self.mirostat_tau,
+                        "mirostat_eta": self.mirostat_eta,
+                        "num_ctx": self.num_ctx,
+                        "num_keep": self.num_keep,
+                        "penalize_newline": self.penalize_newline,
+                        "num_batch": self.num_batch,
+                        "num_gpu": self.num_gpu,
+                        "main_gpu": self.main_gpu,
+                        "low_vram": self.low_vram,
+                        "use_mmap": self.use_mmap,
+                        "use_mlock": self.use_mlock,
+                        "vocab_only": self.vocab_only,
+                        "numa": self.numa,
+                    }
+                    
+                    # Add seed if specified
+                    if self.seed is not None:
+                        options["seed"] = self.seed
+                    
+                    # Filter out None values
+                    options = {k: v for k, v in options.items() if v is not None}
+                    
                     async with session.post(
                         f"{self.config.base_url}/api/generate",
                         json={
                             "model": self.config.model,
                             "prompt": prompt,
                             "stream": True,
-                            "temperature": self.config.temperature,
-                            "top_p": self.top_p,
-                            "top_k": self.top_k,
-                            "repeat_penalty": self.repeat_penalty,
-                            "num_predict": self.num_predict,
+                            "options": options,
+                            "stop": self.stop if self.stop else None,
                             **kwargs
                         }
                     ) as response:

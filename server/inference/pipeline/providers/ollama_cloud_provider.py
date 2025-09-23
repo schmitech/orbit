@@ -27,14 +27,41 @@ class OllamaCloudProvider(LLMProvider):
         self.api_key = self.ollama_cloud_config.get("api_key")
         self.model = self.ollama_cloud_config.get("model")
 
-        # Extract options for the Ollama client
+        # Extract options for the Ollama client (cloud-optimized)
+        # Only include settings that are relevant for cloud inference
         self.options = {
+            # Generation parameters
             "temperature": self.ollama_cloud_config.get("temperature", 0.1),
             "top_p": self.ollama_cloud_config.get("top_p", 0.8),
             "top_k": self.ollama_cloud_config.get("top_k"),
+            "min_p": self.ollama_cloud_config.get("min_p"),
+            "typical_p": self.ollama_cloud_config.get("typical_p"),
+            # Sampling controls
             "repeat_penalty": self.ollama_cloud_config.get("repeat_penalty"),
+            "repeat_last_n": self.ollama_cloud_config.get("repeat_last_n"),
+            "presence_penalty": self.ollama_cloud_config.get("presence_penalty"),
+            "frequency_penalty": self.ollama_cloud_config.get("frequency_penalty"),
+            # Mirostat sampling
+            "mirostat": self.ollama_cloud_config.get("mirostat"),
+            "mirostat_tau": self.ollama_cloud_config.get("mirostat_tau"),
+            "mirostat_eta": self.ollama_cloud_config.get("mirostat_eta"),
+            # Context and output control
+            "num_ctx": self.ollama_cloud_config.get("num_ctx"),
+            "num_keep": self.ollama_cloud_config.get("num_keep"),
+            "penalize_newline": self.ollama_cloud_config.get("penalize_newline"),
             "num_predict": self.ollama_cloud_config.get("num_predict", 1024),
         }
+        
+        # Add seed if specified
+        seed = self.ollama_cloud_config.get("seed")
+        if seed is not None:
+            self.options["seed"] = seed
+        
+        # Add stop sequences to options
+        stop_sequences = self.ollama_cloud_config.get("stop", [])
+        if stop_sequences:
+            self.options["stop"] = stop_sequences
+        
         # Filter out None values so we don't send them
         self.options = {k: v for k, v in self.options.items() if v is not None}
 

@@ -5,7 +5,7 @@
 description = "Core dependencies"
 dependencies = [
     "setuptools>=77.0.3,<80",
-    "ollama==0.5.3",
+    "ollama==0.5.4",
     "motor>=3.7.1",
     "pymongo>=4.13.0",
     "redis>=6.2.0",
