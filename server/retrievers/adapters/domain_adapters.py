@@ -282,8 +282,29 @@ def register_adapters():
             }
         )
         logger.info(f"Registered Generic adapter for {datasource}")
-    
+
     logger.info("Built-in domain adapters registration complete")
+
+    # Register passthrough conversational adapter
+    def _create_conversational_adapter(config=None, **kwargs):
+        from adapters.passthrough.conversational.conversational_adapter import ConversationalAdapter
+
+        return ConversationalAdapter(config=config, **kwargs)
+
+    DocumentAdapterFactory.register_adapter(
+        "conversational",
+        _create_conversational_adapter
+    )
+
+    ADAPTER_REGISTRY.register(
+        adapter_type="passthrough",
+        datasource="none",
+        adapter_name="conversational",
+        factory_func=_create_conversational_adapter,
+        config={}
+    )
+
+    logger.info("Registered conversational passthrough adapter")
 
 # Register adapters when module is imported
 register_adapters()

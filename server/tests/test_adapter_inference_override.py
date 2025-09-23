@@ -99,7 +99,12 @@ async def test_adapter_inference_provider_override():
         'adapter_without_override': {
             'name': 'adapter_without_override',
             'enabled': True,
-            # No inference_provider specified, should use default
+            'implementation': 'test.MockAdapter'
+        },
+        'adapter_with_ollama_cloud': {
+            'name': 'adapter_with_ollama_cloud',
+            'enabled': True,
+            'inference_provider': 'ollama_cloud',  # Override provider
             'implementation': 'test.MockAdapter'
         }
     }
@@ -159,6 +164,23 @@ async def test_adapter_inference_provider_override():
     
     # Context should not have inference_provider set
     assert context_without_override.inference_provider is None
+    
+    # Test 3: Adapter with ollama_cloud provider override
+    context_with_ollama_cloud = ProcessingContext(
+        message="Test message",
+        adapter_name="adapter_with_ollama_cloud"
+    )
+    
+    adapter_config = mock_adapter_manager.get_adapter_config("adapter_with_ollama_cloud")
+    assert adapter_config is not None
+    assert adapter_config.get('inference_provider') == 'ollama_cloud'
+    
+    # Create context with override
+    context_with_ollama_cloud.inference_provider = adapter_config.get('inference_provider')
+    
+    # Verify the provider would be used correctly
+    provider = await mock_adapter_manager.get_overridden_provider('ollama_cloud')
+    assert provider.name == 'ollama_cloud'
     
     print("✅ Test passed: Adapter-specific inference provider override works correctly")
 

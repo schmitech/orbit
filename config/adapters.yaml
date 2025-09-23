@@ -2,11 +2,20 @@
 # This file contains all adapter definitions and can be imported by config.yaml
 
 adapters:
+  - name: "conversational-passthrough"
+    enabled: true
+    type: "passthrough"  # New adapter type for non-retrieval adapters
+    datasource: "none"  # No actual datasource needed
+    adapter: "conversational"
+    implementation: "implementations.passthrough.conversational.ConversationalImplementation"
+    # inference_provider: "ollama"  # Override default
+    # model: "gpt-oss:120b"  # Specific model for this adapter
+
   # This is an example of a QA adapter for a SQL database.
   # It is used as an example of how to create a QA adapter for a SQL database.
   # Run /examples/sample-db-setup.sh sqlite to create a sample database and api key before using this adapter.
   - name: "qa-sql"
-    enabled: true
+    enabled: false
     type: "retriever"
     datasource: "sqlite"
     adapter: "qa"
@@ -61,29 +70,12 @@ adapters:
     datasource: "chroma"
     adapter: "qa"
     implementation: "retrievers.implementations.qa.QAChromaRetriever"
-    inference_provider: "ollama"
+    inference_provider: "ollama_cloud"
     embedding_provider: "ollama"
     config:
       collection: "city"
       confidence_threshold: 0.3
       distance_scaling_factor: 2.0
-      embedding_provider: null
-      max_results: 5
-      return_results: 3
-      timezone: "America/Toronto"
-
-  - name: "qa-vector-qdrant-city"
-    enabled: false
-    type: "retriever"
-    datasource: "qdrant"
-    adapter: "qa"
-    implementation: "retrievers.implementations.qa.QAQdrantRetriever"
-    inference_provider: "ollama"
-    embedding_provider: "openai"
-    config:
-      collection: "city"
-      confidence_threshold: 0.3
-      score_scaling_factor: 1.0
       embedding_provider: null
       max_results: 5
       return_results: 3
@@ -112,8 +104,8 @@ adapters:
     datasource: "postgres"
     adapter: "intent"
     implementation: "retrievers.implementations.intent.IntentPostgreSQLRetriever"
-    inference_provider: "openai"
-    embedding_provider: "openai"
+    # inference_provider: "ollama"
+    # embedding_provider: "openai"
     config:
       # Path to the domain definition file
       domain_config_path: "config/sql_intent_templates/examples/customer-orders/customer_order_domain.yaml"

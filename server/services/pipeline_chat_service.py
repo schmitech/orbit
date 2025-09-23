@@ -272,7 +272,8 @@ class PipelineChatService:
                 adapter_config = adapter_manager.get_adapter_config(adapter_name)
                 if adapter_config:
                     inference_provider_override = adapter_config.get('inference_provider')
-                    timezone = adapter_config.get('config', {}).get('timezone')
+                    adapter_custom_config = adapter_config.get('config') or {}
+                    timezone = adapter_custom_config.get('timezone')
                     if inference_provider_override and self.verbose:
                         logger.info(f"Using adapter-specific inference provider: {inference_provider_override} for adapter: {adapter_name}")
             
@@ -376,7 +377,8 @@ class PipelineChatService:
                 adapter_config = adapter_manager.get_adapter_config(adapter_name)
                 if adapter_config:
                     inference_provider_override = adapter_config.get('inference_provider')
-                    timezone = adapter_config.get('config', {}).get('timezone')
+                    adapter_custom_config = adapter_config.get('config') or {}
+                    timezone = adapter_custom_config.get('timezone')
                     if inference_provider_override and self.verbose:
                         logger.info(f"Using adapter-specific inference provider: {inference_provider_override} for adapter: {adapter_name}")
             

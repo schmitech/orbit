@@ -24,6 +24,7 @@ class ProviderFactory:
         'openai': ('openai_provider', 'OpenAIProvider'),
         'anthropic': ('anthropic_provider', 'AnthropicProvider'),
         'ollama': ('ollama_provider', 'OllamaProvider'),
+        'ollama_cloud': ('ollama_cloud_provider', 'OllamaCloudProvider'),
         'aws': ('aws_provider', 'AWSBedrockProvider'),
         'groq': ('groq_provider', 'GroqProvider'),
         'gemini': ('gemini_provider', 'GeminiProvider'),

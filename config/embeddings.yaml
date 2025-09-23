@@ -41,8 +41,8 @@ embeddings:
     batch_size: 10
   openai:
     api_key: ${OPENAI_API_KEY}
-    model: "text-embedding-3-large"
-    dimensions: 3072
+    model: "text-embedding-3-small"
+    dimensions: 1536
     batch_size: 10
   cohere:
     api_key: ${COHERE_API_KEY}

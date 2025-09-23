@@ -26,10 +26,26 @@ class ContextRetrievalStep(PipelineStep):
         config = self.container.get_or_none('config') or {}
         inference_only = config.get('general', {}).get('inference_only', False)
         
-        return (not inference_only and 
-                (self.container.has('adapter_manager') or self.container.has('retriever')) and 
-                context.adapter_name and
-                not context.is_blocked)
+        if context.is_blocked:
+            return False
+
+        if inference_only:
+            return False
+
+        if not (self.container.has('adapter_manager') or self.container.has('retriever')):
+            return False
+
+        if not context.adapter_name:
+            return False
+
+        # Skip retrieval for passthrough adapters that explicitly opt out of context fetching
+        if self.container.has('adapter_manager'):
+            adapter_manager = self.container.get('adapter_manager')
+            adapter_config = adapter_manager.get_adapter_config(context.adapter_name) or {}
+            if adapter_config.get('type') == 'passthrough':
+                return False
+
+        return True
     
     async def process(self, context: ProcessingContext) -> ProcessingContext:
         """

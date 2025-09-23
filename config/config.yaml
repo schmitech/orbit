@@ -83,6 +83,10 @@ api_keys:
   header_name: "X-API-Key"
   prefix: "orbit_"
 
+prompt_service:
+  cache:
+    ttl_seconds: 3600  # 1 hour - how long to cache prompts in Redis
+
 logging:
   level: "INFO"
   handlers:

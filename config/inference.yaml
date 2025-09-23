@@ -1,10 +1,10 @@
 inference:
   ollama:
     base_url: "http://localhost:11434"
-    temperature: 0.1
-    top_p: 0.8
-    top_k: 20
-    repeat_penalty: 1.1
+    temperature: 0.0
+    top_p: 0.5
+    top_k: 10
+    repeat_penalty: 1.2
     num_predict: 1024
     num_ctx: 2048
     num_threads: 8
@@ -22,6 +22,13 @@ inference:
       connect: 10000         # 10 seconds for connection
       total: 120000          # 2 minutes total timeout
       warmup: 60000          # 1 minute for initial warmup
+  ollama_cloud:
+    api_key: ${OLLAMA_CLOUD_API_KEY}
+    model: "gpt-oss:120b"
+    temperature: 0.1
+    top_p: 0.8
+    num_predict: 1024
+    stream: true
   vllm:
     host: "localhost"
     port: 8000
@@ -105,7 +112,7 @@ inference:
     model: "gpt-5-nano"
     temperature: 1
     top_p: 0.8
-    max_tokens: 2048
+    max_tokens: 16000
     stream: true
   mistral:
     api_key: ${MISTRAL_API_KEY}
@@ -138,7 +145,7 @@ inference:
     model: "grok-3-mini-beta"
     temperature: 0.1
     top_p: 0.8
-    max_tokens: 1024
+    max_tokens: 16000
     stream: true
     show_thinking: false
   huggingface:

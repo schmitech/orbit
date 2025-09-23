@@ -190,14 +190,7 @@ class ServiceFactory:
             else:
                 self.logger.info("Authentication enabled - API key service not needed in inference-only mode")
         
-        # Initialize Chat History Service if enabled
-        if self.chat_history_enabled:
-            if self.verbose:
-                self.logger.info("Chat history is enabled - initializing Chat History Service")
-            await self._initialize_chat_history_service(app)
-        else:
-            app.state.chat_history_service = None
-            self.logger.info("Chat history is disabled")
+        await self._configure_chat_history_service(app)
         
         self.logger.info("Inference-only mode service initialization complete")
     
@@ -214,10 +207,9 @@ class ServiceFactory:
         
         # Initialize Dynamic Adapter Manager
         await self._initialize_adapter_manager(app)
-        
-        # Chat history is not initialized in full mode
-        app.state.chat_history_service = None
-        self.logger.info("Chat history is not in inference-only mode")
+
+        # Configure chat history consistently with inference-only mode
+        await self._configure_chat_history_service(app)
     
     async def _initialize_shared_services(self, app: FastAPI) -> None:
         """Initialize services that are used in both modes."""
@@ -360,6 +352,16 @@ class ServiceFactory:
             self.logger.error(f"Failed to initialize Chat History Service: {str(e)}")
             # Don't raise - chat history is optional
             app.state.chat_history_service = None
+
+    async def _configure_chat_history_service(self, app: FastAPI) -> None:
+        """Enable or disable chat history service based on configuration."""
+        if self.chat_history_enabled:
+            if self.verbose:
+                self.logger.info("Chat history is enabled - initializing Chat History Service")
+            await self._initialize_chat_history_service(app)
+        else:
+            app.state.chat_history_service = None
+            self.logger.info("Chat history is disabled")
     
     async def _initialize_api_key_service(self, app: FastAPI) -> None:
         """Initialize API Key Service."""

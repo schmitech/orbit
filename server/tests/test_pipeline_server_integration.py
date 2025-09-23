@@ -219,6 +219,37 @@ async def test_no_llm_client_imports(test_config, mock_logger, mock_app):
 
 
 @pytest.mark.asyncio
+async def test_configure_chat_history_service_enabled(mock_logger, mock_app):
+    """Chat history helper initializes service when enabled."""
+    config = {
+        'general': {'inference_only': False, 'verbose': False},
+        'chat_history': {'enabled': True}
+    }
+    service_factory = ServiceFactory(config, mock_logger)
+    service_factory._initialize_chat_history_service = AsyncMock()
+
+    await service_factory._configure_chat_history_service(mock_app)
+
+    service_factory._initialize_chat_history_service.assert_awaited_once_with(mock_app)
+
+
+@pytest.mark.asyncio
+async def test_configure_chat_history_service_disabled(mock_logger, mock_app):
+    """Chat history helper skips initialization when disabled."""
+    config = {
+        'general': {'inference_only': False, 'verbose': False},
+        'chat_history': {'enabled': False}
+    }
+    service_factory = ServiceFactory(config, mock_logger)
+    service_factory._initialize_chat_history_service = AsyncMock()
+
+    await service_factory._configure_chat_history_service(mock_app)
+
+    service_factory._initialize_chat_history_service.assert_not_called()
+    assert mock_app.state.chat_history_service is None
+
+
+@pytest.mark.asyncio
 async def test_pipeline_provider_initialization():
     """Test that pipeline providers are properly initialized."""
     from inference.pipeline_factory import PipelineFactory

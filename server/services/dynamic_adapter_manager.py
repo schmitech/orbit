@@ -212,24 +212,28 @@ class DynamicAdapterManager:
         def _sync_load():
             # This runs in a thread, so it won't block the event loop
             implementation = adapter_config.get('implementation')
-            datasource = adapter_config.get('datasource')
-            adapter_type = adapter_config.get('adapter')
-            
+            datasource = adapter_config.get('datasource', 'none')
+            domain_adapter_name = adapter_config.get('adapter')
+            adapter_category = adapter_config.get('type', 'retriever')
+
             # Import the retriever class
             module_path, class_name = implementation.rsplit('.', 1)
             module = __import__(module_path, fromlist=[class_name])
             retriever_class = getattr(module, class_name)
-            
+
             # Create domain adapter
             from retrievers.adapters.registry import ADAPTER_REGISTRY
-            adapter_config_params = adapter_config.get('config', {})
-            domain_adapter = ADAPTER_REGISTRY.create(
-                adapter_type='retriever',
-                datasource=datasource,
-                adapter_name=adapter_type,
-                **adapter_config_params
-            )
-            
+            adapter_config_params = adapter_config.get('config') or {}
+            domain_adapter = None
+
+            if domain_adapter_name:
+                domain_adapter = ADAPTER_REGISTRY.create(
+                    adapter_type=adapter_category,
+                    datasource=datasource,
+                    adapter_name=domain_adapter_name,
+                    override_config=adapter_config_params
+                )
+
             # Create a deep copy of config with the adapter config included
             import copy
             config_with_adapter = copy.deepcopy(self.config)
@@ -241,7 +245,21 @@ class DynamicAdapterManager:
                 config_with_adapter['inference_provider'] = adapter_config['inference_provider']
                 if self.verbose:
                     logger.info(f"Setting inference provider override: {adapter_config['inference_provider']} for adapter: {adapter_name}")
-            
+
+            # Include adapter-level model override if specified
+            if adapter_config.get('model'):
+                provider_for_model = adapter_config.get('inference_provider') or config_with_adapter.get('general', {}).get('inference_provider')
+                if provider_for_model:
+                    inference_section = config_with_adapter.setdefault('inference', {}).setdefault(provider_for_model, {})
+                    inference_section['model'] = adapter_config['model']
+                    if self.verbose:
+                        logger.info(
+                            "Setting model override '%s' for provider '%s' on adapter '%s'",
+                            adapter_config['model'],
+                            provider_for_model,
+                            adapter_name,
+                        )
+
             # Include adapter-level embedding provider override if specified
             if 'embedding_provider' in adapter_config:
                 # Ensure the 'embedding' key exists

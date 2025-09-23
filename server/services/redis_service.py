@@ -190,12 +190,43 @@ class RedisService:
             # Test connection
             await self.client.ping()
             logger.info("Successfully connected to Redis")
+
+            # Clear prompt cache on startup to ensure fresh data
+            await self._clear_prompt_cache_on_startup()
+
             self.initialized = True
             return True
 
         except Exception as e:
             logger.error(f"Failed to initialize Redis: {str(e)}")
             raise
+
+    async def _clear_prompt_cache_on_startup(self) -> None:
+        """Clear all prompt cache keys on server startup"""
+        try:
+            verbose = self.config.get('general', {}).get('verbose', False)
+
+            if verbose:
+                logger.info("Clearing prompt cache on server startup...")
+
+            # Get all keys matching the prompt pattern
+            prompt_keys = []
+            cursor = 0
+            while True:
+                cursor, keys = await self.client.scan(cursor, match="prompt:*", count=100)
+                prompt_keys.extend(keys)
+                if cursor == 0:
+                    break
+
+            if prompt_keys:
+                deleted_count = await self.client.delete(*prompt_keys)
+                if verbose:
+                    logger.info(f"✓ Cleared {deleted_count} prompt cache entries from Redis")
+            elif verbose:
+                logger.info("No prompt cache entries found to clear")
+
+        except Exception as e:
+            logger.warning(f"Failed to clear prompt cache on startup: {str(e)}")
     
     async def get(self, key: str) -> Optional[str]:
         """
