@@ -53,9 +53,9 @@ chmod +x docker-init.sh orbit-docker.sh
 
 ```bash
 # Download the latest release
-curl -L https://github.com/schmitech/orbit/releases/download/v1.4.3/orbit-1.4.3.tar.gz -o orbit-1.4.3.tar.gz
-tar -xzf orbit-1.4.3.tar.gz
-cd orbit-1.4.3
+curl -L https://github.com/schmitech/orbit/releases/download/v1.5.0/orbit-1.5.0.tar.gz -o orbit-1.5.0.tar.gz
+tar -xzf orbit-1.5.0.tar.gz
+cd orbit-1.5.0
 
 # Run the quick setup script (downloads a small model)
 cp .env.example .env

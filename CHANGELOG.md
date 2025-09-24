@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.5.0] - 2025-09-24
+
+### Core System Updates
+- New Passthrough LLM Adapter: Added new adapter for pure conversation (passthrough) with models without context retrieval, similar to inference_only mode
+- System Prompt Caching: Added system prompt caching using Redis service for improved performance
+- Ollama Provider Enhancements: Added more settings to both ollama and ollama_cloud providers and updated ollama package
+- Language Detection Improvements: Minor tweaks to language detection for French text and added Ollama Linux installation guide
+- LLM System Instructions: Adjusted LLM system instructions to provide more accurate information
+
+### SQL Intent & Retrieval System
+- Adapter Embeddings Override: Enabled ability to override global embedding for each adapter
+- SQL Intent Templates: Fixed issues with SQL templates and marked problematic templates for later review
+- Intent Adapter Simplification: Further simplified SQL intent adapter by removing prompt generation and delegating to LLM pipeline
+
+### Chatbot Widget & UI Improvements
+- Theming App Enhancements: Added API key toggle hide button and improved preview thumbnails
+- Widget React Example: Updated chat widget version
+- Markdown Table Fixes: Fixed markdown column table misalignment issues
+
+### Testing & Quality Assurance
+- Unit Test Fixes: Fixed issues with test_redis_service.py and test_pipeline_server_integration.py
+- Additional Test Coverage: Added test coverage for new passthrough LLM adapter
+
 ## [1.4.3] - 2025-09-04
 
 ### Core System Updates
