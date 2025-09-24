@@ -8,19 +8,20 @@ adapters:
     datasource: "none"  # No actual datasource needed
     adapter: "conversational"
     implementation: "implementations.passthrough.conversational.ConversationalImplementation"
-    # inference_provider: "ollama"  # Override default
-    # model: "gpt-oss:120b"  # Specific model for this adapter
+    inference_provider: "ollama_cloud"  # Override default
+    model: "gpt-oss:120b"  # Specific model for this adapter
 
   # This is an example of a QA adapter for a SQL database.
   # It is used as an example of how to create a QA adapter for a SQL database.
   # Run /examples/sample-db-setup.sh sqlite to create a sample database and api key before using this adapter.
   - name: "qa-sql"
-    enabled: false
+    enabled: true
     type: "retriever"
     datasource: "sqlite"
     adapter: "qa"
     implementation: "retrievers.implementations.qa.QASSQLRetriever"
     # inference_provider: "ollama" # Optional: Override the default inference provider in config.yaml
+    model: "gpt-oss:120b"
     config:
       # QA-specific settings
       confidence_threshold: 0.3
@@ -65,13 +66,13 @@ adapters:
   # This is an example of a QA adapter for a ChromaDB database. (Disabled by default)
   # It is used as an example of how to create a QA adapter for a ChromaDB database.
   - name: "qa-vector-chroma"
-    enabled: false
+    enabled: true
     type: "retriever"
     datasource: "chroma"
     adapter: "qa"
     implementation: "retrievers.implementations.qa.QAChromaRetriever"
-    inference_provider: "ollama_cloud"
-    embedding_provider: "ollama"
+    # inference_provider: "ollama_cloud"
+    # embedding_provider: "ollama"
     config:
       collection: "city"
       confidence_threshold: 0.3
@@ -82,13 +83,13 @@ adapters:
       timezone: "America/Toronto"
 
   - name: "qa-vector-qdrant-demo"
-    enabled: false
+    enabled: true
     type: "retriever"
     datasource: "qdrant"
     adapter: "qa"
     implementation: "retrievers.implementations.qa.QAQdrantRetriever"
     inference_provider: "ollama"
-    embedding_provider: "openai"
+    embedding_provider: "ollama"
     config:
       collection: "demo"
       confidence_threshold: 0.3
@@ -99,13 +100,13 @@ adapters:
       timezone: "America/Toronto"
 
   - name: "intent-sql-postgres"
-    enabled: false
+    enabled: true
     type: "retriever"
     datasource: "postgres"
     adapter: "intent"
     implementation: "retrievers.implementations.intent.IntentPostgreSQLRetriever"
-    # inference_provider: "ollama"
-    # embedding_provider: "openai"
+    inference_provider: "cohere"
+    embedding_provider: "openai"
     config:
       # Path to the domain definition file
       domain_config_path: "config/sql_intent_templates/examples/customer-orders/customer_order_domain.yaml"

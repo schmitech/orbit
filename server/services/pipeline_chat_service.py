@@ -29,12 +29,12 @@ class PipelineChatService:
     provider implementations, avoiding legacy compatibility layers.
     """
     
-    def __init__(self, config: Dict[str, Any], logger_service, 
+    def __init__(self, config: Dict[str, Any], logger_service,
                  chat_history_service=None, llm_guard_service=None, moderator_service=None,
                  retriever=None, reranker_service=None, prompt_service=None, clock_service=None):
         """
         Initialize the pipeline chat service.
-        
+
         Args:
             config: Application configuration
             logger_service: Logger service
@@ -48,10 +48,16 @@ class PipelineChatService:
         """
         self.config = config
         self.verbose = is_true_value(config.get('general', {}).get('verbose', False))
-        
+
+        # Check if running in inference_only mode
+        self.inference_only = is_true_value(config.get('general', {}).get('inference_only', False))
+
         # Chat history configuration
         self.chat_history_config = config.get('chat_history', {})
-        self.chat_history_enabled = is_true_value(self.chat_history_config.get('enabled', True))
+        # Base chat history enabled setting from config
+        self._base_chat_history_enabled = is_true_value(self.chat_history_config.get('enabled', True))
+        # Will be determined per request based on adapter type
+        self.chat_history_enabled = self._base_chat_history_enabled
         
         # Messages configuration
         self.messages_config = config.get('messages', {})
@@ -99,17 +105,46 @@ class PipelineChatService:
             self._pipeline_initialized = True
             logger.info("Pipeline provider initialized")
     
-    async def _get_conversation_context(self, session_id: Optional[str]) -> List[Dict[str, str]]:
+    def _should_enable_chat_history(self, adapter_name: str) -> bool:
+        """
+        Determine if chat history should be enabled based on adapter type and inference mode.
+
+        Args:
+            adapter_name: The name of the adapter being used
+
+        Returns:
+            True if chat history should be enabled, False otherwise
+        """
+        # If base chat history is disabled in config, always return False
+        if not self._base_chat_history_enabled:
+            return False
+
+        # Enable for inference_only mode
+        if self.inference_only:
+            return True
+
+        # Check adapter type - enable only for passthrough adapters
+        if adapter_name and hasattr(self, 'pipeline') and self.pipeline.container.has('adapter_manager'):
+            adapter_manager = self.pipeline.container.get('adapter_manager')
+            adapter_config = adapter_manager.get_adapter_config(adapter_name)
+            if adapter_config and adapter_config.get('type') == 'passthrough':
+                return True
+
+        # Disable for all other adapters
+        return False
+
+    async def _get_conversation_context(self, session_id: Optional[str], adapter_name: str) -> List[Dict[str, str]]:
         """
         Get conversation context from history for the current session.
-        
+
         Args:
             session_id: The session identifier
-            
+            adapter_name: The adapter being used
+
         Returns:
             List of previous messages formatted for LLM context
         """
-        if not self.chat_history_enabled or not self.chat_history_service or not session_id:
+        if not self._should_enable_chat_history(adapter_name) or not self.chat_history_service or not session_id:
             return []
             
         try:
@@ -133,22 +168,24 @@ class PipelineChatService:
         session_id: Optional[str],
         user_message: str,
         assistant_response: str,
+        adapter_name: str,
         user_id: Optional[str] = None,
         api_key: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None
     ) -> None:
         """
         Store a conversation turn in chat history.
-        
+
         Args:
             session_id: Session identifier
             user_message: The user's message
             assistant_response: The assistant's response
+            adapter_name: The adapter being used
             user_id: Optional user identifier
             api_key: Optional API key
             metadata: Optional metadata to store
         """
-        if not self.chat_history_enabled or not self.chat_history_service or not session_id:
+        if not self._should_enable_chat_history(adapter_name) or not self.chat_history_service or not session_id:
             return
             
         try:
@@ -169,14 +206,14 @@ class PipelineChatService:
     
     async def _log_conversation(self, query: str, response: str, client_ip: str, 
                               api_key: Optional[str] = None, session_id: Optional[str] = None, 
-                              user_id: Optional[str] = None):
+                              user_id: Optional[str] = None, backend: Optional[str] = None):
         """Log conversation asynchronously."""
         try:
             await self.logger_service.log_conversation(
                 query=query,
                 response=response,
                 ip=client_ip,
-                backend=None,
+                backend=backend,
                 blocked=False,
                 api_key=api_key,
                 session_id=session_id,
@@ -203,17 +240,18 @@ class PipelineChatService:
             logger.info(f"Session ID: {session_id}")
             logger.info(f"User ID: {user_id}")
     
-    async def _check_conversation_limit_warning(self, session_id: Optional[str]) -> Optional[str]:
+    async def _check_conversation_limit_warning(self, session_id: Optional[str], adapter_name: str) -> Optional[str]:
         """
         Check if the conversation is approaching the limit and return a warning if needed.
-        
+
         Args:
             session_id: The session identifier
-            
+            adapter_name: The adapter being used
+
         Returns:
             Warning message if approaching limit, None otherwise
         """
-        if not self.chat_history_enabled or not self.chat_history_service or not session_id:
+        if not self._should_enable_chat_history(adapter_name) or not self.chat_history_service or not session_id:
             return None
             
         try:
@@ -262,7 +300,7 @@ class PipelineChatService:
                                            api_key, session_id, user_id)
             
             # Get conversation context
-            context_messages = await self._get_conversation_context(session_id)
+            context_messages = await self._get_conversation_context(session_id, adapter_name)
             
             # Check for adapter-specific inference provider override
             inference_provider_override = None
@@ -303,7 +341,7 @@ class PipelineChatService:
             response = fix_text_formatting(result.response)
             
             # Check for conversation limit warning
-            warning = await self._check_conversation_limit_warning(session_id)
+            warning = await self._check_conversation_limit_warning(session_id, adapter_name)
             if warning:
                 response = f"{response}\n\n---\n{warning}"
             
@@ -313,6 +351,7 @@ class PipelineChatService:
                     session_id=session_id,
                     user_message=message,
                     assistant_response=response,
+                    adapter_name=adapter_name,
                     user_id=user_id,
                     api_key=api_key,
                     metadata={
@@ -323,7 +362,9 @@ class PipelineChatService:
                 )
             
             # Log conversation (always log, not just when API key is present)
-            await self._log_conversation(message, response, client_ip, api_key, session_id, user_id)
+            # Use the inference provider from the pipeline result context, fallback to global config
+            backend = result.inference_provider or self.config.get('general', {}).get('inference_provider', 'unknown')
+            await self._log_conversation(message, response, client_ip, api_key, session_id, user_id, backend)
             
             # Return response in expected format
             return {
@@ -367,7 +408,7 @@ class PipelineChatService:
                                            api_key, session_id, user_id)
             
             # Get conversation context
-            context_messages = await self._get_conversation_context(session_id)
+            context_messages = await self._get_conversation_context(session_id, adapter_name)
             
             # Check for adapter-specific inference provider override
             inference_provider_override = None
@@ -438,7 +479,7 @@ class PipelineChatService:
                     final_response = fix_text_formatting(accumulated_text)
                     
                     # Check for conversation limit warning
-                    warning = await self._check_conversation_limit_warning(session_id)
+                    warning = await self._check_conversation_limit_warning(session_id, adapter_name)
                     if warning:
                         final_response = f"{final_response}\n\n---\n{warning}"
                         
@@ -455,6 +496,7 @@ class PipelineChatService:
                             session_id=session_id,
                             user_message=message,
                             assistant_response=final_response,
+                            adapter_name=adapter_name,
                             user_id=user_id,
                             api_key=api_key,
                             metadata={
@@ -465,7 +507,19 @@ class PipelineChatService:
                         )
                     
                     # Log conversation (always log, not just when API key is present)
-                    await self._log_conversation(message, final_response, client_ip, api_key, session_id, user_id)
+                    backend = (
+                        context.inference_provider
+                        or self.config.get('general', {}).get('inference_provider', 'unknown')
+                    )
+                    await self._log_conversation(
+                        message,
+                        final_response,
+                        client_ip,
+                        api_key,
+                        session_id,
+                        user_id,
+                        backend,
+                    )
                     
                     # Send final done marker
                     done_chunk = {"done": True}
