@@ -5,16 +5,21 @@ This step handles the core language model generation.
 """
 
 import logging
-from typing import Dict, Any, AsyncGenerator
+from typing import Dict, Any, AsyncGenerator, Optional, List
 from ..base import PipelineStep, ProcessingContext
 
 class LLMInferenceStep(PipelineStep):
     """
     Generate response using LLM.
-    
+
     This step is responsible for the core language model inference,
     including prompt building and response generation.
     """
+
+    def __init__(self, container):
+        """Initialize the LLM inference step."""
+        super().__init__(container)
+        self._prompt_cache = {}  # In-memory cache for system prompts when prompt_service unavailable
     
     def should_execute(self, context: ProcessingContext) -> bool:
         """
@@ -63,8 +68,12 @@ class LLMInferenceStep(PipelineStep):
             if config.get('general', {}).get('verbose', False):
                 self.logger.info(f"DEBUG: Sending prompt to LLM: {repr(full_prompt)}")
             
-            # Generate response
-            response = await llm_provider.generate(full_prompt)
+            # Generate response with message format support
+            kwargs = {}
+            if hasattr(context, 'messages') and context.messages:
+                kwargs['messages'] = context.messages
+
+            response = await llm_provider.generate(full_prompt, **kwargs)
             context.response = response
             
             # Debug: Log the full response if verbose
@@ -114,9 +123,13 @@ class LLMInferenceStep(PipelineStep):
             if config.get('general', {}).get('verbose', False):
                 self.logger.info(f"DEBUG: Sending streaming prompt to LLM: {repr(full_prompt)}")
             
-            # Generate streaming response
+            # Generate streaming response with message format support
+            kwargs = {}
+            if hasattr(context, 'messages') and context.messages:
+                kwargs['messages'] = context.messages
+
             accumulated_response = ""
-            async for chunk in llm_provider.generate_stream(full_prompt):
+            async for chunk in llm_provider.generate_stream(full_prompt, **kwargs):
                 accumulated_response += chunk
                 yield chunk
             
@@ -138,52 +151,150 @@ class LLMInferenceStep(PipelineStep):
     async def _build_prompt(self, context: ProcessingContext) -> str:
         """
         Build the full prompt for LLM generation.
-        
+
         Args:
             context: The processing context
-            
+
+        Returns:
+            The complete prompt string
+        """
+        # Check if we should use message format (for passthrough adapters)
+        if self._should_use_message_format(context):
+            await self._build_message_format(context)
+
+        # Always return traditional concatenated format as fallback
+        # The messages array (if built) will be passed via kwargs to providers
+        return await self._build_traditional_prompt(context)
+
+    def _should_use_message_format(self, context: ProcessingContext) -> bool:
+        """
+        Determine if we should use message-based format.
+
+        Args:
+            context: The processing context
+
+        Returns:
+            True if message format should be used
+        """
+        # Use message format for passthrough adapters with conversation history
+        if context.adapter_name and self.container.has('adapter_manager'):
+            adapter_manager = self.container.get('adapter_manager')
+            adapter_config = adapter_manager.get_adapter_config(context.adapter_name)
+            if adapter_config and adapter_config.get('type') == 'passthrough':
+                return True
+        return False
+
+    async def _build_message_format(self, context: ProcessingContext) -> None:
+        """
+        Build messages array for providers that support native message format.
+
+        Args:
+            context: The processing context
+        """
+        messages = []
+
+        # Build system message
+        system_content = await self._build_system_message_content(context)
+        messages.append({"role": "system", "content": system_content})
+
+        # Add conversation history
+        if context.context_messages:
+            for msg in context.context_messages:
+                messages.append({
+                    "role": msg.get('role', 'user'),
+                    "content": msg.get('content', '')
+                })
+
+        # Add current user message
+        messages.append({"role": "user", "content": context.message})
+
+        # Store messages for provider to use
+        context.messages = messages
+
+    async def _build_system_message_content(self, context: ProcessingContext) -> str:
+        """
+        Build the content for the system message.
+
+        Args:
+            context: The processing context
+
+        Returns:
+            System message content
+        """
+        parts = []
+
+        # Get base system prompt
+        system_prompt = await self._get_system_prompt(context)
+        parts.append(system_prompt)
+
+        # Add time instruction if available
+        time_instruction = self._build_time_instruction(context)
+        if time_instruction:
+            parts.append(time_instruction)
+
+        # Add language instruction if needed
+        language_instruction = self._build_language_instruction(context)
+        if language_instruction:
+            parts.append(language_instruction)
+
+        # Add context instructions based on adapter type
+        if context.formatted_context:
+            parts.append("\n<IMPORTANT>\nWhen answering, you MUST prioritize information from any provided 'Context' section. If the context does not contain the answer, you may use information from this system prompt. If the answer is not found in either, state that you don't know.\n</IMPORTANT>")
+        else:
+            # For passthrough adapters, include conversation-specific instructions
+            parts.append("\n<IMPORTANT>\nAnswer any questions based on the information in this system prompt. If the user's input doesn't seem to be a question, provide a brief, neutral acknowledgement. Do not introduce yourself unless specifically asked.\n</IMPORTANT>")
+
+        return "\n".join(parts)
+
+    async def _build_traditional_prompt(self, context: ProcessingContext) -> str:
+        """
+        Build traditional concatenated prompt (backward compatibility).
+
+        Args:
+            context: The processing context
+
         Returns:
             The complete prompt string
         """
         # Get system prompt
         system_prompt = await self._get_system_prompt(context)
-        
+
         # Build conversation history
         history_text = self._format_conversation_history(context.context_messages)
-        
+
         # Build context section
         context_section = ""
         if context.formatted_context:
             context_section = f"\nContext:\n{context.formatted_context}"
-        
+
         # Build the complete prompt
         parts = [system_prompt]
-        
+
         # Add time instruction
         time_instruction = self._build_time_instruction(context)
         if time_instruction:
             parts.append(time_instruction)
-        
+
         # Add language matching instruction based on detection
         language_instruction = self._build_language_instruction(context)
         if language_instruction:
             parts.append(language_instruction)
-        
+
         if context_section:
             parts.append(context_section)
-        
+
         if history_text:
             parts.append(f"\nConversation History:\n{history_text}")
-        
+
         # Add explicit instruction right before the question
         if context.formatted_context:
             parts.append("\n<IMPORTANT>\nWhen answering, you MUST prioritize information from the 'Context' section. If the 'Context' section does not contain the answer, you may use the information provided in the system prompt (at the beginning). If the answer is not found in either the 'Context' or the system prompt, you must state that you don't know the answer. Your response should ONLY contain the answer and nothing else. Do not add any conversational text, suggestions, or any information not directly found in the provided context or system prompt.\n</IMPORTANT>")
         else:
             parts.append("\n<IMPORTANT>\nAnswer any questions based on the information in the system prompt. If the user's input doesn't seem to be a question, provide a brief, neutral acknowledgement (e.g., 'OK'). Do not introduce yourself unless you are specifically asked who you are.\n</IMPORTANT>")
-        
+
         parts.append(f"\nUser: {context.message}")
         parts.append("Assistant:")
-        
+
         return "\n".join(parts)
     
     def _build_time_instruction(self, context: ProcessingContext) -> str:
@@ -208,22 +319,39 @@ class LLMInferenceStep(PipelineStep):
     async def _get_system_prompt(self, context: ProcessingContext) -> str:
         """
         Get the system prompt for the context.
-        
+
+        The prompt_service already handles Redis caching internally,
+        so we just need to call it and optionally cache in memory.
+
         Args:
             context: The processing context
-            
+
         Returns:
             The system prompt string
         """
-        if context.system_prompt_id and self.container.has('prompt_service'):
+        if not context.system_prompt_id:
+            return "You are a helpful assistant."
+
+        # Check in-memory cache first (for cases where prompt_service is unavailable)
+        cache_key = f"prompt:{context.system_prompt_id}"
+        if cache_key in self._prompt_cache:
+            self.logger.debug(f"Using in-memory cached system prompt for {context.system_prompt_id}")
+            return self._prompt_cache[cache_key]
+
+        # Fetch from prompt service (which has its own Redis caching)
+        if self.container.has('prompt_service'):
             try:
                 prompt_service = self.container.get('prompt_service')
+                # This call already uses Redis caching internally
                 prompt_doc = await prompt_service.get_prompt_by_id(context.system_prompt_id)
                 if prompt_doc:
-                    return prompt_doc.get('prompt', '')
+                    prompt_text = prompt_doc.get('prompt', '')
+                    # Only cache in memory as a fallback
+                    self._prompt_cache[cache_key] = prompt_text
+                    return prompt_text
             except Exception as e:
                 self.logger.warning(f"Failed to retrieve system prompt: {str(e)}")
-        
+
         return "You are a helpful assistant."
     
     def _format_conversation_history(self, context_messages: list) -> str:

@@ -155,28 +155,30 @@ class MockablePipelineChatService(PipelineChatService):
             await self.pipeline_factory.initialize_provider(self.pipeline.container)
             self._pipeline_initialized = True
     
-    async def _get_conversation_context(self, session_id: Optional[str]) -> List[Dict[str, str]]:
+    async def _get_conversation_context(self, session_id: Optional[str], adapter_name: str) -> List[Dict[str, str]]:
         """Get conversation context from history for the current session."""
         if not self.chat_history_enabled or not self.chat_history_service or not session_id:
             return []
         return []
-    
+
     async def _store_conversation_turn(self, session_id: Optional[str], user_message: str, 
-                                     assistant_response: str, user_id: Optional[str] = None,
-                                     api_key: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None) -> None:
+                                     assistant_response: str, adapter_name: str,
+                                     user_id: Optional[str] = None, api_key: Optional[str] = None,
+                                     metadata: Optional[Dict[str, Any]] = None) -> None:
         """Store a conversation turn in chat history."""
         if not self.chat_history_enabled or not self.chat_history_service or not session_id:
             return
-    
+
     async def _log_conversation(self, query: str, response: str, client_ip: str, api_key: Optional[str] = None, 
-                               session_id: Optional[str] = None, user_id: Optional[str] = None):
+                               session_id: Optional[str] = None, user_id: Optional[str] = None,
+                               backend: Optional[str] = None):
         """Log conversation asynchronously."""
         try:
             await self.logger_service.log_conversation(
                 query=query,
                 response=response,
                 ip=client_ip,
-                backend=None,
+                backend=backend,
                 blocked=False,
                 api_key=api_key
             )
@@ -188,8 +190,8 @@ class MockablePipelineChatService(PipelineChatService):
                                   session_id: Optional[str], user_id: Optional[str]):
         """Log detailed request information for debugging."""
         pass
-    
-    async def _check_conversation_limit_warning(self, session_id: Optional[str]) -> Optional[str]:
+
+    async def _check_conversation_limit_warning(self, session_id: Optional[str], adapter_name: str) -> Optional[str]:
         """Check for conversation limit warnings."""
         return None
 

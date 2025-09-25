@@ -58,49 +58,57 @@ class CohereProvider(LLMProvider):
             self.logger.error(f"Failed to initialize Cohere client: {str(e)}")
             raise
     
-    def _build_messages(self, prompt: str) -> list:
+    def _build_messages(self, prompt: str, messages: list = None) -> list:
         """
         Build messages in the format expected by Cohere.
-        
+
         Args:
             prompt: The input prompt
-            
+            messages: Optional pre-formatted messages list
+
         Returns:
             List of message dictionaries
         """
+        # If messages are provided, return them directly
+        if messages:
+            return messages
+
         # Extract system prompt and user message if present
         if "\nUser:" in prompt and "Assistant:" in prompt:
             parts = prompt.split("\nUser:", 1)
             if len(parts) == 2:
                 system_part = parts[0].strip()
                 user_part = parts[1].replace("Assistant:", "").strip()
-                
+
                 messages = []
                 if system_part:
                     messages.append({"role": "system", "content": system_part})
                 messages.append({"role": "user", "content": user_part})
                 return messages
-        
+
         # If no clear separation, treat entire prompt as user message
         return [{"role": "user", "content": prompt}]
     
     async def generate(self, prompt: str, **kwargs) -> str:
         """
         Generate response using Cohere.
-        
+
         Args:
             prompt: The input prompt
-            **kwargs: Additional generation parameters
-            
+            **kwargs: Additional generation parameters (including 'messages' for native format)
+
         Returns:
             The generated response text
         """
         if not self.client:
             await self.initialize()
-        
+
         try:
+            # Check if we have messages format in kwargs
+            messages = kwargs.pop('messages', None)
+
             # Build messages
-            messages = self._build_messages(prompt)
+            messages = self._build_messages(prompt, messages)
             
             if self.verbose:
                 self.logger.debug(f"Sending request to Cohere: model={self.model}, temperature={self.temperature}")
@@ -141,20 +149,23 @@ class CohereProvider(LLMProvider):
     async def generate_stream(self, prompt: str, **kwargs) -> AsyncGenerator[str, None]:
         """
         Generate streaming response using Cohere.
-        
+
         Args:
             prompt: The input prompt
-            **kwargs: Additional generation parameters
-            
+            **kwargs: Additional generation parameters (including 'messages' for native format)
+
         Yields:
             Response chunks as they are generated
         """
         if not self.client:
             await self.initialize()
-        
+
         try:
+            # Check if we have messages format in kwargs
+            messages = kwargs.pop('messages', None)
+
             # Build messages
-            messages = self._build_messages(prompt)
+            messages = self._build_messages(prompt, messages)
             
             if self.verbose:
                 self.logger.debug(f"Starting streaming request to Cohere: model={self.model}")

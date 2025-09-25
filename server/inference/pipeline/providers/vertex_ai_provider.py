@@ -96,32 +96,30 @@ class VertexAIProvider(LLMProvider):
         # Rough estimation: ~4 characters per token
         return len(text) // 4
     
-    def _build_content(self, prompt: str) -> str:
+    def _build_messages(self, prompt: str, messages: list = None) -> list:
         """
-        Build content for Vertex AI generation.
-        
+        Builds messages for Vertex AI.
+
         Args:
-            prompt: The input prompt
-            
+            prompt: The input prompt string (used as a fallback).
+            messages: An optional list of message dictionaries.
+
         Returns:
-            Formatted content string
+            A list of message dictionaries.
         """
-        # For Vertex AI, we can pass the prompt directly as content
-        # The system prompt will be handled separately if needed
+        if messages:
+            return messages
+
+        # Parse the raw prompt string
         if "\nUser:" in prompt and "Assistant:" in prompt:
             parts = prompt.split("\nUser:", 1)
             if len(parts) == 2:
                 system_part = parts[0].strip()
                 user_part = parts[1].replace("Assistant:", "").strip()
-                
-                # Combine system and user parts
-                if system_part:
-                    return f"{system_part}\n\nUser: {user_part}"
-                else:
-                    return user_part
+                # Prepend system prompt to user message content
+                return [{"role": "user", "content": f"{system_part}\n\n{user_part}"}]
         
-        # If no clear separation, return the entire prompt
-        return prompt
+        return [{"role": "user", "content": prompt}]
     
     async def generate(self, prompt: str, **kwargs) -> str:
         """
@@ -138,9 +136,21 @@ class VertexAIProvider(LLMProvider):
             await self.initialize()
         
         try:
-            # Build content from prompt
-            content = self._build_content(prompt)
-            
+            from vertexai.generative_models import Content, Part
+
+            # Build messages
+            messages_from_kwarg = kwargs.pop('messages', None)
+            messages = self._build_messages(prompt, messages_from_kwarg)
+
+            # Convert to Vertex AI Content objects
+            contents = []
+            for msg in messages:
+                role = msg.get("role", "user")
+                # Gemini uses 'model' for assistant role
+                if role == "assistant":
+                    role = "model"
+                contents.append(Content(role=role, parts=[Part.from_text(msg.get("content", ""))]))
+
             if self.verbose:
                 self.logger.debug(f"Generating with Vertex AI: model={self.model}, temperature={self.temperature}")
             
@@ -158,7 +168,7 @@ class VertexAIProvider(LLMProvider):
             # Generate response in a thread to avoid blocking
             def _generate():
                 return self.model_client.generate_content(
-                    content,
+                    contents,
                     generation_config=generation_config
                 )
             
@@ -177,9 +187,6 @@ class VertexAIProvider(LLMProvider):
         """
         Generate streaming response using Vertex AI.
         
-        Note: Vertex AI doesn't have true streaming like OpenAI, so we simulate
-        streaming by chunking the response.
-        
         Args:
             prompt: The input prompt
             **kwargs: Additional generation parameters
@@ -191,11 +198,22 @@ class VertexAIProvider(LLMProvider):
             await self.initialize()
         
         try:
-            # Build content from prompt
-            content = self._build_content(prompt)
-            
+            from vertexai.generative_models import Content, Part
+
+            # Build messages
+            messages_from_kwarg = kwargs.pop('messages', None)
+            messages = self._build_messages(prompt, messages_from_kwarg)
+
+            # Convert to Vertex AI Content objects
+            contents = []
+            for msg in messages:
+                role = msg.get("role", "user")
+                if role == "assistant":
+                    role = "model"
+                contents.append(Content(role=role, parts=[Part.from_text(msg.get("content", ""))]))
+
             if self.verbose:
-                self.logger.debug(f"Starting streaming generation with Vertex AI (simulated)")
+                self.logger.debug(f"Starting streaming generation with Vertex AI")
             
             # Create generation config with any overrides
             generation_config = self.generation_config
@@ -208,28 +226,18 @@ class VertexAIProvider(LLMProvider):
                     max_output_tokens=kwargs.get("max_tokens", self.max_tokens),
                 )
             
-            # Generate response in a thread
-            def _generate():
+            # Generate response with real streaming
+            def _generate_stream():
                 return self.model_client.generate_content(
-                    content,
-                    generation_config=generation_config
+                    contents,
+                    generation_config=generation_config,
+                    stream=True
                 )
-            
-            response = await asyncio.to_thread(_generate)
-            
-            # Get the full response text
-            full_response = response.text
-            
-            # Simulate streaming by chunking the response
-            # Split into sentences or reasonable chunks
-            chunks = re.split(r'(?<=[.!?])\s+', full_response)
-            
-            # Stream each chunk
-            for chunk in chunks:
-                if chunk.strip():
-                    yield chunk + " "
-                    # Small delay to simulate streaming
-                    await asyncio.sleep(0.05)
+
+            stream = await asyncio.to_thread(_generate_stream)
+
+            for chunk in stream:
+                yield chunk.text
                     
         except Exception as e:
             self.logger.error(f"Error generating streaming response with Vertex AI: {str(e)}")

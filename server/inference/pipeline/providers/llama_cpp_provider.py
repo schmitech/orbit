@@ -141,16 +141,20 @@ class LlamaCppProvider(LLMProvider):
         
         return text
     
-    def _build_messages(self, prompt: str) -> list:
+    def _build_messages(self, prompt: str, messages: list = None) -> list:
         """
         Build messages in the format expected by Llama.cpp.
         
         Args:
             prompt: The input prompt
+            messages: Optional pre-formatted messages list
             
         Returns:
             List of message dictionaries
         """
+        if messages:
+            return messages
+
         # Extract system prompt and user message if present
         if "\nUser:" in prompt and "Assistant:" in prompt:
             parts = prompt.split("\nUser:", 1)
@@ -173,7 +177,7 @@ class LlamaCppProvider(LLMProvider):
         
         Args:
             prompt: The input prompt
-            **kwargs: Additional generation parameters
+            **kwargs: Additional generation parameters (including 'messages' for native format)
             
         Returns:
             The generated response text
@@ -182,8 +186,11 @@ class LlamaCppProvider(LLMProvider):
             await self.initialize()
         
         try:
+            # Check if we have messages format in kwargs
+            messages = kwargs.pop('messages', None)
+
             # Build messages
-            messages = self._build_messages(prompt)
+            messages = self._build_messages(prompt, messages)
             
             if self.verbose:
                 self.logger.debug(f"Generating with Llama.cpp: temperature={self.temperature}, max_tokens={self.max_tokens}")
@@ -220,7 +227,7 @@ class LlamaCppProvider(LLMProvider):
         
         Args:
             prompt: The input prompt
-            **kwargs: Additional generation parameters
+            **kwargs: Additional generation parameters (including 'messages' for native format)
             
         Yields:
             Response chunks as they are generated
@@ -229,8 +236,11 @@ class LlamaCppProvider(LLMProvider):
             await self.initialize()
         
         try:
+            # Check if we have messages format in kwargs
+            messages = kwargs.pop('messages', None)
+
             # Build messages
-            messages = self._build_messages(prompt)
+            messages = self._build_messages(prompt, messages)
             
             if self.verbose:
                 self.logger.debug(f"Starting streaming generation with Llama.cpp")

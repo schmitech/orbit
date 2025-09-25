@@ -164,17 +164,33 @@ class WatsonProvider(LLMProvider):
                 self.logger.debug(f"Error parsing response: {e}")
             return str(response)
     
-    def _build_messages(self, prompt: str) -> list:
+    def _build_messages(self, prompt: str, messages: list = None) -> list:
         """
         Build messages in the format expected by Watson AI.
         
         Args:
-            prompt: The input prompt
+            prompt: The input prompt (used if messages is None).
+            messages: Optional list of message dictionaries.
             
         Returns:
-            List of message dictionaries
+            List of message dictionaries formatted for Watson.
         """
-        # Extract system prompt and user message if present
+        if messages:
+            # Re-format messages for Watson if needed
+            formatted_messages = []
+            for msg in messages:
+                if msg.get("role") == "user" and isinstance(msg.get("content"), str):
+                    # Wrap user string content in the required structure
+                    formatted_messages.append({
+                        "role": "user",
+                        "content": [{"type": "text", "text": msg["content"]}]
+                    })
+                else:
+                    # Assume other roles or already formatted messages are fine
+                    formatted_messages.append(msg)
+            return formatted_messages
+
+        # Original logic for parsing prompt string
         if "\nUser:" in prompt and "Assistant:" in prompt:
             parts = prompt.split("\nUser:", 1)
             if len(parts) == 2:
@@ -212,7 +228,8 @@ class WatsonProvider(LLMProvider):
         
         try:
             # Build messages from prompt
-            messages = self._build_messages(prompt)
+            messages_from_kwarg = kwargs.pop('messages', None)
+            messages = self._build_messages(prompt, messages_from_kwarg)
             
             if self.verbose:
                 self.logger.debug(f"Generating with Watson AI: model={self.model_id}, temperature={self.temperature}")
@@ -248,7 +265,8 @@ class WatsonProvider(LLMProvider):
         
         try:
             # Build messages from prompt
-            messages = self._build_messages(prompt)
+            messages_from_kwarg = kwargs.pop('messages', None)
+            messages = self._build_messages(prompt, messages_from_kwarg)
             
             if self.verbose:
                 self.logger.debug(f"Starting streaming generation with Watson AI")

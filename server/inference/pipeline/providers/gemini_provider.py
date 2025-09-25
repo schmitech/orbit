@@ -34,6 +34,9 @@ class GeminiProvider(LLMProvider):
         self.top_k = gemini_config.get("top_k", 20)
         self.max_tokens = gemini_config.get("max_tokens", 1024)
         self.stream = gemini_config.get("stream", True)
+        # Default to REST transport when running outside Google Cloud to avoid
+        # gRPC attempting ALTS handshakes (which triggers noisy error logs).
+        self.transport = gemini_config.get("transport", "rest")
         
         self.genai = None
         self.logger = logging.getLogger(__name__)
@@ -47,10 +50,16 @@ class GeminiProvider(LLMProvider):
             if not self.api_key:
                 raise ValueError("Google API key is required for Gemini")
             
-            genai.configure(api_key=self.api_key)
+            configure_kwargs = {"api_key": self.api_key}
+            if self.transport:
+                configure_kwargs["transport"] = self.transport
+
+            genai.configure(**configure_kwargs)
             self.genai = genai
-            
+
             self.logger.info(f"Initialized Gemini provider with model: {self.model}")
+            if self.transport != "grpc":
+                self.logger.debug(f"Gemini transport set to {self.transport}")
             
         except ImportError:
             self.logger.error("google-generativeai package not installed. Please install with: pip install google-generativeai")
@@ -59,38 +68,59 @@ class GeminiProvider(LLMProvider):
             self.logger.error(f"Failed to initialize Gemini client: {str(e)}")
             raise
     
-    def _prepare_messages(self, prompt: str) -> list:
+    def _prepare_messages(self, prompt: str, messages: list = None) -> list:
         """
         Prepare messages in the format expected by Gemini.
-        
+
         Args:
             prompt: The input prompt
-            
+            messages: Optional pre-formatted messages list
+
         Returns:
             List of message parts formatted for Gemini
         """
+        # If messages are provided, convert them to Gemini format
+        if messages:
+            # Gemini doesn't have separate system/user/assistant roles in the same way
+            # We need to combine them into a single prompt
+            combined_parts = []
+            for msg in messages:
+                role = msg.get('role', 'user')
+                content = msg.get('content', '')
+                if role == 'system':
+                    combined_parts.insert(0, content)  # System at the beginning
+                elif role == 'user':
+                    combined_parts.append(f"User: {content}")
+                elif role == 'assistant':
+                    combined_parts.append(f"Assistant: {content}")
+                else:
+                    combined_parts.append(content)
+
+            combined_prompt = "\n\n".join(combined_parts)
+            return [{"text": combined_prompt}]
+
         # Extract system prompt and user message if present
         if "\nUser:" in prompt and "Assistant:" in prompt:
             parts = prompt.split("\nUser:", 1)
             if len(parts) == 2:
                 system_part = parts[0].strip()
                 user_part = parts[1].replace("Assistant:", "").strip()
-                
+
                 # For Gemini, system prompts are often included as part of the user message
                 combined_prompt = f"{system_part}\n\n{user_part}"
                 return [{"text": combined_prompt}]
-        
+
         # If no clear separation, use the entire prompt
         return [{"text": prompt}]
     
     async def generate(self, prompt: str, **kwargs) -> str:
         """
         Generate response using Google Gemini.
-        
+
         Args:
             prompt: The input prompt
-            **kwargs: Additional generation parameters
-            
+            **kwargs: Additional generation parameters (including 'messages' for native format)
+
         Returns:
             The generated response text
         """

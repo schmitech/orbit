@@ -79,23 +79,26 @@ class OllamaProvider(LLMProvider, OllamaBaseService):
     async def generate(self, prompt: str, **kwargs) -> str:
         """
         Generate response using Ollama with retry logic.
-        
+
         Args:
             prompt: The input prompt
-            **kwargs: Additional generation parameters
-            
+            **kwargs: Additional generation parameters (including 'messages' for native format)
+
         Returns:
             The generated response text
         """
         async def _generate():
             start_time = time.time()
-            
+
+            # Extract messages if provided
+            messages = kwargs.pop('messages', None)
+
             # Check if model uses chat format (OpenAI-compatible models)
             use_chat_api = self.config.model.startswith('gpt-') or 'openai' in self.config.model.lower()
-            
+
             session = await self.session_manager.get_session()
-            
-            if use_chat_api:
+
+            if use_chat_api or messages:
                 # Use chat endpoint for OpenAI-compatible models
                 options = {
                     "temperature": self.config.temperature,
@@ -130,11 +133,15 @@ class OllamaProvider(LLMProvider, OllamaBaseService):
                 # Filter out None values
                 options = {k: v for k, v in options.items() if v is not None}
                 
+                # Use messages if provided, otherwise convert prompt to message format
+                if messages is None:
+                    messages = [{"role": "user", "content": prompt}]
+
                 async with session.post(
                     f"{self.config.base_url}/api/chat",
                     json={
                         "model": self.config.model,
-                        "messages": [{"role": "user", "content": prompt}],
+                        "messages": messages,
                         "stream": False,
                         "options": options,
                         "stop": self.stop if self.stop else None,
@@ -217,25 +224,28 @@ class OllamaProvider(LLMProvider, OllamaBaseService):
     async def generate_stream(self, prompt: str, **kwargs) -> AsyncGenerator[str, None]:
         """
         Generate streaming response using Ollama with retry logic.
-        
+
         Args:
             prompt: The input prompt
-            **kwargs: Additional generation parameters
-            
+            **kwargs: Additional generation parameters (including 'messages' for native format)
+
         Yields:
             Response chunks as they are generated
         """
         retries = 0
         last_exception = None
-        
+
         while retries < self.config.max_retries if self.config.retry_enabled else retries == 0:
             try:
+                # Extract messages if provided
+                messages = kwargs.pop('messages', None)
+
                 # Check if model uses chat format (OpenAI-compatible models)
                 use_chat_api = self.config.model.startswith('gpt-') or 'openai' in self.config.model.lower()
-                
+
                 session = await self.session_manager.get_session()
-                
-                if use_chat_api:
+
+                if use_chat_api or messages:
                     # Use chat endpoint for OpenAI-compatible models
                     options = {
                         "temperature": self.config.temperature,
@@ -270,11 +280,15 @@ class OllamaProvider(LLMProvider, OllamaBaseService):
                     # Filter out None values
                     options = {k: v for k, v in options.items() if v is not None}
                     
+                    # Use messages if provided, otherwise convert prompt to message format
+                    if messages is None:
+                        messages = [{"role": "user", "content": prompt}]
+
                     async with session.post(
                         f"{self.config.base_url}/api/chat",
                         json={
                             "model": self.config.model,
-                            "messages": [{"role": "user", "content": prompt}],
+                            "messages": messages,
                             "stream": True,
                             "options": options,
                             "stop": self.stop if self.stop else None,

@@ -40,31 +40,38 @@ class OpenAIProvider(LLMProvider):
     async def generate(self, prompt: str, **kwargs) -> str:
         """
         Generate response using OpenAI.
-        
+
         Args:
             prompt: The input prompt
-            **kwargs: Additional generation parameters
-            
+            **kwargs: Additional generation parameters (including 'messages' for native format)
+
         Returns:
             The generated response text
         """
         if not self.client:
             await self.initialize()
-        
+
         try:
+            # Check if we have messages format in kwargs
+            messages = kwargs.pop('messages', None)
+
+            if messages is None:
+                # Traditional format - convert to messages
+                messages = [{"role": "user", "content": prompt}]
+
             # Build parameters using new API
             params = {
                 "model": self.model,
-                "messages": [{"role": "user", "content": prompt}],
+                "messages": messages,
                 "temperature": self.temperature,
                 "max_completion_tokens": self.max_tokens,
                 **kwargs
             }
-            
+
             response = await self.client.chat.completions.create(**params)
-            
+
             return response.choices[0].message.content
-            
+
         except Exception as e:
             self.logger.error(f"Error generating response with OpenAI: {str(e)}")
             raise
@@ -72,28 +79,35 @@ class OpenAIProvider(LLMProvider):
     async def generate_stream(self, prompt: str, **kwargs) -> AsyncGenerator[str, None]:
         """
         Generate streaming response using OpenAI.
-        
+
         Args:
             prompt: The input prompt
-            **kwargs: Additional generation parameters
-            
+            **kwargs: Additional generation parameters (including 'messages' for native format)
+
         Yields:
             Response chunks as they are generated
         """
         if not self.client:
             await self.initialize()
-        
+
         try:
+            # Check if we have messages format in kwargs
+            messages = kwargs.pop('messages', None)
+
+            if messages is None:
+                # Traditional format - convert to messages
+                messages = [{"role": "user", "content": prompt}]
+
             # Build parameters using new API
             params = {
                 "model": self.model,
-                "messages": [{"role": "user", "content": prompt}],
+                "messages": messages,
                 "temperature": self.temperature,
                 "max_completion_tokens": self.max_tokens,
                 "stream": True,
                 **kwargs
             }
-            
+
             stream = await self.client.chat.completions.create(**params)
             
             async for chunk in stream:

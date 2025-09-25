@@ -56,7 +56,7 @@ class ReplicateProvider(LLMProvider):
             self.logger.error(f"Failed to initialize Replicate client: {str(e)}")
             raise
 
-    def _build_input(self, prompt: str, **kwargs) -> dict:
+    def _build_input(self, prompt: str, messages: list = None, **kwargs) -> dict:
         """
         Build the input dictionary for the Replicate API.
         """
@@ -68,14 +68,31 @@ class ReplicateProvider(LLMProvider):
             "max_new_tokens": kwargs.get("max_tokens", self.max_tokens),
         }
 
-        # Handle system prompt
-        if "\nUser:" in prompt and "Assistant:" in prompt:
-            parts = prompt.split("\nUser:", 1)
-            if len(parts) == 2:
-                system_part = parts[0].strip()
-                user_part = parts[1].replace("Assistant:", "").strip()
-                input_data["system_prompt"] = system_part
-                input_data["prompt"] = user_part
+        # Handle messages format if provided
+        if messages:
+            # Extract system and user messages
+            system_prompt = ""
+            user_prompt = ""
+            
+            for message in messages:
+                if message.get("role") == "system":
+                    system_prompt = message.get("content", "")
+                elif message.get("role") == "user":
+                    user_prompt = message.get("content", "")
+            
+            if system_prompt:
+                input_data["system_prompt"] = system_prompt
+            if user_prompt:
+                input_data["prompt"] = user_prompt
+        else:
+            # Handle legacy system prompt format
+            if "\nUser:" in prompt and "Assistant:" in prompt:
+                parts = prompt.split("\nUser:", 1)
+                if len(parts) == 2:
+                    system_part = parts[0].strip()
+                    user_part = parts[1].replace("Assistant:", "").strip()
+                    input_data["system_prompt"] = system_part
+                    input_data["prompt"] = user_part
 
         return input_data
 
@@ -85,7 +102,7 @@ class ReplicateProvider(LLMProvider):
         
         Args:
             prompt: The input prompt
-            **kwargs: Additional generation parameters
+            **kwargs: Additional generation parameters (including 'messages' for native format)
             
         Returns:
             The generated response text
@@ -94,7 +111,10 @@ class ReplicateProvider(LLMProvider):
             await self.initialize()
         
         try:
-            input_data = self._build_input(prompt, **kwargs)
+            # Check if we have messages format in kwargs
+            messages = kwargs.pop('messages', None)
+            
+            input_data = self._build_input(prompt, messages, **kwargs)
             
             if self.verbose:
                 self.logger.debug(f"Sending request to Replicate: model={self.model}")
@@ -115,7 +135,7 @@ class ReplicateProvider(LLMProvider):
         
         Args:
             prompt: The input prompt
-            **kwargs: Additional generation parameters
+            **kwargs: Additional generation parameters (including 'messages' for native format)
             
         Yields:
             Response chunks as they are generated
@@ -124,7 +144,10 @@ class ReplicateProvider(LLMProvider):
             await self.initialize()
         
         try:
-            input_data = self._build_input(prompt, **kwargs)
+            # Check if we have messages format in kwargs
+            messages = kwargs.pop('messages', None)
+            
+            input_data = self._build_input(prompt, messages, **kwargs)
 
             if self.verbose:
                 self.logger.debug(f"Starting streaming request to Replicate: model={self.model}")

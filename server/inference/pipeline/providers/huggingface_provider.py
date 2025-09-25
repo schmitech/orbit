@@ -76,37 +76,34 @@ class HuggingFaceProvider(LLMProvider):
             self.logger.error(f"Failed to initialize Hugging Face model: {str(e)}")
             raise
     
-    def _build_prompt(self, prompt: str) -> str:
+    def _build_messages(self, prompt: str, messages: list = None) -> list:
         """
-        Build prompt in the format expected by Hugging Face models.
-        
+        Build messages in the format expected by the API.
+
         Args:
-            prompt: The input prompt
-            
+            prompt: The input prompt (used if messages is None).
+            messages: Optional list of message dictionaries.
+
         Returns:
-            Formatted prompt string
+            A list of message dictionaries.
         """
-        # Extract system prompt and user message if present
+        if messages:
+            return messages
+
+        # Parse the raw prompt string
         if "\nUser:" in prompt and "Assistant:" in prompt:
             parts = prompt.split("\nUser:", 1)
             if len(parts) == 2:
                 system_part = parts[0].strip()
                 user_part = parts[1].replace("Assistant:", "").strip()
-                
-                # Build conversational format
-                formatted_parts = []
-                if system_part:
-                    formatted_parts.append(f"System: {system_part}")
-                formatted_parts.append(f"User: {user_part}")
-                formatted_parts.append("Assistant:")
-                
-                return "\n".join(formatted_parts)
+                return [
+                    {"role": "system", "content": system_part},
+                    {"role": "user", "content": user_part}
+                ]
         
-        # If no clear separation, add Assistant: prompt at the end
-        if not prompt.endswith("Assistant:"):
-            return f"{prompt}\nAssistant:"
-        return prompt
-    
+        # If no clear separation, treat entire prompt as user message
+        return [{"role": "user", "content": prompt}]
+
     async def generate(self, prompt: str, **kwargs) -> str:
         """
         Generate response using Hugging Face.
@@ -124,9 +121,21 @@ class HuggingFaceProvider(LLMProvider):
         try:
             import torch
             
-            # Build prompt
-            formatted_prompt = self._build_prompt(prompt)
-            
+            # Build messages from prompt or kwargs
+            messages_from_kwarg = kwargs.pop('messages', None)
+            messages = self._build_messages(prompt, messages_from_kwarg)
+
+            # Use chat template if available, otherwise fallback to simple join
+            try:
+                formatted_prompt = self.tokenizer.apply_chat_template(
+                    messages, 
+                    tokenize=False, 
+                    add_generation_prompt=True
+                )
+            except Exception:
+                # Fallback for models without a chat template
+                formatted_prompt = "\n".join([msg["content"] for msg in messages]) + "\nAssistant:"
+
             if self.verbose:
                 self.logger.debug(f"Generating with Hugging Face: model={self.model_name}, temperature={self.temperature}")
             

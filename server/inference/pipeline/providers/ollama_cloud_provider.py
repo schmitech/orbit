@@ -83,22 +83,34 @@ class OllamaCloudProvider(LLMProvider):
     async def generate(self, prompt: str, **kwargs) -> str:
         """
         Generate response using Ollama Cloud.
+
+        Args:
+            prompt: The input prompt
+            **kwargs: Additional generation parameters (including 'messages' for native format)
+
+        Returns:
+            The generated response text
         """
         if not self.client:
             await self.initialize()
-        
+
         try:
-            messages = [{"role": "user", "content": prompt}]
-            
+            # Check if we have messages format in kwargs
+            messages = kwargs.pop('messages', None)
+
+            if messages is None:
+                # Traditional format - convert to messages
+                messages = [{"role": "user", "content": prompt}]
+
             response = await self.client.chat(
                 model=self.model,
                 messages=messages,
                 options=self.options,
                 **kwargs
             )
-            
+
             return response['message']['content']
-            
+
         except Exception as e:
             self.logger.error(f"Error generating response with Ollama Cloud: {str(e)}")
             raise
@@ -106,13 +118,25 @@ class OllamaCloudProvider(LLMProvider):
     async def generate_stream(self, prompt: str, **kwargs) -> AsyncGenerator[str, None]:
         """
         Generate streaming response using Ollama Cloud.
+
+        Args:
+            prompt: The input prompt
+            **kwargs: Additional generation parameters (including 'messages' for native format)
+
+        Yields:
+            Response chunks as they are generated
         """
         if not self.client:
             await self.initialize()
-        
+
         try:
-            messages = [{"role": "user", "content": prompt}]
-            
+            # Check if we have messages format in kwargs
+            messages = kwargs.pop('messages', None)
+
+            if messages is None:
+                # Traditional format - convert to messages
+                messages = [{"role": "user", "content": prompt}]
+
             stream = await self.client.chat(
                 model=self.model,
                 messages=messages,
@@ -120,12 +144,12 @@ class OllamaCloudProvider(LLMProvider):
                 options=self.options,
                 **kwargs
             )
-            
+
             async for chunk in stream:
                 content = chunk.get('message', {}).get('content')
                 if content:
                     yield content
-                    
+
         except Exception as e:
             self.logger.error(f"Error generating streaming response with Ollama Cloud: {str(e)}")
             yield f"Error: {str(e)}"

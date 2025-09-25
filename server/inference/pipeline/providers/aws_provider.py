@@ -72,44 +72,53 @@ class AWSBedrockProvider(LLMProvider):
             self.logger.error(f"Failed to initialize AWS Bedrock client: {str(e)}")
             raise
     
-    def _prepare_messages(self, prompt: str) -> list:
+    def _build_messages(self, prompt: str, messages: list = None) -> tuple[str, list]:
         """
-        Prepare messages in the format expected by AWS Bedrock.
-        
+        Builds messages for AWS Bedrock, separating the system prompt.
+
+        This method handles two cases:
+        1. A list of messages is provided: It extracts the system prompt 
+           (if any) and returns the rest of the messages.
+        2. A raw prompt string is provided: It parses the string to separate
+           the system prompt from the user message.
+
         Args:
-            prompt: The input prompt
-            
+            prompt: The input prompt string (used as a fallback).
+            messages: An optional list of message dictionaries.
+
         Returns:
-            List of message dictionaries
+            A tuple containing (system_prompt, conversation_messages).
         """
-        # For now, we treat the entire prompt as a user message
-        # The system prompt is already included in the prompt from the pipeline
-        return [{"role": "user", "content": prompt}]
-    
-    def _extract_system_prompt(self, prompt: str) -> tuple[str, str]:
-        """
-        Extract system prompt and user message from the combined prompt.
+        system_prompt = ""
+        conversation_messages = []
+
+        if messages:
+            # Case 1: Process a list of messages
+            temp_messages = []
+            for message in messages:
+                if message.get("role") == "system":
+                    system_prompt = message.get("content", "")
+                else:
+                    temp_messages.append(message)
+            conversation_messages = temp_messages
+        else:
+            # Case 2: Parse the raw prompt string
+            if "\nUser:" in prompt and "Assistant:" in prompt:
+                parts = prompt.split("\nUser:", 1)
+                if len(parts) == 2:
+                    system_prompt = parts[0].strip()
+                    user_part = parts[1].replace("Assistant:", "").strip()
+                    conversation_messages = [{"role": "user", "content": user_part}]
+            else:
+                # If no clear separation, treat the whole prompt as a user message
+                conversation_messages = [{"role": "user", "content": prompt}]
         
-        AWS Bedrock models like Claude expect system and user messages separately.
-        
-        Args:
-            prompt: The combined prompt
-            
-        Returns:
-            Tuple of (system_prompt, user_message)
-        """
-        # Look for common patterns that separate system prompt from user message
-        if "\nUser:" in prompt and "Assistant:" in prompt:
-            # Split on User: to separate system context from user message
-            parts = prompt.split("\nUser:", 1)
-            if len(parts) == 2:
-                system_part = parts[0].strip()
-                user_part = parts[1].replace("Assistant:", "").strip()
-                return system_part, user_part
-        
-        # If no clear separation, treat entire prompt as user message
-        return "", prompt
-    
+        # Ensure there's at least one message for the model
+        if not conversation_messages:
+            conversation_messages = [{"role": "user", "content": ""}]
+
+        return system_prompt, conversation_messages
+
     async def generate(self, prompt: str, **kwargs) -> str:
         """
         Generate response using AWS Bedrock.
@@ -125,14 +134,15 @@ class AWSBedrockProvider(LLMProvider):
             await self.initialize()
         
         try:
-            # Extract system prompt and user message
-            system_prompt, user_message = self._extract_system_prompt(prompt)
+            # Extract messages from kwargs and prepare the request data
+            messages = kwargs.pop('messages', None)
+            system_prompt, conversation_messages = self._build_messages(prompt, messages)
             
             # Prepare the request body based on the model
             if "claude" in self.model.lower():
                 # Claude models use this format
                 body = {
-                    "messages": [{"role": "user", "content": user_message}],
+                    "messages": conversation_messages,
                     "max_tokens": self.max_tokens,
                     "temperature": self.temperature,
                     "top_p": self.top_p,
@@ -141,9 +151,13 @@ class AWSBedrockProvider(LLMProvider):
                 if system_prompt:
                     body["system"] = system_prompt
             else:
-                # Generic format for other models
+                # For other models, reconstruct a single prompt string.
+                full_prompt = "\n".join([msg.get("content", "") for msg in conversation_messages])
+                if system_prompt:
+                    full_prompt = f"{system_prompt}\n\n{full_prompt}"
+
                 body = {
-                    "prompt": prompt,
+                    "prompt": full_prompt,
                     "max_tokens": self.max_tokens,
                     "temperature": self.temperature,
                     "top_p": self.top_p
@@ -207,13 +221,14 @@ class AWSBedrockProvider(LLMProvider):
             await self.initialize()
         
         try:
-            # Extract system prompt and user message
-            system_prompt, user_message = self._extract_system_prompt(prompt)
+            # Extract messages from kwargs and prepare the request data
+            messages = kwargs.pop('messages', None)
+            system_prompt, conversation_messages = self._build_messages(prompt, messages)
             
             # Prepare the request body
             if "claude" in self.model.lower():
                 body = {
-                    "messages": [{"role": "user", "content": user_message}],
+                    "messages": conversation_messages,
                     "max_tokens": self.max_tokens,
                     "temperature": self.temperature,
                     "top_p": self.top_p,
@@ -222,8 +237,13 @@ class AWSBedrockProvider(LLMProvider):
                 if system_prompt:
                     body["system"] = system_prompt
             else:
+                # For other models, reconstruct a single prompt string.
+                full_prompt = "\n".join([msg.get("content", "") for msg in conversation_messages])
+                if system_prompt:
+                    full_prompt = f"{system_prompt}\n\n{full_prompt}"
+                
                 body = {
-                    "prompt": prompt,
+                    "prompt": full_prompt,
                     "max_tokens": self.max_tokens,
                     "temperature": self.temperature,
                     "top_p": self.top_p

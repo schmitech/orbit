@@ -29,6 +29,7 @@ class ProcessingContext:
     retrieved_docs: List[Dict[str, Any]] = field(default_factory=list)
     formatted_context: str = ""
     full_prompt: str = ""
+    messages: Optional[List[Dict[str, str]]] = None  # For message-based prompt format
     
     # Output data
     response: str = ""

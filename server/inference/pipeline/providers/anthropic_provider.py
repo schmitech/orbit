@@ -39,27 +39,48 @@ class AnthropicProvider(LLMProvider):
     async def generate(self, prompt: str, **kwargs) -> str:
         """
         Generate response using Anthropic.
-        
+
         Args:
             prompt: The input prompt
-            **kwargs: Additional generation parameters
-            
+            **kwargs: Additional generation parameters (including 'messages' for native format)
+
         Returns:
             The generated response text
         """
         if not self.client:
             await self.initialize()
-        
+
         try:
+            # Check if we have messages format in kwargs
+            messages = kwargs.pop('messages', None)
+
+            if messages is None:
+                # Traditional format - convert to messages
+                messages = [{"role": "user", "content": prompt}]
+            else:
+                # Extract system message if present and convert to system parameter
+                system_message = None
+                filtered_messages = []
+                
+                for message in messages:
+                    if message.get("role") == "system":
+                        system_message = message.get("content", "")
+                    else:
+                        filtered_messages.append(message)
+                
+                messages = filtered_messages
+                if system_message:
+                    kwargs["system"] = system_message
+
             response = await self.client.messages.create(
                 model=self.model,
                 max_tokens=self.max_tokens,
-                messages=[{"role": "user", "content": prompt}],
+                messages=messages,
                 **kwargs
             )
-            
+
             return response.content[0].text
-            
+
         except Exception as e:
             self.logger.error(f"Error generating response with Anthropic: {str(e)}")
             raise
@@ -67,31 +88,52 @@ class AnthropicProvider(LLMProvider):
     async def generate_stream(self, prompt: str, **kwargs) -> AsyncGenerator[str, None]:
         """
         Generate streaming response using Anthropic.
-        
+
         Args:
             prompt: The input prompt
-            **kwargs: Additional generation parameters
-            
+            **kwargs: Additional generation parameters (including 'messages' for native format)
+
         Yields:
             Response chunks as they are generated
         """
         if not self.client:
             await self.initialize()
-        
+
         try:
+            # Check if we have messages format in kwargs
+            messages = kwargs.pop('messages', None)
+
+            if messages is None:
+                # Traditional format - convert to messages
+                messages = [{"role": "user", "content": prompt}]
+            else:
+                # Extract system message if present and convert to system parameter
+                system_message = None
+                filtered_messages = []
+                
+                for message in messages:
+                    if message.get("role") == "system":
+                        system_message = message.get("content", "")
+                    else:
+                        filtered_messages.append(message)
+                
+                messages = filtered_messages
+                if system_message:
+                    kwargs["system"] = system_message
+
             stream = await self.client.messages.create(
                 model=self.model,
                 max_tokens=self.max_tokens,
-                messages=[{"role": "user", "content": prompt}],
+                messages=messages,
                 stream=True,
                 **kwargs
             )
-            
+
             async with stream as response:
                 async for chunk in response:
                     if chunk.type == "content_block_delta":
                         yield chunk.delta.text
-                        
+
         except Exception as e:
             self.logger.error(f"Error generating streaming response with Anthropic: {str(e)}")
             yield f"Error: {str(e)}"

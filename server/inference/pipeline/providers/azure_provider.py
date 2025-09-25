@@ -65,28 +65,43 @@ class AzureProvider(LLMProvider):
             self.logger.error(f"Failed to initialize Azure AI client: {str(e)}")
             raise
     
-    def _build_messages(self, prompt: str) -> tuple:
+    def _build_messages(self, prompt: str, messages: list = None) -> tuple[list, str | None]:
         """
         Build messages and system prompt in the format expected by Azure AI.
         
         Args:
-            prompt: The input prompt
+            prompt: The input prompt (used if messages is None).
+            messages: Optional list of message dictionaries.
             
         Returns:
-            Tuple of (messages, system_prompt)
+            Tuple of (messages_list, system_prompt_string).
         """
-        # Extract system prompt and user message if present
-        if "\nUser:" in prompt and "Assistant:" in prompt:
-            parts = prompt.split("\nUser:", 1)
-            if len(parts) == 2:
-                system_part = parts[0].strip()
-                user_part = parts[1].replace("Assistant:", "").strip()
-                
-                messages = [{"role": "user", "content": user_part}]
-                return messages, system_part if system_part else None
-        
-        # If no clear separation, treat entire prompt as user message
-        return [{"role": "user", "content": prompt}], None
+        system_prompt = None
+        conversation_messages = []
+
+        if messages:
+            # Process a list of messages
+            for message in messages:
+                if message.get("role") == "system":
+                    system_prompt = message.get("content")
+                else:
+                    conversation_messages.append(message)
+        else:
+            # Parse the raw prompt string
+            if "\nUser:" in prompt and "Assistant:" in prompt:
+                parts = prompt.split("\nUser:", 1)
+                if len(parts) == 2:
+                    system_prompt = parts[0].strip()
+                    user_part = parts[1].replace("Assistant:", "").strip()
+                    conversation_messages = [{"role": "user", "content": user_part}]
+            else:
+                # If no clear separation, treat entire prompt as user message
+                conversation_messages = [{"role": "user", "content": prompt}]
+
+        if not conversation_messages:
+             conversation_messages = [{"role": "user", "content": ""}]
+
+        return conversation_messages, system_prompt
     
     async def generate(self, prompt: str, **kwargs) -> str:
         """
@@ -104,7 +119,8 @@ class AzureProvider(LLMProvider):
         
         try:
             # Build messages and system prompt
-            messages, system_prompt = self._build_messages(prompt)
+            messages_from_kwarg = kwargs.pop('messages', None)
+            messages, system_prompt = self._build_messages(prompt, messages_from_kwarg)
             
             if self.verbose:
                 self.logger.debug(f"Generating with Azure AI: deployment={self.deployment}, temperature={self.temperature}")
@@ -144,7 +160,8 @@ class AzureProvider(LLMProvider):
         
         try:
             # Build messages and system prompt
-            messages, system_prompt = self._build_messages(prompt)
+            messages_from_kwarg = kwargs.pop('messages', None)
+            messages, system_prompt = self._build_messages(prompt, messages_from_kwarg)
             
             if self.verbose:
                 self.logger.debug(f"Starting streaming generation with Azure AI")

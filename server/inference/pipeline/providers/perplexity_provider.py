@@ -62,7 +62,7 @@ class PerplexityProvider(LLMProvider):
         
         Args:
             prompt: The input prompt
-            **kwargs: Additional generation parameters
+            **kwargs: Additional generation parameters (including 'messages' for native format)
             
         Returns:
             The generated response text
@@ -71,20 +71,12 @@ class PerplexityProvider(LLMProvider):
             await self.initialize()
         
         try:
-            # Build messages from prompt
-            messages = [{"role": "user", "content": prompt}]
-            
-            # Extract system prompt if present in the prompt
-            if "\nUser:" in prompt and "Assistant:" in prompt:
-                # Split to extract system prompt
-                parts = prompt.split("\nUser:", 1)
-                if len(parts) == 2:
-                    system_part = parts[0].strip()
-                    user_part = parts[1].replace("Assistant:", "").strip()
-                    messages = [
-                        {"role": "system", "content": system_part},
-                        {"role": "user", "content": user_part}
-                    ]
+            # Check if we have messages format in kwargs
+            messages = kwargs.pop('messages', None)
+
+            if messages is None:
+                # Traditional format - convert to messages
+                messages = [{"role": "user", "content": prompt}]
             
             if self.verbose:
                 self.logger.debug(f"Sending request to Perplexity: model={self.model}, temperature={self.temperature}")
@@ -110,7 +102,7 @@ class PerplexityProvider(LLMProvider):
         
         Args:
             prompt: The input prompt
-            **kwargs: Additional generation parameters
+            **kwargs: Additional generation parameters (including 'messages' for native format)
             
         Yields:
             Response chunks as they are generated
@@ -119,19 +111,12 @@ class PerplexityProvider(LLMProvider):
             await self.initialize()
         
         try:
-            # Build messages from prompt
-            messages = [{"role": "user", "content": prompt}]
-            
-            # Extract system prompt if present
-            if "\nUser:" in prompt and "Assistant:" in prompt:
-                parts = prompt.split("\nUser:", 1)
-                if len(parts) == 2:
-                    system_part = parts[0].strip()
-                    user_part = parts[1].replace("Assistant:", "").strip()
-                    messages = [
-                        {"role": "system", "content": system_part},
-                        {"role": "user", "content": user_part}
-                    ]
+            # Check if we have messages format in kwargs
+            messages = kwargs.pop('messages', None)
+
+            if messages is None:
+                # Traditional format - convert to messages
+                messages = [{"role": "user", "content": prompt}]
             
             if self.verbose:
                 self.logger.debug(f"Starting streaming request to Perplexity: model={self.model}")

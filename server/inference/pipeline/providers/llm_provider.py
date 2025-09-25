@@ -27,8 +27,9 @@ class LLMProvider(ABC):
         Generate response for the given prompt.
         
         Args:
-            prompt: The input prompt
-            **kwargs: Additional generation parameters
+            prompt: The input prompt.
+            **kwargs: Additional generation parameters, including an optional
+                      'messages' list for structured conversations.
             
         Returns:
             The generated response text
@@ -41,8 +42,9 @@ class LLMProvider(ABC):
         Generate streaming response.
         
         Args:
-            prompt: The input prompt
-            **kwargs: Additional generation parameters
+            prompt: The input prompt.
+            **kwargs: Additional generation parameters, including an optional
+                      'messages' list for structured conversations.
             
         Yields:
             Response chunks as they are generated
@@ -62,4 +64,4 @@ class LLMProvider(ABC):
         Returns:
             True if configuration is valid, False otherwise
         """
-        return True 
+        pass

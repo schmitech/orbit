@@ -56,6 +56,34 @@ class FireworksProvider(LLMProvider):
             self.logger.error(f"Failed to initialize Fireworks AI client: {str(e)}")
             raise
     
+    def _build_messages(self, prompt: str, messages: list = None) -> list:
+        """
+        Build messages in the format expected by the API.
+
+        Args:
+            prompt: The input prompt (used if messages is None).
+            messages: Optional list of message dictionaries.
+
+        Returns:
+            A list of message dictionaries.
+        """
+        if messages:
+            return messages
+
+        # Parse the raw prompt string
+        if "\nUser:" in prompt and "Assistant:" in prompt:
+            parts = prompt.split("\nUser:", 1)
+            if len(parts) == 2:
+                system_part = parts[0].strip()
+                user_part = parts[1].replace("Assistant:", "").strip()
+                return [
+                    {"role": "system", "content": system_part},
+                    {"role": "user", "content": user_part}
+                ]
+        
+        # If no clear separation, treat entire prompt as user message
+        return [{"role": "user", "content": prompt}]
+
     async def generate(self, prompt: str, **kwargs) -> str:
         """
         Generate response using Fireworks AI.
@@ -71,20 +99,9 @@ class FireworksProvider(LLMProvider):
             await self.initialize()
         
         try:
-            # Build messages from prompt
-            messages = [{"role": "user", "content": prompt}]
-            
-            # Extract system prompt if present in the prompt
-            if "\nUser:" in prompt and "Assistant:" in prompt:
-                # Split to extract system prompt
-                parts = prompt.split("\nUser:", 1)
-                if len(parts) == 2:
-                    system_part = parts[0].strip()
-                    user_part = parts[1].replace("Assistant:", "").strip()
-                    messages = [
-                        {"role": "system", "content": system_part},
-                        {"role": "user", "content": user_part}
-                    ]
+            # Build messages from prompt or kwargs
+            messages_from_kwarg = kwargs.pop('messages', None)
+            messages = self._build_messages(prompt, messages_from_kwarg)
             
             if self.verbose:
                 self.logger.debug(f"Sending request to Fireworks AI: model={self.model}, temperature={self.temperature}")
@@ -119,19 +136,9 @@ class FireworksProvider(LLMProvider):
             await self.initialize()
         
         try:
-            # Build messages from prompt
-            messages = [{"role": "user", "content": prompt}]
-            
-            # Extract system prompt if present
-            if "\nUser:" in prompt and "Assistant:" in prompt:
-                parts = prompt.split("\nUser:", 1)
-                if len(parts) == 2:
-                    system_part = parts[0].strip()
-                    user_part = parts[1].replace("Assistant:", "").strip()
-                    messages = [
-                        {"role": "system", "content": system_part},
-                        {"role": "user", "content": user_part}
-                    ]
+            # Build messages from prompt or kwargs
+            messages_from_kwarg = kwargs.pop('messages', None)
+            messages = self._build_messages(prompt, messages_from_kwarg)
             
             if self.verbose:
                 self.logger.debug(f"Starting streaming request to Fireworks AI: model={self.model}")

@@ -84,7 +84,7 @@ class XAIProvider(LLMProvider):
             text = text.replace('<think>', '').replace('</think>', '')
         return text
     
-    def _build_messages(self, prompt: str) -> list:
+    def _build_messages(self, prompt: str, messages: list = None) -> list:
         """
         Build messages in the format expected by xAI.
         
@@ -94,6 +94,9 @@ class XAIProvider(LLMProvider):
         Returns:
             List of message dictionaries
         """
+        if messages:
+            return messages
+
         # Extract system prompt and user message if present
         if "\nUser:" in prompt and "Assistant:" in prompt:
             parts = prompt.split("\nUser:", 1)
@@ -126,7 +129,8 @@ class XAIProvider(LLMProvider):
         
         try:
             # Build messages from prompt
-            messages = self._build_messages(prompt)
+            messages_from_kwarg = kwargs.pop('messages', None)
+            messages = self._build_messages(prompt, messages_from_kwarg)
             
             if self.verbose:
                 self.logger.debug(f"Generating with xAI: model={self.model}, temperature={self.temperature}")
@@ -176,7 +180,8 @@ class XAIProvider(LLMProvider):
         
         try:
             # Build messages from prompt
-            messages = self._build_messages(prompt)
+            messages_from_kwarg = kwargs.pop('messages', None)
+            messages = self._build_messages(prompt, messages_from_kwarg)
             
             if self.verbose:
                 self.logger.debug(f"Starting streaming generation with xAI")
