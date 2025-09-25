@@ -259,6 +259,61 @@ export class ApiClient {
       }
     }
   }
+
+  public async clearConversationHistory(sessionId?: string): Promise<{
+    status: string;
+    message: string;
+    session_id: string;
+    deleted_count: number;
+    timestamp: string;
+  }> {
+    /**
+     * Clear conversation history for a session.
+     * 
+     * @param sessionId - Optional session ID to clear. If not provided, uses current session.
+     * @returns Promise resolving to operation result
+     * @throws Error if the operation fails
+     */
+    const targetSessionId = sessionId || this.sessionId;
+    
+    if (!targetSessionId) {
+      throw new Error('No session ID provided and no current session available');
+    }
+    
+    if (!this.apiKey) {
+      throw new Error('API key is required for clearing conversation history');
+    }
+    
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'X-Session-ID': targetSessionId,
+      'X-API-Key': this.apiKey
+    };
+    
+    try {
+      const response = await fetch(`${this.apiUrl}/admin/chat-history/${targetSessionId}`, {
+        ...this.getFetchOptions({
+          method: 'DELETE',
+          headers
+        })
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to clear conversation history: ${response.status} ${errorText}`);
+      }
+      
+      const result = await response.json();
+      return result;
+      
+    } catch (error: any) {
+      if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+        throw new Error('Could not connect to the server. Please check if the server is running.');
+      } else {
+        throw error;
+      }
+    }
+  }
 }
 
 // Legacy compatibility functions - these create a default client instance
@@ -282,3 +337,4 @@ export async function* streamChat(
   
   yield* defaultClient.streamChat(message, stream);
 }
+

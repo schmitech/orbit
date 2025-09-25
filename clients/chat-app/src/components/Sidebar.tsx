@@ -23,10 +23,12 @@ export function Sidebar({}: SidebarProps) {
     isOpen: boolean;
     conversationId: string;
     conversationTitle: string;
+    isDeleting: boolean;
   }>({
     isOpen: false,
     conversationId: '',
-    conversationTitle: ''
+    conversationTitle: '',
+    isDeleting: false
   });
 
   const filteredConversations = conversations.filter(conv =>
@@ -45,24 +47,39 @@ export function Sidebar({}: SidebarProps) {
     setDeleteConfirmation({
       isOpen: true,
       conversationId: conversation.id,
-      conversationTitle: conversation.title
+      conversationTitle: conversation.title,
+      isDeleting: false
     });
   };
 
-  const confirmDelete = () => {
-    deleteConversation(deleteConfirmation.conversationId);
-    setDeleteConfirmation({
-      isOpen: false,
-      conversationId: '',
-      conversationTitle: ''
-    });
+  const confirmDelete = async () => {
+    setDeleteConfirmation(prev => ({ ...prev, isDeleting: true }));
+    try {
+      await deleteConversation(deleteConfirmation.conversationId);
+      setDeleteConfirmation({
+        isOpen: false,
+        conversationId: '',
+        conversationTitle: '',
+        isDeleting: false
+      });
+    } catch (error) {
+      console.error('Failed to delete conversation:', error);
+      // Still close the modal even if there was an error
+      setDeleteConfirmation({
+        isOpen: false,
+        conversationId: '',
+        conversationTitle: '',
+        isDeleting: false
+      });
+    }
   };
 
   const cancelDelete = () => {
     setDeleteConfirmation({
       isOpen: false,
       conversationId: '',
-      conversationTitle: ''
+      conversationTitle: '',
+      isDeleting: false
     });
   };
 
@@ -139,7 +156,7 @@ export function Sidebar({}: SidebarProps) {
               {filteredConversations.map((conversation) => (
                 <div
                   key={conversation.id}
-                  onClick={() => selectConversation(conversation.id)}
+                  onClick={async () => await selectConversation(conversation.id)}
                   className={`group flex items-center gap-3 p-4 rounded-xl cursor-pointer transition-all duration-200 backdrop-blur-sm border ${
                     currentConversationId === conversation.id
                       ? 'bg-gradient-to-r from-blue-50/80 to-indigo-50/80 dark:from-blue-900/40 dark:to-indigo-900/40 shadow-lg transform scale-[1.02] border-blue-200/30 dark:border-blue-700/30'
@@ -213,10 +230,11 @@ export function Sidebar({}: SidebarProps) {
         onClose={cancelDelete}
         onConfirm={confirmDelete}
         title="Delete Conversation"
-        message={`Are you sure you want to delete "${deleteConfirmation.conversationTitle}"? This action cannot be undone and all messages in this conversation will be permanently lost.`}
+        message={`Are you sure you want to delete "${deleteConfirmation.conversationTitle}"? This will clear the conversation history from both the server and your local storage. This action cannot be undone.`}
         confirmText="Delete"
         cancelText="Cancel"
         type="danger"
+        isLoading={deleteConfirmation.isDeleting}
       />
     </>
   );

@@ -5,9 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:local": "VITE_USE_LOCAL_API=true vite",
     "build": "tsc && vite build",
+    "build:local": "VITE_USE_LOCAL_API=true tsc && vite build",
+    "build:api": "cd ../node-api && npm run build",
+    "dev:with-api": "npm run build:api && npm run dev:local",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "preview:local": "VITE_USE_LOCAL_API=true vite preview"
   },
   "dependencies": {
     "@schmitech/chatbot-api": "^0.5.2",

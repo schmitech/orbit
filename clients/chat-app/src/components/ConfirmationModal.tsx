@@ -10,6 +10,7 @@ interface ConfirmationModalProps {
   confirmText?: string;
   cancelText?: string;
   type?: 'danger' | 'warning' | 'info';
+  isLoading?: boolean;
 }
 
 export function ConfirmationModal({
@@ -20,13 +21,15 @@ export function ConfirmationModal({
   message,
   confirmText = 'Confirm',
   cancelText = 'Cancel',
-  type = 'danger'
+  type = 'danger',
+  isLoading = false
 }: ConfirmationModalProps) {
   if (!isOpen) return null;
 
   const handleConfirm = () => {
-    onConfirm();
-    onClose();
+    if (!isLoading) {
+      onConfirm();
+    }
   };
 
   const getTypeStyles = () => {
@@ -89,15 +92,24 @@ export function ConfirmationModal({
         <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 rounded-b-2xl">
           <button
             onClick={onClose}
-            className="px-4 py-2.5 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors font-medium"
+            disabled={isLoading}
+            className="px-4 py-2.5 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {cancelText}
           </button>
           <button
             onClick={handleConfirm}
-            className={`px-4 py-2.5 text-white rounded-lg transition-all font-medium shadow-sm hover:shadow-md transform hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-800 ${styles.confirmButton}`}
+            disabled={isLoading}
+            className={`px-4 py-2.5 text-white rounded-lg transition-all font-medium shadow-sm hover:shadow-md transform hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-800 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none ${styles.confirmButton}`}
           >
-            {confirmText}
+            {isLoading ? (
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                Clearing...
+              </div>
+            ) : (
+              confirmText
+            )}
           </button>
         </div>
       </div>

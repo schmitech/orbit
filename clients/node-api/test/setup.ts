@@ -11,62 +11,64 @@ configureApi(TEST_API_URL);
 
 // Define mock handlers
 const handlers = [
-  http.post(`${TEST_API_URL}/chat`, async ({ request }) => {
+  http.post(`${TEST_API_URL}/v1/chat`, async ({ request }) => {
     // Add type annotation to fix linter error
     interface ChatRequest {
-      message: string;
-      voiceEnabled: boolean;
+      messages: Array<{ role: string; content: string; }>;
+      stream: boolean;
     }
     
-    const { message, voiceEnabled } = await request.json() as ChatRequest;
+    const { messages, stream } = await request.json() as ChatRequest;
+    const message = messages[0]?.content || '';
     
     // Use message variable to avoid unused variable warning
     console.log(`Processing mock request with message: "${message}"`);
     
+    if (!stream) {
+      // Non-streaming response
+      return HttpResponse.json({
+        response: 'Hello! This is a test response. Response complete.'
+      });
+    }
+    
     // Mock streaming response
     const encoder = new TextEncoder();
-    const stream = new ReadableStream({
+    const streamResponse = new ReadableStream({
       async start(controller) {
         // First chunk
-        controller.enqueue(encoder.encode(JSON.stringify({ 
-          text: 'Hello! ', 
+        controller.enqueue(encoder.encode('data: ' + JSON.stringify({ 
+          response: 'Hello! ', 
           done: false 
-        }) + '\n'));
+        }) + '\n\n'));
         
         // Wait a bit to simulate streaming
         await new Promise(resolve => setTimeout(resolve, 50));
         
         // Second chunk
-        controller.enqueue(encoder.encode(JSON.stringify({ 
-          text: 'This is a test response. ', 
+        controller.enqueue(encoder.encode('data: ' + JSON.stringify({ 
+          response: 'This is a test response. ', 
           done: false 
-        }) + '\n'));
+        }) + '\n\n'));
         
         // Wait a bit more
         await new Promise(resolve => setTimeout(resolve, 50));
         
-        // Final chunk with voice data if requested
-        if (voiceEnabled) {
-          controller.enqueue(encoder.encode(JSON.stringify({ 
-            text: 'Voice enabled response.',
-            type: 'audio',
-            content: 'mock-base64-audio-data',
-            done: true 
-          }) + '\n'));
-        } else {
-          controller.enqueue(encoder.encode(JSON.stringify({ 
-            text: 'Response complete.',
-            done: true 
-          }) + '\n'));
-        }
+        // Final chunk
+        controller.enqueue(encoder.encode('data: ' + JSON.stringify({ 
+          response: 'Response complete.',
+          done: true 
+        }) + '\n\n'));
+        
+        // End of stream
+        controller.enqueue(encoder.encode('data: [DONE]\n\n'));
         
         controller.close();
       }
     });
     
-    return new HttpResponse(stream, {
+    return new HttpResponse(streamResponse, {
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'text/event-stream'
       }
     });
   })

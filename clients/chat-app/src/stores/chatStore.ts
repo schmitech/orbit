@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { streamChat, configureApi } from '@schmitech/chatbot-api';
+import { getApi } from '../api/loader';
 import { Message, Conversation, ChatState } from '../types';
 
 // Session management utilities
@@ -38,14 +38,14 @@ const generateUniqueSessionId = (): string => {
 interface ExtendedChatState extends ChatState {
   sessionId: string;
   createConversation: () => string;
-  selectConversation: (id: string) => void;
-  deleteConversation: (id: string) => void;
+  selectConversation: (id: string) => Promise<void>;
+  deleteConversation: (id: string) => Promise<void>;
   sendMessage: (content: string) => Promise<void>;
   appendToLastMessage: (content: string) => void;
   regenerateResponse: (messageId: string) => Promise<void>;
   updateConversationTitle: (id: string, title: string) => void;
   clearError: () => void;
-  configureApiSettings: (apiUrl: string, apiKey?: string, sessionId?: string) => void;
+  configureApiSettings: (apiUrl: string, apiKey?: string, sessionId?: string) => Promise<void>;
   getSessionId: () => string;
   cleanupStreamingMessages: () => void;
 }
@@ -54,23 +54,31 @@ interface ExtendedChatState extends ChatState {
 let apiConfigured = false;
 let currentApiUrl = '';
 
-function ensureApiConfigured(): boolean {
+async function ensureApiConfigured(): Promise<boolean> {
   if (apiConfigured && currentApiUrl) {
     return true;
   }
 
-  // Check localStorage first, then environment variables
-  const apiUrl = localStorage.getItem('chat-api-url') || 
-                import.meta.env.VITE_API_URL || 
-                (window as any).CHATBOT_API_URL ||
-                'http://localhost:3000';
+  try {
+    // Load the API dynamically
+    const api = await getApi();
 
-  const apiKey = localStorage.getItem('chat-api-key') || 'orbit-123456789';
-  const sessionId = getOrCreateSessionId();
-  configureApi(apiUrl, apiKey, sessionId);
-  currentApiUrl = apiUrl;
-  apiConfigured = true;
-  return true;
+    // Check localStorage first, then environment variables
+    const apiUrl = localStorage.getItem('chat-api-url') || 
+                  import.meta.env.VITE_API_URL || 
+                  (window as any).CHATBOT_API_URL ||
+                  'http://localhost:3000';
+
+    const apiKey = localStorage.getItem('chat-api-key') || 'orbit-123456789';
+    const sessionId = getOrCreateSessionId();
+    api.configureApi(apiUrl, apiKey, sessionId);
+    currentApiUrl = apiUrl;
+    apiConfigured = true;
+    return true;
+  } catch (error) {
+    console.error('Failed to configure API:', error);
+    return false;
+  }
 }
 
 export const useChatStore = create<ExtendedChatState>((set, get) => ({
@@ -82,7 +90,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
 
   getSessionId: () => get().sessionId,
 
-  configureApiSettings: (apiUrl: string, apiKey?: string, sessionId?: string) => {
+  configureApiSettings: async (apiUrl: string, apiKey?: string, sessionId?: string) => {
     const state = get();
     const currentConversation = state.conversations.find(conv => conv.id === state.currentConversationId);
     
@@ -94,10 +102,16 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
     }
     set({ sessionId: actualSessionId });
     
-    // Configure the API with the provided URL, key, and session ID
-    configureApi(apiUrl, apiKey || '', actualSessionId);
-    currentApiUrl = apiUrl;
-    apiConfigured = true;
+    try {
+      // Load the API and configure it
+      const api = await getApi();
+      api.configureApi(apiUrl, apiKey || '', actualSessionId);
+      currentApiUrl = apiUrl;
+      apiConfigured = true;
+    } catch (error) {
+      console.error('Failed to configure API:', error);
+      throw new Error('Failed to configure API settings');
+    }
 
     // Save settings to localStorage
     localStorage.setItem('chat-api-url', apiUrl);
@@ -126,11 +140,15 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
     }));
 
     // Reconfigure API with the new session ID
-    if (ensureApiConfigured()) {
-      const apiUrl = localStorage.getItem('chat-api-url') || 'http://localhost:3000';
-      const apiKey = localStorage.getItem('chat-api-key') || 'orbit-123456789';
-      configureApi(apiUrl, apiKey, newSessionId);
-    }
+    ensureApiConfigured().then(isConfigured => {
+      if (isConfigured) {
+        const apiUrl = localStorage.getItem('chat-api-url') || 'http://localhost:3000';
+        const apiKey = localStorage.getItem('chat-api-key') || 'orbit-123456789';
+        getApi().then(api => {
+          api.configureApi(apiUrl, apiKey, newSessionId);
+        });
+      }
+    });
 
     // Save to localStorage
     setTimeout(() => {
@@ -144,7 +162,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
     return id;
   },
 
-  selectConversation: (id: string) => {
+  selectConversation: async (id: string) => {
     const conversation = get().conversations.find(conv => conv.id === id);
     if (conversation) {
       // Switch to the conversation's session ID
@@ -154,10 +172,12 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       });
       
       // Reconfigure API with the conversation's session ID
-      if (ensureApiConfigured()) {
+      const isConfigured = await ensureApiConfigured();
+      if (isConfigured) {
         const apiUrl = localStorage.getItem('chat-api-url') || 'http://localhost:3000';
         const apiKey = localStorage.getItem('chat-api-key') || 'orbit-123456789';
-        configureApi(apiUrl, apiKey, conversation.sessionId);
+        const api = await getApi();
+        api.configureApi(apiUrl, apiKey, conversation.sessionId);
       }
     }
     
@@ -171,7 +191,41 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
     }, 0);
   },
 
-  deleteConversation: (id: string) => {
+  deleteConversation: async (id: string) => {
+    const conversation = get().conversations.find(conv => conv.id === id);
+    
+    console.log(`🗑️ Deleting conversation ${id}:`, {
+      conversationId: id,
+      sessionId: conversation?.sessionId,
+      title: conversation?.title,
+      messageCount: conversation?.messages.length
+    });
+    
+    // If conversation has a session ID, clear it from the server
+    if (conversation?.sessionId) {
+      try {
+        const api = await getApi();
+        const apiClient = new api.ApiClient({
+          apiUrl: localStorage.getItem('chat-api-url') || 'http://localhost:3000',
+          apiKey: localStorage.getItem('chat-api-key') || 'orbit-123456789',
+          sessionId: conversation.sessionId
+        });
+        
+        console.log(`🔧 Calling clearConversationHistory for session: ${conversation.sessionId}`);
+        if (apiClient.clearConversationHistory) {
+          const result = await apiClient.clearConversationHistory(conversation.sessionId);
+          console.log(`✅ Cleared conversation history for session: ${conversation.sessionId}`, result);
+        } else {
+          console.warn(`⚠️ clearConversationHistory method not available on API client`);
+        }
+      } catch (error) {
+        console.error('Failed to clear conversation history from server:', error);
+        // Continue with local deletion even if server clear fails
+      }
+    } else {
+      console.warn(`⚠️ No session ID found for conversation ${id}, skipping server-side deletion`);
+    }
+
     set((state: ExtendedChatState) => {
       const filtered = state.conversations.filter((c: Conversation) => c.id !== id);
       const newCurrentId = state.currentConversationId === id 
@@ -202,7 +256,8 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       }
 
       // Ensure API is configured
-      if (!ensureApiConfigured()) {
+      const isConfigured = await ensureApiConfigured();
+      if (!isConfigured) {
         throw new Error('API not properly configured. Please configure API settings first.');
       }
 
@@ -267,8 +322,9 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       let receivedAnyText = false;
 
       try {
-        // Stream the response using chatbot-api with proper streaming handling
-        for await (const response of streamChat(content)) {
+        // Load the API and stream the response
+        const api = await getApi();
+        for await (const response of api.streamChat(content)) {
           if (response.text) {
             get().appendToLastMessage(response.text);
             receivedAnyText = true;
@@ -359,7 +415,8 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         return;
       }
 
-      if (!ensureApiConfigured()) {
+      const isConfigured = await ensureApiConfigured();
+      if (!isConfigured) {
         throw new Error('API not properly configured');
       }
 
@@ -401,7 +458,8 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       let receivedAnyText = false;
 
       try {
-        for await (const response of streamChat(userMessage.content)) {
+        const api = await getApi();
+        for await (const response of api.streamChat(userMessage.content)) {
           if (response.text) {
             get().appendToLastMessage(response.text);
             receivedAnyText = true;
@@ -528,6 +586,14 @@ const initializeStore = () => {
         sessionId: sessionId
       });
       
+      // Debug: Log loaded conversations and their session IDs
+      console.log('📋 Loaded conversations:', parsedState.conversations.map((conv: any) => ({
+        id: conv.id,
+        title: conv.title,
+        sessionId: conv.sessionId,
+        messageCount: conv.messages?.length || 0
+      })));
+      
       // Clean up any residual streaming messages after initialization
       setTimeout(() => {
         useChatStore.getState().cleanupStreamingMessages();
@@ -538,9 +604,13 @@ const initializeStore = () => {
   }
   
   // Configure API with saved or default values and the appropriate session ID
-  configureApi(savedApiUrl, savedApiKey, sessionId);
-  currentApiUrl = savedApiUrl;
-  apiConfigured = true;
+  getApi().then(api => {
+    api.configureApi(savedApiUrl, savedApiKey, sessionId);
+    currentApiUrl = savedApiUrl;
+    apiConfigured = true;
+  }).catch(error => {
+    console.error('Failed to initialize API:', error);
+  });
 };
 
 // Initialize store on import

@@ -44,12 +44,17 @@ export function ChatInterface({ onOpenSettings }: ChatInterfaceProps) {
     sendMessage(content);
   };
 
-  const handleConfigureApi = () => {
+  const handleConfigureApi = async () => {
     if (apiUrl && apiKey) {
-      configureApiSettings(apiUrl, apiKey);
-      setShowConfig(false);
-      // Clear any existing error after successful configuration
-      clearError();
+      try {
+        await configureApiSettings(apiUrl, apiKey);
+        setShowConfig(false);
+        // Clear any existing error after successful configuration
+        clearError();
+      } catch (error) {
+        console.error('Failed to configure API:', error);
+        // Error will be handled by the store
+      }
     }
   };
 

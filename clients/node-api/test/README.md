@@ -7,7 +7,9 @@ This directory contains tests for the Chatbot API library.
 - `setup.ts`: Sets up the MSW (Mock Service Worker) server to intercept HTTP requests and provide mock responses
 - `api.test.ts`: Tests for the API functions
 - `query.test.ts`: Tests for specific query handling capabilities
+- `clear-history.test.ts`: Tests for conversation history clearing functionality
 - `run-query.js`: Script for testing individual queries from the command line
+- `test-npm-package.ts`: Script for testing the npm package functionality with real server
 
 ## Running Tests
 
@@ -25,6 +27,9 @@ npm test -- --coverage
 
 # Test a specific query
 npm run test-query "your query here" "http://your-api-server.com"
+
+# Test npm package functionality with real server
+npm run test:npm -- "your message here" "http://your-api-server.com"
 ```
 
 ## API Configuration
@@ -49,7 +54,11 @@ The tests cover:
 1. Basic chat functionality without voice
 2. Chat with voice enabled
 3. Error handling for network issues
-4. Specific query handling:
+4. Conversation history management:
+   - Clearing conversation history successfully
+   - Error handling when no session ID is available
+   - Error handling when no API key is provided
+5. Specific query handling:
    - Fee-related queries (e.g., "how much is the fee?")
    - Price-related queries (e.g., "what is the price?")
    - Unknown queries with graceful fallback responses
@@ -68,6 +77,36 @@ This will:
 3. Stream and display the responses
 
 The implementation uses our SDK's `configureApi` and `streamChat` functions to illustrate the proper usage pattern.
+
+## NPM Package Testing
+
+The `test:npm` command allows you to test the actual npm package functionality with a real ORBIT server:
+
+```bash
+# Test with local dist build (default)
+npm run test:npm -- "Hello, how can you help me?"
+
+# Test with published npm package
+npm run test:npm -- --npm "Hello, how can you help me?"
+
+# Test with custom server URL and session
+npm run test:npm -- --local "Hello" "http://my-server:3000" "session-123"
+
+# Test with API key authentication
+npm run test:npm -- --local "Hello" "http://localhost:3000" "session-123" "your-api-key"
+```
+
+This script:
+1. Tests both local dist build and published npm package
+2. Connects to a real ORBIT server (not mocked)
+3. Demonstrates proper usage of the SDK
+4. Shows streaming responses in real-time
+5. Provides helpful error messages for common issues
+
+**Requirements:**
+- ORBIT server must be running
+- For local testing: run `npm run build` first
+- For npm testing: install `@schmitech/chatbot-api` package
 
 ## Adding New Tests
 
