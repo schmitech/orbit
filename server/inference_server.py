@@ -119,7 +119,7 @@ class InferenceServer:
         self.app = FastAPI(
             title="ORBIT",
             description="A FastAPI server with chat endpoint and RAG capabilities",
-            version="1.5.0",
+            version="1.5.1",
             lifespan=self._create_lifespan_manager()
         )
         

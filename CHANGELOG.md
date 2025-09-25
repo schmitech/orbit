@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.5.1] - 2025-09-25
+
+### Core System Updates
+- Ollama Refactoring: Simplified Ollama implementation and fixed issues with model overriding from adapters
+- Inference Providers Update: Better handling of prompt and message chaining in LLM providers
+- Elasticsearch Logging Fix: Fixed Elasticsearch logging issues and problems with chat_history and adapters incorrectly storing conversation
+
+
 ## [1.5.0] - 2025-09-24
 
 ### Core System Updates
