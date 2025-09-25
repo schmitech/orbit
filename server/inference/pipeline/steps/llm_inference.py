@@ -54,7 +54,9 @@ class LLMInferenceStep(PipelineStep):
             if context.inference_provider:
                 # Get the adapter manager and get the cached/new provider
                 adapter_manager = self.container.get('adapter_manager')
-                llm_provider = await adapter_manager.get_overridden_provider(context.inference_provider)
+                # Pass adapter_name to get model-specific provider if configured
+                adapter_name = getattr(context, 'adapter_name', None)
+                llm_provider = await adapter_manager.get_overridden_provider(context.inference_provider, adapter_name)
             else:
                 # Fallback to default provider
                 llm_provider = self.container.get('llm_provider')
@@ -109,7 +111,9 @@ class LLMInferenceStep(PipelineStep):
             if context.inference_provider:
                 # Get the adapter manager and get the cached/new provider
                 adapter_manager = self.container.get('adapter_manager')
-                llm_provider = await adapter_manager.get_overridden_provider(context.inference_provider)
+                # Pass adapter_name to get model-specific provider if configured
+                adapter_name = getattr(context, 'adapter_name', None)
+                llm_provider = await adapter_manager.get_overridden_provider(context.inference_provider, adapter_name)
             else:
                 # Fallback to default provider
                 llm_provider = self.container.get('llm_provider')

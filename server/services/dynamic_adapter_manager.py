@@ -141,7 +141,19 @@ class DynamicAdapterManager:
                 # Create a lock for this adapter for future thread-safe operations
                 self._adapter_locks[adapter_name] = threading.Lock()
             
-            self.logger.info(f"Successfully loaded and cached adapter: {adapter_name}")
+            # Log adapter configuration details
+            adapter_config = self._adapter_configs.get(adapter_name, {})
+            inference_provider = adapter_config.get('inference_provider') or self.config.get('general', {}).get('inference_provider', 'default')
+            model_override = adapter_config.get('model')
+
+            if model_override:
+                self.logger.info(
+                    f"Successfully loaded adapter '{adapter_name}' with provider '{inference_provider}' and model '{model_override}'"
+                )
+            else:
+                self.logger.info(
+                    f"Successfully loaded adapter '{adapter_name}' with provider '{inference_provider}' (using default model)"
+                )
             return adapter
             
         except Exception as e:
@@ -152,33 +164,71 @@ class DynamicAdapterManager:
             with self._cache_lock:
                 self._initializing_adapters.discard(adapter_name)
 
-    async def get_overridden_provider(self, provider_name: str) -> Any:
+    async def get_overridden_provider(self, provider_name: str, adapter_name: str = None) -> Any:
         """
         Get an inference provider instance by name, loading and caching it if necessary.
         This is for providers specified as overrides in adapter configs.
+
+        Args:
+            provider_name: The name of the provider to create
+            adapter_name: Optional adapter name to get model override from
         """
         if not provider_name:
             raise ValueError("Provider name cannot be empty")
 
-        # Check cache
-        if provider_name in self._provider_cache:
-            return self._provider_cache[provider_name]
+        # Create cache key that includes adapter-specific model if present
+        cache_key = provider_name
+        model_override = None
+
+        if adapter_name and adapter_name in self._adapter_configs:
+            adapter_config = self._adapter_configs[adapter_name]
+            if adapter_config.get('model'):
+                model_override = adapter_config['model']
+                cache_key = f"{provider_name}:{model_override}"
+                if self.verbose:
+                    self.logger.info(f"Found model override '{model_override}' for adapter '{adapter_name}'")
+
+        # Check cache with the specific key
+        if cache_key in self._provider_cache:
+            if self.verbose:
+                self.logger.debug(f"Using cached provider: {cache_key}")
+            return self._provider_cache[cache_key]
 
         # Handle concurrent initialization
         with self._provider_cache_lock:
-            if provider_name in self._provider_initializing:
-                while provider_name in self._provider_initializing:
+            if cache_key in self._provider_initializing:
+                while cache_key in self._provider_initializing:
                     await asyncio.sleep(0.1)
-                if provider_name in self._provider_cache:
-                    return self._provider_cache[provider_name]
-            self._provider_initializing.add(provider_name)
+                if cache_key in self._provider_cache:
+                    return self._provider_cache[cache_key]
+            self._provider_initializing.add(cache_key)
 
         try:
-            self.logger.info(f"Loading and caching new inference provider: {provider_name}")
-            from server.inference.pipeline.providers import ProviderFactory
-            
+            # Prepare config with model override if specified
+            import copy
+            config_for_provider = copy.deepcopy(self.config)
+
+            if model_override:
+                # Ensure the inference section exists
+                if 'inference' not in config_for_provider:
+                    config_for_provider['inference'] = {}
+                if provider_name not in config_for_provider['inference']:
+                    config_for_provider['inference'][provider_name] = {}
+
+                # Set the model override
+                config_for_provider['inference'][provider_name]['model'] = model_override
+                self.logger.info(f"Loading inference provider '{provider_name}' with model override: {model_override}")
+            else:
+                self.logger.info(f"Loading inference provider '{provider_name}' with default model")
+
+            try:
+                from server.inference.pipeline.providers import ProviderFactory
+            except ImportError:
+                # Fallback for test environment
+                from inference.pipeline.providers import ProviderFactory
+
             # Create and initialize the provider
-            provider = ProviderFactory.create_provider_by_name(provider_name, self.config)
+            provider = ProviderFactory.create_provider_by_name(provider_name, config_for_provider)
             if hasattr(provider, 'initialize'):
                 if asyncio.iscoroutinefunction(provider.initialize):
                     await provider.initialize()
@@ -186,18 +236,18 @@ class DynamicAdapterManager:
                     loop = asyncio.get_event_loop()
                     await loop.run_in_executor(self._thread_pool, provider.initialize)
 
-            # Cache the initialized provider
+            # Cache the initialized provider with the specific key
             with self._provider_cache_lock:
-                self._provider_cache[provider_name] = provider
-            
-            self.logger.info(f"Successfully cached inference provider: {provider_name}")
+                self._provider_cache[cache_key] = provider
+
+            self.logger.info(f"Successfully cached inference provider: {cache_key}")
             return provider
         except Exception as e:
             self.logger.error(f"Failed to load overridden provider {provider_name}: {str(e)}")
             raise
         finally:
             with self._provider_cache_lock:
-                self._provider_initializing.discard(provider_name)
+                self._provider_initializing.discard(cache_key)
     
     async def _load_adapter(self, adapter_name: str) -> Any:
         """Load and initialize an adapter asynchronously"""
@@ -251,14 +301,15 @@ class DynamicAdapterManager:
                 provider_for_model = adapter_config.get('inference_provider') or config_with_adapter.get('general', {}).get('inference_provider')
                 if provider_for_model:
                     inference_section = config_with_adapter.setdefault('inference', {}).setdefault(provider_for_model, {})
+                    original_model = inference_section.get('model', 'default')
                     inference_section['model'] = adapter_config['model']
-                    if self.verbose:
-                        logger.info(
-                            "Setting model override '%s' for provider '%s' on adapter '%s'",
-                            adapter_config['model'],
-                            provider_for_model,
-                            adapter_name,
-                        )
+                    logger.info(
+                        "Model override for adapter '%s': '%s' -> '%s' (provider: %s)",
+                        adapter_name,
+                        original_model,
+                        adapter_config['model'],
+                        provider_for_model,
+                    )
 
             # Include adapter-level embedding provider override if specified
             if 'embedding_provider' in adapter_config:
@@ -388,14 +439,20 @@ class DynamicAdapterManager:
                     timeout=timeout_per_adapter
                 )
                 
-                # Determine the inference provider for logging
+                # Determine the inference provider and model for logging
                 adapter_config = self.get_adapter_config(adapter_name) or {}
                 inference_provider = adapter_config.get('inference_provider') or self.config.get('general', {}).get('inference_provider', 'default')
+                model_override = adapter_config.get('model')
+
+                if model_override:
+                    message = f"Preloaded successfully (provider: {inference_provider}, model: {model_override})"
+                else:
+                    message = f"Preloaded successfully (provider: {inference_provider}, using default model)"
 
                 return {
                     "adapter_name": adapter_name,
                     "success": True,
-                    "message": f"Preloaded successfully (provider: {inference_provider})"
+                    "message": message
                 }
             except asyncio.TimeoutError:
                 return {
