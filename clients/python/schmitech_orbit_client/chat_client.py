@@ -10,6 +10,8 @@ import uuid
 import os
 import toml
 import importlib.metadata
+from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any
 from rich.console import Console
 from rich.panel import Panel
 from rich.markdown import Markdown
@@ -74,6 +76,101 @@ prompt_style = Style.from_dict({
 })
 
 
+def _normalize_api_url(api_url: str) -> str:
+    """Normalize base API URL by trimming whitespace and known endpoints."""
+    if not api_url:
+        raise ValueError("API URL is required")
+
+    normalized = api_url.strip()
+    if not normalized:
+        raise ValueError("API URL is required")
+
+    normalized = normalized.rstrip('/')
+    if normalized.endswith('/v1/chat'):
+        normalized = normalized[:-len('/v1/chat')]
+
+    return normalized
+
+
+class OrbitChatClient:
+    """Lightweight client for interacting with the ORBIT chat service."""
+
+    def __init__(
+        self,
+        api_url: str,
+        api_key: Optional[str] = None,
+        session_id: Optional[str] = None,
+        timeout: int = 30,
+        verbose: bool = False
+    ) -> None:
+        self.api_url = _normalize_api_url(api_url)
+        self.api_key = api_key
+        self.session_id = session_id
+        self.timeout = timeout
+        self.verbose = verbose
+
+    def clear_conversation_history(self, session_id: Optional[str] = None) -> Dict[str, Any]:
+        """Clear conversation history for a specific session via admin endpoint."""
+        target_session_id = session_id or self.session_id
+        if not target_session_id:
+            raise ValueError("Session ID is required to clear conversation history")
+
+        if not self.api_key:
+            raise ValueError("API key is required for clearing conversation history")
+
+        headers = {
+            "Content-Type": "application/json",
+            "X-Session-ID": target_session_id,
+            "X-API-Key": self.api_key
+        }
+
+        url = f"{self.api_url}/admin/chat-history/{target_session_id}"
+
+        try:
+            response = requests.delete(url, headers=headers, timeout=self.timeout)
+        except requests.exceptions.RequestException as exc:
+            raise RuntimeError(f"Network error while clearing conversation history: {exc}") from exc
+
+        if response.status_code == 200:
+            try:
+                result: Dict[str, Any] = response.json()
+            except ValueError as exc:
+                raise RuntimeError("Server returned an invalid JSON response") from exc
+
+            if self.verbose:
+                console.print(
+                    f"[green]✓[/green] Cleared {result.get('deleted_count', 0)} messages from session {target_session_id}")
+            return result
+
+        try:
+            error_detail = response.json().get('detail')
+        except ValueError:
+            error_detail = response.text or f"HTTP {response.status_code}"
+
+        raise RuntimeError(
+            f"Failed to clear conversation history for session {target_session_id}: {error_detail}"
+        )
+
+
+def clear_conversation_history(
+    api_url: str,
+    api_key: str,
+    session_id: str,
+    *,
+    timeout: int = 30,
+    verbose: bool = False
+) -> Dict[str, Any]:
+    """Convenience wrapper to clear a session's conversation history."""
+    client = OrbitChatClient(
+        api_url=api_url,
+        api_key=api_key,
+        session_id=session_id,
+        timeout=timeout,
+        verbose=verbose
+    )
+    return client.clear_conversation_history()
+
+
 class SlashCommandCompleter(Completer):
     """Custom completer for slash commands."""
     
@@ -81,7 +178,8 @@ class SlashCommandCompleter(Completer):
         self.commands = [
             "/help",
             "/clear",
-            "/clear-history", 
+            "/clear-previous-messages",
+            "/clear-server-history",
             "/reset-session",
             "/status",
             "/debug",
@@ -94,7 +192,8 @@ class SlashCommandCompleter(Completer):
         self.command_descriptions = {
             "/help": "Show available commands",
             "/clear": "Clear conversation display",
-            "/clear-history": "Clear persistent history file",
+            "/clear-previous-messages": "Clear local prompt/history autocomplete cache",
+            "/clear-server-history": "Clear server conversation history for the current session",
             "/reset-session": "Generate new session ID",
             "/status": "Show current status",
             "/debug": "Toggle debug mode",
@@ -212,7 +311,8 @@ def handle_slash_command(command, session_id, args, session=None):
         commands = [
             ("/help", "Show this help message"),
             ("/clear", "Clear conversation display"),
-            ("/clear-history", "Clear persistent command history file"),
+            ("/clear-previous-messages", "Clear local prompt/history autocomplete cache"),
+            ("/clear-server-history", "Clear server-side conversation history only"),
             ("/reset-session", "Generate a new session ID"),
             ("/status", "Show current session and server info"),
             ("/debug", "Toggle debug mode on/off"),
@@ -247,22 +347,26 @@ def handle_slash_command(command, session_id, args, session=None):
         console.print("✨ Conversation cleared!", style="green")
         return True, session_id, args, False
     
-    elif cmd == "/clear-history":
-        # Clear the persistent history file
+    elif cmd == "/clear-previous-messages":
+        history_cleared = False
         try:
             if os.path.exists(HISTORY_FILE):
-                # Truncate the history file instead of deleting it
                 open(HISTORY_FILE, 'w').close()
-                # Also clear the in-memory history if session is provided
                 if session and hasattr(session, 'history'):
-                    session.history.store = []  # Clear the in-memory history
+                    session.history.store = []
                 console.print("🗑️  Persistent command history cleared!", style="green")
                 console.print("💡 Restart the client for complete history reset", style="dim cyan")
             else:
                 console.print("ℹ️  No history file found to clear", style="yellow")
+            history_cleared = True
         except Exception as e:
             console.print(f"❌ Error clearing history: {e}", style=ERROR_STYLE)
-        return True, session_id, args, True  # True indicates history was cleared
+
+        return True, session_id, args, history_cleared
+
+    elif cmd == "/clear-server-history":
+        clear_server_history(session_id=session_id, args=args)
+        return True, session_id, args, False
     
     elif cmd == "/reset-session":
         new_session_id = str(uuid.uuid4())
@@ -437,7 +541,7 @@ def main():
         history=FileHistory(HISTORY_FILE),
         completer=SlashCommandCompleter(),
         style=prompt_style,
-        complete_style=CompleteStyle.COLUMN  # Single column for better style control
+        complete_style=CompleteStyle.COLUMN
     )
 
     # Welcome banner
@@ -465,12 +569,14 @@ def main():
                 continue
                 
             if user_input.lower() in ["exit", "quit"]:
+                clear_server_history(session_id=session_id, args=args)
                 break
             
             # Handle slash commands
             if user_input.startswith('/'):
                 continue_chat, session_id, args, history_cleared = handle_slash_command(user_input, session_id, args, session)
                 if not continue_chat:
+                    clear_server_history(session_id=session_id, args=args)
                     break
                 if history_cleared:
                     # Recreate the session with fresh history
@@ -523,7 +629,36 @@ def main():
         except Exception as e:
             console.print(f"\n❌ An error occurred: {e}", style=ERROR_STYLE)
 
+            # If exiting, attempt to clear server history before goodbye
     console.print("\n[bold cyan]👋 Goodbye![/bold cyan]")
 
 if __name__ == "__main__":
     main()
+def clear_server_history(session_id: str, args) -> None:
+    """Attempt to clear server-side conversation history for the current session."""
+    if not session_id:
+        console.print("❌ No active session ID available to clear on the server", style=ERROR_STYLE)
+        return
+
+    if not args.api_key:
+        console.print(
+            "⚠️  Set an API key to clear server-side conversation history",
+            style=WARNING_STYLE
+        )
+        return
+
+    try:
+        client = OrbitChatClient(
+            api_url=args.url,
+            api_key=args.api_key,
+            session_id=session_id,
+            verbose=args.debug
+        )
+        result = client.clear_conversation_history()
+        deleted_count = result.get('deleted_count', 0)
+        console.print(
+            f"🧹 Server history cleared for session {session_id}: {deleted_count} messages removed",
+            style="green"
+        )
+    except Exception as exc:
+        console.print(f"❌ Error clearing server history: {exc}", style=ERROR_STYLE)

@@ -522,14 +522,25 @@ async def clear_chat_history(
     x_session_id: Optional[str] = Header(None, alias="X-Session-ID")
 ):
     """Clear chat history for a specific session."""
-    inference_only = is_true_value(request.app.state.config.get('general', {}).get('inference_only', False))
-    if not inference_only:
+    config = getattr(request.app.state, 'config', {})
+    inference_only = is_true_value(config.get('general', {}).get('inference_only', False))
+    chat_history_service = getattr(request.app.state, 'chat_history_service', None)
+
+    # Determine if conversational adapters are active when not in inference-only mode
+    adapters_config = config.get('adapters', [])
+    conversational_adapter_enabled = any(
+        isinstance(adapter, dict)
+        and adapter.get('adapter') == 'conversational'
+        and is_true_value(adapter.get('enabled', True))
+        for adapter in adapters_config
+    )
+
+    if not inference_only and not conversational_adapter_enabled:
         raise HTTPException(
             status_code=503,
-            detail="Chat history management is only available in inference-only mode"
+            detail="Chat history management is only available with inference-only mode or an active conversational adapter"
         )
 
-    chat_history_service = getattr(request.app.state, 'chat_history_service', None)
     if not chat_history_service:
         raise HTTPException(status_code=503, detail="Chat history service is not available")
 
@@ -546,6 +557,9 @@ async def clear_chat_history(
         )
 
     api_key_service = getattr(request.app.state, 'api_key_service', None)
+    if not api_key_service:
+        raise HTTPException(status_code=503, detail="API key service is not available")
+
     setattr(chat_history_service, 'api_key_service', api_key_service)
 
     result = await chat_history_service.clear_conversation_history(
