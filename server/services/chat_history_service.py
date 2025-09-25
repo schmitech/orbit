@@ -67,6 +67,7 @@ class ChatHistoryService:
         """
         self.config = config
         self.mongodb_service = mongodb_service
+        self.api_key_service = None
         
         # Initialize verbose first since it's used in calculation methods
         self.verbose = config.get('general', {}).get('verbose', False)
@@ -673,6 +674,94 @@ class ChatHistoryService:
         except Exception as e:
             logger.error(f"Error clearing session history: {str(e)}")
             return False
+
+    async def clear_conversation_history(
+        self,
+        session_id: str,
+        api_key: str,
+        user_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Clear conversation history for a specific session with mandatory API key validation.
+
+        Args:
+            session_id: Session identifier to clear (required)
+            api_key: API key for validation and authorization (required)
+            user_id: Optional user ID for additional validation
+
+        Returns:
+            Dictionary containing operation result and statistics
+        """
+        if not self.enabled:
+            return {
+                "success": False,
+                "error": "Chat history service is disabled",
+                "deleted_count": 0
+            }
+
+        if not session_id:
+            return {
+                "success": False,
+                "error": "Session ID is required",
+                "deleted_count": 0
+            }
+
+        if not api_key:
+            return {
+                "success": False,
+                "error": "API key is required",
+                "deleted_count": 0
+            }
+
+        try:
+            if hasattr(self, "api_key_service") and self.api_key_service:
+                is_valid, adapter_name, _ = await self.api_key_service.validate_api_key(api_key)
+                if not is_valid:
+                    return {
+                        "success": False,
+                        "error": "Invalid API key",
+                        "deleted_count": 0
+                    }
+            else:
+                return {
+                    "success": False,
+                    "error": "API key service not available",
+                    "deleted_count": 0
+                }
+
+            collection = self.mongodb_service.get_collection(self.collection_name)
+            result = await collection.delete_many({"session_id": session_id})
+
+            self._active_sessions.pop(session_id, None)
+            self._session_message_counts.pop(session_id, None)
+
+            if self.verbose:
+                logger.info(
+                    "Cleared conversation history for session %s: %s messages deleted",
+                    session_id,
+                    result.deleted_count
+                )
+
+            return {
+                "success": True,
+                "session_id": session_id,
+                "deleted_count": result.deleted_count,
+                "api_key_validated": True,
+                "adapter_name": adapter_name,
+                "timestamp": datetime.now(UTC).isoformat()
+            }
+
+        except Exception as exc:
+            logger.error(
+                "Error clearing conversation history for session %s: %s",
+                session_id,
+                str(exc)
+            )
+            return {
+                "success": False,
+                "error": str(exc),
+                "deleted_count": 0
+            }
     
     async def get_session_stats(self, session_id: str) -> Dict[str, Any]:
         """

@@ -407,6 +407,55 @@ async def test_clear_session_history(chat_history_service):
     messages = await chat_history_service.get_conversation_history(session_id)
     assert len(messages) == 0
 
+
+@pytest.mark.asyncio
+async def test_clear_conversation_history_success(chat_history_service):
+    """Ensure clear_conversation_history deletes messages after API key validation."""
+    session_id = "test_clear_history_success"
+    chat_history_service.api_key_service = AsyncMock()
+    chat_history_service.api_key_service.validate_api_key = AsyncMock(return_value=(True, "adapter", None))
+
+    await chat_history_service.add_message(
+        session_id=session_id,
+        role="user",
+        content="Hello"
+    )
+    await chat_history_service.add_message(
+        session_id=session_id,
+        role="assistant",
+        content="Hi there"
+    )
+
+    result = await chat_history_service.clear_conversation_history(
+        session_id=session_id,
+        api_key="valid-key"
+    )
+
+    assert result["success"] is True
+    assert result["deleted_count"] == 2
+    assert result["session_id"] == session_id
+    assert "timestamp" in result
+
+    messages = await chat_history_service.get_conversation_history(session_id)
+    assert messages == []
+
+
+@pytest.mark.asyncio
+async def test_clear_conversation_history_invalid_api_key(chat_history_service):
+    """Return failure when API key validation fails."""
+    chat_history_service.api_key_service = AsyncMock()
+    chat_history_service.api_key_service.validate_api_key = AsyncMock(return_value=(False, None, None))
+
+    result = await chat_history_service.clear_conversation_history(
+        session_id="test_invalid_key",
+        api_key="invalid-key"
+    )
+
+    assert result["success"] is False
+    assert result["error"] == "Invalid API key"
+    assert result["deleted_count"] == 0
+
+
 @pytest.mark.asyncio
 async def test_get_session_stats(chat_history_service):
     """Test getting session statistics"""

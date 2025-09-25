@@ -10,14 +10,14 @@ This module contains all admin-related endpoints including:
 import json
 import logging
 from typing import Optional
-from fastapi import APIRouter, Request, Depends, HTTPException
+from fastapi import APIRouter, Request, Depends, HTTPException, Header
 from bson import ObjectId
 
 from utils import is_true_value
 from models.schema import (
     ApiKeyCreate, ApiKeyResponse, ApiKeyDeactivate, 
     SystemPromptCreate, SystemPromptUpdate, SystemPromptResponse, 
-    ApiKeyPromptAssociate
+    ApiKeyPromptAssociate, ChatHistoryClearResponse
 )
 
 # Import auth dependencies
@@ -512,3 +512,63 @@ async def get_chat_history(
     )
     
     return {"session_id": session_id, "messages": history, "count": len(history)}
+
+
+@admin_router.delete("/chat-history/{session_id}", response_model=ChatHistoryClearResponse)
+async def clear_chat_history(
+    session_id: str,
+    request: Request,
+    x_api_key: str = Header(..., alias="X-API-Key"),
+    x_session_id: Optional[str] = Header(None, alias="X-Session-ID")
+):
+    """Clear chat history for a specific session."""
+    inference_only = is_true_value(request.app.state.config.get('general', {}).get('inference_only', False))
+    if not inference_only:
+        raise HTTPException(
+            status_code=503,
+            detail="Chat history management is only available in inference-only mode"
+        )
+
+    chat_history_service = getattr(request.app.state, 'chat_history_service', None)
+    if not chat_history_service:
+        raise HTTPException(status_code=503, detail="Chat history service is not available")
+
+    if x_session_id and x_session_id != session_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Session ID in header does not match URL parameter"
+        )
+
+    if not x_api_key:
+        raise HTTPException(
+            status_code=400,
+            detail="API key is required for clearing conversation history"
+        )
+
+    api_key_service = getattr(request.app.state, 'api_key_service', None)
+    setattr(chat_history_service, 'api_key_service', api_key_service)
+
+    result = await chat_history_service.clear_conversation_history(
+        session_id=session_id,
+        api_key=x_api_key
+    )
+
+    if not result.get("success"):
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to clear conversation history: {result.get('error', 'Unknown error')}"
+        )
+
+    logger.info(
+        "Cleared conversation history for session %s: %s messages",
+        session_id,
+        result.get("deleted_count", 0)
+    )
+
+    return ChatHistoryClearResponse(
+        status="success",
+        message=f"Cleared {result['deleted_count']} messages from session {session_id}",
+        session_id=session_id,
+        deleted_count=result['deleted_count'],
+        timestamp=result['timestamp']
+    )

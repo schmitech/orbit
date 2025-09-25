@@ -78,6 +78,15 @@ class ApiKeyPromptAssociate(BaseModel):
     prompt_id: str
 
 
+class ChatHistoryClearResponse(BaseModel):
+    """Response model for chat history clear operation"""
+    status: str
+    message: str
+    session_id: str
+    deleted_count: int
+    timestamp: str
+
+
 class MCPMessage(BaseModel):
     """MCP protocol message model"""
     id: str = Field(description="Unique identifier for the message")
