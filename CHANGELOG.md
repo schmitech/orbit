@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.5.2] - 2025-09-26
+
+### Core System Updates
+- Clear History Route: Added new endpoint to clear conversation history
+- Dependencies Update: Updated orbit CLI chat package version
+
+### Python Client
+- Python Client v1.1.0: Integration with new clear conversation endpoint from ORBIT server
+
+### Node API & Testing
+- Node API Updates: Enable delete chat history functionality in Node API
+- Node API Unit Tests: Added more comprehensive test coverage for the node API
+- Node API Tests: Fixed issues with node API unit tests
+- Package Updates: Updated package.json and published node-api NPM version 0.5.3
+- Chat App Fixes: Fixed issues with chat-app integration
+
 ## [1.5.1] - 2025-09-25
 
 ### Core System Updates

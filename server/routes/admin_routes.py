@@ -573,11 +573,14 @@ async def clear_chat_history(
             detail=f"Failed to clear conversation history: {result.get('error', 'Unknown error')}"
         )
 
-    logger.info(
-        "Cleared conversation history for session %s: %s messages",
-        session_id,
-        result.get("deleted_count", 0)
-    )
+    # Only log this message if verbose logging is enabled
+    verbose = is_true_value(config.get('general', {}).get('verbose', False))
+    if verbose:
+        logger.info(
+            "Cleared conversation history for session %s: %s messages",
+            session_id,
+            result.get("deleted_count", 0)
+        )
 
     return ChatHistoryClearResponse(
         status="success",
