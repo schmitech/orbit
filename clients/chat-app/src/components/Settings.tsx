@@ -1,6 +1,7 @@
-import React from 'react';
-import { X, Monitor, Sun, Moon, Palette, Type, Volume2, Mic } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Monitor, Sun, Moon, Palette, Type, Volume2, Mic, Package } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
+import { getVersionInfo } from '../utils/version';
 
 interface SettingsProps {
   isOpen: boolean;
@@ -9,6 +10,17 @@ interface SettingsProps {
 
 export function Settings({ isOpen, onClose }: SettingsProps) {
   const { theme, updateTheme, isDark } = useTheme();
+  const [versionInfo, setVersionInfo] = useState<{
+    appVersion: string;
+    apiVersion: string;
+    isLocalApi: boolean;
+  } | null>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      getVersionInfo().then(setVersionInfo);
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -184,15 +196,26 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
 
           {/* About */}
           <div className="space-y-2 pt-4 border-t border-gray-200 dark:border-gray-600">
-            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
+              <Package className="w-4 h-4" />
               About
             </h3>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              AI Chat Application v1.0.0
-            </p>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              Built with React, TypeScript, and Tailwind CSS
-            </p>
+            <div className="space-y-1">
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                AI Chat Application v{versionInfo?.appVersion || '1.0.0'}
+              </p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                API Package: @schmitech/chatbot-api v{versionInfo?.apiVersion || '^0.5.3'}
+                {versionInfo?.isLocalApi && (
+                  <span className="ml-1 px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded text-xs font-medium">
+                    Local
+                  </span>
+                )}
+              </p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Built with React, TypeScript, and Tailwind CSS
+              </p>
+            </div>
           </div>
         </div>
       </div>

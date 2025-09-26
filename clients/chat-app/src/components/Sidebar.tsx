@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Search, MessageSquare, MoreHorizontal, Trash2, Edit2 } from 'lucide-react';
+import { Plus, Search, MessageSquare, Trash2, Edit2 } from 'lucide-react';
 import { useChatStore } from '../stores/chatStore';
 import { Conversation } from '../types';
 import { ConfirmationModal } from './ConfirmationModal';
@@ -13,7 +13,9 @@ export function Sidebar({}: SidebarProps) {
     createConversation,
     selectConversation,
     deleteConversation,
-    updateConversationTitle
+    updateConversationTitle,
+    canCreateNewConversation,
+    getConversationCount
   } = useChatStore();
   
   const [searchQuery, setSearchQuery] = useState('');
@@ -39,7 +41,11 @@ export function Sidebar({}: SidebarProps) {
   );
 
   const handleNewChat = () => {
-    createConversation();
+    try {
+      createConversation();
+    } catch (error) {
+      console.warn('Cannot create new conversation:', error instanceof Error ? error.message : 'Unknown error');
+    }
   };
 
   const handleDeleteConversation = (e: React.MouseEvent, conversation: Conversation) => {
@@ -118,11 +124,32 @@ export function Sidebar({}: SidebarProps) {
         <div className="p-6 pb-4 relative z-10">
           <button
             onClick={handleNewChat}
-            className="w-full group flex items-center justify-center gap-3 px-6 py-4 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 dark:from-blue-500 dark:to-blue-600 dark:hover:from-blue-600 dark:hover:to-blue-700 text-white rounded-xl transition-all duration-200 font-medium text-sm shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 backdrop-blur-sm"
+            disabled={!canCreateNewConversation()}
+            className={`w-full group flex items-center justify-center gap-3 px-6 py-4 rounded-xl transition-all duration-200 font-medium text-sm backdrop-blur-sm ${
+              canCreateNewConversation()
+                ? 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 dark:from-blue-500 dark:to-blue-600 dark:hover:from-blue-600 dark:hover:to-blue-700 text-white shadow-lg hover:shadow-xl transform hover:-translate-y-0.5'
+                : 'bg-slate-200 dark:bg-slate-700 text-slate-400 dark:text-slate-500 cursor-not-allowed opacity-60'
+            }`}
+            title={
+              !canCreateNewConversation()
+                ? getConversationCount() >= 10
+                  ? 'Maximum 10 conversations reached. Delete a conversation to create a new one.'
+                  : 'Current conversation is empty. Send a message first to create a new conversation.'
+                : 'Start a new conversation'
+            }
           >
-            <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform duration-200" />
+            <Plus className={`w-5 h-5 transition-transform duration-200 ${
+              canCreateNewConversation() ? 'group-hover:rotate-90' : ''
+            }`} />
             New Conversation
           </button>
+          
+          {/* Conversation count indicator */}
+          <div className="mt-3 text-center">
+            <span className="text-xs text-slate-500 dark:text-slate-400">
+              {getConversationCount()}/10 conversations
+            </span>
+          </div>
         </div>
 
         {/* Search */}

@@ -48,6 +48,8 @@ interface ExtendedChatState extends ChatState {
   configureApiSettings: (apiUrl: string, apiKey?: string, sessionId?: string) => Promise<void>;
   getSessionId: () => string;
   cleanupStreamingMessages: () => void;
+  canCreateNewConversation: () => boolean;
+  getConversationCount: () => number;
 }
 
 // API configuration state
@@ -121,6 +123,13 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
   },
 
   createConversation: () => {
+    const state = get();
+    
+    // Check if we can create a new conversation
+    if (!state.canCreateNewConversation()) {
+      throw new Error('Cannot create new conversation: current conversation is empty or maximum conversations reached');
+    }
+
     const id = `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const newSessionId = generateUniqueSessionId(); // Create unique session for this conversation
     const newConversation: Conversation = {
@@ -133,11 +142,21 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
     };
 
     // Update state with new conversation and switch to its session
-    set((state: ExtendedChatState) => ({
-      conversations: [newConversation, ...state.conversations],
-      currentConversationId: id,
-      sessionId: newSessionId
-    }));
+    set((state: ExtendedChatState) => {
+      let updatedConversations = [newConversation, ...state.conversations];
+      
+      // Enforce maximum 10 conversations limit
+      if (updatedConversations.length > 10) {
+        // Remove oldest conversations (keep the most recent 10)
+        updatedConversations = updatedConversations.slice(0, 10);
+      }
+      
+      return {
+        conversations: updatedConversations,
+        currentConversationId: id,
+        sessionId: newSessionId
+      };
+    });
 
     // Reconfigure API with the new session ID
     ensureApiConfigured().then(isConfigured => {
@@ -194,12 +213,15 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
   deleteConversation: async (id: string) => {
     const conversation = get().conversations.find(conv => conv.id === id);
     
-    console.log(`🗑️ Deleting conversation ${id}:`, {
-      conversationId: id,
-      sessionId: conversation?.sessionId,
-      title: conversation?.title,
-      messageCount: conversation?.messages.length
-    });
+    const debugMode = (import.meta.env as any).VITE_CONSOLE_DEBUG === 'true';
+    if (debugMode) {
+      console.log(`🗑️ Deleting conversation ${id}:`, {
+        conversationId: id,
+        sessionId: conversation?.sessionId,
+        title: conversation?.title,
+        messageCount: conversation?.messages.length
+      });
+    }
     
     // If conversation has a session ID, clear it from the server
     if (conversation?.sessionId) {
@@ -211,12 +233,19 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
           sessionId: conversation.sessionId
         });
         
-        console.log(`🔧 Calling clearConversationHistory for session: ${conversation.sessionId}`);
+        const debugMode = (import.meta.env as any).VITE_CONSOLE_DEBUG === 'true';
+        if (debugMode) {
+          console.log(`🔧 Calling clearConversationHistory for session: ${conversation.sessionId}`);
+        }
         if (apiClient.clearConversationHistory) {
           const result = await apiClient.clearConversationHistory(conversation.sessionId);
-          console.log(`✅ Cleared conversation history for session: ${conversation.sessionId}`, result);
+          if (debugMode) {
+            console.log(`✅ Cleared conversation history for session: ${conversation.sessionId}`, result);
+          }
         } else {
-          console.warn(`⚠️ clearConversationHistory method not available on API client`);
+          if (debugMode) {
+            console.warn(`⚠️ clearConversationHistory method not available on API client`);
+          }
         }
       } catch (error) {
         console.error('Failed to clear conversation history from server:', error);
@@ -375,7 +404,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
 
     } catch (error) {
       console.error('Chat store error:', error);
-      set(state => ({
+      set(() => ({
         isLoading: false,
         error: `Failed to send message: ${error instanceof Error ? error.message : 'Unknown error'}`
       }));
@@ -539,6 +568,32 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       })),
       isLoading: false
     }));
+  },
+
+  // Check if a new conversation can be created
+  canCreateNewConversation: () => {
+    const state = get();
+    
+    // If no current conversation, allow creation
+    if (!state.currentConversationId) {
+      return state.conversations.length < 10;
+    }
+    
+    // Find current conversation
+    const currentConversation = state.conversations.find(conv => conv.id === state.currentConversationId);
+    
+    // If current conversation has messages, allow creation (if under limit)
+    if (currentConversation && currentConversation.messages.length > 0) {
+      return state.conversations.length < 10;
+    }
+    
+    // If current conversation is empty, don't allow creation
+    return false;
+  },
+
+  // Get current conversation count
+  getConversationCount: () => {
+    return get().conversations.length;
   }
 }));
 
@@ -587,12 +642,15 @@ const initializeStore = () => {
       });
       
       // Debug: Log loaded conversations and their session IDs
-      console.log('📋 Loaded conversations:', parsedState.conversations.map((conv: any) => ({
-        id: conv.id,
-        title: conv.title,
-        sessionId: conv.sessionId,
-        messageCount: conv.messages?.length || 0
-      })));
+      const debugMode = (import.meta.env as any).VITE_CONSOLE_DEBUG === 'true';
+      if (debugMode) {
+        console.log('📋 Loaded conversations:', parsedState.conversations.map((conv: any) => ({
+          id: conv.id,
+          title: conv.title,
+          sessionId: conv.sessionId,
+          messageCount: conv.messages?.length || 0
+        })));
+      }
       
       // Clean up any residual streaming messages after initialization
       setTimeout(() => {
