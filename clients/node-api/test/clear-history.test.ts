@@ -7,7 +7,7 @@ describe('Clear History', () => {
   beforeEach(() => {
     client = new ApiClient({
       apiUrl: 'http://localhost:3000',
-      apiKey: 'test-key',
+      apiKey: 'chat-key',
       sessionId: 'test-session'
     });
   });
@@ -36,7 +36,7 @@ describe('Clear History', () => {
   it('should throw error when no session ID available', async () => {
     const clientWithoutSession = new ApiClient({
       apiUrl: 'http://localhost:3000',
-      apiKey: 'test-key',
+      apiKey: 'chat-key',
       sessionId: null
     });
     

@@ -34,7 +34,11 @@ npm run test:npm -- "your message here" "http://your-api-server.com"
 
 ## API Configuration
 
-The tests use the new `configureApi` function to set the API URL for testing purposes. This reflects the way the library will be used in production, where clients must explicitly configure the API URL before using any other functions.
+The tests use the `configureApi` function to set the API URL and API key for testing purposes. Tests are configured to use:
+- **API URL**: `http://localhost:3000`
+- **API Key**: `chat-key`
+
+This reflects the way the library will be used in production, where clients must explicitly configure the API URL and optionally provide an API key before using any other functions.
 
 ## Mock Server
 
@@ -42,23 +46,23 @@ The tests use MSW to mock the server responses. This allows us to test the API w
 
 The mock server is configured to:
 
-1. Respond to POST requests to `/chat`
-2. Simulate streaming responses with multiple chunks
-3. Include audio content when voice is enabled
-4. Simulate network errors for error handling tests
+1. Respond to POST requests to `/v1/chat` endpoint
+2. Simulate SSE (Server-Sent Events) streaming responses with multiple chunks
+3. Return responses in the format: `data: {"response": "...", "done": false/true}`
+4. Send a `data: [DONE]` signal at the end of streams
+5. Simulate network errors for error handling tests
 
 ## Test Cases
 
 The tests cover:
 
-1. Basic chat functionality without voice
-2. Chat with voice enabled
-3. Error handling for network issues
-4. Conversation history management:
+1. Streaming chat functionality
+2. Error handling for network issues
+3. Conversation history management:
    - Clearing conversation history successfully
    - Error handling when no session ID is available
    - Error handling when no API key is provided
-5. Specific query handling:
+4. Specific query handling:
    - Fee-related queries (e.g., "how much is the fee?")
    - Price-related queries (e.g., "what is the price?")
    - Unknown queries with graceful fallback responses
@@ -93,7 +97,7 @@ npm run test:npm -- --npm "Hello, how can you help me?"
 npm run test:npm -- --local "Hello" "http://my-server:3000" "session-123"
 
 # Test with API key authentication
-npm run test:npm -- --local "Hello" "http://localhost:3000" "session-123" "your-api-key"
+npm run test:npm -- --local "Hello" "http://localhost:3000" "session-123" "demo-key"
 ```
 
 This script:

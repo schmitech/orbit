@@ -4,14 +4,14 @@ import { http, HttpResponse } from 'msw';
 import { configureApi } from '../api';
 
 // Define the default test API URL
-const TEST_API_URL = 'http://test-api-server.com';
+const TEST_API_URL = 'http://localhost:3000';
 
-// Configure the API with the test URL
-configureApi(TEST_API_URL);
+// Configure the API with the test URL and API key
+configureApi(TEST_API_URL, 'chat-key');
 
 // Define mock handlers
 const handlers = [
-  http.post(`${TEST_API_URL}/v1/chat`, async ({ request }) => {
+  http.post(`http://localhost:3000/v1/chat`, async ({ request }) => {
     // Add type annotation to fix linter error
     interface ChatRequest {
       messages: Array<{ role: string; content: string; }>;
