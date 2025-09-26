@@ -2,7 +2,6 @@ import React from 'react';
 import { Copy, Check } from 'lucide-react';
 import clsx from 'clsx';
 import { Message as MessageType } from '../store/chatStore';
-import { MarkdownRenderer } from '../shared/MarkdownComponents';
 import { TypingEffect } from './TypingEffect';
 
 export interface MessageProps {
