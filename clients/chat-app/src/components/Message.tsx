@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { Copy, RotateCcw, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { Message as MessageType } from '../types';
 import { MarkdownRenderer } from '@schmitech/markdown-renderer';
-// import '@schmitech/markdown-renderer/styles';
 
 interface MessageProps {
   message: MessageType;
