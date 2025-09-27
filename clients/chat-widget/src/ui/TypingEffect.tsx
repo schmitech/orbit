@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { CHAT_CONSTANTS } from '../shared/styles';
 import { MarkdownRenderer } from '@schmitech/markdown-renderer';
 
 export interface TypingEffectProps {
