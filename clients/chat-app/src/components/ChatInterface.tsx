@@ -59,16 +59,13 @@ export function ChatInterface({ onOpenSettings }: ChatInterfaceProps) {
   };
 
   return (
-    <div className="flex-1 flex flex-col bg-gradient-to-br from-white/90 via-slate-50/85 to-blue-50/90 dark:from-slate-900/90 dark:via-slate-800/85 dark:to-slate-900/90 relative overflow-hidden backdrop-blur-md">
-      {/* Enhanced gradient overlay for seamless blending */}
-      <div className="absolute inset-0 bg-gradient-to-br from-blue-50/20 via-transparent to-indigo-50/30 dark:from-blue-900/10 dark:via-transparent dark:to-indigo-900/15 pointer-events-none"></div>
-      
-      {/* Subtle left border to complement sidebar */}
-      <div className="absolute left-0 top-0 bottom-0 w-px bg-gradient-to-b from-transparent via-slate-200/30 to-transparent dark:via-slate-700/30"></div>
-      
-      {/* Soft shadow transition from sidebar */}
-      <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-black/[0.02] to-transparent dark:from-black/[0.05] pointer-events-none"></div>
-      
+    <div className="flex-1 flex flex-col relative overflow-hidden">
+      <div className="absolute inset-0 bg-white/85 dark:bg-slate-950/65 backdrop-blur-xl" />
+      <div className="absolute inset-0 bg-[linear-gradient(140deg,_rgba(15,118,110,0.08),_transparent_45%,_rgba(79,70,229,0.08))] dark:bg-[linear-gradient(160deg,_rgba(15,118,110,0.18),_transparent_50%,_rgba(76,29,149,0.22))]" />
+      <div className="absolute inset-y-0 left-0 w-px bg-white/60 dark:bg-slate-800/70" />
+      <div className="absolute inset-y-0 left-0 w-10 bg-gradient-to-r from-slate-900/5 via-white/0 to-transparent dark:from-black/30" />
+      <div className="relative z-10 flex flex-col h-full">
+
       {/* API Configuration Modal */}
       {showConfig && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
@@ -151,30 +148,32 @@ export function ChatInterface({ onOpenSettings }: ChatInterfaceProps) {
       )}
 
       {/* Chat Header */}
-      <div className="px-8 py-6 relative z-10">
-        <div className="w-full flex justify-between items-center">
-          <div className="flex-1">
+      <div className="px-10 py-6 border-b border-white/60 dark:border-slate-800/70 backdrop-blur-lg">
+        <div className="flex items-center justify-between gap-6">
+          <div className="min-w-0">
+            <p className="text-xs uppercase tracking-[0.28em] text-slate-500 dark:text-slate-400 font-semibold mb-2">
+              Conversation
+            </p>
+            <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100 truncate">
+              {currentConversation?.title || 'New Chat'}
+            </h1>
             {currentConversation && (
-              <div className="flex items-center space-x-4">
-                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse shadow-sm"></div>
-                <p className="text-sm text-slate-600 dark:text-slate-400 font-medium">
-                  {currentConversation.messages.length} messages • Last updated {
-                    currentConversation.updatedAt.toLocaleDateString()
-                  }
-                </p>
-              </div>
+              <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                {currentConversation.messages.length} messages · Updated {' '}
+                {currentConversation.updatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </p>
             )}
           </div>
-          <div className="flex-shrink-0 flex items-center gap-3">
+          <div className="flex-shrink-0 flex items-center gap-2">
             <button
               onClick={() => setShowConfig(true)}
-              className="px-4 py-2 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-white/20 dark:hover:bg-slate-800/30 rounded-lg transition-all duration-200 font-medium backdrop-blur-sm"
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200/80 dark:border-slate-700/60 px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-500 hover:text-slate-900 dark:hover:text-white transition"
             >
               Configure API
             </button>
             <button
               onClick={onOpenSettings}
-              className="p-2 text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-white/20 dark:hover:bg-slate-800/30 rounded-lg transition-all duration-200 backdrop-blur-sm"
+              className="p-2 rounded-xl bg-slate-900 text-slate-100 hover:bg-slate-800 dark:bg-slate-700 dark:hover:bg-slate-600 transition shadow-sm"
               title="Settings"
             >
               <Settings className="w-5 h-5" />
@@ -196,6 +195,7 @@ export function ChatInterface({ onOpenSettings }: ChatInterfaceProps) {
         disabled={isLoading}
         placeholder="Ask me anything..."
       />
+      </div>
     </div>
   );
 }

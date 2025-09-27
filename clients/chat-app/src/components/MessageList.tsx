@@ -12,7 +12,7 @@ interface MessageListProps {
 export function MessageList({ messages, onRegenerate, isLoading }: MessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [lastMessageCount, setLastMessageCount] = useState(0);
+  const prevMessageCountRef = useRef(messages.length);
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
 
   // Check if user has scrolled up manually
@@ -24,19 +24,19 @@ export function MessageList({ messages, onRegenerate, isLoading }: MessageListPr
     setShouldAutoScroll(isNearBottom);
   };
 
-  // Only auto-scroll when new messages are added (not when content updates)
+  // Keep messages anchored to the latest content while the user stays near the bottom
   useEffect(() => {
     const messageCount = messages.length;
-    
-    // Only scroll if:
-    // 1. New message was added (count increased)
-    // 2. User hasn't manually scrolled up
-    if (messageCount > lastMessageCount && shouldAutoScroll) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const hadMessages = prevMessageCountRef.current;
+    const hasNewMessage = messageCount > hadMessages;
+    const lastMessage = messages[messages.length - 1];
+
+    if ((hasNewMessage || lastMessage?.isStreaming) && shouldAutoScroll) {
+      messagesEndRef.current?.scrollIntoView({ behavior: hasNewMessage ? 'smooth' : 'auto' });
     }
-    
-    setLastMessageCount(messageCount);
-  }, [messages.length, shouldAutoScroll, lastMessageCount]);
+
+    prevMessageCountRef.current = messageCount;
+  }, [messages, shouldAutoScroll]);
 
   // Scroll to bottom when loading starts (new assistant message)
   useEffect(() => {
@@ -47,25 +47,19 @@ export function MessageList({ messages, onRegenerate, isLoading }: MessageListPr
 
   if (messages.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center p-8 relative">
-        {/* Subtle background pattern */}
-        <div className="absolute inset-0 bg-gradient-to-br from-transparent via-slate-50/30 to-transparent dark:via-slate-800/30 pointer-events-none"></div>
-        
-        <div className="text-center max-w-lg relative z-10">
-          <div className="relative mb-3">
-            <img 
-              src={orbitLogo} 
-              alt="ORBIT" 
-              className="w-56 h-56 object-contain mx-auto drop-shadow-lg" 
-            />
-          </div>
-          
-          <div className="space-y-4">
-            <h2 className="text-3xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 dark:from-slate-100 dark:to-slate-300 bg-clip-text text-transparent">
-              Welcome to ORBIT Chat
+      <div className="flex-1 flex items-center justify-center p-12">
+        <div className="max-w-md text-center space-y-6">
+          <img
+            src={orbitLogo}
+            alt="ORBIT"
+            className="w-32 h-32 mx-auto drop-shadow-[0_10px_30px_rgba(37,99,235,0.25)]"
+          />
+          <div className="space-y-3">
+            <h2 className="text-3xl font-semibold text-slate-900 dark:text-slate-100">
+              Welcome to Orbit
             </h2>
-            <p className="text-base text-slate-500 dark:text-slate-500 leading-relaxed max-w-md mx-auto">
-              Start a conversation by typing a message below. I'm here to help with questions, creative tasks, analysis, and more.
+            <p className="text-base text-slate-600 dark:text-slate-400 leading-relaxed">
+              Ask thoughtful questions, explore ideas, or iterate on your work. I’ll respond instantly and evolve with your conversation.
             </p>
           </div>
         </div>
@@ -76,10 +70,10 @@ export function MessageList({ messages, onRegenerate, isLoading }: MessageListPr
   return (
     <div 
       ref={containerRef}
-      className="flex-1 overflow-y-auto"
+      className="flex-1 overflow-y-auto px-6 sm:px-10"
       onScroll={handleScroll}
     >
-      <div className="max-w-4xl mx-auto py-8">
+      <div className="max-w-3xl mx-auto py-10 space-y-6">
         {messages.map((message) => (
           <Message
             key={message.id}

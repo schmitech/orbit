@@ -40,6 +40,8 @@ export function Sidebar({}: SidebarProps) {
     )
   );
 
+  const canStartNew = canCreateNewConversation();
+
   const handleNewChat = () => {
     try {
       createConversation();
@@ -110,36 +112,30 @@ export function Sidebar({}: SidebarProps) {
 
   return (
     <>
-      <div className="w-72 bg-gradient-to-br from-slate-50/95 via-white/90 to-blue-50/95 dark:from-slate-900/95 dark:via-slate-800/90 dark:to-slate-900/95 flex flex-col h-full relative backdrop-blur-md">
-        {/* Subtle gradient overlay for depth */}
-        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-blue-50/20 to-transparent dark:from-transparent dark:via-blue-900/10 dark:to-transparent pointer-events-none"></div>
-        
-        {/* Subtle right border for separation */}
-        <div className="absolute right-0 top-0 bottom-0 w-px bg-gradient-to-b from-transparent via-slate-200/40 to-transparent dark:via-slate-700/40"></div>
-        
-        {/* Soft shadow transition */}
-        <div className="absolute -right-4 top-0 bottom-0 w-8 bg-gradient-to-r from-transparent to-black/[0.02] dark:to-black/[0.05] pointer-events-none"></div>
+      <div className="w-80 bg-white/80 dark:bg-[#050b16]/80 border-r border-white/60 dark:border-slate-800/70 backdrop-blur-[24px] flex flex-col h-full relative shadow-[0_0_60px_rgba(15,23,42,0.12)]">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(37,99,235,0.12),_transparent_70%)] dark:bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.18),_transparent_75%)]" />
+        <div className="pointer-events-none absolute inset-y-0 right-0 w-px bg-white/60 dark:bg-slate-800/70" />
 
         {/* Header */}
         <div className="p-6 pb-4 relative z-10">
           <button
             onClick={handleNewChat}
-            disabled={!canCreateNewConversation()}
-            className={`w-full group flex items-center justify-center gap-3 px-6 py-4 rounded-xl transition-all duration-200 font-medium text-sm backdrop-blur-sm ${
-              canCreateNewConversation()
-                ? 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 dark:from-blue-500 dark:to-blue-600 dark:hover:from-blue-600 dark:hover:to-blue-700 text-white shadow-lg hover:shadow-xl transform hover:-translate-y-0.5'
-                : 'bg-slate-200 dark:bg-slate-700 text-slate-400 dark:text-slate-500 cursor-not-allowed opacity-60'
+            disabled={!canStartNew}
+            className={`w-full group flex items-center justify-center gap-3 px-6 py-4 rounded-xl transition-all duration-200 font-medium text-sm border ${
+              canStartNew
+                ? 'border-slate-200/70 dark:border-slate-700/70 bg-white/80 dark:bg-slate-900/60 text-slate-900 dark:text-white shadow-[0_18px_48px_rgba(15,23,42,0.12)] hover:-translate-y-0.5 hover:shadow-[0_26px_70px_rgba(37,99,235,0.22)]'
+                : 'border-slate-200/60 dark:border-slate-700/60 bg-transparent text-slate-400 dark:text-slate-500 cursor-not-allowed'
             }`}
             title={
-              !canCreateNewConversation()
-                ? getConversationCount() >= 10
+              canStartNew
+                ? 'Start a new conversation'
+                : getConversationCount() >= 10
                   ? 'Maximum 10 conversations reached. Delete a conversation to create a new one.'
                   : 'Current conversation is empty. Send a message first to create a new conversation.'
-                : 'Start a new conversation'
             }
           >
             <Plus className={`w-5 h-5 transition-transform duration-200 ${
-              canCreateNewConversation() ? 'group-hover:rotate-90' : ''
+              canStartNew ? 'group-hover:rotate-90' : ''
             }`} />
             New Conversation
           </button>
@@ -161,7 +157,7 @@ export function Sidebar({}: SidebarProps) {
               placeholder="Search conversations..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-12 pr-4 py-3 bg-white/60 dark:bg-slate-800/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-400/30 shadow-sm hover:shadow-md transition-all duration-200 placeholder-slate-400 dark:placeholder-slate-500 backdrop-blur-sm border border-slate-200/20 dark:border-slate-700/20"
+              className="w-full pl-12 pr-4 py-3 bg-white/80 dark:bg-slate-900/60 rounded-xl text-sm border border-slate-200/70 dark:border-slate-700/60 placeholder-slate-400 dark:placeholder-slate-500 shadow-[0_14px_40px_rgba(15,23,42,0.12)] focus:outline-none focus:ring-2 focus:ring-blue-500/40 dark:focus:ring-cyan-400/30"
             />
           </div>
         </div>
@@ -184,16 +180,16 @@ export function Sidebar({}: SidebarProps) {
                 <div
                   key={conversation.id}
                   onClick={async () => await selectConversation(conversation.id)}
-                  className={`group flex items-center gap-3 p-4 rounded-xl cursor-pointer transition-all duration-200 backdrop-blur-sm border ${
+                  className={`group flex items-center gap-3 p-4 rounded-xl cursor-pointer transition-all duration-200 border ${
                     currentConversationId === conversation.id
-                      ? 'bg-gradient-to-r from-blue-50/80 to-indigo-50/80 dark:from-blue-900/40 dark:to-indigo-900/40 shadow-lg transform scale-[1.02] border-blue-200/30 dark:border-blue-700/30'
-                      : 'hover:bg-gradient-to-r hover:from-slate-50/60 hover:to-slate-100/60 dark:hover:from-slate-800/60 dark:hover:to-slate-700/60 hover:shadow-md hover:transform hover:scale-[1.01] border-slate-200/20 dark:border-slate-700/20'
+                      ? 'border-blue-500/30 bg-blue-500/10 dark:bg-blue-500/10 shadow-[0_18px_48px_rgba(37,99,235,0.22)]'
+                      : 'border-transparent hover:border-slate-200/70 dark:hover:border-slate-700/60 hover:bg-white/80 dark:hover:bg-slate-800/50'
                   }`}
                 >
                   <div className={`p-2 rounded-lg ${
                     currentConversationId === conversation.id
-                      ? 'bg-blue-100/80 dark:bg-blue-800/60 text-blue-600 dark:text-blue-400'
-                      : 'bg-slate-100/80 dark:bg-slate-700/60 text-slate-500 dark:text-slate-400 group-hover:bg-slate-200/80 dark:group-hover:bg-slate-600/60'
+                      ? 'bg-blue-500/20 text-blue-700 dark:text-blue-300'
+                      : 'bg-slate-200/40 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-200'
                   }`}>
                     <MessageSquare className="w-4 h-4" />
                   </div>
