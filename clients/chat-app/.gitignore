@@ -27,3 +27,4 @@ public/api/
 *.sw?
 .env
 package-lock.json
+state.json

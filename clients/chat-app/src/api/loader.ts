@@ -25,6 +25,7 @@ export interface ApiClient {
     deleted_count: number;
     timestamp: string;
   }>;
+  getSessionId(): string | null;
 }
 
 export interface ApiFunctions {

@@ -226,25 +226,34 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
     // If conversation has a session ID, clear it from the server
     if (conversation?.sessionId) {
       try {
-        const api = await getApi();
-        const apiClient = new api.ApiClient({
-          apiUrl: localStorage.getItem('chat-api-url') || 'http://localhost:3000',
-          apiKey: localStorage.getItem('chat-api-key') || 'orbit-123456789',
-          sessionId: conversation.sessionId
-        });
-        
-        const debugMode = (import.meta.env as any).VITE_CONSOLE_DEBUG === 'true';
-        if (debugMode) {
-          console.log(`🔧 Calling clearConversationHistory for session: ${conversation.sessionId}`);
-        }
-        if (apiClient.clearConversationHistory) {
-          const result = await apiClient.clearConversationHistory(conversation.sessionId);
-          if (debugMode) {
-            console.log(`✅ Cleared conversation history for session: ${conversation.sessionId}`, result);
-          }
+        // Ensure API is properly configured first
+        const isConfigured = await ensureApiConfigured();
+        if (!isConfigured) {
+          console.error('Failed to configure API for conversation deletion');
+          // Continue with local deletion even if API configuration fails
         } else {
+          // Create API client with the conversation's session ID
+          const api = await getApi();
+          const apiClient = new api.ApiClient({
+            apiUrl: localStorage.getItem('chat-api-url') || 'http://localhost:3000',
+            apiKey: localStorage.getItem('chat-api-key') || 'orbit-123456789',
+            sessionId: conversation.sessionId
+          });
+          
           if (debugMode) {
-            console.warn(`⚠️ clearConversationHistory method not available on API client`);
+            console.log(`🔧 Calling clearConversationHistory for session: ${conversation.sessionId}`);
+            console.log(`🔧 API Client session ID: ${apiClient.getSessionId()}`);
+          }
+          
+          if (apiClient.clearConversationHistory) {
+            const result = await apiClient.clearConversationHistory(conversation.sessionId);
+            if (debugMode) {
+              console.log(`✅ Cleared conversation history for session: ${conversation.sessionId}`, result);
+            }
+          } else {
+            if (debugMode) {
+              console.warn(`⚠️ clearConversationHistory method not available on API client`);
+            }
           }
         }
       } catch (error) {
@@ -351,6 +360,18 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       let receivedAnyText = false;
 
       try {
+        // Ensure API is configured with the current conversation's session ID
+        const currentConversation = get().conversations.find(conv => conv.id === conversationId);
+        if (currentConversation?.sessionId) {
+          const api = await getApi();
+          // Reconfigure API with the current conversation's session ID to ensure consistency
+          api.configureApi(
+            localStorage.getItem('chat-api-url') || 'http://localhost:3000',
+            localStorage.getItem('chat-api-key') || 'orbit-123456789',
+            currentConversation.sessionId
+          );
+        }
+        
         // Load the API and stream the response
         const api = await getApi();
         for await (const response of api.streamChat(content)) {
@@ -487,6 +508,18 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       let receivedAnyText = false;
 
       try {
+        // Ensure API is configured with the current conversation's session ID
+        const currentConversation = get().conversations.find(conv => conv.id === state.currentConversationId);
+        if (currentConversation?.sessionId) {
+          const api = await getApi();
+          // Reconfigure API with the current conversation's session ID to ensure consistency
+          api.configureApi(
+            localStorage.getItem('chat-api-url') || 'http://localhost:3000',
+            localStorage.getItem('chat-api-key') || 'orbit-123456789',
+            currentConversation.sessionId
+          );
+        }
+        
         const api = await getApi();
         for await (const response of api.streamChat(userMessage.content)) {
           if (response.text) {

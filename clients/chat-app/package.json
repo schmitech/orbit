@@ -15,16 +15,14 @@
     "preview:local": "VITE_USE_LOCAL_API=true vite preview"
   },
   "dependencies": {
-    "@schmitech/chatbot-api": "^0.5.3",
+    "@schmitech/chatbot-api": "^0.5.2",
+    "@schmitech/markdown-renderer": "^0.1.2",
     "@types/markdown-it": "^14.1.2",
-    "katex": "^0.16.22",
     "lucide-react": "^0.344.0",
+    "path": "^0.12.7",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-markdown": "^10.1.0",
-    "rehype-katex": "^7.0.1",
-    "remark-gfm": "^4.0.1",
-    "remark-math": "^6.0.0",
+    "vite-plugin-dts": "^4.5.4",
     "zustand": "^5.0.5"
   },
   "devDependencies": {

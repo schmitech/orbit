@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
 import { Copy, RotateCcw, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { Message as MessageType } from '../types';
-import { MarkdownRenderer } from '../utils/MarkdownRenderer';
+import { MarkdownRenderer } from '@schmitech/markdown-renderer';
+// import '@schmitech/markdown-renderer/styles';
 
 interface MessageProps {
   message: MessageType;
   onRegenerate?: (messageId: string) => void;
 }
 
-export function Message({ message, onRegenerate }: MessageProps) {
+export function Message({ message, onRegenerate }: MessageProps) { 
   const [copied, setCopied] = useState(false);
   const [feedback, setFeedback] = useState<'up' | 'down' | null>(null);
 
@@ -67,9 +68,8 @@ export function Message({ message, onRegenerate }: MessageProps) {
             <span className="inline-block w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-300"></span>
           </div>
         ) : (
-          <MarkdownRenderer 
+          <MarkdownRenderer
             content={message.content}
-            className="prose prose-sm max-w-none dark:prose-invert"
           />
         )}
 
