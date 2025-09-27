@@ -112,9 +112,9 @@ export function Sidebar({}: SidebarProps) {
 
   return (
     <>
-      <div className="w-80 bg-white/80 dark:bg-[#050b16]/80 border-r border-white/60 dark:border-slate-800/70 backdrop-blur-[24px] flex flex-col h-full relative shadow-[0_0_60px_rgba(15,23,42,0.12)]">
+      <div className="w-80 bg-white/80 dark:bg-[#050b16]/80 backdrop-blur-[24px] flex flex-col h-full relative shadow-[0_0_60px_rgba(15,23,42,0.12)]">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(37,99,235,0.12),_transparent_70%)] dark:bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.18),_transparent_75%)]" />
-        <div className="pointer-events-none absolute inset-y-0 right-0 w-px bg-white/60 dark:bg-slate-800/70" />
+        <div className="pointer-events-none absolute inset-y-0 right-0 w-20 bg-gradient-to-l from-slate-100/80 via-slate-50/40 to-transparent dark:from-slate-900/50 dark:via-slate-950/30 dark:to-transparent" />
 
         {/* Header */}
         <div className="p-6 pb-4 relative z-10">

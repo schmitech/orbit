@@ -62,8 +62,7 @@ export function ChatInterface({ onOpenSettings }: ChatInterfaceProps) {
     <div className="flex-1 flex flex-col relative overflow-hidden">
       <div className="absolute inset-0 bg-white/85 dark:bg-slate-950/65 backdrop-blur-xl" />
       <div className="absolute inset-0 bg-[linear-gradient(140deg,_rgba(15,118,110,0.08),_transparent_45%,_rgba(79,70,229,0.08))] dark:bg-[linear-gradient(160deg,_rgba(15,118,110,0.18),_transparent_50%,_rgba(76,29,149,0.22))]" />
-      <div className="absolute inset-y-0 left-0 w-px bg-white/60 dark:bg-slate-800/70" />
-      <div className="absolute inset-y-0 left-0 w-10 bg-gradient-to-r from-slate-900/5 via-white/0 to-transparent dark:from-black/30" />
+      <div className="absolute inset-y-0 left-0 w-20 bg-gradient-to-r from-slate-100/80 via-slate-50/40 to-transparent dark:from-slate-900/50 dark:via-slate-950/30 dark:to-transparent" />
       <div className="relative z-10 flex flex-col h-full">
 
       {/* API Configuration Modal */}
