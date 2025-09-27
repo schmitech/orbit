@@ -147,7 +147,7 @@ export function ChatInterface({ onOpenSettings }: ChatInterfaceProps) {
       )}
 
       {/* Chat Header */}
-      <div className="px-10 py-6 border-b border-white/60 dark:border-slate-800/70 backdrop-blur-lg">
+      <div className="px-10 py-6 bg-gradient-to-b from-white/90 via-white/60 to-transparent dark:from-slate-950/70 dark:via-slate-950/50 dark:to-transparent backdrop-blur-lg">
         <div className="flex items-center justify-between gap-6">
           <div className="min-w-0">
             <p className="text-xs uppercase tracking-[0.28em] text-slate-500 dark:text-slate-400 font-semibold mb-2">

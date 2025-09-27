@@ -80,7 +80,7 @@ export function MessageInput({
       <form onSubmit={handleSubmit} className="relative w-full max-w-3xl mx-auto">
         <div className={`relative flex items-center gap-4 rounded-2xl border px-5 py-4 transition-all duration-200 ${
           isFocused
-            ? 'border-emerald-400/60 shadow-[0_20px_50px_rgba(16,185,129,0.25)] bg-white dark:bg-slate-900'
+            ? 'border-slate-300/80 dark:border-emerald-400/60 shadow-[0_20px_50px_rgba(71,85,105,0.15)] dark:shadow-[0_20px_50px_rgba(16,185,129,0.25)] bg-white dark:bg-slate-900'
             : 'border-slate-200/70 dark:border-slate-700/60 bg-white/80 dark:bg-slate-900/70 shadow-[0_12px_40px_rgba(15,23,42,0.12)]'
         }`}>
           {/* Attachment button */}
@@ -150,7 +150,7 @@ export function MessageInput({
             disabled={!message.trim() || disabled || isComposing}
             className={`flex-shrink-0 px-4 py-2 rounded-xl transition-all duration-200 font-semibold ${
               message.trim() && !disabled && !isComposing
-                ? 'bg-emerald-500 text-white shadow-[0_14px_40px_rgba(16,185,129,0.35)] hover:bg-emerald-600 hover:-translate-y-0.5 active:translate-y-0'
+                ? 'bg-slate-800 dark:bg-emerald-500 text-white shadow-[0_14px_40px_rgba(15,23,42,0.25)] dark:shadow-[0_14px_40px_rgba(16,185,129,0.35)] hover:bg-slate-900 dark:hover:bg-emerald-600 hover:-translate-y-0.5 active:translate-y-0'
                 : 'bg-slate-200 dark:bg-slate-700 text-slate-400 dark:text-slate-500 cursor-not-allowed'
             }`}
             title="Send message"

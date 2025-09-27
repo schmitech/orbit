@@ -73,7 +73,10 @@ export function MessageList({ messages, onRegenerate, isLoading }: MessageListPr
       className="flex-1 overflow-y-auto px-6 sm:px-10 relative"
       onScroll={handleScroll}
     >
-      <div className="max-w-3xl mx-auto pt-10 pb-4 space-y-6">
+      {/* Top gradient fade */}
+      <div className="pointer-events-none sticky top-0 left-0 right-0 h-20 bg-gradient-to-b from-white/80 to-transparent dark:from-slate-950/60 dark:to-transparent z-10" />
+
+      <div className="max-w-3xl mx-auto pt-2 pb-4 space-y-6">
         {messages.map((message) => (
           <Message
             key={message.id}
