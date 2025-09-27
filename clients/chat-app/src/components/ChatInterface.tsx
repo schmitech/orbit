@@ -60,9 +60,8 @@ export function ChatInterface({ onOpenSettings }: ChatInterfaceProps) {
 
   return (
     <div className="flex-1 flex flex-col relative overflow-hidden">
-      <div className="absolute inset-0 bg-white/85 dark:bg-slate-950/65 backdrop-blur-xl" />
-      <div className="absolute inset-0 bg-[linear-gradient(140deg,_rgba(15,118,110,0.08),_transparent_45%,_rgba(79,70,229,0.08))] dark:bg-[linear-gradient(160deg,_rgba(15,118,110,0.18),_transparent_50%,_rgba(76,29,149,0.22))]" />
-      <div className="absolute inset-y-0 left-0 w-20 bg-gradient-to-r from-slate-100/80 via-slate-50/40 to-transparent dark:from-slate-900/50 dark:via-slate-950/30 dark:to-transparent" />
+      <div className="absolute inset-0 bg-white/60 dark:bg-slate-950/40 backdrop-blur-xl" />
+      <div className="absolute inset-0 bg-[linear-gradient(140deg,_rgba(15,118,110,0.04),_transparent_45%,_rgba(79,70,229,0.04))] dark:bg-[linear-gradient(160deg,_rgba(15,118,110,0.09),_transparent_50%,_rgba(76,29,149,0.11))]" />
       <div className="relative z-10 flex flex-col h-full">
 
       {/* API Configuration Modal */}
@@ -147,7 +146,7 @@ export function ChatInterface({ onOpenSettings }: ChatInterfaceProps) {
       )}
 
       {/* Chat Header */}
-      <div className="px-10 py-6 bg-gradient-to-b from-white/90 via-white/60 to-transparent dark:from-slate-950/70 dark:via-slate-950/50 dark:to-transparent backdrop-blur-lg">
+      <div className="px-10 py-6 bg-gradient-to-b from-transparent via-transparent to-transparent backdrop-blur-sm relative z-10">
         <div className="flex items-center justify-between gap-6">
           <div className="min-w-0">
             <p className="text-xs uppercase tracking-[0.28em] text-slate-500 dark:text-slate-400 font-semibold mb-2">

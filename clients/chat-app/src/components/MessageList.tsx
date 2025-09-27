@@ -74,7 +74,7 @@ export function MessageList({ messages, onRegenerate, isLoading }: MessageListPr
       onScroll={handleScroll}
     >
       {/* Top gradient fade */}
-      <div className="pointer-events-none sticky top-0 left-0 right-0 h-20 bg-gradient-to-b from-white/80 to-transparent dark:from-slate-950/60 dark:to-transparent z-10" />
+      <div className="pointer-events-none sticky top-0 left-0 right-0 h-12 bg-gradient-to-b from-white/20 to-transparent dark:from-slate-950/20 dark:to-transparent z-10" />
 
       <div className="max-w-3xl mx-auto pt-2 pb-4 space-y-6">
         {messages.map((message) => (
@@ -88,7 +88,7 @@ export function MessageList({ messages, onRegenerate, isLoading }: MessageListPr
         <div ref={messagesEndRef} className="h-8" />
       </div>
       {/* Bottom gradient fade */}
-      <div className="pointer-events-none sticky bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-white/80 to-transparent dark:from-slate-950/60 dark:to-transparent" />
+      <div className="pointer-events-none sticky bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-white/40 to-transparent dark:from-slate-950/30 dark:to-transparent" />
     </div>
   );
 }
