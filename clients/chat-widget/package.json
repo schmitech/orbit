@@ -1,7 +1,7 @@
 {
   "name": "@schmitech/chatbot-widget",
   "private": false,
-  "version": "0.5.1",
+  "version": "0.5.2",
   "type": "module",
   "main": "./dist/chatbot-widget.umd.js",
   "module": "./dist/chatbot-widget.es.js",
@@ -28,15 +28,11 @@
   },
   "dependencies": {
     "@schmitech/chatbot-api": "^0.5.3",
+    "@schmitech/markdown-renderer": "^0.1.2",
     "clsx": "^2.1.0",
-    "katex": "^0.16.22",
     "lucide-react": "^0.344.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-markdown": "^10.1.0",
-    "rehype-katex": "^7.0.1",
-    "remark-gfm": "^4.0.1",
-    "remark-math": "^6.0.0",
     "zustand": "^5.0.8"
   },
   "devDependencies": {

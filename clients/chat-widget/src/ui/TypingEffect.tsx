@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { MarkdownRenderer } from '../shared/MarkdownComponents';
 import { CHAT_CONSTANTS } from '../shared/styles';
+import { MarkdownRenderer } from '@schmitech/markdown-renderer';
 
 export interface TypingEffectProps {
   content: string;
@@ -160,7 +160,7 @@ export const TypingEffect: React.FC<TypingEffectProps> = ({
       
       // Schedule next frame
       animationFrameRef.current = requestAnimationFrame(() => {
-        setTimeout(() => animate(), 5); // 5ms delay between characters (3x faster)
+        setTimeout(() => animate(), 2); // 2ms delay between characters (much faster)
       });
     } else if (targetLength > 0 && currentIndexRef.current === targetLength) {
       // We've caught up to the currently available content.
