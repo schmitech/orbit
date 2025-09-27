@@ -70,7 +70,7 @@ export function MessageInput({
   };
 
   return (
-    <div className="px-6 sm:px-10 pb-10 pt-6 relative z-10 border-t border-white/60 dark:border-slate-800/70 bg-white/50 dark:bg-slate-950/40 backdrop-blur-xl">
+    <div className="px-6 sm:px-10 pb-10 pt-6 relative z-10 bg-gradient-to-t from-white/80 via-white/50 to-transparent dark:from-slate-950/60 dark:via-slate-950/40 dark:to-transparent backdrop-blur-xl">
       {voiceError && (
         <div className="mb-4 text-sm text-red-600 dark:text-red-400 bg-gradient-to-r from-red-50/80 to-rose-50/80 dark:from-red-900/40 dark:to-rose-900/40 p-3 rounded-xl shadow-sm backdrop-blur-sm">
           {voiceError}

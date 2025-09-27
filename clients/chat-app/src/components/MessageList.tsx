@@ -68,12 +68,12 @@ export function MessageList({ messages, onRegenerate, isLoading }: MessageListPr
   }
 
   return (
-    <div 
+    <div
       ref={containerRef}
-      className="flex-1 overflow-y-auto px-6 sm:px-10"
+      className="flex-1 overflow-y-auto px-6 sm:px-10 relative"
       onScroll={handleScroll}
     >
-      <div className="max-w-3xl mx-auto py-10 space-y-6">
+      <div className="max-w-3xl mx-auto pt-10 pb-4 space-y-6">
         {messages.map((message) => (
           <Message
             key={message.id}
@@ -81,9 +81,11 @@ export function MessageList({ messages, onRegenerate, isLoading }: MessageListPr
             onRegenerate={onRegenerate}
           />
         ))}
-        
-        <div ref={messagesEndRef} />
+
+        <div ref={messagesEndRef} className="h-8" />
       </div>
+      {/* Bottom gradient fade */}
+      <div className="pointer-events-none sticky bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-white/80 to-transparent dark:from-slate-950/60 dark:to-transparent" />
     </div>
   );
 }
