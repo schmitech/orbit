@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Bot, Copy, RotateCcw, ThumbsDown, ThumbsUp, UserRound } from 'lucide-react';
+import { Bot, Copy, RotateCcw, ThumbsDown, ThumbsUp, User2 } from 'lucide-react';
 import { Message as MessageType } from '../types';
 import { MarkdownRenderer } from '@schmitech/markdown-renderer';
 
@@ -51,10 +51,10 @@ export function Message({ message, onRegenerate }: MessageProps) {
         className={`flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center shadow-md ${
           isAssistant
             ? 'bg-gradient-to-br from-emerald-500 to-emerald-600 text-white'
-            : 'bg-slate-900 text-white dark:bg-slate-200 dark:text-slate-900'
+            : 'bg-gradient-to-br from-violet-500 to-purple-600 text-white'
         } ${isAssistant ? '' : 'order-2'}`}
       >
-        {isAssistant ? <Bot className="w-4 h-4" /> : <UserRound className="w-4 h-4" />}
+        {isAssistant ? <Bot className="w-4 h-4" /> : <User2 className="w-4 h-4" />}
       </div>
 
       <div

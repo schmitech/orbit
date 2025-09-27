@@ -52,7 +52,7 @@ export function MessageList({ messages, onRegenerate, isLoading }: MessageListPr
           <img
             src={orbitLogo}
             alt="ORBIT"
-            className="w-32 h-32 mx-auto drop-shadow-[0_10px_30px_rgba(37,99,235,0.25)]"
+            className="w-48 h-48 mx-auto drop-shadow-[0_10px_30px_rgba(37,99,235,0.25)]"
           />
           <div className="space-y-3">
             <h2 className="text-3xl font-semibold text-slate-900 dark:text-slate-100">
