@@ -53,7 +53,23 @@ Implementing enterprise-grade security:
 - API key management
 - Audit logging and compliance
 
-### 8. [Enterprise Features](enterprise-features.md)
+### 8. [HTTP Adapter System](http-adapter-system.md)
+Comprehensive HTTP integration framework:
+- REST API adapter with template system
+- Webhook integration for real-time data
+- Web scraping capabilities
+- GraphQL and SOAP support
+- Enterprise security and performance features
+
+### 9. [File Adapter System](file-adapter-system.md)
+Advanced file processing with MinIO integration:
+- Universal file format support (PDF, DOC, CSV, etc.)
+- Intelligent chunking strategies (semantic, structure-aware, AI-powered)
+- High-performance concurrent processing with MinIO
+- Enterprise security and compliance features
+- AI-powered content analysis and classification
+
+### 10. [Enterprise Features](enterprise-features.md)
 Adding enterprise capabilities:
 - Analytics and monitoring
 - A/B testing framework
