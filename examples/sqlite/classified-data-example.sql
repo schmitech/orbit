@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS knowledge_item (
     content TEXT NOT NULL,
     classification TEXT NOT NULL CHECK (classification IN (
         'UNCLASSIFIED', 'PROTECTED A', 'PROTECTED B', 'PROTECTED C',
-        'CONFIDENTIAL', 'SECRET', 'TOP SECRET', 'NATO SECRET'
+        'CONFIDENTIAL', 'SECRET', 'TOP SECRET'
     )),
     caveats TEXT,
     compartments TEXT,
@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS access_audit (
     user_id TEXT NOT NULL,
     subject_clearance TEXT NOT NULL CHECK (subject_clearance IN (
         'UNCLASSIFIED', 'PROTECTED A', 'PROTECTED B', 'PROTECTED C',
-        'CONFIDENTIAL', 'SECRET', 'TOP SECRET', 'NATO SECRET'
+        'CONFIDENTIAL', 'SECRET', 'TOP SECRET'
     )),
     subject_attrs_json TEXT,
     decision TEXT NOT NULL CHECK (decision IN ('ALLOW', 'REDACT', 'DENY')),
@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS users (
     email TEXT NOT NULL UNIQUE,
     clearance_level TEXT NOT NULL CHECK (clearance_level IN (
         'UNCLASSIFIED', 'PROTECTED A', 'PROTECTED B', 'PROTECTED C',
-        'CONFIDENTIAL', 'SECRET', 'TOP SECRET', 'NATO SECRET'
+        'CONFIDENTIAL', 'SECRET', 'TOP SECRET'
     )),
     citizenship TEXT NOT NULL,
     need_to_know TEXT, -- JSON array of compartments/projects
@@ -68,7 +68,7 @@ CREATE TABLE IF NOT EXISTS compartments (
     description TEXT,
     classification_level TEXT NOT NULL CHECK (classification_level IN (
         'UNCLASSIFIED', 'PROTECTED A', 'PROTECTED B', 'PROTECTED C',
-        'CONFIDENTIAL', 'SECRET', 'TOP SECRET', 'NATO SECRET'
+        'CONFIDENTIAL', 'SECRET', 'TOP SECRET'
     )),
     is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -155,13 +155,13 @@ INSERT OR IGNORE INTO compartments (name, description, classification_level) VAL
     ('OP_THUNDER', 'Operation Thunder compartment', 'TOP SECRET'),
     ('INTEL_ANALYSIS', 'Intelligence analysis compartment', 'CONFIDENTIAL'),
     ('CYBER_OPS', 'Cybersecurity operations compartment', 'SECRET'),
-    ('COUNTER_TERROR', 'Ainti-fraud operations compartment', 'TOP SECRET');
+    ('COUNTER_FRAUD', 'Ainti-fraud operations compartment', 'TOP SECRET');
 
 -- Insert sample users
 INSERT OR IGNORE INTO users (user_id, username, email, clearance_level, citizenship, need_to_know, is_active) VALUES
     ('john.doe@example.com', 'john.doe', 'john.doe@example.com', 'SECRET', 'USA', '["OP HUSKY", "PROJECT_X"]', 1),
     ('jane.smith@example.com', 'jane.smith', 'jane.smith@example.com', 'CONFIDENTIAL', 'USA', '["INTEL_ANALYSIS"]', 1),
-    ('bob.wilson@example.com', 'bob.wilson', 'bob.wilson@example.com', 'TOP SECRET', 'USA', '["OP_THUNDER", "COUNTER_TERROR"]', 1),
+    ('bob.wilson@example.com', 'bob.wilson', 'bob.wilson@example.com', 'TOP SECRET', 'USA', '["OP_THUNDER", "COUNTER_FRAUD"]', 1),
     ('alice.johnson@example.com', 'alice.johnson', 'alice.johnson@example.com', 'SECRET', 'CAN', '["PROJECT_Y", "CYBER_OPS"]', 1),
     ('charlie.brown@example.com', 'charlie.brown', 'charlie.brown@example.com', 'CONFIDENTIAL', 'GBR', '["INTEL_ANALYSIS"]', 1);
 
@@ -171,7 +171,7 @@ INSERT OR IGNORE INTO user_compartments (user_id, compartment_id) VALUES
     ('john.doe@example.com', 4), -- PROJECT_X
     ('jane.smith@example.com', 8), -- INTEL_ANALYSIS
     ('bob.wilson@example.com', 7), -- OP_THUNDER
-    ('bob.wilson@example.com', 10), -- COUNTER_TERROR
+    ('bob.wilson@example.com', 10), -- COUNTER_FRAUD
     ('alice.johnson@example.com', 5), -- PROJECT_Y
     ('alice.johnson@example.com', 9), -- CYBER_OPS
     ('charlie.brown@example.com', 8); -- INTEL_ANALYSIS
@@ -180,7 +180,7 @@ INSERT OR IGNORE INTO user_compartments (user_id, compartment_id) VALUES
 INSERT OR IGNORE INTO knowledge_item (title, content, classification, caveats, compartments, rel_to, pii_present, originator_org, source_uri, source_hash, declass_on, retention_until, last_reviewed) VALUES
     ('Operation Husky Intelligence Report', 'Detailed intelligence report on Operation Husky including threat assessments, target analysis, and operational recommendations. This document contains sensitive information about ongoing operations and should be handled with extreme care.', 'SECRET', 'NOFORN', 'OP_HUSKY', 'USA,CAN', 0, 'DEPT_DEFENSE', 'https://intel.example.com/op-husky-report.pdf', 'sha256:abc123def456', '2030-12-31', '2035-12-31', '2024-01-15'),
     ('Project X Technical Specifications', 'Technical specifications and implementation details for Project X. Contains proprietary technology information and system architecture details that are critical to national security.', 'TOP SECRET', 'ORCON', 'PROJECT_X', 'USA', 0, 'CYBER_COMMAND', 'https://tech.example.com/project-x-specs.pdf', 'sha256:def456ghi789', '2040-12-31', '2045-12-31', '2024-01-10'),
-    ('Ainti-fraud Threat Assessment', 'Comprehensive threat assessment report covering current terrorist activities, threat levels, and recommended countermeasures. Contains information about ongoing investigations.', 'TOP SECRET', 'NOFORN,ORCON', 'COUNTER_TERROR', 'USA,GBR,CAN', 1, 'SECURITY_BUREAU', 'https://ct.example.com/threat-assessment.pdf', 'sha256:ghi789jkl012', '2025-12-31', '2030-12-31', '2024-01-20'),
+    ('Ainti-fraud Threat Assessment', 'Comprehensive threat assessment report covering current terrorist activities, threat levels, and recommended countermeasures. Contains information about ongoing investigations.', 'TOP SECRET', 'NOFORN,ORCON', 'COUNTER_FRAUD', 'USA,GBR,CAN', 1, 'SECURITY_BUREAU', 'https://ct.example.com/threat-assessment.pdf', 'sha256:ghi789jkl012', '2025-12-31', '2030-12-31', '2024-01-20'),
     ('Intelligence Analysis Summary', 'Monthly intelligence analysis summary covering global security trends, emerging threats, and strategic recommendations. Contains unclassified and confidential information.', 'CONFIDENTIAL', NULL, 'INTEL_ANALYSIS', 'USA,CAN,GBR', 0, 'INTEL_AGENCY', 'https://analysis.example.com/monthly-summary.pdf', 'sha256:jkl012mno345', '2025-06-30', '2026-06-30', '2024-01-05'),
     ('Cybersecurity Operations Manual', 'Detailed manual for cybersecurity operations including protocols, procedures, and best practices. Contains sensitive information about defensive capabilities.', 'SECRET', 'ORCON', 'CYBER_OPS', 'USA,CAN', 0, 'CYBER_COMMAND', 'https://cyber.example.com/ops-manual.pdf', 'sha256:mno345pqr678', '2030-12-31', '2035-12-31', '2024-01-12');
 
@@ -188,7 +188,7 @@ INSERT OR IGNORE INTO knowledge_item (title, content, classification, caveats, c
 INSERT OR IGNORE INTO access_audit (item_id, user_id, subject_clearance, subject_attrs_json, decision, query_text, reason, ts) VALUES
     (1, 'john.doe@example.com', 'SECRET', '{"citizenship":"USA","need_to_know":["OP HUSKY"]}', 'ALLOW', 'search for operation husky documents', 'User has appropriate clearance and need-to-know', '2024-01-15 10:30:00'),
     (2, 'jane.smith@example.com', 'CONFIDENTIAL', '{"citizenship":"USA","need_to_know":["INTEL_ANALYSIS"]}', 'DENY', 'search for project x technical details', 'Insufficient clearance level for TOP SECRET document', '2024-01-15 11:15:00'),
-    (3, 'bob.wilson@example.com', 'TOP SECRET', '{"citizenship":"USA","need_to_know":["OP_THUNDER","COUNTER_TERROR"]}', 'ALLOW', 'search for Ainti-fraud reports', 'User has appropriate clearance and need-to-know', '2024-01-15 14:20:00'),
+    (3, 'bob.wilson@example.com', 'TOP SECRET', '{"citizenship":"USA","need_to_know":["OP_THUNDER","COUNTER_FRAUD"]}', 'ALLOW', 'search for Ainti-fraud reports', 'User has appropriate clearance and need-to-know', '2024-01-15 14:20:00'),
     (4, 'alice.johnson@example.com', 'SECRET', '{"citizenship":"CAN","need_to_know":["PROJECT_Y","CYBER_OPS"]}', 'REDACT', 'search for intelligence analysis', 'Document contains information outside user compartment', '2024-01-15 15:45:00'),
     (5, 'charlie.brown@example.com', 'CONFIDENTIAL', '{"citizenship":"GBR","need_to_know":["INTEL_ANALYSIS"]}', 'ALLOW', 'search for cybersecurity information', 'User has appropriate clearance for document', '2024-01-15 16:30:00');
 

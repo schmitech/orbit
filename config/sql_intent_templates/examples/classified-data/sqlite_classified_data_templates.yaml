@@ -38,7 +38,6 @@ templates:
       - "List all TOP SECRET documents"
       - "Show me SECRET level items"
       - "Find PROTECTED A documents"
-      - "List NATO SECRET items"
       - "Show me all PROTECTED B documents"
       - "Find PROTECTED C items"
       - "Get CONFIDENTIAL files"
@@ -55,7 +54,6 @@ templates:
       - "Show documents marked SECRET"
       - "Find items with TOP SECRET clearance"
       - "Documents classified PROTECTED B please"
-      - "I need access to NATO SECRET files"
     parameters:
       - name: classification
         type: string
@@ -122,56 +120,6 @@ templates:
       qualifiers: ["by_content"]
     approved: true
 
-  # Knowledge Item Queries - Organization
-  - id: find_documents_by_organization
-    version: "1.0.0"
-    description: "Find documents from specific organization"
-    nl_examples:
-      - "Show me documents from Department of Defense"
-      - "Find items from Intelligence Agency"
-      - "List documents from Cyber Command"
-      - "Show me Security Bureau documents"
-      - "Find Homeland Protection items"
-      - "Search for Canadian Intelligence documents"
-      - "Show me Government Communications items"
-      - "Find Foreign Intelligence documents"
-      - "Get Department of Defense files"
-      - "What does Intelligence Agency have?"
-      - "Pull up Cyber Command documents"
-      - "Documents originating from Security Bureau"
-      - "Show all Homeland Protection materials"
-      - "I need Canadian Intelligence reports"
-      - "What documents come from Government Communications?"
-      - "Find files from Foreign Intelligence"
-      - "Display Department of Defense content"
-      - "Documents created by Intelligence Agency"
-      - "Show me what Cyber Command produced"
-      - "Security Bureau authored documents"
-      - "Files from Homeland Protection please"
-      - "Canadian Intelligence documents available?"
-      - "Government Communications originating items"
-      - "Foreign Intelligence agency files"
-    parameters:
-      - name: org_name
-        type: string
-        description: "Organization name or code to search for"
-        required: true
-        aliases: ["organization", "org", "agency"]
-    sql_template: |
-      SELECT ki.*, o.name as org_name
-      FROM knowledge_item ki
-      LEFT JOIN organizations o ON ki.originator_org = o.code
-      WHERE o.name LIKE '%' || %(org_name)s || '%'
-         OR ki.originator_org LIKE '%' || %(org_name)s || '%'
-      ORDER BY ki.created_at DESC
-    result_format: "table"
-    tags: ["knowledge_item", "organization", "originator"]
-    semantic_tags:
-      action: "list"
-      primary_entity: "knowledge_item"
-      qualifiers: ["by_organization"]
-    approved: true
-
   # Knowledge Item Queries - Compartment
   - id: find_documents_by_compartment
     version: "1.0.0"
@@ -180,7 +128,7 @@ templates:
       - "Show me COMPARTMENT_A documents"
       - "Find PROJECT_X items"
       - "List OP_HUSKY documents"
-      - "Show me COUNTER_TERROR items"
+      - "Show me COUNTER_FRAUD items"
       - "Find CYBER_OPS documents"
       - "Search for INTEL_ANALYSIS items"
       - "Show me PROJECT_Y documents"
@@ -188,7 +136,7 @@ templates:
       - "Get COMPARTMENT_A files"
       - "What's in PROJECT_X?"
       - "Pull up OP_HUSKY materials"
-      - "Documents in COUNTER_TERROR compartment"
+      - "Documents in COUNTER_FRAUD compartment"
       - "Show CYBER_OPS related documents"
       - "I need INTEL_ANALYSIS files"
       - "What documents are in PROJECT_Y?"
@@ -196,7 +144,7 @@ templates:
       - "Display COMPARTMENT_A content"
       - "Files under PROJECT_X compartment"
       - "Show me documents tagged OP_HUSKY"
-      - "COUNTER_TERROR project files"
+      - "COUNTER_FRAUD project files"
       - "What's available in CYBER_OPS?"
       - "Documents compartmentalized as INTEL_ANALYSIS"
       - "PROJECT_Y related items"
@@ -434,47 +382,6 @@ templates:
       qualifiers: ["by_declass_year"]
     approved: true
 
-  # Knowledge Item Queries - Retention
-  - id: find_documents_expiring_soon
-    version: "1.0.0"
-    description: "Find documents with retention expiring soon"
-    nl_examples:
-      - "Show me documents expiring soon"
-      - "Find items with retention ending"
-      - "List documents expiring in next 30 days"
-      - "Get documents due to expire"
-      - "What's expiring soon?"
-      - "Show files that will expire"
-      - "Documents with approaching retention deadlines"
-      - "I need documents expiring in the near future"
-      - "What's set to expire?"
-      - "Find files with upcoming expiration"
-      - "Show documents with imminent expiration dates"
-      - "Get items that expire this month"
-      - "Documents about to reach retention limit"
-      - "What's the expiration schedule?"
-      - "Show me items with retention ending soon"
-      - "Which documents are close to expiring?"
-    parameters:
-      - name: days
-        type: integer
-        description: "Number of days ahead to check"
-        required: false
-        aliases: ["day_count", "within_days"]
-    sql_template: |
-      SELECT * FROM knowledge_item
-      WHERE retention_until IS NOT NULL
-        AND retention_until <= date('now', '+' || COALESCE(%(days)s, 30) || ' days')
-        AND retention_until >= date('now')
-      ORDER BY retention_until ASC
-    result_format: "table"
-    tags: ["knowledge_item", "retention", "expiring"]
-    semantic_tags:
-      action: "list"
-      primary_entity: "knowledge_item"
-      qualifiers: ["by_retention", "expiring"]
-    approved: true
-
   # User Management Queries - Clearance
   - id: find_users_by_clearance
     version: "1.0.0"
@@ -514,45 +421,6 @@ templates:
       action: "list"
       primary_entity: "users"
       qualifiers: ["by_clearance"]
-    approved: true
-
-  # User Management Queries - Attributes
-  - id: find_users_by_citizenship
-    version: "1.0.0"
-    description: "Find users by citizenship"
-    nl_examples:
-      - "Show me users from USA"
-      - "Find Canadian users"
-      - "List users from GBR"
-      - "Get USA citizens"
-      - "Who are the Canadian users?"
-      - "Show GBR personnel"
-      - "I need users from USA"
-      - "Which users are Canadian?"
-      - "Find people from GBR"
-      - "Display USA citizens"
-      - "Users with Canadian citizenship"
-      - "Show me GBR nationals"
-      - "List American users"
-      - "Canadian personnel in the system"
-      - "British users please"
-      - "Who are the US citizens?"
-    parameters:
-      - name: citizenship
-        type: string
-        description: "Citizenship country code"
-        required: true
-        aliases: ["country", "nation"]
-    sql_template: |
-      SELECT * FROM users
-      WHERE citizenship = %(citizenship)s
-      ORDER BY username ASC
-    result_format: "table"
-    tags: ["users", "citizenship", "country"]
-    semantic_tags:
-      action: "list"
-      primary_entity: "users"
-      qualifiers: ["by_citizenship"]
     approved: true
 
   - id: find_active_users
@@ -625,22 +493,22 @@ templates:
     nl_examples:
       - "Show me users with OP_HUSKY access"
       - "Find users in PROJECT_X"
-      - "List users with COUNTER_TERROR access"
+      - "List users with COUNTER_FRAUD access"
       - "Show me users in CYBER_OPS"
       - "Find users with INTEL_ANALYSIS access"
       - "Get OP_HUSKY authorized users"
       - "Who has PROJECT_X access?"
-      - "Show COUNTER_TERROR personnel"
+      - "Show COUNTER_FRAUD personnel"
       - "I need users in CYBER_OPS"
       - "Which users have INTEL_ANALYSIS access?"
       - "Find people with OP_HUSKY clearance"
       - "Display PROJECT_X cleared personnel"
-      - "Users in COUNTER_TERROR compartment"
+      - "Users in COUNTER_FRAUD compartment"
       - "Show me who has CYBER_OPS access"
       - "INTEL_ANALYSIS authorized users"
       - "List personnel with OP_HUSKY access"
       - "Who can access PROJECT_X?"
-      - "COUNTER_TERROR compartment members"
+      - "COUNTER_FRAUD compartment members"
     parameters:
       - name: compartment
         type: string
@@ -885,72 +753,6 @@ templates:
       qualifiers: ["by_query_text"]
     approved: true
 
-  # Organization Queries
-  - id: list_organizations_by_country
-    version: "1.0.0"
-    description: "List organizations by country"
-    nl_examples:
-      - "Show me USA organizations"
-      - "Find Canadian organizations"
-      - "List GBR organizations"
-      - "Get USA orgs"
-      - "What are the Canadian organizations?"
-      - "Show GBR agencies"
-      - "I need USA organizations"
-      - "Which organizations are Canadian?"
-      - "Find agencies from GBR"
-      - "Display USA organizations"
-      - "Organizations from Canada"
-      - "Show me British organizations"
-      - "List American agencies"
-      - "Canadian organizations in the system"
-      - "British agencies please"
-    parameters:
-      - name: country
-        type: string
-        description: "Country code"
-        required: true
-        aliases: ["nation", "country_code"]
-    sql_template: |
-      SELECT * FROM organizations
-      WHERE country = %(country)s
-      ORDER BY name ASC
-    result_format: "table"
-    tags: ["organizations", "country"]
-    semantic_tags:
-      action: "list"
-      primary_entity: "organizations"
-      qualifiers: ["by_country"]
-    approved: true
-
-  - id: list_active_organizations
-    version: "1.0.0"
-    description: "List active organizations"
-    nl_examples:
-      - "Show me active organizations"
-      - "List all active orgs"
-      - "Get active agencies"
-      - "What organizations are active?"
-      - "Show enabled organizations"
-      - "I need active organizations"
-      - "Which organizations are currently active?"
-      - "Find active agencies"
-      - "Display active organizations"
-      - "Organizations that are active"
-      - "Show me operational agencies"
-    parameters: []
-    sql_template: |
-      SELECT * FROM organizations
-      WHERE is_active = 1
-      ORDER BY name ASC
-    result_format: "table"
-    tags: ["organizations", "active"]
-    semantic_tags:
-      action: "list"
-      primary_entity: "organizations"
-      qualifiers: ["active"]
-    approved: true
-
   # Compartment Queries
   - id: list_compartments_by_classification
     version: "1.0.0"
@@ -1183,7 +985,7 @@ templates:
       JOIN access_audit aa ON ki.item_id = aa.item_id
       GROUP BY ki.item_id, ki.title, ki.classification
       ORDER BY access_count DESC
-      LIMIT COALESCE(%(limit)s, 10)
+      LIMIT 10
     result_format: "table"
     tags: ["knowledge_item", "statistics", "access", "popular"]
     semantic_tags:
