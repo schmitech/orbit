@@ -1,0 +1,1284 @@
+templates:
+  # Knowledge Item Queries - Classification Level
+  - id: find_unclassified_documents
+    version: "1.0.0"
+    description: "Find all UNCLASSIFIED documents"
+    nl_examples:
+      - "Show me all UNCLASSIFIED documents"
+      - "Find UNCLASSIFIED items"
+      - "List unclassified knowledge items"
+      - "Get all unclassified documents"
+      - "Display unclassified files"
+      - "Pull up unclassified records"
+      - "What unclassified documents do we have?"
+      - "I need to see unclassified items"
+      - "Give me all non-classified documents"
+      - "Show unclassified information"
+      - "Retrieve all unclassified content"
+      - "Where are the unclassified docs?"
+    parameters: []
+    sql_template: |
+      SELECT * FROM knowledge_item
+      WHERE classification = 'UNCLASSIFIED'
+      ORDER BY created_at DESC
+    result_format: "table"
+    tags: ["knowledge_item", "classification", "unclassified"]
+    semantic_tags:
+      action: "list"
+      primary_entity: "knowledge_item"
+      qualifiers: ["by_classification"]
+    approved: true
+
+  - id: find_by_classification_level
+    version: "1.0.0"
+    description: "Find documents by specific classification level"
+    nl_examples:
+      - "Show me all CONFIDENTIAL documents"
+      - "Find SECRET knowledge items"
+      - "List all TOP SECRET documents"
+      - "Show me SECRET level items"
+      - "Find PROTECTED A documents"
+      - "List NATO SECRET items"
+      - "Show me all PROTECTED B documents"
+      - "Find PROTECTED C items"
+      - "Get CONFIDENTIAL files"
+      - "I need TOP SECRET documents"
+      - "Display all SECRET materials"
+      - "What SECRET documents exist?"
+      - "Pull up CONFIDENTIAL records"
+      - "Show everything at SECRET level"
+      - "Give me PROTECTED A items"
+      - "List documents classified as TOP SECRET"
+      - "I want to see all CONFIDENTIAL information"
+      - "Retrieve SECRET level content"
+      - "What's available at CONFIDENTIAL classification?"
+      - "Show documents marked SECRET"
+      - "Find items with TOP SECRET clearance"
+      - "Documents classified PROTECTED B please"
+      - "I need access to NATO SECRET files"
+    parameters:
+      - name: classification
+        type: string
+        description: "Classification level to search for"
+        required: true
+        aliases: ["level", "clearance"]
+    sql_template: |
+      SELECT * FROM knowledge_item
+      WHERE classification = %(classification)s
+      ORDER BY created_at DESC
+    result_format: "table"
+    tags: ["knowledge_item", "classification", "level"]
+    semantic_tags:
+      action: "list"
+      primary_entity: "knowledge_item"
+      qualifiers: ["by_classification"]
+    approved: true
+
+  # Knowledge Item Queries - Title/Content Search
+  - id: find_documents_by_title_content
+    version: "1.0.0"
+    description: "Search documents by title or content keywords"
+    nl_examples:
+      - "Find documents about Operation Husky"
+      - "Search for intelligence reports"
+      - "Show me cybersecurity documents"
+      - "Find threat assessment reports"
+      - "Search for technical specifications"
+      - "Show me operational manuals"
+      - "Find analysis summaries"
+      - "Search for counter-terrorism documents"
+      - "Look for Operation Husky files"
+      - "I need documents related to cybersecurity"
+      - "What do we have on threat assessments?"
+      - "Pull up intelligence documentation"
+      - "Documents containing Operation Husky"
+      - "Find anything about cybersecurity"
+      - "Search documents mentioning intelligence"
+      - "Show files related to threat assessment"
+      - "Get technical spec documents"
+      - "I'm looking for operational procedures"
+      - "Find reports on counter-terrorism"
+      - "What documents discuss Operation Husky?"
+      - "Search for intel reports in the system"
+      - "Show me anything about cyber operations"
+      - "Documents that mention technical specifications"
+      - "Find files discussing threat analysis"
+    parameters:
+      - name: search_term
+        type: string
+        description: "Search term to find in title or content"
+        required: true
+        aliases: ["keyword", "term", "text"]
+    sql_template: |
+      SELECT * FROM knowledge_item
+      WHERE title LIKE '%' || %(search_term)s || '%'
+         OR content LIKE '%' || %(search_term)s || '%'
+      ORDER BY created_at DESC
+    result_format: "table"
+    tags: ["knowledge_item", "search", "content", "title"]
+    semantic_tags:
+      action: "search"
+      primary_entity: "knowledge_item"
+      qualifiers: ["by_content"]
+    approved: true
+
+  # Knowledge Item Queries - Organization
+  - id: find_documents_by_organization
+    version: "1.0.0"
+    description: "Find documents from specific organization"
+    nl_examples:
+      - "Show me documents from Department of Defense"
+      - "Find items from Intelligence Agency"
+      - "List documents from Cyber Command"
+      - "Show me Security Bureau documents"
+      - "Find Homeland Protection items"
+      - "Search for Canadian Intelligence documents"
+      - "Show me Government Communications items"
+      - "Find Foreign Intelligence documents"
+      - "Get Department of Defense files"
+      - "What does Intelligence Agency have?"
+      - "Pull up Cyber Command documents"
+      - "Documents originating from Security Bureau"
+      - "Show all Homeland Protection materials"
+      - "I need Canadian Intelligence reports"
+      - "What documents come from Government Communications?"
+      - "Find files from Foreign Intelligence"
+      - "Display Department of Defense content"
+      - "Documents created by Intelligence Agency"
+      - "Show me what Cyber Command produced"
+      - "Security Bureau authored documents"
+      - "Files from Homeland Protection please"
+      - "Canadian Intelligence documents available?"
+      - "Government Communications originating items"
+      - "Foreign Intelligence agency files"
+    parameters:
+      - name: org_name
+        type: string
+        description: "Organization name or code to search for"
+        required: true
+        aliases: ["organization", "org", "agency"]
+    sql_template: |
+      SELECT ki.*, o.name as org_name
+      FROM knowledge_item ki
+      LEFT JOIN organizations o ON ki.originator_org = o.code
+      WHERE o.name LIKE '%' || %(org_name)s || '%'
+         OR ki.originator_org LIKE '%' || %(org_name)s || '%'
+      ORDER BY ki.created_at DESC
+    result_format: "table"
+    tags: ["knowledge_item", "organization", "originator"]
+    semantic_tags:
+      action: "list"
+      primary_entity: "knowledge_item"
+      qualifiers: ["by_organization"]
+    approved: true
+
+  # Knowledge Item Queries - Compartment
+  - id: find_documents_by_compartment
+    version: "1.0.0"
+    description: "Find documents in specific compartment"
+    nl_examples:
+      - "Show me COMPARTMENT_A documents"
+      - "Find PROJECT_X items"
+      - "List OP_HUSKY documents"
+      - "Show me COUNTER_TERROR items"
+      - "Find CYBER_OPS documents"
+      - "Search for INTEL_ANALYSIS items"
+      - "Show me PROJECT_Y documents"
+      - "Find OP_THUNDER items"
+      - "Get COMPARTMENT_A files"
+      - "What's in PROJECT_X?"
+      - "Pull up OP_HUSKY materials"
+      - "Documents in COUNTER_TERROR compartment"
+      - "Show CYBER_OPS related documents"
+      - "I need INTEL_ANALYSIS files"
+      - "What documents are in PROJECT_Y?"
+      - "OP_THUNDER compartment documents"
+      - "Display COMPARTMENT_A content"
+      - "Files under PROJECT_X compartment"
+      - "Show me documents tagged OP_HUSKY"
+      - "COUNTER_TERROR project files"
+      - "What's available in CYBER_OPS?"
+      - "Documents compartmentalized as INTEL_ANALYSIS"
+      - "PROJECT_Y related items"
+      - "OP_THUNDER operation documents"
+    parameters:
+      - name: compartment
+        type: string
+        description: "Compartment name to search for"
+        required: true
+        aliases: ["project", "operation", "op"]
+    sql_template: |
+      SELECT * FROM knowledge_item
+      WHERE compartments LIKE '%' || %(compartment)s || '%'
+      ORDER BY created_at DESC
+    result_format: "table"
+    tags: ["knowledge_item", "compartment", "access"]
+    semantic_tags:
+      action: "list"
+      primary_entity: "knowledge_item"
+      qualifiers: ["by_compartment"]
+    approved: true
+
+  # Knowledge Item Queries - PII Status
+  - id: find_documents_with_pii
+    version: "1.0.0"
+    description: "Find documents containing PII"
+    nl_examples:
+      - "Show me documents with PII"
+      - "List documents containing personal information"
+      - "Find items with personally identifiable information"
+      - "Get documents that have PII"
+      - "Which documents contain personal data?"
+      - "Show files with personal information"
+      - "Documents flagged for PII"
+      - "I need documents containing PII"
+      - "What documents have personally identifiable information?"
+      - "Find files with personal details"
+      - "Show documents marked as containing PII"
+      - "Which items include personal information?"
+      - "Documents with PII present"
+      - "Get files that contain personal data"
+    parameters: []
+    sql_template: |
+      SELECT * FROM knowledge_item
+      WHERE pii_present = 1
+      ORDER BY created_at DESC
+    result_format: "table"
+    tags: ["knowledge_item", "pii", "personal"]
+    semantic_tags:
+      action: "list"
+      primary_entity: "knowledge_item"
+      qualifiers: ["with_pii"]
+    approved: true
+
+  - id: find_documents_without_pii
+    version: "1.0.0"
+    description: "Find documents without PII"
+    nl_examples:
+      - "Find items without PII"
+      - "Show me non-PII documents"
+      - "List documents without personal information"
+      - "Get documents that don't have PII"
+      - "Which documents are PII-free?"
+      - "Show files without personal information"
+      - "Documents not flagged for PII"
+      - "I need documents without PII"
+      - "What documents don't have personally identifiable information?"
+      - "Find files without personal details"
+      - "Show documents not marked as containing PII"
+      - "Which items don't include personal information?"
+      - "Documents without PII present"
+      - "Get files that don't contain personal data"
+      - "Show me clean documents without PII"
+    parameters: []
+    sql_template: |
+      SELECT * FROM knowledge_item
+      WHERE pii_present = 0
+      ORDER BY created_at DESC
+    result_format: "table"
+    tags: ["knowledge_item", "pii", "non-personal"]
+    semantic_tags:
+      action: "list"
+      primary_entity: "knowledge_item"
+      qualifiers: ["without_pii"]
+    approved: true
+
+  # Knowledge Item Queries - Date Range
+  - id: find_documents_created_this_year
+    version: "1.0.0"
+    description: "Find documents created in current year"
+    nl_examples:
+      - "Show me documents created this year"
+      - "Find items from 2024"
+      - "List documents created in current year"
+      - "Get this year's documents"
+      - "What documents were created this year?"
+      - "Show me files from this year"
+      - "Documents added in 2024"
+      - "I need current year documents"
+      - "What's been created this year?"
+      - "Find files created in the current year"
+      - "Show documents from this calendar year"
+      - "Get items added this year"
+      - "Documents created within this year"
+      - "What do we have from this year?"
+    parameters: []
+    sql_template: |
+      SELECT * FROM knowledge_item
+      WHERE strftime('%Y', created_at) = strftime('%Y', 'now')
+      ORDER BY created_at DESC
+    result_format: "table"
+    tags: ["knowledge_item", "date", "recent", "year"]
+    semantic_tags:
+      action: "list"
+      primary_entity: "knowledge_item"
+      qualifiers: ["by_date", "current_year"]
+    approved: true
+
+  - id: find_documents_last_n_days
+    version: "1.0.0"
+    description: "Find documents created in last N days"
+    nl_examples:
+      - "Show me documents from last month"
+      - "Find items created in the last 30 days"
+      - "List documents created this week"
+      - "Show me recent documents"
+      - "Find documents from last 7 days"
+      - "Get documents from the past week"
+      - "What's been created in the last month?"
+      - "Show me files from the past 30 days"
+      - "Documents added this week"
+      - "I need recent documents"
+      - "What's been created lately?"
+      - "Find files from the last 7 days"
+      - "Show documents created in the past month"
+      - "Get items added in the last 30 days"
+      - "Documents created within the last week"
+      - "What do we have from the past 7 days?"
+      - "Show me the newest documents"
+      - "Recent additions to the system"
+      - "Documents from the last few weeks"
+      - "Get files created in the past 2 weeks"
+    parameters:
+      - name: days
+        type: integer
+        description: "Number of days to look back"
+        required: true
+        aliases: ["day_count", "num_days"]
+    sql_template: |
+      SELECT * FROM knowledge_item
+      WHERE created_at >= datetime('now', '-' || %(days)s || ' days')
+      ORDER BY created_at DESC
+    result_format: "table"
+    tags: ["knowledge_item", "date", "recent", "days"]
+    semantic_tags:
+      action: "list"
+      primary_entity: "knowledge_item"
+      qualifiers: ["by_date", "recent"]
+    approved: true
+
+  # Knowledge Item Queries - Declassification
+  - id: find_documents_declassifying_soon
+    version: "1.0.0"
+    description: "Find documents declassifying in next N days"
+    nl_examples:
+      - "Show me documents declassifying soon"
+      - "Find items declassifying this month"
+      - "List documents that declassify in next 30 days"
+      - "Get documents due for declassification"
+      - "What's being declassified soon?"
+      - "Show files that will be declassified"
+      - "Documents scheduled for declassification"
+      - "I need documents declassifying in the near future"
+      - "What's set to be declassified?"
+      - "Find files with upcoming declassification"
+      - "Show documents with imminent declassification dates"
+      - "Get items that declassify this month"
+      - "Documents about to be declassified"
+      - "What's the declassification schedule?"
+      - "Show me items with upcoming declass dates"
+    parameters:
+      - name: days
+        type: integer
+        description: "Number of days ahead to check"
+        required: false
+        aliases: ["day_count", "within_days"]
+    sql_template: |
+      SELECT * FROM knowledge_item
+      WHERE declass_on IS NOT NULL
+        AND declass_on <= date('now', '+' || COALESCE(%(days)s, 30) || ' days')
+        AND declass_on >= date('now')
+      ORDER BY declass_on ASC
+    result_format: "table"
+    tags: ["knowledge_item", "declassification", "declass", "date"]
+    semantic_tags:
+      action: "list"
+      primary_entity: "knowledge_item"
+      qualifiers: ["by_declass_date", "upcoming"]
+    approved: true
+
+  - id: find_documents_declassifying_in_year
+    version: "1.0.0"
+    description: "Find documents declassifying in specific year"
+    nl_examples:
+      - "Find items declassifying in 2025"
+      - "List documents that declassify next year"
+      - "Show me items declassifying in 2030"
+      - "Get documents declassified in 2025"
+      - "What's being declassified in 2030?"
+      - "Show files with 2025 declassification"
+      - "Documents scheduled for declassification in 2030"
+      - "I need documents declassifying in 2025"
+      - "What's set to be declassified in 2030?"
+      - "Find files declassifying next year"
+      - "Show documents with 2025 declass dates"
+      - "Get items that declassify in 2030"
+      - "Documents declassified during 2025"
+      - "What's the 2030 declassification list?"
+    parameters:
+      - name: year
+        type: integer
+        description: "Year to check for declassification"
+        required: true
+        aliases: ["declass_year"]
+    sql_template: |
+      SELECT * FROM knowledge_item
+      WHERE declass_on IS NOT NULL
+        AND strftime('%Y', declass_on) = %(year)s
+      ORDER BY declass_on ASC
+    result_format: "table"
+    tags: ["knowledge_item", "declassification", "year"]
+    semantic_tags:
+      action: "list"
+      primary_entity: "knowledge_item"
+      qualifiers: ["by_declass_year"]
+    approved: true
+
+  # Knowledge Item Queries - Retention
+  - id: find_documents_expiring_soon
+    version: "1.0.0"
+    description: "Find documents with retention expiring soon"
+    nl_examples:
+      - "Show me documents expiring soon"
+      - "Find items with retention ending"
+      - "List documents expiring in next 30 days"
+      - "Get documents due to expire"
+      - "What's expiring soon?"
+      - "Show files that will expire"
+      - "Documents with approaching retention deadlines"
+      - "I need documents expiring in the near future"
+      - "What's set to expire?"
+      - "Find files with upcoming expiration"
+      - "Show documents with imminent expiration dates"
+      - "Get items that expire this month"
+      - "Documents about to reach retention limit"
+      - "What's the expiration schedule?"
+      - "Show me items with retention ending soon"
+      - "Which documents are close to expiring?"
+    parameters:
+      - name: days
+        type: integer
+        description: "Number of days ahead to check"
+        required: false
+        aliases: ["day_count", "within_days"]
+    sql_template: |
+      SELECT * FROM knowledge_item
+      WHERE retention_until IS NOT NULL
+        AND retention_until <= date('now', '+' || COALESCE(%(days)s, 30) || ' days')
+        AND retention_until >= date('now')
+      ORDER BY retention_until ASC
+    result_format: "table"
+    tags: ["knowledge_item", "retention", "expiring"]
+    semantic_tags:
+      action: "list"
+      primary_entity: "knowledge_item"
+      qualifiers: ["by_retention", "expiring"]
+    approved: true
+
+  # User Management Queries - Clearance
+  - id: find_users_by_clearance
+    version: "1.0.0"
+    description: "Find users with specific clearance level"
+    nl_examples:
+      - "Show me users with SECRET clearance"
+      - "Find users with TOP SECRET access"
+      - "List CONFIDENTIAL users"
+      - "Show me users with PROTECTED A clearance"
+      - "Find users with NATO SECRET access"
+      - "Get SECRET cleared users"
+      - "Who has TOP SECRET clearance?"
+      - "Show CONFIDENTIAL level users"
+      - "I need users with PROTECTED A access"
+      - "Which users have NATO SECRET clearance?"
+      - "Find people with SECRET access"
+      - "Display TOP SECRET cleared personnel"
+      - "Users at CONFIDENTIAL level"
+      - "Show me who has PROTECTED A clearance"
+      - "NATO SECRET authorized users"
+      - "List personnel with SECRET clearance"
+      - "Who can access TOP SECRET material?"
+      - "CONFIDENTIAL clearance holders"
+    parameters:
+      - name: clearance
+        type: string
+        description: "Clearance level to search for"
+        required: true
+        aliases: ["level", "clearance_level"]
+    sql_template: |
+      SELECT * FROM users
+      WHERE clearance_level = %(clearance)s
+      ORDER BY username ASC
+    result_format: "table"
+    tags: ["users", "clearance", "access"]
+    semantic_tags:
+      action: "list"
+      primary_entity: "users"
+      qualifiers: ["by_clearance"]
+    approved: true
+
+  # User Management Queries - Attributes
+  - id: find_users_by_citizenship
+    version: "1.0.0"
+    description: "Find users by citizenship"
+    nl_examples:
+      - "Show me users from USA"
+      - "Find Canadian users"
+      - "List users from GBR"
+      - "Get USA citizens"
+      - "Who are the Canadian users?"
+      - "Show GBR personnel"
+      - "I need users from USA"
+      - "Which users are Canadian?"
+      - "Find people from GBR"
+      - "Display USA citizens"
+      - "Users with Canadian citizenship"
+      - "Show me GBR nationals"
+      - "List American users"
+      - "Canadian personnel in the system"
+      - "British users please"
+      - "Who are the US citizens?"
+    parameters:
+      - name: citizenship
+        type: string
+        description: "Citizenship country code"
+        required: true
+        aliases: ["country", "nation"]
+    sql_template: |
+      SELECT * FROM users
+      WHERE citizenship = %(citizenship)s
+      ORDER BY username ASC
+    result_format: "table"
+    tags: ["users", "citizenship", "country"]
+    semantic_tags:
+      action: "list"
+      primary_entity: "users"
+      qualifiers: ["by_citizenship"]
+    approved: true
+
+  - id: find_active_users
+    version: "1.0.0"
+    description: "Find active users"
+    nl_examples:
+      - "Show me active users"
+      - "List all active accounts"
+      - "Find users that are active"
+      - "Get active personnel"
+      - "Who are the active users?"
+      - "Show enabled accounts"
+      - "I need active users"
+      - "Which users are currently active?"
+      - "Find active accounts"
+      - "Display active personnel"
+      - "Users who are active"
+      - "Show me enabled user accounts"
+      - "List currently active users"
+      - "Active users in the system"
+    parameters: []
+    sql_template: |
+      SELECT * FROM users
+      WHERE is_active = 1
+      ORDER BY username ASC
+    result_format: "table"
+    tags: ["users", "active", "status"]
+    semantic_tags:
+      action: "list"
+      primary_entity: "users"
+      qualifiers: ["active"]
+    approved: true
+
+  - id: find_inactive_users
+    version: "1.0.0"
+    description: "Find inactive users"
+    nl_examples:
+      - "Find inactive users"
+      - "Show me disabled accounts"
+      - "List inactive users"
+      - "Get inactive personnel"
+      - "Who are the inactive users?"
+      - "Show disabled accounts"
+      - "I need inactive users"
+      - "Which users are currently inactive?"
+      - "Find disabled accounts"
+      - "Display inactive personnel"
+      - "Users who are inactive"
+      - "Show me disabled user accounts"
+      - "List currently inactive users"
+      - "Inactive users in the system"
+      - "Deactivated accounts"
+    parameters: []
+    sql_template: |
+      SELECT * FROM users
+      WHERE is_active = 0
+      ORDER BY username ASC
+    result_format: "table"
+    tags: ["users", "inactive", "disabled"]
+    semantic_tags:
+      action: "list"
+      primary_entity: "users"
+      qualifiers: ["inactive"]
+    approved: true
+
+  # User Management Queries - Compartments
+  - id: find_users_with_compartment_access
+    version: "1.0.0"
+    description: "Find users with access to specific compartment"
+    nl_examples:
+      - "Show me users with OP_HUSKY access"
+      - "Find users in PROJECT_X"
+      - "List users with COUNTER_TERROR access"
+      - "Show me users in CYBER_OPS"
+      - "Find users with INTEL_ANALYSIS access"
+      - "Get OP_HUSKY authorized users"
+      - "Who has PROJECT_X access?"
+      - "Show COUNTER_TERROR personnel"
+      - "I need users in CYBER_OPS"
+      - "Which users have INTEL_ANALYSIS access?"
+      - "Find people with OP_HUSKY clearance"
+      - "Display PROJECT_X cleared personnel"
+      - "Users in COUNTER_TERROR compartment"
+      - "Show me who has CYBER_OPS access"
+      - "INTEL_ANALYSIS authorized users"
+      - "List personnel with OP_HUSKY access"
+      - "Who can access PROJECT_X?"
+      - "COUNTER_TERROR compartment members"
+    parameters:
+      - name: compartment
+        type: string
+        description: "Compartment name to search for"
+        required: true
+        aliases: ["project", "operation"]
+    sql_template: |
+      SELECT u.* FROM users u
+      JOIN user_compartments uc ON u.user_id = uc.user_id
+      JOIN compartments c ON uc.compartment_id = c.compartment_id
+      WHERE c.name LIKE '%' || %(compartment)s || '%'
+      ORDER BY u.username ASC
+    result_format: "table"
+    tags: ["users", "compartment", "access"]
+    semantic_tags:
+      action: "list"
+      primary_entity: "users"
+      qualifiers: ["by_compartment"]
+    approved: true
+
+  # Access Audit Queries - Decision
+  - id: find_allowed_access_attempts
+    version: "1.0.0"
+    description: "Find ALLOWED access attempts"
+    nl_examples:
+      - "Show me ALLOWED access attempts"
+      - "Find successful access attempts"
+      - "List approved accesses"
+      - "Get allowed access logs"
+      - "What access attempts were allowed?"
+      - "Show successful accesses"
+      - "I need approved access attempts"
+      - "Which access attempts succeeded?"
+      - "Find allowed access events"
+      - "Display successful access logs"
+      - "Access attempts that were approved"
+      - "Show me granted access attempts"
+      - "List access events that were allowed"
+      - "Successful access attempts in the log"
+    parameters: []
+    sql_template: |
+      SELECT aa.*, ki.title as item_title, u.username
+      FROM access_audit aa
+      LEFT JOIN knowledge_item ki ON aa.item_id = ki.item_id
+      LEFT JOIN users u ON aa.user_id = u.user_id
+      WHERE aa.decision = 'ALLOW'
+      ORDER BY aa.ts DESC
+    result_format: "table"
+    tags: ["access_audit", "allowed", "successful"]
+    semantic_tags:
+      action: "list"
+      primary_entity: "access_audit"
+      qualifiers: ["by_decision", "allowed"]
+    approved: true
+
+  - id: find_denied_access_attempts
+    version: "1.0.0"
+    description: "Find DENIED access attempts"
+    nl_examples:
+      - "Find DENIED access attempts"
+      - "Show me failed access attempts"
+      - "List blocked accesses"
+      - "Get denied access logs"
+      - "What access attempts were denied?"
+      - "Show failed accesses"
+      - "I need blocked access attempts"
+      - "Which access attempts failed?"
+      - "Find denied access events"
+      - "Display failed access logs"
+      - "Access attempts that were blocked"
+      - "Show me rejected access attempts"
+      - "List access events that were denied"
+      - "Failed access attempts in the log"
+      - "Blocked access events"
+    parameters: []
+    sql_template: |
+      SELECT aa.*, ki.title as item_title, u.username
+      FROM access_audit aa
+      LEFT JOIN knowledge_item ki ON aa.item_id = ki.item_id
+      LEFT JOIN users u ON aa.user_id = u.user_id
+      WHERE aa.decision = 'DENY'
+      ORDER BY aa.ts DESC
+    result_format: "table"
+    tags: ["access_audit", "denied", "failed"]
+    semantic_tags:
+      action: "list"
+      primary_entity: "access_audit"
+      qualifiers: ["by_decision", "denied"]
+    approved: true
+
+  - id: find_redacted_access_attempts
+    version: "1.0.0"
+    description: "Find REDACTED access attempts"
+    nl_examples:
+      - "List REDACTED access attempts"
+      - "Show me redacted accesses"
+      - "Find partial access attempts"
+      - "Get redacted access logs"
+      - "What access attempts were redacted?"
+      - "Show partially allowed accesses"
+      - "I need redacted access attempts"
+      - "Which access attempts were redacted?"
+      - "Find redaction events"
+      - "Display redacted access logs"
+      - "Access attempts that were redacted"
+      - "Show me partially granted access"
+      - "List access events with redaction"
+      - "Redacted access attempts in the log"
+    parameters: []
+    sql_template: |
+      SELECT aa.*, ki.title as item_title, u.username
+      FROM access_audit aa
+      LEFT JOIN knowledge_item ki ON aa.item_id = ki.item_id
+      LEFT JOIN users u ON aa.user_id = u.user_id
+      WHERE aa.decision = 'REDACT'
+      ORDER BY aa.ts DESC
+    result_format: "table"
+    tags: ["access_audit", "redacted", "partial"]
+    semantic_tags:
+      action: "list"
+      primary_entity: "access_audit"
+      qualifiers: ["by_decision", "redacted"]
+    approved: true
+
+  # Access Audit Queries - User Activity
+  - id: find_access_attempts_by_user
+    version: "1.0.0"
+    description: "Find access attempts by specific user"
+    nl_examples:
+      - "Show me access attempts by john.doe@example.com"
+      - "Find access attempts by jane.smith@example.com"
+      - "List activity for bob.wilson@example.com"
+      - "Get john.doe's access logs"
+      - "What has jane.smith accessed?"
+      - "Show bob.wilson's access history"
+      - "I need access attempts from john.doe@example.com"
+      - "Which documents did jane.smith try to access?"
+      - "Find activity for bob.wilson"
+      - "Display john.doe's access events"
+      - "Access log for jane.smith@example.com"
+      - "Show me what bob.wilson has accessed"
+      - "List john.doe's access attempts"
+      - "jane.smith access history"
+    parameters:
+      - name: user_id
+        type: string
+        description: "User email identifier"
+        required: true
+        aliases: ["email", "user", "user_email"]
+    sql_template: |
+      SELECT aa.*, ki.title as item_title
+      FROM access_audit aa
+      LEFT JOIN knowledge_item ki ON aa.item_id = ki.item_id
+      WHERE aa.user_id = %(user_id)s
+      ORDER BY aa.ts DESC
+    result_format: "table"
+    tags: ["access_audit", "user", "activity"]
+    semantic_tags:
+      action: "list"
+      primary_entity: "access_audit"
+      qualifiers: ["by_user"]
+    approved: true
+
+  - id: find_recent_access_attempts
+    version: "1.0.0"
+    description: "Find recent access attempts"
+    nl_examples:
+      - "List recent access attempts"
+      - "Show me access attempts from today"
+      - "Find access attempts from last week"
+      - "Show me access attempts from yesterday"
+      - "Get recent access logs"
+      - "What's been accessed recently?"
+      - "Show today's access attempts"
+      - "I need recent access activity"
+      - "Which access attempts happened recently?"
+      - "Find latest access events"
+      - "Display recent access logs"
+      - "Access attempts from the past week"
+      - "Show me yesterday's accesses"
+      - "List today's access events"
+      - "Recent access activity"
+      - "What happened in the last few days?"
+    parameters:
+      - name: days
+        type: integer
+        description: "Number of days to look back"
+        required: false
+        aliases: ["day_count", "num_days"]
+    sql_template: |
+      SELECT aa.*, ki.title as item_title, u.username
+      FROM access_audit aa
+      LEFT JOIN knowledge_item ki ON aa.item_id = ki.item_id
+      LEFT JOIN users u ON aa.user_id = u.user_id
+      WHERE aa.ts >= datetime('now', '-' || COALESCE(%(days)s, 1) || ' days')
+      ORDER BY aa.ts DESC
+    result_format: "table"
+    tags: ["access_audit", "recent", "date"]
+    semantic_tags:
+      action: "list"
+      primary_entity: "access_audit"
+      qualifiers: ["by_date", "recent"]
+    approved: true
+
+  # Access Audit Queries - Query Text
+  - id: find_access_attempts_by_query
+    version: "1.0.0"
+    description: "Find access attempts matching query text"
+    nl_examples:
+      - "Show me access attempts for 'operation husky'"
+      - "Find searches for 'intelligence'"
+      - "List access attempts for 'cybersecurity'"
+      - "Show me searches for 'threat assessment'"
+      - "Get access attempts about 'operation husky'"
+      - "What searches mentioned 'intelligence'?"
+      - "Show queries containing 'cybersecurity'"
+      - "I need access attempts with 'threat assessment'"
+      - "Which searches included 'operation husky'?"
+      - "Find queries about 'intelligence'"
+      - "Display access attempts mentioning 'cybersecurity'"
+      - "Searches for 'threat assessment' in the log"
+      - "Show me queries with 'operation husky'"
+      - "Access attempts searching for 'intelligence'"
+    parameters:
+      - name: query_term
+        type: string
+        description: "Search term in query text"
+        required: true
+        aliases: ["search", "keyword"]
+    sql_template: |
+      SELECT aa.*, ki.title as item_title, u.username
+      FROM access_audit aa
+      LEFT JOIN knowledge_item ki ON aa.item_id = ki.item_id
+      LEFT JOIN users u ON aa.user_id = u.user_id
+      WHERE aa.query_text LIKE '%' || %(query_term)s || '%'
+      ORDER BY aa.ts DESC
+    result_format: "table"
+    tags: ["access_audit", "query", "search"]
+    semantic_tags:
+      action: "search"
+      primary_entity: "access_audit"
+      qualifiers: ["by_query_text"]
+    approved: true
+
+  # Organization Queries
+  - id: list_organizations_by_country
+    version: "1.0.0"
+    description: "List organizations by country"
+    nl_examples:
+      - "Show me USA organizations"
+      - "Find Canadian organizations"
+      - "List GBR organizations"
+      - "Get USA orgs"
+      - "What are the Canadian organizations?"
+      - "Show GBR agencies"
+      - "I need USA organizations"
+      - "Which organizations are Canadian?"
+      - "Find agencies from GBR"
+      - "Display USA organizations"
+      - "Organizations from Canada"
+      - "Show me British organizations"
+      - "List American agencies"
+      - "Canadian organizations in the system"
+      - "British agencies please"
+    parameters:
+      - name: country
+        type: string
+        description: "Country code"
+        required: true
+        aliases: ["nation", "country_code"]
+    sql_template: |
+      SELECT * FROM organizations
+      WHERE country = %(country)s
+      ORDER BY name ASC
+    result_format: "table"
+    tags: ["organizations", "country"]
+    semantic_tags:
+      action: "list"
+      primary_entity: "organizations"
+      qualifiers: ["by_country"]
+    approved: true
+
+  - id: list_active_organizations
+    version: "1.0.0"
+    description: "List active organizations"
+    nl_examples:
+      - "Show me active organizations"
+      - "List all active orgs"
+      - "Get active agencies"
+      - "What organizations are active?"
+      - "Show enabled organizations"
+      - "I need active organizations"
+      - "Which organizations are currently active?"
+      - "Find active agencies"
+      - "Display active organizations"
+      - "Organizations that are active"
+      - "Show me operational agencies"
+    parameters: []
+    sql_template: |
+      SELECT * FROM organizations
+      WHERE is_active = 1
+      ORDER BY name ASC
+    result_format: "table"
+    tags: ["organizations", "active"]
+    semantic_tags:
+      action: "list"
+      primary_entity: "organizations"
+      qualifiers: ["active"]
+    approved: true
+
+  # Compartment Queries
+  - id: list_compartments_by_classification
+    version: "1.0.0"
+    description: "List compartments by classification level"
+    nl_examples:
+      - "Show me TOP SECRET compartments"
+      - "Find SECRET compartments"
+      - "List CONFIDENTIAL compartments"
+      - "Get TOP SECRET compartments"
+      - "What are the SECRET compartments?"
+      - "Show CONFIDENTIAL projects"
+      - "I need TOP SECRET compartments"
+      - "Which compartments are SECRET?"
+      - "Find CONFIDENTIAL compartments"
+      - "Display TOP SECRET projects"
+      - "Compartments at SECRET level"
+      - "Show me CONFIDENTIAL level compartments"
+    parameters:
+      - name: classification
+        type: string
+        description: "Classification level"
+        required: true
+        aliases: ["level", "clearance"]
+    sql_template: |
+      SELECT * FROM compartments
+      WHERE classification_level = %(classification)s
+      ORDER BY name ASC
+    result_format: "table"
+    tags: ["compartments", "classification"]
+    semantic_tags:
+      action: "list"
+      primary_entity: "compartments"
+      qualifiers: ["by_classification"]
+    approved: true
+
+  - id: list_active_compartments
+    version: "1.0.0"
+    description: "List active compartments"
+    nl_examples:
+      - "Show me active compartments"
+      - "List all active projects"
+      - "Get active compartments"
+      - "What compartments are active?"
+      - "Show operational compartments"
+      - "I need active compartments"
+      - "Which compartments are currently active?"
+      - "Find active projects"
+      - "Display active compartments"
+      - "Compartments that are operational"
+    parameters: []
+    sql_template: |
+      SELECT * FROM compartments
+      WHERE is_active = 1
+      ORDER BY name ASC
+    result_format: "table"
+    tags: ["compartments", "active"]
+    semantic_tags:
+      action: "list"
+      primary_entity: "compartments"
+      qualifiers: ["active"]
+    approved: true
+
+  # Complex Queries - Multi-Criteria
+  - id: find_documents_by_classification_and_org
+    version: "1.0.0"
+    description: "Find documents by classification and organization"
+    nl_examples:
+      - "Show me SECRET documents from Department of Defense"
+      - "Find TOP SECRET items from Intelligence Agency"
+      - "List CONFIDENTIAL documents from Cyber Command"
+      - "Get SECRET files from Department of Defense"
+      - "What TOP SECRET documents does Intelligence Agency have?"
+      - "Show CONFIDENTIAL materials from Cyber Command"
+      - "I need SECRET documents from Department of Defense"
+      - "Which TOP SECRET items come from Intelligence Agency?"
+      - "Find CONFIDENTIAL files from Cyber Command"
+      - "Display SECRET content from Department of Defense"
+      - "TOP SECRET documents by Intelligence Agency"
+      - "Show me CONFIDENTIAL items from Cyber Command"
+      - "SECRET level documents from Department of Defense"
+      - "Intelligence Agency TOP SECRET files"
+    parameters:
+      - name: classification
+        type: string
+        description: "Classification level"
+        required: true
+        aliases: ["level"]
+      - name: org_name
+        type: string
+        description: "Organization name"
+        required: true
+        aliases: ["organization", "org"]
+    sql_template: |
+      SELECT ki.*, o.name as org_name
+      FROM knowledge_item ki
+      LEFT JOIN organizations o ON ki.originator_org = o.code
+      WHERE ki.classification = %(classification)s
+        AND (o.name LIKE '%' || %(org_name)s || '%' OR ki.originator_org LIKE '%' || %(org_name)s || '%')
+      ORDER BY ki.created_at DESC
+    result_format: "table"
+    tags: ["knowledge_item", "classification", "organization", "complex"]
+    semantic_tags:
+      action: "list"
+      primary_entity: "knowledge_item"
+      qualifiers: ["by_classification", "by_organization"]
+    approved: true
+
+  - id: find_documents_with_pii_by_classification
+    version: "1.0.0"
+    description: "Find documents with PII at specific classification"
+    nl_examples:
+      - "List CONFIDENTIAL documents with PII"
+      - "Show me SECRET items containing personal information"
+      - "Get CONFIDENTIAL files with PII"
+      - "What SECRET documents have personal information?"
+      - "Show CONFIDENTIAL materials with PII"
+      - "I need SECRET documents containing PII"
+      - "Which CONFIDENTIAL items have personal data?"
+      - "Find SECRET files with personal information"
+      - "Display CONFIDENTIAL content with PII"
+      - "SECRET documents containing personal data"
+      - "Show me CONFIDENTIAL items with PII present"
+    parameters:
+      - name: classification
+        type: string
+        description: "Classification level"
+        required: true
+        aliases: ["level"]
+    sql_template: |
+      SELECT * FROM knowledge_item
+      WHERE classification = %(classification)s
+        AND pii_present = 1
+      ORDER BY created_at DESC
+    result_format: "table"
+    tags: ["knowledge_item", "classification", "pii"]
+    semantic_tags:
+      action: "list"
+      primary_entity: "knowledge_item"
+      qualifiers: ["by_classification", "with_pii"]
+    approved: true
+
+  # Statistical Queries
+  - id: count_documents_by_classification
+    version: "1.0.0"
+    description: "Count documents in each classification level"
+    nl_examples:
+      - "How many documents are in each classification level?"
+      - "Count documents by classification"
+      - "Show me document distribution by classification"
+      - "Get document counts per classification"
+      - "What's the breakdown of documents by classification?"
+      - "Show classification statistics"
+      - "I need document counts by classification level"
+      - "How are documents distributed across classifications?"
+      - "Find document totals per classification"
+      - "Display classification distribution"
+      - "Document counts grouped by classification"
+      - "Show me how many documents at each level"
+    parameters: []
+    sql_template: |
+      SELECT classification, COUNT(*) as count
+      FROM knowledge_item
+      GROUP BY classification
+      ORDER BY count DESC
+    result_format: "table"
+    tags: ["knowledge_item", "statistics", "count", "classification"]
+    semantic_tags:
+      action: "count"
+      primary_entity: "knowledge_item"
+      qualifiers: ["group_by_classification"]
+    approved: true
+
+  - id: count_documents_by_organization
+    version: "1.0.0"
+    description: "Count documents by organization"
+    nl_examples:
+      - "Show me the distribution of documents by organization"
+      - "Count documents per organization"
+      - "How many documents from each org?"
+      - "Get document counts per organization"
+      - "What's the breakdown of documents by organization?"
+      - "Show organization statistics"
+      - "I need document counts by organization"
+      - "How are documents distributed across organizations?"
+      - "Find document totals per organization"
+      - "Display organization distribution"
+      - "Document counts grouped by organization"
+      - "Show me how many documents from each agency"
+    parameters: []
+    sql_template: |
+      SELECT o.name as organization, COUNT(*) as count
+      FROM knowledge_item ki
+      LEFT JOIN organizations o ON ki.originator_org = o.code
+      GROUP BY o.name
+      ORDER BY count DESC
+    result_format: "table"
+    tags: ["knowledge_item", "statistics", "count", "organization"]
+    semantic_tags:
+      action: "count"
+      primary_entity: "knowledge_item"
+      qualifiers: ["group_by_organization"]
+    approved: true
+
+  - id: find_most_accessed_documents
+    version: "1.0.0"
+    description: "Find most frequently accessed documents"
+    nl_examples:
+      - "Find the most accessed documents"
+      - "Show me popular documents"
+      - "Which documents are accessed most?"
+      - "Get most popular documents"
+      - "What documents get the most access?"
+      - "Show frequently accessed files"
+      - "I need the most accessed documents"
+      - "Which documents are most popular?"
+      - "Find top accessed documents"
+      - "Display most viewed documents"
+      - "Documents with highest access counts"
+      - "Show me the most popular files"
+      - "What are the top accessed items?"
+    parameters:
+      - name: limit
+        type: integer
+        description: "Number of results to return"
+        required: false
+        aliases: ["top", "count"]
+    sql_template: |
+      SELECT ki.item_id, ki.title, ki.classification, COUNT(aa.event_id) as access_count
+      FROM knowledge_item ki
+      JOIN access_audit aa ON ki.item_id = aa.item_id
+      GROUP BY ki.item_id, ki.title, ki.classification
+      ORDER BY access_count DESC
+      LIMIT COALESCE(%(limit)s, 10)
+    result_format: "table"
+    tags: ["knowledge_item", "statistics", "access", "popular"]
+    semantic_tags:
+      action: "list"
+      primary_entity: "knowledge_item"
+      qualifiers: ["most_accessed"]
+    approved: true
+
+  - id: find_access_patterns_by_user
+    version: "1.0.0"
+    description: "Show access patterns for specific user"
+    nl_examples:
+      - "Show me access patterns by user"
+      - "What are the access statistics per user?"
+      - "Get user access patterns"
+      - "How are users accessing documents?"
+      - "Show user activity statistics"
+      - "I need access patterns for users"
+      - "What's the user access breakdown?"
+      - "Find access statistics by user"
+      - "Display user access patterns"
+      - "User activity breakdown"
+      - "Show me how users are accessing documents"
+    parameters: []
+    sql_template: |
+      SELECT u.username, u.clearance_level,
+             COUNT(*) as total_attempts,
+             SUM(CASE WHEN aa.decision = 'ALLOW' THEN 1 ELSE 0 END) as allowed,
+             SUM(CASE WHEN aa.decision = 'DENY' THEN 1 ELSE 0 END) as denied,
+             SUM(CASE WHEN aa.decision = 'REDACT' THEN 1 ELSE 0 END) as redacted
+      FROM access_audit aa
+      JOIN users u ON aa.user_id = u.user_id
+      GROUP BY u.username, u.clearance_level
+      ORDER BY total_attempts DESC
+    result_format: "table"
+    tags: ["access_audit", "statistics", "users", "patterns"]
+    semantic_tags:
+      action: "list"
+      primary_entity: "access_audit"
+      qualifiers: ["group_by_user", "statistics"]
+    approved: true
+
+  # Summary Views
+  - id: list_all_knowledge_items
+    version: "1.0.0"
+    description: "List all knowledge items with summary information"
+    nl_examples:
+      - "Show me all knowledge items"
+      - "List all documents"
+      - "Get all items"
+      - "Display all knowledge items"
+      - "What documents do we have?"
+      - "Show every document"
+      - "I need all knowledge items"
+      - "List everything in the system"
+      - "Find all documents"
+      - "Show complete document list"
+      - "Get all available items"
+      - "Display entire knowledge base"
+    parameters: []
+    sql_template: |
+      SELECT * FROM knowledge_item_summary
+      ORDER BY created_at DESC
+    result_format: "table"
+    tags: ["knowledge_item", "all", "summary"]
+    semantic_tags:
+      action: "list"
+      primary_entity: "knowledge_item"
+      qualifiers: ["all"]
+    approved: true
+
+  - id: list_all_audit_events
+    version: "1.0.0"
+    description: "List all access audit events"
+    nl_examples:
+      - "Show me all audit events"
+      - "List all access attempts"
+      - "Get audit log"
+      - "Display all audit events"
+      - "What's in the audit log?"
+      - "Show complete audit history"
+      - "I need all audit events"
+      - "List everything in the audit log"
+      - "Find all access attempts"
+      - "Show complete access history"
+      - "Get all audit entries"
+      - "Display entire audit trail"
+    parameters: []
+    sql_template: |
+      SELECT * FROM access_audit_summary
+      ORDER BY ts DESC
+    result_format: "table"
+    tags: ["access_audit", "all", "summary"]
+    semantic_tags:
+      action: "list"
+      primary_entity: "access_audit"
+      qualifiers: ["all"]
+    approved: true

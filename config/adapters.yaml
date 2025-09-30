@@ -138,3 +138,48 @@ adapters:
       # Query monitoring (automatically provided by new base)
       enable_query_monitoring: true
       query_timeout: 5000  # 5 seconds
+
+  - name: "intent-sql-sqlite-classified"
+    enabled: false
+    type: "retriever"
+    datasource: "sqlite"
+    adapter: "intent"
+    implementation: "retrievers.implementations.intent.IntentSQLiteRetriever"
+    inference_provider: "ollama_cloud"
+    embedding_provider: "openai"
+    config:
+      # SQLite database path is configured in datasources.yaml
+      check_same_thread: false  # Allow multi-threaded access
+
+      # Path to the domain definition file
+      domain_config_path: "config/sql_intent_templates/examples/classified-data/classified_data_domain.yaml"
+      template_library_path:
+        - "config/sql_intent_templates/examples/classified-data/sqlite_classified_data_templates.yaml"
+
+      # Name for the vector store collection for templates
+      template_collection_name: "classified_intent_templates"
+      confidence_threshold: 0.4
+
+      # Embedding provider for template matching (null = use default)
+      embedding_provider: null
+
+      # Maximum templates to consider
+      max_templates: 5
+
+      # Return top N results
+      return_results: 10
+
+      # ChromaDB persistence settings
+      chroma_persist: true  # Set to true to persist embeddings between runs
+      chroma_persist_path: "./chroma_db/classified_intent_templates"  # Path for persistent storage
+      reload_templates_on_start: false  # Whether to reload templates on startup
+      force_reload_templates: false  # Force reload even if templates exist in persistent storage
+
+      # Unified retriever features
+      use_connection_pool: false  # SQLite doesn't support traditional pooling (file-based)
+      pool_size: 1  # Not applicable for SQLite
+      connection_timeout: 30  # Connection timeout in seconds
+
+      # Query monitoring (automatically provided by unified base)
+      enable_query_monitoring: true
+      query_timeout: 5000  # 5 seconds

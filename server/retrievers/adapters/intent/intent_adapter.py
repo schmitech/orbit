@@ -428,7 +428,7 @@ def register_intent_adapter():
         logger.info("Registered intent adapter for postgres")
         
         # Also register for other SQL datasources that might use intent in the future
-        for datasource in ['mysql', 'mssql']:
+        for datasource in ['mysql', 'mssql', 'sqlite']:
             ADAPTER_REGISTRY.register(
                 adapter_type="retriever",
                 datasource=datasource,

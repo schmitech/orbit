@@ -24,6 +24,15 @@ except ImportError:  # pragma: no cover - optional import guard
     _mysql_available = False
     logger.debug("MySQL client libraries not installed; IntentMySQLRetriever unavailable")
 
+# Import SQLite retriever (sqlite3 is built-in to Python)
+try:
+    from .intent_sqlite_retriever import IntentSQLiteRetriever
+    _sqlite_available = True
+except ImportError:  # pragma: no cover - optional import guard
+    IntentSQLiteRetriever = None
+    _sqlite_available = False
+    logger.debug("SQLite retriever import failed; IntentSQLiteRetriever unavailable")
+
 __all__ = [
     'DomainParameterExtractor',
     'DomainResponseGenerator',
@@ -36,3 +45,6 @@ if IntentPostgreSQLRetriever is not None:
 
 if _mysql_available and IntentMySQLRetriever is not None:
     __all__.append('IntentMySQLRetriever')
+
+if _sqlite_available and IntentSQLiteRetriever is not None:
+    __all__.append('IntentSQLiteRetriever')
