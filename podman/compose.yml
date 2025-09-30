@@ -1,0 +1,91 @@
+services:
+  orbit-server:
+    build:
+      context: ..
+      dockerfile: podman/Containerfile
+    image: orbit-server:latest
+    container_name: orbit-server
+    ports:
+      - "${ORBIT_PORT:-3000}:${ORBIT_PORT:-3000}"
+    volumes:
+      - ./config:/app/config
+      - ../logs:/app/logs
+      - ../models:/app/models
+    env_file:
+      - ./.env
+    environment:
+      - CONFIG_PATH=/app/config/config.yaml
+      - MONGODB_URL=mongodb://mongodb:27017
+      - REDIS_URL=redis://redis:6379
+      - INTERNAL_SERVICES_MONGODB_HOST=mongodb
+      - INTERNAL_SERVICES_REDIS_HOST=redis
+    restart: unless-stopped
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - orbit-network
+
+  mongodb:
+    image: mongo:8.0
+    container_name: orbit-mongodb
+    command: ["mongod", "--config", "/etc/mongo.conf", "--quiet", "--logpath", "/var/log/mongodb/mongod.log", "--logappend"]
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb-data:/data/db
+      - mongodb-logs:/var/log/mongodb
+      - ./mongo.conf:/etc/mongo.conf
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+    networks:
+      - orbit-network
+
+  redis:
+    image: redis:7.2
+    container_name: orbit-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
+    networks:
+      - orbit-network
+
+volumes:
+  mongodb-data:
+    driver: local
+  mongodb-logs:
+    driver: local
+  redis-data:
+    driver: local
+
+networks:
+  orbit-network:
+    driver: bridge
