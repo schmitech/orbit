@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Copy, RotateCcw, ThumbsUp, ThumbsDown } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Bot, Copy, RotateCcw, ThumbsDown, ThumbsUp, User2 } from 'lucide-react';
 import { Message as MessageType } from '../types';
 import { MarkdownRenderer } from '@schmitech/markdown-renderer';
 
@@ -11,6 +11,21 @@ interface MessageProps {
 export function Message({ message, onRegenerate }: MessageProps) { 
   const [copied, setCopied] = useState(false);
   const [feedback, setFeedback] = useState<'up' | 'down' | null>(null);
+
+  const isAssistant = message.role === 'assistant';
+  const timestamp = useMemo(() => {
+    const value = message.timestamp instanceof Date
+      ? message.timestamp
+      : new Date(message.timestamp);
+    return value.toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  }, [message.timestamp]);
+
+  const contentClass = isAssistant
+    ? 'markdown-content prose prose-slate dark:prose-invert max-w-none'
+    : 'markdown-content prose prose-invert dark:prose-slate max-w-none';
 
   const copyToClipboard = async () => {
     try {
@@ -27,94 +42,117 @@ export function Message({ message, onRegenerate }: MessageProps) {
   };
 
   return (
-    <div className={`group flex gap-4 p-4 bg-transparent ${message.isStreaming ? 'animate-pulse' : ''}`}>
-      
-      {/* Avatar */}
-      <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-medium ${
-        message.role === 'user'
-          ? 'bg-gradient-to-br from-blue-500 to-blue-600'
-          : 'bg-gradient-to-br from-purple-500 to-purple-600'
-      }`}>
-        {message.role === 'user' ? 'U' : 'AI'}
+    <div
+      className={`group flex items-start gap-4 md:gap-5 animate-fadeIn ${
+        isAssistant ? '' : 'justify-end'
+      }`}
+    >
+      <div
+        className={`flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center shadow-md ${
+          isAssistant
+            ? 'bg-gradient-to-br from-emerald-500 to-emerald-600 text-white'
+            : 'bg-gradient-to-br from-violet-500 to-purple-600 text-white'
+        } ${isAssistant ? '' : 'order-2'}`}
+      >
+        {isAssistant ? <Bot className="w-4 h-4" /> : <User2 className="w-4 h-4" />}
       </div>
 
-      {/* Content */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-2">
-          {message.isStreaming ? (
-            <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
-              Assistant
-            </span>
-          ) : (
-            <>
-              <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                {message.role === 'user' ? 'You' : 'Assistant'}
-              </span>
-              <span className="text-xs text-gray-500 dark:text-gray-400">
-                {message.timestamp.toLocaleTimeString([], { 
-                  hour: '2-digit', 
-                  minute: '2-digit' 
-                })}
-              </span>
-            </>
+      <div
+        className={`flex-1 max-w-2xl space-y-3 ${
+          isAssistant ? '' : 'flex flex-col items-end text-right'
+        }`}
+      >
+        <div
+          className={`flex items-center gap-2 text-xs uppercase tracking-wide font-semibold ${
+            isAssistant
+              ? 'text-emerald-600 dark:text-emerald-400'
+              : 'text-slate-500 dark:text-slate-400'
+          } ${isAssistant ? '' : 'justify-end'}`}
+        >
+          <span>{isAssistant ? 'Orbit Assistant' : 'You'}</span>
+          <span className="text-[0.7rem] uppercase tracking-[0.2em] opacity-70">
+            {timestamp}
+          </span>
+        </div>
+
+        <div
+          className={`${
+            isAssistant
+              ? 'bg-white/90 dark:bg-slate-900/90 border border-emerald-100/60 dark:border-emerald-500/20 text-slate-900 dark:text-slate-100 shadow-[0_20px_60px_rgba(16,185,129,0.16)]'
+              : 'bg-slate-100 text-slate-900 dark:bg-slate-900 dark:text-slate-100 shadow-[0_18px_40px_rgba(15,23,42,0.35)]'
+          } relative rounded-2xl px-5 py-4 leading-relaxed backdrop-blur-sm transition-transform duration-200 ${
+            isAssistant ? 'hover:-translate-y-0.5' : 'ml-auto hover:-translate-y-0.5'
+          }`}
+        >
+          <div className={contentClass}>
+            {message.isStreaming && (!message.content || message.content === '…') ? (
+              <div className="flex items-center gap-1">
+                <span className="inline-block w-2 h-2 bg-emerald-600 dark:bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                <span className="inline-block w-2 h-2 bg-emerald-600 dark:bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                <span className="inline-block w-2 h-2 bg-emerald-600 dark:bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+              </div>
+            ) : (
+              <MarkdownRenderer content={message.content || ''} />
+            )}
+          </div>
+          {message.isStreaming && message.content && message.content !== '…' && (
+            <div className="inline-flex items-center gap-1 ml-2">
+              <span className="inline-block w-2 h-2 bg-emerald-500 dark:bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+              <span className="inline-block w-2 h-2 bg-emerald-500 dark:bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+              <span className="inline-block w-2 h-2 bg-emerald-500 dark:bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+            </div>
           )}
         </div>
 
-        {message.isStreaming ? (
-          <div className="flex items-center gap-1 mt-1">
-            <span className="inline-block w-2 h-2 bg-gray-400 rounded-full animate-bounce"></span>
-            <span className="inline-block w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-150"></span>
-            <span className="inline-block w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-300"></span>
-          </div>
-        ) : (
-          <MarkdownRenderer
-            content={message.content}
-          />
-        )}
-
-        {/* Actions */}
-        {message.role === 'assistant' && !message.isStreaming && (
-          <div className="flex items-center gap-2 mt-3 opacity-0 group-hover:opacity-100 transition-opacity">
+        {isAssistant && !message.isStreaming && (
+          <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity">
             <button
               onClick={copyToClipboard}
-              className="p-1.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-md transition-colors"
+              className="inline-flex items-center gap-1 rounded-lg px-2 py-1 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition"
               title="Copy message"
             >
-              <Copy className="w-4 h-4 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200" />
+              <Copy className="w-4 h-4" />
+              Copy
             </button>
 
             {onRegenerate && (
               <button
                 onClick={() => onRegenerate(message.id)}
-                className="p-1.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-md transition-colors"
+                className="inline-flex items-center gap-1 rounded-lg px-2 py-1 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition"
                 title="Regenerate response"
               >
-                <RotateCcw className="w-4 h-4 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200" />
+                <RotateCcw className="w-4 h-4" />
+                Retry
               </button>
             )}
 
-            <button
-              onClick={() => handleFeedback('up')}
-              className={`p-1.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-md transition-colors ${
-                feedback === 'up' ? 'text-green-600 dark:text-green-400' : 'text-gray-500 dark:text-gray-400'
-              }`}
-              title="Good response"
-            >
-              <ThumbsUp className="w-4 h-4" />
-            </button>
-
-            <button
-              onClick={() => handleFeedback('down')}
-              className={`p-1.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-md transition-colors ${
-                feedback === 'down' ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'
-              }`}
-              title="Poor response"
-            >
-              <ThumbsDown className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => handleFeedback('up')}
+                className={`p-1.5 rounded-lg transition ${
+                  feedback === 'up'
+                    ? 'text-emerald-600 bg-emerald-50 dark:text-emerald-300 dark:bg-emerald-500/10'
+                    : 'hover:bg-emerald-50 dark:hover:bg-emerald-500/10'
+                }`}
+                title="Good response"
+              >
+                <ThumbsUp className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => handleFeedback('down')}
+                className={`p-1.5 rounded-lg transition ${
+                  feedback === 'down'
+                    ? 'text-rose-600 bg-rose-50 dark:text-rose-300 dark:bg-rose-500/10'
+                    : 'hover:bg-rose-50 dark:hover:bg-rose-500/10'
+                }`}
+                title="Poor response"
+              >
+                <ThumbsDown className="w-4 h-4" />
+              </button>
+            </div>
 
             {copied && (
-              <span className="text-xs text-green-600 dark:text-green-400 px-2 py-1 bg-green-50 dark:bg-green-900/20 rounded">
+              <span className="text-xs text-emerald-600 dark:text-emerald-300">
                 Copied!
               </span>
             )}

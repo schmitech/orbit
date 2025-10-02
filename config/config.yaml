@@ -133,7 +133,7 @@ internal_services:
     port: ${INTERNAL_SERVICES_MONGODB_PORT}
     username: ${INTERNAL_SERVICES_MONGODB_USERNAME}
     password: ${INTERNAL_SERVICES_MONGODB_PASSWORD}
-    database: "orbit"
+    database: ${INTERNAL_SERVICES_MONGODB_DB}
     users_collection: users
     sessions_collection: sessions
     apikey_collection: api_keys

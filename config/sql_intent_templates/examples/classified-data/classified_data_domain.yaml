@@ -1,0 +1,744 @@
+domain_name: Classified Data Management
+description: Classified data management system with knowledge items, access control, and audit logging
+
+# Domain metadata for strategy selection
+domain_type: security
+semantic_types:
+  classification_level:
+    description: "Security classification level"
+    patterns: ["classification", "classified", "level", "clearance"]
+    enum_values: ["UNCLASSIFIED", "PROTECTED A", "PROTECTED B", "PROTECTED C", "CONFIDENTIAL", "SECRET", "TOP SECRET", "NATO SECRET"]
+  user_identifier:
+    description: "User email identifier"
+    patterns: ["user", "email", "subject"]
+    regex_patterns:
+      - '\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
+  document_identifier:
+    description: "Document or item identifier"
+    patterns: ["document", "item", "knowledge", "id"]
+    regex_patterns:
+      - 'item\s+(?:id\s+)?(\d+)'
+      - 'document\s+(?:id\s+)?(\d+)'
+      - '\b(\d+)\b'
+  compartment_name:
+    description: "Security compartment or project code"
+    patterns: ["compartment", "project", "operation", "op"]
+    regex_patterns:
+      - '\b(COMPARTMENT_[A-Z])\b'
+      - '\b(PROJECT_[A-Z])\b'
+      - '\b(OP_[A-Z_]+)\b'
+      - '\b([A-Z_]{3,})\b'
+  organization_name:
+    description: "Originating organization"
+    patterns: ["organization", "org", "department", "agency"]
+  access_decision:
+    description: "Access control decision"
+    patterns: ["decision", "access", "allowed", "denied", "redacted"]
+    enum_values: ["ALLOW", "DENY", "REDACT"]
+  pii_status:
+    description: "Personal information indicator"
+    patterns: ["pii", "personal", "information"]
+    enum_values: ["0", "1", "true", "false", "yes", "no"]
+  date_value:
+    description: "Date values in various formats"
+    patterns: ["date", "day", "time", "when", "on", "created", "reviewed", "declass"]
+    regex_patterns:
+      - '\b\d{4}-\d{2}-\d{2}\b'
+      - '\b\d{2}/\d{2}/\d{4}\b'
+  citizenship_value:
+    description: "Country citizenship codes"
+    patterns: ["citizenship", "country", "nation", "from"]
+    enum_values: ["USA", "CAN", "GBR", "AUS", "NZL"]
+  rel_to_value:
+    description: "Releasability countries"
+    patterns: ["releasable", "rel to", "release", "share"]
+
+# Vocabulary for natural language understanding
+vocabulary:
+  entity_synonyms:
+    knowledge_item: ["document", "item", "file", "report", "specification", "manual", "assessment"]
+    user: ["subject", "person", "account", "individual"]
+    compartment: ["project", "operation", "program", "access group"]
+    organization: ["org", "department", "agency", "bureau"]
+  action_verbs:
+    find: ["show", "list", "get", "find", "display", "retrieve", "lookup", "search", "view"]
+    filter: ["filter", "only", "just", "where", "with", "having", "containing"]
+    count: ["count", "number of", "how many", "total", "sum"]
+    check: ["check", "verify", "validate", "confirm"]
+  field_synonyms:
+    title: ["name", "subject", "heading"]
+    classification: ["level", "clearance", "security level"]
+    content: ["text", "body", "information", "data"]
+
+entities:
+  knowledge_item:
+    name: knowledge_item
+    entity_type: primary
+    table_name: knowledge_item
+    description: Classified knowledge items and documents
+    primary_key: item_id
+    display_name_field: title
+    searchable_fields:
+      - title
+      - content
+      - classification
+      - compartments
+    common_filters:
+      - classification
+      - originator_org
+      - compartments
+      - pii_present
+      - created_at
+      - declass_on
+    default_sort_field: created_at
+    default_sort_order: DESC
+  access_audit:
+    name: access_audit
+    entity_type: transaction
+    table_name: access_audit
+    description: Access audit log entries
+    primary_key: event_id
+    display_name_field: query_text
+    searchable_fields:
+      - query_text
+      - user_id
+      - decision
+    common_filters:
+      - user_id
+      - item_id
+      - decision
+      - subject_clearance
+      - ts
+    default_sort_field: ts
+    default_sort_order: DESC
+  users:
+    name: users
+    entity_type: primary
+    table_name: users
+    description: System users with clearance levels
+    primary_key: user_id
+    display_name_field: username
+    searchable_fields:
+      - username
+      - email
+      - user_id
+    common_filters:
+      - clearance_level
+      - citizenship
+      - is_active
+    default_sort_field: created_at
+    default_sort_order: DESC
+  organizations:
+    name: organizations
+    entity_type: reference
+    table_name: organizations
+    description: Organizations that create documents
+    primary_key: org_id
+    display_name_field: name
+    searchable_fields:
+      - name
+      - code
+    common_filters:
+      - country
+      - is_active
+    default_sort_field: name
+    default_sort_order: ASC
+  compartments:
+    name: compartments
+    entity_type: reference
+    table_name: compartments
+    description: Security compartments and projects
+    primary_key: compartment_id
+    display_name_field: name
+    searchable_fields:
+      - name
+      - description
+    common_filters:
+      - classification_level
+      - is_active
+    default_sort_field: name
+    default_sort_order: ASC
+
+fields:
+  knowledge_item:
+    item_id:
+      name: item_id
+      data_type: integer
+      db_column: item_id
+      description: Unique knowledge item identifier
+      required: true
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: document_identifier
+      summary_priority: 10
+    title:
+      name: title
+      data_type: string
+      db_column: title
+      description: Document title
+      required: true
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 9
+      aliases: ["name", "subject"]
+    content:
+      name: content
+      data_type: string
+      db_column: content
+      description: Document content
+      required: true
+      searchable: true
+      filterable: false
+      sortable: false
+      semantic_type: null
+      summary_priority: 8
+      aliases: ["text", "body"]
+    classification:
+      name: classification
+      data_type: enum
+      db_column: classification
+      description: Security classification level
+      required: true
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: classification_level
+      summary_priority: 10
+      enum_values:
+        - UNCLASSIFIED
+        - PROTECTED A
+        - PROTECTED B
+        - PROTECTED C
+        - CONFIDENTIAL
+        - SECRET
+        - TOP SECRET
+        - NATO SECRET
+    caveats:
+      name: caveats
+      data_type: string
+      db_column: caveats
+      description: Classification caveats (NOFORN, ORCON, etc)
+      required: false
+      searchable: true
+      filterable: true
+      sortable: false
+      semantic_type: null
+      summary_priority: 7
+    compartments:
+      name: compartments
+      data_type: string
+      db_column: compartments
+      description: Security compartments
+      required: false
+      searchable: true
+      filterable: true
+      sortable: false
+      semantic_type: compartment_name
+      summary_priority: 8
+    rel_to:
+      name: rel_to
+      data_type: string
+      db_column: rel_to
+      description: Releasable to countries
+      required: false
+      searchable: true
+      filterable: true
+      sortable: false
+      semantic_type: rel_to_value
+      summary_priority: 7
+    pii_present:
+      name: pii_present
+      data_type: integer
+      db_column: pii_present
+      description: Contains personally identifiable information
+      required: true
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: pii_status
+      summary_priority: 6
+    originator_org:
+      name: originator_org
+      data_type: string
+      db_column: originator_org
+      description: Originating organization code
+      required: false
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: organization_name
+      summary_priority: 7
+    source_uri:
+      name: source_uri
+      data_type: string
+      db_column: source_uri
+      description: Source document URI
+      required: false
+      searchable: true
+      filterable: true
+      sortable: false
+      semantic_type: null
+      summary_priority: 5
+    source_hash:
+      name: source_hash
+      data_type: string
+      db_column: source_hash
+      description: Document hash for integrity
+      required: false
+      searchable: true
+      filterable: true
+      sortable: false
+      semantic_type: null
+      summary_priority: 4
+    declass_on:
+      name: declass_on
+      data_type: date
+      db_column: declass_on
+      description: Declassification date
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: date_value
+      summary_priority: 6
+    retention_until:
+      name: retention_until
+      data_type: date
+      db_column: retention_until
+      description: Retention expiry date
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: date_value
+      summary_priority: 6
+    last_reviewed:
+      name: last_reviewed
+      data_type: date
+      db_column: last_reviewed
+      description: Last review date
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: date_value
+      summary_priority: 5
+    created_at:
+      name: created_at
+      data_type: datetime
+      db_column: created_at
+      description: Creation timestamp
+      required: true
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: date_value
+      summary_priority: 7
+    updated_at:
+      name: updated_at
+      data_type: datetime
+      db_column: updated_at
+      description: Last update timestamp
+      required: true
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: date_value
+      summary_priority: 6
+  access_audit:
+    event_id:
+      name: event_id
+      data_type: integer
+      db_column: event_id
+      description: Unique audit event identifier
+      required: true
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 10
+    item_id:
+      name: item_id
+      data_type: integer
+      db_column: item_id
+      description: Referenced knowledge item ID
+      required: true
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: document_identifier
+      summary_priority: 8
+    user_id:
+      name: user_id
+      data_type: string
+      db_column: user_id
+      description: User email identifier
+      required: true
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: user_identifier
+      summary_priority: 9
+    subject_clearance:
+      name: subject_clearance
+      data_type: enum
+      db_column: subject_clearance
+      description: User clearance level at time of access
+      required: true
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: classification_level
+      summary_priority: 8
+      enum_values:
+        - UNCLASSIFIED
+        - PROTECTED A
+        - PROTECTED B
+        - PROTECTED C
+        - CONFIDENTIAL
+        - SECRET
+        - TOP SECRET
+        - NATO SECRET
+    subject_attrs_json:
+      name: subject_attrs_json
+      data_type: string
+      db_column: subject_attrs_json
+      description: User attributes JSON
+      required: false
+      searchable: false
+      filterable: false
+      sortable: false
+      semantic_type: null
+      summary_priority: 5
+    decision:
+      name: decision
+      data_type: enum
+      db_column: decision
+      description: Access control decision
+      required: true
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: access_decision
+      summary_priority: 9
+      enum_values:
+        - ALLOW
+        - REDACT
+        - DENY
+    redaction_rules:
+      name: redaction_rules
+      data_type: string
+      db_column: redaction_rules
+      description: Applied redaction rules
+      required: false
+      searchable: false
+      filterable: false
+      sortable: false
+      semantic_type: null
+      summary_priority: 5
+    query_text:
+      name: query_text
+      data_type: string
+      db_column: query_text
+      description: User query text
+      required: true
+      searchable: true
+      filterable: true
+      sortable: false
+      semantic_type: null
+      summary_priority: 7
+    reason:
+      name: reason
+      data_type: string
+      db_column: reason
+      description: Decision reason
+      required: false
+      searchable: true
+      filterable: false
+      sortable: false
+      semantic_type: null
+      summary_priority: 6
+    ts:
+      name: ts
+      data_type: datetime
+      db_column: ts
+      description: Event timestamp
+      required: true
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: date_value
+      summary_priority: 8
+  users:
+    user_id:
+      name: user_id
+      data_type: string
+      db_column: user_id
+      description: User email identifier
+      required: true
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: user_identifier
+      summary_priority: 10
+    username:
+      name: username
+      data_type: string
+      db_column: username
+      description: Username
+      required: true
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 9
+    email:
+      name: email
+      data_type: string
+      db_column: email
+      description: Email address
+      required: true
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: user_identifier
+      summary_priority: 9
+    clearance_level:
+      name: clearance_level
+      data_type: enum
+      db_column: clearance_level
+      description: User clearance level
+      required: true
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: classification_level
+      summary_priority: 10
+      enum_values:
+        - UNCLASSIFIED
+        - PROTECTED A
+        - PROTECTED B
+        - PROTECTED C
+        - CONFIDENTIAL
+        - SECRET
+        - TOP SECRET
+        - NATO SECRET
+    citizenship:
+      name: citizenship
+      data_type: string
+      db_column: citizenship
+      description: User citizenship
+      required: true
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: citizenship_value
+      summary_priority: 8
+    need_to_know:
+      name: need_to_know
+      data_type: string
+      db_column: need_to_know
+      description: Compartments user needs to know
+      required: false
+      searchable: true
+      filterable: true
+      sortable: false
+      semantic_type: compartment_name
+      summary_priority: 7
+    is_active:
+      name: is_active
+      data_type: integer
+      db_column: is_active
+      description: User active status
+      required: true
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 6
+    created_at:
+      name: created_at
+      data_type: datetime
+      db_column: created_at
+      description: Account creation date
+      required: true
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: date_value
+      summary_priority: 7
+    updated_at:
+      name: updated_at
+      data_type: datetime
+      db_column: updated_at
+      description: Last update timestamp
+      required: true
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: date_value
+      summary_priority: 6
+  organizations:
+    org_id:
+      name: org_id
+      data_type: integer
+      db_column: org_id
+      description: Organization identifier
+      required: true
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 10
+    name:
+      name: name
+      data_type: string
+      db_column: name
+      description: Organization name
+      required: true
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: organization_name
+      summary_priority: 9
+    code:
+      name: code
+      data_type: string
+      db_column: code
+      description: Organization code
+      required: true
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: organization_name
+      summary_priority: 9
+    description:
+      name: description
+      data_type: string
+      db_column: description
+      description: Organization description
+      required: false
+      searchable: true
+      filterable: false
+      sortable: false
+      semantic_type: null
+      summary_priority: 7
+    country:
+      name: country
+      data_type: string
+      db_column: country
+      description: Organization country
+      required: false
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: citizenship_value
+      summary_priority: 8
+    is_active:
+      name: is_active
+      data_type: integer
+      db_column: is_active
+      description: Organization active status
+      required: true
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 6
+  compartments:
+    compartment_id:
+      name: compartment_id
+      data_type: integer
+      db_column: compartment_id
+      description: Compartment identifier
+      required: true
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 10
+    name:
+      name: name
+      data_type: string
+      db_column: name
+      description: Compartment name
+      required: true
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: compartment_name
+      summary_priority: 9
+    description:
+      name: description
+      data_type: string
+      db_column: description
+      description: Compartment description
+      required: false
+      searchable: true
+      filterable: false
+      sortable: false
+      semantic_type: null
+      summary_priority: 7
+    classification_level:
+      name: classification_level
+      data_type: enum
+      db_column: classification_level
+      description: Minimum classification level
+      required: true
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: classification_level
+      summary_priority: 8
+      enum_values:
+        - UNCLASSIFIED
+        - PROTECTED A
+        - PROTECTED B
+        - PROTECTED C
+        - CONFIDENTIAL
+        - SECRET
+        - TOP SECRET
+        - NATO SECRET
+    is_active:
+      name: is_active
+      data_type: integer
+      db_column: is_active
+      description: Compartment active status
+      required: true
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 6
+
+relationships:
+  - name: knowledge_item_audits
+    from_entity: knowledge_item
+    to_entity: access_audit
+    relation_type: one_to_many
+    from_field: item_id
+    to_field: item_id
+    join_type: LEFT
+    description: Knowledge item has many audit entries
+  - name: user_audits
+    from_entity: users
+    to_entity: access_audit
+    relation_type: one_to_many
+    from_field: user_id
+    to_field: user_id
+    join_type: LEFT
+    description: User has many audit entries
+  - name: knowledge_item_organization
+    from_entity: knowledge_item
+    to_entity: organizations
+    relation_type: many_to_one
+    from_field: originator_org
+    to_field: code
+    join_type: LEFT
+    description: Knowledge item belongs to organization
+
+query_patterns: []
+metadata: {}

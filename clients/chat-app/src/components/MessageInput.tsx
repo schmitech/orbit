@@ -70,18 +70,18 @@ export function MessageInput({
   };
 
   return (
-    <div className="px-8 py-6 relative z-10">
+    <div className="px-6 sm:px-10 pb-10 pt-6 relative z-10 bg-gradient-to-t from-white/40 via-transparent to-transparent dark:from-slate-950/30 dark:via-transparent dark:to-transparent backdrop-blur-sm">
       {voiceError && (
         <div className="mb-4 text-sm text-red-600 dark:text-red-400 bg-gradient-to-r from-red-50/80 to-rose-50/80 dark:from-red-900/40 dark:to-rose-900/40 p-3 rounded-xl shadow-sm backdrop-blur-sm">
           {voiceError}
         </div>
       )}
       
-      <form onSubmit={handleSubmit} className="relative w-full max-w-4xl mx-auto">
-        <div className={`relative flex items-center gap-4 rounded-2xl p-4 transition-all duration-300 backdrop-blur-xl ${
-          isFocused 
-            ? 'bg-white/40 dark:bg-slate-800/40 shadow-2xl ring-2 ring-blue-500/40 dark:ring-blue-400/50 transform scale-[1.02] border border-white/40 dark:border-slate-600/50' 
-            : 'bg-white/30 dark:bg-slate-800/30 shadow-lg hover:shadow-xl hover:transform hover:scale-[1.01] border border-white/30 dark:border-slate-600/40 hover:bg-white/35 dark:hover:bg-slate-800/35'
+      <form onSubmit={handleSubmit} className="relative w-full max-w-3xl mx-auto">
+        <div className={`relative flex items-center gap-4 rounded-2xl border px-5 py-4 transition-all duration-200 ${
+          isFocused
+            ? 'border-slate-300/80 dark:border-emerald-400/60 shadow-[0_20px_50px_rgba(71,85,105,0.15)] dark:shadow-[0_20px_50px_rgba(16,185,129,0.25)] bg-white dark:bg-slate-900'
+            : 'border-slate-200/70 dark:border-slate-700/60 bg-white/80 dark:bg-slate-900/70 shadow-[0_12px_40px_rgba(15,23,42,0.12)]'
         }`}>
           {/* Attachment button */}
           <button
@@ -148,10 +148,10 @@ export function MessageInput({
           <button
             type="submit"
             disabled={!message.trim() || disabled || isComposing}
-            className={`flex-shrink-0 p-3 rounded-xl transition-all duration-200 ${
+            className={`flex-shrink-0 px-4 py-2 rounded-xl transition-all duration-200 font-semibold ${
               message.trim() && !disabled && !isComposing
-                ? 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-xl transform hover:scale-105 active:scale-95'
-                : 'bg-slate-200 dark:bg-slate-600 text-slate-400 dark:text-slate-500 cursor-not-allowed'
+                ? 'bg-slate-800 dark:bg-emerald-500 text-white shadow-[0_14px_40px_rgba(15,23,42,0.25)] dark:shadow-[0_14px_40px_rgba(16,185,129,0.35)] hover:bg-slate-900 dark:hover:bg-emerald-600 hover:-translate-y-0.5 active:translate-y-0'
+                : 'bg-slate-200 dark:bg-slate-700 text-slate-400 dark:text-slate-500 cursor-not-allowed'
             }`}
             title="Send message"
           >

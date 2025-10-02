@@ -41,7 +41,7 @@
   }
   
   body {
-    @apply bg-gradient-to-br from-slate-100 via-white to-blue-100 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 text-slate-900 dark:text-slate-100;
+    @apply bg-slate-100 dark:bg-[#050b16] text-slate-900 dark:text-slate-100;
   }
   
   /* Remove all textarea borders and outlines */
