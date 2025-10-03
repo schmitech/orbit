@@ -13,6 +13,12 @@ except ModuleNotFoundError:  # pragma: no cover - optional import guard
     QAQdrantRetriever = None
     logger.debug("qdrant_client not installed; QAQdrantRetriever unavailable")
 
+try:  # Optional dependency on pinecone
+    from .qa_pinecone_retriever import QAPineconeRetriever
+except ModuleNotFoundError:  # pragma: no cover - optional import guard
+    QAPineconeRetriever = None
+    logger.debug("pinecone not installed; QAPineconeRetriever unavailable")
+
 __all__ = [
     'QAChromaRetriever',
     'QASSQLRetriever',
@@ -20,3 +26,6 @@ __all__ = [
 
 if QAQdrantRetriever is not None:
     __all__.append('QAQdrantRetriever')
+
+if QAPineconeRetriever is not None:
+    __all__.append('QAPineconeRetriever')
