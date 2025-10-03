@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.5.3] - 2025-10-03
+
+### Core System Updates
+- Pinecone QA Adapter: Added new Pinecone QA Retriever Adapter for enhanced vector database support
+- Configuration Updates: Load MongoDB database name from environment variables instead of hardcoded values
+
+### Chat Widget & UI Improvements
+- Chat Widget v0.5.3: Published new NPM version with markdown renderer integration
+- Markdown Rendering: Fixed markdown styles and updated markdown-renderer package to v0.1.6
+- UX Enhancements: Multiple improvements to chat-app user experience including:
+  - Improved transition between message and input field
+  - Removed vertical border for cleaner interface
+  - Enhanced overall look and feel
+  - Final round of UX enhancements for better user interaction
+
+### SQL Intent & Retrieval System
+- SQLite Intent Examples: Added new SQL intent templates for domain classified information
+- Classified Data Example: Updated classified data example schema for better organization
+
+### Deployment & Infrastructure
+- Podman Support: Added new Podman project for alternative containerization deployment
+- Roadmap Updates: Added future adapter-related features and improvements to development roadmap
+
 ## [1.5.2] - 2025-09-26
 
 ### Core System Updates
