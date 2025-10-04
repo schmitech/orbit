@@ -293,6 +293,7 @@ export const ThemeTab: React.FC<ThemeTabProps> = ({
             {[
               { key: 'primary', label: 'Header & Minimized Button Background' },
               { key: 'secondary', label: 'Input Border & Send Button' },
+              { key: 'background', label: 'Suggested Questions Background' },
               { key: 'inputBackground', label: 'Chat Window Background' },
               { key: 'highlightedBackground', label: 'Suggested Questions Highlighted Background' }
             ].map(({ key, label }) => (
