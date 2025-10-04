@@ -79,7 +79,7 @@ orbit-chat
 ```
 
 <div align="center">
-  <video src="https://github.com/user-attachments/assets/7c8c1db5-7016-41e3-9920-97bbe7a6d0af" controls>
+  <video src="https://github.com/user-attachments/assets/b3cf6a86-b173-4c0b-9dd8-061df848dba4" controls>
     Your browser does not support the video tag.
   </video>
   <br/>
