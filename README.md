@@ -86,7 +86,7 @@ orbit-chat
   <i>Using 'orbit-chat' tool. Add -h for usage.</i>
 </div>
 
-### 4. Chat with ORBIT using the Web Widget
+### 4. Chat with ORBIT using the Node API 
 ```bash
 cd clients/chat-app
 npm install
@@ -94,7 +94,7 @@ npm run dev
 ```
 
 <div align="center">
-  <video src="https://github.com/user-attachments/assets/54dd384c-55fe-42fa-bbca-f9bb68e536fd" controls>
+  <video src="https://github.com/user-attachments/assets/1a591929-c536-4de5-a3a2-0493b16edbad" controls>
     Your browser does not support the video tag.
   </video>
   <br/>
