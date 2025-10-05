@@ -25,22 +25,43 @@ ORBIT (Open Retrieval-Based Inference Toolkit) is a middleware platform that pro
 ORBIT gives you a single, consistent API to run LLMs (local or cloud) against your private data sources with portability, performance, high-availability, and security at the core.
 
 
-<p align="center">
-  <a href="#-quick-start">Quick Start</a> •
-  <a href="#-why-orbit">Why ORBIT</a> •
-  <a href="#%EF%B8%8F-architecture-overview">Architecture</a> •
-  <a href="#-what-can-you-build-with-orbit">Examples</a> •
-  <a href="#-documentation">Docs</a> •
-  <a href="https://github.com/schmitech/orbit/issues">Issues</a>
-</p>
+> ⭐️ If ORBIT helps you ship faster, please consider starring the repo to support the roadmap.
+
+## Table of Contents
+
+- [✨ Highlights](#highlights)
+- [🚀 Quick Start](#quick-start)
+- [🛠️ Why ORBIT](#why-orbit)
+- [🏗️ Architecture Overview](#architecture-overview)
+- [✨ What Can You Build with ORBIT?](#what-can-you-build-with-orbit)
+- [⭐ Support the Project](#support-the-project)
+- [📖 Documentation](#documentation)
+- [🤝 Community & Support](#community--support)
+- [📄 License](#license)
 
 ---
 
-## 🚀 Quick Start
+## Highlights
 
-### 1. Deploy with Docker
+- **Unified AI gateway** that normalizes requests across local models, cloud APIs, and hybrid deployments.
+- **Bring-your-own data** with production-grade RAG adapters for SQL, vector stores, and custom datasources.
+- **Secure by default** with token-based auth, role-aware API keys, and pluggable content moderation.
+- **Ready for teams** thanks to batteries-included clients (CLI, React widget, Node/Python SDKs) and automation scripts.
 
-Refer to the [Docker Setup Guide](docker/README.md) or run from the `docker/` directory:
+---
+
+## Quick Start
+
+### Prerequisites
+
+- Python 3.12+ (for running the server or CLI locally)
+- Docker Engine 24+ (if you prefer containers)
+- MongoDB (Atlas or local) to unlock authentication, RAG, and history persistence
+- Optional: Redis cache plus your choice of vector DB (Chroma, Qdrant, Pinecone, Milvus)
+
+### Docker
+
+Refer to the [Docker Setup Guide](docker/README.md) or run the bundled scripts from the `docker/` directory:
 
 ```bash
 cd docker
@@ -48,33 +69,31 @@ chmod +x docker-init.sh orbit-docker.sh
 ./docker-init.sh --build --profile minimal
 ```
 
-
-### 2. Deploy Locally
+### Local install
 
 ```bash
-# Download the latest release
+# Download the latest release archive
 curl -L https://github.com/schmitech/orbit/releases/download/v1.5.3/orbit-1.5.3.tar.gz -o orbit-1.5.3.tar.gz
 tar -xzf orbit-1.5.3.tar.gz
 cd orbit-1.5.3
 
-# Run the quick setup script (downloads a small model)
+# Bootstrap dependencies and download a small model
 cp .env.example .env
 ./install/setup.sh --profile minimal --download-gguf gemma3-270m
 
 # Start the ORBIT server
 source venv/bin/activate
-./bin/orbit.sh start # Logs are at /logs/orbit.log
+./bin/orbit.sh start # Logs: ./logs/orbit.log
 ```
-Your ORBIT instance is now running at `http://localhost:3000`.
 
-### 3. Chat with ORBIT using the CLI tool
+Keep an eye on the logs, then browse to `http://localhost:3000` to confirm your instance is responding.
 
-Use the `orbit-chat` CLI tool to interact with your instance.
+### Talk to ORBIT from the CLI
 
 ```bash
 pip install schmitech-orbit-client
 
-# Start chatting!
+# Point to a running ORBIT instance (defaults to http://localhost:3000)
 orbit-chat
 ```
 
@@ -83,10 +102,11 @@ orbit-chat
     Your browser does not support the video tag.
   </video>
   <br/>
-  <i>Using 'orbit-chat' tool. Add -h for usage.</i>
+  <i>Using the <code>orbit-chat</code> CLI. Run <code>orbit-chat -h</code> for options.</i>
 </div>
 
-### 4. Chat with ORBIT using the Node API 
+### Spin up the React Chat app
+
 ```bash
 cd clients/chat-app
 npm install
@@ -98,12 +118,35 @@ npm run dev
     Your browser does not support the video tag.
   </video>
   <br/>
-  <i>Chatting with ORBIT using the React client.
+  <i>Chatting with ORBIT using the React client.</i>
 </div>
+
+#### Next steps
+
+- Create an API key tied to the adapter you want to expose (`./bin/orbit.py key create`).
+- Enable or customize adapters in `config/adapters.yaml` and redeploy to connect new datasources.
+- Skim the [docs](#documentation) for deep dives on auth, configuration, and deployment patterns.
 
 ---
 
-## 🏗️ Architecture Overview
+## Why ORBIT
+
+- **Run securely with your data** thanks to first-class support for on-prem hardware, air-gapped installs, and strict authentication defaults.
+- **Mix and match models** (local, hosted, or API) through a single contract without rewriting downstream apps.
+- **Production-ready RAG** with adapters for SQL, vector databases, and pipelines that keep context fresh.
+- **Dev-friendly tooling** including a CLI, SDKs, React widget, and language clients maintained in this repo.
+
+### Built for
+
+- **Platform & infra teams** who need a stable control plane for LLM workloads.
+- **Product teams** shipping AI copilots that depend on reliable retrieval and guardrails.
+- **Researchers & tinkerers** exploring local-first stacks or evaluating different foundation models.
+
+Have a story or feature request? [Open an issue](https://github.com/schmitech/orbit/issues) or add it to the [Roadmap](docs/roadmap/README.md).
+
+---
+
+## Architecture Overview
 
 <div align="center">
   <img src="docs/images/orbit-architecture.png" width="700" alt="ORBIT Architecture" />
@@ -131,21 +174,6 @@ npm run dev
 - Embeddable chat widget with theming support
 - Node.js and Python API client libraries
 
-### Client Libraries
-
-New language clients are available under `clients/` with examples and integration tests:
-
-- Elixir: `clients/elixir` — `make deps`, `make example`, `ORBIT_INTEGRATION=1 make test`
-- Swift: `clients/swift` — `make example`, `ORBIT_INTEGRATION=1 make test`
-- Kotlin: `clients/kotlin` — `make example`, `ORBIT_INTEGRATION=1 make test`
-- Scala: `clients/scala` — `make example`, `ORBIT_INTEGRATION=1 make test`
-- PHP: `clients/php` — `make example`, `ORBIT_INTEGRATION=1 make test`
-- Haskell: `clients/haskell` — `make example`
-- Clojure: `clients/clojure` — `make example`, `ORBIT_INTEGRATION=1 make test`
-- Perl: `clients/perl` — `make example`, `ORBIT_INTEGRATION=1 make test`
-- R: `clients/r` — `make example`, `ORBIT_INTEGRATION=1 make test`
-
-Set `ORBIT_INTEGRATION=1` to enable integration tests. Optionally set `ORBIT_URL` (defaults to `http://localhost:3000`).
 
 ### Dependencies
 
@@ -157,7 +185,7 @@ Set `ORBIT_INTEGRATION=1` to enable integration tests. Optionally set `ORBIT_URL
 
 ---
 
-## ✨ What Can You Build with ORBIT?
+## What Can You Build with ORBIT?
 
 ORBIT uses a flexible [adapter architecture](docs/adapters.md) to connect your data to AI models. An API key is tied to a specific adapter, effectively creating a specialized "agent" for a certain task. Here are a few examples:
 
@@ -265,11 +293,17 @@ orbit-chat --url http://localhost:3000 --api-key YOUR_API_KEY
   <i>Testing the SQL Intent Adapter using the ORBIT CLI tool</i>
 </div>
 
+> Looking for more samples? Browse the [`examples/`](examples) directory for data loaders, prompts, and client integrations you can adapt.
+
 ---
 
-## ⭐ Like this project? Give it a star!
+## Support the Project
 
-If you find ORBIT useful, please consider giving it a star on GitHub. It helps more people discover the project.
+Your support keeps ORBIT independent and focused on open-source innovation.
+
+- ⭐ Star the repo to signal that ORBIT matters to you.
+- 📣 Share a demo, blog, or tweet so other builders discover it.
+- 🐛 Open issues and PRs—your feedback directly shapes the roadmap.
 
 <a href="https://github.com/schmitech/orbit" target="_blank">
   <img src="https://img.shields.io/github/stars/schmitech/orbit?style=for-the-badge&logo=github&label=Star%20Us" alt="GitHub stars">
@@ -285,7 +319,7 @@ If you find ORBIT useful, please consider giving it a star on GitHub. It helps m
 
 ---
 
-## 📖 Documentation
+## Documentation
 
 For more detailed information, please refer to the official documentation.
 
@@ -341,13 +375,13 @@ ORBIT provides a RESTful API for programmatic access. The full API reference wit
 - `GET /status` - File system status
 </details>
 
-## 🤝 Community & Support
+## Community & Support
 
 - **Questions?** Open an [issue](https://github.com/schmitech/orbit/issues)
 - **Updates:** Check the [changelog](CHANGELOG.md)
 - **Commercial Support:** Contact [schmitech.ai](https://schmitech.ai/)
 - **Maintained by:** [Remsy Schmilinsky](https://www.linkedin.com/in/remsy/)
 
-## 📄 License
+## License
 
 Apache 2.0 - See [LICENSE](LICENSE) for details.
