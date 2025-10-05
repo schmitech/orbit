@@ -302,7 +302,7 @@ class TestIntentValidation:
     @pytest.mark.asyncio
     async def test_parameter_extraction_accuracy(self, test_queries_by_category):
         """Test parameter extraction accuracy"""
-        retriever = IntentPostgreSQLRetriever({'config': {}})
+        retriever = IntentPostgreSQLRetriever({'adapter_config': {'store_name': 'chroma'}})
         
         for category, queries in test_queries_by_category.items():
             for query, template_id, expected_params in queries:
@@ -335,7 +335,7 @@ class TestIntentValidation:
     @pytest.mark.asyncio
     async def test_sql_generation_correctness(self, validation_templates):
         """Test that SQL templates generate correct queries"""
-        retriever = IntentPostgreSQLRetriever({'config': {}})
+        retriever = IntentPostgreSQLRetriever({'adapter_config': {'store_name': 'chroma'}})
         
         test_cases = [
             {
@@ -372,9 +372,10 @@ class TestIntentValidation:
         
         try:
             config = {
-                'config': {
+                'adapter_config': {
                     'template_library_path': template_path,
-                    'confidence_threshold': 0.7
+                    'confidence_threshold': 0.7,
+                    'store_name': 'chroma'
                 }
             }
             
@@ -422,7 +423,7 @@ class TestIntentValidation:
     @pytest.mark.asyncio
     async def test_error_handling(self):
         """Test error handling for various failure scenarios"""
-        config = {'config': {}}
+        config = {'adapter_config': {'store_name': 'chroma'}}
         retriever = IntentPostgreSQLRetriever(config=config)
         
         # Test with no templates loaded
@@ -444,7 +445,7 @@ class TestIntentValidation:
     @pytest.mark.asyncio
     async def test_query_normalization(self):
         """Test that queries are properly normalized and processed"""
-        retriever = IntentPostgreSQLRetriever({'config': {}})
+        retriever = IntentPostgreSQLRetriever({'adapter_config': {'store_name': 'chroma'}})
         
         # Test cases with different query formats
         test_queries = [

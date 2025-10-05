@@ -31,7 +31,7 @@ def create_store_manager(config: Optional[Dict[str, Any]] = None) -> StoreManage
     # Extract stores configuration from main config
     stores_config = {}
     if config:
-        for key in ['store_manager', 'vector_stores', 'relational_stores', 'document_stores', 'cache_stores', 'performance', 'migration', 'monitoring']:
+        for key in ['store_manager', 'vector_stores', 'relational_stores', 'document_stores', 'cache_stores', 'migration', 'monitoring']:
             if key in config:
                 stores_config[key] = config[key]
     

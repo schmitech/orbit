@@ -28,7 +28,8 @@ class TemplateEmbeddingStore:
                  store_name: str = "template_embeddings",
                  store_type: str = "chroma",
                  collection_name: str = "sql_templates",
-                 config: Optional[Dict[str, Any]] = None):
+                 config: Optional[Dict[str, Any]] = None,
+                 store_manager = None):
         """
         Initialize the template embedding store.
         
@@ -37,11 +38,13 @@ class TemplateEmbeddingStore:
             store_type: Type of vector store to use
             collection_name: Name of the collection for templates
             config: Optional configuration for the store
+            store_manager: Optional StoreManager instance
         """
         self.store_name = store_name
         self.store_type = store_type
         self.collection_name = collection_name
         self.config = config or {}
+        self.store_manager = store_manager
         
         # Vector store instance
         self._vector_store: Optional[BaseVectorStore] = None
@@ -62,8 +65,11 @@ class TemplateEmbeddingStore:
             config_path: Optional path to configuration file
         """
         try:
-            # Get or create store manager
-            store_manager = get_store_manager(config_path)
+            # Use provided store manager or get/create one
+            if self.store_manager:
+                store_manager = self.store_manager
+            else:
+                store_manager = get_store_manager(config_path)
             
             # Create or get vector store
             store_config = self.config.copy()

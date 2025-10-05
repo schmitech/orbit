@@ -51,7 +51,8 @@ class TestIntentPostgreSQLRetriever:
                 'template_collection_name': 'test_templates',
                 'confidence_threshold': 0.75,
                 'max_templates': 5,
-                'embedding_provider': None
+                'embedding_provider': None,
+                'store_name': 'chroma'
             },
             'verbose': True
         }
