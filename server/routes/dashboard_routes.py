@@ -274,13 +274,17 @@ def create_dashboard_router() -> APIRouter:
                         <span class="metric-label">Reliability</span>
                         <div class="metric-value"><span id="error-rate">0</span><span class="metric-unit">%</span></div>
                     </div>
-                    <svg class="w-10 h-10 text-rose-300/80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg class="w-10 h-10 text-slate-300/80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                     </svg>
                 </div>
-                <div class="mt-6 space-y-2">
+                <div class="mt-6 space-y-3">
+                    <div class="flex items-center justify-between text-xs text-slate-400">
+                        <span>Status</span>
+                        <span id="reliability-status" class="text-sm font-semibold text-emerald-300 uppercase tracking-[0.18em]">Nominal</span>
+                    </div>
                     <div class="progress-track">
-                        <div id="error-rate-bar" class="progress-bar bg-rose-400/80" style="width: 0%;"></div>
+                        <div id="error-rate-bar" class="progress-bar" style="width: 0%;"></div>
                     </div>
                     <div class="flex items-center justify-between text-xs text-slate-400">
                         <span>Uptime</span>
@@ -358,6 +362,18 @@ def create_dashboard_router() -> APIRouter:
         const chartOptions = {
             responsive: true,
             maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false,
+                axis: 'x'
+            },
+            elements: {
+                point: {
+                    radius: 0,
+                    hoverRadius: 5,
+                    hitRadius: 18
+                }
+            },
             scales: {
                 y: {
                     beginAtZero: true,
@@ -388,7 +404,9 @@ def create_dashboard_router() -> APIRouter:
                     backgroundColor: 'rgba(56, 189, 248, 0.12)',
                     tension: 0.25,
                     fill: true,
-                    pointRadius: 0
+                    pointRadius: 0,
+                    pointHoverRadius: 5,
+                    pointHitRadius: 18
                 }, {
                     label: 'Memory %',
                     data: [],
@@ -396,7 +414,9 @@ def create_dashboard_router() -> APIRouter:
                     backgroundColor: 'rgba(16, 185, 129, 0.12)',
                     tension: 0.25,
                     fill: true,
-                    pointRadius: 0
+                    pointRadius: 0,
+                    pointHoverRadius: 5,
+                    pointHitRadius: 18
                 }]
             },
             options: chartOptions
@@ -448,7 +468,9 @@ def create_dashboard_router() -> APIRouter:
                     backgroundColor: 'rgba(251, 191, 36, 0.12)',
                     tension: 0.25,
                     fill: true,
-                    pointRadius: 0
+                    pointRadius: 0,
+                    pointHoverRadius: 5,
+                    pointHitRadius: 18
                 }, {
                     label: 'Error Rate %',
                     data: [],
@@ -456,7 +478,9 @@ def create_dashboard_router() -> APIRouter:
                     backgroundColor: 'rgba(244, 114, 182, 0.12)',
                     tension: 0.25,
                     fill: true,
-                    pointRadius: 0
+                    pointRadius: 0,
+                    pointHoverRadius: 5,
+                    pointHitRadius: 18
                 }]
             },
             options: requestChartOptions
@@ -473,11 +497,54 @@ def create_dashboard_router() -> APIRouter:
                     backgroundColor: 'rgba(129, 140, 248, 0.12)',
                     tension: 0.25,
                     fill: true,
-                    pointRadius: 0
+                    pointRadius: 0,
+                    pointHoverRadius: 5,
+                    pointHitRadius: 18
                 }]
             },
             options: chartOptions
         });
+
+        function updateChartWithActiveTooltip(chart, labels, datasetValues) {
+            const active = chart.getActiveElements();
+
+            chart.data.labels = labels;
+            chart.data.datasets.forEach((dataset, idx) => {
+                dataset.data = datasetValues[idx] || [];
+            });
+
+            chart.update('none');
+
+            if (!labels.length) {
+                chart.setActiveElements([]);
+                chart.tooltip?.setActiveElements([], { x: 0, y: 0 });
+                return;
+            }
+
+            if (active.length) {
+                const reactivated = active
+                    .map(({ datasetIndex, index }) => ({
+                        datasetIndex,
+                        index: Math.min(labels.length - 1, Math.max(0, index))
+                    }))
+                    .filter(({ datasetIndex, index }) => {
+                        const meta = chart.getDatasetMeta(datasetIndex);
+                        return meta && meta.data && meta.data[index];
+                    });
+
+                if (reactivated.length) {
+                    chart.setActiveElements(reactivated);
+                    const first = reactivated[0];
+                    const meta = chart.getDatasetMeta(first.datasetIndex);
+                    const element = meta?.data?.[first.index];
+                    if (element) {
+                        chart.tooltip?.setActiveElements(reactivated, { x: element.x, y: element.y });
+                        chart.tooltip?.update();
+                    }
+                    chart.draw();
+                }
+            }
+        }
 
         function clampPercentage(value) {
             if (typeof value !== 'number' || isNaN(value)) {
@@ -537,8 +604,30 @@ def create_dashboard_router() -> APIRouter:
             document.getElementById('requests-error-rate').textContent = formatNumber(errorPercent, 2) + '%';
 
             document.getElementById('error-rate').textContent = formatNumber(errorPercent, 2);
+
+            const reliabilityStatusEl = document.getElementById('reliability-status');
+            let reliabilityStatus = 'Nominal';
+            let reliabilityStatusClass = 'text-sm font-semibold uppercase tracking-[0.18em] text-emerald-300';
+            let reliabilityBarClass = 'bg-emerald-400/80';
+
+            if (errorPercent >= 5) {
+                reliabilityStatus = 'Critical';
+                reliabilityStatusClass = 'text-sm font-semibold uppercase tracking-[0.18em] text-rose-300';
+                reliabilityBarClass = 'bg-rose-500/85';
+            } else if (errorPercent >= 1) {
+                reliabilityStatus = 'Degraded';
+                reliabilityStatusClass = 'text-sm font-semibold uppercase tracking-[0.18em] text-amber-300';
+                reliabilityBarClass = 'bg-amber-400/80';
+            }
+
+            if (reliabilityStatusEl) {
+                reliabilityStatusEl.textContent = reliabilityStatus;
+                reliabilityStatusEl.className = reliabilityStatusClass;
+            }
+
             const errorBar = document.getElementById('error-rate-bar');
             if (errorBar) {
+                errorBar.className = `progress-bar ${reliabilityBarClass}`;
                 errorBar.style.width = errorPercent.toFixed(2) + '%';
             }
             document.getElementById('uptime').textContent = data.system.uptime;
@@ -551,20 +640,21 @@ def create_dashboard_router() -> APIRouter:
                 );
                 const maxPoints = 30;
                 const startIdx = Math.max(0, labels.length - maxPoints);
+                const trimmedLabels = labels.slice(startIdx);
 
-                systemChart.data.labels = labels.slice(startIdx);
-                systemChart.data.datasets[0].data = data.time_series.cpu.slice(startIdx);
-                systemChart.data.datasets[1].data = data.time_series.memory.slice(startIdx);
-                systemChart.update('none');
+                updateChartWithActiveTooltip(systemChart, trimmedLabels, [
+                    data.time_series.cpu.slice(startIdx),
+                    data.time_series.memory.slice(startIdx)
+                ]);
 
-                requestChart.data.labels = labels.slice(startIdx);
-                requestChart.data.datasets[0].data = data.time_series.requests_per_second.slice(startIdx);
-                requestChart.data.datasets[1].data = data.time_series.error_rate.slice(startIdx);
-                requestChart.update('none');
+                updateChartWithActiveTooltip(requestChart, trimmedLabels, [
+                    data.time_series.requests_per_second.slice(startIdx),
+                    data.time_series.error_rate.slice(startIdx)
+                ]);
 
-                responseChart.data.labels = labels.slice(startIdx);
-                responseChart.data.datasets[0].data = data.time_series.response_time.slice(startIdx);
-                responseChart.update('none');
+                updateChartWithActiveTooltip(responseChart, trimmedLabels, [
+                    data.time_series.response_time.slice(startIdx)
+                ]);
             }
         }
 

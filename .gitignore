@@ -63,3 +63,4 @@ sqlite_db
 CLAUDE.md
 .rag_history
 .gradle
+results/
