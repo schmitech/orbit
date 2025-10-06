@@ -64,148 +64,296 @@ def create_dashboard_router() -> APIRouter:
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ORBIT Monitoring Dashboard</title>
+    <title>ORBIT Operations Console</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        .metric-card {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        :root {
+            color-scheme: dark;
         }
-        .chart-container {
-            position: relative;
-            height: 250px;
+        body {
+            font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
         }
-        @keyframes pulse {
-            0% { opacity: 1; }
-            50% { opacity: 0.5; }
-            100% { opacity: 1; }
+        .surface-card {
+            background: rgba(15, 23, 42, 0.88);
+            border: 1px solid rgba(148, 163, 184, 0.14);
+            border-radius: 18px;
+            box-shadow: 0 25px 65px -45px rgba(15, 23, 42, 0.9);
+            backdrop-filter: blur(12px);
+            transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+        .surface-card:hover {
+            transform: translateY(-2px);
+            border-color: rgba(148, 163, 184, 0.28);
+            box-shadow: 0 25px 70px -45px rgba(56, 189, 248, 0.25);
+        }
+        .metric-card .metric-value {
+            font-size: 2.75rem;
+            font-weight: 600;
+            letter-spacing: -0.04em;
+        }
+        .metric-card .metric-unit {
+            font-size: 1.25rem;
+            margin-left: 0.25rem;
+            color: rgba(226, 232, 240, 0.6);
+        }
+        .metric-label {
+            font-size: 0.75rem;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            color: rgba(148, 163, 184, 0.75);
+            font-weight: 500;
+        }
+        .section-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+        .section-subtitle {
+            font-size: 0.85rem;
+            color: rgba(148, 163, 184, 0.75);
+        }
+        .status-dot {
+            width: 0.75rem;
+            height: 0.75rem;
+            border-radius: 999px;
+            box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.12);
+        }
+        .progress-track {
+            height: 0.375rem;
+            background: rgba(148, 163, 184, 0.12);
+            border-radius: 999px;
+            overflow: hidden;
+        }
+        .progress-bar {
+            height: 100%;
+            border-radius: 999px;
+            transition: width 0.35s ease;
+        }
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            font-size: 0.75rem;
+            font-weight: 500;
+            padding: 0.35rem 0.6rem;
+            border-radius: 999px;
+            border: 1px solid transparent;
+            text-transform: capitalize;
+        }
+        .adapter-card {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1.25rem;
+            padding: 0.85rem 1rem;
+            border-radius: 14px;
+            border: 1px solid rgba(148, 163, 184, 0.12);
+            background: rgba(15, 23, 42, 0.7);
+            transition: border-color 0.2s ease, transform 0.2s ease;
+        }
+        .adapter-card:hover {
+            border-color: rgba(148, 163, 184, 0.28);
+            transform: translateX(2px);
         }
         .pulse {
             animation: pulse 2s infinite;
         }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.55; }
+            100% { opacity: 1; }
+        }
+        @media (max-width: 640px) {
+            .metric-card .metric-value {
+                font-size: 2.1rem;
+            }
+        }
     </style>
 </head>
-<body class="bg-gray-900 text-white">
-    <div class="container mx-auto p-6">
-        <!-- Header -->
-        <div class="mb-8">
-            <h1 class="text-4xl font-bold mb-2">ORBIT Monitoring Dashboard</h1>
-            <div class="flex items-center gap-4">
-                <span id="connection-status" class="flex items-center">
-                    <span id="status-indicator" class="w-3 h-3 bg-green-500 rounded-full mr-2 pulse"></span>
-                    <span id="status-text">Connected</span>
-                </span>
-                <span class="text-gray-400">Last Updated: <span id="last-update">Never</span></span>
+<body class="bg-slate-950 text-slate-100 antialiased">
+    <div class="pointer-events-none absolute inset-x-0 top-0 h-72 bg-gradient-to-br from-sky-500/10 via-transparent to-indigo-500/10 blur-3xl -z-10"></div>
+    <div class="max-w-7xl mx-auto px-6 py-10 space-y-10">
+        <header class="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+            <div class="space-y-3">
+                <p class="text-xs font-medium tracking-[0.32em] text-slate-400 uppercase">Operational Insights</p>
+                <h1 class="text-3xl md:text-4xl font-semibold text-slate-100">ORBIT Operations Console</h1>
+                <p class="text-sm text-slate-400 max-w-2xl">Real-time service health, throughput, and reliability telemetry.</p>
             </div>
-        </div>
-
-        <!-- Metrics Grid -->
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <!-- CPU Usage -->
-            <div class="metric-card rounded-lg p-6 text-white">
-                <div class="flex justify-between items-start">
-                    <div>
-                        <p class="text-sm opacity-75">CPU Usage</p>
-                        <p class="text-3xl font-bold mt-2"><span id="cpu-usage">0</span>%</p>
+            <div class="flex items-center gap-5">
+                <div class="flex items-center gap-3 rounded-full border border-slate-800 bg-slate-900/60 px-5 py-3 shadow-lg shadow-slate-900/30">
+                    <span id="status-indicator" class="status-dot bg-emerald-400/80 pulse"></span>
+                    <div class="flex flex-col">
+                        <span id="status-text" class="text-sm font-medium text-slate-100">Connected</span>
+                        <span class="text-xs text-slate-400">WebSocket Stream</span>
                     </div>
-                    <svg class="w-8 h-8 opacity-75" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"></path>
+                </div>
+                <div class="text-xs text-slate-500 text-right">
+                    Last Update
+                    <div id="last-update" class="text-sm font-semibold text-slate-200">Never</div>
+                </div>
+            </div>
+        </header>
+
+        <section class="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+            <article class="surface-card metric-card p-6">
+                <div class="flex items-start justify-between">
+                    <div class="space-y-2">
+                        <span class="metric-label">CPU Usage</span>
+                        <div class="metric-value"><span id="cpu-usage">0</span><span class="metric-unit">%</span></div>
+                    </div>
+                    <svg class="w-10 h-10 text-sky-400/80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/>
                     </svg>
                 </div>
-            </div>
-
-            <!-- Memory Usage -->
-            <div class="metric-card rounded-lg p-6 text-white">
-                <div class="flex justify-between items-start">
-                    <div>
-                        <p class="text-sm opacity-75">Memory Usage</p>
-                        <p class="text-3xl font-bold mt-2"><span id="memory-usage">0</span> GB</p>
-                        <p class="text-xs opacity-75 mt-1"><span id="memory-percent">0</span>%</p>
+                <div class="mt-6 space-y-2">
+                    <div class="flex items-center justify-between text-xs text-slate-400">
+                        <span>Utilization</span>
+                        <span id="cpu-usage-label" class="text-slate-200 font-medium">0%</span>
                     </div>
-                    <svg class="w-8 h-8 opacity-75" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v1a1 1 0 001 1h4a1 1 0 001-1v-1m3-2V10a2 2 0 00-2-2H8a2 2 0 00-2 2v5m3-2h6"></path>
+                    <div class="progress-track">
+                        <div id="cpu-usage-bar" class="progress-bar bg-sky-500/80" style="width: 0%;"></div>
+                    </div>
+                </div>
+            </article>
+
+            <article class="surface-card metric-card p-6">
+                <div class="flex items-start justify-between">
+                    <div class="space-y-2">
+                        <span class="metric-label">Memory Usage</span>
+                        <div class="metric-value"><span id="memory-usage">0</span><span class="metric-unit">GB</span></div>
+                    </div>
+                    <svg class="w-10 h-10 text-emerald-400/80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 17v1a1 1 0 001 1h4a1 1 0 001-1v-1m3-2V10a2 2 0 00-2-2H8a2 2 0 00-2 2v5m3-2h6"/>
                     </svg>
                 </div>
-            </div>
-
-            <!-- Requests/sec -->
-            <div class="metric-card rounded-lg p-6 text-white">
-                <div class="flex justify-between items-start">
-                    <div>
-                        <p class="text-sm opacity-75">Requests/sec</p>
-                        <p class="text-3xl font-bold mt-2"><span id="requests-per-second">0</span></p>
-                        <p class="text-xs opacity-75 mt-1">Total: <span id="total-requests">0</span></p>
+                <div class="mt-6 space-y-4">
+                    <div class="progress-track">
+                        <div id="memory-usage-bar" class="progress-bar bg-emerald-400/80" style="width: 0%;"></div>
                     </div>
-                    <svg class="w-8 h-8 opacity-75" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                    <div class="grid grid-cols-2 gap-4 text-xs text-slate-400">
+                        <div>
+                            <p class="uppercase tracking-[0.15em]">Utilization</p>
+                            <p class="text-sm font-semibold text-slate-200"><span id="memory-percent">0</span>%</p>
+                        </div>
+                        <div>
+                            <p class="uppercase tracking-[0.15em]">Status</p>
+                            <p id="memory-health" class="text-sm font-semibold text-emerald-300">Stable</p>
+                        </div>
+                    </div>
+                </div>
+            </article>
+
+            <article class="surface-card metric-card p-6">
+                <div class="flex items-start justify-between">
+                    <div class="space-y-2">
+                        <span class="metric-label">Throughput</span>
+                        <div class="metric-value"><span id="requests-per-second">0</span><span class="metric-unit">rps</span></div>
+                    </div>
+                    <svg class="w-10 h-10 text-amber-300/90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z"/>
                     </svg>
                 </div>
-            </div>
-
-            <!-- Error Rate -->
-            <div class="metric-card rounded-lg p-6 text-white">
-                <div class="flex justify-between items-start">
-                    <div>
-                        <p class="text-sm opacity-75">Error Rate</p>
-                        <p class="text-3xl font-bold mt-2"><span id="error-rate">0</span>%</p>
-                        <p class="text-xs opacity-75 mt-1">Uptime: <span id="uptime">0m</span></p>
+                <div class="mt-6 space-y-3 text-xs text-slate-400">
+                    <div class="flex items-center justify-between">
+                        <span>Total Requests</span>
+                        <span id="total-requests" class="text-sm text-slate-200 font-medium">0</span>
                     </div>
-                    <svg class="w-8 h-8 opacity-75" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    <div class="flex items-center justify-between">
+                        <span>Error Rate</span>
+                        <span id="requests-error-rate" class="text-sm text-slate-200 font-medium">0%</span>
+                    </div>
+                </div>
+            </article>
+
+            <article class="surface-card metric-card p-6">
+                <div class="flex items-start justify-between">
+                    <div class="space-y-2">
+                        <span class="metric-label">Reliability</span>
+                        <div class="metric-value"><span id="error-rate">0</span><span class="metric-unit">%</span></div>
+                    </div>
+                    <svg class="w-10 h-10 text-rose-300/80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                     </svg>
                 </div>
-            </div>
-        </div>
-
-        <!-- Charts -->
-        <div id="charts-grid" class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <!-- CPU & Memory Chart -->
-            <div class="bg-gray-800 rounded-lg p-6">
-                <h2 class="text-xl font-semibold mb-4">System Resources</h2>
-                <div class="chart-container">
-                    <canvas id="system-chart"></canvas>
+                <div class="mt-6 space-y-2">
+                    <div class="progress-track">
+                        <div id="error-rate-bar" class="progress-bar bg-rose-400/80" style="width: 0%;"></div>
+                    </div>
+                    <div class="flex items-center justify-between text-xs text-slate-400">
+                        <span>Uptime</span>
+                        <span id="uptime" class="text-sm font-medium text-slate-200">0m</span>
+                    </div>
                 </div>
-            </div>
+            </article>
+        </section>
 
-            <!-- Request Rate Chart -->
-            <div class="bg-gray-800 rounded-lg p-6">
-                <h2 class="text-xl font-semibold mb-4">Request Metrics</h2>
-                <div class="chart-container">
-                    <canvas id="request-chart"></canvas>
-                </div>
+        <section>
+            <div class="flex flex-col gap-2 mb-6">
+                <h2 class="section-title text-slate-100">Live Signals</h2>
+                <p class="section-subtitle">System resources, throughput, and latency trends update as telemetry streams in.</p>
             </div>
+            <div id="charts-grid" class="grid grid-cols-1 gap-6 xl:grid-cols-2">
+                <article class="surface-card chart-card p-6 h-[320px]">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-semibold text-slate-100">System Resources</h3>
+                        <span class="badge bg-sky-500/10 text-sky-300 border-sky-500/30">CPU &amp; Memory</span>
+                    </div>
+                    <div class="h-[240px]">
+                        <canvas id="system-chart"></canvas>
+                    </div>
+                </article>
+                <article class="surface-card chart-card p-6 h-[320px]">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-semibold text-slate-100">Request Metrics</h3>
+                        <span class="badge bg-amber-400/10 text-amber-200 border-amber-400/30">Throughput</span>
+                    </div>
+                    <div class="h-[240px]">
+                        <canvas id="request-chart"></canvas>
+                    </div>
+                </article>
+                <article class="surface-card chart-card p-6 h-[320px]">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-semibold text-slate-100">Response Time (ms)</h3>
+                        <span class="badge bg-indigo-400/10 text-indigo-200 border-indigo-400/30">Latency</span>
+                    </div>
+                    <div class="h-[240px]">
+                        <canvas id="response-chart"></canvas>
+                    </div>
+                </article>
+                <article id="adapter-status-container" class="surface-card p-6 space-y-4 hidden">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h3 class="text-lg font-semibold text-slate-100">Adapter Health</h3>
+                            <p class="text-sm text-slate-400">Circuit breaker states and failure counters.</p>
+                        </div>
+                        <span class="badge bg-emerald-400/10 text-emerald-200 border-emerald-400/30">Resilience</span>
+                    </div>
+                    <div id="adapter-status" class="space-y-3">
+                        <p class="text-sm text-slate-400">Loading adapter status...</p>
+                    </div>
+                </article>
+            </div>
+        </section>
 
-            <!-- Response Time Chart -->
-            <div class="bg-gray-800 rounded-lg p-6">
-                <h2 class="text-xl font-semibold mb-4">Response Time (ms)</h2>
-                <div class="chart-container">
-                    <canvas id="response-chart"></canvas>
-                </div>
+        <section class="surface-card p-6">
+            <div class="flex flex-col gap-2 mb-6">
+                <h2 class="section-title text-slate-100">Thread Pool Utilization</h2>
+                <p class="section-subtitle">Monitor executor saturation to stay ahead of queue buildup and latency drift.</p>
             </div>
-
-            <!-- Adapter Status (conditionally shown) -->
-            <div id="adapter-status-container" class="bg-gray-800 rounded-lg p-6" style="display: none;">
-                <h2 class="text-xl font-semibold mb-4">Adapter Health</h2>
-                <div id="adapter-status" class="space-y-2">
-                    <p class="text-gray-400">Loading adapter status...</p>
-                </div>
+            <div id="thread-pools" class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                <p class="text-sm text-slate-400">Loading thread pool status...</p>
             </div>
-        </div>
-
-        <!-- Thread Pools Status -->
-        <div class="mt-6 bg-gray-800 rounded-lg p-6">
-            <h2 class="text-xl font-semibold mb-4">Thread Pool Status</h2>
-            <div id="thread-pools" class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <p class="text-gray-400">Loading thread pool status...</p>
-            </div>
-        </div>
+        </section>
     </div>
 
     <script>
         // WebSocket connection
         let ws = null;
         let reconnectInterval = null;
-        
+
         // Chart configurations
         const chartOptions = {
             responsive: true,
@@ -213,17 +361,17 @@ def create_dashboard_router() -> APIRouter:
             scales: {
                 y: {
                     beginAtZero: true,
-                    grid: { color: 'rgba(255, 255, 255, 0.1)' },
-                    ticks: { color: 'rgba(255, 255, 255, 0.7)' }
+                    grid: { color: 'rgba(148, 163, 184, 0.08)' },
+                    ticks: { color: 'rgba(226, 232, 240, 0.75)' }
                 },
                 x: {
-                    grid: { color: 'rgba(255, 255, 255, 0.1)' },
-                    ticks: { color: 'rgba(255, 255, 255, 0.7)', maxRotation: 0, minRotation: 0 }
+                    grid: { color: 'rgba(148, 163, 184, 0.08)' },
+                    ticks: { color: 'rgba(226, 232, 240, 0.65)', maxRotation: 0, minRotation: 0 }
                 }
             },
             plugins: {
                 legend: {
-                    labels: { color: 'rgba(255, 255, 255, 0.9)' }
+                    labels: { color: 'rgba(226, 232, 240, 0.9)' }
                 }
             }
         };
@@ -236,15 +384,19 @@ def create_dashboard_router() -> APIRouter:
                 datasets: [{
                     label: 'CPU %',
                     data: [],
-                    borderColor: 'rgb(59, 130, 246)',
-                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                    tension: 0.1
+                    borderColor: 'rgb(56, 189, 248)',
+                    backgroundColor: 'rgba(56, 189, 248, 0.12)',
+                    tension: 0.25,
+                    fill: true,
+                    pointRadius: 0
                 }, {
                     label: 'Memory %',
                     data: [],
                     borderColor: 'rgb(16, 185, 129)',
-                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                    tension: 0.1
+                    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                    tension: 0.25,
+                    fill: true,
+                    pointRadius: 0
                 }]
             },
             options: chartOptions
@@ -256,12 +408,12 @@ def create_dashboard_router() -> APIRouter:
                 ...chartOptions.scales,
                 y: {
                     ...chartOptions.scales.y,
-                    ticks: { 
+                    ticks: {
                         ...chartOptions.scales.y.ticks,
-                        stepSize: 1,  // Force integer steps
-                        precision: 0   // Force integer precision
+                        stepSize: 1,
+                        precision: 0
                     },
-                    min: 0  // Ensure 0 is always shown
+                    min: 0
                 }
             },
             plugins: {
@@ -274,10 +426,8 @@ def create_dashboard_router() -> APIRouter:
                                 label += ': ';
                             }
                             if (context.datasetIndex === 0) {
-                                // Requests/sec - show as integer
                                 label += Math.round(context.parsed.y);
                             } else {
-                                // Error Rate % - show with 2 decimals
                                 label += context.parsed.y.toFixed(2) + '%';
                             }
                             return label;
@@ -295,14 +445,18 @@ def create_dashboard_router() -> APIRouter:
                     label: 'Requests/sec',
                     data: [],
                     borderColor: 'rgb(251, 191, 36)',
-                    backgroundColor: 'rgba(251, 191, 36, 0.1)',
-                    tension: 0.1
+                    backgroundColor: 'rgba(251, 191, 36, 0.12)',
+                    tension: 0.25,
+                    fill: true,
+                    pointRadius: 0
                 }, {
                     label: 'Error Rate %',
                     data: [],
-                    borderColor: 'rgb(239, 68, 68)',
-                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                    tension: 0.1
+                    borderColor: 'rgb(244, 114, 182)',
+                    backgroundColor: 'rgba(244, 114, 182, 0.12)',
+                    tension: 0.25,
+                    fill: true,
+                    pointRadius: 0
                 }]
             },
             options: requestChartOptions
@@ -315,48 +469,99 @@ def create_dashboard_router() -> APIRouter:
                 datasets: [{
                     label: 'Avg Response Time',
                     data: [],
-                    borderColor: 'rgb(139, 92, 246)',
-                    backgroundColor: 'rgba(139, 92, 246, 0.1)',
-                    tension: 0.1
+                    borderColor: 'rgb(129, 140, 248)',
+                    backgroundColor: 'rgba(129, 140, 248, 0.12)',
+                    tension: 0.25,
+                    fill: true,
+                    pointRadius: 0
                 }]
             },
             options: chartOptions
         });
 
+        function clampPercentage(value) {
+            if (typeof value !== 'number' || isNaN(value)) {
+                return 0;
+            }
+            return Math.min(100, Math.max(0, value));
+        }
+
+        function formatNumber(value, fractionDigits = null) {
+            const num = Number(value);
+            if (Number.isNaN(num)) {
+                return value ?? '0';
+            }
+            if (fractionDigits === null) {
+                return num.toLocaleString();
+            }
+            return num.toLocaleString(undefined, {
+                minimumFractionDigits: fractionDigits,
+                maximumFractionDigits: fractionDigits
+            });
+        }
+
         function updateMetrics(data) {
-            // Update metric cards
-            document.getElementById('cpu-usage').textContent = data.system.cpu_percent.toFixed(1);
-            document.getElementById('memory-usage').textContent = data.system.memory_gb;
-            document.getElementById('memory-percent').textContent = data.system.memory_percent.toFixed(1);
-            document.getElementById('requests-per-second').textContent = data.requests.per_second;
-            document.getElementById('total-requests').textContent = data.requests.total;
-            document.getElementById('error-rate').textContent = data.requests.error_rate.toFixed(2);
+            const cpuPercent = clampPercentage(data.system.cpu_percent);
+            const memoryPercent = clampPercentage(data.system.memory_percent);
+            const errorPercent = clampPercentage(data.requests.error_rate);
+
+            document.getElementById('cpu-usage').textContent = formatNumber(cpuPercent, 1);
+            document.getElementById('cpu-usage-label').textContent = formatNumber(cpuPercent, 1) + '%';
+            const cpuBar = document.getElementById('cpu-usage-bar');
+            if (cpuBar) {
+                cpuBar.style.width = cpuPercent.toFixed(1) + '%';
+            }
+
+            document.getElementById('memory-usage').textContent = formatNumber(data.system.memory_gb, 2);
+            document.getElementById('memory-percent').textContent = formatNumber(memoryPercent, 1);
+            const memoryBar = document.getElementById('memory-usage-bar');
+            if (memoryBar) {
+                memoryBar.style.width = memoryPercent.toFixed(1) + '%';
+            }
+            const memoryHealth = document.getElementById('memory-health');
+            if (memoryHealth) {
+                if (memoryPercent >= 85) {
+                    memoryHealth.textContent = 'Critical';
+                    memoryHealth.className = 'text-sm font-semibold text-rose-300';
+                } else if (memoryPercent >= 70) {
+                    memoryHealth.textContent = 'Elevated';
+                    memoryHealth.className = 'text-sm font-semibold text-amber-300';
+                } else {
+                    memoryHealth.textContent = 'Stable';
+                    memoryHealth.className = 'text-sm font-semibold text-emerald-300';
+                }
+            }
+
+            document.getElementById('requests-per-second').textContent = formatNumber(data.requests.per_second, 1);
+            document.getElementById('total-requests').textContent = formatNumber(data.requests.total);
+            document.getElementById('requests-error-rate').textContent = formatNumber(errorPercent, 2) + '%';
+
+            document.getElementById('error-rate').textContent = formatNumber(errorPercent, 2);
+            const errorBar = document.getElementById('error-rate-bar');
+            if (errorBar) {
+                errorBar.style.width = errorPercent.toFixed(2) + '%';
+            }
             document.getElementById('uptime').textContent = data.system.uptime;
 
-            // Update last update time
             document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
 
-            // Update charts with time series data
             if (data.time_series && data.time_series.timestamps.length > 0) {
-                const labels = data.time_series.timestamps.map(t => 
+                const labels = data.time_series.timestamps.map(t =>
                     new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                 );
                 const maxPoints = 30;
                 const startIdx = Math.max(0, labels.length - maxPoints);
 
-                // Update system chart
                 systemChart.data.labels = labels.slice(startIdx);
                 systemChart.data.datasets[0].data = data.time_series.cpu.slice(startIdx);
                 systemChart.data.datasets[1].data = data.time_series.memory.slice(startIdx);
                 systemChart.update('none');
 
-                // Update request chart
                 requestChart.data.labels = labels.slice(startIdx);
                 requestChart.data.datasets[0].data = data.time_series.requests_per_second.slice(startIdx);
                 requestChart.data.datasets[1].data = data.time_series.error_rate.slice(startIdx);
                 requestChart.update('none');
 
-                // Update response chart
                 responseChart.data.labels = labels.slice(startIdx);
                 responseChart.data.datasets[0].data = data.time_series.response_time.slice(startIdx);
                 responseChart.update('none');
@@ -367,36 +572,37 @@ def create_dashboard_router() -> APIRouter:
             const container = document.getElementById('adapter-status');
             const containerDiv = document.getElementById('adapter-status-container');
             const chartsGrid = document.getElementById('charts-grid');
-            
+
             if (data.adapters && Object.keys(data.adapters).length > 0) {
-                // Show the adapter section if we have adapters
-                containerDiv.style.display = 'block';
-                // Keep the normal 2x2 grid layout
-                chartsGrid.className = 'grid grid-cols-1 lg:grid-cols-2 gap-6';
-                
+                containerDiv.classList.remove('hidden');
+                chartsGrid.className = 'grid grid-cols-1 gap-6 xl:grid-cols-2';
+
+                const stateStyles = {
+                    closed: 'badge bg-emerald-400/15 text-emerald-200 border-emerald-400/30',
+                    open: 'badge bg-rose-500/15 text-rose-200 border-rose-500/30',
+                    half_open: 'badge bg-amber-400/15 text-amber-200 border-amber-400/30'
+                };
+
                 const html = Object.entries(data.adapters).map(([name, status]) => {
-                    const stateColor = status.state === 'closed' ? 'bg-green-500' : 
-                                      status.state === 'open' ? 'bg-red-500' : 'bg-yellow-500';
+                    const state = (status.state || 'unknown').toLowerCase();
+                    const badgeClass = stateStyles[state] || 'badge bg-slate-500/15 text-slate-200 border-slate-500/30';
+                    const failures = status.failure_count || 0;
+
                     return `
-                        <div class="flex items-center justify-between p-2 bg-gray-700 rounded">
-                            <span class="font-medium">${name}</span>
-                            <div class="flex items-center gap-2">
-                                <span class="text-sm text-gray-400">
-                                    ${status.failure_count || 0} failures
-                                </span>
-                                <span class="px-2 py-1 text-xs rounded ${stateColor} text-white">
-                                    ${status.state}
-                                </span>
+                        <div class="adapter-card">
+                            <div>
+                                <p class="text-sm font-semibold text-slate-100">${name}</p>
+                                <p class="text-xs text-slate-400">Failures: ${failures}</p>
                             </div>
+                            <span class="${badgeClass}">${state.replace('_', ' ')}</span>
                         </div>
                     `;
                 }).join('');
                 container.innerHTML = html;
             } else {
-                // Hide the adapter section if no adapters are configured
-                containerDiv.style.display = 'none';
-                // Expand the remaining charts to fill the space better
-                chartsGrid.className = 'grid grid-cols-1 lg:grid-cols-3 gap-6';
+                containerDiv.classList.add('hidden');
+                chartsGrid.className = 'grid grid-cols-1 gap-6 xl:grid-cols-3';
+                container.innerHTML = '<p class="text-sm text-slate-400">No adapter telemetry available</p>';
             }
         }
 
@@ -404,81 +610,99 @@ def create_dashboard_router() -> APIRouter:
             const container = document.getElementById('thread-pools');
             if (data.pools && Object.keys(data.pools).length > 0) {
                 const html = Object.entries(data.pools).map(([name, pool]) => {
-                    const utilization = pool.max_workers > 0 ? 
-                        ((pool.active_threads / pool.max_workers) * 100).toFixed(1) : 0;
+                    const utilization = pool.max_workers > 0 ?
+                        ((pool.active_threads / pool.max_workers) * 100) : 0;
+                    const clampedUtil = clampPercentage(utilization);
+
+                    let barColor = 'bg-emerald-400/80';
+                    let badgeClass = 'badge bg-emerald-400/15 text-emerald-200 border-emerald-400/25';
+                    if (clampedUtil >= 90) {
+                        barColor = 'bg-rose-500/80';
+                        badgeClass = 'badge bg-rose-500/15 text-rose-200 border-rose-500/30';
+                    } else if (clampedUtil >= 75) {
+                        barColor = 'bg-amber-400/80';
+                        badgeClass = 'badge bg-amber-400/15 text-amber-200 border-amber-400/30';
+                    }
+
                     return `
-                        <div class="bg-gray-700 rounded p-4">
-                            <h3 class="font-medium mb-2">${name}</h3>
-                            <div class="space-y-1 text-sm">
-                                <p>Active: ${pool.active_threads} / ${pool.max_workers}</p>
-                                <p>Queued: ${pool.queued_tasks}</p>
-                                <p>Utilization: ${utilization}%</p>
+                        <div class="surface-card p-5 space-y-4">
+                            <div class="flex items-center justify-between">
+                                <h3 class="text-sm font-semibold text-slate-100">${name}</h3>
+                                <span class="${badgeClass}">${clampedUtil.toFixed(1)}%</span>
+                            </div>
+                            <div class="space-y-2 text-xs text-slate-400">
+                                <div class="flex items-center justify-between">
+                                    <span>Active Threads</span>
+                                    <span class="text-sm text-slate-200 font-medium">${pool.active_threads}</span>
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <span>Max Workers</span>
+                                    <span class="text-sm text-slate-200 font-medium">${pool.max_workers}</span>
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <span>Queued Tasks</span>
+                                    <span class="text-sm text-slate-200 font-medium">${pool.queued_tasks}</span>
+                                </div>
+                            </div>
+                            <div class="progress-track h-1.5">
+                                <div class="progress-bar ${barColor}" style="width: ${clampedUtil.toFixed(1)}%;"></div>
                             </div>
                         </div>
                     `;
                 }).join('');
                 container.innerHTML = html;
             } else {
-                container.innerHTML = '<p class="text-gray-400">No thread pool data available</p>';
+                container.innerHTML = '<p class="text-sm text-slate-400">No thread pool data available</p>';
             }
         }
 
         function connectWebSocket() {
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             const wsUrl = `${protocol}//${window.location.host}/ws/metrics`;
-            
+
             ws = new WebSocket(wsUrl);
-            
+
             ws.onopen = () => {
-                console.log('WebSocket connected');
-                document.getElementById('status-indicator').className = 'w-3 h-3 bg-green-500 rounded-full mr-2 pulse';
+                document.getElementById('status-indicator').className = 'status-dot bg-emerald-400/80 pulse';
                 document.getElementById('status-text').textContent = 'Connected';
                 clearInterval(reconnectInterval);
             };
-            
+
             ws.onmessage = (event) => {
                 const data = JSON.parse(event.data);
                 updateMetrics(data.metrics);
-                
-                // Handle adapter status with server mode awareness
+
                 if (data.server_mode && data.server_mode.inference_only) {
-                    // Hide adapter section in inference-only mode
-                    document.getElementById('adapter-status-container').style.display = 'none';
-                    document.getElementById('charts-grid').className = 'grid grid-cols-1 lg:grid-cols-3 gap-6';
+                    document.getElementById('adapter-status-container').classList.add('hidden');
+                    document.getElementById('charts-grid').className = 'grid grid-cols-1 gap-6 xl:grid-cols-3';
                 } else if (data.adapters) {
-                    updateAdapterStatus({adapters: data.adapters});
+                    updateAdapterStatus({ adapters: data.adapters });
                 } else {
-                    // No adapters available (not inference-only mode but no adapters configured)
-                    updateAdapterStatus({adapters: {}});
+                    updateAdapterStatus({ adapters: {} });
                 }
-                
+
                 if (data.thread_pools) {
                     updateThreadPools(data.thread_pools);
                 }
             };
-            
+
             ws.onclose = () => {
-                console.log('WebSocket disconnected');
-                document.getElementById('status-indicator').className = 'w-3 h-3 bg-red-500 rounded-full mr-2';
+                document.getElementById('status-indicator').className = 'status-dot bg-rose-500/80';
                 document.getElementById('status-text').textContent = 'Disconnected';
-                
-                // Attempt to reconnect
+
                 clearInterval(reconnectInterval);
                 reconnectInterval = setInterval(() => {
-                    console.log('Attempting to reconnect...');
                     connectWebSocket();
                 }, 5000);
             };
-            
+
             ws.onerror = (error) => {
                 console.error('WebSocket error:', error);
             };
         }
 
-        // Connect on page load
         connectWebSocket();
-        
-        // Clean up on page unload
+
         window.addEventListener('beforeunload', () => {
             if (ws) {
                 ws.close();
@@ -488,6 +712,7 @@ def create_dashboard_router() -> APIRouter:
     </script>
 </body>
 </html>
+
         """
         return dashboard_html
     
