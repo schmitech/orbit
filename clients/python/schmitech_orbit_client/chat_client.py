@@ -464,12 +464,11 @@ def stream_chat(url, message, api_key=None, session_id=None, debug=False, progre
             
             full_response = ""
             buffer = ""
-            response_text = Text("", style=ASSISTANT_STYLE)
-            
-            # Start Live display first
-            live = Live(response_text, console=console, refresh_per_second=30, transient=False)
+
+            # Start Live display first with empty markdown
+            live = Live(Markdown(""), console=console, refresh_per_second=30, transient=False)
             live.start()
-            
+
             try:
                 for line in response.iter_lines():
                     if not line:
@@ -497,7 +496,7 @@ def stream_chat(url, message, api_key=None, session_id=None, debug=False, progre
                             console.print(f"\n❌ Error from server: {error_msg}", style=ERROR_STYLE)
                             return error_msg, None
                         clean_content = clean_response(buffer)
-                        response_text.plain = clean_content
+                        live.update(Markdown(clean_content))
                         full_response = clean_content
                     except Exception as e:
                         if debug:
