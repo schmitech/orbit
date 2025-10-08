@@ -32,7 +32,7 @@ This is a semantic RAG (Retrieval-Augmented Generation) system designed to provi
 
 ## Architecture
 
-The system follows a layered architecture with clear separation of concerns:
+The system follows a layered architecture with clear separation of concerns, built on a unified base class hierarchy that eliminates code duplication across database implementations.
 
 **Note**: The Intent SQL RAG system uses the refactored `IntentSQLRetriever` base classes that inherit from `BaseSQLDatabaseRetriever`, providing unified database operations, environment variable support, and automatic type conversion.
 
@@ -44,17 +44,27 @@ The system follows a layered architecture with clear separation of concerns:
                               │
 ┌─────────────────────────────────────────────────────────────┐
 │                   Orchestration Layer                      │
-│              IntentSQLRetriever (Main System Class)        │
+│              IntentSQLRetriever (Unified Base Class)       │
+│  ├── IntentPostgreSQLRetriever                             │
+│  ├── IntentMySQLRetriever                                  │
+│  └── IntentSQLiteRetriever                                 │
 └─────────────────────────────────────────────────────────────┘
                               │
 ┌─────────────────────────────────────────────────────────────┐
 │                 Semantic Processing Layer                   │
-│  Template Matching, Parameter Extraction, Response Gen     │
+│  DomainParameterExtractor, TemplateReranker,               │
+│  DomainResponseGenerator, TemplateProcessor                │
+└─────────────────────────────────────────────────────────────┘
+                              │
+┌─────────────────────────────────────────────────────────────┐
+│                 Domain Strategy Layer                       │
+│  DomainStrategyRegistry, CustomerOrderStrategy,            │
+│  GenericDomainStrategy, Custom Strategies                  │
 └─────────────────────────────────────────────────────────────┘
                               │
 ┌─────────────────────────────────────────────────────────────┐
 │                   Configuration Layer                      │
-│  IntentAdapter, Domain Configuration, Template Library     │
+│  IntentAdapter, DomainConfig, Template Library             │
 └─────────────────────────────────────────────────────────────┘
                               │
 ┌─────────────────────────────────────────────────────────────┐
@@ -64,19 +74,45 @@ The system follows a layered architecture with clear separation of concerns:
 └─────────────────────────────────────────────────────────────┘
 ```
 
+### Unified Base Class Hierarchy
+
+The system uses a inheritance hierarchy to minimize code duplication:
+
+```
+BaseRetriever
+└── AbstractSQLRetriever
+    └── BaseSQLDatabaseRetriever
+        ├── SQLConnectionMixin
+        ├── SQLTypeConversionMixin
+        └── SQLQueryExecutionMixin
+            └── IntentSQLRetriever (Unified Intent Base)
+                ├── IntentPostgreSQLRetriever
+                ├── IntentMySQLRetriever
+                └── IntentSQLiteRetriever
+```
+
+**Key Benefits:**
+- **Unified Interface**: All intent retrievers share common database operations
+- **Environment Variables**: Full support for `${VAR}` in configurations
+- **Automatic Type Conversion**: Database types converted to Python types
+- **Connection Management**: Built-in retry logic and pooling
+- **Query Monitoring**: Automatic logging of slow queries and large results
+
 ## Core Components
 
 ### 1. Intent Adapter (`intent_adapter.py`)
 
-The foundation of the system's domain-agnostic design. Manages domain configuration and template libraries.
+The foundation of the system's domain-agnostic design. Manages domain configuration and template libraries as a specialized document adapter.
 
 #### Key Classes:
 
-**IntentAdapter**
+**IntentAdapter** (extends `DocumentAdapter`)
 - Central class managing domain configuration and template libraries
 - Loads YAML-based domain definitions and SQL templates
 - Provides template retrieval and domain-specific filtering
 - Supports multiple template library files
+- Formats SQL query results into structured documents
+- Integrates with the global adapter registry
 
 #### Example Usage:
 ```python
@@ -87,7 +123,7 @@ adapter = IntentAdapter(
         "config/templates/basic_queries.yaml",
         "config/templates/analytics.yaml"
     ],
-    confidence_threshold=0.75,
+    confidence_threshold=0.1,
     verbose=True
 )
 
@@ -99,6 +135,9 @@ templates = adapter.get_all_templates()
 
 # Get specific template
 template = adapter.get_template_by_id("find_customer_by_name")
+
+# Format query results
+formatted_doc = adapter.format_document(raw_results, metadata)
 ```
 
 ### 2. Template Library (YAML-based)
@@ -127,91 +166,135 @@ templates:
     approved: true
 ```
 
-### 3. Template Generator (`template_generator.py`)
+### 3. AI-Powered Template Generator (`utils/sql-intent-template/`)
 
-Automatically generates standard query templates from domain configuration.
+Template generation system that uses AI to analyze natural language queries and generate SQL templates.
 
 #### Key Features:
-- **Entity-based Templates**: Creates CRUD operations for each entity
-- **Relationship Templates**: Generates join queries based on relationships
-- **Aggregation Templates**: Creates summary and analytical queries
-- **Filtering Templates**: Generates filtered queries based on entity fields
+- **AI Query Analysis**: Uses LLM to understand query intent and structure
+- **Schema-Aware Generation**: Analyzes database schema to create accurate SQL
+- **Query Grouping**: Groups similar queries to create reusable templates
+- **Semantic Tagging**: Automatically generates semantic tags for better matching
+- **Validation System**: Validates generated templates for correctness
+- **Configuration-Driven**: Highly configurable generation parameters
 
-#### Example Generated Templates:
-```python
-generator = DomainTemplateGenerator(domain)
-library = generator.generate_standard_templates()
+#### Template Generator Components:
 
-# Automatically creates templates like:
-# - find_customer_by_id
-# - list_orders_by_customer
-# - find_orders_by_status
-# - calculate_total_revenue
-# - find_orders_in_date_range
+**TemplateGenerator** (`template_generator.py`)
+- Main class for AI-powered template generation
+- Analyzes natural language queries using LLM
+- Groups similar queries and generates parameterized SQL
+- Supports multiple inference providers (Ollama, OpenAI, etc.)
+
+**Configuration System** (`configs/`)
+- `template_generator_config.yaml`: Generation parameters and settings
+- `config_selector.py`: Dynamic configuration selection
+- Shell scripts for automated generation workflows
+
+#### Example Usage:
+```bash
+# Generate templates from test queries
+python utils/sql-intent-template/template_generator.py \
+    --schema examples/postgres/customer-order.sql \
+    --queries examples/postgres/test/test_queries.md \
+    --output generated_templates.yaml \
+    --provider ollama
+
+# Quick generation with defaults
+./utils/sql-intent-template/quick_generate.sh
+
+# Full generation workflow
+./utils/sql-intent-template/generate_templates.sh
+```
+
+#### Generated Template Structure:
+```yaml
+templates:
+  - id: "find_customer_by_name"
+    description: "Find customer by name"
+    nl_examples:
+      - "Show customer John Smith"
+      - "Find customer named Jane"
+    parameters:
+      - name: "customer_name"
+        type: "string"
+        description: "Customer name to search for"
+        required: true
+    sql: "SELECT * FROM customers WHERE name ILIKE %(customer_name)s"
+    semantic_tags:
+      action: "find"
+      primary_entity: "customer"
+    result_format: "table"
+    version: "1.0.0"
+    approved: false
 ```
 
 ### 4. Domain-Aware Components
 
-#### DomainAwareParameterExtractor
-- Extracts parameters using domain knowledge and patterns
-- Pattern-based extraction for common data types (IDs, emails, dates, etc.)
-- LLM fallback for complex parameter extraction
-- Domain vocabulary integration for better matching
+#### DomainParameterExtractor (`domain/extraction/extractor.py`)
+- Orchestrates parameter extraction using composable services
+- Uses pattern-based extraction for common data types (IDs, emails, dates, etc.)
+- Integrates with domain strategies for specialized extraction
+- Provides LLM fallback for complex parameter extraction
+- Supports semantic type extraction with domain-specific patterns
 
-#### DomainAwareResponseGenerator
+#### DomainResponseGenerator (`domain/response/generator.py`)
 - Generates contextual responses using domain configuration
 - Formats results based on field display rules (currency, dates, etc.)
 - Supports different response strategies (table vs summary)
 - Integrates conversation context for better responses
+- Uses domain strategy priorities for field ordering
 
-#### TemplateReranker
+#### TemplateReranker (`template_reranker.py`)
 - Reranks templates using domain-specific rules and vocabulary
 - Applies domain-specific boosting for better template selection
 - Uses semantic tags and natural language examples for scoring
-- Supports pluggable domain strategies
+- Integrates with domain strategy registry for specialized reranking
+- Supports both generic and domain-specific reranking strategies
 
-### 5. Intent SQL System
+#### TemplateProcessor (`template_processor.py`)
+- Processes and validates templates before execution
+- Handles template parameter validation
+- Manages template metadata and configuration
+- Integrates with domain configuration for processing rules
 
-The intent-based SQL RAG system includes refactored retrievers with unified base classes:
+### 5. Domain Strategy System
 
-**IntentSQLRetriever Hierarchy:**
-```
-BaseSQLDatabaseRetriever
-└── IntentSQLRetriever (unified base class)
-    ├── IntentPostgreSQLRetriever
-    ├── IntentMySQLRetriever
-    └── IntentSQLiteRetriever (potential)
-```
+The system uses a domain strategy architecture for specialized template reranking and parameter extraction:
 
-**Legacy Hierarchy (still exists):**
-```
-BaseRetriever
-└── BaseIntentSQLRetriever (legacy base)
-    └── [Legacy implementations]
-```
+**DomainStrategyRegistry** (`domain_strategies/registry.py`)
+- Manages built-in and custom domain strategies
+- Automatically selects appropriate strategy based on domain name/type
+- Falls back to `GenericDomainStrategy` when no specific strategy found
+- Supports dynamic strategy registration
 
-**Key Benefits:**
-- **Unified Interface**: All intent retrievers share common database operations
-- **Environment Variables**: Full support for ${VAR} in configurations
-- **Automatic Type Conversion**: Database types converted to Python types
-- **Connection Management**: Built-in retry logic and pooling
-- **Query Monitoring**: Automatic logging of slow queries and large results
+**Built-in Strategies:**
+- **CustomerOrderStrategy**: E-commerce and customer order domains
+- **GenericDomainStrategy**: Fallback for all other domains
+
+**Custom Strategy Support:**
+- Register custom strategies for specialized domains
+- Extend `DomainStrategy` base class
+- Implement domain-specific pattern matching and boosting
 
 #### Key Components:
 
-**IntentSQLRetriever**
-- Main system class coordinating all components
-- Manages ChromaDB for semantic search
-- Handles conversation context and history
-- Integrates domain-aware components
+**DomainStrategy** (Abstract Base Class)
+- `get_domain_names()`: Return list of handled domain names
+- `calculate_domain_boost()`: Calculate domain-specific template boosting
+- `get_pattern_matchers()`: Return domain-specific pattern matching functions
+- `extract_domain_parameters()`: Extract domain-specific parameters
+- `get_semantic_extractors()`: Return semantic type extractors
+- `get_summary_field_priority()`: Get field priority for summaries
 
 **Query Processing Flow:**
-1. **Template Matching**: Vector search finds best matching templates
-2. **Reranking**: Domain-specific rules adjust template scores
-3. **Parameter Extraction**: Extract parameters using domain patterns + LLM
-4. **Validation**: Validate parameters against domain rules
-5. **Execution**: Execute SQL query with parameters
-6. **Response Generation**: Generate natural language response
+1. **Domain Strategy Selection**: Registry selects appropriate strategy
+2. **Template Matching**: Vector search finds best matching templates
+3. **Domain Reranking**: Domain-specific rules adjust template scores
+4. **Parameter Extraction**: Extract parameters using domain patterns + LLM
+5. **Validation**: Validate parameters against domain rules
+6. **Execution**: Execute SQL query with parameters
+7. **Response Generation**: Generate natural language response with domain formatting
 
 ### 6. Validation System
 
@@ -246,7 +329,7 @@ A comprehensive validation suite that ensures RAG system responses match actual 
 #### Usage:
 ```bash
 # Basic validation tests
-python3 validate_rag_results.py
+python validate_rag_results.py
 
 # Category-specific testing
 ./run_validation_tests.sh customer
@@ -257,7 +340,7 @@ python3 validate_rag_results.py
 ./run_validation_tests.sh full
 
 # Debug mode
-python3 validate_rag_results.py --debug --custom "Your query here"
+python validate_rag_results.py --debug --custom "Your query here"
 ```
 
 #### Validation Results:
@@ -384,21 +467,25 @@ templates:
 
 ### Step 3: Create Domain-Specific Strategy
 
-Create a domain strategy for specialized reranking:
+Create a domain strategy for specialized reranking and parameter extraction:
 
 ```python
 # domain_strategies/healthcare.py
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from .base import DomainStrategy
 
 class HealthcareDomainStrategy(DomainStrategy):
-    """Healthcare-specific domain strategy for template reranking"""
+    """Healthcare-specific domain strategy for template reranking and parameter extraction"""
     
-    def calculate_domain_boost(self, template_info: Dict, user_query: str, domain_config: Dict) -> float:
+    def get_domain_names(self) -> list:
+        """Return list of domain names this strategy handles"""
+        return ['healthcare', 'medical', 'patient', 'clinical']
+    
+    def calculate_domain_boost(self, template_info: Dict, query: str, domain_config: Dict) -> float:
         """Calculate domain-specific boost for healthcare queries"""
         boost = 0.0
         template = template_info['template']
-        query_lower = user_query.lower()
+        query_lower = query.lower()
         
         # Medical terminology boosting
         medical_terms = ['diagnosis', 'treatment', 'medication', 'symptoms', 'prescription']
@@ -416,9 +503,77 @@ class HealthcareDomainStrategy(DomainStrategy):
             boost += 0.2
         
         return boost
+    
+    def get_pattern_matchers(self) -> Dict[str, Any]:
+        """Return healthcare-specific pattern matching functions"""
+        return {
+            'medical_context': self._is_medical_context,
+            'patient_context': self._is_patient_context,
+            'urgent_context': self._is_urgent_context
+        }
+    
+    def extract_domain_parameters(self, query: str, param: Dict, domain_config: Any) -> Optional[Any]:
+        """Extract healthcare-specific parameters"""
+        param_name = param.get('name', '').lower()
+        
+        # Extract MRN (Medical Record Number)
+        if 'mrn' in param_name or 'medical_record' in param_name:
+            return self._extract_mrn(query)
+        
+        # Extract diagnosis codes
+        if 'diagnosis' in param_name or 'icd' in param_name:
+            return self._extract_diagnosis_code(query)
+        
+        return None
+    
+    def get_semantic_extractors(self) -> Dict[str, callable]:
+        """Return semantic type extractors for healthcare domain"""
+        return {
+            'mrn': self._extract_mrn,
+            'diagnosis_code': self._extract_diagnosis_code,
+            'medication_name': self._extract_medication_name
+        }
+    
+    def get_summary_field_priority(self, field_name: str, field_config: Any) -> int:
+        """Get field priority for healthcare summaries"""
+        healthcare_priorities = {
+            'patient_id': 100,
+            'full_name': 95,
+            'diagnosis': 90,
+            'medication': 85,
+            'visit_date': 80
+        }
+        return healthcare_priorities.get(field_name, 50)
+    
+    def _is_medical_context(self, text: str) -> bool:
+        """Check if text is in medical context"""
+        medical_indicators = ['patient', 'diagnosis', 'treatment', 'medication', 'symptoms']
+        return any(term in text.lower() for term in medical_indicators)
+    
+    def _extract_mrn(self, query: str) -> Optional[str]:
+        """Extract Medical Record Number from query"""
+        import re
+        mrn_pattern = r'MRN\s*[:#-]?\s*([A-Z]?\d{6,8})'
+        match = re.search(mrn_pattern, query, re.IGNORECASE)
+        return match.group(1) if match else None
 ```
 
-### Step 4: Configure the Retriever
+### Step 4: Register the Custom Strategy
+
+Register your custom strategy with the domain strategy registry:
+
+```python
+# In your application initialization
+from retrievers.implementations.intent.domain_strategies.registry import DomainStrategyRegistry
+from retrievers.implementations.intent.domain_strategies.healthcare import HealthcareDomainStrategy
+
+# Register the custom strategy
+DomainStrategyRegistry.register_strategy("healthcare", HealthcareDomainStrategy)
+DomainStrategyRegistry.register_strategy("medical", HealthcareDomainStrategy)
+DomainStrategyRegistry.register_strategy("patient", HealthcareDomainStrategy)
+```
+
+### Step 5: Configure the Retriever
 
 Update your configuration to use the new domain:
 
@@ -434,13 +589,13 @@ datasources:
         - "config/healthcare_templates.yaml"
         - "config/healthcare_analytics.yaml"
       template_collection_name: "healthcare_query_templates"
-      confidence_threshold: 0.75
+      confidence_threshold: 0.1
       max_templates: 5
       chroma_persist: true
       chroma_persist_path: "./chroma_db/healthcare_templates"
 ```
 
-### Step 5: Create Validation Templates
+### Step 6: Create Validation Templates
 
 Create corresponding SQL validation templates:
 
@@ -474,7 +629,7 @@ class HealthcareValidationTemplates:
 
 1. **Install Dependencies**
 ```bash
-pip install -r requirements.txt
+./install/setup.sh --profile development
 ```
 
 2. **Set Up Environment Variables**
@@ -544,10 +699,29 @@ def test_end_to_end_query():
     result = await retriever.get_relevant_context("Find customer John Smith")
     
     assert len(result) > 0
-    assert result[0]['confidence'] > 0.5
+    assert result[0]['confidence'] > 0.1  # Updated threshold
 ```
 
-3. **Template Testing**
+3. **Domain Strategy Tests**
+```python
+def test_custom_domain_strategy():
+    # Test custom domain strategy
+    from retrievers.implementations.intent.domain_strategies.registry import DomainStrategyRegistry
+    from retrievers.implementations.intent.domain_strategies.healthcare import HealthcareDomainStrategy
+    
+    # Register strategy
+    DomainStrategyRegistry.register_strategy("healthcare", HealthcareDomainStrategy)
+    
+    # Test strategy selection
+    strategy = DomainStrategyRegistry.get_strategy("healthcare", None)
+    assert isinstance(strategy, HealthcareDomainStrategy)
+    
+    # Test domain names
+    assert "healthcare" in strategy.get_domain_names()
+    assert "medical" in strategy.get_domain_names()
+```
+
+4. **Template Testing**
 ```python
 def test_template_loading():
     adapter = IntentAdapter(
@@ -617,19 +791,26 @@ CREATE INDEX idx_orders_date ON orders(order_date);
 
 #### IntentAdapter
 ```python
-class IntentAdapter:
-    def __init__(self, domain_config_path: str, template_library_path: str, 
-                 confidence_threshold: float = 0.75, verbose: bool = False)
+class IntentAdapter(DocumentAdapter):
+    def __init__(self, domain_config_path: Optional[str] = None,
+                 template_library_path: Optional[Union[str, List[str]]] = None,
+                 confidence_threshold: float = 0.1, verbose: bool = False,
+                 config: Dict[str, Any] = None, **kwargs)
+    
     def get_domain_config(self) -> Optional[Dict[str, Any]]
     def get_template_library(self) -> Optional[Dict[str, Any]]
     def get_template_by_id(self, template_id: str) -> Optional[Dict[str, Any]]
     def get_all_templates(self) -> List[Dict[str, Any]]
+    def format_document(self, raw_doc: str, metadata: Dict[str, Any]) -> Dict[str, Any]
+    def extract_direct_answer(self, context: List[Dict[str, Any]]) -> Optional[str]
+    def apply_domain_specific_filtering(self, context_items: List[Dict[str, Any]], 
+                                      query: str) -> List[Dict[str, Any]]
 ```
 
 #### IntentSQLRetriever
 ```python
 class IntentSQLRetriever(BaseSQLDatabaseRetriever):
-    def __init__(self, config: Dict[str, Any], domain_adapter=None, connection: Any = None)
+    def __init__(self, config: Dict[str, Any], domain_adapter=None, connection: Any = None, **kwargs)
     
     async def initialize(self) -> None
     async def get_relevant_context(self, query: str, api_key: Optional[str] = None,
@@ -637,19 +818,20 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
     async def close(self) -> None
 ```
 
-#### DomainAwareParameterExtractor
+#### DomainParameterExtractor
 ```python
-class DomainAwareParameterExtractor:
+class DomainParameterExtractor:
     def __init__(self, inference_client, domain_config: Optional[Dict[str, Any]] = None)
     
     async def extract_parameters(self, user_query: str, template: Dict) -> Dict[str, Any]
     def validate_parameters(self, parameters: Dict[str, Any], template: Dict) -> Tuple[bool, List[str]]
+    def _initialize_components(self) -> None
 ```
 
-#### DomainAwareResponseGenerator
+#### DomainResponseGenerator
 ```python
-class DomainAwareResponseGenerator:
-    def __init__(self, inference_client, domain_config: Optional[Dict[str, Any]] = None)
+class DomainResponseGenerator:
+    def __init__(self, domain_config: Any, domain_strategy: Optional[Any] = None)
     
     async def generate_response(self, user_query: str, results: List[Dict], template: Dict, 
                          error: Optional[str] = None, conversation_context: Optional[str] = None) -> str
@@ -658,55 +840,152 @@ class DomainAwareResponseGenerator:
 #### TemplateReranker
 ```python
 class TemplateReranker:
-    def __init__(self, domain_config: Optional[Dict[str, Any]] = None)
+    def __init__(self, domain_config: Any)
     
     def rerank_templates(self, templates: List[Dict], user_query: str) -> List[Dict]
     def explain_ranking(self, templates: List[Dict]) -> str
+```
+
+#### DomainStrategyRegistry
+```python
+class DomainStrategyRegistry:
+    _builtin_strategies = [CustomerOrderStrategy]
+    _custom_strategies: Dict[str, Type[DomainStrategy]] = {}
+    
+    @classmethod
+    def get_strategy(cls, domain_name: Optional[str], domain_config: Optional[Any] = None) -> Optional[DomainStrategy]
+    
+    @classmethod
+    def register_strategy(cls, domain_name: str, strategy_class: Type[DomainStrategy])
+    
+    @classmethod
+    def list_available_domains(cls) -> list
+```
+
+#### DomainStrategy (Abstract Base Class)
+```python
+class DomainStrategy(ABC):
+    @abstractmethod
+    def get_domain_names(self) -> list
+    
+    @abstractmethod
+    def calculate_domain_boost(self, template_info: Dict, query: str, domain_config: Dict) -> float
+    
+    @abstractmethod
+    def get_pattern_matchers(self) -> Dict[str, Any]
+    
+    @abstractmethod
+    def extract_domain_parameters(self, query: str, param: Dict, domain_config: Any) -> Optional[Any]
+    
+    @abstractmethod
+    def get_semantic_extractors(self) -> Dict[str, callable]
+    
+    @abstractmethod
+    def get_summary_field_priority(self, field_name: str, field_config: Any) -> int
 ```
 
 ### Configuration Structure
 
 #### Domain Configuration (YAML)
 ```yaml
-domain_name: "Your Domain"
-description: "Domain description"
+domain_name: "E-Commerce"
+description: "Customer order management system"
+
+# Domain metadata for strategy selection
+domain_type: ecommerce
+semantic_types:
+  order_identifier:
+    description: "Unique identifier for an order"
+    patterns: ["order", "id", "number", "#"]
+    regex_patterns:
+      - 'order\s+(?:number\s+|#\s*|id\s+)?(\d+)'
+      - '#\s*(\d+)'
+      - '\b(\d{4,})\b'
+  customer_identifier:
+    description: "Unique identifier for a customer"
+    patterns: ["customer", "client", "buyer", "user"]
+    regex_patterns:
+      - 'customer\s+(?:number\s+|#\s*|id\s+)?(\d+)'
+  monetary_amount:
+    description: "Currency amounts"
+    patterns: ["amount", "total", "price", "cost", "sum"]
+    regex_patterns:
+      - '\$\s*(\d+(?:,\d{3})*(?:\.\d{2})?)'
+      - '(\d+(?:,\d{3})*(?:\.\d{2})?)\s*(?:dollars?|usd)'
 
 entities:
-  entity_name:
-    entity_type: "PRIMARY"
-    table_name: "table_name"
-    description: "Entity description"
-    primary_key: "id"
-    searchable_fields: ["field1", "field2"]
+  customer:
+    name: customer
+    entity_type: primary
+    table_name: customers
+    description: Customer information
+    primary_key: id
+    display_name_field: name
+    searchable_fields:
+      - name
+      - email
+      - phone
+    common_filters:
+      - city
+      - country
+      - created_at
+    default_sort_field: created_at
+    default_sort_order: DESC
 
 fields:
-  entity_name:
-    field_name:
-      data_type: "STRING"
-      db_column: "column_name"
-      description: "Field description"
+  customer:
+    name:
+      name: name
+      data_type: string
+      db_column: name
+      description: Customer name
       required: true
       searchable: true
-      validation_rules:
-        - type: "pattern"
-          value: "^regex$"
-      aliases: ["alias1", "alias2"]
+      filterable: true
+      sortable: true
+      aliases:
+        - customer name
+        - client name
+        - buyer name
+      # NEW: Semantic metadata
+      semantic_type: person_name
+      summary_priority: 9
+      extraction_hints:
+        look_for_quotes: true
+        capitalization_required: true
+    email:
+      name: email
+      data_type: string
+      db_column: email
+      description: Customer email
+      required: true
+      searchable: true
+      filterable: true
+      sortable: true
+      display_format: email
+      semantic_type: email_address
+      summary_priority: 8
 
 relationships:
-  - name: "relationship_name"
-    from_entity: "entity1"
-    to_entity: "entity2"
+  - name: "customer_orders"
+    from_entity: "customer"
+    to_entity: "order"
     relation_type: "ONE_TO_MANY"
-    from_field: "field1"
-    to_field: "field2"
+    from_field: "id"
+    to_field: "customer_id"
+    description: "Customer has many orders"
 
 vocabulary:
   entity_synonyms:
-    entity: ["synonym1", "synonym2"]
+    customer: ["client", "buyer", "user", "person"]
+    order: ["purchase", "transaction", "sale"]
   action_verbs:
-    find: ["locate", "search", "lookup"]
+    find: ["locate", "search", "lookup", "retrieve", "show"]
+    calculate: ["compute", "total", "sum", "count"]
   time_expressions:
     "recent": "7"
+    "last month": "30"
+    "this quarter": "90"
 ```
 
 #### Template Configuration (YAML)
@@ -760,5 +1039,3 @@ templates:
 3. **Data Validation**: Validate all user inputs
 4. **Audit Logging**: Log all queries and results for audit purposes
 5. **Sensitive Data**: Handle sensitive data appropriately
-
-This comprehensive documentation should enable new developers to understand the system architecture and successfully extend it to new domains. The system's domain-agnostic design makes it highly adaptable while maintaining consistency and best practices across different business contexts.
