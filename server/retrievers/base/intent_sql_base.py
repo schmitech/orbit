@@ -718,7 +718,8 @@ JSON:"""
                 parameters = json.loads(json_match.group())
             
             for param in required_params:
-                if param['name'] not in parameters and 'default' in param:
+                # Apply default if parameter is missing or None
+                if (param['name'] not in parameters or parameters[param['name']] is None) and 'default' in param:
                     parameters[param['name']] = param['default']
             
             if self.verbose:

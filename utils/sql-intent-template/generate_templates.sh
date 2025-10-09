@@ -1,14 +1,190 @@
 #!/bin/bash
-
-# Template Generator Shell Script
-# Run this script from the sql-intent-template directory
+################################################################################
+# SQL Intent Template Generator - Main Execution Script
 #
-# Usage: ./generate_templates.sh [options]
+# DESCRIPTION:
+#     Wrapper script that orchestrates the AI-powered SQL template generation
+#     process. This script handles environment setup, configuration loading,
+#     and execution of the Python template generator.
 #
-# Examples:
-#   ./generate_templates.sh --schema database-schema.sql --queries test_queries.md
-#   ./generate_templates.sh --schema examples/postgres/customer-order.sql --queries examples/postgres/test/test_queries.md
-#   ./generate_templates.sh --help
+#     The generator uses AI (LLM) to:
+#     - Parse SQL database schemas
+#     - Analyze natural language queries
+#     - Generate parameterized SQL templates
+#     - Create domain configuration files
+#     - Infer semantic types from schema
+#     - Support multiple SQL dialects (SQLite, PostgreSQL, MySQL, etc.)
+#
+# USAGE:
+#     ./generate_templates.sh --schema <schema.sql> --queries <queries.md> --domain <config.yaml> [options]
+#
+# REQUIRED ARGUMENTS:
+#     --schema FILE      Path to SQL schema file (CREATE TABLE statements)
+#     --queries FILE     Path to markdown file with test queries
+#     --domain FILE      Path to domain configuration file (with sql_dialect settings)
+#
+# OPTIONAL ARGUMENTS:
+#     --output FILE              Output YAML file path (default: auto-generated with timestamp)
+#     --provider NAME            Override inference provider (default: from config.yaml)
+#     --limit NUMBER             Limit number of queries to process (useful for testing)
+#     --verbose                  Enable verbose output for debugging
+#     --generate-domain          Auto-generate domain configuration from schema
+#     --domain-output FILE       Output path for generated domain config
+#     --domain-name NAME         Name for the domain (e.g., "Contact Management")
+#     --domain-type TYPE         Domain type: general, ecommerce, security, etc.
+#     --help                     Show detailed help message
+#
+# EXAMPLES:
+#
+#     1. Quick Start - Contact Example:
+#        ./run_contact_example.sh
+#
+#     2. Basic Usage:
+#        ./generate_templates.sh \
+#          --schema examples/contact.sql \
+#          --queries examples/contact_test_queries.md \
+#          --domain configs/contact-config.yaml
+#
+#     3. Generate Domain Config Automatically:
+#        ./generate_templates.sh \
+#          --schema examples/contact.sql \
+#          --queries examples/contact_test_queries.md \
+#          --domain configs/contact-config.yaml \
+#          --generate-domain \
+#          --domain-name "Contact Management" \
+#          --domain-type general
+#
+#     4. Limit Queries for Testing:
+#        ./generate_templates.sh \
+#          --schema database.sql \
+#          --queries test_queries.md \
+#          --domain configs/myconfig.yaml \
+#          --limit 5
+#
+#     5. Custom Output Location:
+#        ./generate_templates.sh \
+#          --schema examples/ecommerce.sql \
+#          --queries examples/ecommerce_queries.md \
+#          --domain configs/ecommerce-config.yaml \
+#          --output my-templates.yaml
+#
+#     6. Verbose Mode for Debugging:
+#        ./generate_templates.sh \
+#          --schema database.sql \
+#          --queries queries.md \
+#          --domain config.yaml \
+#          --verbose
+#
+# DOMAIN CONFIGURATION FILES:
+#     Pre-configured domain configs are available in configs/:
+#
+#     - configs/contact-config.yaml            Simple single-table schemas
+#     - configs/classified-data-config.yaml    Security/classified data systems
+#     - configs/ecommerce-config.yaml          E-commerce applications
+#     - configs/financial-config.yaml          Financial/accounting systems
+#     - configs/library-config.yaml            Library management systems
+#
+#     Each config includes sql_dialect settings for target database type.
+#
+# SQL DIALECT SUPPORT:
+#     Set in your domain config file (e.g., configs/contact-config.yaml):
+#
+#     sql_dialect:
+#       type: sqlite        # Options: sqlite, postgres, mysql, mariadb, oracle, sqlserver
+#
+#     The generator automatically uses correct:
+#     - Parameter placeholders (?, %(name)s, %s, :name)
+#     - SQL syntax for target database
+#     - Pagination methods (LIMIT/OFFSET, ROWNUM, etc.)
+#     - Date functions and operators
+#
+#     See SQL_DIALECT_GUIDE.md for complete dialect documentation.
+#
+# WORKFLOW:
+#     1. Loads environment variables from ../../.env
+#     2. Activates Python virtual environment (../../venv)
+#     3. Validates input files exist
+#     4. Determines inference provider from config.yaml
+#     5. Executes template_generator.py with parameters
+#     6. Generates SQL templates YAML file
+#     7. Optionally generates domain configuration file
+#     8. Reports summary with template count
+#
+# REQUIREMENTS:
+#     - Python 3.8+ with virtual environment
+#     - Required Python packages: pyyaml, asyncio, anthropic/openai (for LLM)
+#     - Environment variables in ../../.env (API keys, database config)
+#     - Valid SQL schema file
+#     - Markdown file with natural language queries
+#     - Domain configuration YAML file
+#
+# OUTPUT FILES:
+#     1. SQL Templates (default: <schema>_templates_<timestamp>.yaml)
+#        - Contains parameterized SQL templates
+#        - Natural language examples for each template
+#        - Parameter definitions with types
+#        - Semantic tags for intent matching
+#
+#     2. Domain Configuration (optional: --generate-domain)
+#        - Entity definitions from schema tables
+#        - Field metadata with semantic types
+#        - Relationship detection (foreign keys)
+#        - Vocabulary and action verbs
+#
+# VALIDATION:
+#     After generation, validate output with:
+#
+#     python validate_output.py <domain.yaml> <templates.yaml>
+#
+#     See VALIDATION_TOOLS.md for complete validation workflow.
+#
+# TROUBLESHOOTING:
+#
+#     "Python is required but not installed":
+#     → Activate virtual environment: source ../../venv/bin/activate
+#
+#     "Required Python modules not found":
+#     → Install dependencies: pip install -r ../../requirements.txt
+#
+#     "Config file not found":
+#     → Check paths are relative to utils/sql-intent-template/
+#     → Use --help to see example paths
+#
+#     "Ollama Cloud API key is missing":
+#     → Set OLLAMA_CLOUD_API_KEY in ../../.env
+#     → Or use different provider with --provider option
+#
+#     Environment variables not loading:
+#     → Ensure ../../.env exists with proper format
+#     → Check for syntax errors in .env file
+#
+# ENVIRONMENT VARIABLES:
+#     Required in ../../.env:
+#     - OLLAMA_CLOUD_API_KEY         (for ollama_cloud provider)
+#     - OPENAI_API_KEY               (for openai provider)
+#     - ANTHROPIC_API_KEY            (for anthropic provider)
+#
+#     Optional:
+#     - OLLAMA_BASE_URL              (for local Ollama)
+#     - OLLAMA_INFERENCE_MODEL       (model override)
+#
+# EXIT CODES:
+#     0  - Success (templates generated)
+#     1  - Error (validation failed, generation failed, or missing requirements)
+#
+# SEE ALSO:
+#     - README.md                    Complete usage guide and examples
+#     - template_generator.py        Core Python generator script
+#     - SQL_DIALECT_GUIDE.md         SQL dialect configuration guide
+#     - VALIDATION_TOOLS.md          Validation scripts documentation
+#     - run_contact_example.sh       Quick start example script
+#     - docs/intent-sql-rag-system.md Intent adapter documentation
+#
+# AUTHOR:
+#     SQL Intent Template Generator v1.0.0
+#     Part of the Orbit Intent SQL RAG System
+#
+################################################################################
 
 set -e  # Exit on any error
 

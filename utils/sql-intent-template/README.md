@@ -2,6 +2,22 @@
 
 This tool automatically generates SQL templates for the Intent PostgreSQL retriever by analyzing natural language queries and database schemas using AI.
 
+---
+
+## 📖 New to This Tool?
+
+**→ Start with the [Complete Tutorial](TUTORIAL.md)** - A step-by-step guide from setup to deployment using the contact database example.
+
+The tutorial covers:
+- Prerequisites and environment setup
+- Creating test queries
+- Generating SQL templates with AI
+- Configuring the Intent adapter
+- Testing natural language queries
+- Troubleshooting and validation
+
+---
+
 ## Table of Contents
 
 1. [Quick Start](#quick-start)

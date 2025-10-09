@@ -2,6 +2,32 @@
 
 This directory contains example SQL schemas and test queries for use with the SQL intent template generator. These examples demonstrate different domain patterns and help you get started with template generation.
 
+## 🆕 Template Enrichment Resources
+
+**NEW:** Enhanced resources for generating diverse, high-quality templates!
+
+### Quick Links
+- 📖 **[ENRICHMENT_GUIDE.md](ENRICHMENT_GUIDE.md)** - How to generate 20-25 specific templates instead of 2 generic ones
+- 📊 **[BEFORE_AFTER_COMPARISON.md](BEFORE_AFTER_COMPARISON.md)** - Visual comparison showing 12x improvement
+- ⚡ **[regenerate_contact_templates.sh](regenerate_contact_templates.sh)** - One-command template regeneration
+- 🌱 **[contact_seed_templates.yaml](contact_seed_templates.yaml)** - 24 production-ready templates
+- 📝 **[contact_test_queries_enriched.md](contact_test_queries_enriched.md)** - Categorized queries for better generation
+
+### Quick Start: Get Better Templates Now!
+
+```bash
+# Option 1: Use 24 production-ready templates immediately (RECOMMENDED)
+./regenerate_contact_templates.sh --use-seed
+
+# Option 2: Auto-generate 20-25 diverse templates
+./regenerate_contact_templates.sh --auto-only
+
+# Option 3: Hybrid approach for best quality
+./regenerate_contact_templates.sh --hybrid
+```
+
+**Result:** Go from 2 generic templates to 24 specific templates covering all major query patterns!
+
 ## Available Examples
 
 ### 1. Library Management System

@@ -1,0 +1,645 @@
+generated_at: '2025-10-09T17:48:13'
+generator_version: 1.0.0
+total_templates: 24
+# Seed Templates for Contact Example
+#
+# These templates serve as a starting point and guide for the template generator.
+# They define the expected template categories and structures.
+#
+# Usage: Use these as reference when generating new templates, or merge them
+# with auto-generated templates for a complete library.
+
+templates:
+  # ============================================================================
+  # BASIC RETRIEVAL TEMPLATES
+  # ============================================================================
+
+  - id: list_all_users
+    description: List all users with optional pagination
+    sql_template: |
+      SELECT id, name, email, age, city, created_at
+      FROM users
+      ORDER BY id
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Show me all users"
+      - "List all users"
+      - "Get all users"
+    tags: [basic, list, pagination]
+    result_format: table
+
+  # ============================================================================
+  # SEARCH BY NAME TEMPLATES
+  # ============================================================================
+
+  - id: search_users_by_name_partial
+    description: Search users by partial name match (case-insensitive)
+    sql_template: |
+      SELECT id, name, email, age, city, created_at
+      FROM users
+      WHERE name LIKE '%' || ? || '%'
+      ORDER BY name
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: name_pattern
+        type: string
+        description: Name or partial name to search for
+        required: true
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Find users named John"
+      - "Show me users with name like Smith"
+      - "Search for users named Alice"
+    tags: [search, name, partial_match, text_filter]
+    result_format: table
+
+  # ============================================================================
+  # SEARCH BY EMAIL TEMPLATES
+  # ============================================================================
+
+  - id: find_user_by_exact_email
+    description: Find a specific user by exact email address
+    sql_template: |
+      SELECT id, name, email, age, city, created_at
+      FROM users
+      WHERE email = ?
+      LIMIT 1
+    parameters:
+      - name: email
+        type: string
+        description: Exact email address to search for
+        required: true
+    nl_examples:
+      - "Find user with email john@example.com"
+      - "Who has email jane@example.com?"
+      - "Get user by email alice@example.com"
+    tags: [search, email, exact_match]
+    result_format: table
+
+  - id: filter_users_by_email_domain
+    description: Filter users by email domain
+    sql_template: |
+      SELECT id, name, email, age, city, created_at
+      FROM users
+      WHERE email LIKE '%@' || ? || '%'
+      ORDER BY email
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: domain
+        type: string
+        description: Email domain to filter by (e.g., 'gmail.com')
+        required: true
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Find users with gmail.com email"
+      - "Show me users with example.com domain"
+      - "Get users with company.com emails"
+    tags: [filter, email, domain, partial_match]
+    result_format: table
+
+  # ============================================================================
+  # AGE FILTER TEMPLATES
+  # ============================================================================
+
+  - id: filter_users_by_exact_age
+    description: Filter users by exact age
+    sql_template: |
+      SELECT id, name, email, age, city, created_at
+      FROM users
+      WHERE age = ?
+      ORDER BY name
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: age
+        type: integer
+        description: Exact age to filter by
+        required: true
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Show me users who are 25 years old"
+      - "Find users aged exactly 30"
+      - "Get all 28 year old users"
+    tags: [filter, age, exact_match, numeric_filter]
+    result_format: table
+
+  - id: filter_users_by_age_range
+    description: Filter users by age range (between min and max)
+    sql_template: |
+      SELECT id, name, email, age, city, created_at
+      FROM users
+      WHERE age BETWEEN ? AND ?
+      ORDER BY age, name
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: min_age
+        type: integer
+        description: Minimum age (inclusive)
+        required: true
+      - name: max_age
+        type: integer
+        description: Maximum age (inclusive)
+        required: true
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Show me users between 25 and 35"
+      - "Find users aged 20 to 50"
+      - "Get users over 18 but under 65"
+    tags: [filter, age, range, numeric_filter]
+    result_format: table
+
+  - id: filter_users_older_than
+    description: Filter users older than specified age
+    sql_template: |
+      SELECT id, name, email, age, city, created_at
+      FROM users
+      WHERE age > ?
+      ORDER BY age DESC, name
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: min_age
+        type: integer
+        description: Minimum age (exclusive)
+        required: true
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Show me users over 30"
+      - "Find users older than 40"
+      - "Get users above age 25"
+    tags: [filter, age, comparison, numeric_filter]
+    result_format: table
+
+  - id: filter_users_younger_than
+    description: Filter users younger than specified age
+    sql_template: |
+      SELECT id, name, email, age, city, created_at
+      FROM users
+      WHERE age < ?
+      ORDER BY age ASC, name
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: max_age
+        type: integer
+        description: Maximum age (exclusive)
+        required: true
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Show me users under 25"
+      - "Find users younger than 30"
+      - "Get users below age 40"
+    tags: [filter, age, comparison, numeric_filter]
+    result_format: table
+
+  # ============================================================================
+  # CITY FILTER TEMPLATES
+  # ============================================================================
+
+  - id: filter_users_by_city
+    description: Filter users by exact city name
+    sql_template: |
+      SELECT id, name, email, age, city, created_at
+      FROM users
+      WHERE city = ?
+      ORDER BY name
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: city
+        type: string
+        description: Exact city name to filter by
+        required: true
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Find users from New York"
+      - "Show me users in Los Angeles"
+      - "Get users living in Chicago"
+    tags: [filter, city, exact_match, location]
+    result_format: table
+
+  # ============================================================================
+  # COUNT/AGGREGATION TEMPLATES
+  # ============================================================================
+
+  - id: count_all_users
+    description: Count total number of users
+    sql_template: |
+      SELECT COUNT(*) as total_users
+      FROM users
+    parameters: []
+    nl_examples:
+      - "How many users do we have?"
+      - "Count all users"
+      - "What's the total number of users?"
+    tags: [count, aggregate, total]
+    result_format: summary
+
+  - id: count_users_by_city
+    description: Count users grouped by city
+    sql_template: |
+      SELECT city, COUNT(*) as user_count
+      FROM users
+      GROUP BY city
+      ORDER BY user_count DESC, city
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: limit
+        type: integer
+        description: Maximum number of cities to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of cities to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "How many users per city?"
+      - "Show me user count by city"
+      - "Get user distribution by city"
+    tags: [count, aggregate, group_by, city]
+    result_format: table
+
+  - id: count_users_in_city
+    description: Count users in a specific city
+    sql_template: |
+      SELECT COUNT(*) as user_count
+      FROM users
+      WHERE city = ?
+    parameters:
+      - name: city
+        type: string
+        description: City name to count users in
+        required: true
+    nl_examples:
+      - "How many users are in New York?"
+      - "Count users from Los Angeles"
+      - "How many users in Chicago?"
+    tags: [count, aggregate, filter, city]
+    result_format: summary
+
+  - id: count_users_by_age_range
+    description: Count users within a specific age range
+    sql_template: |
+      SELECT COUNT(*) as user_count
+      FROM users
+      WHERE age BETWEEN ? AND ?
+    parameters:
+      - name: min_age
+        type: integer
+        description: Minimum age (inclusive)
+        required: true
+      - name: max_age
+        type: integer
+        description: Maximum age (inclusive)
+        required: true
+    nl_examples:
+      - "How many users between 25 and 35?"
+      - "Count users aged 20-50"
+      - "How many users in their 30s?"
+    tags: [count, aggregate, filter, age, range]
+    result_format: summary
+
+  - id: average_user_age
+    description: Calculate the average age of all users
+    sql_template: |
+      SELECT AVG(age) as average_age
+      FROM users
+    parameters: []
+    nl_examples:
+      - "What's the average age of users?"
+      - "Get the mean age"
+      - "Calculate average user age"
+    tags: [aggregate, average, statistics, age]
+    result_format: summary
+
+  - id: user_age_statistics
+    description: Get comprehensive age statistics (min, max, average)
+    sql_template: |
+      SELECT
+        MIN(age) as min_age,
+        MAX(age) as max_age,
+        AVG(age) as avg_age,
+        COUNT(*) as total_users
+      FROM users
+    parameters: []
+    nl_examples:
+      - "Show me user statistics"
+      - "Get user age statistics"
+      - "What are the user stats?"
+    tags: [aggregate, statistics, age, summary]
+    result_format: summary
+
+  # ============================================================================
+  # SORTING TEMPLATES
+  # ============================================================================
+
+  - id: list_users_ordered_by_name
+    description: List users sorted alphabetically by name
+    sql_template: |
+      SELECT id, name, email, age, city, created_at
+      FROM users
+      ORDER BY name ASC
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Show me users ordered by name"
+      - "List users alphabetically"
+      - "Get users sorted by name"
+    tags: [list, sort, name, alphabetical]
+    result_format: table
+
+  - id: list_users_ordered_by_age
+    description: List users sorted by age
+    sql_template: |
+      SELECT id, name, email, age, city, created_at
+      FROM users
+      ORDER BY age DESC, name ASC
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Show me users sorted by age"
+      - "List users from oldest to youngest"
+      - "Get users ordered by age"
+    tags: [list, sort, age, descending]
+    result_format: table
+
+  - id: list_users_by_recent
+    description: List users ordered by creation date (newest first)
+    sql_template: |
+      SELECT id, name, email, age, city, created_at
+      FROM users
+      ORDER BY created_at DESC
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Show me recent users"
+      - "Get newest users"
+      - "List users by creation date"
+    tags: [list, sort, recent, created_at, temporal]
+    result_format: table
+
+  # ============================================================================
+  # TOP N / LIMIT TEMPLATES
+  # ============================================================================
+
+  - id: get_oldest_users
+    description: Get the N oldest users
+    sql_template: |
+      SELECT id, name, email, age, city, created_at
+      FROM users
+      ORDER BY age DESC, name ASC
+      LIMIT ?
+    parameters:
+      - name: limit
+        type: integer
+        description: Number of oldest users to return
+        required: false
+        default: 10
+    nl_examples:
+      - "Show me top 10 oldest users"
+      - "Get 5 oldest users"
+      - "Find oldest users"
+    tags: [top_n, sort, age, descending]
+    result_format: table
+
+  - id: get_youngest_users
+    description: Get the N youngest users
+    sql_template: |
+      SELECT id, name, email, age, city, created_at
+      FROM users
+      ORDER BY age ASC, name ASC
+      LIMIT ?
+    parameters:
+      - name: limit
+        type: integer
+        description: Number of youngest users to return
+        required: false
+        default: 10
+    nl_examples:
+      - "Show me top 10 youngest users"
+      - "Find 5 youngest users"
+      - "Get youngest users"
+    tags: [top_n, sort, age, ascending]
+    result_format: table
+
+  # ============================================================================
+  # COMPLEX MULTI-FILTER TEMPLATES
+  # ============================================================================
+
+  - id: filter_users_by_city_and_age_range
+    description: Filter users by city and age range
+    sql_template: |
+      SELECT id, name, email, age, city, created_at
+      FROM users
+      WHERE city = ? AND age BETWEEN ? AND ?
+      ORDER BY age, name
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: city
+        type: string
+        description: City to filter by
+        required: true
+      - name: min_age
+        type: integer
+        description: Minimum age (inclusive)
+        required: true
+      - name: max_age
+        type: integer
+        description: Maximum age (inclusive)
+        required: true
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Find users from New York aged 25-35"
+      - "Show me users in Chicago between 30 and 40"
+      - "Get users from Boston aged 20-50"
+    tags: [filter, multi_filter, city, age, range]
+    result_format: table
+
+  - id: search_users_by_name_and_city
+    description: Search users by name pattern and specific city
+    sql_template: |
+      SELECT id, name, email, age, city, created_at
+      FROM users
+      WHERE name LIKE '%' || ? || '%' AND city = ?
+      ORDER BY name
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: name_pattern
+        type: string
+        description: Name or partial name to search for
+        required: true
+      - name: city
+        type: string
+        description: City to filter by
+        required: true
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Find users named Smith in New York"
+      - "Show me Johns from Chicago"
+      - "Get users with Brown in name from Boston"
+    tags: [search, multi_filter, name, city, partial_match]
+    result_format: table
+
+  # ============================================================================
+  # EXISTENCE CHECK TEMPLATES
+  # ============================================================================
+
+  - id: check_user_exists_by_email
+    description: Check if a user with specific email exists
+    sql_template: |
+      SELECT
+        CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END as exists,
+        COUNT(*) as count
+      FROM users
+      WHERE email = ?
+    parameters:
+      - name: email
+        type: string
+        description: Email address to check
+        required: true
+    nl_examples:
+      - "Does john@example.com exist?"
+      - "Is there a user with email jane@example.com?"
+      - "Check if alice@example.com exists"
+    tags: [exists, check, email, boolean]
+    result_format: summary
+
+  - id: check_user_exists_by_name
+    description: Check if any user with name pattern exists
+    sql_template: |
+      SELECT
+        CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END as exists,
+        COUNT(*) as count
+      FROM users
+      WHERE name LIKE '%' || ? || '%'
+    parameters:
+      - name: name_pattern
+        type: string
+        description: Name or partial name to check
+        required: true
+    nl_examples:
+      - "Is there a user named John?"
+      - "Does a user with Smith in name exist?"
+      - "Are there any Wilsons?"
+    tags: [exists, check, name, partial_match, boolean]
+    result_format: summary

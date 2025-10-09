@@ -1,185 +1,289 @@
-# Contact - Test Queries
+# Contact - Enriched Test Queries
 
-This document provides simple test queries for the contact database schema. This is the most basic example for testing SQL intent template generation.
+This document provides diverse, categorized test queries for the contact database schema.
+Each section targets a specific template type to ensure diverse SQL template generation.
 
-## User Queries
+---
 
-### Basic User Search
-1. "Show me all users"
-2. "Find all users"
-3. "List users"
-4. "Get users"
-5. "Display all users"
-6. "Show me the users table"
-7. "What users do we have?"
-8. "I need all users"
-9. "Give me users"
-10. "Show users"
+## Category 1: Basic List All Users (Simple)
+<!-- Intent: list, Entity: users, Filter: none -->
 
-### Search by Name
-11. "Find user John Doe"
-12. "Show me John Doe"
-13. "Get user John Doe"
-14. "Find Jane Smith"
-15. "Show Jane Smith"
-16. "Get Bob Johnson"
-17. "Find Alice Brown"
-18. "Show Charlie Wilson"
-19. "Get Diana Prince"
-20. "Find Eve Adams"
+Show me all users
+List all users
+Get all users
+Display users
+What users do we have?
 
-### Search by Email
-21. "Find user with email john@example.com"
-22. "Show me user john@example.com"
-23. "Get user by email jane@example.com"
-24. "Find bob@example.com"
-25. "Show alice@example.com"
-26. "Get charlie@example.com"
-27. "Find diana@example.com"
-28. "Show eve@example.com"
-29. "Get frank@example.com"
-30. "Find user by email"
+---
 
-### Search by Age
-31. "Show me users who are 25 years old"
-32. "Find users aged 30"
-33. "Get users who are 35"
-34. "Show me 28 year old users"
-35. "Find users who are 32"
-36. "Get 27 year old users"
-37. "Show me users aged 33"
-38. "Find 29 year old users"
-39. "Get users who are 25"
-40. "Show me users aged 30"
+## Category 2: Search by Name (Text Filter)
+<!-- Intent: search, Entity: users, Filter: name (partial match) -->
 
-### Search by City
-41. "Find users from New York"
-42. "Show me users in Los Angeles"
-43. "Get users from Chicago"
-44. "Find users in Miami"
-45. "Show me users from Boston"
-46. "Get users in Seattle"
-47. "Find users from Denver"
-48. "Show me users in New York"
-49. "Get users from Los Angeles"
-50. "Find users in Chicago"
+Find users named John
+Show me users with name like Smith
+Get users whose name contains "Brown"
+Search for users named Alice
+Find all users with "Wilson" in their name
+Show me users named "Johnson"
+Get users with name matching "Prince"
 
-### Age Range Queries
-51. "Show me users over 30"
-52. "Find users under 30"
-53. "Get users older than 25"
-54. "Show me users younger than 35"
-55. "Find users between 25 and 30"
-56. "Get users aged 25 to 35"
-57. "Show me users over 28"
-58. "Find users under 32"
-59. "Get users between 20 and 40"
-60. "Show me users aged 25-30"
+---
 
-### Recent Users
-61. "Show me recent users"
-62. "Find users created today"
-63. "Get users from this week"
-64. "Show me new users"
-65. "Find latest users"
-66. "Get recent additions"
-67. "Show me users created recently"
-68. "Find newest users"
-69. "Get users added today"
-70. "Show me latest users"
+## Category 3: Search by Exact Email (Exact Match)
+<!-- Intent: find, Entity: users, Filter: email (exact) -->
 
-### Count Queries
-71. "How many users do we have?"
-72. "Count all users"
-73. "How many users are there?"
-74. "Get user count"
-75. "Show me total users"
-76. "What's the user count?"
-77. "Count users"
-78. "How many users in total?"
-79. "Get total user count"
-80. "Show me number of users"
+Find user with email john@example.com
+Show me the user with email jane@example.com
+Get user by email alice@example.com
+Who has email bob@example.com?
+Find the user with email charlie@example.com
 
-### City-based Counts
-81. "How many users are in New York?"
-82. "Count users from Los Angeles"
-83. "How many users in Chicago?"
-84. "Count users from Miami"
-85. "How many users in Boston?"
-86. "Count users from Seattle"
-87. "How many users in Denver?"
-88. "Show me user count by city"
-89. "Count users per city"
-90. "How many users per city?"
+---
 
-### Age-based Counts
-91. "How many users are over 30?"
-92. "Count users under 30"
-93. "How many users aged 25-30?"
-94. "Count users over 25"
-95. "How many users under 35?"
-96. "Count users between 25 and 30"
-97. "How many users aged 30+?"
-98. "Count users younger than 30"
-99. "How many users 25-35?"
-100. "Count users by age group"
+## Category 4: Filter by Single Age (Exact Match)
+<!-- Intent: filter, Entity: users, Filter: age (equals) -->
 
-### Simple Filters
-101. "Show me users named John"
-102. "Find users with 'Smith' in name"
-103. "Get users with 'example.com' email"
-104. "Show me users from cities starting with 'N'"
-105. "Find users with even ages"
-106. "Get users with odd ages"
-107. "Show me users with 'a' in their name"
-108. "Find users with 'e' in email"
-109. "Get users with 'New' in city"
-110. "Show me users with 'doe' in name"
+Show me users who are 25 years old
+Find users aged exactly 30
+Get all 28 year old users
+List users who are 35
+Find users with age 32
 
-### Ordering Queries
-111. "Show me users ordered by name"
-112. "Find users sorted by age"
-113. "Get users ordered by city"
-114. "Show me users by creation date"
-115. "Find users sorted by email"
-116. "Get users ordered by name ascending"
-117. "Show me users by age descending"
-118. "Find users sorted by city alphabetically"
-119. "Get users by newest first"
-120. "Show me users by oldest first"
+---
 
-### Basic Statistics
-121. "What's the average age of users?"
-122. "Show me the oldest user"
-123. "Find the youngest user"
-124. "Get the maximum age"
-125. "Show me the minimum age"
-126. "What's the oldest age?"
-127. "Find the youngest age"
-128. "Get average user age"
-129. "Show me age statistics"
-130. "Find age range of users"
+## Category 5: Filter by Age Range (Comparison)
+<!-- Intent: filter, Entity: users, Filter: age (range) -->
 
-### Simple Existence Checks
-131. "Is there a user named John?"
-132. "Does john@example.com exist?"
-133. "Is there a user from New York?"
-134. "Does a 25 year old user exist?"
-135. "Is there a user with 'Smith' in name?"
-136. "Does a user from Miami exist?"
-137. "Is there a user aged 30?"
-138. "Does alice@example.com exist?"
-139. "Is there a user from Chicago?"
-140. "Does a 35 year old user exist?"
+Show me users over 30
+Find users under 25
+Get users between 25 and 35
+List users older than 40
+Find users younger than 30
+Show me users aged 20 to 50
+Get users over 18 but under 65
 
-### Basic Updates (for testing)
-141. "Update user John's age to 26"
-142. "Change Jane's city to San Francisco"
-143. "Update Bob's email to newemail@example.com"
-144. "Change Alice's age to 29"
-145. "Update Charlie's city to Austin"
-146. "Change Diana's age to 28"
-147. "Update Eve's city to Portland"
-148. "Change Frank's age to 30"
-149. "Update John's city to Boston"
-150. "Change Jane's age to 31"
+---
+
+## Category 6: Filter by City (Exact Match)
+<!-- Intent: filter, Entity: users, Filter: city (exact) -->
+
+Find users from New York
+Show me users in Los Angeles
+Get users living in Chicago
+List users from Miami
+Find all users in Boston
+Show me users from Seattle
+
+---
+
+## Category 7: Count All Users (Aggregation - Total)
+<!-- Intent: count, Entity: users, Aggregation: COUNT(*) -->
+
+How many users do we have?
+Count all users
+What's the total number of users?
+How many users are there?
+Get the user count
+Show me total users
+
+---
+
+## Category 8: Count by City (Aggregation - Group By)
+<!-- Intent: count, Entity: users, Filter: city, Aggregation: COUNT, GroupBy: city -->
+
+How many users are in New York?
+Count users from Los Angeles
+How many users per city?
+Show me user count by city
+Get user distribution by city
+Count users in each city
+
+---
+
+## Category 9: Count by Age Range (Aggregation - Conditional)
+<!-- Intent: count, Entity: users, Filter: age (range), Aggregation: COUNT -->
+
+How many users are over 30?
+Count users under 25
+How many users between 25 and 35?
+Count users older than 40
+How many users under 30?
+Get count of users aged 20-50
+
+---
+
+## Category 10: Recent Users by Date (Time-based Filter)
+<!-- Intent: find, Entity: users, Filter: created_at (recent) -->
+
+Show me recent users
+Find users created today
+Get users from this week
+Show me users created in the last 7 days
+Find users added this month
+Get newest users
+List users created in the last 30 days
+
+---
+
+## Category 11: Order by Name (Sorting)
+<!-- Intent: list, Entity: users, Sort: name -->
+
+Show me users ordered by name
+List users alphabetically
+Get users sorted by name ascending
+Find users in alphabetical order
+Display users by name A-Z
+
+---
+
+## Category 12: Order by Age (Sorting - Numeric)
+<!-- Intent: list, Entity: users, Sort: age -->
+
+Show me users sorted by age
+List users from youngest to oldest
+Get users ordered by age descending
+Find users by age oldest first
+Display users sorted by age
+
+---
+
+## Category 13: Order by Creation Date (Sorting - Temporal)
+<!-- Intent: list, Entity: users, Sort: created_at -->
+
+Show me users by creation date
+List users by newest first
+Get users ordered by when they were added
+Find users by oldest first
+Display users sorted by creation time
+
+---
+
+## Category 14: Average Age (Aggregation - AVG)
+<!-- Intent: calculate, Entity: users, Field: age, Aggregation: AVG -->
+
+What's the average age of users?
+Get the mean age
+Calculate average user age
+Show me average age
+What is the mean age of all users?
+
+---
+
+## Category 15: Min/Max Age (Aggregation - MIN/MAX)
+<!-- Intent: calculate, Entity: users, Field: age, Aggregation: MIN/MAX -->
+
+What's the oldest user age?
+Find the youngest user age
+Get maximum age
+Show me minimum age
+What's the age range?
+
+---
+
+## Category 16: Oldest/Youngest User (Top 1 with Sort)
+<!-- Intent: find, Entity: users, Sort: age, Limit: 1 -->
+
+Show me the oldest user
+Find the youngest user
+Who is the oldest person?
+Get the youngest user
+Display the oldest user record
+
+---
+
+## Category 17: Complex Multi-Filter (AND conditions)
+<!-- Intent: filter, Entity: users, Filter: multiple (AND) -->
+
+Find users from New York who are over 30
+Show me users named John from Chicago
+Get users aged 25-35 living in Boston
+Find users in Miami who are under 40
+List users from Seattle with age over 25
+
+---
+
+## Category 18: Name Partial Match with City (Multi-field)
+<!-- Intent: search, Entity: users, Filter: name (partial) + city (exact) -->
+
+Find users named Smith in New York
+Show me Johns from Chicago
+Get users with "Brown" in name from Boston
+Search for Alice in Los Angeles
+Find all Wilsons from Miami
+
+---
+
+## Category 19: Existence Check (Boolean Result)
+<!-- Intent: exists, Entity: users, Filter: varies -->
+
+Is there a user named John?
+Does john@example.com exist?
+Is there a user from New York?
+Does a 25 year old user exist?
+Are there any users from Chicago?
+
+---
+
+## Category 20: Top N Users (LIMIT with ORDER)
+<!-- Intent: list, Entity: users, Sort: varies, Limit: N -->
+
+Show me top 10 oldest users
+Find 5 youngest users
+Get 10 most recent users
+List top 20 users by name
+Show me first 5 users alphabetically
+
+---
+
+## Category 21: Email Domain Filter (Partial Match)
+<!-- Intent: filter, Entity: users, Filter: email (contains) -->
+
+Find users with gmail.com email
+Show me users with example.com domain
+Get users whose email ends with @company.com
+List users with yahoo.com emails
+Find all users with edu email addresses
+
+---
+
+## Category 22: Age Groups/Buckets (Range Categories)
+<!-- Intent: filter, Entity: users, Filter: age (category) -->
+
+Show me users in their 20s
+Find users in their 30s
+Get users aged 18-25
+List teenage users
+Find senior users over 65
+
+---
+
+## Category 23: City Starting With (Pattern Match)
+<!-- Intent: filter, Entity: users, Filter: city (pattern) -->
+
+Find users from cities starting with "New"
+Show me users in cities beginning with "San"
+Get users from cities starting with "Los"
+List users in cities that start with "Chicago"
+
+---
+
+## Category 24: Users with Email (NULL check)
+<!-- Intent: filter, Entity: users, Filter: email (not null) -->
+
+Show me users who have an email
+Find users with email addresses
+Get users where email is not empty
+List users with valid emails
+
+---
+
+## Category 25: Statistics Summary (Multiple Aggregations)
+<!-- Intent: analyze, Entity: users, Aggregation: COUNT, AVG, MIN, MAX -->
+
+Show me user statistics
+Get user demographics summary
+What are the user stats?
+Analyze user data
+Give me user overview
+
+---

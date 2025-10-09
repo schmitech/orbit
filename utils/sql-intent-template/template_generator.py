@@ -624,8 +624,8 @@ Response format:
             "name": "param_name",
             "type": "string|integer|date|decimal",
             "description": "Parameter description",
-            "required": true,
-            "default": null
+            "required": false,
+            "default": <actual_value_NOT_null>
         }}
     ],
     "nl_examples": [
@@ -634,6 +634,22 @@ Response format:
     ],
     "result_format": "table|summary"
 }}
+
+CRITICAL REQUIREMENT - Parameter Defaults:
+- Parameters MUST have actual default values, NEVER use null
+- For pagination: {{"name": "limit", "type": "integer", "default": 100, "required": false}}
+- For pagination: {{"name": "offset", "type": "integer", "default": 0, "required": false}}
+- For text search: {{"default": "", "required": false}} OR {{"required": true}} (no default)
+- For numeric filters: provide sensible default OR make required=true
+- For booleans: {{"default": false}} or {{"default": true}}
+- For dates: {{"default": ""}} OR {{"required": true}}
+
+Example CORRECT parameters:
+[
+    {{"name": "limit", "type": "integer", "description": "Max records", "required": false, "default": 100}},
+    {{"name": "offset", "type": "integer", "description": "Skip records", "required": false, "default": 0}},
+    {{"name": "search_term", "type": "string", "description": "Search text", "required": true}}
+]
 
 JSON Response:"""
 
@@ -665,7 +681,10 @@ JSON Response:"""
                 if analysis.get('aggregations'):
                     tags.extend(analysis['aggregations'])
                 template['tags'] = [t for t in tags if t]
-                
+
+                # Post-process: Fix any null defaults in parameters
+                self._fix_parameter_defaults(template)
+
                 return template
             else:
                 logger.error(f"No JSON found in SQL template response for query: {query}")
@@ -673,7 +692,90 @@ JSON Response:"""
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse SQL template JSON for query: {query}, error: {e}")
             return None
-    
+
+    def _fix_parameter_defaults(self, template: Dict[str, Any]) -> None:
+        """Fix null defaults in template parameters.
+
+        This post-processing method ensures no parameters have null defaults,
+        which can cause binding errors in SQLite and other databases.
+
+        Args:
+            template: Template dictionary to fix (modified in place)
+        """
+        if 'parameters' not in template or not template['parameters']:
+            return
+
+        fixed_count = 0
+        for param in template['parameters']:
+            if 'default' not in param:
+                continue
+
+            # Skip if already has a non-null default
+            if param['default'] is not None:
+                continue
+
+            # Fix based on parameter type and name
+            param_name = param.get('name', '').lower()
+            param_type = param.get('type', 'string').lower()
+
+            # Common pagination parameters
+            if param_name == 'limit':
+                param['default'] = 100
+                fixed_count += 1
+                logger.debug(f"Fixed null default for 'limit' parameter -> 100")
+            elif param_name == 'offset':
+                param['default'] = 0
+                fixed_count += 1
+                logger.debug(f"Fixed null default for 'offset' parameter -> 0")
+
+            # Type-based defaults
+            elif param_type == 'integer':
+                # For integer types, either make required or provide sensible default
+                if 'max' in param_name or 'limit' in param_name:
+                    param['default'] = 100
+                elif 'min' in param_name or 'offset' in param_name or 'skip' in param_name:
+                    param['default'] = 0
+                else:
+                    # For other integers, make them required instead of providing arbitrary default
+                    param['required'] = True
+                    del param['default']
+                fixed_count += 1
+                logger.debug(f"Fixed null default for integer parameter '{param_name}'")
+
+            elif param_type == 'string' or param_type == 'text':
+                # For string types, use empty string or make required
+                if 'search' in param_name or 'term' in param_name or 'query' in param_name:
+                    # Search terms should typically be required
+                    param['required'] = True
+                    del param['default']
+                else:
+                    # Other strings can default to empty
+                    param['default'] = ""
+                fixed_count += 1
+                logger.debug(f"Fixed null default for string parameter '{param_name}'")
+
+            elif param_type == 'boolean' or param_type == 'bool':
+                param['default'] = False
+                fixed_count += 1
+                logger.debug(f"Fixed null default for boolean parameter '{param_name}' -> False")
+
+            elif param_type == 'date' or param_type == 'datetime' or param_type == 'timestamp':
+                # Date parameters are usually filters, so make them required
+                param['required'] = True
+                del param['default']
+                fixed_count += 1
+                logger.debug(f"Fixed null default for date parameter '{param_name}' -> required")
+
+            elif param_type == 'decimal' or param_type == 'float' or param_type == 'numeric':
+                # Numeric filters should usually be required
+                param['required'] = True
+                del param['default']
+                fixed_count += 1
+                logger.debug(f"Fixed null default for numeric parameter '{param_name}' -> required")
+
+        if fixed_count > 0:
+            logger.info(f"Fixed {fixed_count} null default(s) in template '{template.get('id', 'unknown')}'")
+
     def group_similar_queries(self, queries: List[str], analyses: List[Dict[str, Any]]) -> Dict[str, List[Tuple[str, Dict]]]:
         """Group similar queries that can use the same template
         

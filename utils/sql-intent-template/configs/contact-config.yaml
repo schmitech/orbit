@@ -18,10 +18,11 @@ sql_dialect:
 # Generation settings
 generation:
   # Maximum number of examples per template
-  max_examples_per_template: 8
-  
-  # Lower similarity threshold for simple domain
-  similarity_threshold: 0.7
+  max_examples_per_template: 5
+
+  # VERY LOW similarity threshold to create diverse, specific templates
+  # Lower value = more templates with finer distinctions
+  similarity_threshold: 0.3
   
   # Default values for new templates
   defaults:
@@ -127,14 +128,17 @@ grouping:
     - search_field
     - filter_type
     - sort_order
-  
-  # Weight for each feature (simple-focused weighting)
+    - aggregations
+
+  # Weight for each feature (diversified weighting for better template variety)
+  # Higher weights on differentiating features to create more specific templates
   feature_weights:
-    intent: 0.3
-    primary_entity: 0.3
-    search_field: 0.2
-    filter_type: 0.15
-    sort_order: 0.05
+    intent: 0.25              # Lower weight - most queries have "find"
+    primary_entity: 0.10      # Lower weight - all queries use "users"
+    search_field: 0.25        # Higher weight - name vs email vs age vs city matters!
+    filter_type: 0.25         # Higher weight - exact vs partial vs range matters!
+    sort_order: 0.10          # Medium weight - sorting is important
+    aggregations: 0.05        # Low weight - only for count/stats queries
 
 # Output formatting
 output:
