@@ -39,6 +39,12 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
         # Get intent-specific configuration from standardized key
         self.intent_config = config.get('adapter_config', {})
         
+        # Store configuration for vector store
+        self.store_name = self.intent_config.get('store_name')
+        if not self.store_name:
+            raise ValueError("store_name is required in adapter configuration. Please specify a store from stores.yaml")
+        self.store_manager = None
+        
         # Create IntentAdapter if not provided
         if not domain_adapter:
             domain_adapter = IntentAdapter(
@@ -72,6 +78,37 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
         self.response_generator = None
         self.template_reranker = None
         self.template_processor: Optional[TemplateProcessor] = None
+    
+    def _get_store_config(self) -> Dict[str, Any]:
+        """Get store configuration from stores.yaml based on store_name."""
+        if not self.store_manager or not self.store_manager._config:
+            raise ValueError(f"Store manager not initialized. Cannot retrieve store configuration for '{self.store_name}'")
+
+        # Get vector stores configuration
+        vector_stores = self.store_manager._config.get('vector_stores', {})
+
+        # Find the store configuration
+        if self.store_name not in vector_stores:
+            raise ValueError(f"Store '{self.store_name}' not found in stores.yaml configuration")
+
+        store_config = vector_stores[self.store_name]
+        if not store_config.get('enabled', True):
+            raise ValueError(f"Store '{self.store_name}' is disabled in stores.yaml configuration")
+
+        # Get connection params and other settings directly from store config
+        connection_params = store_config.get('connection_params', {}).copy()
+
+        # Add collection name to connection params
+        connection_params['collection_name'] = self.template_collection_name
+
+        return {
+            'type': self.store_name,
+            'connection_params': connection_params,
+            'pool_size': store_config.get('pool_size', 5),
+            'timeout': store_config.get('timeout', 30),
+            'ephemeral': connection_params.get('ephemeral', False),
+            'auto_cleanup': store_config.get('auto_cleanup', True)
+        }
     
     async def initialize(self) -> None:
         """Initialize intent-specific features and database connection."""
@@ -183,41 +220,43 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
         await self.inference_client.initialize()
     
     async def _initialize_vector_store(self):
-        """Initialize vector store for template storage using the new store system."""
+        """Initialize vector store for template storage using the StoreManager."""
         try:
             # Import store components
+            from vector_stores.base.store_manager import StoreManager
             from vector_stores.services.template_embedding_store import TemplateEmbeddingStore
             
-            # Initialize template embedding store directly (without StoreManager)
-            vector_config = self.intent_config.get('vector_store', {})
+            # Initialize store manager if not already available
+            if not self.store_manager:
+                self.store_manager = StoreManager()
+                # Load configuration from the main config
+                if hasattr(self.config, 'get') and self.config.get('stores'):
+                    # If stores config is in main config, use it
+                    self.store_manager._config = self.config.get('stores', {})
+                else:
+                    # Try to load from stores.yaml file
+                    import yaml
+                    from pathlib import Path
+                    stores_config_path = Path('config/stores.yaml')
+                    if stores_config_path.exists():
+                        with open(stores_config_path, 'r') as f:
+                            self.store_manager._config = yaml.safe_load(f)
+                    else:
+                        raise ValueError("stores.yaml configuration file not found and no stores config in main config")
             
-            # Set default configuration if not provided
-            persist_path = self.intent_config.get('chroma_persist_path', './chroma_db/intent_templates')
-            is_persistent = self.intent_config.get('chroma_persist', True)  # Default to True for persistence
-            
-            if not vector_config:
-                vector_config = {
-                    'type': 'chroma',
-                    'persist_directory': persist_path if is_persistent else None,
-                    'collection_name': self.template_collection_name,
-                    'ephemeral': not is_persistent
-                }
-            else:
-                # Ensure persistence settings are applied from intent_config
-                if 'persist_directory' not in vector_config:
-                    vector_config['persist_directory'] = persist_path if is_persistent else None
-                if 'ephemeral' not in vector_config:
-                    vector_config['ephemeral'] = not is_persistent
+            # Get store configuration from stores.yaml
+            store_config = self._get_store_config()
             
             if self.verbose:
-                logger.info(f"Vector store config - persist_directory: {vector_config.get('persist_directory')}, ephemeral: {vector_config.get('ephemeral')}")
+                logger.info(f"Using store '{self.store_name}' with type '{store_config.get('type', 'chroma')}'")
             
-            # Create template embedding store
+            # Create template embedding store with store manager
             self.template_store = TemplateEmbeddingStore(
-                store_name='intent_templates',
-                store_type=vector_config.get('type', 'chroma'),
+                store_name=f'intent_templates_{self.store_name}',
+                store_type=store_config.get('type', 'chroma'),
                 collection_name=self.template_collection_name,
-                config=vector_config
+                config=store_config.get('connection_params', {}),
+                store_manager=self.store_manager
             )
             
             # Initialize the template store
@@ -266,14 +305,11 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
             logger.info(f"Initialized vector store for template collection: {self.template_collection_name}")
             
         except ImportError as e:
-            logger.warning(f"Vector store system not available, falling back to basic operation: {e}")
-            # System will work without vector store, just without similarity search
-            self.template_store = None
+            logger.error(f"Vector store system not available: {e}")
+            raise Exception(f"Intent adapter requires vector store support. Install required dependencies.") from e
         except Exception as e:
             logger.error(f"Error initializing vector store: {e}")
-            # Continue without vector store - system can still work with exact matching
-            logger.warning("Intent retriever will operate without vector store support")
-            self.template_store = None
+            raise Exception(f"Intent adapter requires a properly configured vector store. Failed to initialize store '{self.store_name}'.") from e
     
     async def _load_templates(self):
         """Load SQL templates from the adapter into vector store."""
@@ -310,7 +346,8 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
             if not force_reload and not reload_on_start and not dimension_changed:
                 # Check if templates already exist
                 try:
-                    existing_count = await self.template_store.get_template_count()
+                    stats = await self.template_store.get_statistics()
+                    existing_count = stats.get('total_templates', 0)
                     if existing_count > 0:
                         logger.info(f"Found {existing_count} existing templates, skipping reload")
                         return

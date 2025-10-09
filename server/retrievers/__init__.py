@@ -29,6 +29,19 @@ try:
         QAChromaRetriever,
         QASSQLRetriever
     )
+
+    # Import optional QA retrievers
+    try:
+        from .implementations.qa import QAQdrantRetriever
+    except ImportError:
+        QAQdrantRetriever = None
+        logger.debug("QAQdrantRetriever not available")
+
+    try:
+        from .implementations.qa import QAPineconeRetriever
+    except ImportError:
+        QAPineconeRetriever = None
+        logger.debug("QAPineconeRetriever not available")
     
     # Import Intent specialization
     from .implementations.intent import IntentPostgreSQLRetriever
@@ -58,7 +71,7 @@ __all__ = [
     'DocumentAdapterFactory',
     # Vector implementations
     'ChromaRetriever',
-    'MilvusRetriever', 
+    'MilvusRetriever',
     'PineconeRetriever',
     'ElasticsearchRetriever',
     'RedisRetriever',
@@ -72,6 +85,13 @@ __all__ = [
     # Intent specialization
     'IntentPostgreSQLRetriever'
 ]
+
+# Add optional QA retrievers if available
+if 'QAQdrantRetriever' in locals() and QAQdrantRetriever is not None:
+    __all__.append('QAQdrantRetriever')
+
+if 'QAPineconeRetriever' in locals() and QAPineconeRetriever is not None:
+    __all__.append('QAPineconeRetriever')
 
 # Import implementations to register them
 # from .implementations import QAChromaRetriever

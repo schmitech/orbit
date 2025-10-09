@@ -146,13 +146,21 @@ class DynamicAdapterManager:
             inference_provider = adapter_config.get('inference_provider') or self.config.get('general', {}).get('inference_provider', 'default')
             model_override = adapter_config.get('model')
 
+            # Check if this is an intent adapter and get store info
+            adapter_type = adapter_config.get('adapter')
+            store_info = ""
+            if adapter_type == 'intent':
+                store_name = adapter_config.get('config', {}).get('store_name')
+                if store_name:
+                    store_info = f", store: {store_name}"
+
             if model_override:
                 self.logger.info(
-                    f"Successfully loaded adapter '{adapter_name}' with provider '{inference_provider}' and model '{model_override}'"
+                    f"Successfully loaded adapter '{adapter_name}' with provider '{inference_provider}' and model '{model_override}'{store_info}"
                 )
             else:
                 self.logger.info(
-                    f"Successfully loaded adapter '{adapter_name}' with provider '{inference_provider}' (using default model)"
+                    f"Successfully loaded adapter '{adapter_name}' with provider '{inference_provider}' (using default model){store_info}"
                 )
             return adapter
             
@@ -289,6 +297,10 @@ class DynamicAdapterManager:
             config_with_adapter = copy.deepcopy(self.config)
             # Pass adapter config in the standardized key for all retrievers
             config_with_adapter['adapter_config'] = adapter_config_params
+            
+            # For intent adapters, include stores configuration
+            if domain_adapter_name == 'intent' and 'stores' in self.config:
+                config_with_adapter['stores'] = self.config['stores']
             
             # Include adapter-level inference provider override if specified
             if 'inference_provider' in adapter_config:
@@ -444,10 +456,18 @@ class DynamicAdapterManager:
                 inference_provider = adapter_config.get('inference_provider') or self.config.get('general', {}).get('inference_provider', 'default')
                 model_override = adapter_config.get('model')
 
+                # Check if this is an intent adapter and get store info
+                adapter_type = adapter_config.get('adapter')
+                store_info = ""
+                if adapter_type == 'intent':
+                    store_name = adapter_config.get('config', {}).get('store_name')
+                    if store_name:
+                        store_info = f", store: {store_name}"
+
                 if model_override:
-                    message = f"Preloaded successfully (provider: {inference_provider}, model: {model_override})"
+                    message = f"Preloaded successfully (provider: {inference_provider}, model: {model_override}{store_info})"
                 else:
-                    message = f"Preloaded successfully (provider: {inference_provider}, using default model)"
+                    message = f"Preloaded successfully (provider: {inference_provider}, using default model{store_info})"
 
                 return {
                     "adapter_name": adapter_name,

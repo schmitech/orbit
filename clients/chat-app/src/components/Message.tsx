@@ -126,30 +126,32 @@ export function Message({ message, onRegenerate }: MessageProps) {
               </button>
             )}
 
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => handleFeedback('up')}
-                className={`p-1.5 rounded-lg transition ${
-                  feedback === 'up'
-                    ? 'text-emerald-600 bg-emerald-50 dark:text-emerald-300 dark:bg-emerald-500/10'
-                    : 'hover:bg-emerald-50 dark:hover:bg-emerald-500/10'
-                }`}
-                title="Good response"
-              >
-                <ThumbsUp className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => handleFeedback('down')}
-                className={`p-1.5 rounded-lg transition ${
-                  feedback === 'down'
-                    ? 'text-rose-600 bg-rose-50 dark:text-rose-300 dark:bg-rose-500/10'
-                    : 'hover:bg-rose-50 dark:hover:bg-rose-500/10'
-                }`}
-                title="Poor response"
-              >
-                <ThumbsDown className="w-4 h-4" />
-              </button>
-            </div>
+            {import.meta.env.VITE_ENABLE_FEEDBACK_BUTTONS !== 'false' && (
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => handleFeedback('up')}
+                  className={`p-1.5 rounded-lg transition ${
+                    feedback === 'up'
+                      ? 'text-emerald-600 bg-emerald-50 dark:text-emerald-300 dark:bg-emerald-500/10'
+                      : 'hover:bg-emerald-50 dark:hover:bg-emerald-500/10'
+                  }`}
+                  title="Good response"
+                >
+                  <ThumbsUp className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => handleFeedback('down')}
+                  className={`p-1.5 rounded-lg transition ${
+                    feedback === 'down'
+                      ? 'text-rose-600 bg-rose-50 dark:text-rose-300 dark:bg-rose-500/10'
+                      : 'hover:bg-rose-50 dark:hover:bg-rose-500/10'
+                  }`}
+                  title="Poor response"
+                >
+                  <ThumbsDown className="w-4 h-4" />
+                </button>
+              </div>
+            )}
 
             {copied && (
               <span className="text-xs text-emerald-600 dark:text-emerald-300">

@@ -7,7 +7,7 @@ semantic_types:
   classification_level:
     description: "Security classification level"
     patterns: ["classification", "classified", "level", "clearance"]
-    enum_values: ["UNCLASSIFIED", "PROTECTED A", "PROTECTED B", "PROTECTED C", "CONFIDENTIAL", "SECRET", "TOP SECRET", "NATO SECRET"]
+    enum_values: ["UNCLASSIFIED", "PROTECTED A", "PROTECTED B", "PROTECTED C", "CONFIDENTIAL", "SECRET", "TOP SECRET"]
   user_identifier:
     description: "User email identifier"
     patterns: ["user", "email", "subject"]
@@ -215,7 +215,6 @@ fields:
         - CONFIDENTIAL
         - SECRET
         - TOP SECRET
-        - NATO SECRET
     caveats:
       name: caveats
       data_type: string
@@ -401,7 +400,6 @@ fields:
         - CONFIDENTIAL
         - SECRET
         - TOP SECRET
-        - NATO SECRET
     subject_attrs_json:
       name: subject_attrs_json
       data_type: string
@@ -525,7 +523,6 @@ fields:
         - CONFIDENTIAL
         - SECRET
         - TOP SECRET
-        - NATO SECRET
     citizenship:
       name: citizenship
       data_type: string
@@ -701,7 +698,6 @@ fields:
         - CONFIDENTIAL
         - SECRET
         - TOP SECRET
-        - NATO SECRET
     is_active:
       name: is_active
       data_type: integer

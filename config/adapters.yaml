@@ -8,20 +8,20 @@ adapters:
     datasource: "none"  # No actual datasource needed
     adapter: "conversational"
     implementation: "implementations.passthrough.conversational.ConversationalImplementation"
-    inference_provider: "ollama_cloud"  # Override default
-    model: "gpt-oss:120b"  # Specific model for this adapter
+    # inference_provider: "ollama"  # Override default
+    # model: "gpt-oss:20b"  # Specific model for this adapter
 
   # This is an example of a QA adapter for a SQL database.
   # It is used as an example of how to create a QA adapter for a SQL database.
   # Run /examples/sample-db-setup.sh sqlite to create a sample database and api key before using this adapter.
   - name: "qa-sql"
-    enabled: true
+    enabled: false
     type: "retriever"
     datasource: "sqlite"
     adapter: "qa"
     implementation: "retrievers.implementations.qa.QASSQLRetriever"
-    # inference_provider: "ollama" # Optional: Override the default inference provider in config.yaml
-    model: "gpt-oss:120b"
+    # inference_provider: "ollama"
+    # model: "gpt-oss:20b"
     config:
       # QA-specific settings
       confidence_threshold: 0.3
@@ -66,12 +66,12 @@ adapters:
   # This is an example of a QA adapter for a ChromaDB database. (Disabled by default)
   # It is used as an example of how to create a QA adapter for a ChromaDB database.
   - name: "qa-vector-chroma"
-    enabled: true
+    enabled: false
     type: "retriever"
     datasource: "chroma"
     adapter: "qa"
     implementation: "retrievers.implementations.qa.QAChromaRetriever"
-    # inference_provider: "ollama_cloud"
+    # inference_provider: "ollama"
     # embedding_provider: "ollama"
     config:
       collection: "city"
@@ -83,7 +83,7 @@ adapters:
       timezone: "America/Toronto"
 
   - name: "qa-vector-qdrant-demo"
-    enabled: true
+    enabled: false
     type: "retriever"
     datasource: "qdrant"
     adapter: "qa"
@@ -100,23 +100,26 @@ adapters:
       timezone: "America/Toronto"
 
   - name: "intent-sql-postgres"
-    enabled: true
+    enabled: false
     type: "retriever"
     datasource: "postgres"
     adapter: "intent"
     implementation: "retrievers.implementations.intent.IntentPostgreSQLRetriever"
-    inference_provider: "cohere"
-    embedding_provider: "openai"
+    # inference_provider: "ollama"
+    # model: "xai"
+    embedding_provider: "ollama"
     config:
       # Path to the domain definition file
       domain_config_path: "config/sql_intent_templates/examples/customer-orders/customer_order_domain.yaml"
-      template_library_path: 
+      template_library_path:
         - "config/sql_intent_templates/examples/customer-orders/postgres_customer_orders.yaml"
         - "config/sql_intent_templates/examples/customer-orders/business_intelligence_templates.yaml"
         - "config/sql_intent_templates/examples/customer-orders/advanced_analytics_templates.yaml"
         - "config/sql_intent_templates/examples/customer-orders/comparative_analysis_templates.yaml"
       # Name for the vector store collection for templates
       template_collection_name: "intent_query_templates"
+      # Store configuration - references stores.yaml
+      store_name: "chroma"
       confidence_threshold: 0.4
       # Embedding provider for template matching (null = use default)
       embedding_provider: null
@@ -124,29 +127,27 @@ adapters:
       max_templates: 5
       # Return top N results
       return_results: 10
-      # ChromaDB persistence settings
-      chroma_persist: true  # Set to true to persist embeddings between runs
-      chroma_persist_path: "./chroma_db/intent_templates"  # Path for persistent storage
-      reload_templates_on_start: false  # Whether to reload templates on startup (when using persistent storage)
-      force_reload_templates: false  # Force reload even if templates exist in persistent storage
-      
+      # Template loading settings
+      reload_templates_on_start: false  # Whether to reload templates on startup
+      force_reload_templates: false  # Force reload even if templates exist in storage
+
       # Unified retriever features
       use_connection_pool: true  # Enable connection pooling
       pool_size: 5  # Connection pool size
       connection_timeout: 30  # Connection timeout in seconds
-      
+
       # Query monitoring (automatically provided by new base)
       enable_query_monitoring: true
       query_timeout: 5000  # 5 seconds
 
   - name: "intent-sql-sqlite-classified"
-    enabled: false
+    enabled: true
     type: "retriever"
     datasource: "sqlite"
     adapter: "intent"
     implementation: "retrievers.implementations.intent.IntentSQLiteRetriever"
-    inference_provider: "ollama_cloud"
-    embedding_provider: "openai"
+    # inference_provider: "vllm"
+    # embedding_provider: "ollama"
     config:
       # SQLite database path is configured in datasources.yaml
       check_same_thread: false  # Allow multi-threaded access
@@ -158,6 +159,8 @@ adapters:
 
       # Name for the vector store collection for templates
       template_collection_name: "classified_intent_templates"
+      # Store configuration - references stores.yaml
+      store_name: "chroma"
       confidence_threshold: 0.4
 
       # Embedding provider for template matching (null = use default)
@@ -169,11 +172,9 @@ adapters:
       # Return top N results
       return_results: 10
 
-      # ChromaDB persistence settings
-      chroma_persist: true  # Set to true to persist embeddings between runs
-      chroma_persist_path: "./chroma_db/classified_intent_templates"  # Path for persistent storage
+      # Template loading settings
       reload_templates_on_start: false  # Whether to reload templates on startup
-      force_reload_templates: false  # Force reload even if templates exist in persistent storage
+      force_reload_templates: false  # Force reload even if templates exist in storage
 
       # Unified retriever features
       use_connection_pool: false  # SQLite doesn't support traditional pooling (file-based)

@@ -62,7 +62,7 @@ templates:
         aliases: ["level", "clearance"]
     sql_template: |
       SELECT * FROM knowledge_item
-      WHERE classification = %(classification)s
+      WHERE classification = :classification
       ORDER BY created_at DESC
     result_format: "table"
     tags: ["knowledge_item", "classification", "level"]
@@ -109,8 +109,8 @@ templates:
         aliases: ["keyword", "term", "text"]
     sql_template: |
       SELECT * FROM knowledge_item
-      WHERE title LIKE '%' || %(search_term)s || '%'
-         OR content LIKE '%' || %(search_term)s || '%'
+      WHERE title LIKE '%' || :search_term || '%'
+         OR content LIKE '%' || :search_term || '%'
       ORDER BY created_at DESC
     result_format: "table"
     tags: ["knowledge_item", "search", "content", "title"]
@@ -157,7 +157,7 @@ templates:
         aliases: ["project", "operation", "op"]
     sql_template: |
       SELECT * FROM knowledge_item
-      WHERE compartments LIKE '%' || %(compartment)s || '%'
+      WHERE compartments LIKE '%' || :compartment || '%'
       ORDER BY created_at DESC
     result_format: "table"
     tags: ["knowledge_item", "compartment", "access"]
@@ -295,7 +295,7 @@ templates:
         aliases: ["day_count", "num_days"]
     sql_template: |
       SELECT * FROM knowledge_item
-      WHERE created_at >= datetime('now', '-' || %(days)s || ' days')
+      WHERE created_at >= datetime('now', '-' || :days || ' days')
       ORDER BY created_at DESC
     result_format: "table"
     tags: ["knowledge_item", "date", "recent", "days"]
@@ -334,7 +334,7 @@ templates:
     sql_template: |
       SELECT * FROM knowledge_item
       WHERE declass_on IS NOT NULL
-        AND declass_on <= date('now', '+' || COALESCE(%(days)s, 30) || ' days')
+        AND declass_on <= date('now', '+' || COALESCE(:days, 30) || ' days')
         AND declass_on >= date('now')
       ORDER BY declass_on ASC
     result_format: "table"
@@ -372,7 +372,7 @@ templates:
     sql_template: |
       SELECT * FROM knowledge_item
       WHERE declass_on IS NOT NULL
-        AND strftime('%Y', declass_on) = %(year)s
+        AND strftime('%Y', declass_on) = CAST(:year AS TEXT)
       ORDER BY declass_on ASC
     result_format: "table"
     tags: ["knowledge_item", "declassification", "year"]
@@ -391,17 +391,17 @@ templates:
       - "Find users with TOP SECRET access"
       - "List CONFIDENTIAL users"
       - "Show me users with PROTECTED A clearance"
-      - "Find users with NATO SECRET access"
+      - "Find users with PROTECTED B clearance"
       - "Get SECRET cleared users"
       - "Who has TOP SECRET clearance?"
       - "Show CONFIDENTIAL level users"
       - "I need users with PROTECTED A access"
-      - "Which users have NATO SECRET clearance?"
+      - "Which users have PROTECTED C clearance?"
       - "Find people with SECRET access"
       - "Display TOP SECRET cleared personnel"
       - "Users at CONFIDENTIAL level"
       - "Show me who has PROTECTED A clearance"
-      - "NATO SECRET authorized users"
+      - "PROTECTED B authorized users"
       - "List personnel with SECRET clearance"
       - "Who can access TOP SECRET material?"
       - "CONFIDENTIAL clearance holders"
@@ -413,7 +413,7 @@ templates:
         aliases: ["level", "clearance_level"]
     sql_template: |
       SELECT * FROM users
-      WHERE clearance_level = %(clearance)s
+      WHERE clearance_level = :clearance
       ORDER BY username ASC
     result_format: "table"
     tags: ["users", "clearance", "access"]
@@ -519,7 +519,7 @@ templates:
       SELECT u.* FROM users u
       JOIN user_compartments uc ON u.user_id = uc.user_id
       JOIN compartments c ON uc.compartment_id = c.compartment_id
-      WHERE c.name LIKE '%' || %(compartment)s || '%'
+      WHERE c.name LIKE '%' || :compartment || '%'
       ORDER BY u.username ASC
     result_format: "table"
     tags: ["users", "compartment", "access"]
@@ -662,7 +662,7 @@ templates:
       SELECT aa.*, ki.title as item_title
       FROM access_audit aa
       LEFT JOIN knowledge_item ki ON aa.item_id = ki.item_id
-      WHERE aa.user_id = %(user_id)s
+      WHERE aa.user_id = :user_id
       ORDER BY aa.ts DESC
     result_format: "table"
     tags: ["access_audit", "user", "activity"]
@@ -703,7 +703,7 @@ templates:
       FROM access_audit aa
       LEFT JOIN knowledge_item ki ON aa.item_id = ki.item_id
       LEFT JOIN users u ON aa.user_id = u.user_id
-      WHERE aa.ts >= datetime('now', '-' || COALESCE(%(days)s, 1) || ' days')
+      WHERE aa.ts >= datetime('now', '-' || COALESCE(:days, 1) || ' days')
       ORDER BY aa.ts DESC
     result_format: "table"
     tags: ["access_audit", "recent", "date"]
@@ -743,7 +743,7 @@ templates:
       FROM access_audit aa
       LEFT JOIN knowledge_item ki ON aa.item_id = ki.item_id
       LEFT JOIN users u ON aa.user_id = u.user_id
-      WHERE aa.query_text LIKE '%' || %(query_term)s || '%'
+      WHERE aa.query_text LIKE '%' || :query_term || '%'
       ORDER BY aa.ts DESC
     result_format: "table"
     tags: ["access_audit", "query", "search"]
@@ -778,7 +778,7 @@ templates:
         aliases: ["level", "clearance"]
     sql_template: |
       SELECT * FROM compartments
-      WHERE classification_level = %(classification)s
+      WHERE classification_level = :classification
       ORDER BY name ASC
     result_format: "table"
     tags: ["compartments", "classification"]
@@ -849,8 +849,8 @@ templates:
       SELECT ki.*, o.name as org_name
       FROM knowledge_item ki
       LEFT JOIN organizations o ON ki.originator_org = o.code
-      WHERE ki.classification = %(classification)s
-        AND (o.name LIKE '%' || %(org_name)s || '%' OR ki.originator_org LIKE '%' || %(org_name)s || '%')
+      WHERE ki.classification = :classification
+        AND (o.name LIKE '%' || :org_name || '%' OR ki.originator_org LIKE '%' || :org_name || '%')
       ORDER BY ki.created_at DESC
     result_format: "table"
     tags: ["knowledge_item", "classification", "organization", "complex"]
@@ -883,7 +883,7 @@ templates:
         aliases: ["level"]
     sql_template: |
       SELECT * FROM knowledge_item
-      WHERE classification = %(classification)s
+      WHERE classification = :classification
         AND pii_present = 1
       ORDER BY created_at DESC
     result_format: "table"
@@ -1083,4 +1083,224 @@ templates:
       action: "list"
       primary_entity: "access_audit"
       qualifiers: ["all"]
+    approved: true
+
+  - id: find_users_who_accessed_classification_with_details
+    version: "1.0.0"
+    description: "Find users who accessed documents of specific classification level with access details"
+    nl_examples:
+      - "Who has accessed Protected B documents lately? Provide names and dates please."
+      - "Show me the access audit for CONFIDENTIAL documents with user names and timestamps"
+      - "List all people who accessed SECRET files recently with their names and access dates"
+      - "Who has been looking at TOP SECRET documents in the past month? Show names and dates"
+      - "Find users who accessed PROTECTED A documents recently with access details"
+      - "Show me the access log for CONFIDENTIAL materials with user information"
+      - "List users who viewed SECRET documents in the last 30 days with access timestamps"
+      - "Who has been accessing TOP SECRET files recently? Show user names and dates"
+      - "Find people who accessed PROTECTED B documents with names and access dates"
+      - "Show me the audit trail for CONFIDENTIAL items with user details"
+      - "Who accessed SECRET documents in the past week? Show names and timestamps"
+      - "List all users who viewed TOP SECRET materials recently with access information"
+      - "Find users who accessed PROTECTED A files with timestamps and user names"
+      - "Show me the access history for CONFIDENTIAL documents with user details"
+      - "Who looked at SECRET files lately with names and access dates?"
+      - "Access audit for CONFIDENTIAL documents showing who accessed them"
+      - "User access log for SECRET documents with names and timestamps"
+      - "Show access records for TOP SECRET files with user information"
+    parameters:
+      - name: classification
+        type: string
+        description: "Classification level to search for"
+        required: true
+        aliases: ["level", "clearance"]
+      - name: days
+        type: integer
+        description: "Number of days to look back"
+        required: false
+        default: 30
+        aliases: ["day_count", "num_days"]
+    sql_template: |
+      SELECT
+        u.username,
+        u.email,
+        u.clearance_level,
+        ki.title as document_title,
+        ki.classification,
+        aa.decision,
+        aa.ts as access_date,
+        aa.query_text,
+        aa.reason
+      FROM access_audit aa
+      JOIN users u ON aa.user_id = u.user_id
+      JOIN knowledge_item ki ON aa.item_id = ki.item_id
+      WHERE ki.classification = :classification
+        AND aa.ts >= datetime('now', '-' || :days || ' days')
+        AND aa.decision IN ('ALLOW', 'REDACT')
+      ORDER BY aa.ts DESC
+      LIMIT 50
+    result_format: "table"
+    tags: ["access_audit", "users", "classification", "access_details"]
+    semantic_tags:
+      action: "list"
+      primary_entity: "access_audit"
+      qualifiers: ["by_classification", "with_user_details"]
+    approved: true
+
+  # Advanced Intelligence Analytics - Insider Threat Detection
+  - id: detect_anomalous_access_patterns
+    version: "1.0.0"
+    description: "Identify users with anomalous access patterns indicating potential insider threats"
+    nl_examples:
+      - "Show me potential insider threats"
+      - "Identify users with suspicious access patterns"
+      - "Find anomalous user behavior"
+      - "Detect potential security risks in user access"
+      - "Who shows signs of insider threat activity?"
+      - "Identify users with unusual access patterns"
+      - "Show me security anomalies in access logs"
+      - "Find users with concerning access behavior"
+      - "Detect abnormal access patterns"
+      - "Which users have suspicious activity?"
+      - "Show insider threat indicators"
+      - "Find users with high-risk access patterns"
+      - "Identify potential security breaches"
+      - "Who has unusual denial rates?"
+      - "Show me users accessing above their clearance"
+      - "Find users with off-hours access attempts"
+      - "Detect unusual document access patterns"
+      - "Which users show anomalous behavior?"
+    parameters:
+      - name: days
+        type: integer
+        description: "Number of days to analyze"
+        required: false
+        default: 30
+        aliases: ["lookback", "period"]
+      - name: min_risk_score
+        type: integer
+        description: "Minimum risk score threshold (0-100)"
+        required: false
+        default: 50
+        aliases: ["threshold", "risk_level"]
+    sql_template: |
+      WITH user_stats AS (
+        SELECT
+          aa.user_id,
+          u.username,
+          u.clearance_level,
+          u.is_active,
+          COUNT(*) as total_attempts,
+          SUM(CASE WHEN aa.decision = 'DENY' THEN 1 ELSE 0 END) as denials,
+          SUM(CASE WHEN aa.decision = 'REDACT' THEN 1 ELSE 0 END) as redactions,
+          SUM(CASE WHEN aa.decision = 'ALLOW' THEN 1 ELSE 0 END) as allowed,
+          COUNT(DISTINCT aa.item_id) as unique_documents,
+          COUNT(DISTINCT CASE
+            WHEN CAST(strftime('%H', aa.ts) AS INTEGER) NOT BETWEEN 6 AND 18
+            THEN aa.event_id END) as off_hours_access,
+          COUNT(DISTINCT CASE
+            WHEN ki.classification IN ('SECRET', 'TOP SECRET', 'NATO SECRET')
+            THEN aa.item_id END) as high_class_docs,
+          COUNT(DISTINCT ki.compartments) as compartments_accessed,
+          MAX(aa.ts) as last_access,
+          MIN(aa.ts) as first_access
+        FROM access_audit aa
+        JOIN users u ON aa.user_id = u.user_id
+        LEFT JOIN knowledge_item ki ON aa.item_id = ki.item_id
+        WHERE aa.ts >= datetime('now', '-' || COALESCE(:days, 30) || ' days')
+        GROUP BY aa.user_id, u.username, u.clearance_level, u.is_active
+        HAVING total_attempts >= 5
+      ),
+      risk_analysis AS (
+        SELECT
+          user_id,
+          username,
+          clearance_level,
+          is_active,
+          total_attempts,
+          denials,
+          redactions,
+          allowed,
+          unique_documents,
+          off_hours_access,
+          high_class_docs,
+          compartments_accessed,
+          last_access,
+          ROUND(100.0 * denials / NULLIF(total_attempts, 0), 1) as denial_rate,
+          ROUND(100.0 * off_hours_access / NULLIF(total_attempts, 0), 1) as off_hours_rate,
+          ROUND(1.0 * total_attempts /
+            NULLIF(CAST((julianday('now') - julianday(first_access)) AS REAL), 0), 1) as access_velocity,
+          -- Calculate composite risk score
+          CAST(
+            LEAST(100,
+              (30 * LEAST(1.0, denials / NULLIF(total_attempts, 0) * 3)) +
+              (25 * LEAST(1.0, off_hours_access / NULLIF(total_attempts, 0) * 4)) +
+              (20 * CASE WHEN is_active = 0 AND total_attempts > 10 THEN 1.0 ELSE 0.0 END) +
+              (15 * LEAST(1.0, compartments_accessed / 5.0)) +
+              (10 * CASE WHEN clearance_level IN ('UNCLASSIFIED', 'PROTECTED A')
+                          AND high_class_docs > 0 THEN 1.0 ELSE 0.0 END)
+            ) AS INTEGER) as risk_score
+        FROM user_stats
+      ),
+      anomaly_details AS (
+        SELECT
+          ra.*,
+          CASE
+            WHEN ra.risk_score >= 80 THEN 'CRITICAL'
+            WHEN ra.risk_score >= 65 THEN 'HIGH'
+            WHEN ra.risk_score >= 50 THEN 'MEDIUM'
+            ELSE 'LOW'
+          END as risk_level,
+          json_group_array(
+            json_object(
+              'indicator', indicator_type,
+              'severity', severity
+            )
+          ) as risk_indicators
+        FROM risk_analysis ra
+        CROSS JOIN (
+          SELECT 'High Denial Rate' as indicator_type, 'HIGH' as severity
+          UNION ALL SELECT 'Excessive Off-Hours Access', 'MEDIUM'
+          UNION ALL SELECT 'Inactive User Activity', 'CRITICAL'
+          UNION ALL SELECT 'Wide Compartment Scanning', 'MEDIUM'
+          UNION ALL SELECT 'Clearance Level Mismatch', 'HIGH'
+        )
+        WHERE
+          (indicator_type = 'High Denial Rate' AND ra.denial_rate > 25)
+          OR (indicator_type = 'Excessive Off-Hours Access' AND ra.off_hours_rate > 40)
+          OR (indicator_type = 'Inactive User Activity' AND ra.is_active = 0 AND ra.total_attempts > 10)
+          OR (indicator_type = 'Wide Compartment Scanning' AND ra.compartments_accessed >= 5)
+          OR (indicator_type = 'Clearance Level Mismatch' AND ra.clearance_level IN ('UNCLASSIFIED', 'PROTECTED A') AND ra.high_class_docs > 0)
+        GROUP BY ra.user_id, ra.username, ra.clearance_level, ra.is_active, ra.total_attempts,
+                 ra.denials, ra.redactions, ra.allowed, ra.unique_documents, ra.off_hours_access,
+                 ra.high_class_docs, ra.compartments_accessed, ra.last_access, ra.denial_rate,
+                 ra.off_hours_rate, ra.access_velocity, ra.risk_score
+      )
+      SELECT
+        username,
+        clearance_level,
+        CASE WHEN is_active = 1 THEN 'ACTIVE' ELSE 'INACTIVE' END as status,
+        risk_score,
+        risk_level,
+        total_attempts,
+        allowed,
+        denials,
+        denial_rate || '%' as denial_rate,
+        off_hours_access,
+        off_hours_rate || '%' as off_hours_rate,
+        unique_documents,
+        high_class_docs as sensitive_docs_accessed,
+        compartments_accessed,
+        access_velocity as avg_daily_access,
+        datetime(last_access) as last_activity,
+        risk_indicators
+      FROM anomaly_details
+      WHERE risk_score >= COALESCE(:min_risk_score, 50)
+      ORDER BY risk_score DESC, total_attempts DESC
+      LIMIT 25
+    result_format: "table"
+    tags: ["access_audit", "security", "anomaly_detection", "insider_threat", "intelligence", "analytics"]
+    semantic_tags:
+      action: "analyze"
+      primary_entity: "access_audit"
+      qualifiers: ["anomaly_detection", "risk_analysis", "insider_threat"]
     approved: true

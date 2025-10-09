@@ -30,7 +30,8 @@ datasources:
     embedding_provider: null
   pinecone:
     api_key: ${DATASOURCE_PINECONE_API_KEY}
-    namespace: "default"
+    # host: ${DATASOURCE_PINECONE_HOST}  # Only needed for pod-based indexes
+    namespace: ""  # Empty string for default namespace (where data was ingested)
     embedding_provider: null
   elasticsearch:
     node: 'https://localhost:9200'

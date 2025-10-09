@@ -52,27 +52,22 @@ class PineconeRetriever(AbstractVectorRetriever):
     async def initialize_client(self) -> None:
         """Initialize the Pinecone client."""
         try:
-            import pinecone
-            
-            # Initialize Pinecone
+            from pinecone import Pinecone
+
+            # Initialize Pinecone client with API key
+            # The modern Pinecone client (v3+) uses the Pinecone class constructor
+            init_kwargs = {'api_key': self.api_key}
+
+            # Add host if provided (for specific index connections)
             if self.host:
-                # New Pinecone client with host
-                self.pinecone_client = pinecone.Pinecone(
-                    api_key=self.api_key,
-                    host=self.host
-                )
-            else:
-                # Legacy initialization
-                pinecone.init(
-                    api_key=self.api_key,
-                    environment=self.environment
-                )
-                self.pinecone_client = pinecone
-            
+                init_kwargs['host'] = self.host
+
+            self.pinecone_client = Pinecone(**init_kwargs)
+
             logger.info(f"Connected to Pinecone")
-            
+
         except ImportError:
-            error_msg = "pinecone-client package is required for Pinecone retriever. Install with: pip install pinecone-client"
+            error_msg = "pinecone package is required for Pinecone retriever. Install with: pip install pinecone>=3.0.0"
             logger.error(error_msg)
             raise ImportError(error_msg)
         except Exception as e:
@@ -97,34 +92,27 @@ class PineconeRetriever(AbstractVectorRetriever):
             raise ValueError("Index name cannot be empty")
             
         try:
-            # Check if index exists
-            if hasattr(self.pinecone_client, 'list_indexes'):
-                # New client API
-                indexes = self.pinecone_client.list_indexes()
-                index_names = [idx.name for idx in indexes]
-            else:
-                # Legacy API
-                index_names = self.pinecone_client.list_indexes()
-            
+            # Check if index exists using modern Pinecone API (v3+)
+            indexes = self.pinecone_client.list_indexes()
+            index_names = [idx.name for idx in indexes]
+
             if collection_name not in index_names:
                 error_msg = f"Index '{collection_name}' does not exist in Pinecone"
                 logger.error(error_msg)
-                custom_msg = self.config.get('messages', {}).get('collection_not_found', 
+                custom_msg = self.config.get('messages', {}).get('collection_not_found',
                             "Collection not found. Please ensure the collection exists before querying.")
                 raise HTTPException(status_code=404, detail=custom_msg)
-            
-            # Connect to the index
+
+            # Connect to the index using modern API
             self.index_name = collection_name
-            if hasattr(self.pinecone_client, 'Index'):
-                # New client API
-                self.index = self.pinecone_client.Index(collection_name)
-            else:
-                # Legacy API
-                self.index = self.pinecone_client.Index(collection_name)
-            
+            self.index = self.pinecone_client.Index(collection_name)
+
             if self.verbose:
                 logger.info(f"Switched to index: {collection_name}")
-                
+
+        except HTTPException:
+            # Re-raise HTTPExceptions as-is
+            raise
         except Exception as e:
             error_msg = f"Failed to switch index: {str(e)}"
             logger.error(error_msg)

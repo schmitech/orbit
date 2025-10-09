@@ -18,8 +18,8 @@ general:
   session_id:
     header_name: "X-Session-ID"
     required: true
-  inference_provider: "groq"
-  inference_only: false
+  inference_provider: "llama_cpp"
+  inference_only: true
 
 language_detection:
   enabled: false
@@ -67,7 +67,7 @@ messages:
   collection_not_found: "I couldn't find the requested collection. Please make sure the collection exists before querying it."
 
 auth:
-  enabled: true
+  enabled: false
   session_duration_hours: 12
   default_admin_username: admin
   default_admin_password: ${ORBIT_DEFAULT_ADMIN_PASSWORD}
@@ -114,15 +114,19 @@ logging:
       level: "ERROR"
     metal:
       level: "ERROR"
+    httpx:
+      level: "WARNING"
+    httpcore:
+      level: "WARNING"
 
 clock_service:
-  enabled: true
+  enabled: false
   default_timezone: "America/Toronto"
   format: "%A, %B %d, %Y at %I:%M:%S %p %Z"
 
 internal_services:
   elasticsearch:
-    enabled: true
+    enabled: false
     node: ${INTERNAL_SERVICES_ELASTICSEARCH_NODE}
     index: 'orbit'
     username: ${INTERNAL_SERVICES_ELASTICSEARCH_USERNAME}
@@ -140,7 +144,7 @@ internal_services:
     prompts_collection: system_prompts
 
   redis:
-    enabled: false
+    enabled: true
     host: ${INTERNAL_SERVICES_REDIS_HOST}
     port: ${INTERNAL_SERVICES_REDIS_PORT}
     db: 0
@@ -150,7 +154,7 @@ internal_services:
     ttl: 3600  # 1 hour, matching temp_key_expiry
 
 chat_history:
-  enabled: true
+  enabled: false
   collection_name: "chat_history"
   store_metadata: true
   retention_days: 90
@@ -223,7 +227,7 @@ reranker:
   enabled: false
 
 monitoring:
-  enabled: true                    # Enable/disable monitoring dashboard
+  enabled: false                    # Enable/disable monitoring dashboard
   metrics:
     collection_interval: 5         # Seconds between metric collections
     time_window: 300              # Seconds of historical data to keep (5 minutes)

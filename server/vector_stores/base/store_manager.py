@@ -3,6 +3,7 @@ Store manager for managing vector store instances and their lifecycle.
 """
 
 import logging
+import os
 from typing import Dict, Any, Optional, List, Type
 import asyncio
 from datetime import datetime
@@ -60,13 +61,46 @@ class StoreManager:
             logger.info("Registered ChromaStore")
         except ImportError:
             logger.warning("ChromaStore not available")
-        
-        # Add other store implementations here as needed
-        # try:
-        #     from ..pinecone_store import PineconeStore
-        #     self._store_classes['pinecone'] = PineconeStore
-        # except ImportError:
-        #     pass
+
+        try:
+            from ..implementations.pinecone_store import PineconeStore
+            self._store_classes['pinecone'] = PineconeStore
+            logger.info("Registered PineconeStore")
+        except ImportError:
+            logger.warning("PineconeStore not available")
+
+        try:
+            from ..implementations.qdrant_store import QdrantStore
+            self._store_classes['qdrant'] = QdrantStore
+            logger.info("Registered QdrantStore")
+        except ImportError:
+            logger.warning("QdrantStore not available")
+
+    @staticmethod
+    def _resolve_env_variable(value: Any) -> Any:
+        """
+        Resolve environment variable placeholders like ${VAR_NAME}.
+
+        Args:
+            value: Value that may contain env var placeholder
+
+        Returns:
+            Resolved value
+        """
+        if isinstance(value, str) and value.startswith('${') and value.endswith('}'):
+            env_var = value[2:-1]  # Remove ${ and }
+            resolved = os.getenv(env_var)
+            if resolved is None:
+                logger.warning(f"Environment variable {env_var} not found, using placeholder value")
+                return value
+            return resolved
+        elif isinstance(value, dict):
+            # Recursively resolve dict values
+            return {k: StoreManager._resolve_env_variable(v) for k, v in value.items()}
+        elif isinstance(value, list):
+            # Recursively resolve list values
+            return [StoreManager._resolve_env_variable(item) for item in value]
+        return value
     
     async def create_store(self, 
                           name: str,
@@ -109,28 +143,31 @@ class StoreManager:
             else:
                 raise ConnectionError(f"Failed to connect to store {name}")
     
-    def _create_store_config(self, 
-                           name: str, 
+    def _create_store_config(self,
+                           name: str,
                            store_type: str,
                            override_config: Optional[Dict[str, Any]] = None) -> StoreConfig:
         """
         Create store configuration from loaded config and overrides.
-        
+
         Args:
             name: Store name
             store_type: Type of store
             override_config: Optional configuration override
-            
+
         Returns:
             StoreConfig instance
         """
-        # Get default configuration for store type
+        # Get configuration for store type from vector_stores
         default_config = {}
         if self._config and 'vector_stores' in self._config:
             store_configs = self._config['vector_stores']
             if store_type in store_configs:
-                default_config = store_configs[store_type].get('default_config', {})
-        
+                # Store config is now directly under the store type (no default_config wrapper)
+                store_config = store_configs[store_type]
+                # Extract everything except 'enabled'
+                default_config = {k: v for k, v in store_config.items() if k != 'enabled'}
+
         # Merge with override config
         final_config = {**default_config}
         if override_config:
@@ -141,7 +178,13 @@ class StoreManager:
             for key in ['pool_size', 'timeout', 'ephemeral', 'auto_cleanup']:
                 if key in override_config:
                     final_config[key] = override_config[key]
-        
+
+        # Resolve environment variables in connection params
+        if 'connection_params' in final_config:
+            final_config['connection_params'] = self._resolve_env_variable(
+                final_config['connection_params']
+            )
+
         return StoreConfig(
             name=name,
             connection_params=final_config.get('connection_params', {}),

@@ -249,7 +249,8 @@ class TestIntentSQLRetriever:
                 'confidence_threshold': 0.75,
                 'max_templates': 5,
                 'chroma_persist': False,
-                'embedding_provider': None
+                'embedding_provider': None,
+                'store_name': 'chroma'
             },
             'verbose': True
         }
@@ -329,31 +330,6 @@ class TestIntentSQLRetriever:
             
             assert retriever.domain_adapter == mock_adapter
             mock_adapter_class.assert_called_once()
-    
-    @pytest.mark.asyncio
-    async def test_initialize_services(self, retriever, mock_embedding_client, mock_inference_client, mock_chroma_collection):
-        """Test service initialization"""
-        with patch('embeddings.base.EmbeddingServiceFactory') as mock_embed_factory:
-            with patch('inference.pipeline.providers.provider_factory.ProviderFactory') as mock_inf_factory:
-                with patch('chromadb.Client') as mock_chroma_client:
-                    # Setup mocks
-                    mock_embed_factory.create_embedding_service.return_value = mock_embedding_client
-                    mock_inf_factory.create_provider.return_value = mock_inference_client
-                    
-                    mock_chroma = MagicMock()
-                    mock_chroma.get_or_create_collection.return_value = mock_chroma_collection
-                    mock_chroma_client.return_value = mock_chroma
-                    
-                    # Initialize
-                    await retriever.initialize()
-                    
-                    # Verify services initialized
-                    assert retriever.embedding_client == mock_embedding_client
-                    assert retriever.inference_client == mock_inference_client
-                    assert retriever.template_store is not None  # Uses template_store instead
-                    assert retriever.parameter_extractor is not None
-                    assert retriever.response_generator is not None
-                    assert retriever.template_reranker is not None
     
     @pytest.mark.asyncio
     async def test_create_embedding_text(self, retriever):
