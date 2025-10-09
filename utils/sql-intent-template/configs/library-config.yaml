@@ -1,0 +1,352 @@
+# Template Generator Configuration for Library Management System
+#
+# This configuration is optimized for library management schemas like
+# examples/library_management.sql
+#
+# Key Features:
+# - Book and author focused queries
+# - Library member management
+# - Loan and reservation tracking
+# - Review and rating systems
+# - Catalog search patterns
+
+# Generation settings
+generation:
+  # Maximum number of examples per template
+  max_examples_per_template: 10
+  
+  # Standard similarity threshold for library domain
+  similarity_threshold: 0.8
+  
+  # Default values for new templates
+  defaults:
+    version: "1.0.0"
+    approved: false
+    result_format: "table"
+  
+  # Template categories for library domain
+  categories:
+    - book_queries
+    - author_queries
+    - member_queries
+    - loan_queries
+    - reservation_queries
+    - review_queries
+    - catalog_queries
+    - analytics_queries
+    - search_queries
+    - management_queries
+
+# Inference settings
+inference:
+  # Model parameters for query analysis
+  analysis:
+    temperature: 0.1
+    max_tokens: 1024
+    
+  # Model parameters for SQL generation
+  sql_generation:
+    temperature: 0.2
+    max_tokens: 2048
+
+# Validation rules
+validation:
+  # Required fields for each template
+  required_fields:
+    - id
+    - description
+    - sql_template
+    - parameters
+    - nl_examples
+    
+  # Minimum number of NL examples
+  min_examples: 3
+  
+  # Maximum SQL template length
+  max_sql_length: 5000
+  
+  # Parameter validation
+  parameters:
+    # Valid parameter types for library data
+    valid_types:
+      - string
+      - integer
+      - decimal
+      - date
+      - datetime
+      - boolean
+      - enum
+      - isbn
+    
+    # Required parameter fields
+    required_fields:
+      - name
+      - type
+      - description
+      - required
+
+# Schema analysis settings for library management
+schema:
+  # Tables to include in analysis
+  include_tables: []  # Empty means all tables
+  
+  # Tables to exclude from analysis
+  exclude_tables:
+    - migrations
+    - schema_version
+  
+  # Column patterns specific to library systems
+  special_columns:
+    # Book identification
+    isbn:
+      pattern: ".*isbn.*"
+      format: "isbn"
+    title:
+      pattern: ".*title.*"
+      format: "string"
+    subtitle:
+      pattern: ".*subtitle.*"
+      format: "string"
+    
+    # Author information
+    author_name:
+      pattern: ".*(author|first_name|last_name).*"
+      format: "string"
+    biography:
+      pattern: ".*biography.*"
+      format: "text"
+    nationality:
+      pattern: ".*nationality.*"
+      format: "string"
+    
+    # Book details
+    publication_date:
+      pattern: ".*publication_date.*"
+      format: "date"
+    pages:
+      pattern: ".*pages.*"
+      format: "integer"
+    language:
+      pattern: ".*language.*"
+      format: "enum"
+    edition:
+      pattern: ".*edition.*"
+      format: "string"
+    price:
+      pattern: ".*price.*"
+      format: "currency"
+    
+    # Publisher information
+    publisher:
+      pattern: ".*publisher.*"
+      format: "string"
+    publisher_name:
+      pattern: ".*publisher_name.*"
+      format: "string"
+    
+    # Category and classification
+    category:
+      pattern: ".*category.*"
+      format: "string"
+    category_name:
+      pattern: ".*category_name.*"
+      format: "string"
+    genre:
+      pattern: ".*genre.*"
+      format: "string"
+    
+    # Availability
+    available:
+      pattern: ".*available.*"
+      format: "boolean"
+    total_copies:
+      pattern: ".*total_copies.*"
+      format: "integer"
+    available_copies:
+      pattern: ".*available_copies.*"
+      format: "integer"
+    
+    # Member information
+    member_name:
+      pattern: ".*(member|first_name|last_name).*"
+      format: "string"
+    email:
+      pattern: ".*email.*"
+      format: "email"
+    phone:
+      pattern: ".*phone.*"
+      format: "phone"
+    membership_type:
+      pattern: ".*membership_type.*"
+      format: "enum"
+    
+    # Address information
+    address:
+      pattern: ".*address.*"
+      format: "text"
+    city:
+      pattern: ".*city.*"
+      format: "string"
+    postal_code:
+      pattern: ".*postal_code.*"
+      format: "string"
+    
+    # Loan information
+    loan_date:
+      pattern: ".*loan_date.*"
+      format: "date"
+    due_date:
+      pattern: ".*due_date.*"
+      format: "date"
+    return_date:
+      pattern: ".*return_date.*"
+      format: "date"
+    loan_status:
+      pattern: ".*loan_status.*"
+      format: "enum"
+    fine_amount:
+      pattern: ".*fine_amount.*"
+      format: "currency"
+    
+    # Reservation information
+    reservation_date:
+      pattern: ".*reservation_date.*"
+      format: "date"
+    reservation_status:
+      pattern: ".*reservation_status.*"
+      format: "enum"
+    priority:
+      pattern: ".*priority.*"
+      format: "integer"
+    
+    # Review information
+    rating:
+      pattern: ".*rating.*"
+      format: "integer"
+    review_text:
+      pattern: ".*review_text.*"
+      format: "text"
+    verified:
+      pattern: ".*verified.*"
+      format: "boolean"
+    
+    # Status fields
+    status:
+      pattern: ".*status.*"
+      format: "enum"
+    active:
+      pattern: ".*active.*"
+      format: "boolean"
+    
+    # Date fields
+    date:
+      pattern: ".*(date|_at)$"
+      format: "date"
+    created_at:
+      pattern: ".*created_at.*"
+      format: "datetime"
+    updated_at:
+      pattern: ".*updated_at.*"
+      format: "datetime"
+
+# Query grouping rules for library management
+grouping:
+  # Similarity features to consider for library domain
+  features:
+    - intent
+    - primary_entity
+    - secondary_entity
+    - search_type
+    - availability_status
+    - time_range
+    - member_type
+    - book_category
+  
+  # Weight for each feature (library-focused weighting)
+  feature_weights:
+    intent: 0.25
+    primary_entity: 0.25
+    secondary_entity: 0.15
+    search_type: 0.15
+    availability_status: 0.1
+    time_range: 0.05
+    member_type: 0.03
+    book_category: 0.02
+
+# Output formatting
+output:
+  # Sort templates by primary entity
+  sort_by: "primary_entity"
+  
+  # Group templates by category
+  group_by_category: true
+  
+  # Include metadata
+  include_metadata:
+    - created_at
+    - created_by
+    - generator_version
+    - validation_status
+    - library_domain
+    - search_type
+
+# Custom validation rules for library management
+validation:
+  custom_rules:
+    - name: "book_search_validation"
+      description: "Book search queries must include proper search criteria"
+      check: "template.semantic_tags.primary_entity == 'book' and ('title' in template.parameters or 'isbn' in template.parameters or 'author' in template.parameters)"
+    
+    - name: "member_validation"
+      description: "Member queries must include proper member identification"
+      check: "template.semantic_tags.primary_entity == 'member' and ('member_id' in template.parameters or 'email' in template.parameters or 'name' in template.parameters)"
+    
+    - name: "loan_validation"
+      description: "Loan queries must include proper loan identification"
+      check: "template.semantic_tags.primary_entity == 'loan' and ('loan_id' in template.parameters or 'book_id' in template.parameters or 'member_id' in template.parameters)"
+    
+    - name: "availability_validation"
+      description: "Availability queries must check book availability"
+      check: "template.semantic_tags.intent in ['find', 'search'] and 'available' in template.sql_template"
+    
+    - name: "rating_validation"
+      description: "Review queries must include proper rating validation"
+      check: "template.semantic_tags.primary_entity == 'review' and 'rating' in template.parameters and 'rating >= 1 AND rating <= 5' in template.sql_template"
+
+# Domain-specific settings
+domain:
+  name: "library_management"
+  description: "Configuration for library management systems"
+  security_level: "standard"
+  
+  # Business rules
+  business_rules:
+    - "Book searches must be case-insensitive"
+    - "Member information must be protected"
+    - "Loan queries should include proper date filtering"
+    - "Availability queries must check both total and available copies"
+    - "Review ratings must be between 1 and 5"
+    - "ISBN searches should handle different formats"
+  
+  # Common query patterns
+  common_patterns:
+    - "Find books by title or author"
+    - "Search books by ISBN"
+    - "Find books by category or genre"
+    - "Get member information"
+    - "Find active loans for a member"
+    - "Search for overdue books"
+    - "Find available books"
+    - "Get book reviews and ratings"
+    - "Find books by publisher"
+    - "Search books by publication date"
+    - "Find books by language"
+    - "Get member loan history"
+    - "Find books with high ratings"
+    - "Search for books by price range"
+    - "Find books by availability status"
+    - "Get reservation information"
+    - "Find books by multiple criteria"
+    - "Search for books by member preferences"
+    - "Find books by loan frequency"
+    - "Get library statistics and analytics"

@@ -1,0 +1,256 @@
+# Template Generator Configuration for Financial/Accounting System
+#
+# This configuration is optimized for financial and accounting schemas
+# with transaction-based data, complex calculations, and regulatory compliance
+#
+# Key Features:
+# - Transaction-focused queries
+# - Complex financial calculations
+# - Regulatory compliance support
+# - Time-series analysis
+
+# Generation settings
+generation:
+  # Maximum number of examples per template
+  max_examples_per_template: 12
+  
+  # Higher similarity threshold for financial domain (stricter grouping)
+  similarity_threshold: 0.85
+  
+  # Default values for new templates
+  defaults:
+    version: "1.0.0"
+    approved: false
+    result_format: "table"
+  
+  # Template categories for financial domain
+  categories:
+    - transaction_queries
+    - balance_queries
+    - reporting_queries
+    - reconciliation_queries
+    - compliance_queries
+    - audit_queries
+    - calculation_queries
+    - account_queries
+
+# Inference settings
+inference:
+  # Model parameters for query analysis
+  analysis:
+    temperature: 0.1
+    max_tokens: 1024
+    
+  # Model parameters for SQL generation
+  sql_generation:
+    temperature: 0.2
+    max_tokens: 2048
+
+# Validation rules
+validation:
+  # Required fields for each template
+  required_fields:
+    - id
+    - description
+    - sql_template
+    - parameters
+    - nl_examples
+    
+  # Minimum number of NL examples
+  min_examples: 3
+  
+  # Maximum SQL template length
+  max_sql_length: 5000
+  
+  # Parameter validation
+  parameters:
+    # Valid parameter types for financial data
+    valid_types:
+      - string
+      - integer
+      - decimal
+      - date
+      - datetime
+      - boolean
+      - enum
+      - currency
+    
+    # Required parameter fields
+    required_fields:
+      - name
+      - type
+      - description
+      - required
+
+# Schema analysis settings for financial data
+schema:
+  # Tables to include in analysis
+  include_tables: []  # Empty means all tables
+  
+  # Tables to exclude from analysis
+  exclude_tables:
+    - migrations
+    - schema_version
+  
+  # Column patterns specific to financial systems
+  special_columns:
+    # Financial amounts
+    amount:
+      pattern: ".*(amount|total|balance|value|debit|credit).*"
+      format: "currency"
+    transaction_amount:
+      pattern: ".*transaction_amount.*"
+      format: "currency"
+    balance:
+      pattern: ".*balance.*"
+      format: "currency"
+    
+    # Account information
+    account:
+      pattern: ".*account.*"
+      format: "string"
+    account_number:
+      pattern: ".*account_number.*"
+      format: "string"
+    account_type:
+      pattern: ".*account_type.*"
+      format: "enum"
+    
+    # Transaction details
+    transaction_date:
+      pattern: ".*(transaction|posting|effective)_date.*"
+      format: "date"
+    reference:
+      pattern: ".*(reference|ref|id).*"
+      format: "string"
+    transaction_type:
+      pattern: ".*transaction_type.*"
+      format: "enum"
+    
+    # Currency and exchange
+    currency:
+      pattern: ".*currency.*"
+      format: "enum"
+    exchange_rate:
+      pattern: ".*exchange_rate.*"
+      format: "decimal"
+    
+    # Tax and compliance
+    tax:
+      pattern: ".*tax.*"
+      format: "decimal"
+    tax_rate:
+      pattern: ".*tax_rate.*"
+      format: "decimal"
+    compliance:
+      pattern: ".*compliance.*"
+      format: "enum"
+    
+    # Status and flags
+    status:
+      pattern: ".*status.*"
+      format: "enum"
+    reconciled:
+      pattern: ".*reconciled.*"
+      format: "boolean"
+    posted:
+      pattern: ".*posted.*"
+      format: "boolean"
+    
+    # Time fields
+    created_at:
+      pattern: ".*created_at.*"
+      format: "datetime"
+    updated_at:
+      pattern: ".*updated_at.*"
+      format: "datetime"
+    period:
+      pattern: ".*period.*"
+      format: "string"
+
+# Query grouping rules for financial data
+grouping:
+  # Similarity features to consider for financial domain
+  features:
+    - intent
+    - primary_entity
+    - calculation_type
+    - time_period
+    - account_type
+    - aggregation_level
+    - compliance_context
+  
+  # Weight for each feature (financial-focused weighting)
+  feature_weights:
+    intent: 0.2
+    primary_entity: 0.2
+    calculation_type: 0.2
+    time_period: 0.2
+    account_type: 0.1
+    aggregation_level: 0.1
+    compliance_context: 0.0  # Placeholder for future use
+
+# Output formatting
+output:
+  # Sort templates by primary entity
+  sort_by: "primary_entity"
+  
+  # Group templates by category
+  group_by_category: true
+  
+  # Include metadata
+  include_metadata:
+    - created_at
+    - created_by
+    - generator_version
+    - validation_status
+    - financial_domain
+    - compliance_level
+
+# Custom validation rules for financial data
+validation:
+  custom_rules:
+    - name: "currency_validation"
+      description: "Financial queries must include proper currency handling"
+      check: "template.semantic_tags.primary_entity in ['transaction', 'balance'] and 'currency' in template.parameters"
+    
+    - name: "calculation_validation"
+      description: "Calculation queries must include proper mathematical operations"
+      check: "template.semantic_tags.intent in ['calculate', 'sum', 'total'] and ('SUM' in template.sql_template or 'COUNT' in template.sql_template)"
+    
+    - name: "time_period_validation"
+      description: "Financial queries must include proper time period filtering"
+      check: "template.semantic_tags.primary_entity in ['transaction', 'balance'] and 'date' in template.parameters"
+    
+    - name: "account_validation"
+      description: "Account queries must include proper account identification"
+      check: "template.semantic_tags.primary_entity in ['account', 'transaction'] and 'account' in template.parameters"
+
+# Domain-specific settings
+domain:
+  name: "financial_accounting"
+  description: "Configuration for financial and accounting systems"
+  security_level: "high"
+  
+  # Business rules
+  business_rules:
+    - "All financial calculations must be accurate to the cent"
+    - "Currency conversions must be properly handled"
+    - "Time periods must be clearly defined"
+    - "Account balances must be properly calculated"
+    - "Compliance requirements must be met"
+  
+  # Common query patterns
+  common_patterns:
+    - "Calculate account balances"
+    - "Find transactions by date range"
+    - "Generate financial reports"
+    - "Reconcile account statements"
+    - "Calculate tax amounts"
+    - "Find transactions by account"
+    - "Generate compliance reports"
+    - "Calculate exchange rates"
+    - "Find unreconciled transactions"
+    - "Generate audit trails"
+    - "Calculate profit and loss"
+    - "Find transactions by reference"

@@ -1,0 +1,233 @@
+# Template Generator Configuration for E-commerce/Customer-Order System
+#
+# This configuration is optimized for e-commerce schemas like
+# examples/postgres/customer-order.sql
+#
+# Key Features:
+# - Customer and order focused queries
+# - Business analytics support
+# - Standard e-commerce patterns
+# - Payment and shipping queries
+
+# Generation settings
+generation:
+  # Maximum number of examples per template
+  max_examples_per_template: 10
+  
+  # Standard similarity threshold for business domain
+  similarity_threshold: 0.8
+  
+  # Default values for new templates
+  defaults:
+    version: "1.0.0"
+    approved: false
+    result_format: "table"
+  
+  # Template categories for e-commerce domain
+  categories:
+    - customer_queries
+    - order_queries
+    - product_queries
+    - analytics_queries
+    - payment_queries
+    - shipping_queries
+    - status_queries
+    - reporting_queries
+
+# Inference settings
+inference:
+  # Model parameters for query analysis
+  analysis:
+    temperature: 0.1
+    max_tokens: 1024
+    
+  # Model parameters for SQL generation
+  sql_generation:
+    temperature: 0.2
+    max_tokens: 2048
+
+# Validation rules
+validation:
+  # Required fields for each template
+  required_fields:
+    - id
+    - description
+    - sql_template
+    - parameters
+    - nl_examples
+    
+  # Minimum number of NL examples
+  min_examples: 3
+  
+  # Maximum SQL template length
+  max_sql_length: 5000
+  
+  # Parameter validation
+  parameters:
+    # Valid parameter types for e-commerce
+    valid_types:
+      - string
+      - integer
+      - decimal
+      - date
+      - datetime
+      - boolean
+      - enum
+    
+    # Required parameter fields
+    required_fields:
+      - name
+      - type
+      - description
+      - required
+
+# Schema analysis settings for e-commerce
+schema:
+  # Tables to include in analysis
+  include_tables: []  # Empty means all tables
+  
+  # Tables to exclude from analysis
+  exclude_tables:
+    - migrations
+    - schema_version
+  
+  # Column patterns specific to e-commerce
+  special_columns:
+    # Contact information
+    email:
+      pattern: ".*email.*"
+      format: "email"
+    phone:
+      pattern: ".*phone.*"
+      format: "phone"
+    
+    # Address fields
+    address:
+      pattern: ".*address.*"
+      format: "text"
+    city:
+      pattern: ".*city.*"
+      format: "string"
+    country:
+      pattern: ".*country.*"
+      format: "string"
+    
+    # Financial fields
+    amount:
+      pattern: ".*(amount|total|price|cost|value).*"
+      format: "currency"
+    payment:
+      pattern: ".*payment.*"
+      format: "string"
+    
+    # Status fields
+    status:
+      pattern: ".*status.*"
+      format: "enum"
+    order_status:
+      pattern: ".*order_status.*"
+      format: "enum"
+    
+    # Date fields
+    date:
+      pattern: ".*(date|_at)$"
+      format: "date"
+    order_date:
+      pattern: ".*order_date.*"
+      format: "date"
+    created_at:
+      pattern: ".*created_at.*"
+      format: "datetime"
+    updated_at:
+      pattern: ".*updated_at.*"
+      format: "datetime"
+    
+    # ID fields
+    customer_id:
+      pattern: ".*customer_id.*"
+      format: "integer"
+    order_id:
+      pattern: ".*order_id.*"
+      format: "integer"
+    product_id:
+      pattern: ".*product_id.*"
+      format: "integer"
+
+# Query grouping rules for e-commerce
+grouping:
+  # Similarity features to consider for business domain
+  features:
+    - intent
+    - primary_entity
+    - secondary_entity
+    - aggregations
+    - filters
+    - time_range
+    - business_context
+  
+  # Weight for each feature (business-focused weighting)
+  feature_weights:
+    intent: 0.3
+    primary_entity: 0.3
+    secondary_entity: 0.2
+    aggregations: 0.1
+    filters: 0.05
+    time_range: 0.05
+    business_context: 0.0  # Placeholder for future use
+
+# Output formatting
+output:
+  # Sort templates by primary entity
+  sort_by: "primary_entity"
+  
+  # Group templates by category
+  group_by_category: true
+  
+  # Include metadata
+  include_metadata:
+    - created_at
+    - created_by
+    - generator_version
+    - validation_status
+    - business_domain
+
+# Custom validation rules for e-commerce
+validation:
+  custom_rules:
+    - name: "customer_validation"
+      description: "Customer queries must include proper customer identification"
+      check: "template.semantic_tags.primary_entity == 'customer' and 'customer_id' in template.parameters"
+    
+    - name: "order_validation"
+      description: "Order queries must include proper order identification"
+      check: "template.semantic_tags.primary_entity == 'order' and 'order_id' in template.parameters"
+    
+    - name: "financial_validation"
+      description: "Financial queries must include proper amount formatting"
+      check: "template.semantic_tags.intent in ['calculate', 'sum', 'total'] and 'amount' in template.sql_template"
+
+# Domain-specific settings
+domain:
+  name: "ecommerce"
+  description: "Configuration for e-commerce and customer-order systems"
+  security_level: "standard"
+  
+  # Business rules
+  business_rules:
+    - "Customer queries must respect data privacy"
+    - "Order queries should include proper date filtering"
+    - "Financial calculations must be accurate"
+    - "Status queries should handle multiple states"
+  
+  # Common query patterns
+  common_patterns:
+    - "Find customers by name or email"
+    - "Get orders for a specific customer"
+    - "Calculate total sales by period"
+    - "Find orders by status"
+    - "Get customer order history"
+    - "Search orders by date range"
+    - "Find customers by location"
+    - "Calculate average order value"
+    - "Get shipping information"
+    - "Find payment method usage"

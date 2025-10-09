@@ -1,0 +1,198 @@
+# Template Generator Configuration for Contact Example
+#
+# This configuration is optimized for the simplest possible schema
+# with just one table and basic columns for testing
+#
+# Key Features:
+# - Single table (users) with basic columns
+# - Simple queries for testing template generation
+# - Minimal complexity for quick validation
+
+# Generation settings
+generation:
+  # Maximum number of examples per template
+  max_examples_per_template: 8
+  
+  # Lower similarity threshold for simple domain
+  similarity_threshold: 0.7
+  
+  # Default values for new templates
+  defaults:
+    version: "1.0.0"
+    approved: false
+    result_format: "table"
+  
+  # Template categories for simple domain
+  categories:
+    - basic_queries
+    - search_queries
+    - count_queries
+    - filter_queries
+    - sort_queries
+    - statistics_queries
+
+# Inference settings
+inference:
+  # Model parameters for query analysis
+  analysis:
+    temperature: 0.1
+    max_tokens: 512
+    
+  # Model parameters for SQL generation
+  sql_generation:
+    temperature: 0.2
+    max_tokens: 1024
+
+# Validation rules
+validation:
+  # Required fields for each template
+  required_fields:
+    - id
+    - description
+    - sql_template
+    - parameters
+    - nl_examples
+    
+  # Minimum number of NL examples
+  min_examples: 3
+  
+  # Maximum SQL template length
+  max_sql_length: 2000
+  
+  # Parameter validation
+  parameters:
+    # Valid parameter types for simple data
+    valid_types:
+      - string
+      - integer
+      - boolean
+      - date
+      - datetime
+    
+    # Required parameter fields
+    required_fields:
+      - name
+      - type
+      - description
+      - required
+
+# Schema analysis settings for contact
+schema:
+  # Tables to include in analysis
+  include_tables: []  # Empty means all tables
+  
+  # Tables to exclude from analysis
+  exclude_tables: []
+  
+  # Column patterns specific to simple schemas
+  special_columns:
+    # Basic identification
+    id:
+      pattern: ".*id.*"
+      format: "integer"
+    name:
+      pattern: ".*name.*"
+      format: "string"
+    email:
+      pattern: ".*email.*"
+      format: "email"
+    age:
+      pattern: ".*age.*"
+      format: "integer"
+    city:
+      pattern: ".*city.*"
+      format: "string"
+    
+    # Date fields
+    created_at:
+      pattern: ".*created_at.*"
+      format: "datetime"
+    updated_at:
+      pattern: ".*updated_at.*"
+      format: "datetime"
+
+# Query grouping rules for contact domain
+grouping:
+  # Similarity features to consider for simple domain
+  features:
+    - intent
+    - primary_entity
+    - search_field
+    - filter_type
+    - sort_order
+  
+  # Weight for each feature (simple-focused weighting)
+  feature_weights:
+    intent: 0.3
+    primary_entity: 0.3
+    search_field: 0.2
+    filter_type: 0.15
+    sort_order: 0.05
+
+# Output formatting
+output:
+  # Sort templates by primary entity
+  sort_by: "primary_entity"
+  
+  # Group templates by category
+  group_by_category: true
+  
+  # Include metadata
+  include_metadata:
+    - created_at
+    - created_by
+    - generator_version
+    - validation_status
+    - contact_domain
+
+# Custom validation rules for contact
+validation:
+  custom_rules:
+    - name: "user_search_validation"
+      description: "User search queries must include proper search criteria"
+      check: "template.semantic_tags.primary_entity == 'users' and ('name' in template.parameters or 'email' in template.parameters or 'age' in template.parameters or 'city' in template.parameters)"
+    
+    - name: "age_validation"
+      description: "Age queries must use proper integer values"
+      check: "template.semantic_tags.search_field == 'age' and 'age' in template.parameters and template.parameters.age.type == 'integer'"
+    
+    - name: "email_validation"
+      description: "Email queries must use proper email format"
+      check: "template.semantic_tags.search_field == 'email' and 'email' in template.parameters and template.parameters.email.type == 'string'"
+
+# Domain-specific settings
+domain:
+  name: "contact"
+  description: "Configuration for ultra-simple contact schemas"
+  security_level: "none"
+  
+  # Business rules
+  business_rules:
+    - "User searches must be case-insensitive"
+    - "Age queries should handle numeric comparisons"
+    - "Email searches should be exact matches"
+    - "City searches should be case-insensitive"
+    - "Name searches should support partial matches"
+  
+  # Common query patterns
+  common_patterns:
+    - "Find users by name"
+    - "Search users by email"
+    - "Filter users by age"
+    - "Find users by city"
+    - "Count all users"
+    - "Count users by criteria"
+    - "Sort users by field"
+    - "Get user statistics"
+    - "Check if user exists"
+    - "Get recent users"
+    - "Find users in age range"
+    - "Search users by partial name"
+    - "Get users by city"
+    - "Find oldest/youngest users"
+    - "Get average age"
+    - "List all users"
+    - "Show user details"
+    - "Filter users by multiple criteria"
+    - "Order users by name/age/city"
+    - "Get user count by city"
