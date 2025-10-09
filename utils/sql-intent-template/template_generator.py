@@ -96,6 +96,131 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+# Built-in SQL dialect configurations
+SQL_DIALECTS = {
+    'sqlite': {
+        'parameter_style': 'qmark',
+        'placeholder': '?',
+        'supports_limit_offset': True,
+        'supports_returning': False,
+        'supports_cte': True,
+        'supports_window_functions': True,
+        'string_concat_operator': '||',
+        'boolean_literals': '0/1',
+        'date_format_function': 'strftime',
+        'instructions': [
+            "Use SQLite-compatible SQL syntax",
+            "Use LIMIT and OFFSET for pagination",
+            "Use || for string concatenation",
+            "Use strftime() for date formatting",
+            "Use 0/1 for boolean values",
+            "Use AUTOINCREMENT for auto-incrementing IDs"
+        ]
+    },
+    'postgres': {
+        'parameter_style': 'pyformat',
+        'placeholder': '%(name)s',
+        'supports_limit_offset': True,
+        'supports_returning': True,
+        'supports_cte': True,
+        'supports_window_functions': True,
+        'string_concat_operator': '||',
+        'boolean_literals': 'true/false',
+        'date_format_function': 'TO_CHAR',
+        'instructions': [
+            "Use PostgreSQL-compatible SQL syntax",
+            "Use LIMIT and OFFSET for pagination",
+            "Support RETURNING clause for INSERT/UPDATE/DELETE",
+            "Use || for string concatenation",
+            "Use TO_CHAR() for date formatting",
+            "Use true/false for boolean values",
+            "Use SERIAL or BIGSERIAL for auto-incrementing IDs"
+        ]
+    },
+    'mysql': {
+        'parameter_style': 'format',
+        'placeholder': '%s',
+        'supports_limit_offset': True,
+        'supports_returning': False,
+        'supports_cte': True,  # MySQL 8.0+
+        'supports_window_functions': True,  # MySQL 8.0+
+        'string_concat_operator': 'CONCAT()',
+        'boolean_literals': '0/1',
+        'date_format_function': 'DATE_FORMAT',
+        'instructions': [
+            "Use MySQL-compatible SQL syntax",
+            "Use LIMIT and OFFSET for pagination",
+            "Use CONCAT() for string concatenation",
+            "Use DATE_FORMAT() for date formatting",
+            "Use 0/1 for boolean values",
+            "Use AUTO_INCREMENT for auto-incrementing IDs",
+            "Use backticks for quoting identifiers if needed"
+        ]
+    },
+    'mariadb': {
+        'parameter_style': 'format',
+        'placeholder': '%s',
+        'supports_limit_offset': True,
+        'supports_returning': True,  # MariaDB 10.5+
+        'supports_cte': True,
+        'supports_window_functions': True,
+        'string_concat_operator': 'CONCAT()',
+        'boolean_literals': '0/1',
+        'date_format_function': 'DATE_FORMAT',
+        'instructions': [
+            "Use MariaDB-compatible SQL syntax",
+            "Use LIMIT and OFFSET for pagination",
+            "Use CONCAT() for string concatenation",
+            "Use DATE_FORMAT() for date formatting",
+            "Use 0/1 for boolean values",
+            "Support RETURNING clause (MariaDB 10.5+)",
+            "Use AUTO_INCREMENT for auto-incrementing IDs"
+        ]
+    },
+    'oracle': {
+        'parameter_style': 'named',
+        'placeholder': ':param_name',
+        'supports_limit_offset': False,
+        'supports_returning': True,
+        'supports_cte': True,
+        'supports_window_functions': True,
+        'string_concat_operator': '||',
+        'boolean_literals': '0/1',
+        'date_format_function': 'TO_CHAR',
+        'instructions': [
+            "Use Oracle-compatible SQL syntax",
+            "Use ROWNUM or ROW_NUMBER() OVER() for pagination (no LIMIT)",
+            "Use || for string concatenation",
+            "Use TO_CHAR() for date formatting",
+            "Use 0/1 for boolean values (no native boolean type)",
+            "Use RETURNING clause for INSERT/UPDATE/DELETE",
+            "Use SEQUENCE for auto-incrementing IDs"
+        ]
+    },
+    'sqlserver': {
+        'parameter_style': 'qmark',
+        'placeholder': '?',
+        'supports_limit_offset': True,  # SQL Server 2012+
+        'supports_returning': True,  # OUTPUT clause
+        'supports_cte': True,
+        'supports_window_functions': True,
+        'string_concat_operator': '+',
+        'boolean_literals': '0/1',
+        'date_format_function': 'FORMAT',
+        'instructions': [
+            "Use SQL Server (T-SQL) compatible syntax",
+            "Use OFFSET/FETCH NEXT for pagination (SQL Server 2012+)",
+            "Use + for string concatenation",
+            "Use FORMAT() or CONVERT() for date formatting",
+            "Use 0/1 or BIT type for boolean values",
+            "Use OUTPUT clause instead of RETURNING",
+            "Use IDENTITY for auto-incrementing IDs",
+            "Use square brackets for quoting identifiers if needed"
+        ]
+    }
+}
+
+
 class TemplateGenerator:
     """Generates SQL templates from natural language queries using AI"""
     
@@ -297,8 +422,25 @@ class TemplateGenerator:
             with open(domain_config_path, 'r') as f:
                 self.domain_config = yaml.safe_load(f)
             logger.info("Loaded domain configuration")
+
+            # Extract SQL dialect type and load built-in configuration
+            sql_dialect = self.domain_config.get('sql_dialect', {})
+            dialect_type = sql_dialect.get('type', 'postgres').lower()
+
+            if dialect_type in SQL_DIALECTS:
+                self.sql_dialect = SQL_DIALECTS[dialect_type]
+                self.sql_dialect_type = dialect_type
+                logger.info(f"SQL Dialect: {dialect_type}")
+                logger.info(f"  - Parameter style: {self.sql_dialect['parameter_style']}")
+                logger.info(f"  - Placeholder: {self.sql_dialect['placeholder']}")
+            else:
+                logger.warning(f"Unknown SQL dialect '{dialect_type}', defaulting to postgres")
+                self.sql_dialect = SQL_DIALECTS['postgres']
+                self.sql_dialect_type = 'postgres'
         else:
             logger.warning(f"Domain config not found at: {domain_config_path}")
+            self.sql_dialect = SQL_DIALECTS['postgres']
+            self.sql_dialect_type = 'postgres'
     
     def parse_test_queries(self, test_file_path: str) -> List[str]:
         """Parse test queries from markdown file
@@ -423,19 +565,26 @@ JSON Response:"""
     
     async def generate_sql_template(self, query: str, analysis: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Generate SQL template from query analysis
-        
+
         Args:
             query: Original natural language query
             analysis: Query analysis results
-            
+
         Returns:
             SQL template dictionary or None if generation fails
         """
         if not analysis:
             return None
-        
+
         schema_summary = self._create_schema_summary()
-        
+
+        # Get SQL dialect configuration (defaults to postgres if not set)
+        dialect_config = getattr(self, 'sql_dialect', SQL_DIALECTS['postgres'])
+        dialect_type = getattr(self, 'sql_dialect_type', 'postgres')
+
+        placeholder = dialect_config['placeholder']
+        dialect_instructions = dialect_config['instructions']
+
         prompt = f"""Generate a parameterized SQL template for this query analysis.
 
 Database Schema:
@@ -446,12 +595,18 @@ Original Query: "{query}"
 Query Analysis:
 {json.dumps(analysis, indent=2)}
 
+SQL Dialect: {dialect_type.upper()}
+Parameter Placeholder: {placeholder}
+
 Generate a SQL template that:
-1. Uses %(parameter_name)s placeholders for dynamic values
+1. Uses {placeholder} placeholders for dynamic values
 2. Properly joins tables when needed
 3. Includes appropriate WHERE clauses
 4. Handles aggregations if needed
-5. Is optimized for PostgreSQL
+5. Is optimized for {dialect_type.upper()}
+
+{dialect_type.upper()}-specific requirements:
+{chr(10).join(f"  - {instruction}" for instruction in dialect_instructions)}
 
 Also provide:
 1. List of parameters with their types and descriptions

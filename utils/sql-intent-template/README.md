@@ -17,6 +17,19 @@ This tool automatically generates SQL templates for the Intent PostgreSQL retrie
 
 ## Quick Start
 
+### New to the Tool? Try This First! 🚀
+
+Run the contact example to see the tool in action:
+
+```bash
+./run_contact_example.sh
+```
+
+This will:
+- Generate SQL templates from a simple contact database
+- Create a domain configuration file
+- Show you example output in under a minute!
+
 ### 1. Basic Usage
 
 ```bash

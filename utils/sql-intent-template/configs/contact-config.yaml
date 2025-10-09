@@ -8,6 +8,13 @@
 # - Simple queries for testing template generation
 # - Minimal complexity for quick validation
 
+# SQL dialect configuration
+# Specify your target database system, and the generator will automatically
+# use the correct syntax, functions, and parameter placeholders
+sql_dialect:
+  # Target database: sqlite, postgres, mysql, mariadb, oracle, sqlserver
+  type: sqlite
+
 # Generation settings
 generation:
   # Maximum number of examples per template
