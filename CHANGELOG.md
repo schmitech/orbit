@@ -1,5 +1,27 @@
 # Changelog
 
+## [1.5.4] - 2025-10-10
+
+### Core System Updates
+- Pinecone QA Adapter: Added new Pinecone QA Retriever Adapter for enhanced vector database support
+- Vector Store Overriding: Enabled vector store overriding in intent adapters to choose between Chroma, Pinecone, Qdrant, Milvus, etc.
+- SQL Intent Template Generator: Enhanced SQL intent template generator with improved functionality and documentation
+
+### Python Client
+- Python CLI v1.1.1: Published new python package version to PyPI
+- Chat Client Fixes: Fixed markdown formatting issues in chat client
+
+### UI & Demo Applications
+- Theme Tab Updates: Added missing message background color picker to theming interface
+- Dashboard Improvements: Enhanced dashboard UX with better line hovering and value display
+- Chat App Enhancements: Added toggle for thumbs up/down buttons based on environment variable and increased logo size
+
+### Documentation & Configuration
+- README Updates: Multiple documentation improvements including video updates, contact examples, and scenario details
+- Classified Example Updates: Updated templates and SQL Intent documentation
+- Scraping Tools: Added scraping tools back for knowledge base extraction
+- Configuration Cleanup: Removed sample adapters from default adapter.yaml configuration
+
 ## [1.5.3] - 2025-10-03
 
 ### Core System Updates
