@@ -62,7 +62,7 @@ RetrieverFactory.register_retriever("new", NewRetriever)
 
 1. Create a new adapter class that inherits from `DocumentAdapter`:
 ```python
-from retrievers.adapters.domain_adapters import DocumentAdapter
+from adapters.base import DocumentAdapter
 
 class NewDomainAdapter(DocumentAdapter):
     def __init__(self, **kwargs):
@@ -87,7 +87,7 @@ def create_new_adapter(config: Dict[str, Any]) -> NewDomainAdapter:
 
 3. Register the adapter in your module:
 ```python
-from retrievers.adapters.domain_adapters import DocumentAdapterFactory
+from adapters.factory import DocumentAdapterFactory
 
 DocumentAdapterFactory.register_adapter("new_domain", create_new_adapter)
 ```

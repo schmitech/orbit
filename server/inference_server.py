@@ -199,7 +199,7 @@ class InferenceServer:
         if not inference_only:
             global RetrieverFactory, ADAPTER_REGISTRY
             from retrievers.base.base_retriever import RetrieverFactory
-            from retrievers.adapters.registry import ADAPTER_REGISTRY
+            from adapters.registry import ADAPTER_REGISTRY
             self.logger.info("Initializing retrievers package for RAG mode")
         else:
             self.logger.info("Skipping retrievers initialization in inference-only mode")

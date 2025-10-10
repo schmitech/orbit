@@ -11,7 +11,7 @@ from qdrant_client.http.exceptions import UnexpectedResponse
 
 from .qa_vector_base import QAVectorRetrieverBase
 from ...base.base_retriever import RetrieverFactory
-from ...adapters.registry import ADAPTER_REGISTRY
+from adapters.registry import ADAPTER_REGISTRY
 from ..vector.qdrant_retriever import QdrantRetriever
 
 logger = logging.getLogger(__name__)

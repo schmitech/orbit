@@ -49,7 +49,7 @@ if hasattr(retriever, 'domain_adapter') and retriever.domain_adapter:
             await domain_adapter.initialize_embeddings(vector_store_manager)
 ```
 
-### 3. Intent Adapter (`server/retrievers/adapters/intent/intent_adapter.py`)
+### 3. Intent Adapter (`server/adapters/intent/adapter.py`)
 
 **Changes Made:**
 - Added optional import of vector stores to prevent import errors

@@ -8,7 +8,8 @@ from typing import Dict, Any, List, Optional, Union
 import os
 from pathlib import Path
 
-from retrievers.adapters.domain_adapters import DocumentAdapter, DocumentAdapterFactory
+from adapters.base import DocumentAdapter
+from adapters.factory import DocumentAdapterFactory
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -89,7 +90,9 @@ class IntentAdapter(DocumentAdapter):
             # Handle relative paths from the project root
             if not os.path.isabs(path):
                 # Assume relative paths are from the project root
-                project_root = Path(__file__).parent.parent.parent.parent.parent
+                # From server/adapters/intent/adapter.py go up to project root
+                # adapter.py -> intent -> adapters -> server -> orbit (project root)
+                project_root = Path(__file__).parent.parent.parent.parent
                 full_path = project_root / path
             else:
                 full_path = Path(path)
@@ -410,30 +413,30 @@ class IntentAdapter(DocumentAdapter):
 def register_intent_adapter():
     """Register intent adapter with the global adapter registry"""
     logger.info("Registering intent adapter with global registry...")
-    
+
     try:
-        from ..registry import ADAPTER_REGISTRY
+        from adapters.registry import ADAPTER_REGISTRY
         
         # Register for PostgreSQL datasource
         ADAPTER_REGISTRY.register(
             adapter_type="retriever",
             datasource="postgres",
             adapter_name="intent",
-            implementation='retrievers.adapters.intent.intent_adapter.IntentAdapter',
+            implementation='adapters.intent.adapter.IntentAdapter',
             config={
                 'confidence_threshold': 0.1,
                 'verbose': False
             }
         )
         logger.info("Registered intent adapter for postgres")
-        
+
         # Also register for other SQL datasources that might use intent in the future
         for datasource in ['mysql', 'mssql', 'sqlite']:
             ADAPTER_REGISTRY.register(
                 adapter_type="retriever",
                 datasource=datasource,
                 adapter_name="intent",
-                implementation='retrievers.adapters.intent.intent_adapter.IntentAdapter',
+                implementation='adapters.intent.adapter.IntentAdapter',
                 config={
                     'confidence_threshold': 0.1,
                     'verbose': False

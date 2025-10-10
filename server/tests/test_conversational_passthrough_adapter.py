@@ -3,12 +3,12 @@ import sys
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from adapters.passthrough.conversational.conversational_adapter import ConversationalAdapter
+from adapters.passthrough.adapter import ConversationalAdapter
 from inference.pipeline.base import ProcessingContext
 from inference.pipeline.service_container import ServiceContainer
 from inference.pipeline.steps.context_retrieval import ContextRetrievalStep
-from retrievers.adapters.registry import ADAPTER_REGISTRY
-import retrievers.adapters.domain_adapters  # noqa: F401 - ensure registrations run
+from adapters.registry import ADAPTER_REGISTRY
+import adapters  # noqa: F401 - ensure registrations run
 
 
 def test_conversational_adapter_registered():

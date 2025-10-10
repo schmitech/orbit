@@ -9,7 +9,7 @@ from typing import Dict, Any, List, Optional, Tuple
 
 from .qa_vector_base import QAVectorRetrieverBase
 from ...base.base_retriever import RetrieverFactory
-from ...adapters.registry import ADAPTER_REGISTRY
+from adapters.registry import ADAPTER_REGISTRY
 from ..vector.pinecone_retriever import PineconeRetriever
 
 logger = logging.getLogger(__name__)

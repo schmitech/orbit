@@ -161,9 +161,8 @@ class AdapterRegistry:
         try:
             # Try standard module path patterns
             potential_paths = [
-                f"retrievers.adapters.{adapter_type}.{datasource}_{adapter_name}_adapter",
-                f"retrievers.adapters.{adapter_name}.{datasource}_{adapter_name}_adapter",
-                f"retrievers.adapters.{datasource}.{datasource}_{adapter_name}_adapter",
+                f"adapters.{adapter_name}.{datasource}_adapter",
+                f"adapters.{datasource}.{adapter_name}_adapter",
                 f"retrievers.implementations.{datasource}.{datasource}_{adapter_name}_adapter"
             ]
             

@@ -93,21 +93,21 @@ class BaseRetriever(ABC):
         
         # Import the adapter factory
         try:
-            from retrievers.adapters.domain_adapters import DocumentAdapterFactory
+            from adapters.factory import DocumentAdapterFactory
             # Get adapter params from config
             adapter_params = self.datasource_config.get('adapter_params', {})
-            
+
             # Add confidence threshold
             if 'confidence_threshold' not in adapter_params:
                 adapter_params['confidence_threshold'] = self.confidence_threshold
-                
+
             return DocumentAdapterFactory.create_adapter(adapter_type, **adapter_params)
         except (ImportError, ValueError) as e:
             logger.warning(f"Failed to create domain adapter: {str(e)}")
             logger.warning("Using default QA adapter")
-            
-            # Create a minimal adapter
-            from retrievers.adapters.domain_adapters import QADocumentAdapter
+
+            # Create a minimal adapter as fallback
+            from adapters.qa.base import QADocumentAdapter
             return QADocumentAdapter(confidence_threshold=self.confidence_threshold)
     
     def _get_datasource_config(self) -> Dict[str, Any]:

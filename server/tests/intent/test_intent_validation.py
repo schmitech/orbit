@@ -17,7 +17,7 @@ from unittest.mock import patch, MagicMock, AsyncMock
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 from retrievers.implementations.intent.intent_postgresql_retriever import IntentPostgreSQLRetriever
-from retrievers.adapters.intent.intent_adapter import IntentAdapter
+from adapters.intent.adapter import IntentAdapter
 
 
 class TestIntentValidation:

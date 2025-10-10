@@ -19,7 +19,7 @@ with patch.dict('sys.modules', {
     'vector_stores.TemplateEmbeddingStore': MagicMock()
 }):
     from retrievers.implementations.intent.intent_postgresql_retriever import IntentPostgreSQLRetriever
-    from retrievers.adapters.intent.intent_adapter import IntentAdapter
+    from adapters.intent.adapter import IntentAdapter
 from retrievers.implementations.intent.domain.extraction import DomainParameterExtractor
 from retrievers.implementations.intent.domain.response import DomainResponseGenerator
 

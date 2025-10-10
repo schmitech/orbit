@@ -8,7 +8,7 @@ from typing import Dict, Any, List, Optional
 import logging
 
 from ...base.abstract_vector_retriever import AbstractVectorRetriever
-from ...adapters.registry import ADAPTER_REGISTRY
+from adapters.registry import ADAPTER_REGISTRY
 
 logger = logging.getLogger(__name__)
 

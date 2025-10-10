@@ -18,7 +18,7 @@ from datetime import datetime, date
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 from retrievers.base.intent_sql_base import IntentSQLRetriever
-from retrievers.adapters.intent.intent_adapter import IntentAdapter
+from adapters.intent.adapter import IntentAdapter
 
 
 class MockIntentSQLRetriever(IntentSQLRetriever):

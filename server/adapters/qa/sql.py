@@ -4,7 +4,8 @@ Generic SQL QA adapter that works with any SQL provider
 
 from typing import Dict, Any, List, Optional
 import logging
-from retrievers.adapters.domain_adapters import DocumentAdapter, DocumentAdapterFactory
+from adapters.base import DocumentAdapter
+from adapters.factory import DocumentAdapterFactory
 
 # Configure logging
 logger = logging.getLogger(__name__)

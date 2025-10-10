@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, List, Optional
 
-from retrievers.adapters.domain_adapters import DocumentAdapter
+from adapters.base import DocumentAdapter
 
 logger = logging.getLogger(__name__)
 

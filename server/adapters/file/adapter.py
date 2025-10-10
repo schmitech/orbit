@@ -4,7 +4,8 @@ File adapter for processing uploaded files with domain-specific formatting
 
 from typing import Dict, Any, List, Optional
 import logging
-from retrievers.adapters.domain_adapters import DocumentAdapter, DocumentAdapterFactory
+from adapters.base import DocumentAdapter
+from adapters.factory import DocumentAdapterFactory
 
 logger = logging.getLogger(__name__)
 

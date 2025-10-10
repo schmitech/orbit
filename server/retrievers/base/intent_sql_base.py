@@ -9,7 +9,7 @@ from typing import Dict, Any, List, Optional, Tuple
 from abc import abstractmethod
 
 from .base_sql_database import BaseSQLDatabaseRetriever
-from retrievers.adapters.intent.intent_adapter import IntentAdapter
+from adapters.intent.adapter import IntentAdapter
 from retrievers.implementations.intent.domain.extraction import DomainParameterExtractor
 from retrievers.implementations.intent.domain.response import DomainResponseGenerator
 from retrievers.implementations.intent.template_reranker import TemplateReranker

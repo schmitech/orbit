@@ -91,7 +91,7 @@ ADAPTER_REGISTRY.register(
     adapter_type="retriever",
     datasource="http",
     adapter_name="rest",
-    implementation='retrievers.adapters.http.rest_adapter.RestAdapter',
+    implementation='adapters.http.adapter.HTTPAdapter',
     config={'base_url': 'https://api.example.com'}
 )
 ```

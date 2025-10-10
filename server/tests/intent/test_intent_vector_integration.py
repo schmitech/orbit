@@ -11,7 +11,7 @@ import os
 # Add server directory to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../..'))
 
-from retrievers.adapters.intent.intent_adapter import IntentAdapter
+from adapters.intent.adapter import IntentAdapter
 from vector_stores.base.store_manager import StoreManager
 
 logging.basicConfig(level=logging.INFO)

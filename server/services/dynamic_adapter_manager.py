@@ -280,7 +280,7 @@ class DynamicAdapterManager:
             retriever_class = getattr(module, class_name)
 
             # Create domain adapter
-            from retrievers.adapters.registry import ADAPTER_REGISTRY
+            from adapters.registry import ADAPTER_REGISTRY
             adapter_config_params = adapter_config.get('config') or {}
             domain_adapter = None
 
