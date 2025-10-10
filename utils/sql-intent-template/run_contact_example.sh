@@ -188,13 +188,13 @@ EOF
   # Generate domain config
   echo -e "${BLUE}Generating domain configuration...${NC}"
   python template_generator.py \
-    --schema ./examples/contact.sql \
-    --queries ./examples/contact_test_queries.md \
+    --schema ./examples/sqlite/contact/contact.sql \
+    --queries ./examples/sqlite/contact/contact_test_queries.md \
     --output /tmp/dummy-output.yaml \
     --generate-domain \
     --domain-name "Contact Management" \
     --domain-type general \
-    --domain-output contact-example-domain.yaml \
+    --domain-output ./examples/sqlite/contact/contact-domain.yaml \
     --limit 1 \
     2>/dev/null || echo -e "${YELLOW}Note: Domain config generation requires schema parsing only${NC}"
 
@@ -213,14 +213,14 @@ else
 
   # Run the generator with contact example
   ./generate_templates.sh \
-    --schema ./examples/contact.sql \
-    --queries ./examples/contact_test_queries.md \
-    --output contact-example-output.yaml \
+    --schema ./examples/sqlite/contact/contact.sql \
+    --queries ./examples/sqlite/contact/contact_test_queries.md \
+    --output ./examples/sqlite/contact/contact-templates.yaml \
     --domain configs/contact-config.yaml \
     --generate-domain \
     --domain-name "Contact Management" \
     --domain-type general \
-    --domain-output contact-example-domain.yaml
+    --domain-output ./examples/sqlite/contact/contact-domain.yaml
 fi
 
 echo ""

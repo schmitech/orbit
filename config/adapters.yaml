@@ -10,7 +10,7 @@ adapters:
     implementation: "implementations.passthrough.conversational.ConversationalImplementation"
     # inference_provider: "ollama"  # Override default
     # model: "gpt-oss:20b"  # Specific model for this adapter
-
+    
   # This is an example of a QA adapter for a SQL database.
   # It is used as an example of how to create a QA adapter for a SQL database.
   # Run /examples/sample-db-setup.sh sqlite to create a sample database and api key before using this adapter.
@@ -106,16 +106,16 @@ adapters:
     adapter: "intent"
     implementation: "retrievers.implementations.intent.IntentPostgreSQLRetriever"
     # inference_provider: "ollama"
-    # model: "xai"
-    embedding_provider: "ollama"
+    # model: "gpt-oss:120b"
+    embedding_provider: "openai"
     config:
       # Path to the domain definition file
-      domain_config_path: "config/sql_intent_templates/examples/customer-orders/customer_order_domain.yaml"
+      domain_config_path: "utils/sql-intent-template/examples/postgres/customer-orders/customer_order_domain.yaml"
       template_library_path:
-        - "config/sql_intent_templates/examples/customer-orders/postgres_customer_orders.yaml"
-        - "config/sql_intent_templates/examples/customer-orders/business_intelligence_templates.yaml"
-        - "config/sql_intent_templates/examples/customer-orders/advanced_analytics_templates.yaml"
-        - "config/sql_intent_templates/examples/customer-orders/comparative_analysis_templates.yaml"
+        - "utils/sql-intent-template/examples/postgres/customer-orders/customer_orders_templates.yaml"
+        - "utils/sql-intent-template/examples/postgres/customer-orders/business_intelligence_templates.yaml"
+        - "utils/sql-intent-template/examples/postgres/customer-orders/advanced_analytics_templates.yaml"
+        - "utils/sql-intent-template/examples/postgres/customer-orders/comparative_analysis_templates.yaml"
       # Name for the vector store collection for templates
       template_collection_name: "intent_query_templates"
       # Store configuration - references stores.yaml
@@ -141,21 +141,22 @@ adapters:
       query_timeout: 5000  # 5 seconds
 
   - name: "intent-sql-sqlite-classified"
-    enabled: true
+    enabled: false
     type: "retriever"
     datasource: "sqlite"
     adapter: "intent"
     implementation: "retrievers.implementations.intent.IntentSQLiteRetriever"
-    # inference_provider: "vllm"
-    # embedding_provider: "ollama"
+    inference_provider: "ollama"
+    model: "gpt-oss:20b"
+    embedding_provider: "ollama"
     config:
       # SQLite database path is configured in datasources.yaml
       check_same_thread: false  # Allow multi-threaded access
 
       # Path to the domain definition file
-      domain_config_path: "config/sql_intent_templates/examples/classified-data/classified_data_domain.yaml"
+      domain_config_path: "utils/sql-intent-template/examples/sqlite/classified-data/classified_data_domain.yaml"
       template_library_path:
-        - "config/sql_intent_templates/examples/classified-data/sqlite_classified_data_templates.yaml"
+        - "utils/sql-intent-template/examples/sqlite/classified-data/classified_data_templates.yaml"
 
       # Name for the vector store collection for templates
       template_collection_name: "classified_intent_templates"
@@ -175,6 +176,52 @@ adapters:
       # Template loading settings
       reload_templates_on_start: false  # Whether to reload templates on startup
       force_reload_templates: false  # Force reload even if templates exist in storage
+
+      # Unified retriever features
+      use_connection_pool: false  # SQLite doesn't support traditional pooling (file-based)
+      pool_size: 1  # Not applicable for SQLite
+      connection_timeout: 30  # Connection timeout in seconds
+
+      # Query monitoring (automatically provided by unified base)
+      enable_query_monitoring: true
+      query_timeout: 5000  # 5 seconds
+
+  - name: "intent-sql-sqlite-contact"
+    enabled: false
+    type: "retriever"
+    datasource: "sqlite"
+    adapter: "intent"
+    implementation: "retrievers.implementations.intent.IntentSQLiteRetriever"
+    inference_provider: "ollama"
+    model: "gpt-oss:20b"
+    embedding_provider: "ollama"
+    config:
+      # SQLite database path is configured in datasources.yaml
+      check_same_thread: false  # Allow multi-threaded access
+
+      # Path to the domain definition file
+      domain_config_path: "utils/sql-intent-template/examples/sqlite/contact/contact-domain.yaml"
+      template_library_path:
+        - "utils/sql-intent-template/examples/sqlite/contact/contact-templates.yaml"
+
+      # Name for the vector store collection for templates
+      template_collection_name: "contact_intent_templates"
+      # Store configuration - references stores.yaml
+      store_name: "chroma"
+      confidence_threshold: 0.4
+
+      # Embedding provider for template matching (null = use default)
+      embedding_provider: null
+
+      # Maximum templates to consider
+      max_templates: 5
+
+      # Return top N results
+      return_results: 10
+
+      # Template loading settings
+      reload_templates_on_start: true  # Whether to reload templates on startup
+      force_reload_templates: true  # Force reload even if templates exist in storage
 
       # Unified retriever features
       use_connection_pool: false  # SQLite doesn't support traditional pooling (file-based)

@@ -17,11 +17,11 @@ CREATE TABLE IF NOT EXISTS users (
 
 -- Insert sample data
 INSERT OR IGNORE INTO users (name, email, age, city) VALUES
-    ('John Doe', 'john@example.com', 25, 'New York'),
-    ('Jane Smith', 'jane@example.com', 30, 'Los Angeles'),
-    ('Bob Johnson', 'bob@example.com', 35, 'Chicago'),
-    ('Alice Brown', 'alice@example.com', 28, 'New York'),
-    ('Charlie Wilson', 'charlie@example.com', 32, 'Miami'),
-    ('Diana Prince', 'diana@example.com', 27, 'Boston'),
-    ('Eve Adams', 'eve@example.com', 33, 'Seattle'),
-    ('Frank Miller', 'frank@example.com', 29, 'Denver');
+    ('John Doe', 'john@example.com', 25, 'Ottawa'),
+    ('Jane Smith', 'jane@example.com', 30, 'Toronto'),
+    ('Bob Johnson', 'bob@example.com', 35, 'Calgary'),
+    ('Alice Brown', 'alice@example.com', 28, 'Montreal'),
+    ('Charlie Wilson', 'charlie@example.com', 32, 'Edmonton'),
+    ('Diana Prince', 'diana@example.com', 27, 'Vancouver'),
+    ('Eve Adams', 'eve@example.com', 33, 'Winnipeg'),
+    ('Frank Miller', 'frank@example.com', 29, 'Edmonton');

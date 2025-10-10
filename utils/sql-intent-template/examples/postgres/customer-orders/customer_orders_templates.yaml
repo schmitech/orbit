@@ -25,13 +25,15 @@ templates:
         required: true
         aliases: ["id", "order_number", "order_num", "number"]
     sql_template: |
-      SELECT o.*, c.name as customer_name, c.email as customer_email,
+      SELECT o.id, o.customer_id, o.order_date, o.total, o.status, 
+             o.shipping_address, o.payment_method, o.created_at, o.updated_at,
+             c.name as customer_name, c.email as customer_email,
              c.phone as customer_phone, c.city as customer_city,
              c.country as customer_country
       FROM orders o
       JOIN customers c ON o.customer_id = c.id
       WHERE o.id = %(order_id)s
-    result_format: "summary"
+    result_format: "table"
     tags: ["order", "id", "number", "specific", "lookup", "find", "details"]
     semantic_tags:
       action: "lookup"
