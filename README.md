@@ -202,38 +202,51 @@ _NOTE: You need an instance of MongoDB to enable adapters_
 
 Here's the [Sample Q/A datasets](examples/city-qa-pairs.json) for this example. The knowledge base corresponds to a municipal services assistant.
 
+Set inference_only mode to false in `config/config.yaml`:
+
+```yaml
+inference_only: false
+```
+
+Enable the adapter in `config/adapters.yaml`:
+
+```yaml
+- name: "qa-sql"
+  enabled: true
+  type: "retriever"
+  datasource: "sqlite"
+  adapter: "qa"
+  implementation: "retrievers.implementations.qa.QASSQLRetriever"
+```
+
+Restart ORBIT:
+
+```bash
+./bin/orbit.sh start --delete-logs
+```
+
+Generate sample data and API Key (Default SQLite DB in `examples/sqlite/sqlite_db`):
+
 ```bash
 #Login as admin first. Default password is admin123. You should change after installing ORBIT.
 ./bin/orbit.sh login
 
-# Set up SQLite database with Q&A data
+# Set up SQLite database with Q&A data.
 ./examples/sample-db-setup.sh sqlite
 ```
 
+Start chatting with your new key:
+
+```bash
+orbit-chat --url http://localhost:3000 --api-key YOUR_API_KEY
+```
+
 <div align="center">
-  <video src="https://github.com/user-attachments/assets/b54659fe-2172-4754-b9ff-68292f7efcb1" controls>
+  <video src="https://github.com/user-attachments/assets/0ffc5160-d8f9-4006-8e76-b58d89b42aa8" controls>
     Your browser does not support the video tag.
   </video>
   <br/>
   <i>Setting up the sample SQLite Q/A dataset</i>
-</div>
-
-### Testing with the node client:
-
-```bash
-# Test using node client
-cd clients/node-api
-npm install
-npm run build
-npm run test-query-from-pairs ../../examples/city-qa-pairs.json "http://localhost:3000" "your-api-key" 5 134444
-```
-
-<div align="center">
-  <video src="https://github.com/user-attachments/assets/e6487006-02da-4927-a4f3-04be7c6a3a22" controls>
-    Your browser does not support the video tag.
-  </video>
-  <br/>
-  <i>Testing the Q/A Adapter using the node API client</i>
 </div>
 
 ### Scenario 2: Chat with Your SQL Database
@@ -246,7 +259,7 @@ Ask questions about your data in natural language and get answers without writin
 
 #### Quick Start with Contact Example
 
-Install Ollama and pull the `nomic-embed-text:latest` embedding model. Also pull a model of choice for insference purposes.
+Install Ollama and pull the `nomic-embed-text:latest` embedding model. Also pull a model of choice for inference purposes.
 ```bash
 ollama pull nomic-embed-text:latest
 ollama pull gemma3:12b
