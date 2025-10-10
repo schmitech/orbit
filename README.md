@@ -240,46 +240,46 @@ npm run test-query-from-pairs ../../examples/city-qa-pairs.json "http://localhos
 Ask questions about your data in natural language and get answers without writing SQL.
 
 **Sample Questions:**
-- "Show me all orders from John Smith"
-- "What are the top 10 customers by order value?"
+- "Show me all users from Toronto"
+- "What are the top 10 users by age?"
+- "Find users created in the last month"
+
+#### Quick Start with Contact Example
+
+Install Ollama and pull the `nomic-embed-text:latest` embedding model.
+```bash
+ollama pull nomic-embed-text:latest
+```
+
+Enable the contact domain sample adapter in `/config/adapters.yaml`:
+
+```yaml
+- name: "intent-sql-sqlite-contact"
+  enabled: true
+  type: "retriever"
+  datasource: "sqlite"
+  adapter: "intent"
+  implementation: "retrievers.implementations.intent.IntentSQLiteRetriever"
+```
+
+Start ORBIT:
 
 ```bash
-# Set up PostgreSQL with a sample schema and data
-cd examples/postgres
-
-# Update with  your connection parameters
-cp env.example .env
-
-# Test connection
-python test_connection.py
-
-# Create the DB
-python setup_schema.py
-
-# Install faker to generate synthetic data
-pip install faker
-
-# Add sample data
-python customer-order.py --action insert --clean --customers 100 --orders 1000
-
-# Create an API key for the SQL intent adapter.
-# Make sure you are logged in as admin if auth is enabled in `/config/config.yaml`.
-python bin/orbit.py key create \
-  --adapter intent-sql-postgres \
-  --name "Order Management Assistant" \
-  --prompt-file examples/postgres/prompts/customer-assistant-enhanced-prompt.txt
-
-#make sure the sample SQL intent adapter is enabled in `/config/adapters.yaml`
-- name: "intent-sql-postgres"
-    enabled: false
-    type: "retriever"
-    datasource: "postgres"
-    adapter: "intent"
-    implementation: "retrievers.implementations.intent.IntentPostgreSQLRetriever"
-    inference_provider: "ollama"
-
-# Start or restart the server
 ./bin/orbit.sh start --delete-logs
+```
+
+Create an API Key for this adapter:
+
+```bash
+# Login admin credentials
+./bin/orbit.sh login
+
+# Create an API key for the SQL intent adapter
+./bin/orbit.py key create \
+  --intent-sql-sqlite-contact \
+  --name "Contact Adapter Demo" \
+  --notes "Demo using SQLite" \
+  --prompt-file examples/prompts/contact-assistant-prompt.txt
 
 # Start chatting with your new key
 orbit-chat --url http://localhost:3000 --api-key YOUR_API_KEY
