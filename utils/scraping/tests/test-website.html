@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Website for Firecrawl URL Extractor</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; line-height: 1.6; }
+        .nav { background: #f4f4f4; padding: 20px; margin-bottom: 30px; border-radius: 5px; }
+        .nav a { margin-right: 20px; text-decoration: none; color: #333; }
+        .nav a:hover { color: #007bff; }
+        .content { max-width: 800px; }
+        .footer { margin-top: 50px; padding: 20px; background: #f8f9fa; border-radius: 5px; }
+        .link-section { margin: 20px 0; padding: 15px; border-left: 3px solid #007bff; }
+        .external-links { background: #fff3cd; padding: 15px; border-radius: 5px; }
+        .internal-links { background: #d1ecf1; padding: 15px; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <div class="nav">
+        <a href="index.html">Home</a>
+        <a href="about.html">About</a>
+        <a href="services.html">Services</a>
+        <a href="products.html">Products</a>
+        <a href="contact.html">Contact</a>
+        <a href="blog/index.html">Blog</a>
+        <a href="docs/api.html">API Docs</a>
+        <a href="support/help.html">Support</a>
+    </div>
+
+    <div class="content">
+        <h1>Welcome to Test Website</h1>
+        <p>This is a comprehensive test website designed to test the Firecrawl URL extractor script.</p>
+        
+        <div class="link-section">
+            <h2>Main Navigation Links</h2>
+            <p>These are the primary navigation links that should be discovered:</p>
+            <ul>
+                <li><a href="about.html">About Us</a> - Learn more about our company</li>
+                <li><a href="services.html">Our Services</a> - What we offer</li>
+                <li><a href="products.html">Product Catalog</a> - Browse our products</li>
+                <li><a href="contact.html">Contact Information</a> - Get in touch</li>
+            </ul>
+        </div>
+
+        <div class="link-section">
+            <h2>Blog Section Links</h2>
+            <p>Links to blog posts and categories:</p>
+            <ul>
+                <li><a href="blog/index.html">Blog Home</a> - Main blog page</li>
+                <li><a href="blog/tech-news.html">Tech News</a> - Latest technology updates</li>
+                <li><a href="blog/tutorials.html">Tutorials</a> - How-to guides</li>
+                <li><a href="blog/case-studies.html">Case Studies</a> - Success stories</li>
+                <li><a href="blog/2024/01/winter-update.html">Winter Update 2024</a> - Seasonal updates</li>
+                <li><a href="blog/2024/02/spring-features.html">Spring Features 2024</a> - New features</li>
+            </ul>
+        </div>
+
+        <div class="link-section">
+            <h2>Documentation Links</h2>
+            <p>Technical documentation and API references:</p>
+            <ul>
+                <li><a href="docs/api.html">API Documentation</a> - Complete API reference</li>
+                <li><a href="docs/getting-started.html">Getting Started Guide</a> - Quick start tutorial</li>
+                <li><a href="docs/examples.html">Code Examples</a> - Sample implementations</li>
+                <li><a href="docs/faq.html">Frequently Asked Questions</a> - Common questions</li>
+                <li><a href="docs/troubleshooting.html">Troubleshooting</a> - Common issues and solutions</li>
+            </ul>
+        </div>
+
+        <div class="link-section">
+            <h2>Support and Help Links</h2>
+            <p>Customer support and help resources:</p>
+            <ul>
+                <li><a href="support/help.html">Help Center</a> - Main help page</li>
+                <li><a href="support/contact-support.html">Contact Support</a> - Reach our team</li>
+                <li><a href="support/knowledge-base.html">Knowledge Base</a> - Searchable help articles</li>
+                <li><a href="support/community.html">Community Forum</a> - User discussions</li>
+                <li><a href="support/status.html">System Status</a> - Service health</li>
+            </ul>
+        </div>
+
+        <div class="link-section">
+            <h2>Product Detail Links</h2>
+            <p>Individual product pages:</p>
+            <ul>
+                <li><a href="products/software-suite.html">Software Suite</a> - Complete software package</li>
+                <li><a href="products/cloud-service.html">Cloud Service</a> - Hosted solutions</li>
+                <li><a href="products/consulting.html">Consulting Services</a> - Expert guidance</li>
+                <li><a href="products/training.html">Training Programs</a> - Skill development</li>
+            </ul>
+        </div>
+
+        <div class="link-section">
+            <h2>Company Information Links</h2>
+            <p>Corporate and company-related pages:</p>
+            <ul>
+                <li><a href="about/team.html">Our Team</a> - Meet the team</li>
+                <li><a href="about/history.html">Company History</a> - Our story</li>
+                <li><a href="about/careers.html">Careers</a> - Job opportunities</li>
+                <li><a href="about/press.html">Press Room</a> - Media resources</li>
+                <li><a href="about/investors.html">Investor Relations</a> - Financial information</li>
+            </ul>
+        </div>
+
+        <div class="link-section">
+            <h2>Legal and Policy Links</h2>
+            <p>Important legal documents and policies:</p>
+            <ul>
+                <li><a href="legal/privacy-policy.html">Privacy Policy</a> - Data protection</li>
+                <li><a href="legal/terms-of-service.html">Terms of Service</a> - Usage terms</li>
+                <li><a href="legal/cookie-policy.html">Cookie Policy</a> - Cookie usage</li>
+                <li><a href="legal/accessibility.html">Accessibility Statement</a> - Accessibility compliance</li>
+            </ul>
+        </div>
+
+        <div class="link-section">
+            <h2>Resource Links</h2>
+            <p>Additional resources and downloads:</p>
+            <ul>
+                <li><a href="resources/downloads.html">Downloads</a> - Software and tools</li>
+                <li><a href="resources/whitepapers.html">White Papers</a> - Research documents</li>
+                <li><a href="resources/webinars.html">Webinars</a> - Online presentations</li>
+                <li><a href="resources/events.html">Events</a> - Upcoming events</li>
+            </ul>
+        </div>
+
+        <div class="external-links">
+            <h2>External Links (Should NOT be extracted)</h2>
+            <p>These external links should not be included in the URL extraction:</p>
+            <ul>
+                <li><a href="https://www.google.com">Google</a> - External search engine</li>
+                <li><a href="https://github.com">GitHub</a> - External code repository</li>
+                <li><a href="https://stackoverflow.com">Stack Overflow</a> - External Q&A site</li>
+                <li><a href="https://www.linkedin.com">LinkedIn</a> - External professional network</li>
+            </ul>
+        </div>
+
+        <div class="internal-links">
+            <h2>Deep Internal Links</h2>
+            <p>These are deeper nested links to test depth crawling:</p>
+            <ul>
+                <li><a href="blog/2024/01/winter-update/features.html">Winter Features</a> - Deep nested content</li>
+                <li><a href="docs/api/v1/endpoints.html">API Endpoints v1</a> - Deep API documentation</li>
+                <li><a href="support/knowledge-base/troubleshooting/common-issues.html">Common Issues</a> - Deep help content</li>
+                <li><a href="products/software-suite/enterprise/features.html">Enterprise Features</a> - Deep product content</li>
+            </ul>
+        </div>
+
+        <div class="link-section">
+            <h2>Utility and System Links</h2>
+            <p>System and utility pages:</p>
+            <ul>
+                <li><a href="sitemap.html">Sitemap</a> - Site structure overview</li>
+                <li><a href="search.html">Search</a> - Site search functionality</li>
+                <a href="login.html">Login</a> - User authentication</li>
+                <li><a href="register.html">Register</a> - User registration</li>
+                <li><a href="dashboard.html">Dashboard</a> - User dashboard</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p><strong>Test Website Footer</strong></p>
+        <p>This footer contains additional navigation links:</p>
+        <a href="footer/about.html">About (Footer)</a> |
+        <a href="footer/contact.html">Contact (Footer)</a> |
+        <a href="footer/support.html">Support (Footer)</a> |
+        <a href="footer/legal.html">Legal (Footer)</a>
+        <p><small>This is a test website created for testing the Firecrawl URL extractor script. All links are fictional and for testing purposes only.</small></p>
+    </div>
+
+    <script>
+        // Add some JavaScript to test JS-rendered content
+        document.addEventListener('DOMContentLoaded', function() {
+            // Create a dynamic link after page load
+            const dynamicSection = document.createElement('div');
+            dynamicSection.className = 'link-section';
+            dynamicSection.innerHTML = `
+                <h2>Dynamically Generated Links</h2>
+                <p>These links are created by JavaScript after page load:</p>
+                <ul>
+                    <li><a href="dynamic/page1.html">Dynamic Page 1</a> - Generated by JS</li>
+                    <li><a href="dynamic/page2.html">Dynamic Page 2</a> - Generated by JS</li>
+                    <li><a href="dynamic/page3.html">Dynamic Page 3</a> - Generated by JS</li>
+                </ul>
+            `;
+            document.querySelector('.content').appendChild(dynamicSection);
+        });
+    </script>
+</body>
+</html>

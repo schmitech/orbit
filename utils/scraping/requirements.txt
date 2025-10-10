@@ -1,0 +1,28 @@
+# Web scraping and processing
+aiohttp>=3.12.15
+nest-asyncio>=1.6.0
+beautifulsoup4>=4.13.4
+lxml>=4.0.0,<6.0.0  # For XML parsing (sitemaps), pinned to <6.0.0
+html2text>=2024.2.26  # Updated to stable version
+requests>=2.31.0
+
+# New unified scraper backends
+trafilatura>=2.0.0  # Fast article extraction
+playwright>=1.40.0    # JavaScript-enabled browser automation
+
+# Document processing (optional)
+torch>=2.2.0          # Required for Docling
+docling>=2.44.0       # Document processing backend
+
+# API-based backends (optional)
+firecrawl>=2.16.5     # Advanced scraping API
+
+# AI/ML
+python-dotenv==1.0.0
+google-generativeai>=0.3.0  # Loosened version for compatibility
+markdown>=3.4.0  # Loosened version for compatibility
+pyyaml>=6.0.2
+ollama>=0.5.3
+
+# Installation note: After installing playwright, run: playwright install
+# python -m playwright install chromium
