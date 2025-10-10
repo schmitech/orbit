@@ -246,9 +246,10 @@ Ask questions about your data in natural language and get answers without writin
 
 #### Quick Start with Contact Example
 
-Install Ollama and pull the `nomic-embed-text:latest` embedding model.
+Install Ollama and pull the `nomic-embed-text:latest` embedding model. Also pull a model of choice for insference purposes.
 ```bash
 ollama pull nomic-embed-text:latest
+ollama pull gemma3:12b
 ```
 
 Enable the contact domain sample adapter in `/config/adapters.yaml`:
@@ -260,6 +261,9 @@ Enable the contact domain sample adapter in `/config/adapters.yaml`:
   datasource: "sqlite"
   adapter: "intent"
   implementation: "retrievers.implementations.intent.IntentSQLiteRetriever"
+  inference_provider: "ollama"
+  model: "gemma3:12b"
+  embedding_provider: "ollama"
 ```
 
 Start ORBIT:
@@ -281,12 +285,21 @@ Create an API Key for this adapter:
   --notes "Demo using SQLite" \
   --prompt-file examples/prompts/contact-assistant-prompt.txt
 
+# Generate sample data
+python ./utils/sql-intent-template/examples/sqlite/contact/generate_contact_data.py \
+  --records 500 \
+  --output ./examples/sqlite/sqlite_db \
+  --clean
+
+# Test data exists
+sqlite3 examples/sqlite/sqlite_db 'SELECT * FROM users LIMIT 5;'
+
 # Start chatting with your new key
 orbit-chat --url http://localhost:3000 --api-key YOUR_API_KEY
 ```
 
 <div align="center">
-  <video src="https://github.com/user-attachments/assets/d33dfb10-1668-4b05-ba83-ae3c294001ad" controls>
+  <video src="https://github.com/user-attachments/assets/0c327964-eefe-4593-8dd0-129af904b434" controls>
     Your browser does not support the video tag.
   </video>
   <br/>
