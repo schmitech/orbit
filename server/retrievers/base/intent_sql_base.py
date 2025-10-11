@@ -203,7 +203,7 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
     
     async def _initialize_inference_client(self):
         """Initialize inference client with adapter-specific override support."""
-        from inference.pipeline.providers.provider_factory import ProviderFactory
+        from inference.pipeline.providers import UnifiedProviderFactory as ProviderFactory
         
         # Check if there's an inference_provider override in the config
         # This would be set by the DynamicAdapterManager when it loads the adapter

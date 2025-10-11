@@ -380,7 +380,7 @@ class TestIntentValidation:
             }
             
             with patch('embeddings.base.EmbeddingServiceFactory'):
-                with patch('inference.pipeline.providers.provider_factory.ProviderFactory'):
+                with patch('inference.pipeline.providers.UnifiedProviderFactory'):
                     with patch('chromadb.Client'):
                         retriever = IntentPostgreSQLRetriever(config=config)
                         

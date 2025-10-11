@@ -230,10 +230,10 @@ class DynamicAdapterManager:
                 self.logger.info(f"Loading inference provider '{provider_name}' with default model")
 
             try:
-                from server.inference.pipeline.providers import ProviderFactory
+                from server.inference.pipeline.providers import UnifiedProviderFactory as ProviderFactory
             except ImportError:
                 # Fallback for test environment
-                from inference.pipeline.providers import ProviderFactory
+                from inference.pipeline.providers import UnifiedProviderFactory as ProviderFactory
 
             # Create and initialize the provider
             provider = ProviderFactory.create_provider_by_name(provider_name, config_for_provider)

@@ -158,7 +158,7 @@ class TestIntentPostgreSQLRetriever:
     async def test_initialize_services(self, retriever, mock_embedding_client, mock_inference_client, mock_chroma_collection):
         """Test service initialization"""
         with patch('embeddings.base.EmbeddingServiceFactory') as mock_embed_factory:
-            with patch('inference.pipeline.providers.provider_factory.ProviderFactory') as mock_inf_factory:
+            with patch('inference.pipeline.providers.UnifiedProviderFactory') as mock_inf_factory:
                 with patch.object(retriever, '_initialize_vector_store') as mock_vector_store_init:
                     with patch.object(retriever, 'create_connection') as mock_conn_create:
                         # Setup mocks

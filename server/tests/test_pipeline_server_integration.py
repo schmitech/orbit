@@ -253,7 +253,7 @@ async def test_configure_chat_history_service_disabled(mock_logger, mock_app):
 async def test_pipeline_provider_initialization():
     """Test that pipeline providers are properly initialized."""
     from inference.pipeline_factory import PipelineFactory
-    from inference.pipeline.providers import ProviderFactory
+    from inference.pipeline.providers import UnifiedProviderFactory as ProviderFactory
     
     # Load actual inference config
     inference_config = load_inference_config()
