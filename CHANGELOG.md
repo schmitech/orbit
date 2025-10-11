@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.5.5] - 2025-10-10
+
+### Core System Updates
+- Adapters Refactoring: Improved adapter architecture for better maintenance and adaptability
+
 ## [1.5.4] - 2025-10-10
 
 ### Core System Updates

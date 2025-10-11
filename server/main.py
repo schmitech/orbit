@@ -31,7 +31,7 @@ configure_mongodb_logging()
 app = FastAPI(
     title="ORBIT",
     description="MCP inference server with RAG capabilities",
-    version="1.5.4"
+    version="1.5.5"
 )
 
 def create_app() -> FastAPI:
