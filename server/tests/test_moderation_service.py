@@ -36,7 +36,6 @@ else:
 
 # Import the necessary modules from the server
 from services.moderator_service import ModeratorService
-from moderators.base import ModeratorFactory
 from config.config_manager import load_config as load_server_config
 
 # Configure logging
@@ -103,7 +102,7 @@ def load_config():
             'moderator': 'ollama',  # Use ollama as default since it doesn't require API keys
             'disable_on_fallback': False
         },
-        'moderators': {
+        'moderations': {  # Changed from 'moderators' to 'moderations'
             'ollama': {
                 'base_url': 'http://localhost:11434',
                 'model': 'llama-guard3:1b'
@@ -133,7 +132,7 @@ async def moderator_service():
     
     # Check if we have a valid moderator configuration
     moderator_name = config.get('safety', {}).get('moderator', 'openai')
-    moderator_config = config.get('moderators', {}).get(moderator_name, {})
+    moderator_config = config.get('moderations', {}).get(moderator_name, {})
     
     # For API key based moderators, check if the key is available
     if moderator_name in ['openai', 'anthropic']:
@@ -159,7 +158,7 @@ async def moderator_service():
                 'moderator': 'ollama',
                 'disable_on_fallback': False
             }
-            config['moderators'] = {
+            config['moderations'] = {
                 'ollama': {
                     'base_url': 'http://localhost:11434',
                     'model': 'gemma2:2b'
@@ -293,7 +292,7 @@ async def test_disabled_safety():
     
     # Ensure we have a valid config dict
     if config is None:
-        config = {'safety': {'enabled': False}, 'moderators': {}}
+        config = {'safety': {'enabled': False}, 'moderations': {}}
     
     # Create a config with safety disabled
     test_config = config.copy()
@@ -323,7 +322,7 @@ async def test_safety_mode_disabled():
     
     # Ensure we have a valid config dict
     if config is None:
-        config = {'safety': {'enabled': False}, 'moderators': {}}
+        config = {'safety': {'enabled': False}, 'moderations': {}}
     
     # Create a config with safety mode disabled
     test_config = config.copy()
@@ -348,7 +347,7 @@ async def test_fallback_to_alternative_moderator():
     
     # Ensure we have a valid config dict
     if config is None:
-        config = {'safety': {'enabled': False}, 'moderators': {}}
+        config = {'safety': {'enabled': False}, 'moderations': {}}
     
     # Create a config with OpenAI moderator but no API key
     test_config = config.copy()
@@ -357,7 +356,7 @@ async def test_fallback_to_alternative_moderator():
         'moderator': 'openai',
         'disable_on_fallback': False  # Don't disable, allow fallback
     }
-    test_config['moderators'] = {
+    test_config['moderations'] = {
         'openai': {'api_key': None},  # No API key
         'ollama': {
             'base_url': 'http://localhost:11434',
@@ -387,7 +386,7 @@ async def test_disable_on_fallback():
     
     # Ensure we have a valid config dict
     if config is None:
-        config = {'safety': {'enabled': False}, 'moderators': {}}
+        config = {'safety': {'enabled': False}, 'moderations': {}}
     
     # Create a config with no working moderators and disable_on_fallback enabled
     test_config = config.copy()
@@ -396,7 +395,7 @@ async def test_disable_on_fallback():
         'moderator': 'openai',
         'disable_on_fallback': True  # Disable when fallback fails
     }
-    test_config['moderators'] = {
+    test_config['moderations'] = {
         'openai': {'api_key': None},  # No API key
         'anthropic': {'api_key': None},  # No API key
         'ollama': {'base_url': 'http://localhost:99999', 'model': 'nonexistent:model'}  # Invalid URL to force failure
@@ -432,7 +431,7 @@ async def test_safety_prompt_loading():
     
     # Ensure we have a valid config dict
     if config is None:
-        config = {'safety': {'enabled': False}, 'moderators': {}}
+        config = {'safety': {'enabled': False}, 'moderations': {}}
     
     # Create a config that will use LLM-based approach
     test_config = config.copy()
@@ -441,7 +440,7 @@ async def test_safety_prompt_loading():
         'moderator': 'nonexistent',  # Use a moderator that doesn't exist
         'disable_on_fallback': False
     }
-    test_config['moderators'] = {}  # No moderators available
+    test_config['moderations'] = {}  # No moderators available
     
     service = ModeratorService(test_config)
     await service.initialize()
@@ -468,7 +467,7 @@ async def test_moderator_initialization_errors():
     
     # Ensure we have a valid config dict
     if config is None:
-        config = {'safety': {'enabled': False}, 'moderators': {}}
+        config = {'safety': {'enabled': False}, 'moderations': {}}
     
     # Create a config with invalid moderator configuration
     test_config = config.copy()
@@ -477,7 +476,7 @@ async def test_moderator_initialization_errors():
         'moderator': 'openai',
         'disable_on_fallback': False
     }
-    test_config['moderators'] = {
+    test_config['moderations'] = {
         'openai': {
             'api_key': 'invalid_key',  # Invalid API key
             'model': 'omni-moderation-latest'
@@ -507,7 +506,7 @@ async def test_verbose_logging():
     
     # Ensure we have a valid config dict
     if config is None:
-        config = {'safety': {'enabled': False}, 'moderators': {}}
+        config = {'safety': {'enabled': False}, 'moderations': {}}
     
     # Create a config with verbose logging enabled
     test_config = config.copy()
@@ -517,7 +516,7 @@ async def test_verbose_logging():
         'moderator': 'openai',
         'disable_on_fallback': False
     }
-    test_config['moderators'] = {
+    test_config['moderations'] = {
         'openai': {'api_key': None}  # No API key to trigger fallback
     }
     
@@ -544,7 +543,7 @@ async def test_retry_mechanism():
     
     # Ensure we have a valid config dict
     if config is None:
-        config = {'safety': {'enabled': False}, 'moderators': {}}
+        config = {'safety': {'enabled': False}, 'moderations': {}}
     
     # Create a config with retry settings
     test_config = config.copy()
@@ -555,7 +554,7 @@ async def test_retry_mechanism():
         'retry_delay': 0.1,  # Short delay for testing
         'allow_on_timeout': False
     }
-    test_config['moderators'] = {
+    test_config['moderations'] = {
         'openai': {'api_key': None}  # No API key to trigger fallback
     }
     
@@ -583,11 +582,11 @@ async def test_error_message_improvements():
     
     # Ensure we have a valid config dict
     if config is None:
-        config = {'safety': {'enabled': False}, 'moderators': {}}
+        config = {'safety': {'enabled': False}, 'moderations': {}}
     
     # Test that the OpenAI moderator provides better error messages
     test_config = config.copy()
-    test_config['moderators'] = {
+    test_config['moderations'] = {
         'openai': {'api_key': None}  # No API key
     }
     
@@ -647,7 +646,7 @@ async def test_safety_prompt_file_loading():
     
     # Ensure we have a valid config dict
     if config is None:
-        config = {'safety': {'enabled': False}, 'moderators': {}}
+        config = {'safety': {'enabled': False}, 'moderations': {}}
     
     # Create a config that will use LLM-based approach with custom prompt path
     test_config = config.copy()
@@ -657,8 +656,8 @@ async def test_safety_prompt_file_loading():
         'safety_prompt_path': 'prompts/safety_prompt.txt',  # Custom path
         'disable_on_fallback': False  # Don't disable, allow fallback to inference provider
     }
-    test_config['moderators'] = {}
-    
+    test_config['moderations'] = {}
+
     service = ModeratorService(test_config)
     await service.initialize()
     
@@ -683,7 +682,7 @@ async def test_disable_on_fallback_configuration():
     
     # Ensure we have a valid config dict
     if config is None:
-        config = {'safety': {'enabled': False}, 'moderators': {}}
+        config = {'safety': {'enabled': False}, 'moderations': {}}
     
     # Test with disable_on_fallback = True
     test_config = config.copy()
@@ -692,7 +691,7 @@ async def test_disable_on_fallback_configuration():
         'moderator': 'openai',
         'disable_on_fallback': True
     }
-    test_config['moderators'] = {
+    test_config['moderations'] = {
         'openai': {'api_key': None},  # No API key
         'ollama': {'base_url': 'http://localhost:99999', 'model': 'nonexistent:model'}  # Invalid URL to force failure
     }
@@ -747,7 +746,7 @@ async def test_basic_moderator_service_creation():
             'moderator': 'openai',
             'disable_on_fallback': True
         },
-        'moderators': {
+        'moderations': {
             'openai': {'api_key': None},  # No API key
             'ollama': {'base_url': 'http://localhost:99999', 'model': 'nonexistent:model'}  # Invalid URL to force failure
         },

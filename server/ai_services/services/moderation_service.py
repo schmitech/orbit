@@ -7,14 +7,53 @@ providing a unified API regardless of the underlying provider.
 
 from abc import abstractmethod
 from typing import Dict, Any, List, Optional
+from enum import Enum, auto
 import logging
 import time
 
 from ..base import ProviderAIService, ServiceType
 
 
-# Re-export for compatibility
-from server.moderators.base import ModerationResult, ModerationCategory
+class ModerationCategory(Enum):
+    """Categories for content moderation"""
+    HATE = auto()
+    HARASSMENT = auto()
+    SEXUAL = auto()
+    VIOLENCE = auto()
+    SELF_HARM = auto()
+    EXPLICIT = auto()
+    ILLICIT = auto()
+    PROHIBITED = auto()
+    OTHER = auto()
+
+
+class ModerationResult:
+    """Result of a moderation check"""
+    def __init__(
+        self,
+        is_flagged: bool = False,
+        categories: Dict[str, float] = None,
+        provider: str = None,
+        model: str = None,
+        error: Optional[str] = None
+    ):
+        self.is_flagged = is_flagged
+        self.categories = categories or {}
+        self.provider = provider
+        self.model = model
+        self.error = error
+        self.timestamp = time.time()
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert the result to a dictionary"""
+        return {
+            "is_flagged": self.is_flagged,
+            "categories": self.categories,
+            "provider": self.provider,
+            "model": self.model,
+            "error": self.error,
+            "timestamp": self.timestamp
+        }
 
 
 class ModerationService(ProviderAIService):

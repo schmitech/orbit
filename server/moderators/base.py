@@ -1,56 +1,27 @@
 """
 Base classes for content moderation providers.
+
+DEPRECATED: This module is maintained for backward compatibility only.
+Please use ai_services.services.moderation_service instead.
 """
 
 import logging
 import abc
-from enum import Enum, auto
 from typing import Dict, Any, List, Optional, Union, Type
-import time
+
+# Import from new location for backward compatibility
+from ai_services.services.moderation_service import (
+    ModerationCategory,
+    ModerationResult
+)
 
 # Configure logging
 logger = logging.getLogger(__name__)
 
-class ModerationCategory(Enum):
-    """Categories for content moderation"""
-    HATE = auto()
-    HARASSMENT = auto()
-    SEXUAL = auto()
-    SEXUAL_MINORS = auto()
-    VIOLENCE = auto()
-    SELF_HARM = auto()
-    EXPLICIT = auto()
-    ILLICIT = auto()
-    PROHIBITED = auto()
-    OTHER = auto()
-
-class ModerationResult:
-    """Result of a moderation check"""
-    def __init__(
-        self, 
-        is_flagged: bool = False, 
-        categories: Dict[str, float] = None,
-        provider: str = None,
-        model: str = None,
-        error: Optional[str] = None
-    ):
-        self.is_flagged = is_flagged
-        self.categories = categories or {}
-        self.provider = provider
-        self.model = model
-        self.error = error
-        self.timestamp = time.time()
-    
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert the result to a dictionary"""
-        return {
-            "is_flagged": self.is_flagged,
-            "categories": self.categories,
-            "provider": self.provider,
-            "model": self.model,
-            "error": self.error,
-            "timestamp": self.timestamp
-        }
+# Log deprecation warning
+logger.warning(
+    "moderators.base is deprecated. Please use ai_services.services.moderation_service instead."
+)
 
 class ModeratorService(abc.ABC):
     """
@@ -133,48 +104,75 @@ class ModeratorService(abc.ABC):
 class ModeratorFactory:
     """
     Factory for creating moderation service instances based on provider.
+
+    DEPRECATED: This factory is maintained for backward compatibility only.
+    Please use AIServiceFactory from ai_services.factory instead.
     """
-    
+
     _registry = {}
-    
+
     @classmethod
     def register(cls, provider_name: str, moderator_class: Type[ModeratorService]) -> None:
         """
         Register a moderator class for a provider.
-        
+
+        DEPRECATED: Use AIServiceFactory.register_service() instead.
+
         Args:
             provider_name: The name of the provider (e.g., 'openai', 'anthropic')
             moderator_class: The moderator class to use for this provider
         """
+        logger.warning(
+            f"ModeratorFactory.register() is deprecated. "
+            f"Use AIServiceFactory.register_service() instead."
+        )
         cls._registry[provider_name] = moderator_class
-    
+
     @classmethod
-    def create_moderator(cls, config: Dict[str, Any], provider_name: str = None) -> ModeratorService:
+    def create_moderator(cls, config: Dict[str, Any], provider_name: str = None) -> 'ModeratorService':
         """
         Create a moderator service instance for the specified provider.
-        
+
+        DEPRECATED: Use AIServiceFactory.create_service() instead.
+
         Args:
             config: Configuration dictionary
             provider_name: The name of the provider to use, or None to use the configured default
-            
+
         Returns:
             An instance of the appropriate moderator service
-            
+
         Raises:
             ValueError: If the specified provider is not supported
         """
+        from ai_services.factory import AIServiceFactory
+        from ai_services.base import ServiceType
+
+        logger.warning(
+            f"ModeratorFactory.create_moderator() is deprecated. "
+            f"Use AIServiceFactory.create_service() instead."
+        )
+
         if provider_name is None:
             # Get provider from safety configuration
             provider_name = config.get('safety', {}).get('moderator')
             if not provider_name:
                 provider_name = config.get('general', {}).get('inference_provider', 'openai')
-        
-        # Check if we have a registered handler for this provider
-        if provider_name not in cls._registry:
+
+        try:
+            # Redirect to new factory
+            return AIServiceFactory.create_service(
+                ServiceType.MODERATION,
+                provider_name,
+                config
+            )
+        except ValueError:
+            # Fallback to old registry if available
+            if provider_name in cls._registry:
+                moderator_class = cls._registry[provider_name]
+                logger.info(f"Creating {provider_name} moderator using legacy registry: {moderator_class.__name__}")
+                return moderator_class(config)
+
+            # Neither new nor old factory has this provider
             logger.error(f"No moderator registered for provider '{provider_name}'")
-            raise ValueError(f"Unsupported moderation provider: {provider_name}")
-        
-        # Create and return the moderator instance
-        moderator_class = cls._registry[provider_name]
-        logger.info(f"Creating {provider_name} moderator using {moderator_class.__name__}")
-        return moderator_class(config) 
+            raise ValueError(f"Unsupported moderation provider: {provider_name}") 

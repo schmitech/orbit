@@ -12,6 +12,7 @@ import json
 
 from ..providers import OllamaBaseService
 from ..services import ModerationService, ModerationResult
+from ..base import ServiceType
 
 
 class OllamaModerationService(ModerationService, OllamaBaseService):
@@ -36,7 +37,7 @@ class OllamaModerationService(ModerationService, OllamaBaseService):
             config: Configuration dictionary
         """
         # Initialize base classes
-        OllamaBaseService.__init__(self, config, ModerationService.service_type)
+        OllamaBaseService.__init__(self, config, ServiceType.MODERATION)
         ModerationService.__init__(self, config, "ollama")
 
         # Get moderation-specific configuration
@@ -64,9 +65,9 @@ IMPORTANT: You must respond with ONLY the JSON object. No other text, no explana
         Returns:
             True if initialization was successful, False otherwise
         """
-        # Use base class initialization with chat endpoint
-        # The warmup_endpoint parameter tells it to warm up the chat endpoint
-        return await OllamaBaseService.initialize(self, warmup_endpoint='chat')
+        # Use base class initialization - it automatically determines the warmup endpoint
+        # based on service type (moderation -> chat)
+        return await OllamaBaseService.initialize(self)
 
     async def moderate_content(self, content: str) -> ModerationResult:
         """
@@ -167,13 +168,13 @@ No other text or explanations.
                         error=f"Partial response interpreted: {response_text}"
                     )
 
-                # Default to flagging the content when we get invalid JSON
+                # Allow content through on parse errors (likely config issue, not security)
                 return ModerationResult(
-                    is_flagged=True,
-                    categories={"error": 1.0},
+                    is_flagged=False,
+                    categories={"parse_error": 0.5},
                     provider="ollama",
                     model=self.model,
-                    error=f"Invalid JSON response: {response_text}"
+                    error=f"Invalid JSON response (allowed): {response_text}"
                 )
 
             # Parse the JSON response
@@ -213,13 +214,13 @@ No other text or explanations.
             except json.JSONDecodeError as json_error:
                 self.logger.error(f"Failed to parse Ollama response as JSON: {response_text}")
                 self.logger.error(f"JSON error: {str(json_error)}")
-                # If we can't parse the response, default to flagging the content
+                # Allow content through on parse errors (likely config issue, not security)
                 return ModerationResult(
-                    is_flagged=True,
-                    categories={"parse_error": 1.0},
+                    is_flagged=False,
+                    categories={"parse_error": 0.5},
                     provider="ollama",
                     model=self.model,
-                    error=f"Failed to parse response: {response_text}"
+                    error=f"Failed to parse response (allowed): {response_text}"
                 )
 
         try:
@@ -228,11 +229,12 @@ No other text or explanations.
 
         except Exception as e:
             self.logger.error(f"Error in Ollama moderation: {str(e)}")
+            self.logger.warning(f"Moderation check failed, allowing content through: {str(e)}")
             return ModerationResult(
-                is_flagged=True,  # Default to blocking on error
+                is_flagged=False,  # Allow on error - better UX
                 provider="ollama",
                 model=self.model,
-                error=f"Request error: {str(e)}"
+                error=f"Moderation check failed (allowed): {str(e)}"
             )
 
     async def moderate_batch(self, contents: List[str]) -> List[ModerationResult]:

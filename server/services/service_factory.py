@@ -13,6 +13,10 @@ from fastapi import FastAPI
 from utils import is_true_value
 from services.auth_service import AuthService
 
+# Register all AI services on module import
+from ai_services.registry import register_all_services
+register_all_services()
+
 
 class ServiceFactory:
     """

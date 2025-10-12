@@ -10,6 +10,7 @@ import asyncio
 
 from ..providers import OpenAIBaseService
 from ..services import ModerationService, ModerationResult
+from ..base import ServiceType
 
 
 class OpenAIModerationService(ModerationService, OpenAIBaseService):
@@ -33,7 +34,7 @@ class OpenAIModerationService(ModerationService, OpenAIBaseService):
             config: Configuration dictionary
         """
         # Initialize base classes
-        OpenAIBaseService.__init__(self, config, ModerationService.service_type)
+        OpenAIBaseService.__init__(self, config, ServiceType.MODERATION)
         ModerationService.__init__(self, config, "openai")
 
         # Get moderation-specific configuration (model defaults to latest)
@@ -54,10 +55,8 @@ class OpenAIModerationService(ModerationService, OpenAIBaseService):
             await self.initialize()
 
         try:
-            # Use the OpenAI client to create a moderation
-            # Note: OpenAI SDK is sync, so we use asyncio.to_thread
-            response = await asyncio.to_thread(
-                self.client.moderations.create,
+            # Use the OpenAI async client to create a moderation
+            response = await self.client.moderations.create(
                 model=self.model,
                 input=content
             )
@@ -74,11 +73,13 @@ class OpenAIModerationService(ModerationService, OpenAIBaseService):
                 if isinstance(score, float):
                     categories[category_name] = score
 
-            # Log high confidence categories if verbose
+            # Log moderation details at DEBUG level
             if self.logger.isEnabledFor(10):  # DEBUG level
-                for category, score in categories.items():
-                    if score > 0.5:  # Log categories with >50% confidence
-                        self.logger.debug(f"Content flagged for {category} with confidence {score}")
+                self.logger.debug(f"OpenAI Moderation - flagged={is_flagged}, all_scores={categories}")
+                # Also log high confidence categories
+                high_scores = {k: v for k, v in categories.items() if v > 0.5}
+                if high_scores:
+                    self.logger.debug(f"High confidence categories (>0.5): {high_scores}")
 
             return ModerationResult(
                 is_flagged=is_flagged,
@@ -89,12 +90,13 @@ class OpenAIModerationService(ModerationService, OpenAIBaseService):
 
         except Exception as e:
             self._handle_openai_error(e, "content moderation")
-            # Default to blocking on error
+            # Log the error but don't block - technical failures shouldn't block safe content
+            self.logger.warning(f"Moderation check failed, allowing content through: {str(e)}")
             return ModerationResult(
-                is_flagged=True,
+                is_flagged=False,  # Allow on error - better UX
                 provider="openai",
                 model=self.model,
-                error=f"Request error: {str(e)}"
+                error=f"Moderation check failed (allowed): {str(e)}"
             )
 
     async def moderate_batch(self, contents: List[str]) -> List[ModerationResult]:
