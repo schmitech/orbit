@@ -65,8 +65,17 @@ class OpenAIBaseService(ProviderAIService):
         # Get base URL
         self.base_url = self._get_base_url(self.DEFAULT_BASE_URL)
 
-        # Get model
-        self.model = self._get_model()
+        # Get model with appropriate default based on service type
+        if self.service_type == ServiceType.EMBEDDING:
+            default_model = "text-embedding-3-small"
+        elif self.service_type == ServiceType.INFERENCE:
+            default_model = "gpt-4o-mini"
+        elif self.service_type == ServiceType.MODERATION:
+            default_model = "text-moderation-latest"
+        else:
+            default_model = None
+
+        self.model = self._get_model(default_model)
 
         # Get endpoint
         self.endpoint = self._get_endpoint("/v1/embeddings")  # Default, can be overridden

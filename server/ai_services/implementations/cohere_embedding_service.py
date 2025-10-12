@@ -147,9 +147,9 @@ class CohereEmbeddingService(EmbeddingService, CohereBaseService):
             self.logger.error(f"Failed to determine embedding dimensions: {str(e)}")
 
             # Fallback based on common Cohere models
-            if "embed-english-v3.0" in self.model or "embed-multilingual-v3.0" in self.model:
+            if self.model and ("embed-english-v3.0" in self.model or "embed-multilingual-v3.0" in self.model):
                 self.dimensions = 1024
-            elif "embed-english-light-v3.0" in self.model:
+            elif self.model and "embed-english-light-v3.0" in self.model:
                 self.dimensions = 384
             else:
                 self.dimensions = 1024  # Default fallback

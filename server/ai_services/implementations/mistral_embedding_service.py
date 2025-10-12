@@ -37,7 +37,7 @@ class MistralEmbeddingService(EmbeddingService, MistralBaseService):
         Args:
             config: Configuration dictionary
         """
-        # Initialize base classes
+        # Initialize base classes with proper MRO
         MistralBaseService.__init__(self, config, EmbeddingService.service_type)
         EmbeddingService.__init__(self, config, "mistral")
 

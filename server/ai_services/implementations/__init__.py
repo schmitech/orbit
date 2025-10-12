@@ -10,6 +10,8 @@ Available Embedding Services:
     - OllamaEmbeddingService: Ollama embeddings (migrated)
     - CohereEmbeddingService: Cohere embeddings (migrated)
     - MistralEmbeddingService: Mistral embeddings (migrated)
+    - JinaEmbeddingService: Jina AI embeddings (migrated)
+    - LlamaCppEmbeddingService: Llama.cpp embeddings (migrated)
 
 Available Inference Services:
     - OpenAIInferenceService: OpenAI inference (migrated)
@@ -52,6 +54,8 @@ from .openai_embedding_service import OpenAIEmbeddingService
 from .ollama_embedding_service import OllamaEmbeddingService
 from .cohere_embedding_service import CohereEmbeddingService
 from .mistral_embedding_service import MistralEmbeddingService
+from .jina_embedding_service import JinaEmbeddingService
+from .llama_cpp_embedding_service import LlamaCppEmbeddingService
 
 # Inference Services
 from .openai_inference_service import OpenAIInferenceService
@@ -92,6 +96,8 @@ __all__ = [
     'OllamaEmbeddingService',
     'CohereEmbeddingService',
     'MistralEmbeddingService',
+    'JinaEmbeddingService',
+    'LlamaCppEmbeddingService',
     # Inference Services
     'OpenAIInferenceService',
     'AnthropicInferenceService',

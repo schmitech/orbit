@@ -12,6 +12,7 @@ from .anthropic_base import AnthropicBaseService
 from .ollama_base import OllamaBaseService
 from .cohere_base import CohereBaseService
 from .mistral_base import MistralBaseService
+from .jina_base import JinaBaseService
 from .aws_base import AWSBaseService
 from .azure_base import AzureBaseService
 from .google_base import GoogleBaseService
@@ -28,6 +29,7 @@ __all__ = [
     'OllamaBaseService',
     'CohereBaseService',
     'MistralBaseService',
+    'JinaBaseService',
     'AWSBaseService',
     'AzureBaseService',
     'GoogleBaseService',

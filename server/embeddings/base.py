@@ -156,34 +156,40 @@ class EmbeddingServiceFactory:
     
     @staticmethod
     def _create_new_instance(provider_name: str, config: Dict[str, Any]) -> EmbeddingService:
-        """Create a new embedding service instance."""
-        # Import the appropriate embedding service
-        if provider_name == 'ollama':
-            from embeddings.ollama import OllamaEmbeddingService
-            # Pass the full config so the service has all context
-            return OllamaEmbeddingService(config)
-        elif provider_name == 'openai':
-            from embeddings.openai import OpenAIEmbeddingService
-            provider_config = config.get('embeddings', {}).get('openai', {})
-            return OpenAIEmbeddingService(provider_config)
-        elif provider_name == 'cohere':
-            from embeddings.cohere import CohereEmbeddingService
-            provider_config = config.get('embeddings', {}).get('cohere', {})
-            return CohereEmbeddingService(provider_config)
-        elif provider_name == 'mistral':
-            from embeddings.mistral import MistralEmbeddingService
-            provider_config = config.get('embeddings', {}).get('mistral', {})
-            return MistralEmbeddingService(provider_config)
-        elif provider_name == 'jina':
-            from embeddings.jina import JinaEmbeddingService
-            provider_config = config.get('embeddings', {}).get('jina', {})
-            return JinaEmbeddingService(provider_config)
-        elif provider_name == 'llama_cpp':
-            from embeddings.llama_cpp import LlamaCppEmbeddingService
-            provider_config = config.get('embeddings', {}).get('llama_cpp', {})
-            return LlamaCppEmbeddingService(provider_config)
-        else:
+        """
+        Create a new embedding service instance.
+
+        NOTE: This now uses the new unified AI services architecture!
+        The old embeddings implementations have been migrated.
+        """
+        # Import from the new ai_services architecture
+        from ai_services.implementations import (
+            OpenAIEmbeddingService,
+            OllamaEmbeddingService,
+            CohereEmbeddingService,
+            MistralEmbeddingService,
+            JinaEmbeddingService,
+            LlamaCppEmbeddingService
+        )
+
+        # Map provider names to new service classes
+        provider_map = {
+            'openai': OpenAIEmbeddingService,
+            'ollama': OllamaEmbeddingService,
+            'cohere': CohereEmbeddingService,
+            'mistral': MistralEmbeddingService,
+            'jina': JinaEmbeddingService,
+            'llama_cpp': LlamaCppEmbeddingService
+        }
+
+        if provider_name not in provider_map:
             raise ValueError(f"Unsupported embedding provider: {provider_name}")
+
+        # Get the service class
+        service_class = provider_map[provider_name]
+
+        # Pass the full config - the new services handle config extraction
+        return service_class(config)
     
     @classmethod
     def clear_cache(cls) -> None:

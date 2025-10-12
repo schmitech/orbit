@@ -125,15 +125,22 @@ class ProviderAIService(AIService[T]):
         Extract provider-specific configuration from the config dictionary.
 
         This method looks for configuration in the following locations:
-        1. config[service_type.value][provider_name] (preferred)
-        2. config[provider_name] (fallback)
+        1. config[service_type.value + 's'][provider_name] (plural form, e.g., 'embeddings')
+        2. config[service_type.value][provider_name] (singular form, e.g., 'inference')
+        3. config[provider_name] (fallback)
 
         Returns:
             Provider-specific configuration dictionary
         """
-        # Try service-specific provider config first
-        service_config = self.config.get(self.service_type.value, {})
-        provider_config = service_config.get(self.provider_name, {})
+        # Try plural form first (e.g., 'embeddings', 'moderators')
+        service_key_plural = self.service_type.value + 's'
+        service_config_plural = self.config.get(service_key_plural, {})
+        provider_config = service_config_plural.get(self.provider_name, {})
+
+        # Try singular form if plural didn't work (e.g., 'inference')
+        if not provider_config:
+            service_config = self.config.get(self.service_type.value, {})
+            provider_config = service_config.get(self.provider_name, {})
 
         # Fallback to top-level provider config
         if not provider_config:

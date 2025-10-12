@@ -28,15 +28,20 @@ class MistralBaseService(ProviderAIService):
 
     DEFAULT_BASE_URL = "https://api.mistral.ai"
 
-    def __init__(self, config: Dict[str, Any], service_type: ServiceType):
+    def __init__(self, config: Dict[str, Any], service_type: ServiceType = None, provider_name: str = "mistral"):
         """
         Initialize the Mistral base service.
 
         Args:
             config: Configuration dictionary
             service_type: Type of AI service
+            provider_name: Provider name (defaults to "mistral")
         """
-        super().__init__(config, service_type, "mistral")
+        # For cooperative multiple inheritance
+        if service_type:
+            super().__init__(config, service_type, provider_name)
+        else:
+            super().__init__(config, ServiceType.INFERENCE, provider_name)
         self._setup_mistral_config()
 
     def _setup_mistral_config(self) -> None:

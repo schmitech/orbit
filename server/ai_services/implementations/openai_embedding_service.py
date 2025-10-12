@@ -68,7 +68,7 @@ class OpenAIEmbeddingService(EmbeddingService, OpenAIBaseService):
             response = await self.client.embeddings.create(
                 model=self.model,
                 input=text,
-                dimensions=self.dimensions if 'text-embedding-3' in self.model else None
+                dimensions=self.dimensions if (self.model and 'text-embedding-3' in self.model) else None
             )
 
             return response.data[0].embedding
@@ -128,7 +128,7 @@ class OpenAIEmbeddingService(EmbeddingService, OpenAIBaseService):
             response = await self.client.embeddings.create(
                 model=self.model,
                 input=texts,
-                dimensions=self.dimensions if 'text-embedding-3' in self.model else None
+                dimensions=self.dimensions if (self.model and 'text-embedding-3' in self.model) else None
             )
 
             # Sort by index to ensure order matches input order
@@ -159,11 +159,11 @@ class OpenAIEmbeddingService(EmbeddingService, OpenAIBaseService):
             self.logger.error(f"Failed to determine embedding dimensions: {str(e)}")
 
             # Fallback to defaults based on model
-            if "ada" in self.model:
+            if self.model and "ada" in self.model:
                 self.dimensions = 1536
-            elif "3-small" in self.model:
+            elif self.model and "3-small" in self.model:
                 self.dimensions = 1536
-            elif "3-large" in self.model:
+            elif self.model and "3-large" in self.model:
                 self.dimensions = 3072
             else:
                 self.dimensions = 1536  # Default fallback

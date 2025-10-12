@@ -31,6 +31,9 @@ class EmbeddingService(ProviderAIService):
         - Dimension configuration
     """
 
+    # Class attribute for service type
+    service_type = ServiceType.EMBEDDING
+
     def __init__(self, config: Dict[str, Any], provider_name: str):
         """
         Initialize the embedding service.

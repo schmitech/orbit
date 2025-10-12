@@ -77,7 +77,7 @@ class AWSBedrockInferenceService(InferenceService, AWSBaseService):
             system_prompt, conversation_messages = self._build_messages(prompt, messages)
 
             # Prepare the request body based on the model type
-            if "claude" in self.model.lower():
+            if self.model and "claude" in self.model.lower():
                 # Claude models use the messages API format
                 body = {
                     "messages": conversation_messages,
@@ -114,7 +114,7 @@ class AWSBedrockInferenceService(InferenceService, AWSBaseService):
             response_body = json.loads(response['body'].read().decode('utf-8'))
 
             # Extract text based on model type
-            if "claude" in self.model.lower():
+            if self.model and "claude" in self.model.lower():
                 # Claude response format
                 if 'content' in response_body and response_body['content']:
                     return response_body['content'][0]['text']
@@ -155,7 +155,7 @@ class AWSBedrockInferenceService(InferenceService, AWSBaseService):
             system_prompt, conversation_messages = self._build_messages(prompt, messages)
 
             # Prepare the request body based on the model type
-            if "claude" in self.model.lower():
+            if self.model and "claude" in self.model.lower():
                 # Claude models use the messages API format
                 body = {
                     "messages": conversation_messages,
@@ -194,7 +194,7 @@ class AWSBedrockInferenceService(InferenceService, AWSBaseService):
                     chunk_data = json.loads(event['chunk']['bytes'].decode('utf-8'))
 
                     # Extract text based on model type
-                    if "claude" in self.model.lower():
+                    if self.model and "claude" in self.model.lower():
                         # Claude streaming format
                         if chunk_data.get('type') == 'content_block_delta':
                             if 'delta' in chunk_data and 'text' in chunk_data['delta']:

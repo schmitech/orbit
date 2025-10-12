@@ -65,8 +65,15 @@ class CohereBaseService(ProviderAIService):
         # Get base URL
         self.base_url = self._get_base_url(self.DEFAULT_BASE_URL)
 
-        # Get model
-        self.model = self._get_model()
+        # Get model with appropriate default based on service type
+        if self.service_type == ServiceType.EMBEDDING:
+            default_model = "embed-english-v3.0"
+        elif self.service_type == ServiceType.INFERENCE:
+            default_model = "command-r-plus"
+        else:
+            default_model = None
+
+        self.model = self._get_model(default_model)
 
         # Get endpoint
         self.endpoint = self._get_endpoint("/v1/embed")  # Default

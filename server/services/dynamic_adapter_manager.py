@@ -47,6 +47,11 @@ class DynamicAdapterManager:
         self._provider_cache: Dict[str, Any] = {}
         self._provider_cache_lock = threading.Lock()
         self._provider_initializing: Set[str] = set()
+
+        # Cache for initialized embedding services
+        self._embedding_cache: Dict[str, Any] = {}
+        self._embedding_cache_lock = threading.Lock()
+        self._embedding_initializing: Set[str] = set()
         
         # Thread pool for adapter initialization
         self._thread_pool = ThreadPoolExecutor(max_workers=5)
@@ -117,19 +122,27 @@ class DynamicAdapterManager:
                 self.logger.debug(f"Using cached adapter: {adapter_name}")
             return self._adapter_cache[adapter_name]
         
-        # Check if adapter is currently being initialized
+        # Try to claim initialization ownership
+        should_initialize = False
         with self._cache_lock:
-            if adapter_name in self._initializing_adapters:
-                # Wait for initialization to complete
-                while adapter_name in self._initializing_adapters:
-                    await asyncio.sleep(0.1)
-                
-                # Check cache again after waiting
-                if adapter_name in self._adapter_cache:
-                    return self._adapter_cache[adapter_name]
-            
-            # Mark adapter as being initialized
-            self._initializing_adapters.add(adapter_name)
+            if adapter_name in self._adapter_cache:
+                return self._adapter_cache[adapter_name]
+            if adapter_name not in self._initializing_adapters:
+                self._initializing_adapters.add(adapter_name)
+                should_initialize = True
+
+        # If someone else is initializing, wait for them
+        if not should_initialize:
+            while True:
+                await asyncio.sleep(0.1)
+                with self._cache_lock:
+                    if adapter_name in self._adapter_cache:
+                        return self._adapter_cache[adapter_name]
+                    if adapter_name not in self._initializing_adapters:
+                        # Initializer failed, we should try
+                        self._initializing_adapters.add(adapter_name)
+                        should_initialize = True
+                        break
         
         try:
             # Load the adapter
@@ -146,6 +159,12 @@ class DynamicAdapterManager:
             inference_provider = adapter_config.get('inference_provider') or self.config.get('general', {}).get('inference_provider', 'default')
             model_override = adapter_config.get('model')
 
+            # Get embedding configuration
+            embedding_provider = adapter_config.get('embedding_provider') or self.config.get('embedding', {}).get('provider', 'ollama')
+            embedding_model = None
+            if embedding_provider in self.config.get('embeddings', {}):
+                embedding_model = self.config.get('embeddings', {}).get(embedding_provider, {}).get('model')
+
             # Check if this is an intent adapter and get store info
             adapter_type = adapter_config.get('adapter')
             store_info = ""
@@ -154,14 +173,26 @@ class DynamicAdapterManager:
                 if store_name:
                     store_info = f", store: {store_name}"
 
+            # Build log message with all details
+            log_parts = [f"Successfully loaded adapter '{adapter_name}'"]
+
+            # Inference provider and model
             if model_override:
-                self.logger.info(
-                    f"Successfully loaded adapter '{adapter_name}' with provider '{inference_provider}' and model '{model_override}'{store_info}"
-                )
+                log_parts.append(f"inference: {inference_provider}/{model_override}")
             else:
-                self.logger.info(
-                    f"Successfully loaded adapter '{adapter_name}' with provider '{inference_provider}' (using default model){store_info}"
-                )
+                log_parts.append(f"inference: {inference_provider}")
+
+            # Embedding provider and model
+            if embedding_model:
+                log_parts.append(f"embedding: {embedding_provider}/{embedding_model}")
+            else:
+                log_parts.append(f"embedding: {embedding_provider}")
+
+            # Store info for intent adapters
+            if store_info:
+                log_parts.append(store_info.lstrip(", "))
+
+            self.logger.info(f"{log_parts[0]} ({', '.join(log_parts[1:])})")
             return adapter
             
         except Exception as e:
@@ -202,14 +233,27 @@ class DynamicAdapterManager:
                 self.logger.debug(f"Using cached provider: {cache_key}")
             return self._provider_cache[cache_key]
 
-        # Handle concurrent initialization
+        # Try to claim initialization ownership
+        should_initialize = False
         with self._provider_cache_lock:
-            if cache_key in self._provider_initializing:
-                while cache_key in self._provider_initializing:
-                    await asyncio.sleep(0.1)
-                if cache_key in self._provider_cache:
-                    return self._provider_cache[cache_key]
-            self._provider_initializing.add(cache_key)
+            if cache_key in self._provider_cache:
+                return self._provider_cache[cache_key]
+            if cache_key not in self._provider_initializing:
+                self._provider_initializing.add(cache_key)
+                should_initialize = True
+
+        # If someone else is initializing, wait for them
+        if not should_initialize:
+            while True:
+                await asyncio.sleep(0.1)
+                with self._provider_cache_lock:
+                    if cache_key in self._provider_cache:
+                        return self._provider_cache[cache_key]
+                    if cache_key not in self._provider_initializing:
+                        # Initializer failed, we should try
+                        self._provider_initializing.add(cache_key)
+                        should_initialize = True
+                        break
 
         try:
             # Prepare config with model override if specified
@@ -256,14 +300,108 @@ class DynamicAdapterManager:
         finally:
             with self._provider_cache_lock:
                 self._provider_initializing.discard(cache_key)
-    
+
+    async def get_overridden_embedding(self, provider_name: str, adapter_name: str = None) -> Any:
+        """
+        Get an embedding service instance by name, loading and caching it if necessary.
+        This is for embedding providers specified as overrides in adapter configs.
+
+        Args:
+            provider_name: The name of the embedding provider to create
+            adapter_name: Optional adapter name for logging context
+        """
+        if not provider_name:
+            raise ValueError("Embedding provider name cannot be empty")
+
+        # Create cache key for the embedding service
+        # Get the model from embeddings config
+        embedding_config = self.config.get('embeddings', {}).get(provider_name, {})
+        model = embedding_config.get('model', '')
+        cache_key = f"{provider_name}:{model}" if model else provider_name
+
+        # Check cache with the specific key
+        if cache_key in self._embedding_cache:
+            if self.verbose:
+                self.logger.debug(f"Using cached embedding service: {cache_key}")
+            return self._embedding_cache[cache_key]
+
+        # Try to claim initialization ownership
+        should_initialize = False
+        with self._embedding_cache_lock:
+            if cache_key in self._embedding_cache:
+                return self._embedding_cache[cache_key]
+            if cache_key not in self._embedding_initializing:
+                self._embedding_initializing.add(cache_key)
+                should_initialize = True
+
+        # If someone else is initializing, wait for them
+        if not should_initialize:
+            while True:
+                await asyncio.sleep(0.1)
+                with self._embedding_cache_lock:
+                    if cache_key in self._embedding_cache:
+                        return self._embedding_cache[cache_key]
+                    if cache_key not in self._embedding_initializing:
+                        # Initializer failed, we should try
+                        self._embedding_initializing.add(cache_key)
+                        should_initialize = True
+                        break
+
+        try:
+            adapter_context = f" for adapter '{adapter_name}'" if adapter_name else ""
+            if model:
+                self.logger.info(f"Loading embedding service '{provider_name}/{model}'{adapter_context}")
+            else:
+                self.logger.info(f"Loading embedding service '{provider_name}'{adapter_context}")
+
+            # Import the embedding service factory
+            try:
+                from server.embeddings.base import EmbeddingServiceFactory
+            except ImportError:
+                from embeddings.base import EmbeddingServiceFactory
+
+            # Create the embedding service
+            embedding_service = EmbeddingServiceFactory.create_embedding_service(
+                self.config,
+                provider_name
+            )
+
+            # Initialize if needed
+            if hasattr(embedding_service, 'initialize'):
+                if asyncio.iscoroutinefunction(embedding_service.initialize):
+                    await embedding_service.initialize()
+                else:
+                    loop = asyncio.get_event_loop()
+                    await loop.run_in_executor(self._thread_pool, embedding_service.initialize)
+
+            # Cache the initialized embedding service
+            with self._embedding_cache_lock:
+                self._embedding_cache[cache_key] = embedding_service
+
+            self.logger.info(f"Successfully cached embedding service: {cache_key}{adapter_context}")
+            return embedding_service
+        except Exception as e:
+            self.logger.error(f"Failed to load embedding service {provider_name}: {str(e)}")
+            raise
+        finally:
+            with self._embedding_cache_lock:
+                self._embedding_initializing.discard(cache_key)
+
     async def _load_adapter(self, adapter_name: str) -> Any:
         """Load and initialize an adapter asynchronously"""
         # Get adapter configuration
         adapter_config = self._adapter_configs.get(adapter_name)
         if not adapter_config:
             raise ValueError(f"No adapter configuration found for: {adapter_name}")
-        
+
+        # Preload embedding service if adapter has an override
+        if 'embedding_provider' in adapter_config:
+            embedding_provider = adapter_config['embedding_provider']
+            try:
+                await self.get_overridden_embedding(embedding_provider, adapter_name)
+            except Exception as e:
+                self.logger.warning(f"Failed to preload embedding service for adapter {adapter_name}: {str(e)}")
+
         # Run the import and initialization in a thread pool to prevent blocking
         loop = asyncio.get_event_loop()
         
@@ -456,6 +594,12 @@ class DynamicAdapterManager:
                 inference_provider = adapter_config.get('inference_provider') or self.config.get('general', {}).get('inference_provider', 'default')
                 model_override = adapter_config.get('model')
 
+                # Get embedding configuration
+                embedding_provider = adapter_config.get('embedding_provider') or self.config.get('embedding', {}).get('provider', 'ollama')
+                embedding_model = None
+                if embedding_provider in self.config.get('embeddings', {}):
+                    embedding_model = self.config.get('embeddings', {}).get(embedding_provider, {}).get('model')
+
                 # Check if this is an intent adapter and get store info
                 adapter_type = adapter_config.get('adapter')
                 store_info = ""
@@ -464,10 +608,26 @@ class DynamicAdapterManager:
                     if store_name:
                         store_info = f", store: {store_name}"
 
+                # Build message parts
+                msg_parts = []
+
+                # Inference provider and model
                 if model_override:
-                    message = f"Preloaded successfully (provider: {inference_provider}, model: {model_override}{store_info})"
+                    msg_parts.append(f"inference: {inference_provider}/{model_override}")
                 else:
-                    message = f"Preloaded successfully (provider: {inference_provider}, using default model{store_info})"
+                    msg_parts.append(f"inference: {inference_provider}")
+
+                # Embedding provider and model
+                if embedding_model:
+                    msg_parts.append(f"embedding: {embedding_provider}/{embedding_model}")
+                else:
+                    msg_parts.append(f"embedding: {embedding_provider}")
+
+                # Store info for intent adapters
+                if store_info:
+                    msg_parts.append(store_info.lstrip(", "))
+
+                message = f"Preloaded successfully ({', '.join(msg_parts)})"
 
                 return {
                     "adapter_name": adapter_name,
@@ -556,7 +716,7 @@ class DynamicAdapterManager:
     async def health_check(self) -> Dict[str, Any]:
         """
         Perform health check on the adapter manager.
-        
+
         Returns:
             Health status information
         """
@@ -564,9 +724,13 @@ class DynamicAdapterManager:
             "status": "healthy",
             "available_adapters": len(self._adapter_configs),
             "cached_adapters": len(self._adapter_cache),
+            "cached_inference_providers": len(self._provider_cache),
+            "cached_embedding_services": len(self._embedding_cache),
             "initializing_adapters": len(self._initializing_adapters),
             "adapter_configs": list(self._adapter_configs.keys()),
-            "cached_adapter_names": list(self._adapter_cache.keys())
+            "cached_adapter_names": list(self._adapter_cache.keys()),
+            "cached_inference_provider_keys": list(self._provider_cache.keys()),
+            "cached_embedding_service_keys": list(self._embedding_cache.keys())
         }
     
     async def close(self) -> None:
@@ -582,15 +746,29 @@ class DynamicAdapterManager:
                 self.logger.info(f"Closed cached provider: {provider_name}")
             except Exception as e:
                 self.logger.warning(f"Error closing cached provider {provider_name}: {str(e)}")
-        
+
         self._provider_cache.clear()
+
+        # Close all cached embedding services
+        for embedding_name, embedding_service in self._embedding_cache.items():
+            try:
+                if hasattr(embedding_service, 'close'):
+                    if asyncio.iscoroutinefunction(embedding_service.close):
+                        await embedding_service.close()
+                    else:
+                        embedding_service.close()
+                self.logger.info(f"Closed cached embedding service: {embedding_name}")
+            except Exception as e:
+                self.logger.warning(f"Error closing cached embedding service {embedding_name}: {str(e)}")
+
+        self._embedding_cache.clear()
 
         # Clear all cached adapters
         await self.clear_cache()
-        
+
         # Shutdown thread pool
         self._thread_pool.shutdown(wait=True)
-        
+
         self.logger.info("Dynamic Adapter Manager closed")
 
 

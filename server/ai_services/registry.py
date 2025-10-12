@@ -26,7 +26,9 @@ def register_embedding_services() -> None:
         OpenAIEmbeddingService,
         OllamaEmbeddingService,
         CohereEmbeddingService,
-        MistralEmbeddingService
+        MistralEmbeddingService,
+        JinaEmbeddingService,
+        LlamaCppEmbeddingService
     )
 
     # Register embedding services
@@ -57,6 +59,20 @@ def register_embedding_services() -> None:
         MistralEmbeddingService
     )
     logger.info("Registered Mistral embedding service")
+
+    AIServiceFactory.register_service(
+        ServiceType.EMBEDDING,
+        "jina",
+        JinaEmbeddingService
+    )
+    logger.info("Registered Jina embedding service")
+
+    AIServiceFactory.register_service(
+        ServiceType.EMBEDDING,
+        "llama_cpp",
+        LlamaCppEmbeddingService
+    )
+    logger.info("Registered Llama.cpp embedding service")
 
 
 def register_inference_services() -> None:

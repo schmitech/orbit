@@ -8,6 +8,7 @@ Compare with: server/inference/pipeline/providers/gemini_provider.py (old implem
 """
 
 from typing import Dict, Any, AsyncGenerator
+import asyncio
 
 from ..base import ServiceType
 from ..providers import GoogleBaseService
@@ -40,6 +41,7 @@ class GeminiInferenceService(InferenceService, GoogleBaseService):
         self.max_tokens = self._get_max_tokens(default=2048)
         self.top_p = self._get_top_p(default=1.0)
         self.top_k = self._get_top_k(default=40)
+        self.transport = config.get('transport', 'rest')  # Use REST to avoid gRPC/ALTS warnings
 
     async def generate(self, prompt: str, **kwargs) -> str:
         """Generate response using Gemini."""
@@ -52,21 +54,30 @@ class GeminiInferenceService(InferenceService, GoogleBaseService):
             # Configure API
             api_key = kwargs.pop('api_key', None) or self._resolve_api_key("GOOGLE_API_KEY")
             if api_key:
-                genai.configure(api_key=api_key)
+                genai.configure(api_key=api_key, transport=self.transport)
 
             # Initialize model
             model = genai.GenerativeModel(self.model)
 
-            # Generate response
-            response = await model.generate_content_async(
-                prompt,
-                generation_config=genai.GenerationConfig(
-                    temperature=kwargs.get('temperature', self.temperature),
-                    max_output_tokens=kwargs.get('max_tokens', self.max_tokens),
-                    top_p=kwargs.get('top_p', self.top_p),
-                    top_k=kwargs.get('top_k', self.top_k),
-                )
+            generation_config = genai.GenerationConfig(
+                temperature=kwargs.get('temperature', self.temperature),
+                max_output_tokens=kwargs.get('max_tokens', self.max_tokens),
+                top_p=kwargs.get('top_p', self.top_p),
+                top_k=kwargs.get('top_k', self.top_k),
             )
+
+            # REST transport uses synchronous methods, gRPC uses async
+            if self.transport == 'rest':
+                response = await asyncio.to_thread(
+                    model.generate_content,
+                    prompt,
+                    generation_config=generation_config
+                )
+            else:
+                response = await model.generate_content_async(
+                    prompt,
+                    generation_config=generation_config
+                )
 
             return response.text
 
@@ -85,24 +96,40 @@ class GeminiInferenceService(InferenceService, GoogleBaseService):
             # Configure API
             api_key = kwargs.pop('api_key', None) or self._resolve_api_key("GOOGLE_API_KEY")
             if api_key:
-                genai.configure(api_key=api_key)
+                genai.configure(api_key=api_key, transport=self.transport)
 
             model = genai.GenerativeModel(self.model)
 
-            response = await model.generate_content_async(
-                prompt,
-                generation_config=genai.GenerationConfig(
-                    temperature=kwargs.get('temperature', self.temperature),
-                    max_output_tokens=kwargs.get('max_tokens', self.max_tokens),
-                    top_p=kwargs.get('top_p', self.top_p),
-                    top_k=kwargs.get('top_k', self.top_k),
-                ),
-                stream=True
+            generation_config = genai.GenerationConfig(
+                temperature=kwargs.get('temperature', self.temperature),
+                max_output_tokens=kwargs.get('max_tokens', self.max_tokens),
+                top_p=kwargs.get('top_p', self.top_p),
+                top_k=kwargs.get('top_k', self.top_k),
             )
 
-            async for chunk in response:
-                if chunk.text:
-                    yield chunk.text
+            # REST transport uses synchronous methods, gRPC uses async
+            if self.transport == 'rest':
+                # Use synchronous streaming with REST
+                response = model.generate_content(
+                    prompt,
+                    generation_config=generation_config,
+                    stream=True
+                )
+                for chunk in response:
+                    if chunk.text:
+                        yield chunk.text
+                        # Allow other tasks to run
+                        await asyncio.sleep(0)
+            else:
+                # Use async streaming with gRPC
+                response = await model.generate_content_async(
+                    prompt,
+                    generation_config=generation_config,
+                    stream=True
+                )
+                async for chunk in response:
+                    if chunk.text:
+                        yield chunk.text
 
         except Exception as e:
             self._handle_google_error(e, "streaming generation")
