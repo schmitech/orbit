@@ -1160,6 +1160,83 @@ templates:
       qualifiers: ["by_classification", "with_user_details"]
     approved: true
 
+  # Advanced Intelligence Analytics - Compartment Hopping
+  - id: detect_compartment_hopping
+    version: "1.0.0"
+    description: "Identify users accessing multiple sensitive compartments in a short period (intelligence gathering behavior)"
+    nl_examples:
+      - "Show me compartment hopping activity"
+      - "Find users accessing multiple compartments"
+      - "Detect compartment scanning behavior"
+      - "Who is probing different compartments?"
+      - "Show users with diverse compartment access"
+      - "Find potential intelligence gathering activity"
+      - "Detect users jumping between compartments"
+      - "Show compartment access diversity"
+      - "Which users are accessing many different compartments?"
+      - "Find suspicious compartment access patterns"
+      - "Show me users scanning compartments"
+      - "Detect compartment reconnaissance"
+      - "Who is accessing multiple sensitive compartments?"
+      - "Find broad compartment access attempts"
+      - "Show compartment hopping threats"
+    parameters:
+      - name: days
+        type: integer
+        description: "Number of days to analyze"
+        required: false
+        default: 30
+        aliases: ["lookback", "period", "timeframe"]
+      - name: min_compartments
+        type: integer
+        description: "Minimum number of different compartments accessed"
+        required: false
+        default: 3
+        aliases: ["threshold", "minimum"]
+    sql_template: |
+      SELECT
+        COALESCE(u.username, aa.user_id) as username,
+        COALESCE(u.clearance_level, aa.subject_clearance) as clearance_level,
+        CASE WHEN COALESCE(u.is_active, 1) = 1 THEN 'ACTIVE' ELSE 'INACTIVE' END as status,
+        COUNT(DISTINCT ki.compartments) as unique_compartments_accessed,
+        COUNT(*) as total_access_attempts,
+        SUM(CASE WHEN aa.decision = 'ALLOW' THEN 1 ELSE 0 END) as successful_accesses,
+        SUM(CASE WHEN aa.decision = 'DENY' THEN 1 ELSE 0 END) as denied_accesses,
+        SUM(CASE WHEN aa.decision = 'REDACT' THEN 1 ELSE 0 END) as redacted_accesses,
+        ROUND(100.0 * SUM(CASE WHEN aa.decision = 'ALLOW' THEN 1 ELSE 0 END) / COUNT(*), 1) as success_rate,
+        COUNT(DISTINCT aa.item_id) as unique_documents_accessed,
+        COUNT(DISTINCT DATE(aa.ts)) as days_active,
+        MIN(aa.ts) as first_compartment_access,
+        MAX(aa.ts) as last_compartment_access,
+        ROUND(
+          CAST((julianday(MAX(aa.ts)) - julianday(MIN(aa.ts))) AS REAL),
+          1
+        ) as access_span_days,
+        GROUP_CONCAT(DISTINCT ki.compartments) as compartments_list,
+        CASE
+          WHEN COUNT(DISTINCT ki.compartments) >= 8 THEN 'CRITICAL'
+          WHEN COUNT(DISTINCT ki.compartments) >= 5 THEN 'HIGH'
+          WHEN COUNT(DISTINCT ki.compartments) >= 3 THEN 'MEDIUM'
+          ELSE 'LOW'
+        END as threat_level
+      FROM access_audit aa
+      LEFT JOIN users u ON aa.user_id = u.user_id
+      LEFT JOIN knowledge_item ki ON aa.item_id = ki.item_id
+      WHERE aa.ts >= datetime('now', '-' || CAST(? AS TEXT) || ' days')
+        AND ki.compartments IS NOT NULL
+        AND ki.compartments != ''
+      GROUP BY aa.user_id
+      HAVING COUNT(DISTINCT ki.compartments) >= ?
+      ORDER BY unique_compartments_accessed DESC, denied_accesses DESC, total_access_attempts DESC
+      LIMIT 25
+    result_format: "table"
+    tags: ["access_audit", "security", "compartment_hopping", "intelligence_gathering", "reconnaissance", "analytics"]
+    semantic_tags:
+      action: "analyze"
+      primary_entity: "access_audit"
+      qualifiers: ["compartment_access", "intelligence_gathering", "threat_detection"]
+    approved: true
+
   # Advanced Intelligence Analytics - Insider Threat Detection
   - id: detect_anomalous_access_patterns
     version: "1.0.0"
@@ -1194,113 +1271,53 @@ templates:
         type: integer
         description: "Minimum risk score threshold (0-100)"
         required: false
-        default: 50
+        default: 0
         aliases: ["threshold", "risk_level"]
     sql_template: |
-      WITH user_stats AS (
-        SELECT
-          aa.user_id,
-          u.username,
-          u.clearance_level,
-          u.is_active,
-          COUNT(*) as total_attempts,
-          SUM(CASE WHEN aa.decision = 'DENY' THEN 1 ELSE 0 END) as denials,
-          SUM(CASE WHEN aa.decision = 'REDACT' THEN 1 ELSE 0 END) as redactions,
-          SUM(CASE WHEN aa.decision = 'ALLOW' THEN 1 ELSE 0 END) as allowed,
-          COUNT(DISTINCT aa.item_id) as unique_documents,
-          COUNT(DISTINCT CASE
-            WHEN CAST(strftime('%H', aa.ts) AS INTEGER) NOT BETWEEN 6 AND 18
-            THEN aa.event_id END) as off_hours_access,
-          COUNT(DISTINCT CASE
-            WHEN ki.classification IN ('SECRET', 'TOP SECRET', 'NATO SECRET')
-            THEN aa.item_id END) as high_class_docs,
-          COUNT(DISTINCT ki.compartments) as compartments_accessed,
-          MAX(aa.ts) as last_access,
-          MIN(aa.ts) as first_access
-        FROM access_audit aa
-        JOIN users u ON aa.user_id = u.user_id
-        LEFT JOIN knowledge_item ki ON aa.item_id = ki.item_id
-        WHERE aa.ts >= datetime('now', '-' || COALESCE(?, 30) || ' days')
-        GROUP BY aa.user_id, u.username, u.clearance_level, u.is_active
-        HAVING total_attempts >= 5
-      ),
-      risk_analysis AS (
-        SELECT
-          user_id,
-          username,
-          clearance_level,
-          is_active,
-          total_attempts,
-          denials,
-          redactions,
-          allowed,
-          unique_documents,
-          off_hours_access,
-          high_class_docs,
-          compartments_accessed,
-          last_access,
-          ROUND(100.0 * denials / NULLIF(total_attempts, 0), 1) as denial_rate,
-          ROUND(100.0 * off_hours_access / NULLIF(total_attempts, 0), 1) as off_hours_rate,
-          ROUND(1.0 * total_attempts /
-            NULLIF(CAST((julianday('now') - julianday(first_access)) AS REAL), 0), 1) as access_velocity,
-          -- Calculate composite risk score (using MIN instead of LEAST for SQLite)
-          CAST(
-            MIN(100,
-              (30 * MIN(1.0, denials / NULLIF(total_attempts, 0) * 3)) +
-              (25 * MIN(1.0, off_hours_access / NULLIF(total_attempts, 0) * 4)) +
-              (20 * CASE WHEN is_active = 0 AND total_attempts > 10 THEN 1.0 ELSE 0.0 END) +
-              (15 * MIN(1.0, compartments_accessed / 5.0)) +
-              (10 * CASE WHEN clearance_level IN ('UNCLASSIFIED', 'PROTECTED A')
-                          AND high_class_docs > 0 THEN 1.0 ELSE 0.0 END)
-            ) AS INTEGER) as risk_score
-        FROM user_stats
-      )
       SELECT
-        username,
-        clearance_level,
-        CASE WHEN is_active = 1 THEN 'ACTIVE' ELSE 'INACTIVE' END as status,
-        risk_score,
+        COALESCE(u.username, aa.user_id) as username,
+        COALESCE(u.clearance_level, aa.subject_clearance) as clearance_level,
+        CASE WHEN COALESCE(u.is_active, 1) = 1 THEN 'ACTIVE' ELSE 'INACTIVE' END as status,
+        COUNT(*) as total_attempts,
+        SUM(CASE WHEN aa.decision = 'ALLOW' THEN 1 ELSE 0 END) as allowed,
+        SUM(CASE WHEN aa.decision = 'DENY' THEN 1 ELSE 0 END) as denials,
+        SUM(CASE WHEN aa.decision = 'REDACT' THEN 1 ELSE 0 END) as redactions,
+        ROUND(100.0 * SUM(CASE WHEN aa.decision = 'DENY' THEN 1 ELSE 0 END) / COUNT(*), 1) as denial_rate,
+        SUM(CASE WHEN CAST(strftime('%H', aa.ts) AS INTEGER) NOT BETWEEN 6 AND 18 THEN 1 ELSE 0 END) as off_hours_access,
+        ROUND(100.0 * SUM(CASE WHEN CAST(strftime('%H', aa.ts) AS INTEGER) NOT BETWEEN 6 AND 18 THEN 1 ELSE 0 END) / COUNT(*), 1) as off_hours_rate,
+        COUNT(DISTINCT aa.item_id) as unique_documents,
+        MAX(aa.ts) as last_activity,
+        -- Simple risk score: denial_rate * 0.6 + off_hours_rate * 0.4
+        CAST(
+          (ROUND(100.0 * SUM(CASE WHEN aa.decision = 'DENY' THEN 1 ELSE 0 END) / COUNT(*), 1) * 0.6) +
+          (ROUND(100.0 * SUM(CASE WHEN CAST(strftime('%H', aa.ts) AS INTEGER) NOT BETWEEN 6 AND 18 THEN 1 ELSE 0 END) / COUNT(*), 1) * 0.4)
+        AS INTEGER) as risk_score,
         CASE
-          WHEN risk_score >= 80 THEN 'CRITICAL'
-          WHEN risk_score >= 65 THEN 'HIGH'
-          WHEN risk_score >= 50 THEN 'MEDIUM'
+          WHEN CAST(
+            (ROUND(100.0 * SUM(CASE WHEN aa.decision = 'DENY' THEN 1 ELSE 0 END) / COUNT(*), 1) * 0.6) +
+            (ROUND(100.0 * SUM(CASE WHEN CAST(strftime('%H', aa.ts) AS INTEGER) NOT BETWEEN 6 AND 18 THEN 1 ELSE 0 END) / COUNT(*), 1) * 0.4)
+          AS INTEGER) >= 50 THEN 'HIGH'
+          WHEN CAST(
+            (ROUND(100.0 * SUM(CASE WHEN aa.decision = 'DENY' THEN 1 ELSE 0 END) / COUNT(*), 1) * 0.6) +
+            (ROUND(100.0 * SUM(CASE WHEN CAST(strftime('%H', aa.ts) AS INTEGER) NOT BETWEEN 6 AND 18 THEN 1 ELSE 0 END) / COUNT(*), 1) * 0.4)
+          AS INTEGER) >= 25 THEN 'MEDIUM'
           ELSE 'LOW'
         END as risk_level,
-        total_attempts,
-        allowed,
-        denials,
-        CAST(denial_rate AS TEXT) || '%' as denial_rate_pct,
-        off_hours_access,
-        CAST(off_hours_rate AS TEXT) || '%' as off_hours_rate_pct,
-        unique_documents,
-        high_class_docs as sensitive_docs_accessed,
-        compartments_accessed,
-        access_velocity as avg_daily_access,
-        datetime(last_access) as last_activity,
-        -- Build risk indicators as text (simpler than JSON aggregation)
         CASE
-          WHEN denial_rate > 25 THEN '[High Denial Rate: ' || CAST(denial_rate AS TEXT) || '%] '
+          WHEN ROUND(100.0 * SUM(CASE WHEN aa.decision = 'DENY' THEN 1 ELSE 0 END) / COUNT(*), 1) > 25
+            THEN '[High Denial Rate] '
           ELSE ''
         END ||
         CASE
-          WHEN off_hours_rate > 40 THEN '[Excessive Off-Hours: ' || CAST(off_hours_rate AS TEXT) || '%] '
-          ELSE ''
-        END ||
-        CASE
-          WHEN is_active = 0 AND total_attempts > 10 THEN '[Inactive User Activity] '
-          ELSE ''
-        END ||
-        CASE
-          WHEN compartments_accessed >= 5 THEN '[Wide Compartment Scanning: ' || CAST(compartments_accessed AS TEXT) || ' compartments] '
-          ELSE ''
-        END ||
-        CASE
-          WHEN clearance_level IN ('UNCLASSIFIED', 'PROTECTED A') AND high_class_docs > 0
-            THEN '[Clearance Mismatch: Accessing ' || CAST(high_class_docs AS TEXT) || ' high-class docs]'
+          WHEN ROUND(100.0 * SUM(CASE WHEN CAST(strftime('%H', aa.ts) AS INTEGER) NOT BETWEEN 6 AND 18 THEN 1 ELSE 0 END) / COUNT(*), 1) > 40
+            THEN '[Excessive Off-Hours Access] '
           ELSE ''
         END as risk_indicators
-      FROM risk_analysis
-      WHERE risk_score >= COALESCE(?, 50)
+      FROM access_audit aa
+      LEFT JOIN users u ON aa.user_id = u.user_id
+      WHERE aa.ts >= datetime('now', '-' || CAST(? AS TEXT) || ' days')
+      GROUP BY aa.user_id
+      HAVING risk_score >= ?
       ORDER BY risk_score DESC, total_attempts DESC
       LIMIT 25
     result_format: "table"
