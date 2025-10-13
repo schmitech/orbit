@@ -40,9 +40,8 @@ class OpenAIEmbeddingService(EmbeddingService, OpenAIBaseService):
         Note: All the heavy lifting (API key resolution, client setup, etc.)
               is handled by the base classes!
         """
-        # Initialize base classes
-        OpenAIBaseService.__init__(self, config, EmbeddingService.service_type)
-        EmbeddingService.__init__(self, config, "openai")
+        # Cooperative initialization to avoid double-running base setup/logging
+        super().__init__(config, "openai")
 
         # Get embedding-specific configuration
         self.dimensions = self._get_dimensions_config() or 1536

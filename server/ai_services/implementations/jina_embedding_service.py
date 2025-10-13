@@ -40,9 +40,8 @@ class JinaEmbeddingService(EmbeddingService, JinaBaseService):
         Note: All the heavy lifting (API key resolution, session setup, etc.)
               is handled by the base classes!
         """
-        # Initialize base classes
-        JinaBaseService.__init__(self, config, EmbeddingService.service_type)
-        EmbeddingService.__init__(self, config, "jina")
+        # Cooperative initialization avoids double base setup/logging
+        super().__init__(config, "jina")
 
         # Get embedding-specific configuration
         self.task = self._get_task(default="text-matching")

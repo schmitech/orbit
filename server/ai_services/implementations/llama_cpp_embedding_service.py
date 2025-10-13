@@ -42,9 +42,8 @@ class LlamaCppEmbeddingService(EmbeddingService, LlamaCppBaseService):
 
         Note: Model loading and configuration handled by base classes!
         """
-        # Initialize base classes
-        LlamaCppBaseService.__init__(self, config, EmbeddingService.service_type)
-        EmbeddingService.__init__(self, config, "llama_cpp")
+        # Cooperative initialization prevents duplicate base setup/logging
+        super().__init__(config, "llama_cpp")
 
         # Get embedding-specific configuration
         self.dimensions = self._get_dimensions()

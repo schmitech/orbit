@@ -37,9 +37,8 @@ class MistralEmbeddingService(EmbeddingService, MistralBaseService):
         Args:
             config: Configuration dictionary
         """
-        # Initialize base classes with proper MRO
-        MistralBaseService.__init__(self, config, EmbeddingService.service_type)
-        EmbeddingService.__init__(self, config, "mistral")
+        # Cooperative initialization keeps base setup/logging single-run
+        super().__init__(config, "mistral")
 
         # Get Mistral-specific configuration
         self.dimensions = self._get_dimensions()  # Default 1024 for mistral-embed

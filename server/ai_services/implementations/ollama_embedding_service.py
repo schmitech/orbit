@@ -40,9 +40,8 @@ class OllamaEmbeddingService(EmbeddingService, OllamaBaseService):
         Note: All Ollama-specific utilities (retry, warmup, etc.) are
               handled by OllamaBaseService!
         """
-        # Initialize base classes
-        OllamaBaseService.__init__(self, config, EmbeddingService.service_type)
-        EmbeddingService.__init__(self, config, "ollama")
+        # Cooperative initialization keeps base setup/logging running once
+        super().__init__(config, "ollama")
 
         # Get embedding-specific configuration
         self.dimensions = self._get_dimensions()  # From OllamaBaseService

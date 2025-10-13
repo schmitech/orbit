@@ -37,9 +37,8 @@ class CohereEmbeddingService(EmbeddingService, CohereBaseService):
         Args:
             config: Configuration dictionary
         """
-        # Initialize base classes
-        CohereBaseService.__init__(self, config, EmbeddingService.service_type)
-        EmbeddingService.__init__(self, config, "cohere")
+        # Cooperative initialization keeps base setup/logging single-run
+        super().__init__(config, "cohere")
 
         # Get Cohere-specific configuration
         self.dimensions = self._get_dimensions()
