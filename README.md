@@ -83,10 +83,18 @@ cp .env.example .env
 
 # Start the ORBIT server
 source venv/bin/activate
-./bin/orbit.sh start # Logs: ./logs/orbit.log
+./bin/orbit.sh start 
+
+# Check the logs
+cat ./logs/orbit.log
 ```
 
-Keep an eye on the logs, then browse to `http://localhost:3000` to confirm your instance is responding.
+Browse to `http://localhost:3000/dashboard` to monitor the ORBIT server:
+<div align="center">
+  <img src="/docs/images/orbit-dashboard.png" alt="ORBIT Dashboard" width="800"/>
+  <br/>
+  <i>ORBIT Dashboard: Monitor, search, and configure your environment.</i>
+</div>
 
 ### Talk to ORBIT from the CLI
 
