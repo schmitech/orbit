@@ -62,7 +62,7 @@ templates:
         aliases: ["level", "clearance"]
     sql_template: |
       SELECT * FROM knowledge_item
-      WHERE classification = :classification
+      WHERE classification = ?
       ORDER BY created_at DESC
     result_format: "table"
     tags: ["knowledge_item", "classification", "level"]
@@ -109,8 +109,8 @@ templates:
         aliases: ["keyword", "term", "text"]
     sql_template: |
       SELECT * FROM knowledge_item
-      WHERE title LIKE '%' || :search_term || '%'
-         OR content LIKE '%' || :search_term || '%'
+      WHERE title LIKE '%' || ? || '%'
+         OR content LIKE '%' || ? || '%'
       ORDER BY created_at DESC
     result_format: "table"
     tags: ["knowledge_item", "search", "content", "title"]
@@ -157,7 +157,7 @@ templates:
         aliases: ["project", "operation", "op"]
     sql_template: |
       SELECT * FROM knowledge_item
-      WHERE compartments LIKE '%' || :compartment || '%'
+      WHERE compartments LIKE '%' || ? || '%'
       ORDER BY created_at DESC
     result_format: "table"
     tags: ["knowledge_item", "compartment", "access"]
@@ -295,7 +295,7 @@ templates:
         aliases: ["day_count", "num_days"]
     sql_template: |
       SELECT * FROM knowledge_item
-      WHERE created_at >= datetime('now', '-' || :days || ' days')
+      WHERE created_at >= datetime('now', '-' || ? || ' days')
       ORDER BY created_at DESC
     result_format: "table"
     tags: ["knowledge_item", "date", "recent", "days"]
@@ -334,7 +334,7 @@ templates:
     sql_template: |
       SELECT * FROM knowledge_item
       WHERE declass_on IS NOT NULL
-        AND declass_on <= date('now', '+' || COALESCE(:days, 30) || ' days')
+        AND declass_on <= date('now', '+' || COALESCE(?, 30) || ' days')
         AND declass_on >= date('now')
       ORDER BY declass_on ASC
     result_format: "table"
@@ -372,7 +372,7 @@ templates:
     sql_template: |
       SELECT * FROM knowledge_item
       WHERE declass_on IS NOT NULL
-        AND strftime('%Y', declass_on) = CAST(:year AS TEXT)
+        AND strftime('%Y', declass_on) = CAST(? AS TEXT)
       ORDER BY declass_on ASC
     result_format: "table"
     tags: ["knowledge_item", "declassification", "year"]
@@ -413,7 +413,7 @@ templates:
         aliases: ["level", "clearance_level"]
     sql_template: |
       SELECT * FROM users
-      WHERE clearance_level = :clearance
+      WHERE clearance_level = ?
       ORDER BY username ASC
     result_format: "table"
     tags: ["users", "clearance", "access"]
@@ -454,7 +454,7 @@ templates:
       qualifiers: ["active"]
     approved: true
 
-  - id: find_inactive_users
+  - id: find_inactive_users #FIXME
     version: "1.0.0"
     description: "Find inactive users"
     nl_examples:
@@ -519,7 +519,7 @@ templates:
       SELECT u.* FROM users u
       JOIN user_compartments uc ON u.user_id = uc.user_id
       JOIN compartments c ON uc.compartment_id = c.compartment_id
-      WHERE c.name LIKE '%' || :compartment || '%'
+      WHERE c.name LIKE '%' || ? || '%'
       ORDER BY u.username ASC
     result_format: "table"
     tags: ["users", "compartment", "access"]
@@ -646,12 +646,16 @@ templates:
       - "Show bob.wilson's access history"
       - "I need access attempts from john.doe@example.com"
       - "Which documents did jane.smith try to access?"
+      - "Which documents did Bertha_Haag@gmail.com try to access?"
       - "Find activity for bob.wilson"
       - "Display john.doe's access events"
       - "Access log for jane.smith@example.com"
       - "Show me what bob.wilson has accessed"
       - "List john.doe's access attempts"
       - "jane.smith access history"
+      - "What documents did Bertha_Haag@gmail.com access?"
+      - "Show me Bertha_Haag's access attempts"
+      - "Find access logs for Bertha_Haag@gmail.com"
     parameters:
       - name: user_id
         type: string
@@ -659,10 +663,20 @@ templates:
         required: true
         aliases: ["email", "user", "user_email"]
     sql_template: |
-      SELECT aa.*, ki.title as item_title
+      SELECT 
+        aa.event_id,
+        aa.item_id,
+        ki.title as item_title,
+        ki.classification,
+        aa.user_id,
+        aa.subject_clearance,
+        aa.decision,
+        aa.query_text,
+        aa.reason,
+        aa.ts as access_timestamp
       FROM access_audit aa
       LEFT JOIN knowledge_item ki ON aa.item_id = ki.item_id
-      WHERE aa.user_id = :user_id
+      WHERE aa.user_id = ?
       ORDER BY aa.ts DESC
     result_format: "table"
     tags: ["access_audit", "user", "activity"]
@@ -672,7 +686,7 @@ templates:
       qualifiers: ["by_user"]
     approved: true
 
-  - id: find_recent_access_attempts
+  - id: find_recent_access_attempts #FIXME
     version: "1.0.0"
     description: "Find recent access attempts"
     nl_examples:
@@ -703,7 +717,7 @@ templates:
       FROM access_audit aa
       LEFT JOIN knowledge_item ki ON aa.item_id = ki.item_id
       LEFT JOIN users u ON aa.user_id = u.user_id
-      WHERE aa.ts >= datetime('now', '-' || COALESCE(:days, 1) || ' days')
+      WHERE aa.ts >= datetime('now', '-' || COALESCE(?, 1) || ' days')
       ORDER BY aa.ts DESC
     result_format: "table"
     tags: ["access_audit", "recent", "date"]
@@ -743,7 +757,7 @@ templates:
       FROM access_audit aa
       LEFT JOIN knowledge_item ki ON aa.item_id = ki.item_id
       LEFT JOIN users u ON aa.user_id = u.user_id
-      WHERE aa.query_text LIKE '%' || :query_term || '%'
+      WHERE aa.query_text LIKE '%' || ? || '%'
       ORDER BY aa.ts DESC
     result_format: "table"
     tags: ["access_audit", "query", "search"]
@@ -778,7 +792,7 @@ templates:
         aliases: ["level", "clearance"]
     sql_template: |
       SELECT * FROM compartments
-      WHERE classification_level = :classification
+      WHERE classification_level = ?
       ORDER BY name ASC
     result_format: "table"
     tags: ["compartments", "classification"]
@@ -849,8 +863,8 @@ templates:
       SELECT ki.*, o.name as org_name
       FROM knowledge_item ki
       LEFT JOIN organizations o ON ki.originator_org = o.code
-      WHERE ki.classification = :classification
-        AND (o.name LIKE '%' || :org_name || '%' OR ki.originator_org LIKE '%' || :org_name || '%')
+      WHERE ki.classification = ?
+        AND (o.name LIKE '%' || ? || '%' OR ki.originator_org LIKE '%' || ? || '%')
       ORDER BY ki.created_at DESC
     result_format: "table"
     tags: ["knowledge_item", "classification", "organization", "complex"]
@@ -883,7 +897,7 @@ templates:
         aliases: ["level"]
     sql_template: |
       SELECT * FROM knowledge_item
-      WHERE classification = :classification
+      WHERE classification = ?
         AND pii_present = 1
       ORDER BY created_at DESC
     result_format: "table"
@@ -1133,8 +1147,8 @@ templates:
       FROM access_audit aa
       JOIN users u ON aa.user_id = u.user_id
       JOIN knowledge_item ki ON aa.item_id = ki.item_id
-      WHERE ki.classification = :classification
-        AND aa.ts >= datetime('now', '-' || :days || ' days')
+      WHERE ki.classification = ?
+        AND aa.ts >= datetime('now', '-' || ? || ' days')
         AND aa.decision IN ('ALLOW', 'REDACT')
       ORDER BY aa.ts DESC
       LIMIT 50
@@ -1206,7 +1220,7 @@ templates:
         FROM access_audit aa
         JOIN users u ON aa.user_id = u.user_id
         LEFT JOIN knowledge_item ki ON aa.item_id = ki.item_id
-        WHERE aa.ts >= datetime('now', '-' || COALESCE(:days, 30) || ' days')
+        WHERE aa.ts >= datetime('now', '-' || COALESCE(?, 30) || ' days')
         GROUP BY aa.user_id, u.username, u.clearance_level, u.is_active
         HAVING total_attempts >= 5
       ),
@@ -1229,72 +1243,64 @@ templates:
           ROUND(100.0 * off_hours_access / NULLIF(total_attempts, 0), 1) as off_hours_rate,
           ROUND(1.0 * total_attempts /
             NULLIF(CAST((julianday('now') - julianday(first_access)) AS REAL), 0), 1) as access_velocity,
-          -- Calculate composite risk score
+          -- Calculate composite risk score (using MIN instead of LEAST for SQLite)
           CAST(
-            LEAST(100,
-              (30 * LEAST(1.0, denials / NULLIF(total_attempts, 0) * 3)) +
-              (25 * LEAST(1.0, off_hours_access / NULLIF(total_attempts, 0) * 4)) +
+            MIN(100,
+              (30 * MIN(1.0, denials / NULLIF(total_attempts, 0) * 3)) +
+              (25 * MIN(1.0, off_hours_access / NULLIF(total_attempts, 0) * 4)) +
               (20 * CASE WHEN is_active = 0 AND total_attempts > 10 THEN 1.0 ELSE 0.0 END) +
-              (15 * LEAST(1.0, compartments_accessed / 5.0)) +
+              (15 * MIN(1.0, compartments_accessed / 5.0)) +
               (10 * CASE WHEN clearance_level IN ('UNCLASSIFIED', 'PROTECTED A')
                           AND high_class_docs > 0 THEN 1.0 ELSE 0.0 END)
             ) AS INTEGER) as risk_score
         FROM user_stats
-      ),
-      anomaly_details AS (
-        SELECT
-          ra.*,
-          CASE
-            WHEN ra.risk_score >= 80 THEN 'CRITICAL'
-            WHEN ra.risk_score >= 65 THEN 'HIGH'
-            WHEN ra.risk_score >= 50 THEN 'MEDIUM'
-            ELSE 'LOW'
-          END as risk_level,
-          json_group_array(
-            json_object(
-              'indicator', indicator_type,
-              'severity', severity
-            )
-          ) as risk_indicators
-        FROM risk_analysis ra
-        CROSS JOIN (
-          SELECT 'High Denial Rate' as indicator_type, 'HIGH' as severity
-          UNION ALL SELECT 'Excessive Off-Hours Access', 'MEDIUM'
-          UNION ALL SELECT 'Inactive User Activity', 'CRITICAL'
-          UNION ALL SELECT 'Wide Compartment Scanning', 'MEDIUM'
-          UNION ALL SELECT 'Clearance Level Mismatch', 'HIGH'
-        )
-        WHERE
-          (indicator_type = 'High Denial Rate' AND ra.denial_rate > 25)
-          OR (indicator_type = 'Excessive Off-Hours Access' AND ra.off_hours_rate > 40)
-          OR (indicator_type = 'Inactive User Activity' AND ra.is_active = 0 AND ra.total_attempts > 10)
-          OR (indicator_type = 'Wide Compartment Scanning' AND ra.compartments_accessed >= 5)
-          OR (indicator_type = 'Clearance Level Mismatch' AND ra.clearance_level IN ('UNCLASSIFIED', 'PROTECTED A') AND ra.high_class_docs > 0)
-        GROUP BY ra.user_id, ra.username, ra.clearance_level, ra.is_active, ra.total_attempts,
-                 ra.denials, ra.redactions, ra.allowed, ra.unique_documents, ra.off_hours_access,
-                 ra.high_class_docs, ra.compartments_accessed, ra.last_access, ra.denial_rate,
-                 ra.off_hours_rate, ra.access_velocity, ra.risk_score
       )
       SELECT
         username,
         clearance_level,
         CASE WHEN is_active = 1 THEN 'ACTIVE' ELSE 'INACTIVE' END as status,
         risk_score,
-        risk_level,
+        CASE
+          WHEN risk_score >= 80 THEN 'CRITICAL'
+          WHEN risk_score >= 65 THEN 'HIGH'
+          WHEN risk_score >= 50 THEN 'MEDIUM'
+          ELSE 'LOW'
+        END as risk_level,
         total_attempts,
         allowed,
         denials,
-        denial_rate || '%' as denial_rate,
+        CAST(denial_rate AS TEXT) || '%' as denial_rate_pct,
         off_hours_access,
-        off_hours_rate || '%' as off_hours_rate,
+        CAST(off_hours_rate AS TEXT) || '%' as off_hours_rate_pct,
         unique_documents,
         high_class_docs as sensitive_docs_accessed,
         compartments_accessed,
         access_velocity as avg_daily_access,
         datetime(last_access) as last_activity,
-        risk_indicators
-      FROM anomaly_details
-      WHERE risk_score >= COALESCE(:min_risk_score, 50)
+        -- Build risk indicators as text (simpler than JSON aggregation)
+        CASE
+          WHEN denial_rate > 25 THEN '[High Denial Rate: ' || CAST(denial_rate AS TEXT) || '%] '
+          ELSE ''
+        END ||
+        CASE
+          WHEN off_hours_rate > 40 THEN '[Excessive Off-Hours: ' || CAST(off_hours_rate AS TEXT) || '%] '
+          ELSE ''
+        END ||
+        CASE
+          WHEN is_active = 0 AND total_attempts > 10 THEN '[Inactive User Activity] '
+          ELSE ''
+        END ||
+        CASE
+          WHEN compartments_accessed >= 5 THEN '[Wide Compartment Scanning: ' || CAST(compartments_accessed AS TEXT) || ' compartments] '
+          ELSE ''
+        END ||
+        CASE
+          WHEN clearance_level IN ('UNCLASSIFIED', 'PROTECTED A') AND high_class_docs > 0
+            THEN '[Clearance Mismatch: Accessing ' || CAST(high_class_docs AS TEXT) || ' high-class docs]'
+          ELSE ''
+        END as risk_indicators
+      FROM risk_analysis
+      WHERE risk_score >= COALESCE(?, 50)
       ORDER BY risk_score DESC, total_attempts DESC
       LIMIT 25
     result_format: "table"

@@ -8,12 +8,22 @@ Call register_all_services() at application startup to register all available se
 """
 
 import logging
+import threading
+import sys
 from typing import Dict, Any
 
 from .factory import AIServiceFactory
 from .base import ServiceType
 
 logger = logging.getLogger(__name__)
+
+
+_registry_lock = threading.Lock()
+_services_registered = False
+
+# Ensure module has consistent identity regardless of import path
+sys.modules.setdefault('ai_services.registry', sys.modules[__name__])
+sys.modules.setdefault('server.ai_services.registry', sys.modules[__name__])
 
 
 def register_embedding_services() -> None:
@@ -353,23 +363,28 @@ def register_all_services() -> None:
         ...     config
         ... )
     """
-    # Check if services are already registered to avoid duplicate registrations
-    if hasattr(register_all_services, '_registered'):
+    global _services_registered
+
+    # Fast path without locking for already-registered case
+    if _services_registered:
         return
-    
-    logger.info("Registering all AI services...")
 
-    register_embedding_services()
-    register_inference_services()
-    register_moderation_services()
-    register_reranking_services()
+    with _registry_lock:
+        if _services_registered:
+            return
 
-    # Mark as registered to prevent duplicate calls
-    register_all_services._registered = True
+        logger.info("Registering all AI services...")
 
-    # Log available services
-    available = AIServiceFactory.list_available_services()
-    logger.info(f"Registered services: {available}")
+        register_embedding_services()
+        register_inference_services()
+        register_moderation_services()
+        register_reranking_services()
+
+        _services_registered = True
+
+        # Log available services once registration completes
+        available = AIServiceFactory.list_available_services()
+        logger.info(f"Registered services: {available}")
 
 
 def get_embedding_service_legacy(provider: str, config: Dict[str, Any]):

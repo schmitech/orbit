@@ -39,6 +39,14 @@ Benefits:
     - Improved Maintainability: Changes apply across all services
 """
 
+import sys
+
+# Ensure the package is reachable via both 'server.ai_services' and 'ai_services'
+if __name__ == "server.ai_services":
+    sys.modules.setdefault("ai_services", sys.modules[__name__])
+elif __name__ == "ai_services":
+    sys.modules.setdefault("server.ai_services", sys.modules[__name__])
+
 from .base import AIService, ProviderAIService, ServiceType
 from .connection import (
     ConnectionManager,
