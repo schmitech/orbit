@@ -24,17 +24,17 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
     Combines intent functionality with database operations.
     """
     
-    def __init__(self, config: Dict[str, Any], domain_adapter=None, connection: Any = None, **kwargs):
+    def __init__(self, config: Dict[str, Any], domain_adapter=None, datasource: Any = None, **kwargs):
         """
         Initialize Intent SQL retriever.
-        
+
         Args:
             config: Configuration dictionary
             domain_adapter: Optional domain adapter
-            connection: Optional database connection
+            datasource: Datasource instance from the registry
             **kwargs: Additional arguments
         """
-        super().__init__(config=config, connection=connection, **kwargs)
+        super().__init__(config=config, datasource=datasource, **kwargs)
         
         # Get intent-specific configuration from standardized key
         self.intent_config = config.get('adapter_config', {})
@@ -114,10 +114,9 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
         """Initialize intent-specific features and database connection."""
         try:
             logger.info(f"Initializing {self.__class__.__name__} for intent-based queries")
-            
-            # Initialize database connection using parent method
-            if not self.connection:
-                self.connection = await self.create_connection()
+
+            # Ensure datasource is initialized (connection will be obtained automatically via property)
+            await self._ensure_datasource_initialized()
             
             # Initialize embedding client
             await self._initialize_embedding_client()

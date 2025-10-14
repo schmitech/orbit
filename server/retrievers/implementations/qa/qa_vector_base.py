@@ -269,10 +269,9 @@ class QAVectorRetrieverBase(AbstractVectorRetriever):
         database-specific operations to abstract methods.
         """
         try:
-            # Check initialization
-            if not self.initialized:
-                await self.initialize()
-            
+            # Ensure datasource is initialized
+            await self._ensure_datasource_initialized()
+
             if self.verbose:
                 logger.info(f"=== Starting QA {self.get_datasource_name()} retrieval ===")
                 logger.info(f"Query: '{query}'")

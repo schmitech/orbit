@@ -2,24 +2,20 @@
 Datasource Factory Module
 
 This module provides functionality for initializing various datasource clients
-based on the configured provider. It supports multiple datasource types including
-ChromaDB, SQLite, PostgreSQL, and Milvus.
+using a registry-based approach. It supports multiple datasource types including
+ChromaDB, SQLite, PostgreSQL, Oracle, MySQL, MariaDB, SQL Server, MongoDB, and Cassandra.
 """
 
-import sqlite3
-import os
-from pathlib import Path
 from typing import Any, Dict, Optional
-import chromadb
+from .registry import get_registry
 
 
 class DatasourceFactory:
     """
-    Factory class for creating datasource clients based on configuration.
+    Factory class for creating datasource clients using the registry pattern.
     
-    This class handles the initialization of different types of datasource clients
-    including ChromaDB, SQLite, PostgreSQL, and Milvus. It provides a unified
-    interface for creating clients while handling provider-specific configuration.
+    This class provides a backward-compatible interface while delegating to the
+    registry for actual datasource creation and management.
     """
     
     def __init__(self, config: Dict[str, Any], logger):
@@ -32,6 +28,7 @@ class DatasourceFactory:
         """
         self.config = config
         self.logger = logger
+        self.registry = get_registry()
     
     def initialize_datasource_client(self, provider: str) -> Any:
         """
@@ -41,148 +38,36 @@ class DatasourceFactory:
             provider: The datasource provider to initialize
             
         Returns:
-            An initialized datasource client
-            
-        Raises:
-            Exception: If the datasource client fails to initialize
+            An initialized datasource client or None if initialization fails
         """
-        if provider == 'sqlite':
-            return self._initialize_sqlite_client()
-        elif provider == 'postgres':
-            return self._initialize_postgres_client()
-        elif provider == 'milvus':
-            return self._initialize_milvus_client()
-        else:
-            self.logger.warning(f"Unknown datasource provider: {provider}, falling back to ChromaDB")
-            return self._initialize_chroma_client()
-    
-    def _initialize_sqlite_client(self) -> Optional[sqlite3.Connection]:
-        """
-        Initialize a SQLite database client.
-        
-        Returns:
-            SQLite connection object or None if initialization fails
-        """
-        sqlite_config = self.config['datasources']['sqlite']
-        db_path = sqlite_config.get('db_path', 'sqlite_db.db')
-        self.logger.info(f"Initializing SQLite connection to {db_path}")
+        self.logger.info(f"Initializing datasource client using registry pattern: {provider}")
         
         try:
-            return sqlite3.connect(db_path)
+            # Create datasource instance using registry
+            datasource = self.registry.create_datasource(provider, self.config, self.logger)
+            
+            if datasource is None:
+                self.logger.error(f"Failed to create datasource: {provider}")
+                return None
+            
+            # Initialize the datasource (this will be async in the future)
+            import asyncio
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # If we're in an async context, we can't use run_until_complete
+                    # For now, we'll handle this synchronously
+                    self.logger.warning(f"Async initialization not supported in sync context for {provider}")
+                    return None
+                else:
+                    loop.run_until_complete(datasource.initialize())
+            except RuntimeError:
+                # No event loop running, create one
+                asyncio.run(datasource.initialize())
+            
+            # Return the client
+            return datasource.get_client()
+            
         except Exception as e:
-            self.logger.error(f"Failed to connect to SQLite database: {str(e)}")
-            return None
-    
-    def _initialize_postgres_client(self) -> Optional[Any]:
-        """
-        Initialize a PostgreSQL database client.
-        
-        Returns:
-            PostgreSQL connection object or None if initialization fails
-        """
-        postgres_conf = self.config['datasources']['postgres']
-        
-        try:
-            import psycopg2
-            from psycopg2.extras import RealDictCursor
-            
-            # Extract connection parameters
-            host = postgres_conf.get('host', 'localhost')
-            port = postgres_conf.get('port', 5432)
-            database = postgres_conf.get('database', 'postgres')
-            username = postgres_conf.get('username', 'postgres')
-            password = postgres_conf.get('password', '')
-            sslmode = postgres_conf.get('sslmode', 'prefer')
-            
-            self.logger.info(f"Initializing PostgreSQL connection to {host}:{port}/{database}")
-            
-            # Create connection
-            connection = psycopg2.connect(
-                host=host,
-                port=port,
-                database=database,
-                user=username,
-                password=password,
-                sslmode=sslmode,
-                cursor_factory=RealDictCursor  # Use dict cursor by default
-            )
-            
-            # Test the connection
-            cursor = connection.cursor()
-            cursor.execute("SELECT version();")
-            version = cursor.fetchone()
-            cursor.close()
-            
-            if version:
-                self.logger.info(f"PostgreSQL connection successful: {version['version']}")
-            
-            return connection
-            
-        except ImportError:
-            self.logger.error("psycopg2 not available. Install with: pip install psycopg2-binary")
-            return None
-        except Exception as e:
-            self.logger.error(f"Failed to connect to PostgreSQL database: {str(e)}")
-            self.logger.error(f"Connection details: {host}:{port}/{database} (user: {username})")
-            return None
-    
-    def _initialize_milvus_client(self) -> Optional[Any]:
-        """
-        Initialize a Milvus vector database client.
-        
-        Returns:
-            Milvus client object or None (not yet implemented)
-        """
-        milvus_conf = self.config['datasources']['milvus']
-        self.logger.info("Milvus datasource not yet implemented")
-        return None
-    
-    def _initialize_chroma_client(self) -> chromadb.Client:
-        """
-        Initialize a ChromaDB client (default fallback).
-        
-        Returns:
-            ChromaDB client object (PersistentClient or HttpClient)
-        """
-        chroma_conf = self.config['datasources']['chroma']
-        use_local = chroma_conf.get('use_local', False)
-        
-        if use_local:
-            return self._initialize_local_chroma_client(chroma_conf)
-        else:
-            return self._initialize_remote_chroma_client(chroma_conf)
-    
-    def _initialize_local_chroma_client(self, chroma_conf: Dict[str, Any]) -> chromadb.PersistentClient:
-        """
-        Initialize a local ChromaDB PersistentClient.
-        
-        Args:
-            chroma_conf: ChromaDB configuration dictionary
-            
-        Returns:
-            ChromaDB PersistentClient for local filesystem access
-        """
-        db_path = chroma_conf.get('db_path', '../localdb_db')
-        db_path = Path(db_path).resolve()
-        
-        # Ensure the directory exists
-        os.makedirs(db_path, exist_ok=True)
-        
-        self.logger.info(f"Using local ChromaDB at path: {db_path}")
-        return chromadb.PersistentClient(path=str(db_path))
-    
-    def _initialize_remote_chroma_client(self, chroma_conf: Dict[str, Any]) -> chromadb.HttpClient:
-        """
-        Initialize a remote ChromaDB HttpClient.
-        
-        Args:
-            chroma_conf: ChromaDB configuration dictionary
-            
-        Returns:
-            ChromaDB HttpClient for remote server access
-        """
-        host = chroma_conf['host']
-        port = int(chroma_conf['port'])
-        
-        self.logger.info(f"Connecting to ChromaDB at {host}:{port}...")
-        return chromadb.HttpClient(host=host, port=port) 
+            self.logger.error(f"Failed to initialize datasource {provider}: {str(e)}")
+            return None 

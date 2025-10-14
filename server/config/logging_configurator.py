@@ -18,6 +18,17 @@ from pythonjsonlogger import jsonlogger
 from utils import is_true_value
 
 
+class _UvicornLoggerNameFilter(logging.Filter):
+    """Normalize uvicorn logger names so they match the project logging style."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if record.name == "uvicorn.error":
+            record.name = "server.inference_server"
+        elif record.name == "uvicorn.access":
+            record.name = "server.inference_server.access"
+        return True
+
+
 class LoggingConfigurator:
     """
     Handles all aspects of logging configuration for the inference server.
@@ -113,13 +124,14 @@ class LoggingConfigurator:
             console_format = handlers.get('console', {}).get('format', 'text')
             console_handler.setFormatter(json_formatter if console_format == 'json' else text_formatter)
             console_handler.setLevel(log_level)
+            console_handler.addFilter(_UvicornLoggerNameFilter())
             root_logger.addHandler(console_handler)
-        
+
         # Configure file logging
         file_enabled = is_true_value(handlers.get('file', {}).get('enabled', True))
         if file_enabled:
             LoggingConfigurator._setup_file_logging(
-                root_logger, handlers.get('file', {}), 
+                root_logger, handlers.get('file', {}),
                 json_formatter, text_formatter, log_level
             )
         
@@ -189,6 +201,7 @@ class LoggingConfigurator:
         file_format = file_config.get('format', 'text')
         file_handler.setFormatter(json_formatter if file_format == 'json' else text_formatter)
         file_handler.setLevel(log_level)
+        file_handler.addFilter(_UvicornLoggerNameFilter())
         root_logger.addHandler(file_handler)
     
     @staticmethod

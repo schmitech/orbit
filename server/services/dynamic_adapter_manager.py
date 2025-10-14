@@ -408,7 +408,7 @@ class DynamicAdapterManager:
         def _sync_load():
             # This runs in a thread, so it won't block the event loop
             implementation = adapter_config.get('implementation')
-            datasource = adapter_config.get('datasource', 'none')
+            datasource_name = adapter_config.get('datasource', 'none')
             domain_adapter_name = adapter_config.get('adapter')
             adapter_category = adapter_config.get('type', 'retriever')
 
@@ -425,7 +425,7 @@ class DynamicAdapterManager:
             if domain_adapter_name:
                 domain_adapter = ADAPTER_REGISTRY.create(
                     adapter_type=adapter_category,
-                    datasource=datasource,
+                    datasource=datasource_name,
                     adapter_name=domain_adapter_name,
                     override_config=adapter_config_params
                 )
@@ -435,11 +435,11 @@ class DynamicAdapterManager:
             config_with_adapter = copy.deepcopy(self.config)
             # Pass adapter config in the standardized key for all retrievers
             config_with_adapter['adapter_config'] = adapter_config_params
-            
+
             # For intent adapters, include stores configuration
             if domain_adapter_name == 'intent' and 'stores' in self.config:
                 config_with_adapter['stores'] = self.config['stores']
-            
+
             # Include adapter-level inference provider override if specified
             if 'inference_provider' in adapter_config:
                 config_with_adapter['inference_provider'] = adapter_config['inference_provider']
@@ -471,10 +471,30 @@ class DynamicAdapterManager:
                 if self.verbose:
                     logger.info(f"Setting embedding provider override: {adapter_config['embedding_provider']} for adapter: {adapter_name}")
 
-            # Create retriever instance
+            # Create datasource instance for the retriever using the datasource registry
+            datasource_instance = None
+            if datasource_name and datasource_name != 'none':
+                try:
+                    from datasources.registry import get_registry as get_datasource_registry
+                    datasource_registry = get_datasource_registry()
+                    datasource_instance = datasource_registry.create_datasource(
+                        datasource_name=datasource_name,
+                        config=config_with_adapter,
+                        logger=logger
+                    )
+                    if datasource_instance:
+                        logger.info(f"Created datasource instance '{datasource_name}' for retriever in adapter '{adapter_name}'")
+                    else:
+                        logger.warning(f"Failed to create datasource '{datasource_name}' for adapter '{adapter_name}', retriever will not have access to datasource")
+                except Exception as e:
+                    logger.warning(f"Error creating datasource '{datasource_name}' for adapter '{adapter_name}': {e}. Retriever will proceed without datasource.")
+                    datasource_instance = None
+
+            # Create retriever instance with datasource
             retriever = retriever_class(
                 config=config_with_adapter,
-                domain_adapter=domain_adapter
+                domain_adapter=domain_adapter,
+                datasource=datasource_instance
             )
             
             return retriever

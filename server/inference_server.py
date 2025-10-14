@@ -458,7 +458,8 @@ class InferenceServer:
             loop="asyncio",
             timeout_keep_alive=perf_config.get('keep_alive_timeout', 30),
             timeout_graceful_shutdown=30,
-            access_log=False  # Disable FastAPI's default access logging
+            access_log=False,  # Disable FastAPI's default access logging
+            log_config=None  # Reuse global logging configuration for consistent formatting
         )
         
         server = uvicorn.Server(config)

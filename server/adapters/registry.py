@@ -5,6 +5,7 @@
 import logging
 import importlib
 from typing import Dict, Any, Callable, List, Optional, Type, Union
+from datasources.registry import get_registry as get_datasource_registry
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -73,40 +74,40 @@ class AdapterRegistry:
         except KeyError:
             return None
             
-    def create(self, 
-              adapter_type: str, 
-              datasource: str, 
-              adapter_name: str, 
-              override_config: Dict[str, Any] = None, 
+    def create(self,
+              adapter_type: str,
+              datasource: str,
+              adapter_name: str,
+              override_config: Dict[str, Any] = None,
               **kwargs) -> Any:
         """
-        Create an adapter instance.
-        
+        Create an adapter instance with datasource from registry.
+
         Args:
             adapter_type: Type of adapter (e.g., 'retriever', 'parser')
             datasource: Datasource name (e.g., 'sqlite', 'chroma', 'qdrant')
             adapter_name: Adapter name (e.g., 'qa', 'generic')
             override_config: Optional configuration to override registered config
             **kwargs: Additional keyword arguments to pass to the factory
-            
+
         Returns:
             An adapter instance
-            
+
         Raises:
             ValueError: If the adapter cannot be found or created
         """
         # Log the attempt to create the adapter
         logger.debug(f"Attempting to create adapter: type={adapter_type}, datasource={datasource}, name={adapter_name}")
-        
+
         # Get adapter info
         adapter_info = self.get(adapter_type, datasource, adapter_name)
-        
+
         if not adapter_info:
             # Try to import dynamically if the adapter is not registered
             logger.debug(f"Adapter not found in registry, attempting dynamic import")
             if self._try_import_adapter(adapter_type, datasource, adapter_name):
                 adapter_info = self.get(adapter_type, datasource, adapter_name)
-            
+
             if not adapter_info:
                 # Log detailed registry state for debugging
                 logger.error(f"Adapter not found: type={adapter_type}, datasource={datasource}, name={adapter_name}")
@@ -116,29 +117,54 @@ class AdapterRegistry:
                     if datasource in self._registry[adapter_type]:
                         logger.error(f"Available adapters for {datasource}: {list(self._registry[adapter_type][datasource].keys())}")
                 raise ValueError(f"Adapter not found: type={adapter_type}, datasource={datasource}, name={adapter_name}")
-        
+
         try:
             # Merge configs, with override_config taking precedence
             config = {**adapter_info.get('config', {}), **(override_config or {})}
-            
+
             # Log the attempt to create the adapter instance
             logger.debug(f"Creating adapter instance with config: {config}")
-            
+
+            # Get datasource from registry for retriever-type adapters
+            datasource_instance = None
+            if adapter_type == 'retriever' and datasource != 'none':
+                try:
+                    datasource_registry = get_datasource_registry()
+                    # Get full config to pass to datasource
+                    full_config = kwargs.get('config', config)
+                    logger.debug(f"Creating datasource instance for: {datasource}")
+                    datasource_instance = datasource_registry.create_datasource(
+                        datasource_name=datasource,
+                        config=full_config,
+                        logger=logger
+                    )
+                    if datasource_instance:
+                        logger.info(f"Created datasource instance for {datasource}")
+                    else:
+                        logger.warning(f"Failed to create datasource instance for {datasource}, retriever will not have access to datasource")
+                except Exception as e:
+                    logger.warning(f"Error creating datasource for {datasource}: {e}. Retriever will proceed without datasource.")
+                    datasource_instance = None
+
+            # Add datasource to kwargs if it was created
+            if datasource_instance is not None:
+                kwargs['datasource'] = datasource_instance
+
             # Use factory function if available
             if adapter_info.get('factory_func'):
                 factory = adapter_info['factory_func']
                 return factory(config=config, **kwargs)
-            
+
             # Otherwise, use implementation path to create instance
             implementation_path = adapter_info.get('implementation')
             if not implementation_path:
                 raise ValueError(f"No implementation or factory function available for adapter: {adapter_type}.{datasource}.{adapter_name}")
-                
+
             # Import module and get class
             module_path, class_name = implementation_path.rsplit('.', 1)
             module = importlib.import_module(module_path)
             adapter_class = getattr(module, class_name)
-            
+
             # Create instance
             return adapter_class(config=config, **kwargs)
                 
