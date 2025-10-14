@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.5.6] - 2025-10-14
+
+### Core System Updates
+- AI Provider Services Consolidation: Massive refactoring of AI providers, removing unused providers and consolidating services
+- Embedding Services Migration: Migrated embedding providers to new AI services architecture
+- Moderators Migration: Brought moderators into new AI service architecture
+- Adapters Refactoring: Improved adapter architecture for better maintenance and adaptability
+
+### Bug Fixes & Technical Improvements
+- Embedding Service Issues: Fixed double initialization of embedding services by dynamic adapter
+- Inference Registry Fixes: Fixed double initialization of inference registry items
+- Template Fixes: Fixed 'detect_anomalous_access_patterns' template and added detect_compartment_hopping
+
 ## [1.5.5] - 2025-10-10
 
 ### Core System Updates

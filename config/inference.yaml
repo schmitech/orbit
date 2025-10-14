@@ -115,6 +115,7 @@ inference:
     top_k: 20
     max_tokens: 1024
     stream: true
+    transport: "rest"
   groq:
     api_key: ${GROQ_API_KEY}
     model: "llama-3.1-8b-instant"
@@ -208,7 +209,7 @@ inference:
   openrouter:
     api_key: ${OPENROUTER_API_KEY}
     base_url: "https://openrouter.ai/api/v1"
-    model: "openai/gpt-4o"
+    model: "meta-llama/llama-3.1-8b-instruct"
     temperature: 0.1
     top_p: 0.8
     max_tokens: 1024

@@ -77,7 +77,6 @@ adapters:
       collection: "city"
       confidence_threshold: 0.3
       distance_scaling_factor: 2.0
-      embedding_provider: null
       max_results: 5
       return_results: 3
       timezone: "America/Toronto"
@@ -94,7 +93,6 @@ adapters:
       collection: "demo"
       confidence_threshold: 0.3
       score_scaling_factor: 1.0
-      embedding_provider: null
       max_results: 5
       return_results: 3
       timezone: "America/Toronto"
@@ -120,9 +118,6 @@ adapters:
       # Store configuration - references stores.yaml
       store_name: "chroma"
       confidence_threshold: 0.4
-
-      # Embedding provider for template matching (null = use default)
-      embedding_provider: null
 
       # Maximum templates to consider
       max_templates: 5
