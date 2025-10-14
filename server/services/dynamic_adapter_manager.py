@@ -394,8 +394,8 @@ class DynamicAdapterManager:
         if not adapter_config:
             raise ValueError(f"No adapter configuration found for: {adapter_name}")
 
-        # Preload embedding service if adapter has an override
-        if 'embedding_provider' in adapter_config:
+        # Preload embedding service if adapter has an override (and it's not null)
+        if adapter_config.get('embedding_provider'):
             embedding_provider = adapter_config['embedding_provider']
             try:
                 await self.get_overridden_embedding(embedding_provider, adapter_name)
@@ -461,12 +461,12 @@ class DynamicAdapterManager:
                         provider_for_model,
                     )
 
-            # Include adapter-level embedding provider override if specified
-            if 'embedding_provider' in adapter_config:
+            # Include adapter-level embedding provider override if specified (and it's not null)
+            if adapter_config.get('embedding_provider'):
                 # Ensure the 'embedding' key exists
                 if 'embedding' not in config_with_adapter:
                     config_with_adapter['embedding'] = {}
-                
+
                 config_with_adapter['embedding']['provider'] = adapter_config['embedding_provider']
                 if self.verbose:
                     logger.info(f"Setting embedding provider override: {adapter_config['embedding_provider']} for adapter: {adapter_name}")

@@ -10,13 +10,24 @@ import logging
 
 from ..base import ProviderAIService, ServiceType
 from ..connection import ConnectionManager, RetryHandler
-from server.utils.ollama_utils import (
-    OllamaConfig,
-    OllamaSessionManager,
-    OllamaRetryHandler,
-    OllamaModelWarmer,
-    OllamaConnectionVerifier
-)
+
+# Handle imports from both server package and direct execution
+try:
+    from server.utils.ollama_utils import (
+        OllamaConfig,
+        OllamaSessionManager,
+        OllamaRetryHandler,
+        OllamaModelWarmer,
+        OllamaConnectionVerifier
+    )
+except ImportError:
+    from utils.ollama_utils import (
+        OllamaConfig,
+        OllamaSessionManager,
+        OllamaRetryHandler,
+        OllamaModelWarmer,
+        OllamaConnectionVerifier
+    )
 
 
 class OllamaBaseService(ProviderAIService):

@@ -63,14 +63,38 @@ from .config import (
 )
 from .factory import AIServiceFactory
 
-# Provider base classes
-from .providers import (
-    OpenAIBaseService,
-    AnthropicBaseService,
-    OllamaBaseService,
-    CohereBaseService,
-    MistralBaseService
-)
+# Provider base classes (conditionally imported based on available dependencies)
+# These are imported dynamically - only providers with installed dependencies are available
+_available_providers = []
+try:
+    from .providers import OpenAIBaseService
+    _available_providers.append('OpenAIBaseService')
+except ImportError:
+    pass
+
+try:
+    from .providers import AnthropicBaseService
+    _available_providers.append('AnthropicBaseService')
+except ImportError:
+    pass
+
+try:
+    from .providers import OllamaBaseService
+    _available_providers.append('OllamaBaseService')
+except ImportError:
+    pass
+
+try:
+    from .providers import CohereBaseService
+    _available_providers.append('CohereBaseService')
+except ImportError:
+    pass
+
+try:
+    from .providers import MistralBaseService
+    _available_providers.append('MistralBaseService')
+except ImportError:
+    pass
 
 # Registry functions
 from .registry import (
@@ -106,13 +130,6 @@ __all__ = [
     # Factory
     'AIServiceFactory',
 
-    # Provider base classes
-    'OpenAIBaseService',
-    'AnthropicBaseService',
-    'OllamaBaseService',
-    'CohereBaseService',
-    'MistralBaseService',
-
     # Registry functions
     'register_all_services',
     'register_embedding_services',
@@ -120,4 +137,4 @@ __all__ = [
     'register_moderation_services',
     'register_reranking_services',
     'get_embedding_service_legacy',
-]
+] + _available_providers  # Add dynamically loaded provider base classes

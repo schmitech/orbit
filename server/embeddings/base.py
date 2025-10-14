@@ -162,31 +162,34 @@ class EmbeddingServiceFactory:
         NOTE: This now uses the new unified AI services architecture!
         The old embeddings implementations have been migrated.
         """
-        # Import from the new ai_services architecture
-        from ai_services.implementations import (
-            OpenAIEmbeddingService,
-            OllamaEmbeddingService,
-            CohereEmbeddingService,
-            MistralEmbeddingService,
-            JinaEmbeddingService,
-            LlamaCppEmbeddingService
-        )
+        # Lazy import the service class dynamically based on provider name
+        # This allows the system to work even if some providers are not installed
 
-        # Map provider names to new service classes
-        provider_map = {
-            'openai': OpenAIEmbeddingService,
-            'ollama': OllamaEmbeddingService,
-            'cohere': CohereEmbeddingService,
-            'mistral': MistralEmbeddingService,
-            'jina': JinaEmbeddingService,
-            'llama_cpp': LlamaCppEmbeddingService
+        # Map provider names to class names
+        class_name_map = {
+            'openai': 'OpenAIEmbeddingService',
+            'ollama': 'OllamaEmbeddingService',
+            'cohere': 'CohereEmbeddingService',
+            'mistral': 'MistralEmbeddingService',
+            'jina': 'JinaEmbeddingService',
+            'llama_cpp': 'LlamaCppEmbeddingService'
         }
 
-        if provider_name not in provider_map:
+        if provider_name not in class_name_map:
             raise ValueError(f"Unsupported embedding provider: {provider_name}")
 
-        # Get the service class
-        service_class = provider_map[provider_name]
+        class_name = class_name_map[provider_name]
+
+        # Try to import the specific service class
+        try:
+            module = __import__('ai_services.implementations', fromlist=[class_name])
+            service_class = getattr(module, class_name)
+        except (ImportError, AttributeError) as e:
+            raise ValueError(
+                f"Embedding provider '{provider_name}' is not available. "
+                f"This may be because required dependencies are not installed. "
+                f"Error: {e}"
+            )
 
         # Pass the full config - the new services handle config extraction
         return service_class(config)

@@ -6,6 +6,7 @@ description = "Core dependencies"
 dependencies = [
     "setuptools>=77.0.3,<80",
     "ollama==0.5.4",
+    "openai==1.102.0",  # Needed for OpenAI-compatible local servers (vLLM, Ollama Cloud, etc.)
     "motor>=3.7.1",
     "pymongo>=4.13.0",
     "redis>=6.2.0",

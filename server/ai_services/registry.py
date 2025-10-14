@@ -31,58 +31,34 @@ def register_embedding_services() -> None:
     Register all embedding service implementations with the factory.
 
     This makes them available for creation via AIServiceFactory.create_service()
+    Services with missing dependencies are skipped with a warning.
     """
-    from .implementations import (
-        OpenAIEmbeddingService,
-        OllamaEmbeddingService,
-        CohereEmbeddingService,
-        MistralEmbeddingService,
-        JinaEmbeddingService,
-        LlamaCppEmbeddingService
-    )
+    # Define services to register with their import paths
+    services = [
+        ("openai", "OpenAIEmbeddingService", "OpenAI"),
+        ("ollama", "OllamaEmbeddingService", "Ollama"),
+        ("cohere", "CohereEmbeddingService", "Cohere"),
+        ("mistral", "MistralEmbeddingService", "Mistral"),
+        ("jina", "JinaEmbeddingService", "Jina"),
+        ("llama_cpp", "LlamaCppEmbeddingService", "Llama.cpp"),
+    ]
 
-    # Register embedding services
-    AIServiceFactory.register_service(
-        ServiceType.EMBEDDING,
-        "openai",
-        OpenAIEmbeddingService
-    )
-    logger.info("Registered OpenAI embedding service")
+    for provider_key, class_name, display_name in services:
+        try:
+            # Lazy import - only import what we can
+            module = __import__('ai_services.implementations', fromlist=[class_name])
+            service_class = getattr(module, class_name)
 
-    AIServiceFactory.register_service(
-        ServiceType.EMBEDDING,
-        "ollama",
-        OllamaEmbeddingService
-    )
-    logger.info("Registered Ollama embedding service")
-
-    AIServiceFactory.register_service(
-        ServiceType.EMBEDDING,
-        "cohere",
-        CohereEmbeddingService
-    )
-    logger.info("Registered Cohere embedding service")
-
-    AIServiceFactory.register_service(
-        ServiceType.EMBEDDING,
-        "mistral",
-        MistralEmbeddingService
-    )
-    logger.info("Registered Mistral embedding service")
-
-    AIServiceFactory.register_service(
-        ServiceType.EMBEDDING,
-        "jina",
-        JinaEmbeddingService
-    )
-    logger.info("Registered Jina embedding service")
-
-    AIServiceFactory.register_service(
-        ServiceType.EMBEDDING,
-        "llama_cpp",
-        LlamaCppEmbeddingService
-    )
-    logger.info("Registered Llama.cpp embedding service")
+            AIServiceFactory.register_service(
+                ServiceType.EMBEDDING,
+                provider_key,
+                service_class
+            )
+            logger.info(f"Registered {display_name} embedding service")
+        except (ImportError, AttributeError) as e:
+            logger.debug(
+                f"Skipping {display_name} embedding service - missing dependencies: {e}"
+            )
 
 
 def register_inference_services() -> None:
@@ -90,6 +66,7 @@ def register_inference_services() -> None:
     Register all inference service implementations with the factory.
 
     This makes them available for creation via AIServiceFactory.create_service()
+    Services with missing dependencies are skipped with a warning.
 
     Currently includes:
     - OpenAI, Anthropic, Ollama (Phase 3 Week 1)
@@ -99,197 +76,56 @@ def register_inference_services() -> None:
     - Cohere, NVIDIA, Replicate, Watson, vLLM, Llama.cpp, Hugging Face,
       Ollama Cloud (Phase 3 Extended - Custom/Local)
     """
-    from .implementations import (
-        OpenAIInferenceService,
-        AnthropicInferenceService,
-        OllamaInferenceService,
-        GroqInferenceService,
-        MistralInferenceService,
-        DeepSeekInferenceService,
-        FireworksInferenceService,
-        PerplexityInferenceService,
-        TogetherInferenceService,
-        OpenRouterInferenceService,
-        XAIInferenceService,
-        AWSBedrockInferenceService,
-        AzureOpenAIInferenceService,
-        VertexAIInferenceService,
-        GeminiInferenceService,
-        CohereInferenceService,
-        NVIDIAInferenceService,
-        ReplicateInferenceService,
-        WatsonInferenceService,
-        VLLMInferenceService,
-        LlamaCppInferenceService,
-        HuggingFaceInferenceService,
-        OllamaCloudInferenceService,
-    )
+    # Define all services to register with their import paths
+    services = [
+        # Core inference services (Phase 3 Week 1)
+        ("openai", "OpenAIInferenceService", "OpenAI"),
+        ("anthropic", "AnthropicInferenceService", "Anthropic"),
+        ("ollama", "OllamaInferenceService", "Ollama"),
 
-    # Core inference services (Phase 3 Week 1)
-    AIServiceFactory.register_service(
-        ServiceType.INFERENCE,
-        "openai",
-        OpenAIInferenceService
-    )
-    logger.info("Registered OpenAI inference service")
+        # OpenAI-compatible inference services (Phase 3 Extended)
+        ("groq", "GroqInferenceService", "Groq"),
+        ("mistral", "MistralInferenceService", "Mistral"),
+        ("deepseek", "DeepSeekInferenceService", "DeepSeek"),
+        ("fireworks", "FireworksInferenceService", "Fireworks"),
+        ("perplexity", "PerplexityInferenceService", "Perplexity"),
+        ("together", "TogetherInferenceService", "Together"),
+        ("openrouter", "OpenRouterInferenceService", "OpenRouter"),
+        ("xai", "XAIInferenceService", "xAI (Grok)"),
 
-    AIServiceFactory.register_service(
-        ServiceType.INFERENCE,
-        "anthropic",
-        AnthropicInferenceService
-    )
-    logger.info("Registered Anthropic inference service")
+        # Cloud provider inference services (Phase 3 Extended - Cloud Providers)
+        ("aws", "AWSBedrockInferenceService", "AWS Bedrock"),
+        ("azure", "AzureOpenAIInferenceService", "Azure OpenAI"),
+        ("vertexai", "VertexAIInferenceService", "Vertex AI"),
+        ("gemini", "GeminiInferenceService", "Gemini"),
 
-    AIServiceFactory.register_service(
-        ServiceType.INFERENCE,
-        "ollama",
-        OllamaInferenceService
-    )
-    logger.info("Registered Ollama inference service")
+        # Custom/Local inference services (Phase 3 Extended - Final 8 providers)
+        ("cohere", "CohereInferenceService", "Cohere"),
+        ("nvidia", "NVIDIAInferenceService", "NVIDIA NIM"),
+        ("replicate", "ReplicateInferenceService", "Replicate"),
+        ("watson", "WatsonInferenceService", "IBM Watson"),
+        ("vllm", "VLLMInferenceService", "vLLM"),
+        ("llama_cpp", "LlamaCppInferenceService", "Llama.cpp"),
+        ("huggingface", "HuggingFaceInferenceService", "Hugging Face"),
+        ("ollama_cloud", "OllamaCloudInferenceService", "Ollama Cloud"),
+    ]
 
-    # OpenAI-compatible inference services (Phase 3 Extended)
-    AIServiceFactory.register_service(
-        ServiceType.INFERENCE,
-        "groq",
-        GroqInferenceService
-    )
-    logger.info("Registered Groq inference service")
+    for provider_key, class_name, display_name in services:
+        try:
+            # Lazy import - only import what we can
+            module = __import__('ai_services.implementations', fromlist=[class_name])
+            service_class = getattr(module, class_name)
 
-    AIServiceFactory.register_service(
-        ServiceType.INFERENCE,
-        "mistral",
-        MistralInferenceService
-    )
-    logger.info("Registered Mistral inference service")
-
-    AIServiceFactory.register_service(
-        ServiceType.INFERENCE,
-        "deepseek",
-        DeepSeekInferenceService
-    )
-    logger.info("Registered DeepSeek inference service")
-
-
-    AIServiceFactory.register_service(
-        ServiceType.INFERENCE,
-        "fireworks",
-        FireworksInferenceService
-    )
-    logger.info("Registered Fireworks inference service")
-
-    AIServiceFactory.register_service(
-        ServiceType.INFERENCE,
-        "perplexity",
-        PerplexityInferenceService
-    )
-    logger.info("Registered Perplexity inference service")
-
-    AIServiceFactory.register_service(
-        ServiceType.INFERENCE,
-        "together",
-        TogetherInferenceService
-    )
-    logger.info("Registered Together inference service")
-
-    AIServiceFactory.register_service(
-        ServiceType.INFERENCE,
-        "openrouter",
-        OpenRouterInferenceService
-    )
-    logger.info("Registered OpenRouter inference service")
-
-    AIServiceFactory.register_service(
-        ServiceType.INFERENCE,
-        "xai",
-        XAIInferenceService
-    )
-    logger.info("Registered xAI (Grok) inference service")
-
-    # Cloud provider inference services (Phase 3 Extended - Cloud Providers)
-    AIServiceFactory.register_service(
-        ServiceType.INFERENCE,
-        "aws",
-        AWSBedrockInferenceService
-    )
-    logger.info("Registered AWS Bedrock inference service")
-
-    AIServiceFactory.register_service(
-        ServiceType.INFERENCE,
-        "azure",
-        AzureOpenAIInferenceService
-    )
-    logger.info("Registered Azure OpenAI inference service")
-
-    AIServiceFactory.register_service(
-        ServiceType.INFERENCE,
-        "vertexai",
-        VertexAIInferenceService
-    )
-    logger.info("Registered Vertex AI inference service")
-
-    AIServiceFactory.register_service(
-        ServiceType.INFERENCE,
-        "gemini",
-        GeminiInferenceService
-    )
-    logger.info("Registered Gemini inference service")
-
-    # Custom/Local inference services (Phase 3 Extended - Final 8 providers)
-    AIServiceFactory.register_service(
-        ServiceType.INFERENCE,
-        "cohere",
-        CohereInferenceService
-    )
-    logger.info("Registered Cohere inference service")
-
-    AIServiceFactory.register_service(
-        ServiceType.INFERENCE,
-        "nvidia",
-        NVIDIAInferenceService
-    )
-    logger.info("Registered NVIDIA NIM inference service")
-
-    AIServiceFactory.register_service(
-        ServiceType.INFERENCE,
-        "replicate",
-        ReplicateInferenceService
-    )
-    logger.info("Registered Replicate inference service")
-
-    AIServiceFactory.register_service(
-        ServiceType.INFERENCE,
-        "watson",
-        WatsonInferenceService
-    )
-    logger.info("Registered IBM Watson inference service")
-
-    AIServiceFactory.register_service(
-        ServiceType.INFERENCE,
-        "vllm",
-        VLLMInferenceService
-    )
-    logger.info("Registered vLLM inference service")
-
-    AIServiceFactory.register_service(
-        ServiceType.INFERENCE,
-        "llama_cpp",
-        LlamaCppInferenceService
-    )
-    logger.info("Registered Llama.cpp inference service")
-
-    AIServiceFactory.register_service(
-        ServiceType.INFERENCE,
-        "huggingface",
-        HuggingFaceInferenceService
-    )
-    logger.info("Registered Hugging Face inference service")
-
-    AIServiceFactory.register_service(
-        ServiceType.INFERENCE,
-        "ollama_cloud",
-        OllamaCloudInferenceService
-    )
-    logger.info("Registered Ollama Cloud inference service")
+            AIServiceFactory.register_service(
+                ServiceType.INFERENCE,
+                provider_key,
+                service_class
+            )
+            logger.info(f"Registered {display_name} inference service")
+        except (ImportError, AttributeError) as e:
+            logger.debug(
+                f"Skipping {display_name} inference service - missing dependencies: {e}"
+            )
 
 
 def register_moderation_services() -> None:
@@ -297,34 +133,31 @@ def register_moderation_services() -> None:
     Register all moderation service implementations with the factory.
 
     This makes them available for creation via AIServiceFactory.create_service()
+    Services with missing dependencies are skipped with a warning.
     """
-    from .implementations import (
-        OpenAIModerationService,
-        AnthropicModerationService,
-        OllamaModerationService
-    )
+    # Define services to register with their import paths
+    services = [
+        ("openai", "OpenAIModerationService", "OpenAI"),
+        ("anthropic", "AnthropicModerationService", "Anthropic"),
+        ("ollama", "OllamaModerationService", "Ollama"),
+    ]
 
-    # Register moderation services
-    AIServiceFactory.register_service(
-        ServiceType.MODERATION,
-        "openai",
-        OpenAIModerationService
-    )
-    logger.info("Registered OpenAI moderation service")
+    for provider_key, class_name, display_name in services:
+        try:
+            # Lazy import - only import what we can
+            module = __import__('ai_services.implementations', fromlist=[class_name])
+            service_class = getattr(module, class_name)
 
-    AIServiceFactory.register_service(
-        ServiceType.MODERATION,
-        "anthropic",
-        AnthropicModerationService
-    )
-    logger.info("Registered Anthropic moderation service")
-
-    AIServiceFactory.register_service(
-        ServiceType.MODERATION,
-        "ollama",
-        OllamaModerationService
-    )
-    logger.info("Registered Ollama moderation service")
+            AIServiceFactory.register_service(
+                ServiceType.MODERATION,
+                provider_key,
+                service_class
+            )
+            logger.info(f"Registered {display_name} moderation service")
+        except (ImportError, AttributeError) as e:
+            logger.debug(
+                f"Skipping {display_name} moderation service - missing dependencies: {e}"
+            )
 
 
 def register_reranking_services() -> None:
@@ -332,18 +165,29 @@ def register_reranking_services() -> None:
     Register all reranking service implementations with the factory.
 
     This makes them available for creation via AIServiceFactory.create_service()
+    Services with missing dependencies are skipped with a warning.
     """
-    from .implementations import (
-        OllamaRerankingService,
-    )
+    # Define services to register with their import paths
+    services = [
+        ("ollama", "OllamaRerankingService", "Ollama"),
+    ]
 
-    # Register reranking services
-    AIServiceFactory.register_service(
-        ServiceType.RERANKING,
-        "ollama",
-        OllamaRerankingService
-    )
-    logger.info("Registered Ollama reranking service")
+    for provider_key, class_name, display_name in services:
+        try:
+            # Lazy import - only import what we can
+            module = __import__('ai_services.implementations', fromlist=[class_name])
+            service_class = getattr(module, class_name)
+
+            AIServiceFactory.register_service(
+                ServiceType.RERANKING,
+                provider_key,
+                service_class
+            )
+            logger.info(f"Registered {display_name} reranking service")
+        except (ImportError, AttributeError) as e:
+            logger.debug(
+                f"Skipping {display_name} reranking service - missing dependencies: {e}"
+            )
 
 
 def register_all_services() -> None:
