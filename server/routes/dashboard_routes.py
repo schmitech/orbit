@@ -179,7 +179,7 @@ def create_dashboard_router() -> APIRouter:
         <header class="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
             <div class="space-y-3">
                 <p class="text-xs font-medium tracking-[0.32em] text-slate-400 uppercase">Operational Insights</p>
-                <h1 class="text-3xl md:text-4xl font-semibold text-slate-100">ORBIT Operations Console</h1>
+                <h1 class="text-3xl md:text-4xl font-semibold text-slate-100">ORBIT Monitoring Dashboard</h1>
                 <p class="text-sm text-slate-400 max-w-2xl">Real-time service health, throughput, and reliability telemetry.</p>
             </div>
             <div class="flex items-center gap-5">
@@ -339,6 +339,58 @@ def create_dashboard_router() -> APIRouter:
                         <p class="text-sm text-slate-400">Loading adapter status...</p>
                     </div>
                 </article>
+            </div>
+        </section>
+
+        <section id="datasource-pool-section" class="surface-card p-6 hidden">
+            <div class="flex flex-col gap-2 mb-6">
+                <h2 class="section-title text-slate-100">Datasource Connection Pool</h2>
+                <p class="section-subtitle">Shared database connections reduce memory footprint and prevent connection exhaustion.</p>
+            </div>
+            <div class="grid gap-6 md:grid-cols-2 xl:grid-cols-4 mb-6">
+                <article class="surface-card p-5 space-y-3" style="background: rgba(15, 23, 42, 0.5);">
+                    <div class="flex items-center justify-between">
+                        <span class="metric-label">Pooled Datasources</span>
+                        <svg class="w-8 h-8 text-cyan-400/80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"/>
+                        </svg>
+                    </div>
+                    <div class="text-3xl font-semibold text-cyan-300" id="pool-total-datasources">0</div>
+                    <div class="text-xs text-slate-400">Active connections</div>
+                </article>
+                <article class="surface-card p-5 space-y-3" style="background: rgba(15, 23, 42, 0.5);">
+                    <div class="flex items-center justify-between">
+                        <span class="metric-label">Total References</span>
+                        <svg class="w-8 h-8 text-violet-400/80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
+                        </svg>
+                    </div>
+                    <div class="text-3xl font-semibold text-violet-300" id="pool-total-references">0</div>
+                    <div class="text-xs text-slate-400">Adapter references</div>
+                </article>
+                <article class="surface-card p-5 space-y-3" style="background: rgba(15, 23, 42, 0.5);">
+                    <div class="flex items-center justify-between">
+                        <span class="metric-label">Pooling Efficiency</span>
+                        <svg class="w-8 h-8 text-emerald-400/80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                    </div>
+                    <div class="text-3xl font-semibold text-emerald-300"><span id="pool-efficiency">0</span><span class="text-xl text-slate-400 ml-1">%</span></div>
+                    <div class="text-xs text-slate-400">Connection reuse rate</div>
+                </article>
+                <article class="surface-card p-5 space-y-3" style="background: rgba(15, 23, 42, 0.5);">
+                    <div class="flex items-center justify-between">
+                        <span class="metric-label">Memory Savings</span>
+                        <svg class="w-8 h-8 text-amber-400/80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
+                        </svg>
+                    </div>
+                    <div class="text-3xl font-semibold text-amber-300" id="pool-memory-saved">0 MB</div>
+                    <div class="text-xs text-slate-400">Est. via pooling</div>
+                </article>
+            </div>
+            <div id="datasource-connections" class="space-y-3">
+                <p class="text-sm text-slate-400">Loading datasource pool status...</p>
             </div>
         </section>
 
@@ -704,15 +756,26 @@ def create_dashboard_router() -> APIRouter:
                         ((pool.active_threads / pool.max_workers) * 100) : 0;
                     const clampedUtil = clampPercentage(utilization);
 
+                    // Determine if pool is idle
+                    const isIdle = pool.active_threads === 0 && pool.queued_tasks === 0;
+
                     let barColor = 'bg-emerald-400/80';
                     let badgeClass = 'badge bg-emerald-400/15 text-emerald-200 border-emerald-400/25';
-                    if (clampedUtil >= 90) {
+                    let statusText = '';
+
+                    if (isIdle) {
+                        barColor = 'bg-slate-500/50';
+                        badgeClass = 'badge bg-slate-500/15 text-slate-300 border-slate-500/25';
+                        statusText = '<div class="text-xs text-slate-500 mt-1">Pool idle - threads spawn on demand</div>';
+                    } else if (clampedUtil >= 90) {
                         barColor = 'bg-rose-500/80';
                         badgeClass = 'badge bg-rose-500/15 text-rose-200 border-rose-500/30';
                     } else if (clampedUtil >= 75) {
                         barColor = 'bg-amber-400/80';
                         badgeClass = 'badge bg-amber-400/15 text-amber-200 border-amber-400/30';
                     }
+
+                    const queuedDisplay = pool.queued_tasks === 'N/A' ? '0' : pool.queued_tasks;
 
                     return `
                         <div class="surface-card p-5 space-y-4">
@@ -723,26 +786,106 @@ def create_dashboard_router() -> APIRouter:
                             <div class="space-y-2 text-xs text-slate-400">
                                 <div class="flex items-center justify-between">
                                     <span>Active Threads</span>
-                                    <span class="text-sm text-slate-200 font-medium">${pool.active_threads}</span>
-                                </div>
-                                <div class="flex items-center justify-between">
-                                    <span>Max Workers</span>
-                                    <span class="text-sm text-slate-200 font-medium">${pool.max_workers}</span>
+                                    <span class="text-sm text-slate-200 font-medium">${pool.active_threads} / ${pool.max_workers}</span>
                                 </div>
                                 <div class="flex items-center justify-between">
                                     <span>Queued Tasks</span>
-                                    <span class="text-sm text-slate-200 font-medium">${pool.queued_tasks}</span>
+                                    <span class="text-sm text-slate-200 font-medium">${queuedDisplay}</span>
                                 </div>
                             </div>
                             <div class="progress-track h-1.5">
-                                <div class="progress-bar ${barColor}" style="width: ${clampedUtil.toFixed(1)}%;"></div>
+                                <div class="progress-bar ${barColor}" style="width: ${Math.max(clampedUtil, 2).toFixed(1)}%;"></div>
                             </div>
+                            ${statusText}
                         </div>
                     `;
                 }).join('');
                 container.innerHTML = html;
             } else {
                 container.innerHTML = '<p class="text-sm text-slate-400">No thread pool data available</p>';
+            }
+        }
+
+        function updateDatasourcePool(data) {
+            const section = document.getElementById('datasource-pool-section');
+            const container = document.getElementById('datasource-connections');
+
+            if (data && data.total_cached_datasources > 0) {
+                // Show the section
+                section.classList.remove('hidden');
+
+                // Update summary metrics
+                const totalDatasources = data.total_cached_datasources || 0;
+                const totalReferences = data.total_references || 0;
+
+                document.getElementById('pool-total-datasources').textContent = formatNumber(totalDatasources);
+                document.getElementById('pool-total-references').textContent = formatNumber(totalReferences);
+
+                // Calculate pooling efficiency (what % of connections are saved)
+                // If we have 5 references but only 2 datasources, we saved 3 connections = 60% efficiency
+                const efficiency = totalReferences > 0 ?
+                    (((totalReferences - totalDatasources) / totalReferences) * 100) : 0;
+                document.getElementById('pool-efficiency').textContent = formatNumber(Math.max(0, efficiency), 1);
+
+                // Estimate memory savings (rough estimate: 5MB per connection saved)
+                const connectionsSaved = Math.max(0, totalReferences - totalDatasources);
+                const memorySavedMB = connectionsSaved * 5;
+                document.getElementById('pool-memory-saved').textContent =
+                    memorySavedMB >= 1024 ?
+                        `${formatNumber(memorySavedMB / 1024, 2)} GB` :
+                        `${formatNumber(memorySavedMB)} MB`;
+
+                // Build the datasource list
+                if (data.datasource_keys && data.reference_counts) {
+                    const html = data.datasource_keys.map(key => {
+                        const refCount = data.reference_counts[key] || 0;
+
+                        // Extract datasource type and connection info
+                        const parts = key.split(':');
+                        const dsType = parts[0] || 'unknown';
+                        const connInfo = parts.slice(1).join(':') || 'default';
+
+                        // Color based on reference count (higher = better pooling)
+                        let badgeClass = 'badge bg-slate-500/15 text-slate-200 border-slate-500/30';
+                        let statusText = 'Single use';
+                        let statusClass = 'text-slate-400';
+
+                        if (refCount >= 5) {
+                            badgeClass = 'badge bg-emerald-400/15 text-emerald-200 border-emerald-400/30';
+                            statusText = 'High reuse';
+                            statusClass = 'text-emerald-300';
+                        } else if (refCount >= 3) {
+                            badgeClass = 'badge bg-cyan-400/15 text-cyan-200 border-cyan-400/30';
+                            statusText = 'Good reuse';
+                            statusClass = 'text-cyan-300';
+                        } else if (refCount === 2) {
+                            badgeClass = 'badge bg-amber-400/15 text-amber-200 border-amber-400/30';
+                            statusText = 'Shared';
+                            statusClass = 'text-amber-300';
+                        }
+
+                        return `
+                            <div class="adapter-card">
+                                <div class="flex-1">
+                                    <div class="flex items-center gap-2 mb-1">
+                                        <p class="text-sm font-semibold text-slate-100">${dsType}</p>
+                                        <span class="${badgeClass}">${refCount} ref${refCount !== 1 ? 's' : ''}</span>
+                                    </div>
+                                    <p class="text-xs text-slate-400 font-mono truncate">${connInfo}</p>
+                                </div>
+                                <div class="text-right">
+                                    <p class="text-xs ${statusClass} font-medium">${statusText}</p>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                    container.innerHTML = html;
+                } else {
+                    container.innerHTML = '<p class="text-sm text-slate-400">No datasource details available</p>';
+                }
+            } else {
+                // Hide the section if no datasources
+                section.classList.add('hidden');
             }
         }
 
@@ -773,6 +916,10 @@ def create_dashboard_router() -> APIRouter:
 
                 if (data.thread_pools) {
                     updateThreadPools(data.thread_pools);
+                }
+
+                if (data.datasource_pool) {
+                    updateDatasourcePool(data.datasource_pool);
                 }
             };
 
@@ -887,7 +1034,12 @@ def create_dashboard_router() -> APIRouter:
                 pools: Dict[str, Any] = {}
                 if thread_pool_manager:
                     try:
-                        pools.update(thread_pool_manager.get_pool_stats())
+                        pool_stats = thread_pool_manager.get_pool_stats()
+                        # Only include pools that have been created (non-zero max_workers)
+                        for pool_name, stats in pool_stats.items():
+                            if stats.get('max_workers', 0) > 0:
+                                pools[pool_name] = stats
+
                         # Push thread pool stats into Prometheus gauges if available
                         if metrics_service and hasattr(metrics_service, 'update_thread_pool_metrics'):
                             try:
@@ -911,7 +1063,17 @@ def create_dashboard_router() -> APIRouter:
                     logger.debug(f"Error collecting service executor stats: {e}")
                 if pools:
                     data['thread_pools'] = pools
-                
+
+                # Get datasource pool statistics
+                try:
+                    from datasources.registry import get_registry as get_datasource_registry
+                    datasource_registry = get_datasource_registry()
+                    pool_stats = datasource_registry.get_pool_stats()
+                    if pool_stats and pool_stats.get('total_cached_datasources', 0) > 0:
+                        data['datasource_pool'] = pool_stats
+                except Exception as e:
+                    logger.debug(f"Error getting datasource pool stats: {e}")
+
                 # Add server mode information for dashboard display
                 data['server_mode'] = {
                     'inference_only': inference_only,
