@@ -629,6 +629,25 @@ adapters:
         type: "default"                # Use default filesystem logger
 ```
 
+### Database Override in Adapters
+
+Each adapter can override the database name/path from datasources.yaml:
+
+```yaml
+adapters:
+  - name: "my-adapter"
+    datasource: "sqlite"
+    database: "path/to/specific/database.db"  # Override default
+    # ... other config
+```
+
+This allows multiple adapters to use different databases from the same datasource type.
+
+**Examples:**
+- SQLite: `database: "databases/production.db"`
+- PostgreSQL: `database: "production_db"`
+- MySQL: `database: "analytics_db"`
+
 ## Data Sources Configuration (datasources.yaml)
 
 ```yaml

@@ -192,6 +192,10 @@ class DynamicAdapterManager:
             if store_info:
                 log_parts.append(store_info.lstrip(", "))
 
+            # Database info if overridden
+            if adapter_config.get('database'):
+                log_parts.append(f"database: {adapter_config['database']}")
+
             self.logger.info(f"{log_parts[0]} ({', '.join(log_parts[1:])})")
             return adapter
             
@@ -470,6 +474,23 @@ class DynamicAdapterManager:
                 config_with_adapter['embedding']['provider'] = adapter_config['embedding_provider']
                 if self.verbose:
                     logger.info(f"Setting embedding provider override: {adapter_config['embedding_provider']} for adapter: {adapter_name}")
+
+            # Include adapter-level database override if specified
+            if adapter_config.get('database'):
+                # Ensure the datasources section exists
+                if 'datasources' not in config_with_adapter:
+                    config_with_adapter['datasources'] = {}
+                if datasource_name not in config_with_adapter['datasources']:
+                    config_with_adapter['datasources'][datasource_name] = {}
+                
+                # Set the database override
+                original_database = config_with_adapter['datasources'][datasource_name].get('database', 'default')
+                config_with_adapter['datasources'][datasource_name]['database'] = adapter_config['database']
+                
+                if self.verbose:
+                    logger.info(
+                        f"Database override for adapter '{adapter_name}': '{original_database}' -> '{adapter_config['database']}' (datasource: {datasource_name})"
+                    )
 
             # Create datasource instance for the retriever using the datasource registry with pooling
             datasource_instance = None
