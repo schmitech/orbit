@@ -471,23 +471,24 @@ class DynamicAdapterManager:
                 if self.verbose:
                     logger.info(f"Setting embedding provider override: {adapter_config['embedding_provider']} for adapter: {adapter_name}")
 
-            # Create datasource instance for the retriever using the datasource registry
+            # Create datasource instance for the retriever using the datasource registry with pooling
             datasource_instance = None
             if datasource_name and datasource_name != 'none':
                 try:
                     from datasources.registry import get_registry as get_datasource_registry
                     datasource_registry = get_datasource_registry()
-                    datasource_instance = datasource_registry.create_datasource(
+                    # Use get_or_create_datasource for pooling instead of create_datasource
+                    datasource_instance = datasource_registry.get_or_create_datasource(
                         datasource_name=datasource_name,
                         config=config_with_adapter,
-                        logger=logger
+                        logger_instance=logger
                     )
                     if datasource_instance:
-                        logger.info(f"Created datasource instance '{datasource_name}' for retriever in adapter '{adapter_name}'")
+                        logger.info(f"Got datasource instance '{datasource_name}' for retriever in adapter '{adapter_name}' (pooled)")
                     else:
-                        logger.warning(f"Failed to create datasource '{datasource_name}' for adapter '{adapter_name}', retriever will not have access to datasource")
+                        logger.warning(f"Failed to get datasource '{datasource_name}' for adapter '{adapter_name}', retriever will not have access to datasource")
                 except Exception as e:
-                    logger.warning(f"Error creating datasource '{datasource_name}' for adapter '{adapter_name}': {e}. Retriever will proceed without datasource.")
+                    logger.warning(f"Error getting datasource '{datasource_name}' for adapter '{adapter_name}': {e}. Retriever will proceed without datasource.")
                     datasource_instance = None
 
             # Create retriever instance with datasource
@@ -496,6 +497,10 @@ class DynamicAdapterManager:
                 domain_adapter=domain_adapter,
                 datasource=datasource_instance
             )
+
+            # Store metadata for cleanup: datasource name and config
+            retriever._datasource_name = datasource_name
+            retriever._datasource_config_for_release = config_with_adapter
             
             return retriever
         
@@ -720,7 +725,21 @@ class DynamicAdapterManager:
                     adapter.close()
         except Exception as e:
             self.logger.warning(f"Error closing adapter {adapter_name}: {str(e)}")
-        
+
+        # Release the datasource reference (uses reference counting)
+        try:
+            if (hasattr(adapter, '_datasource') and adapter._datasource is not None and
+                hasattr(adapter, '_datasource_name') and hasattr(adapter, '_datasource_config_for_release')):
+                from datasources.registry import get_registry as get_datasource_registry
+                datasource_registry = get_datasource_registry()
+                datasource_registry.release_datasource(
+                    datasource_name=adapter._datasource_name,
+                    config=adapter._datasource_config_for_release,
+                    logger_instance=self.logger
+                )
+        except Exception as e:
+            self.logger.warning(f"Error releasing datasource for adapter {adapter_name}: {str(e)}")
+
         self.logger.info(f"Removed adapter from cache: {adapter_name}")
         return True
     
@@ -740,6 +759,14 @@ class DynamicAdapterManager:
         Returns:
             Health status information
         """
+        # Get datasource pool stats
+        try:
+            from datasources.registry import get_registry as get_datasource_registry
+            datasource_registry = get_datasource_registry()
+            datasource_stats = datasource_registry.get_pool_stats()
+        except Exception:
+            datasource_stats = {}
+
         return {
             "status": "healthy",
             "available_adapters": len(self._adapter_configs),
@@ -750,7 +777,8 @@ class DynamicAdapterManager:
             "adapter_configs": list(self._adapter_configs.keys()),
             "cached_adapter_names": list(self._adapter_cache.keys()),
             "cached_inference_provider_keys": list(self._provider_cache.keys()),
-            "cached_embedding_service_keys": list(self._embedding_cache.keys())
+            "cached_embedding_service_keys": list(self._embedding_cache.keys()),
+            "datasource_pool": datasource_stats
         }
     
     async def close(self) -> None:
@@ -785,6 +813,14 @@ class DynamicAdapterManager:
 
         # Clear all cached adapters
         await self.clear_cache()
+
+        # Shutdown datasource pool
+        try:
+            from datasources.registry import get_registry as get_datasource_registry
+            datasource_registry = get_datasource_registry()
+            await datasource_registry.shutdown_pool(self.logger)
+        except Exception as e:
+            self.logger.error(f"Error shutting down datasource pool: {e}")
 
         # Shutdown thread pool
         self._thread_pool.shutdown(wait=True)
