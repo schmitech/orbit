@@ -1,0 +1,56 @@
+safety:
+  enabled: false
+  mode: "fuzzy"
+  moderator: "ollama"  # Using Anthropic - better at understanding context and typos than OpenAI
+  max_retries: 3
+  retry_delay: 1.0
+  request_timeout: 10
+  allow_on_timeout: false
+  disable_on_fallback: true  # Disable safety if no moderators are available
+
+# Install local LLM Guard service: https://github.com/schmitech/llm-guard-service
+llm_guard:
+  enabled: false
+  service:
+    base_url: "http://127.0.0.1:8000"
+    timeout: 30                 # Backward-compatible total timeout (seconds)
+    # Optional fine-grained timeouts and resiliency settings
+    connect_timeout: 5        # TCP connect timeout (seconds)
+    read_timeout: 30          # Socket read timeout (seconds); defaults to `timeout`
+    total_timeout: 30         # Session total timeout (seconds); defaults to `timeout`
+    request_timeout: 10       # Per-request timeout (seconds); defaults to min(total_timeout, 10)
+
+    # Retry behavior
+    max_attempts: 2           # Number of attempts per request
+    backoff_factor: 0.4       # Exponential backoff base for retries
+    retry_status_codes:       # HTTP codes that should trigger retry
+      - 500
+      - 502
+      - 503
+      - 504
+
+    # Health check settings
+    health_interval: 30       # Seconds to cache positive health status
+    health_timeout: 5         # Timeout for /health endpoint (seconds)
+
+    # Circuit breaker
+    failure_threshold: 3      # Consecutive failures before opening the circuit
+    circuit_reset_timeout: 60 # Seconds to keep circuit open before retrying
+  security:
+    risk_threshold: 0.75  # Raised to reduce false positives from toxicity scanner
+    # Scanner configurations for different content types
+    scanners:
+      prompt:  # Scanners for user input (prompts)
+        - "ban_substrings"
+        - "ban_topics"
+        - "prompt_injection"
+        - "toxicity"
+        - "secrets"
+      response:  # Scanners for AI output (responses)
+        - "no_refusal"
+        - "sensitive"
+        - "bias"
+        - "relevance"
+  fallback:
+    on_error: "allow"
+
