@@ -137,3 +137,42 @@ adapters:
       # Query monitoring (automatically provided by unified base)
       enable_query_monitoring: true
       query_timeout: 5000  # 5 seconds
+
+  - name: "intent-sql-postgres"
+    enabled: false
+    type: "retriever"
+    datasource: "postgres"
+    adapter: "intent"
+    implementation: "retrievers.implementations.intent.IntentPostgreSQLRetriever"
+    inference_provider: "ollama"
+    model: "gpt-oss:20b"
+    embedding_provider: "ollama"
+    config:
+      # Path to the domain definition file
+      domain_config_path: "utils/sql-intent-template/examples/postgres/customer-orders/customer_order_domain.yaml"
+      template_library_path:
+        - "utils/sql-intent-template/examples/postgres/customer-orders/customer_orders_templates.yaml"
+        - "utils/sql-intent-template/examples/postgres/customer-orders/business_intelligence_templates.yaml"
+        - "utils/sql-intent-template/examples/postgres/customer-orders/advanced_analytics_templates.yaml"
+        - "utils/sql-intent-template/examples/postgres/customer-orders/comparative_analysis_templates.yaml"
+      # Name for the vector store collection for templates
+      template_collection_name: "intent_query_templates"
+      # Store configuration - references stores.yaml
+      store_name: "chroma"
+      confidence_threshold: 0.4
+      # Maximum templates to consider
+      max_templates: 5
+      # Return top N results
+      return_results: 10
+      # Template loading settings
+      reload_templates_on_start: false  # Whether to reload templates on startup
+      force_reload_templates: false  # Force reload even if templates exist in storage
+
+      # Unified retriever features
+      use_connection_pool: true  # Enable connection pooling
+      pool_size: 5  # Connection pool size
+      connection_timeout: 30  # Connection timeout in seconds
+
+      # Query monitoring (automatically provided by new base)
+      enable_query_monitoring: true
+      query_timeout: 5000  # 5 seconds
