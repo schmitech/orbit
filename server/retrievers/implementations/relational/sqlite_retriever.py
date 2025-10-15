@@ -31,7 +31,7 @@ class SQLiteRetriever(BaseSQLDatabaseRetriever):
         super().__init__(config=config, datasource=datasource, **kwargs)
 
         # SQLite-specific settings (for reference, actual config is in datasource)
-        self.db_path = self.get_config_value(self.datasource_config, 'db_path', 'sqlite_db')
+        self.db_path = self.get_config_value(self.datasource_config, 'database', 'sqlite_db')
         self.enable_wal_mode = self.datasource_config.get('enable_wal_mode', True)
         self.enable_foreign_keys = self.datasource_config.get('enable_foreign_keys', True)
 

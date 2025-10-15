@@ -648,7 +648,7 @@ datasources:
     embedding_provider: null
     collection_name: "orbit"
   sqlite:
-    db_path: "examples/sqlite/sqlite_db"
+    database: "examples/sqlite/sqlite_db"
   postgres:
     host: ${DATASOURCE_POSTGRES_HOST}
     port: ${DATASOURCE_POSTGRES_PORT}

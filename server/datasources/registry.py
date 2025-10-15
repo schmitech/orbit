@@ -180,8 +180,8 @@ class DatasourceRegistry:
         # Extract connection-identifying parameters based on datasource type
         if datasource_name in ['sqlite']:
             # SQLite: cache key is database file path
-            db_path = datasource_config.get('db_path', 'sqlite_db.db')
-            return f"{datasource_name}:{db_path}"
+            database = datasource_config.get('database', 'sqlite_db.db')
+            return f"{datasource_name}:{database}"
 
         elif datasource_name in ['postgres', 'postgresql', 'mysql', 'mssql']:
             # Relational DBs: cache key includes host, port, database

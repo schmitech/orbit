@@ -18,12 +18,12 @@ class SQLiteDatasource(BaseDatasource):
     async def initialize(self) -> None:
         """Initialize the SQLite database connection."""
         sqlite_config = self.config.get('datasources', {}).get('sqlite', {})
-        db_path = sqlite_config.get('db_path', 'sqlite_db.db')
+        database = sqlite_config.get('database', 'sqlite_db.db')
         
-        self.logger.info(f"Initializing SQLite connection to {db_path}")
+        self.logger.info(f"Initializing SQLite connection to {database}")
 
         try:
-            self._client = sqlite3.connect(db_path)
+            self._client = sqlite3.connect(database)
             # Configure row factory to enable dictionary-like row access
             self._client.row_factory = sqlite3.Row
             self._initialized = True
