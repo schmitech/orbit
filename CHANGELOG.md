@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.5.7] - 2025-10-15
+
+### Core System Updates
+- Fixed Issue #58: Transfer safety into its own yaml file, remove from main config.yaml.
+- Fixed #53 - Dashboard: Issue resolved for DASHBOARD; linked issue and improved stability.
+- Update dashboard_routes.py: Added datasource pooling panel to the dashboard for enhanced observability.
+- Datasource Connection Pooling: Enabled connection pooling for datasources.
+- New Datasource Registry: Introduced new datasource registry system for improved adapter compatibility and loading behavior.
+
+### Other Changes
+- Refined dashboard features for improved user experience.
+- General refactoring and bug fixes for performance and stability.
+
 ## [1.5.6] - 2025-10-14
 
 ### Core System Updates

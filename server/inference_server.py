@@ -120,7 +120,7 @@ class InferenceServer:
         self.app = FastAPI(
             title="ORBIT",
             description="A FastAPI server with chat endpoint and RAG capabilities",
-            version="1.5.6",
+            version="1.5.7",
             lifespan=self._create_lifespan_manager()
         )
         self.app.mount("/static", StaticFiles(directory="server/templates"), name="static")
