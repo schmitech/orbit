@@ -3,17 +3,30 @@
 ORBIT API Client Test Script
 
 This script tests the /v1/chat endpoint with a real client request.
-It uses a standard RESTful approach.
+It uses a standard RESTful approach and supports both streaming and non-streaming modes.
 
 Usage:
-    python test_mcp_client.py [--url=URL] [--api-key=KEY] [--stream] [--session-id=SESSION_ID]
+    python test_mcp_client.py [--url=URL] [--api-key=KEY] [--message=MESSAGE] [--stream] [--session-id=SESSION_ID]
 
-Example:
-    # Non-streaming
-    python test_mcp_client.py --api-key=your_api_key --session-id=user_123_session_456
+Arguments:
+    --url          Server URL (default: http://localhost:3000/v1/chat)
+    --api-key      Optional API key for authentication
+    --message      Custom query/message to send (default: "What is the fee for a residential parking permit?")
+    --stream       Enable streaming mode (default: False)
+    --session-id   Session ID to use (default: auto-generates UUID)
+
+Examples:
+    # Non-streaming with custom message
+    python test_mcp_client.py --api-key=your_api_key --message="What are the business hours?" --session-id=user_123_session_456
     
-    # Streaming with auto-generated session ID
+    # Streaming with custom message and auto-generated session ID
+    python test_mcp_client.py --api-key=your_api_key --message="How do I apply for a permit?" --stream
+    
+    # Use default message with streaming
     python test_mcp_client.py --api-key=your_api_key --stream
+    
+    # Non-streaming with default message
+    python test_mcp_client.py --api-key=your_api_key
 """
 
 import argparse

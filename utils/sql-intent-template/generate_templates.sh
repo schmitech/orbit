@@ -315,6 +315,7 @@ generate_output_filename() {
 run_template_generator() {
     local -a cmd=(
         "python"
+        "-u"
         "template_generator.py"
         "--schema" "$SCHEMA_FILE"
         "--queries" "$QUERIES_FILE"
@@ -353,19 +354,12 @@ run_template_generator() {
 
     print_info "Running template generator..."
     print_info "Command: $cmd_display"
+    echo ""
 
-    if [ "$VERBOSE" = true ]; then
-        if ! "${cmd[@]}"; then
-            print_error "Template generation failed"
-            exit 1
-        fi
-    else
-        local output
-        if ! output=$("${cmd[@]}" 2>&1); then
-            print_error "Template generation failed"
-            printf '%s\n' "$output" >&2
-            exit 1
-        fi
+    # Always show output for progress monitoring (unbuffered mode enabled with python -u)
+    if ! "${cmd[@]}"; then
+        print_error "Template generation failed"
+        exit 1
     fi
 
     print_success "Templates generated successfully: $OUTPUT_FILE"

@@ -68,10 +68,7 @@ class DynamicAdapterManager:
     def _load_adapter_configs(self):
         """Load adapter configurations from config."""
         inference_only = self.config.get('general', {}).get('inference_only', False)
-        if inference_only:
-            self.logger.info("Inference-only mode is enabled. Skipping adapter loading.")
-            return
-        
+
         adapter_configs = self.config.get('adapters', [])
         
         enabled_count = 0
@@ -96,8 +93,11 @@ class DynamicAdapterManager:
                     disabled_count += 1
                     if self.verbose:
                         self.logger.info(f"Skipping disabled adapter: {adapter_name}")
-        
-        self.logger.info(f"Loaded {enabled_count} enabled adapter configurations ({disabled_count} disabled)")
+
+        if inference_only:
+            self.logger.info(f"Loaded {enabled_count} adapter configurations for inference/model overrides (inference-only mode)")
+        else:
+            self.logger.info(f"Loaded {enabled_count} enabled adapter configurations ({disabled_count} disabled)")
     
     async def get_adapter(self, adapter_name: str) -> Any:
         """

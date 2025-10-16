@@ -71,6 +71,11 @@ NOTES:
     - The script requires proper database schema with CREATE TABLE statements
 """
 
+#!/usr/bin/env python3
+
+# Print immediately to verify script starts
+print("🔄 Starting template generator script...", flush=True)
+
 import asyncio
 import json
 import yaml
@@ -82,17 +87,39 @@ from datetime import datetime
 import argparse
 import sys
 import os
+import random
+import time
+
+print("✅ Basic imports complete", flush=True)
+
 from dotenv import load_dotenv
 
 # Add parent directory to path for imports
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
+print("✅ Path configured", flush=True)
+
 # Load environment variables from .env file (two levels up in parent Orbit directory)
 load_dotenv(dotenv_path=Path(__file__).parent.parent.parent / ".env")
 
-from server.inference.pipeline.providers.provider_factory import ProviderFactory
+print("✅ Environment loaded", flush=True)
 
-logging.basicConfig(level=logging.INFO)
+print("🔄 Importing UnifiedProviderFactory (this may take a moment)...", flush=True)
+from server.inference.pipeline.providers.unified_provider_factory import UnifiedProviderFactory
+print("✅ UnifiedProviderFactory imported", flush=True)
+
+# Configure logging with console output and flushing
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+# Force flush after each log message
+for handler in logging.root.handlers:
+    handler.flush = lambda: sys.stdout.flush()
+
 logger = logging.getLogger(__name__)
 
 
@@ -339,10 +366,19 @@ class TemplateGenerator:
 
     async def initialize(self):
         """Initialize the inference client"""
-        logger.info(f"Initializing inference provider: {self.provider}")
-        self.inference_client = ProviderFactory.create_provider_by_name(self.provider, self.config)
+        logger.info(f"🔧 Initializing inference provider: {self.provider}")
+
+        # Show the model being used
+        model = "default"
+        if self.provider in self.config.get('inference', {}):
+            model = self.config.get('inference', {}).get(self.provider, {}).get('model', 'default')
+
+        logger.info(f"📦 Using model: {model}")
+
+        self.inference_client = UnifiedProviderFactory.create_provider_by_name(self.provider, self.config)
         await self.inference_client.initialize()
-        logger.info("Inference client initialized")
+        logger.info(f"✅ Inference client initialized successfully")
+        sys.stdout.flush()
     
     def parse_schema(self, schema_path: str) -> Dict[str, Any]:
         """Parse SQL schema file to extract table structure
@@ -414,6 +450,7 @@ class TemplateGenerator:
         
         self.schema = tables
         logger.info(f"Parsed {len(tables)} tables from schema")
+        sys.stdout.flush()
         return tables
     
     def load_domain_config(self, domain_config_path: str):
@@ -433,14 +470,17 @@ class TemplateGenerator:
                 logger.info(f"SQL Dialect: {dialect_type}")
                 logger.info(f"  - Parameter style: {self.sql_dialect['parameter_style']}")
                 logger.info(f"  - Placeholder: {self.sql_dialect['placeholder']}")
+                sys.stdout.flush()
             else:
                 logger.warning(f"Unknown SQL dialect '{dialect_type}', defaulting to postgres")
                 self.sql_dialect = SQL_DIALECTS['postgres']
                 self.sql_dialect_type = 'postgres'
+                sys.stdout.flush()
         else:
             logger.warning(f"Domain config not found at: {domain_config_path}")
             self.sql_dialect = SQL_DIALECTS['postgres']
             self.sql_dialect_type = 'postgres'
+            sys.stdout.flush()
     
     def parse_test_queries(self, test_file_path: str) -> List[str]:
         """Parse test queries from markdown file
@@ -487,21 +527,22 @@ class TemplateGenerator:
             if q not in seen:
                 seen.add(q)
                 unique_queries.append(q)
-        
+
         logger.info(f"Found {len(unique_queries)} unique queries")
+        sys.stdout.flush()
         return unique_queries
     
     async def analyze_query(self, query: str) -> Dict[str, Any]:
         """Analyze a natural language query to extract intent and parameters
-        
+
         Args:
             query: Natural language query
-            
+
         Returns:
             Dictionary containing query analysis
         """
         schema_summary = self._create_schema_summary()
-        
+
         prompt = f"""Analyze this natural language query and extract its intent and parameters.
 
 Database Schema:
@@ -536,13 +577,47 @@ Example response:
 
 JSON Response:"""
 
-        response = await self.inference_client.generate(prompt)
+        # Add rate limiting and retry logic
+        max_retries = 3
+        response = None
+
+        for attempt in range(max_retries):
+            try:
+                # Add random delay to avoid rate limiting (0.5-2 seconds)
+                delay = random.uniform(0.5, 2.0)
+                await asyncio.sleep(delay)
+
+                response = await self.inference_client.generate(prompt)
+                break  # Success, exit retry loop
+
+            except Exception as e:
+                error_msg = str(e)
+                is_rate_limit_error = '500' in error_msg or 'Internal Server Error' in error_msg or 'rate limit' in error_msg.lower()
+
+                if is_rate_limit_error and attempt < max_retries - 1:
+                    # Exponential backoff with jitter
+                    wait_time = (2 ** attempt) + random.uniform(0, 1)
+                    logger.warning(f"   ⚠️  Rate limited (attempt {attempt + 1}/{max_retries}), retrying in {wait_time:.1f}s...")
+                    sys.stdout.flush()
+                    await asyncio.sleep(wait_time)
+                else:
+                    # Either not a rate limit error, or we've exhausted retries
+                    logger.error(f"   ❌ Error analyzing query after {attempt + 1} attempts: {error_msg}")
+                    sys.stdout.flush()
+                    raise
         
         # Extract JSON from response
         try:
             json_match = re.search(r'\{.*\}', response, re.DOTALL)
             if json_match:
-                return json.loads(json_match.group())
+                analysis = json.loads(json_match.group())
+                # Log successful analysis with key details
+                intent = analysis.get('intent', 'unknown')
+                entity = analysis.get('primary_entity', 'unknown')
+                filters = len(analysis.get('filters', []))
+                aggregations = len(analysis.get('aggregations', []))
+                logger.debug(f"   📊 Analysis: {intent} {entity} (filters: {filters}, aggregations: {aggregations})")
+                return analysis
             else:
                 logger.error(f"No JSON found in response for query: {query}")
                 return {}
@@ -653,8 +728,35 @@ Example CORRECT parameters:
 
 JSON Response:"""
 
-        response = await self.inference_client.generate(prompt)
-        
+        # Add rate limiting and retry logic
+        max_retries = 3
+        response = None
+
+        for attempt in range(max_retries):
+            try:
+                # Add random delay to avoid rate limiting (0.5-2 seconds)
+                delay = random.uniform(0.5, 2.0)
+                await asyncio.sleep(delay)
+
+                response = await self.inference_client.generate(prompt)
+                break  # Success, exit retry loop
+
+            except Exception as e:
+                error_msg = str(e)
+                is_rate_limit_error = '500' in error_msg or 'Internal Server Error' in error_msg or 'rate limit' in error_msg.lower()
+
+                if is_rate_limit_error and attempt < max_retries - 1:
+                    # Exponential backoff with jitter
+                    wait_time = (2 ** attempt) + random.uniform(0, 1)
+                    logger.warning(f"   ⚠️  Rate limited (attempt {attempt + 1}/{max_retries}), retrying in {wait_time:.1f}s...")
+                    sys.stdout.flush()
+                    await asyncio.sleep(wait_time)
+                else:
+                    # Either not a rate limit error, or we've exhausted retries
+                    logger.error(f"   ❌ Error generating template after {attempt + 1} attempts: {error_msg}")
+                    sys.stdout.flush()
+                    raise
+
         try:
             json_match = re.search(r'\{.*\}', response, re.DOTALL)
             if json_match:
@@ -684,6 +786,12 @@ JSON Response:"""
 
                 # Post-process: Fix any null defaults in parameters
                 self._fix_parameter_defaults(template)
+
+                # Log successful template generation
+                template_id = template.get('id', 'unknown')
+                param_count = len(template.get('parameters', []))
+                example_count = len(template.get('nl_examples', []))
+                logger.debug(f"   🎯 Generated template: {template_id} ({param_count} params, {example_count} examples)")
 
                 return template
             else:
@@ -817,35 +925,91 @@ JSON Response:"""
         Returns:
             List of generated SQL templates
         """
+        import time
+        start_time = time.time()
+        
         # Analyze all queries
-        logger.info("Analyzing queries...")
+        logger.info(f"🔍 Analyzing {len(queries)} queries...")
+        logger.info("=" * 60)
+        sys.stdout.flush()
+
         analyses = []
+        successful_analyses = 0
+
         for i, query in enumerate(queries):
-            if i % 10 == 0:
-                logger.info(f"Analyzing query {i+1}/{len(queries)}")
+            query_start = time.time()
+
+            # Show progress for every query
+            logger.info(f"📝 [{i+1}/{len(queries)}] Analyzing: \"{query[:60]}{'...' if len(query) > 60 else ''}\"")
+            sys.stdout.flush()
+
             analysis = await self.analyze_query(query)
             analyses.append(analysis)
+
+            if analysis:
+                successful_analyses += 1
+                query_time = time.time() - query_start
+                logger.info(f"   ✅ Complete ({query_time:.1f}s) - {successful_analyses}/{i+1} successful")
+            else:
+                logger.warning(f"   ⚠️  Analysis failed")
+            sys.stdout.flush()
         
+        analysis_time = time.time() - start_time
+        logger.info("=" * 60)
+        logger.info(f"✅ Query analysis complete: {successful_analyses}/{len(queries)} successful ({analysis_time:.1f}s)")
+        sys.stdout.flush()
+
         # Group similar queries
+        logger.info("🔄 Grouping similar queries...")
+        sys.stdout.flush()
+        group_start = time.time()
         grouped = self.group_similar_queries(queries, analyses)
-        
+        group_time = time.time() - group_start
+        logger.info(f"✅ Grouped into {len(grouped)} template categories ({group_time:.1f}s)")
+        sys.stdout.flush()
+
         # Generate templates for each group
+        logger.info("🏗️  Generating SQL templates...")
+        logger.info("=" * 60)
+        sys.stdout.flush()
+        template_start = time.time()
         templates = []
-        for group_key, group_queries in grouped.items():
-            logger.info(f"Generating template for group: {group_key} ({len(group_queries)} queries)")
-            
+
+        for i, (group_key, group_queries) in enumerate(grouped.items()):
+            group_gen_start = time.time()
+            logger.info(f"📋 Template {i+1}/{len(grouped)}: {group_key} ({len(group_queries)} queries)")
+            sys.stdout.flush()
+
             # Use the first query as representative
             repr_query, repr_analysis = group_queries[0]
-            
+            logger.info(f"   🎯 Representative query: \"{repr_query[:60]}{'...' if len(repr_query) > 60 else ''}\"")
+            sys.stdout.flush()
+
             template = await self.generate_sql_template(repr_query, repr_analysis)
             if template:
                 # Add all example queries from the group
                 all_examples = [q for q, _ in group_queries[:10]]  # Limit to 10 examples
                 template['nl_examples'] = all_examples
-                
+
                 templates.append(template)
+                group_gen_time = time.time() - group_gen_start
+                logger.info(f"   ✅ Template generated: {template.get('id', 'unknown')} ({group_gen_time:.1f}s)")
+                logger.info(f"   📊 Parameters: {len(template.get('parameters', []))}, Examples: {len(all_examples)}")
+            else:
+                group_gen_time = time.time() - group_gen_start
+                logger.warning(f"   ❌ Template generation failed ({group_gen_time:.1f}s)")
+
+            logger.info("-" * 40)
+            sys.stdout.flush()
         
-        logger.info(f"Generated {len(templates)} templates")
+        total_time = time.time() - start_time
+        template_time = time.time() - template_start
+        logger.info("=" * 60)
+        logger.info(f"🎉 Template generation complete!")
+        logger.info(f"📈 Generated {len(templates)} templates from {len(queries)} queries")
+        logger.info(f"⏱️  Total time: {total_time:.1f}s (Analysis: {analysis_time:.1f}s, Templates: {template_time:.1f}s)")
+        sys.stdout.flush()
+
         return templates
     
     def validate_template(self, template: Dict[str, Any]) -> List[str]:
@@ -1215,6 +1379,9 @@ JSON Response:"""
 
 async def main():
     """Main function"""
+    import time
+    overall_start = time.time()
+    
     parser = argparse.ArgumentParser(description='Generate SQL templates from test queries')
     parser.add_argument('--schema', required=True, help='Path to SQL schema file')
     parser.add_argument('--queries', required=True, help='Path to test queries file')
@@ -1230,12 +1397,28 @@ async def main():
 
     args = parser.parse_args()
 
+    logger.info("🚀 Starting SQL Template Generator")
+    logger.info("=" * 60)
+    sys.stdout.flush()
+
     # Create generator
+    logger.info("⚙️  Initializing template generator...")
+    sys.stdout.flush()
+    init_start = time.time()
     generator = TemplateGenerator(args.config, args.provider)
     await generator.initialize()
+    init_time = time.time() - init_start
+    logger.info(f"✅ Generator initialized ({init_time:.1f}s)")
+    sys.stdout.flush()
 
     # Parse schema
+    logger.info("📋 Parsing database schema...")
+    sys.stdout.flush()
+    schema_start = time.time()
     generator.parse_schema(args.schema)
+    schema_time = time.time() - schema_start
+    logger.info(f"✅ Schema parsed: {len(generator.schema)} tables ({schema_time:.1f}s)")
+    sys.stdout.flush()
 
     # Generate domain config if requested
     if args.generate_domain:
@@ -1246,30 +1429,59 @@ async def main():
             schema_base = Path(args.schema).stem
             domain_output_path = f"{schema_base}_domain.yaml"
 
-        logger.info(f"Generating domain configuration file: {domain_output_path}")
+        logger.info(f"🏗️  Generating domain configuration: {domain_output_path}")
+        sys.stdout.flush()
+        domain_start = time.time()
         domain_config = generator.generate_domain_config(args.domain_name, args.domain_type)
         generator.save_domain_config(domain_config, domain_output_path)
-        logger.info(f"Domain configuration saved to: {domain_output_path}")
+        domain_time = time.time() - domain_start
+        logger.info(f"✅ Domain configuration saved ({domain_time:.1f}s)")
+        sys.stdout.flush()
 
     # Load domain config if provided
     if args.domain:
+        logger.info(f"📖 Loading domain configuration: {args.domain}")
+        sys.stdout.flush()
         generator.load_domain_config(args.domain)
 
     # Parse test queries
+    logger.info("📝 Parsing test queries...")
+    sys.stdout.flush()
+    query_start = time.time()
     queries = generator.parse_test_queries(args.queries)
+    query_time = time.time() - query_start
+    logger.info(f"✅ Parsed {len(queries)} queries ({query_time:.1f}s)")
+    sys.stdout.flush()
 
     # Limit queries if requested
     if args.limit:
         queries = queries[:args.limit]
-        logger.info(f"Limited to {len(queries)} queries")
+        logger.info(f"🔢 Limited to {len(queries)} queries")
+        sys.stdout.flush()
 
     # Generate templates
+    logger.info("🎯 Starting template generation process...")
+    sys.stdout.flush()
     templates = await generator.generate_templates(queries)
 
     # Save templates
+    logger.info("💾 Saving templates...")
+    sys.stdout.flush()
+    save_start = time.time()
     generator.save_templates(templates, args.output)
+    save_time = time.time() - save_start
+    logger.info(f"✅ Templates saved to: {args.output} ({save_time:.1f}s)")
+    sys.stdout.flush()
 
-    logger.info("Template generation complete!")
+    total_time = time.time() - overall_start
+    logger.info("=" * 60)
+    logger.info("🎉 Template generation complete!")
+    logger.info(f"⏱️  Total execution time: {total_time:.1f}s")
+    logger.info(f"📊 Generated {len(templates)} templates from {len(queries)} queries")
+    logger.info(f"📁 Output file: {args.output}")
+    if args.generate_domain:
+        logger.info(f"📁 Domain config: {domain_output_path}")
+    sys.stdout.flush()
 
 
 if __name__ == '__main__':
