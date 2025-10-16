@@ -4,14 +4,14 @@ datasources:
     db_path: "examples/chroma/chroma_db"
     host: "localhost"
     port: 8000
-    embedding_provider: null 
+    embedding_provider: "ollama" 
   qdrant:
     host: ${DATASOURCE_QDRANT_HOST}
     port: ${DATASOURCE_QDRANT_PORT}
     timeout: 5
     prefer_grpc: false
     https: false
-    embedding_provider: null
+    embedding_provider: ollama
     collection_name: "orbit"
   sqlite:
     database: "examples/sqlite/sqlite_db"

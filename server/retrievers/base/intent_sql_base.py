@@ -425,7 +425,6 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
                         
                 except Exception as e:
                     logger.error(f"Failed to add templates to store: {e}")
-                    import traceback
                     logger.error(traceback.format_exc())
             
             if loaded_count == 0:
@@ -441,10 +440,14 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
     
     def _create_embedding_text(self, template: Dict[str, Any]) -> str:
         """Create text for embedding from template."""
+        # Extract only string tags (ignore dict tags which contain function metadata)
+        tags = template.get('tags', [])
+        string_tags = [tag for tag in tags if isinstance(tag, str)]
+
         parts = [
             template.get('description', ''),
             ' '.join(template.get('nl_examples', [])),
-            ' '.join(template.get('tags', []))
+            ' '.join(string_tags)
         ]
         
         param_names = [p['name'].replace('_', ' ') for p in template.get('parameters', [])]
@@ -675,7 +678,6 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
             
         except Exception as e:
             logger.error(f"Error finding templates: {e}")
-            import traceback
             logger.error(traceback.format_exc())
             return []
     
@@ -734,25 +736,34 @@ JSON:"""
         """Execute SQL template with parameters."""
         try:
             sql_template = template.get('sql_template', template.get('sql', ''))
-            
+
             if not sql_template:
                 return [], "Template has no SQL query"
-            
+
             formatted_parameters = parameters.copy()
             for param_name, param_value in formatted_parameters.items():
                 if param_value and isinstance(param_value, str) and 'name' in param_name.lower() and 'LIKE' in sql_template.upper():
                     cleaned_value = param_value.strip().strip('"').strip("'")
                     formatted_parameters[param_name] = f"%{cleaned_value}%"
-            
+
             sql_query = self._process_sql_template(sql_template, formatted_parameters)
 
             if self.verbose:
                 logger.info(f"Executing SQL: {sql_query}")
 
-            results = await self.execute_query(sql_query, formatted_parameters)
-            
+            # For SQLite with ? placeholders, build a tuple in the correct order
+            # based on the template's parameter list (which may have duplicates)
+            param_list = template.get('parameters', [])
+            if '?' in sql_query and param_list:
+                # Build tuple in order of template parameters (preserving duplicates)
+                param_tuple = tuple(formatted_parameters.get(p['name'], p.get('default')) for p in param_list)
+                results = await self.execute_query(sql_query, param_tuple)
+            else:
+                # For named parameters or no parameters, use the dict
+                results = await self.execute_query(sql_query, formatted_parameters)
+
             return results, None
-            
+
         except Exception as e:
             error_msg = str(e)
             logger.error(f"Error executing template: {error_msg}")

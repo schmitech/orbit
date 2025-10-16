@@ -251,19 +251,21 @@ SQL_DIALECTS = {
 class TemplateGenerator:
     """Generates SQL templates from natural language queries using AI"""
     
-    def __init__(self, config_path: str = "../../config/config.yaml", provider: str = None):
+    def __init__(self, config_path: str = "../../config/config.yaml", provider: str = None, output_path: str = None):
         """Initialize the template generator
-        
+
         Args:
             config_path: Path to the main configuration file
             provider: Inference provider to use (e.g., 'ollama', 'openai', 'anthropic')
                      If None, will be read from config.yaml
+            output_path: Path to output file for incremental saving
         """
         self.config = self._load_config(config_path)
         self.provider = provider or self.config.get('general', {}).get('inference_provider', 'ollama')
         self.inference_client = None
         self.schema = {}
         self.domain_config = {}
+        self.output_path = output_path
         
     def _load_config(self, config_path: str) -> Dict[str, Any]:
         """Load configuration from YAML file"""
@@ -580,6 +582,7 @@ JSON Response:"""
         # Add rate limiting and retry logic
         max_retries = 3
         response = None
+        timeout_seconds = 120  # 2 minute timeout per request
 
         for attempt in range(max_retries):
             try:
@@ -587,21 +590,30 @@ JSON Response:"""
                 delay = random.uniform(0.5, 2.0)
                 await asyncio.sleep(delay)
 
-                response = await self.inference_client.generate(prompt)
-                break  # Success, exit retry loop
+                # Add timeout to prevent infinite hangs
+                try:
+                    response = await asyncio.wait_for(
+                        self.inference_client.generate(prompt),
+                        timeout=timeout_seconds
+                    )
+                    break  # Success, exit retry loop
+                except asyncio.TimeoutError:
+                    raise Exception(f"Request timed out after {timeout_seconds} seconds")
 
             except Exception as e:
                 error_msg = str(e)
                 is_rate_limit_error = '500' in error_msg or 'Internal Server Error' in error_msg or 'rate limit' in error_msg.lower()
+                is_timeout = 'timeout' in error_msg.lower() or 'timed out' in error_msg.lower()
 
-                if is_rate_limit_error and attempt < max_retries - 1:
+                if (is_rate_limit_error or is_timeout) and attempt < max_retries - 1:
                     # Exponential backoff with jitter
                     wait_time = (2 ** attempt) + random.uniform(0, 1)
-                    logger.warning(f"   ⚠️  Rate limited (attempt {attempt + 1}/{max_retries}), retrying in {wait_time:.1f}s...")
+                    error_type = "Rate limited" if is_rate_limit_error else "Timeout"
+                    logger.warning(f"   ⚠️  {error_type} (attempt {attempt + 1}/{max_retries}), retrying in {wait_time:.1f}s...")
                     sys.stdout.flush()
                     await asyncio.sleep(wait_time)
                 else:
-                    # Either not a rate limit error, or we've exhausted retries
+                    # Either not a recoverable error, or we've exhausted retries
                     logger.error(f"   ❌ Error analyzing query after {attempt + 1} attempts: {error_msg}")
                     sys.stdout.flush()
                     raise
@@ -660,6 +672,31 @@ JSON Response:"""
         placeholder = dialect_config['placeholder']
         dialect_instructions = dialect_config['instructions']
 
+        # Add SQLite-specific examples if using SQLite
+        sqlite_examples = ""
+        if dialect_type == 'sqlite':
+            sqlite_examples = """
+
+CRITICAL SQLITE-SPECIFIC RULES:
+1. DO NOT use Handlebars/Mustache syntax ({{#if}}, {{#each}}, {{{{variable}}}}) - NOT VALID SQL!
+2. DO NOT use template engine syntax - write PURE SQL only
+3. Each ? placeholder binds to ONE parameter value in order
+4. Use standard SQL WHERE clauses with ? placeholders
+5. For optional filters, use patterns like: WHERE (? = '' OR column LIKE ?)
+   - This requires TWO parameters: one for the empty check, one for the value
+6. Keep SQL simple and straightforward - no complex templating
+
+CORRECT SQLite examples:
+✅ SELECT * FROM users WHERE age > ? LIMIT ? OFFSET ?
+✅ SELECT * FROM users WHERE (? = '' OR name LIKE ?) AND age > ?
+✅ SELECT * FROM users WHERE city = ? OR ? = ''
+
+INCORRECT examples (DO NOT GENERATE):
+❌ SELECT * FROM users WHERE {{{{#if age}}}} age > ? {{{{/if}}}}
+❌ SELECT * FROM users {{{{#filters}}}}WHERE...{{{{/filters}}}}
+❌ SELECT * FROM users WHERE {% if age %} age > ? {% endif %}
+"""
+
         prompt = f"""Generate a parameterized SQL template for this query analysis.
 
 Database Schema:
@@ -679,9 +716,11 @@ Generate a SQL template that:
 3. Includes appropriate WHERE clauses
 4. Handles aggregations if needed
 5. Is optimized for {dialect_type.upper()}
+6. Uses ONLY standard SQL syntax (NO template engine syntax like {{{{}}}}, {{% %}}, etc.)
 
 {dialect_type.upper()}-specific requirements:
 {chr(10).join(f"  - {instruction}" for instruction in dialect_instructions)}
+{sqlite_examples}
 
 Also provide:
 1. List of parameters with their types and descriptions
@@ -710,27 +749,47 @@ Response format:
     "result_format": "table|summary"
 }}
 
-CRITICAL REQUIREMENT - Parameter Defaults:
-- Parameters MUST have actual default values, NEVER use null
-- For pagination: {{"name": "limit", "type": "integer", "default": 100, "required": false}}
-- For pagination: {{"name": "offset", "type": "integer", "default": 0, "required": false}}
-- For text search: {{"default": "", "required": false}} OR {{"required": true}} (no default)
-- For numeric filters: provide sensible default OR make required=true
-- For booleans: {{"default": false}} or {{"default": true}}
-- For dates: {{"default": ""}} OR {{"required": true}}
+CRITICAL REQUIREMENTS:
 
-Example CORRECT parameters:
-[
-    {{"name": "limit", "type": "integer", "description": "Max records", "required": false, "default": 100}},
-    {{"name": "offset", "type": "integer", "description": "Skip records", "required": false, "default": 0}},
-    {{"name": "search_term", "type": "string", "description": "Search text", "required": true}}
-]
+1. Parameter Defaults - Parameters MUST have actual default values, NEVER use null:
+   - For pagination: {{"name": "limit", "type": "integer", "default": 100, "required": false}}
+   - For pagination: {{"name": "offset", "type": "integer", "default": 0, "required": false}}
+   - For text search: {{"default": "", "required": false}} OR {{"required": true}} (no default)
+   - For numeric filters: provide sensible default OR make required=true
+   - For booleans: {{"default": false}} or {{"default": true}}
+   - For dates: {{"default": ""}} OR {{"required": true}}
+
+2. SQL Syntax - Write PURE SQL only:
+   - NO template engine syntax ({{{{}}}}, {{% %}}, etc.)
+   - NO programming language constructs
+   - ONLY standard {dialect_type.upper()} SQL statements
+
+3. Parameter Binding - Each ? maps to ONE parameter in order:
+   - For optional filters use: (? = '' OR column = ?) - requires 2 parameters
+   - Parameters must match SQL placeholder count exactly
+   - List all parameters in the order they appear in SQL
+
+Example CORRECT template for SQLite:
+{{
+    "id": "find_users_by_city",
+    "description": "Find users filtered by optional city parameter",
+    "sql": "SELECT id, name, email FROM users WHERE (? = '' OR city = ?) LIMIT ? OFFSET ?",
+    "parameters": [
+        {{"name": "city_filter", "type": "string", "description": "City to filter by (empty = all)", "required": false, "default": ""}},
+        {{"name": "city_filter", "type": "string", "description": "City value for comparison", "required": false, "default": ""}},
+        {{"name": "limit", "type": "integer", "description": "Max records", "required": false, "default": 100}},
+        {{"name": "offset", "type": "integer", "description": "Skip records", "required": false, "default": 0}}
+    ],
+    "nl_examples": ["Show users", "Find users in Boston"],
+    "result_format": "table"
+}}
 
 JSON Response:"""
 
         # Add rate limiting and retry logic
         max_retries = 3
         response = None
+        timeout_seconds = 120  # 2 minute timeout per request
 
         for attempt in range(max_retries):
             try:
@@ -738,21 +797,30 @@ JSON Response:"""
                 delay = random.uniform(0.5, 2.0)
                 await asyncio.sleep(delay)
 
-                response = await self.inference_client.generate(prompt)
-                break  # Success, exit retry loop
+                # Add timeout to prevent infinite hangs
+                try:
+                    response = await asyncio.wait_for(
+                        self.inference_client.generate(prompt),
+                        timeout=timeout_seconds
+                    )
+                    break  # Success, exit retry loop
+                except asyncio.TimeoutError:
+                    raise Exception(f"Request timed out after {timeout_seconds} seconds")
 
             except Exception as e:
                 error_msg = str(e)
                 is_rate_limit_error = '500' in error_msg or 'Internal Server Error' in error_msg or 'rate limit' in error_msg.lower()
+                is_timeout = 'timeout' in error_msg.lower() or 'timed out' in error_msg.lower()
 
-                if is_rate_limit_error and attempt < max_retries - 1:
+                if (is_rate_limit_error or is_timeout) and attempt < max_retries - 1:
                     # Exponential backoff with jitter
                     wait_time = (2 ** attempt) + random.uniform(0, 1)
-                    logger.warning(f"   ⚠️  Rate limited (attempt {attempt + 1}/{max_retries}), retrying in {wait_time:.1f}s...")
+                    error_type = "Rate limited" if is_rate_limit_error else "Timeout"
+                    logger.warning(f"   ⚠️  {error_type} (attempt {attempt + 1}/{max_retries}), retrying in {wait_time:.1f}s...")
                     sys.stdout.flush()
                     await asyncio.sleep(wait_time)
                 else:
-                    # Either not a rate limit error, or we've exhausted retries
+                    # Either not a recoverable error, or we've exhausted retries
                     logger.error(f"   ❌ Error generating template after {attempt + 1} attempts: {error_msg}")
                     sys.stdout.flush()
                     raise
@@ -884,67 +952,187 @@ JSON Response:"""
         if fixed_count > 0:
             logger.info(f"Fixed {fixed_count} null default(s) in template '{template.get('id', 'unknown')}'")
 
+    def _deduplicate_template_ids(self, templates: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Ensure all template IDs are unique by appending suffixes to duplicates
+
+        Args:
+            templates: List of templates that may have duplicate IDs
+
+        Returns:
+            List of templates with unique IDs
+        """
+        seen_ids = {}
+        duplicates_fixed = 0
+
+        for template in templates:
+            original_id = template.get('id', 'unknown')
+            template_id = original_id
+
+            # Check if ID already exists
+            if template_id in seen_ids:
+                # Find next available suffix
+                suffix = 2
+                while f"{original_id}_{suffix}" in seen_ids:
+                    suffix += 1
+
+                # Update template ID with suffix
+                template_id = f"{original_id}_{suffix}"
+                template['id'] = template_id
+                duplicates_fixed += 1
+
+                logger.warning(f"   ⚠️  Duplicate template ID '{original_id}' renamed to '{template_id}'")
+                sys.stdout.flush()
+
+            seen_ids[template_id] = True
+
+        if duplicates_fixed > 0:
+            logger.info(f"🔧 Fixed {duplicates_fixed} duplicate template ID(s)")
+            sys.stdout.flush()
+
+        return templates
+
     def group_similar_queries(self, queries: List[str], analyses: List[Dict[str, Any]]) -> Dict[str, List[Tuple[str, Dict]]]:
         """Group similar queries that can use the same template
-        
+
         Args:
             queries: List of natural language queries
             analyses: List of query analyses
-            
+
         Returns:
             Dictionary mapping template keys to lists of (query, analysis) tuples
         """
         groups = {}
-        
+
         for query, analysis in zip(queries, analyses):
             if not analysis:
                 continue
-            
+
             # Create a key based on intent and entities
             key = f"{analysis.get('intent', 'unknown')}_{analysis.get('primary_entity', 'unknown')}"
             if analysis.get('secondary_entity'):
                 key += f"_{analysis['secondary_entity']}"
-            
-            # Add aggregation info to key
+
+            # Add aggregation info to key - handle both string and dict formats
             if analysis.get('aggregations'):
-                key += f"_{'_'.join(sorted(analysis['aggregations']))}"
-            
+                aggs = analysis['aggregations']
+                # Convert aggregations to strings if they're dicts
+                agg_strs = []
+                for agg in aggs:
+                    if isinstance(agg, dict):
+                        # Extract function name if it's a dict like {'function': 'count', 'field': 'id'}
+                        agg_strs.append(agg.get('function', str(agg)))
+                    elif isinstance(agg, str):
+                        agg_strs.append(agg)
+                    else:
+                        agg_strs.append(str(agg))
+
+                if agg_strs:
+                    key += f"_{'_'.join(sorted(agg_strs))}"
+
             if key not in groups:
                 groups[key] = []
             groups[key].append((query, analysis))
-        
+
         logger.info(f"Grouped queries into {len(groups)} template categories")
         return groups
     
-    async def generate_templates(self, queries: List[str]) -> List[Dict[str, Any]]:
-        """Generate SQL templates for a list of queries
-        
+    async def generate_templates(self, queries: List[str], output_path: str = None) -> List[Dict[str, Any]]:
+        """Generate SQL templates for a list of queries with progressive saving
+
         Args:
             queries: List of natural language queries
-            
+            output_path: Path to output file for incremental saving
+
         Returns:
             List of generated SQL templates
         """
         import time
         start_time = time.time()
-        
-        # Analyze all queries
-        logger.info(f"🔍 Analyzing {len(queries)} queries...")
+
+        # Use instance output_path if not provided
+        if output_path is None:
+            output_path = self.output_path
+
+        # Load existing templates and analyses if resuming
+        existing_data = {'templates': [], 'processed_queries': set(), 'analyses': {}}
+        if output_path and Path(output_path).exists():
+            logger.info("🔄 Checking for existing progress...")
+            sys.stdout.flush()
+            existing_data = self.load_existing_templates(output_path)
+
+        templates = existing_data['templates']
+        processed_queries = existing_data['processed_queries']
+        cached_analyses = existing_data['analyses']
+
+        # Check if we have cached analyses for queries that haven't been turned into templates yet
+        queries_with_cached_analysis = set(cached_analyses.keys())
+        queries_needing_analysis = [q for q in queries if q not in queries_with_cached_analysis]
+
+        # Filter out queries that are already in completed templates
+        remaining_queries = [q for q in queries if q not in processed_queries]
+
+        if len(remaining_queries) < len(queries):
+            logger.info(f"⏩ Skipping {len(queries) - len(remaining_queries)} already-processed queries")
+            logger.info(f"📝 Processing {len(remaining_queries)} remaining queries")
+            sys.stdout.flush()
+
+        if len(remaining_queries) == 0:
+            logger.info("✅ All queries already processed!")
+            sys.stdout.flush()
+            return templates
+
+        # Create initial output file if it doesn't exist
+        if output_path and not Path(output_path).exists():
+            logger.info(f"📄 Creating output file: {output_path}")
+            initial_output = {
+                'status': 'in_progress',
+                'phase': 'analyzing_queries',
+                'generated_at': datetime.now().isoformat(),
+                'last_updated': datetime.now().isoformat(),
+                'generator_version': '1.0.0',
+                'total_templates': 0,
+                'progress': {
+                    'total_queries': len(queries),
+                    'analyzed': 0,
+                    'templates_generated': 0
+                },
+                'templates': []
+            }
+            with open(output_path, 'w') as f:
+                yaml.dump(initial_output, f, default_flow_style=False, sort_keys=False)
+            logger.info(f"✅ Output file created - you can monitor progress there")
+            sys.stdout.flush()
+
+        # Analyze remaining queries
+        logger.info(f"🔍 Analyzing {len(remaining_queries)} queries...")
         logger.info("=" * 60)
         sys.stdout.flush()
 
         analyses = []
         successful_analyses = 0
+        queries_analyzed = 0
 
-        for i, query in enumerate(queries):
+        for i, query in enumerate(remaining_queries):
+            # Use cached analysis if available
+            if query in cached_analyses:
+                analysis = cached_analyses[query]
+                analyses.append(analysis)
+                if analysis:
+                    successful_analyses += 1
+                logger.info(f"📝 [{i+1}/{len(remaining_queries)}] Using cached analysis: \"{query[:60]}{'...' if len(query) > 60 else ''}\"")
+                sys.stdout.flush()
+                continue
+
+            # Analyze query if not cached
             query_start = time.time()
 
             # Show progress for every query
-            logger.info(f"📝 [{i+1}/{len(queries)}] Analyzing: \"{query[:60]}{'...' if len(query) > 60 else ''}\"")
+            logger.info(f"📝 [{i+1}/{len(remaining_queries)}] Analyzing: \"{query[:60]}{'...' if len(query) > 60 else ''}\"")
             sys.stdout.flush()
 
             analysis = await self.analyze_query(query)
             analyses.append(analysis)
+            queries_analyzed += 1
 
             if analysis:
                 successful_analyses += 1
@@ -953,17 +1141,57 @@ JSON Response:"""
             else:
                 logger.warning(f"   ⚠️  Analysis failed")
             sys.stdout.flush()
-        
+
+            # Save progress after each analysis (every 5 queries to reduce I/O)
+            if output_path and (i + 1) % 5 == 0:
+                # Save analyses with their corresponding queries for resume capability
+                analysis_data = []
+                for q, a in zip(remaining_queries[:i+1], analyses):
+                    if a:  # Only save successful analyses
+                        analysis_data.append({'query': q, 'analysis': a})
+
+                progress_output = {
+                    'status': 'in_progress',
+                    'phase': 'analyzing_queries',
+                    'generated_at': datetime.now().isoformat(),
+                    'last_updated': datetime.now().isoformat(),
+                    'generator_version': '1.0.0',
+                    'total_templates': len(templates),
+                    'progress': {
+                        'total_queries': len(queries),
+                        'remaining_queries': len(remaining_queries),
+                        'analyzed': i + 1,
+                        'successful_analyses': successful_analyses,
+                        'templates_generated': len(templates)
+                    },
+                    'analyses': analysis_data,  # Save the analyses!
+                    'templates': templates
+                }
+                try:
+                    temp_path = output_path + '.tmp'
+                    with open(temp_path, 'w') as f:
+                        yaml.dump(progress_output, f, default_flow_style=False, sort_keys=False)
+                    Path(temp_path).replace(output_path)
+                    logger.info(f"   💾 Progress saved: {i+1}/{len(remaining_queries)} analyzed")
+                    sys.stdout.flush()
+                except Exception as e:
+                    logger.warning(f"   Failed to save progress: {e}")
+
         analysis_time = time.time() - start_time
         logger.info("=" * 60)
-        logger.info(f"✅ Query analysis complete: {successful_analyses}/{len(queries)} successful ({analysis_time:.1f}s)")
+        cached_count = len(remaining_queries) - queries_analyzed
+        if cached_count > 0:
+            logger.info(f"✅ Query analysis complete: {successful_analyses}/{len(remaining_queries)} successful")
+            logger.info(f"   ({cached_count} from cache, {queries_analyzed} newly analyzed, {analysis_time:.1f}s)")
+        else:
+            logger.info(f"✅ Query analysis complete: {successful_analyses}/{len(remaining_queries)} successful ({analysis_time:.1f}s)")
         sys.stdout.flush()
 
         # Group similar queries
         logger.info("🔄 Grouping similar queries...")
         sys.stdout.flush()
         group_start = time.time()
-        grouped = self.group_similar_queries(queries, analyses)
+        grouped = self.group_similar_queries(remaining_queries, analyses)
         group_time = time.time() - group_start
         logger.info(f"✅ Grouped into {len(grouped)} template categories ({group_time:.1f}s)")
         sys.stdout.flush()
@@ -973,7 +1201,30 @@ JSON Response:"""
         logger.info("=" * 60)
         sys.stdout.flush()
         template_start = time.time()
-        templates = []
+
+        # Update progress file to show we're now generating templates
+        if output_path:
+            progress_output = {
+                'status': 'in_progress',
+                'phase': 'generating_templates',
+                'generated_at': datetime.now().isoformat(),
+                'last_updated': datetime.now().isoformat(),
+                'generator_version': '1.0.0',
+                'total_templates': len(templates),
+                'progress': {
+                    'total_queries': len(queries),
+                    'analyzed': len(remaining_queries),
+                    'successful_analyses': successful_analyses,
+                    'template_groups': len(grouped),
+                    'templates_generated': len(templates)
+                },
+                'templates': templates
+            }
+            try:
+                with open(output_path, 'w') as f:
+                    yaml.dump(progress_output, f, default_flow_style=False, sort_keys=False)
+            except Exception as e:
+                logger.warning(f"Failed to update phase: {e}")
 
         for i, (group_key, group_queries) in enumerate(grouped.items()):
             group_gen_start = time.time()
@@ -995,23 +1246,114 @@ JSON Response:"""
                 group_gen_time = time.time() - group_gen_start
                 logger.info(f"   ✅ Template generated: {template.get('id', 'unknown')} ({group_gen_time:.1f}s)")
                 logger.info(f"   📊 Parameters: {len(template.get('parameters', []))}, Examples: {len(all_examples)}")
+
+                # Save incrementally after each template
+                if output_path:
+                    self.save_template_incremental(template, output_path, templates)
+
             else:
                 group_gen_time = time.time() - group_gen_start
                 logger.warning(f"   ❌ Template generation failed ({group_gen_time:.1f}s)")
 
             logger.info("-" * 40)
             sys.stdout.flush()
-        
+
         total_time = time.time() - start_time
         template_time = time.time() - template_start
         logger.info("=" * 60)
         logger.info(f"🎉 Template generation complete!")
-        logger.info(f"📈 Generated {len(templates)} templates from {len(queries)} queries")
+        logger.info(f"📈 Generated {len(templates)} templates total ({len(templates) - len(existing_data['templates'])} new)")
         logger.info(f"⏱️  Total time: {total_time:.1f}s (Analysis: {analysis_time:.1f}s, Templates: {template_time:.1f}s)")
         sys.stdout.flush()
 
+        # Deduplicate template IDs before returning
+        templates = self._deduplicate_template_ids(templates)
+
         return templates
     
+    def load_existing_templates(self, output_path: str) -> Dict[str, Any]:
+        """Load existing templates from output file to support resuming
+
+        Args:
+            output_path: Path to existing output file
+
+        Returns:
+            Dictionary with 'templates' list, 'processed_queries' set, and 'analyses' dict
+        """
+        if not Path(output_path).exists():
+            return {'templates': [], 'processed_queries': set(), 'analyses': {}}
+
+        try:
+            with open(output_path, 'r') as f:
+                data = yaml.safe_load(f)
+
+            templates = data.get('templates', [])
+
+            # Extract all example queries from existing templates to know what's been processed
+            processed_queries = set()
+            for template in templates:
+                if 'nl_examples' in template:
+                    processed_queries.update(template['nl_examples'])
+
+            # Load saved analyses to avoid re-analyzing
+            analyses_dict = {}
+            if 'analyses' in data:
+                for item in data['analyses']:
+                    query = item.get('query')
+                    analysis = item.get('analysis')
+                    if query and analysis:
+                        analyses_dict[query] = analysis
+
+            logger.info(f"📂 Loaded {len(templates)} existing templates from {output_path}")
+            if analyses_dict:
+                logger.info(f"   Loaded {len(analyses_dict)} cached query analyses")
+            logger.info(f"   Already processed {len(processed_queries)} queries")
+            sys.stdout.flush()
+
+            return {
+                'templates': templates,
+                'processed_queries': processed_queries,
+                'analyses': analyses_dict
+            }
+        except Exception as e:
+            logger.warning(f"Could not load existing templates: {e}")
+            return {'templates': [], 'processed_queries': set(), 'analyses': {}}
+
+    def save_template_incremental(self, template: Dict[str, Any], output_path: str, all_templates: List[Dict[str, Any]]):
+        """Save template incrementally to output file
+
+        Args:
+            template: New template to add
+            output_path: Path to output file
+            all_templates: Current list of all templates (including new one)
+        """
+        try:
+            # Deduplicate IDs before saving
+            all_templates = self._deduplicate_template_ids(all_templates)
+
+            # Create output structure with in_progress status
+            output = {
+                'status': 'in_progress',
+                'generated_at': datetime.now().isoformat(),
+                'last_updated': datetime.now().isoformat(),
+                'generator_version': '1.0.0',
+                'total_templates': len(all_templates),
+                'templates': all_templates
+            }
+
+            # Write to file atomically (write to temp file, then rename)
+            temp_path = output_path + '.tmp'
+            with open(temp_path, 'w') as f:
+                yaml.dump(output, f, default_flow_style=False, sort_keys=False)
+
+            # Atomic rename
+            Path(temp_path).replace(output_path)
+
+            logger.debug(f"   💾 Saved progress: {len(all_templates)} templates")
+
+        except Exception as e:
+            logger.error(f"Failed to save incremental progress: {e}")
+
     def validate_template(self, template: Dict[str, Any]) -> List[str]:
         """Validate a generated template
         
@@ -1050,13 +1392,17 @@ JSON Response:"""
         
         return errors
     
-    def save_templates(self, templates: List[Dict[str, Any]], output_path: str):
+    def save_templates(self, templates: List[Dict[str, Any]], output_path: str, mark_complete: bool = True):
         """Save generated templates to YAML file
 
         Args:
             templates: List of templates to save
             output_path: Path to output YAML file
+            mark_complete: Whether to mark generation as completed
         """
+        # Deduplicate template IDs first
+        templates = self._deduplicate_template_ids(templates)
+
         # Validate templates
         valid_templates = []
         for template in templates:
@@ -1068,7 +1414,9 @@ JSON Response:"""
 
         # Create output structure
         output = {
+            'status': 'completed' if mark_complete else 'in_progress',
             'generated_at': datetime.now().isoformat(),
+            'last_updated': datetime.now().isoformat(),
             'generator_version': '1.0.0',
             'total_templates': len(valid_templates),
             'templates': valid_templates
@@ -1401,11 +1749,11 @@ async def main():
     logger.info("=" * 60)
     sys.stdout.flush()
 
-    # Create generator
+    # Create generator with output path for incremental saving
     logger.info("⚙️  Initializing template generator...")
     sys.stdout.flush()
     init_start = time.time()
-    generator = TemplateGenerator(args.config, args.provider)
+    generator = TemplateGenerator(args.config, args.provider, args.output)
     await generator.initialize()
     init_time = time.time() - init_start
     logger.info(f"✅ Generator initialized ({init_time:.1f}s)")
@@ -1459,18 +1807,19 @@ async def main():
         logger.info(f"🔢 Limited to {len(queries)} queries")
         sys.stdout.flush()
 
-    # Generate templates
+    # Generate templates (with progressive saving enabled)
     logger.info("🎯 Starting template generation process...")
+    logger.info("💾 Progressive saving enabled - templates will be saved incrementally")
     sys.stdout.flush()
-    templates = await generator.generate_templates(queries)
+    templates = await generator.generate_templates(queries, args.output)
 
-    # Save templates
-    logger.info("💾 Saving templates...")
+    # Mark as completed (final save with completed status)
+    logger.info("💾 Marking generation as completed...")
     sys.stdout.flush()
     save_start = time.time()
-    generator.save_templates(templates, args.output)
+    generator.save_templates(templates, args.output, mark_complete=True)
     save_time = time.time() - save_start
-    logger.info(f"✅ Templates saved to: {args.output} ({save_time:.1f}s)")
+    logger.info(f"✅ Templates finalized: {args.output} ({save_time:.1f}s)")
     sys.stdout.flush()
 
     total_time = time.time() - overall_start
