@@ -4,6 +4,7 @@ Store manager for managing vector store instances and their lifecycle.
 
 import logging
 import os
+import warnings
 from typing import Dict, Any, Optional, List, Type
 import asyncio
 from datetime import datetime
@@ -32,6 +33,9 @@ class StoreManager:
         self._store_classes: Dict[str, Type[BaseStore]] = {}
         self._lock = asyncio.Lock()
         self._config = {}
+
+        if config_path is None:
+            config_path = "config/stores.yaml"
         
         # Load configuration if provided
         if config_path:
@@ -55,26 +59,74 @@ class StoreManager:
     
     def _register_store_classes(self):
         """Register available vector store implementations."""
-        try:
-            from ..implementations.chroma_store import ChromaStore
-            self._store_classes['chroma'] = ChromaStore
-            logger.info("Registered ChromaStore")
-        except ImportError:
-            logger.warning("ChromaStore not available")
+        vector_stores_config = self._config.get('vector_stores', {})
 
-        try:
-            from ..implementations.pinecone_store import PineconeStore
-            self._store_classes['pinecone'] = PineconeStore
-            logger.info("Registered PineconeStore")
-        except ImportError:
-            logger.warning("PineconeStore not available")
+        if vector_stores_config.get('chroma', {}).get('enabled', False):
+            try:
+                from ..implementations.chroma_store import ChromaStore
+                self._store_classes['chroma'] = ChromaStore
+                logger.info("Registered ChromaStore")
+            except ImportError:
+                logger.warning("ChromaStore not available")
 
-        try:
-            from ..implementations.qdrant_store import QdrantStore
-            self._store_classes['qdrant'] = QdrantStore
-            logger.info("Registered QdrantStore")
-        except ImportError:
-            logger.warning("QdrantStore not available")
+        if vector_stores_config.get('pinecone', {}).get('enabled', False):
+            try:
+                from ..implementations.pinecone_store import PineconeStore
+                self._store_classes['pinecone'] = PineconeStore
+                logger.info("Registered PineconeStore")
+            except ImportError:
+                logger.warning("PineconeStore not available")
+
+        if vector_stores_config.get('qdrant', {}).get('enabled', False):
+            try:
+                from ..implementations.qdrant_store import QdrantStore
+                self._store_classes['qdrant'] = QdrantStore
+                logger.info("Registered QdrantStore")
+            except ImportError:
+                logger.warning("QdrantStore not available")
+
+        if vector_stores_config.get('faiss', {}).get('enabled', False):
+            try:
+                from ..implementations.faiss_store import FaissStore
+                self._store_classes['faiss'] = FaissStore
+                logger.info("Registered FaissStore")
+            except ImportError:
+                logger.warning("FaissStore not available")
+
+        if vector_stores_config.get('weaviate', {}).get('enabled', False):
+            try:
+                from ..implementations.weaviate_store import WeaviateStore
+                self._store_classes['weaviate'] = WeaviateStore
+                logger.info("Registered WeaviateStore")
+            except ImportError:
+                logger.warning("WeaviateStore not available")
+
+        if vector_stores_config.get('milvus', {}).get('enabled', False):
+            try:
+                from ..implementations.milvus_store import MilvusStore
+                self._store_classes['milvus'] = MilvusStore
+                logger.info("Registered MilvusStore")
+            except ImportError:
+                logger.warning("MilvusStore not available")
+
+        if vector_stores_config.get('marqo', {}).get('enabled', False):
+            try:
+                # Suppress Pydantic deprecation warnings from Marqo
+                with warnings.catch_warnings():
+                    warnings.filterwarnings("ignore", category=DeprecationWarning, module="marqo.*")
+                    from ..implementations.marqo_store import MarqoStore
+                self._store_classes['marqo'] = MarqoStore
+                logger.info("Registered MarqoStore")
+            except ImportError:
+                logger.warning("MarqoStore not available")
+
+        if vector_stores_config.get('pgvector', {}).get('enabled', False):
+            try:
+                from ..implementations.pgvector_store import PgvectorStore
+                self._store_classes['pgvector'] = PgvectorStore
+                logger.info("Registered PgvectorStore")
+            except ImportError:
+                logger.warning("PgvectorStore not available")
 
     @staticmethod
     def _resolve_env_variable(value: Any) -> Any:
