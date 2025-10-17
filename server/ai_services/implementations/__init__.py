@@ -92,6 +92,7 @@ _implementations = [
     ('llama_cpp_inference_service', 'LlamaCppInferenceService'),
     ('huggingface_inference_service', 'HuggingFaceInferenceService'),
     ('ollama_cloud_inference_service', 'OllamaCloudInferenceService'),
+    ('bitnet_inference_service', 'BitNetInferenceService'),
 
     # Moderation Services
     ('openai_moderation_service', 'OpenAIModerationService'),

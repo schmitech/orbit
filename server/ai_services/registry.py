@@ -108,6 +108,7 @@ def register_inference_services() -> None:
         ("llama_cpp", "LlamaCppInferenceService", "Llama.cpp"),
         ("huggingface", "HuggingFaceInferenceService", "Hugging Face"),
         ("ollama_cloud", "OllamaCloudInferenceService", "Ollama Cloud"),
+        ("bitnet", "BitNetInferenceService", "BitNet (1.58-bit)"),
     ]
 
     for provider_key, class_name, display_name in services:

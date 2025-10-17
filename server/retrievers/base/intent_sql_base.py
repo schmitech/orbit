@@ -132,23 +132,24 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
             
             # Initialize domain-aware components
             domain_config = self.domain_adapter.get_domain_config()
-            self.parameter_extractor = DomainParameterExtractor(self.inference_client, domain_config)
-            
-            # Get domain strategy for response generator
+
+            # Get domain strategy once for all components
             from ..implementations.intent.domain_strategies.registry import DomainStrategyRegistry
             from ..implementations.intent.domain import DomainConfig
-            
+
             # Ensure domain_config is a DomainConfig object
             if isinstance(domain_config, dict):
                 domain_config = DomainConfig(domain_config)
-                
+
             domain_strategy = DomainStrategyRegistry.get_strategy(
                 domain_config.domain_name,
                 domain_config,
             )
-            
+
+            # Pass the domain_strategy to avoid redundant registry lookups
+            self.parameter_extractor = DomainParameterExtractor(self.inference_client, domain_config, domain_strategy)
             self.response_generator = DomainResponseGenerator(domain_config, domain_strategy)
-            self.template_reranker = TemplateReranker(domain_config)
+            self.template_reranker = TemplateReranker(domain_config, domain_strategy)
             self.template_processor = TemplateProcessor(domain_config)
             
             if self.verbose:

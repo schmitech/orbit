@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 class TemplateReranker:
     """Rerank templates using domain-specific rules and vocabulary"""
     
-    def __init__(self, domain_config: Any):
+    def __init__(self, domain_config: Any, domain_strategy=None):
         if isinstance(domain_config, DomainConfig):
             self.domain_config = domain_config
         else:
@@ -25,10 +25,14 @@ class TemplateReranker:
 
         self.template_processor = TemplateProcessor(self.domain_config)
 
-        self.domain_strategy = DomainStrategyRegistry.get_strategy(
-            self.domain_config.domain_name,
-            self.domain_config,
-        )
+        # Get domain strategy from registry if not provided
+        if domain_strategy is not None:
+            self.domain_strategy = domain_strategy
+        else:
+            self.domain_strategy = DomainStrategyRegistry.get_strategy(
+                self.domain_config.domain_name,
+                self.domain_config,
+            )
         if not self.domain_strategy and self.domain_name:
             logger.info(
                 "No specific strategy for domain '%s', using generic reranking only",

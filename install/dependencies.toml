@@ -67,6 +67,20 @@ dependencies = [
     "protobuf>=4.25.2"
 ]
 
+[profiles.bitnet]
+description = "BitNet 1.58-bit LLM inference framework. Requires building from source."
+extends = "minimal"
+dependencies = [
+    # BitNet requires building from source - see docs/bitnet-setup.md for installation
+    # The following are build dependencies for BitNet
+    "cmake>=3.15.0",
+    "ninja>=1.10.0",
+    "pybind11>=2.10.0",
+    # BitNet Python bindings (built from source)
+    # Note: bitnet-cpp package is not available on PyPI yet
+    # Users must build from: https://github.com/microsoft/BitNet
+]
+
 [profiles.commercial]
 description = "Dependencies for commercial/cloud inference providers"
 extends = "minimal"
@@ -88,7 +102,7 @@ dependencies = [
 
 [profiles.all]
 description = "All available dependencies"
-extends = ["minimal", "torch", "commercial"]
+extends = ["minimal", "torch", "commercial", "bitnet"]
 dependencies = []
 
 [profiles.development]
