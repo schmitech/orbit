@@ -1,8 +1,8 @@
 status: completed
-generated_at: '2025-10-16T17:50:29.026033'
-last_updated: '2025-10-16T17:50:29.026045'
+generated_at: '2025-10-16T20:46:51.471855'
+last_updated: '2025-01-27T12:00:00.000000'
 generator_version: 1.0.0
-total_templates: 7
+total_templates: 23
 templates:
 - id: find_all_users
   description: Retrieve all users with optional pagination
@@ -32,7 +32,7 @@ templates:
   result_format: table
   version: 1.0.0
   approved: false
-  created_at: '2025-10-16T17:49:56.445227'
+  created_at: '2025-10-16T20:41:06.942386'
   created_by: template_generator
   semantic_tags:
     action: find
@@ -42,48 +42,32 @@ templates:
   tags:
   - find
   - user
-- id: find_all_users_2
-  description: Retrieve all users from the system with optional pagination
-  sql: SELECT id, name, email, age, city FROM users LIMIT ? OFFSET ?
+- id: count_all_users
+  description: Counts the total number of users in the database, with optional filtering
+    by city and age, and supports pagination.
+  sql: SELECT COUNT(*) AS user_count FROM users WHERE (? = '' OR city = ?) AND (?
+    = 0 OR age = ?)
   parameters:
-  - name: limit
-    type: integer
-    description: Maximum number of records to return
+  - name: city_filter
+    type: string
+    description: Filter users by city (empty string to ignore)
     required: false
-    default: 100
-  - name: offset
+    default: ''
+  - name: city_filter
+    type: string
+    description: City value for comparison
+    required: false
+    default: ''
+  - name: age_filter
     type: integer
-    description: Number of records to skip before starting to return results
+    description: Filter users by age (0 to ignore)
     required: false
     default: 0
-  nl_examples:
-  - List everything in the system
-  - Find users named John
-  - Show me users with name like Smith
-  - Get users whose name contains 'Brown'
-  - Search for users named Alice
-  - Find all users with 'Wilson' in their name
-  - Show me users named 'Johnson'
-  - Get users with name matching 'Prince'
-  - Find users with 'Davis' in their name
-  - Show me users named 'Miller'
-  result_format: table
-  version: 1.0.0
-  approved: false
-  created_at: '2025-10-16T17:50:01.105114'
-  created_by: template_generator
-  semantic_tags:
-    action: find
-    primary_entity: users
-    secondary_entity: null
-    qualifiers: []
-  tags:
-  - find
-  - users
-- id: count_all_users
-  description: Counts the total number of users in the database
-  sql: SELECT COUNT(*) AS user_count FROM users
-  parameters: []
+  - name: age_filter
+    type: integer
+    description: Age value for comparison
+    required: false
+    default: 0
   nl_examples:
   - How many users do we have?
   - Count all users
@@ -98,7 +82,7 @@ templates:
   result_format: summary
   version: 1.0.0
   approved: false
-  created_at: '2025-10-16T17:50:04.022581'
+  created_at: '2025-10-16T20:41:28.987813'
   created_by: template_generator
   semantic_tags:
     action: calculate
@@ -120,17 +104,15 @@ templates:
     default: ''
   nl_examples:
   - How many users are in New York?
-  - Count users from Los Angeles
-  - Count users from Miami
   - Show me city distribution
-  - How many users between 25 and 35?
-  - Count users older than 40
-  - How many users under 40?
+  - Count users between 30 and 50
   - Count users older than 25
+  - Get email domain statistics
+  - Show me user creation trends
   result_format: summary
   version: 1.0.0
   approved: false
-  created_at: '2025-10-16T17:50:11.639201'
+  created_at: '2025-10-16T20:41:38.070626'
   created_by: template_generator
   semantic_tags:
     action: calculate
@@ -142,19 +124,19 @@ templates:
   - users
   - count
 - id: count_users_per_city
-  description: Counts the number of users grouped by city, with optional filtering
-    by city name
+  description: Counts the number of users grouped by city with optional filtering
+    and pagination
   sql: SELECT city, COUNT(*) AS user_count FROM users WHERE (? = '' OR city = ?) GROUP
     BY city LIMIT ? OFFSET ?
   parameters:
   - name: city_filter
     type: string
-    description: Optional city name to filter results (empty string for all cities)
+    description: Optional city name to filter results (empty string means no filter)
     required: false
     default: ''
   - name: city_filter
     type: string
-    description: City name value for comparison
+    description: City value for comparison when filtering is enabled
     required: false
     default: ''
   - name: limit
@@ -164,20 +146,20 @@ templates:
     default: 100
   - name: offset
     type: integer
-    description: Number of rows to skip before starting to return data
+    description: Number of rows to skip before starting to return results
     required: false
     default: 0
   nl_examples:
   - How many users per city?
   - Show me user count by city
-  - Get city user counts
   - Count users by city
   - Get user counts per city
   - Show me how many users per city
+  - Show month-over-month new user counts for each city.
   result_format: table
   version: 1.0.0
   approved: false
-  created_at: '2025-10-16T17:50:16.853734'
+  created_at: '2025-10-16T20:41:51.152082'
   created_by: template_generator
   semantic_tags:
     action: calculate
@@ -190,19 +172,19 @@ templates:
   - city
   - count
 - id: user_distribution_by_city
-  description: Calculate the distribution of users by city, with optional filtering
-    and pagination
+  description: Calculates the distribution of users by city, returning the count of
+    users per city.
   sql: SELECT city, COUNT(*) AS user_count FROM users WHERE (? = '' OR city = ?) GROUP
     BY city ORDER BY user_count DESC LIMIT ? OFFSET ?
   parameters:
   - name: city_filter
     type: string
-    description: Optional city to filter by (empty string means no filter)
+    description: Optional city filter (empty string for all cities)
     required: false
     default: ''
   - name: city_filter
     type: string
-    description: City value for comparison when filtering is applied
+    description: City value to match when filtering
     required: false
     default: ''
   - name: limit
@@ -219,10 +201,12 @@ templates:
   - Get user distribution by city
   - Count users in each city
   - Show me users per city
+  - Get city user counts
+  - Get city population distribution
   result_format: table
   version: 1.0.0
   approved: false
-  created_at: '2025-10-16T17:50:22.250891'
+  created_at: '2025-10-16T20:41:59.111868'
   created_by: template_generator
   semantic_tags:
     action: calculate
@@ -234,15 +218,411 @@ templates:
   - users
   - city
   - count
-- id: count_users_by_location
-  description: Count the number of users grouped by their location (city). Optionally
-    filter by a specific city.
-  sql: SELECT city, COUNT(*) AS user_count FROM users WHERE (? = '' OR city = ?) GROUP
-    BY city LIMIT ? OFFSET ?
+- id: calculate_average_age
+  description: Calculates the average age of users, optionally filtered by city
+  sql: SELECT AVG(age) AS average_age FROM users WHERE (? = '' OR city = ?)
+  parameters:
+  - name: city_filter
+    type: string
+    description: Optional city filter (empty string to ignore)
+    required: false
+    default: ''
+  - name: city_value
+    type: string
+    description: City value for comparison when filter is active
+    required: false
+    default: ''
+  nl_examples:
+  - What's the average age of users?
+  - Calculate average user age
+  - Get average age of all users
+  - Show me mean user age
+  - What's the average user age?
+  result_format: summary
+  version: 1.0.0
+  approved: false
+  created_at: '2025-10-16T20:42:20.262312'
+  created_by: template_generator
+  semantic_tags:
+    action: calculate
+    primary_entity: user
+    secondary_entity: null
+    qualifiers: []
+  tags:
+  - calculate
+  - user
+  - function: avg
+    field: age
+- id: find_max_user_age
+  description: Finds the maximum age among users, optionally filtered by city
+  sql: SELECT MAX(age) AS max_age FROM users WHERE (? = '' OR city = ?)
   parameters:
   - name: city_filter
     type: string
     description: City to filter by (empty string means no filter)
+    required: false
+    default: ''
+  - name: city_value
+    type: string
+    description: City value for comparison when filter is active
+    required: false
+    default: ''
+  nl_examples:
+  - What's the oldest user age?
+  - Get oldest age
+  result_format: summary
+  version: 1.0.0
+  approved: false
+  created_at: '2025-10-16T20:42:34.147525'
+  created_by: template_generator
+  semantic_tags:
+    action: find
+    primary_entity: user
+    secondary_entity: null
+    qualifiers: []
+  tags:
+  - find
+  - user
+  - function: max
+    field: age
+- id: find_youngest_user_age
+  description: Finds the minimum age among users, with optional filtering by city
+  sql: SELECT MIN(age) AS youngest_age FROM users WHERE (? = '' OR city = ?)
+  parameters:
+  - name: city_filter
+    type: string
+    description: Optional city filter (empty string to ignore)
+    required: false
+    default: ''
+  - name: city_value
+    type: string
+    description: City value for comparison when filter is active
+    required: false
+    default: ''
+  nl_examples:
+  - Find the youngest user age
+  - Show me youngest age
+  result_format: summary
+  version: 1.0.0
+  approved: false
+  created_at: '2025-10-16T20:42:48.338534'
+  created_by: template_generator
+  semantic_tags:
+    action: find
+    primary_entity: user
+    secondary_entity: null
+    qualifiers: []
+  tags:
+  - find
+  - user
+  - function: min
+    field: age
+- id: get_age_range
+  description: Calculate the minimum and maximum age of users in the database
+  sql: SELECT MIN(age) AS min_age, MAX(age) AS max_age FROM users
+  parameters: []
+  nl_examples:
+  - What's the age range?
+  result_format: summary
+  version: 1.0.0
+  approved: false
+  created_at: '2025-10-16T20:43:26.720231'
+  created_by: template_generator
+  semantic_tags:
+    action: calculate
+    primary_entity: users
+    secondary_entity: null
+    qualifiers: []
+  tags:
+  - calculate
+  - users
+  - min
+  - max
+- id: find_users_by_city_prefix
+  description: Find users where the city name starts with a given prefix
+  sql: SELECT id, name, email, age, city FROM users WHERE city LIKE ? || '%' LIMIT
+    ? OFFSET ?
+  parameters:
+  - name: city_prefix
+    type: string
+    description: Prefix of the city name to match (e.g., 'Phoenix')
+    required: true
+    default: ''
+  - name: limit
+    type: integer
+    description: Maximum number of records to return
+    required: false
+    default: 100
+  - name: offset
+    type: integer
+    description: Number of records to skip
+    required: false
+    default: 0
+  nl_examples:
+  - Find users from cities starting with 'Phoenix'
+  result_format: table
+  version: 1.0.0
+  approved: false
+  created_at: '2025-10-16T20:43:56.084969'
+  created_by: template_generator
+  semantic_tags:
+    action: find
+    primary_entity: users
+    secondary_entity: city
+    qualifiers: []
+  tags:
+  - find
+  - users
+  - city
+- id: user_demographics_summary
+  description: Generates a demographic summary of users including count, average age,
+    and grouped by city
+  sql: SELECT city, COUNT(*) AS user_count, AVG(age) AS average_age FROM users WHERE
+    (? = '' OR city = ?) GROUP BY city ORDER BY user_count DESC LIMIT ? OFFSET ?
+  parameters:
+  - name: city_filter
+    type: string
+    description: Optional city filter (empty string for all cities)
+    required: false
+    default: ''
+  - name: city_filter
+    type: string
+    description: City value for comparison when filtering
+    required: false
+    default: ''
+  - name: limit
+    type: integer
+    description: Maximum number of groups to return
+    required: false
+    default: 100
+  - name: offset
+    type: integer
+    description: Number of groups to skip
+    required: false
+    default: 0
+  nl_examples:
+  - Get user demographics summary
+  result_format: summary
+  version: 1.0.0
+  approved: false
+  created_at: '2025-10-16T20:44:04.812594'
+  created_by: template_generator
+  semantic_tags:
+    action: calculate
+    primary_entity: user
+    secondary_entity: null
+    qualifiers: []
+  tags:
+  - calculate
+  - user
+  - count
+  - avg
+  - group_by
+- id: analyze_user_data
+  description: Generic template for analyzing user data with optional filters, aggregations,
+    and pagination. Supports filtering by name, email, age, and city.
+  sql: SELECT * FROM users WHERE (? = '' OR name LIKE ?) AND (? = '' OR email LIKE
+    ?) AND (? = '' OR city = ?) AND (? = -1 OR age = ?) LIMIT ? OFFSET ?
+  parameters:
+  - name: name_filter
+    type: string
+    description: Filter by name (partial match, empty = all)
+    required: false
+    default: ''
+  - name: name_filter
+    type: string
+    description: Name value for LIKE comparison
+    required: false
+    default: ''
+  - name: email_filter
+    type: string
+    description: Filter by email (partial match, empty = all)
+    required: false
+    default: ''
+  - name: email_filter
+    type: string
+    description: Email value for LIKE comparison
+    required: false
+    default: ''
+  - name: city_filter
+    type: string
+    description: Filter by city (exact match, empty = all)
+    required: false
+    default: ''
+  - name: city_filter
+    type: string
+    description: City value for equality comparison
+    required: false
+    default: ''
+  - name: age_filter
+    type: integer
+    description: Filter by age (-1 = all)
+    required: false
+    default: -1
+  - name: age_filter
+    type: integer
+    description: Age value for equality comparison
+    required: false
+    default: -1
+  - name: limit
+    type: integer
+    description: Maximum number of records to return
+    required: false
+    default: 100
+  - name: offset
+    type: integer
+    description: Number of records to skip
+    required: false
+    default: 0
+  nl_examples:
+  - Analyze user data
+  - Analyze user demographics
+  result_format: table
+  version: 1.0.0
+  approved: false
+  created_at: '2025-10-16T20:44:18.843075'
+  created_by: template_generator
+  semantic_tags:
+    action: analyze
+    primary_entity: user
+    secondary_entity: null
+    qualifiers: []
+  tags:
+  - analyze
+  - user
+- id: user_metrics_summary
+  description: Calculate aggregate metrics (count, average age, sum of ages) for users
+    with optional filters
+  sql: SELECT COUNT(*) AS user_count, AVG(age) AS average_age, SUM(age) AS total_age
+    FROM users WHERE (? = '' OR city = ?) AND (? = '' OR name LIKE ?)
+  parameters:
+  - name: city_filter
+    type: string
+    description: Filter by city (empty = all cities)
+    required: false
+    default: ''
+  - name: city_value
+    type: string
+    description: City value for comparison
+    required: false
+    default: ''
+  - name: name_filter
+    type: string
+    description: Filter by name pattern (empty = all names)
+    required: false
+    default: ''
+  - name: name_pattern
+    type: string
+    description: Name pattern with % wildcards if needed
+    required: false
+    default: ''
+  nl_examples:
+  - What are the user metrics?
+  result_format: summary
+  version: 1.0.0
+  approved: false
+  created_at: '2025-10-16T20:44:31.028241'
+  created_by: template_generator
+  semantic_tags:
+    action: calculate
+    primary_entity: user
+    secondary_entity: null
+    qualifiers: []
+  tags:
+  - calculate
+  - user
+  - count
+  - avg
+  - sum
+- id: find_most_common_cities
+  description: Find the most common cities among users, with optional filtering and
+    pagination
+  sql: SELECT city, COUNT(*) AS count FROM users WHERE (? = '' OR city LIKE ?) GROUP
+    BY city ORDER BY COUNT(*) DESC LIMIT ? OFFSET ?
+  parameters:
+  - name: city_filter
+    type: string
+    description: Optional filter for city name (empty = all cities)
+    required: false
+    default: ''
+  - name: city_filter
+    type: string
+    description: City pattern for LIKE comparison
+    required: false
+    default: ''
+  - name: limit
+    type: integer
+    description: Maximum number of results to return
+    required: false
+    default: 100
+  - name: offset
+    type: integer
+    description: Number of results to skip
+    required: false
+    default: 0
+  nl_examples:
+  - Find the most common cities
+  result_format: table
+  version: 1.0.0
+  approved: false
+  created_at: '2025-10-16T20:44:39.627228'
+  created_by: template_generator
+  semantic_tags:
+    action: find
+    primary_entity: users
+    secondary_entity: city
+    qualifiers: []
+  tags:
+  - find
+  - users
+  - city
+  - count
+- id: email_domain_popularity
+  description: Calculate the popularity of email domains by counting users per domain
+  sql: SELECT substr(email, instr(email, '@') + 1) AS domain, COUNT(id) AS count FROM
+    users WHERE email IS NOT NULL AND email LIKE '%@%' GROUP BY domain ORDER BY count
+    DESC LIMIT ? OFFSET ?
+  parameters:
+  - name: limit
+    type: integer
+    description: Maximum number of results to return
+    required: false
+    default: 100
+  - name: offset
+    type: integer
+    description: Number of results to skip
+    required: false
+    default: 0
+  nl_examples:
+  - Show me email domain popularity
+  result_format: table
+  version: 1.0.0
+  approved: false
+  created_at: '2025-10-16T20:44:52.001246'
+  created_by: template_generator
+  semantic_tags:
+    action: calculate
+    primary_entity: users
+    secondary_entity: email
+    qualifiers: []
+  tags:
+  - calculate
+  - users
+  - email
+  - function: count
+    field: id
+- id: get_user_activity_patterns
+  description: Retrieve user activity patterns by joining user data with activity
+    logs, with optional filters on user attributes and time range
+  sql: SELECT u.id, u.name, u.email, u.age, u.city, COUNT(a.id) AS activity_count
+    FROM users u LEFT JOIN activities a ON u.id = a.user_id WHERE (? = '' OR u.city
+    = ?) AND (? = '' OR u.name LIKE ?) AND (? = 0 OR u.age >= ?) AND (? = 0 OR u.age
+    <= ?) GROUP BY u.id, u.name, u.email, u.age, u.city ORDER BY activity_count DESC
+    LIMIT ? OFFSET ?
+  parameters:
+  - name: city_filter
+    type: string
+    description: Filter users by city (empty = all cities)
     required: false
     default: ''
   - name: city_filter
@@ -250,30 +630,333 @@ templates:
     description: City value for comparison
     required: false
     default: ''
+  - name: name_filter
+    type: string
+    description: Filter users by name pattern (empty = all names)
+    required: false
+    default: ''
+  - name: name_filter
+    type: string
+    description: Name pattern for LIKE comparison
+    required: false
+    default: ''
+  - name: min_age
+    type: integer
+    description: Minimum age filter (0 = no minimum)
+    required: false
+    default: 0
+  - name: min_age
+    type: integer
+    description: Minimum age value for comparison
+    required: false
+    default: 0
+  - name: max_age
+    type: integer
+    description: Maximum age filter (0 = no maximum)
+    required: false
+    default: 0
+  - name: max_age
+    type: integer
+    description: Maximum age value for comparison
+    required: false
+    default: 0
   - name: limit
     type: integer
-    description: Maximum number of rows to return
+    description: Maximum number of records to return
     required: false
     default: 100
   - name: offset
     type: integer
-    description: Number of rows to skip before starting to return data
+    description: Number of records to skip
     required: false
     default: 0
   nl_examples:
-  - How many users per location?
+  - Get user activity patterns
   result_format: table
   version: 1.0.0
   approved: false
-  created_at: '2025-10-16T17:50:29.009459'
+  created_at: '2025-10-16T20:45:09.941371'
+  created_by: template_generator
+  semantic_tags:
+    action: find
+    primary_entity: user
+    secondary_entity: activity
+    qualifiers: []
+  tags:
+  - find
+  - user
+  - activity
+- id: user_profile_completeness
+  description: Calculate completeness of user profiles based on filled fields (name,
+    email, age, city)
+  sql: SELECT id, name, email, age, city, (CASE WHEN name IS NOT NULL AND name !=
+    '' THEN 1 ELSE 0 END + CASE WHEN email IS NOT NULL AND email != '' THEN 1 ELSE
+    0 END + CASE WHEN age IS NOT NULL THEN 1 ELSE 0 END + CASE WHEN city IS NOT NULL
+    AND city != '' THEN 1 ELSE 0 END) AS completeness_score FROM users WHERE (? =
+    '' OR name LIKE ?) LIMIT ? OFFSET ?
+  parameters:
+  - name: name_filter
+    type: string
+    description: Filter by name (empty = all users)
+    required: false
+    default: ''
+  - name: name_filter
+    type: string
+    description: Name pattern for LIKE comparison
+    required: false
+    default: ''
+  - name: limit
+    type: integer
+    description: Maximum number of records to return
+    required: false
+    default: 100
+  - name: offset
+    type: integer
+    description: Number of records to skip
+    required: false
+    default: 0
+  nl_examples:
+  - Get user profile completeness
+  result_format: table
+  version: 1.0.0
+  approved: false
+  created_at: '2025-10-16T20:45:39.147786'
   created_by: template_generator
   semantic_tags:
     action: calculate
     primary_entity: user
-    secondary_entity: location
+    secondary_entity: null
     qualifiers: []
   tags:
   - calculate
   - user
-  - location
+- id: cities_with_high_user_percentage
+  description: Find cities that contribute more than a specified percentage of the
+    total user base
+  sql: SELECT city, COUNT(*) AS user_count, (COUNT(*) * 100.0 / (SELECT COUNT(*) FROM
+    users)) AS percentage FROM users GROUP BY city HAVING percentage > ?
+  parameters:
+  - name: min_percentage
+    type: decimal
+    description: Minimum percentage threshold for city user contribution
+    required: false
+    default: 15.0
+  nl_examples:
+  - Which cities contribute more than 15% of the total user base?
+  result_format: table
+  version: 1.0.0
+  approved: false
+  created_at: '2025-10-16T20:45:46.177738'
+  created_by: template_generator
+  semantic_tags:
+    action: find
+    primary_entity: city
+    secondary_entity: user
+    qualifiers: []
+  tags:
+  - find
+  - city
+  - user
   - count
+  - percentage
+- id: rank_cities_by_avg_age
+  description: Ranks cities by their average user age compared to the overall average
+    age of all users
+  sql: SELECT city, AVG(age) AS average_user_age FROM users GROUP BY city HAVING (?
+    = '' OR city LIKE ?) ORDER BY average_user_age DESC LIMIT ? OFFSET ?
+  parameters:
+  - name: city_filter
+    type: string
+    description: Optional filter for city name (empty = all cities)
+    required: false
+    default: ''
+  - name: city_filter_pattern
+    type: string
+    description: LIKE pattern for city name filtering
+    required: false
+    default: ''
+  - name: limit
+    type: integer
+    description: Maximum number of results to return
+    required: false
+    default: 100
+  - name: offset
+    type: integer
+    description: Number of rows to skip before starting to return results
+    required: false
+    default: 0
+  nl_examples:
+  - Rank cities by average user age compared to the overall average.
+  result_format: table
+  version: 1.0.0
+  approved: false
+  created_at: '2025-10-16T20:45:59.540044'
+  created_by: template_generator
+  semantic_tags:
+    action: rank
+    primary_entity: city
+    secondary_entity: user
+    qualifiers: []
+  tags:
+  - rank
+  - city
+  - user
+  - function: avg
+    field: age
+    alias: average_user_age
+- id: cities_with_majority_young_users
+  description: Find cities where more than half of the users are under a specified
+    age (default 30).
+  sql: SELECT city FROM users WHERE city IS NOT NULL GROUP BY city HAVING CAST(SUM(CASE
+    WHEN age < ? THEN 1 ELSE 0 END) AS REAL) / COUNT(*) > 0.5
+  parameters:
+  - name: age_threshold
+    type: integer
+    description: Age threshold to determine 'young' users
+    required: false
+    default: 30
+  nl_examples:
+  - List cities where more than half of users are under 30.
+  result_format: table
+  version: 1.0.0
+  approved: false
+  created_at: '2025-10-16T20:46:18.312777'
+  created_by: template_generator
+  semantic_tags:
+    action: find
+    primary_entity: city
+    secondary_entity: user
+    qualifiers: []
+  tags:
+  - find
+  - city
+  - user
+  - function: count
+    field: id
+    group_by: city
+  - function: count
+    field: id
+    group_by: city
+    condition: age < 30
+- id: top_cities_by_new_users
+  description: Find the top N cities by number of new users in a specified time range,
+    ordered by count descending.
+  sql: SELECT city, COUNT(id) AS new_users FROM users WHERE created_at >= DATE('now',
+    '-' || ? || ' days') GROUP BY city ORDER BY new_users DESC LIMIT ?
+  parameters:
+  - name: days_back
+    type: integer
+    description: Number of days back to count new users (e.g., 30 for last 30 days)
+    required: false
+    default: 30
+  - name: limit
+    type: integer
+    description: Maximum number of cities to return
+    required: false
+    default: 5
+  nl_examples:
+  - Find the top 5 cities by new users in the last 30 days.
+  - Find cities where new user additions in the last 90 days are lower than the prior
+    90 days.
+  result_format: table
+  version: 1.0.0
+  approved: false
+  created_at: '2025-10-16T20:46:27.412020'
+  created_by: template_generator
+  semantic_tags:
+    action: find
+    primary_entity: city
+    secondary_entity: user
+    qualifiers: []
+  tags:
+  - find
+  - city
+  - user
+  - function: count
+    field: id
+    alias: new_users
+- id: find_users_age_outliers_by_city
+  description: Identifies users whose age is more than one standard deviation away
+    from the average age in their city, in either direction.
+  sql: SELECT u.id, u.name, u.email, u.age, u.city FROM users u JOIN (SELECT city,
+    AVG(age) AS avg_age, stddev(age) AS std_age FROM users WHERE age IS NOT NULL GROUP
+    BY city) city_stats ON u.city = city_stats.city WHERE (u.age > (city_stats.avg_age
+    + city_stats.std_age) OR u.age < (city_stats.avg_age - city_stats.std_age)) AND
+    (? = '' OR u.city = ?) LIMIT ? OFFSET ?
+  parameters:
+  - name: city_filter
+    type: string
+    description: Optional city to filter results (empty string for all cities)
+    required: false
+    default: ''
+  - name: city_filter
+    type: string
+    description: City value to match when filtering
+    required: false
+    default: ''
+  - name: limit
+    type: integer
+    description: Maximum number of records to return
+    required: false
+    default: 100
+  - name: offset
+    type: integer
+    description: Number of records to skip
+    required: false
+    default: 0
+  nl_examples:
+  - Identify users whose age is more than one standard deviation from their city's
+    average age.
+  result_format: table
+  version: 1.0.0
+  approved: false
+  created_at: '2025-10-16T20:46:45.469892'
+  created_by: template_generator
+  semantic_tags:
+    action: find
+    primary_entity: user
+    secondary_entity: city
+    qualifiers: []
+  tags:
+  - find
+  - user
+  - city
+  - avg
+  - stddev
+- id: user_age_cohort_by_city
+  description: Calculate the percentage share of users in each age cohort grouped
+    by city
+  sql: SELECT city, age AS cohort, COUNT(id) AS user_count, (COUNT(id) * 100.0 / SUM(COUNT(id))
+    OVER (PARTITION BY city)) AS percentage FROM users WHERE (? = '' OR city = ?)
+    GROUP BY city, age ORDER BY city, percentage DESC
+  parameters:
+  - name: city_filter
+    type: string
+    description: Optional city filter (empty string for all cities)
+    required: false
+    default: ''
+  - name: city_filter
+    type: string
+    description: City value for comparison when filtering
+    required: false
+    default: ''
+  nl_examples:
+  - Which age cohorts have the highest share of users in each city?
+  result_format: table
+  version: 1.0.0
+  approved: false
+  created_at: '2025-10-16T20:46:51.420509'
+  created_by: template_generator
+  semantic_tags:
+    action: find
+    primary_entity: users
+    secondary_entity: city
+    qualifiers: []
+  tags:
+  - find
+  - users
+  - city
+  - function: count
+    field: id
+  - function: percentage
+    field: id
