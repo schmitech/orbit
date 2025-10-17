@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.5.8] - 2025-10-17
+
+### Core System Updates
+- Update Contact Templates: Regenerate SQL intent templates for contact example.
+- Update template_reranker.py: Fix minor issue causing some templates to throw errors.
+- Add Bitnet AI Provider: Integrate Bitnet provider; fixed SQL template strategy and reranker issues.
+- SQL Templates Fixes: Improve SQL intent templates generation logic.
+- Ollama Cloud Fixes: Resolve issues with Ollama cloud and SQL template generation scripts.
+- Create Intent Result Caching Strategy: Implement caching for follow-up questions in intent retrievers.
+- Issue #48: Enable datasource overriding in adapters.yaml for SQL adapters.
+- SQLite db parameter: Replace db_path with database in datasource.yaml for better configuration clarity.
+- Update adapters.yaml: Reinstate postgres intent template example.
+- Update inference.yaml: Remove anyscale; set Ollama default model to granite4:micro.
+- Update datasources.yaml: Complete supplemental datasource settings.
+
 ## [1.5.7] - 2025-10-15
 
 ### Core System Updates

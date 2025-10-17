@@ -176,7 +176,7 @@ except ImportError:
 console = Console()
 
 # Version information
-__version__ = "1.5.7"
+__version__ = "1.5.8"
 __author__ = "Remsy Schmilinsky"
 
 # Global configuration
