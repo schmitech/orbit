@@ -104,6 +104,9 @@ class TemplateReranker:
         # Tag matching
         tags = template.get('tags', [])
         for tag in tags:
+            # Skip dictionary tags (function metadata)
+            if isinstance(tag, dict):
+                continue
             if tag.lower() in query_lower:
                 boost += 0.05
         
