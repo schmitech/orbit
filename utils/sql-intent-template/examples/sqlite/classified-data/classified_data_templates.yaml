@@ -727,6 +727,51 @@ templates:
       qualifiers: ["by_date", "recent"]
     approved: true
 
+  - id: find_access_attempts_by_date
+    version: "1.0.0"
+    description: "Find access attempts on specific date"
+    nl_examples:
+      - "Show me access attempts on 10/18/2025"
+      - "What happened on 10/18/2025?"
+      - "Any events on October 18, 2025?"
+      - "Find access attempts from 2025-10-18"
+      - "Show me what happened on 10/18/2025"
+      - "Access attempts on October 18, 2025"
+      - "What activity occurred on 10/18/2025?"
+      - "Show events from October 18, 2025"
+      - "Find audit events on 10/18/2025"
+      - "What access attempts were made on 10/18/2025?"
+      - "Display activity for October 18, 2025"
+      - "Show me the audit log for 10/18/2025"
+      - "Access events on 2025-10-18"
+      - "What happened on October 18th, 2025?"
+      - "Any activity on 10/18/2025?"
+      - "Show me events for October 18, 2025"
+      - "Find all access attempts on 10/18/2025"
+      - "What occurred on 2025-10-18?"
+      - "Audit log for October 18, 2025"
+      - "Show activity on 10/18/2025"
+    parameters:
+      - name: date
+        type: string
+        description: "Date to search for (YYYY-MM-DD format)"
+        required: true
+        aliases: ["event_date", "access_date", "day"]
+    sql_template: |
+      SELECT aa.*, ki.title as item_title, u.username
+      FROM access_audit aa
+      LEFT JOIN knowledge_item ki ON aa.item_id = ki.item_id
+      LEFT JOIN users u ON aa.user_id = u.user_id
+      WHERE date(aa.ts) = date(?)
+      ORDER BY aa.ts DESC
+    result_format: "table"
+    tags: ["access_audit", "date", "specific_date"]
+    semantic_tags:
+      action: "list"
+      primary_entity: "access_audit"
+      qualifiers: ["by_date", "specific_date"]
+    approved: true
+
   # Access Audit Queries - Query Text
   - id: find_access_attempts_by_query
     version: "1.0.0"
