@@ -18,6 +18,19 @@ Usage:
     python main.py [--config CONFIG_PATH]
 """
 
+# Suppress specific deprecation warnings BEFORE any other imports
+import warnings
+warnings.filterwarnings("ignore", message=".*__fields__.*", category=DeprecationWarning)
+warnings.filterwarnings("ignore", message=".*fix_entities.*", category=DeprecationWarning)
+warnings.filterwarnings("ignore", message=".*unescape_html.*", category=DeprecationWarning)
+warnings.filterwarnings("ignore", message=".*PydanticDeprecatedSince20.*", category=DeprecationWarning)
+
+# Import warning suppression utilities
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from utils.warning_suppression import suppress_known_warnings
+
 import os
 import argparse
 from fastapi import FastAPI

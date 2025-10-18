@@ -2,9 +2,14 @@ import ssl
 import asyncio
 import atexit
 import aiohttp
+import warnings
 from typing import Any, Optional
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
+
+# Suppress specific deprecation warnings early in the import chain
+warnings.filterwarnings("ignore", message=".*__fields__.*", category=DeprecationWarning)
+warnings.filterwarnings("ignore", message=".*fix_entities.*", category=DeprecationWarning)
 
 import uvicorn
 from fastapi import FastAPI

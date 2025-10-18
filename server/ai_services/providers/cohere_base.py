@@ -7,8 +7,13 @@ and error handling.
 """
 
 from typing import Dict, Any, Optional
-import cohere
+import warnings
 import logging
+
+# Suppress Cohere Pydantic deprecation warnings before importing cohere
+warnings.filterwarnings("ignore", message=".*__fields__.*", category=DeprecationWarning)
+
+import cohere
 
 from ..base import ProviderAIService, ServiceType
 from ..connection import ConnectionManager, RetryHandler

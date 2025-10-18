@@ -3,6 +3,11 @@ Utility functions for text processing
 """
 
 import re
+import warnings
+
+# Suppress ftfy deprecation warnings before importing ftfy
+warnings.filterwarnings("ignore", message=".*fix_entities.*", category=DeprecationWarning)
+
 try:
     import markdown
     import nh3
@@ -53,8 +58,8 @@ def normalize_text_with_libraries(text: str) -> str:
         # Step 2: Normalize whitespace and clean up
         text = ftfy.fix_text_segment(
             text,
-            # Fix spacing issues
-            fix_entities=True,
+            # Fix spacing issues (using new parameter name)
+            unescape_html=True,  # Changed from fix_entities=True
             # Remove control characters
             remove_terminal_escapes=True,
             # Normalize line breaks

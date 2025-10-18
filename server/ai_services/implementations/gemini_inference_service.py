@@ -79,7 +79,30 @@ class GeminiInferenceService(InferenceService, GoogleBaseService):
                     generation_config=generation_config
                 )
 
-            return response.text
+            # Handle different response scenarios
+            if not response.candidates:
+                raise ValueError("No candidates returned from Gemini")
+            
+            candidate = response.candidates[0]
+            
+            # Check finish reason
+            if candidate.finish_reason == 2:  # SAFETY
+                raise ValueError("Response blocked due to safety concerns")
+            elif candidate.finish_reason == 3:  # RECITATION
+                raise ValueError("Response blocked due to recitation concerns")
+            elif candidate.finish_reason == 4:  # OTHER
+                raise ValueError("Response blocked for other reasons")
+            
+            # Check if response has content
+            if not candidate.content or not candidate.content.parts:
+                raise ValueError("No content parts in response")
+            
+            # Extract text from the first part
+            first_part = candidate.content.parts[0]
+            if not hasattr(first_part, 'text') or not first_part.text:
+                raise ValueError("No text content in response part")
+            
+            return first_part.text
 
         except Exception as e:
             self._handle_google_error(e, "text generation")
@@ -116,10 +139,13 @@ class GeminiInferenceService(InferenceService, GoogleBaseService):
                     stream=True
                 )
                 for chunk in response:
-                    if chunk.text:
-                        yield chunk.text
-                        # Allow other tasks to run
-                        await asyncio.sleep(0)
+                    # Check if chunk has valid content
+                    if chunk.candidates and chunk.candidates[0].content and chunk.candidates[0].content.parts:
+                        part = chunk.candidates[0].content.parts[0]
+                        if hasattr(part, 'text') and part.text:
+                            yield part.text
+                            # Allow other tasks to run
+                            await asyncio.sleep(0)
             else:
                 # Use async streaming with gRPC
                 response = await model.generate_content_async(
@@ -128,8 +154,11 @@ class GeminiInferenceService(InferenceService, GoogleBaseService):
                     stream=True
                 )
                 async for chunk in response:
-                    if chunk.text:
-                        yield chunk.text
+                    # Check if chunk has valid content
+                    if chunk.candidates and chunk.candidates[0].content and chunk.candidates[0].content.parts:
+                        part = chunk.candidates[0].content.parts[0]
+                        if hasattr(part, 'text') and part.text:
+                            yield part.text
 
         except Exception as e:
             self._handle_google_error(e, "streaming generation")
