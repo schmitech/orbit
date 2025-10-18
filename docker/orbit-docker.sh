@@ -77,7 +77,7 @@ print_help() {
     echo "  ./orbit-docker.sh start"
     echo ""
     echo "  # Start with commercial profile"
-    echo "  ./orbit-docker.sh start --profile commercial"
+    echo "  ./orbit-docker.sh start --profile cloud"
     echo ""
     echo "  # View logs"
     echo "  ./orbit-docker.sh logs --follow"

@@ -169,7 +169,7 @@ Use the `orbit-docker.sh` helper script:
 ./orbit-docker.sh start --config configs/production.yaml
 
 # Start with different profile
-./orbit-docker.sh start --profile commercial
+./orbit-docker.sh start --profile cloud
 
 # Start on different port
 ./orbit-docker.sh start --port 8080
@@ -418,7 +418,7 @@ ANTHROPIC_API_KEY=sk-ant-...
 
 2. Use commercial profile:
 ```bash
-./docker-init.sh --build --profile commercial
+./docker-init.sh --build --profile cloud
 ```
 
 3. Update config to use commercial provider:

@@ -19,11 +19,11 @@
 #   Install specific profile:
 #     ./setup.sh --profile minimal
 #     ./setup.sh --profile torch
-#     ./setup.sh --profile commercial
+#     ./setup.sh --profile cloud
 #     ./setup.sh --profile all
 #
 #   Install multiple profiles:
-#     ./setup.sh --profile torch --profile commercial
+#     ./setup.sh --profile torch --profile cloud
 #
 #   With GGUF model:
 #     ./setup.sh --profile minimal --download-gguf gemma3-1b.gguf
@@ -374,7 +374,7 @@ while [[ $# -gt 0 ]]; do
             echo "Examples:"
             echo "  $0 --list-profiles"
             echo "  $0 --profile minimal"
-            echo "  $0 --profile torch --profile commercial"
+            echo "  $0 --profile torch --profile cloud"
             echo "  $0 --profile all --download-gguf gemma3-1b.gguf"
             echo "  $0 --download-gguf gemma3-1b.gguf  # Download only, no dependency installation"
             echo "  $0 --download-gguf tinyllama-1b.gguf --gguf-models-config ./gguf-models.json"

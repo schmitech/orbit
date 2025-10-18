@@ -39,7 +39,7 @@ The init script mirrors the Docker behaviour: it prepares config/env files, opti
 
 Use `orbit-podman.sh` for lifecycle management:
 ```bash
-./orbit-podman.sh start --profile commercial
+./orbit-podman.sh start --profile cloud
 ./orbit-podman.sh logs --follow
 ./orbit-podman.sh status
 ./orbit-podman.sh cli key list
