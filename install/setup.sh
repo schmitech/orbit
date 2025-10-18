@@ -400,6 +400,149 @@ if ! command -v python3 &> /dev/null; then
     exit 1
 fi
 
+# Function to get Python version
+get_python_version() {
+    local cmd=$1
+    if command -v "$cmd" &> /dev/null; then
+        $cmd -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}")' 2>/dev/null
+    fi
+}
+
+# Function to display interactive Python version menu
+select_python_version() {
+    echo "" >&2
+    print_message "blue" "╔════════════════════════════════════════════════════════════════════╗" >&2
+    print_message "blue" "║           Orbit Server Setup - Python Version Selector            ║" >&2
+    print_message "blue" "╚════════════════════════════════════════════════════════════════════╝" >&2
+    echo "" >&2
+
+    # Detect available Python versions
+    declare -a PYTHON_VERSIONS
+    declare -a PYTHON_COMMANDS
+    declare -a PYTHON_STATUS
+    declare -a PYTHON_EMOJI
+
+    for cmd in python3.12 python3.11 python3.10 python3.13 python3.9 python3; do
+        version=$(get_python_version "$cmd")
+        if [ -n "$version" ]; then
+            # Check if we already have this version
+            already_added=false
+            for existing in "${PYTHON_VERSIONS[@]}"; do
+                if [ "$existing" = "$version" ]; then
+                    already_added=true
+                    break
+                fi
+            done
+
+            if [ "$already_added" = false ]; then
+                PYTHON_VERSIONS+=("$version")
+                PYTHON_COMMANDS+=("$cmd")
+
+                # Determine status
+                major=$(echo "$version" | cut -d. -f1)
+                minor=$(echo "$version" | cut -d. -f2)
+
+                if [ "$major" = "3" ] && [ "$minor" = "12" ]; then
+                    PYTHON_STATUS+=("✓ Recommended")
+                    PYTHON_EMOJI+=("🟢")
+                elif [ "$major" = "3" ] && [ "$minor" = "11" ]; then
+                    PYTHON_STATUS+=("✓ Compatible")
+                    PYTHON_EMOJI+=("🟢")
+                elif [ "$major" = "3" ] && [ "$minor" -ge "13" ]; then
+                    PYTHON_STATUS+=("⚠  May have issues")
+                    PYTHON_EMOJI+=("🟡")
+                elif [ "$major" = "3" ] && [ "$minor" -ge "9" ]; then
+                    PYTHON_STATUS+=("⚠  Older version")
+                    PYTHON_EMOJI+=("🟡")
+                else
+                    PYTHON_STATUS+=("✗ Not supported")
+                    PYTHON_EMOJI+=("🔴")
+                fi
+            fi
+        fi
+    done
+
+    if [ ${#PYTHON_VERSIONS[@]} -eq 0 ]; then
+        print_message "red" "No Python installations found!" >&2
+        echo "" >&2
+        print_message "yellow" "Install Python 3.12: brew install python@3.12" >&2
+        exit 1
+    fi
+
+    # Show warning if default python3 is 3.13+
+    default_version=$(get_python_version "python3")
+    default_major=$(echo "$default_version" | cut -d. -f1)
+    default_minor=$(echo "$default_version" | cut -d. -f2)
+
+    if [ "$default_major" = "3" ] && [ "$default_minor" -ge "13" ]; then
+        print_message "yellow" "⚠  WARNING: Default python3 is version $default_version" >&2
+        print_message "yellow" "   Python 3.13+ may have compatibility issues with some packages (especially grpcio)." >&2
+        print_message "yellow" "   We recommend using Python 3.12 or 3.11 for the best experience." >&2
+        echo "" >&2
+    fi
+
+    # Display table
+    print_message "cyan" "Available Python Versions:" >&2
+    echo "────────────────────────────────────────────────────────────────────" >&2
+    printf "%-6s %-4s %-15s %-18s %-25s\n" " #" "" "Version" "Command" "Status" >&2
+    echo "────────────────────────────────────────────────────────────────────" >&2
+
+    for i in "${!PYTHON_VERSIONS[@]}"; do
+        idx=$((i + 1))
+        printf "%-6s %-4s %-15s %-18s %-25s\n" \
+            " $idx" \
+            "${PYTHON_EMOJI[$i]}" \
+            "${PYTHON_VERSIONS[$i]}" \
+            "${PYTHON_COMMANDS[$i]}" \
+            "${PYTHON_STATUS[$i]}" >&2
+    done
+
+    echo "────────────────────────────────────────────────────────────────────" >&2
+    echo "" >&2
+    echo "Legend:" >&2
+    print_message "green" "  🟢 Recommended/Compatible - Fully tested and supported" >&2
+    print_message "yellow" "  🟡 May have issues - Might require building packages from source" >&2
+    print_message "red" "  🔴 Not supported - Not recommended for use" >&2
+    echo "" >&2
+
+    # Prompt for selection
+    while true; do
+        read -p "Select Python version [1-${#PYTHON_VERSIONS[@]}] (default: 1): " choice </dev/tty
+        choice=${choice:-1}
+
+        if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 1 ] && [ "$choice" -le "${#PYTHON_VERSIONS[@]}" ]; then
+            idx=$((choice - 1))
+            selected_cmd="${PYTHON_COMMANDS[$idx]}"
+            selected_version="${PYTHON_VERSIONS[$idx]}"
+            selected_status="${PYTHON_STATUS[$idx]}"
+
+            # Confirm if selecting a problematic version
+            if [[ "$selected_status" == *"issues"* ]] || [[ "$selected_status" == *"Not supported"* ]]; then
+                echo "" >&2
+                print_message "yellow" "⚠  You selected Python $selected_version which ${selected_status,,}." >&2
+                read -p "   Are you sure you want to continue? [y/N]: " confirm </dev/tty
+                if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+                    echo "" >&2
+                    continue
+                fi
+            fi
+
+            echo "" >&2
+            print_message "green" "✓ Selected: Python $selected_version ($selected_cmd)" >&2
+            echo "" >&2
+
+            echo "$selected_cmd"
+            return 0
+        else
+            print_message "red" "Invalid selection. Please try again." >&2
+        fi
+    done
+}
+
+# Interactive Python version selection
+PYTHON_CMD=$(select_python_version)
+PYTHON_VERSION=$(get_python_version "$PYTHON_CMD")
+
 # If list profiles is requested, show them and exit
 if [ "$LIST_PROFILES" = true ]; then
     print_message "blue" "Available dependency profiles:"
@@ -413,8 +556,8 @@ if [ ${#PROFILES[@]} -eq 0 ] && [ "$DOWNLOAD_GGUF" = true ]; then
     
     # Create virtual environment if it doesn't exist (needed for download script)
     if [ ! -d "venv" ]; then
-        print_message "yellow" "Creating Python virtual environment for download script..."
-        if ! python3 -m venv venv; then
+        print_message "yellow" "Creating Python virtual environment for download script with $PYTHON_CMD..."
+        if ! $PYTHON_CMD -m venv venv; then
             print_message "red" "Error: Failed to create virtual environment."
             exit 1
         fi
@@ -459,8 +602,8 @@ fi
 
 # Create virtual environment if it doesn't exist
 if [ ! -d "venv" ]; then
-    print_message "yellow" "Creating Python virtual environment..."
-    if ! python3 -m venv venv; then
+    print_message "yellow" "Creating Python virtual environment with $PYTHON_CMD..."
+    if ! $PYTHON_CMD -m venv venv; then
         print_message "red" "Error: Failed to create virtual environment."
         exit 1
     fi

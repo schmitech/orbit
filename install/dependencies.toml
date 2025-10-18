@@ -57,7 +57,8 @@ dependencies = [
     "weaviate-client==4.17.0",
     "pymilvus==2.4.4",
     "marqo==3.18.0",
-    "pgvector==0.4.1"
+    "pgvector==0.4.1",
+    "opentelemetry-proto==1.27.0"
 ]
 
 [profiles.torch]
