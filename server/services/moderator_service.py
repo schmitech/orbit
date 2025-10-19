@@ -59,7 +59,8 @@ class ModeratorService:
             logger.info("No moderator specified in safety config, will use inference provider")
 
         # Ensure all AI services are registered
-        register_all_services()
+        # Note: If already registered by ServiceFactory, this will be a no-op
+        register_all_services(config)
 
         # Check available moderation services from new factory
         available_services = AIServiceFactory.list_available_services()

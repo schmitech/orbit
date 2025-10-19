@@ -19,6 +19,10 @@
     "mistral-7b": {
       "repo_id": "TheBloke/Mistral-7B-Instruct-v0.1-GGUF",
       "filename": "mistral-7b-instruct-v0.1.Q4_0.gguf"
+    },
+    "granite4-micro": {
+      "repo_id": "ibm-granite/granite-4.0-micro-GGUF",
+      "filename": "granite-4.0-micro-Q4_0.gguf"
     }
   }
 } 

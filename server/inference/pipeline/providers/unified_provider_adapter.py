@@ -34,7 +34,8 @@ class UnifiedProviderAdapter(LLMProvider):
         self.service: Optional[AIService] = None
 
         # Ensure all services are registered
-        register_all_services()
+        # Note: If already registered by ServiceFactory, this will be a no-op
+        register_all_services(config)
 
     async def initialize(self, clock_service: Optional[Any] = None) -> None:
         """Initialize the underlying AI service."""

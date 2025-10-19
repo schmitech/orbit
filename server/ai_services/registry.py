@@ -61,29 +61,25 @@ def register_embedding_services() -> None:
             )
 
 
-def register_inference_services() -> None:
+def register_inference_services(config: Dict[str, Any] = None) -> None:
     """
     Register all inference service implementations with the factory.
 
     This makes them available for creation via AIServiceFactory.create_service()
     Services with missing dependencies are skipped with a warning.
 
-    Currently includes:
-    - OpenAI, Anthropic, Ollama (Phase 3 Week 1)
-    - Groq, Mistral, DeepSeek, Fireworks, Perplexity,
-      Together, OpenRouter, xAI (Phase 3 Extended - OpenAI-compatible)
-    - AWS Bedrock, Azure OpenAI, Vertex AI, Gemini (Phase 3 Extended - Cloud)
-    - Cohere, NVIDIA, Replicate, Watson, vLLM, Llama.cpp, Hugging Face,
-      Ollama Cloud (Phase 3 Extended - Custom/Local)
+    If config is provided, only services marked as enabled in the inference config
+    will be registered, reducing memory usage.
+
+    Args:
+        config: Optional configuration dictionary. If provided, only enabled providers
+                will be registered based on config['inference'][provider]['enabled']
     """
     # Define all services to register with their import paths
     services = [
-        # Core inference services (Phase 3 Week 1)
         ("openai", "OpenAIInferenceService", "OpenAI"),
         ("anthropic", "AnthropicInferenceService", "Anthropic"),
         ("ollama", "OllamaInferenceService", "Ollama"),
-
-        # OpenAI-compatible inference services (Phase 3 Extended)
         ("groq", "GroqInferenceService", "Groq"),
         ("mistral", "MistralInferenceService", "Mistral"),
         ("deepseek", "DeepSeekInferenceService", "DeepSeek"),
@@ -92,14 +88,10 @@ def register_inference_services() -> None:
         ("together", "TogetherInferenceService", "Together"),
         ("openrouter", "OpenRouterInferenceService", "OpenRouter"),
         ("xai", "XAIInferenceService", "xAI (Grok)"),
-
-        # Cloud provider inference services (Phase 3 Extended - Cloud Providers)
         ("aws", "AWSBedrockInferenceService", "AWS Bedrock"),
         ("azure", "AzureOpenAIInferenceService", "Azure OpenAI"),
         ("vertexai", "VertexAIInferenceService", "Vertex AI"),
         ("gemini", "GeminiInferenceService", "Gemini"),
-
-        # Custom/Local inference services (Phase 3 Extended - Final 8 providers)
         ("cohere", "CohereInferenceService", "Cohere"),
         ("nvidia", "NVIDIAInferenceService", "NVIDIA NIM"),
         ("replicate", "ReplicateInferenceService", "Replicate"),
@@ -112,7 +104,19 @@ def register_inference_services() -> None:
         ("zai", "ZaiInferenceService", "Z.AI"),
     ]
 
+    # Get inference config if available
+    inference_config = config.get('inference', {}) if config else {}
+
     for provider_key, class_name, display_name in services:
+        # Check if provider is enabled in config (if config is provided)
+        if config:
+            provider_config = inference_config.get(provider_key, {})
+            is_enabled = provider_config.get('enabled', False)
+
+            if not is_enabled:
+                logger.debug(f"Skipping {display_name} inference service - disabled in config")
+                continue
+
         try:
             # Lazy import - only import what we can
             module = __import__('ai_services.implementations', fromlist=[class_name])
@@ -192,16 +196,20 @@ def register_reranking_services() -> None:
             )
 
 
-def register_all_services() -> None:
+def register_all_services(config: Dict[str, Any] = None) -> None:
     """
     Register all available service implementations.
 
     Call this function at application startup to make all migrated
     services available via the AIServiceFactory.
 
+    Args:
+        config: Optional configuration dictionary. If provided, only enabled
+                inference providers will be registered to save memory.
+
     Example:
         >>> from ai_services.registry import register_all_services
-        >>> register_all_services()
+        >>> register_all_services(config)
         >>> # Now services can be created via factory
         >>> service = AIServiceFactory.create_service(
         ...     ServiceType.EMBEDDING,
@@ -222,7 +230,7 @@ def register_all_services() -> None:
         logger.info("Registering all AI services...")
 
         register_embedding_services()
-        register_inference_services()
+        register_inference_services(config)
         register_moderation_services()
         register_reranking_services()
 

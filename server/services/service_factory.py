@@ -13,9 +13,7 @@ from fastapi import FastAPI
 from utils import is_true_value
 from services.auth_service import AuthService
 
-# Register all AI services on module import
 from ai_services.registry import register_all_services
-register_all_services()
 
 
 class ServiceFactory:
@@ -33,7 +31,7 @@ class ServiceFactory:
     def __init__(self, config: Dict[str, Any], logger: logging.Logger):
         """
         Initialize the ServiceFactory.
-        
+
         Args:
             config: The application configuration dictionary
             logger: Logger instance for service initialization logging
@@ -43,10 +41,13 @@ class ServiceFactory:
         self.inference_only = is_true_value(config.get('general', {}).get('inference_only', False))
         self.chat_history_enabled = is_true_value(config.get('chat_history', {}).get('enabled', False))
         self.verbose = is_true_value(config.get('general', {}).get('verbose', False))
-        
+
         # Fault tolerance is always enabled as core functionality
         self.fault_tolerance_enabled = True
-        
+
+        # Register AI services with config to enable selective loading
+        register_all_services(config)
+
         # Log the mode detection for debugging (only when verbose)
         if self.verbose:
             self.logger.info(f"ServiceFactory initialized - inference_only={self.inference_only}, chat_history_enabled={self.chat_history_enabled}")

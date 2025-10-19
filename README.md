@@ -79,7 +79,7 @@ cd orbit-1.5.8
 
 # Bootstrap dependencies and download a small model
 cp env.example .env
-./install/setup.sh --profile minimal --download-gguf gemma3-270m
+./install/setup.sh --profile minimal --download-gguf granite4-micro
 
 # Start the ORBIT server
 source venv/bin/activate
