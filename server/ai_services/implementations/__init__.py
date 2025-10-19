@@ -39,6 +39,7 @@ Available Inference Services:
     - LlamaCppInferenceService: Llama.cpp inference (migrated)
     - HuggingFaceInferenceService: Hugging Face inference (migrated)
     - OllamaCloudInferenceService: Ollama Cloud inference (migrated)
+    - ZaiInferenceService: Z.AI inference (new)
 
 Available Moderation Services:
     - OpenAIModerationService: OpenAI moderation (migrated)
@@ -93,6 +94,7 @@ _implementations = [
     ('huggingface_inference_service', 'HuggingFaceInferenceService'),
     ('ollama_cloud_inference_service', 'OllamaCloudInferenceService'),
     ('bitnet_inference_service', 'BitNetInferenceService'),
+    ('zai_inference_service', 'ZaiInferenceService'),
 
     # Moderation Services
     ('openai_moderation_service', 'OpenAIModerationService'),
@@ -129,6 +131,7 @@ _required_packages = {
     'ReplicateInferenceService': 'replicate',
     'WatsonInferenceService': 'ibm_watsonx_ai',
     'HuggingFaceInferenceService': 'transformers',
+    'ZaiInferenceService': 'zai',
 
     # Commercial OpenAI-compatible services (require API keys from commercial providers)
     'FireworksInferenceService': 'anthropic',  # Dummy check - commercial service

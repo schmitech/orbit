@@ -78,7 +78,7 @@ tar -xzf orbit-1.5.8.tar.gz
 cd orbit-1.5.8
 
 # Bootstrap dependencies and download a small model
-cp .env.example .env
+cp env.example .env
 ./install/setup.sh --profile minimal --download-gguf gemma3-270m
 
 # Start the ORBIT server

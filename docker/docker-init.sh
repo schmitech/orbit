@@ -192,8 +192,8 @@ fi
 # Check for .env file in parent directory
 if [ ! -f ".env" ]; then
     echo -e "${YELLOW}⚠️  .env file not found. Creating...${NC}"
-    if [ -f "../.env.example" ]; then
-        cp ../.env.example .env
+    if [ -f "../env.example" ]; then
+        cp ../env.example .env
         
         # Substitute Docker service hostnames for containerized environment
         echo -e "${YELLOW}🔧 Configuring .env for Docker environment...${NC}"
@@ -203,8 +203,8 @@ if [ ! -f ".env" ]; then
         echo -e "${GREEN}✅ Created .env with Docker-specific configuration${NC}"
         echo -e "${BLUE}ℹ️  You may want to review and customize other environment variables in .env${NC}"
     else
-        echo -e "${RED}❌ .env.example not found${NC}"
-        echo -e "${YELLOW}ℹ️  Please ensure .env.example exists in the parent directory${NC}"
+        echo -e "${RED}❌ env.example not found${NC}"
+        echo -e "${YELLOW}ℹ️  Please ensure env.example exists in the parent directory${NC}"
         exit 1
     fi
 fi

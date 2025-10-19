@@ -10,7 +10,7 @@ npm install
 ```
 
 2. Configure environment variables:
-   - Copy `.env.example` to `.env`
+   - Copy `env.example` to `.env`
    - Update the values in `.env`:
      - `VITE_API_URL`: Your chatbot API endpoint URL
      - `VITE_API_KEY`: Your API authentication key

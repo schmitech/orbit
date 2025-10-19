@@ -158,13 +158,13 @@ fi
 
 if [ ! -f ".env" ]; then
     echo -e "${YELLOW}⚠️  .env file not found. Creating...${NC}"
-    if [ -f "../.env.example" ]; then
-        cp ../.env.example .env
+    if [ -f "../env.example" ]; then
+        cp ../env.example .env
         sed_inplace 's/INTERNAL_SERVICES_MONGODB_HOST=.*/INTERNAL_SERVICES_MONGODB_HOST=mongodb/' .env
         sed_inplace 's/INTERNAL_SERVICES_REDIS_HOST=.*/INTERNAL_SERVICES_REDIS_HOST=redis/' .env
         echo -e "${GREEN}✅ Created .env with Podman-specific networking${NC}"
     else
-        echo -e "${RED}❌ .env.example not found in parent directory${NC}"
+        echo -e "${RED}❌ env.example not found in parent directory${NC}"
         exit 1
     fi
 fi

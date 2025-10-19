@@ -163,7 +163,7 @@ fi
 # Check env file
 if [ ! -f "$ENV_FILE" ]; then
     echo -e "${RED}❌ Environment file not found: $ENV_FILE${NC}"
-    echo -e "${YELLOW}Create one with: cp .env.example .env${NC}"
+    echo -e "${YELLOW}Create one with: cp env.example .env${NC}"
     exit 1
 fi
 

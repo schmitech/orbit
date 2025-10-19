@@ -581,8 +581,8 @@ if [ ${#PROFILES[@]} -eq 0 ] && [ "$DOWNLOAD_GGUF" = true ]; then
     fi
     
     # Handle .env files in server directory
-    if [ -f "server/.env.example" ] && [ ! -f "server/.env" ]; then
-        cp server/.env.example server/.env
+    if [ -f "server/env.example" ] && [ ! -f "server/.env" ]; then
+        cp server/env.example server/.env
         print_message "green" "Created .env from template in server directory."
     fi
     
@@ -661,8 +661,8 @@ if [ "$DOWNLOAD_GGUF" = true ]; then
 fi
 
 # Handle .env files in server directory
-if [ -f "server/.env.example" ] && [ ! -f "server/.env" ]; then
-    cp server/.env.example server/.env
+if [ -f "server/env.example" ] && [ ! -f "server/.env" ]; then
+    cp server/env.example server/.env
     print_message "green" "Created .env from template in server directory."
 fi
 

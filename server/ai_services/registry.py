@@ -109,6 +109,7 @@ def register_inference_services() -> None:
         ("huggingface", "HuggingFaceInferenceService", "Hugging Face"),
         ("ollama_cloud", "OllamaCloudInferenceService", "Ollama Cloud"),
         ("bitnet", "BitNetInferenceService", "BitNet (1.58-bit)"),
+        ("zai", "ZaiInferenceService", "Z.AI"),
     ]
 
     for provider_key, class_name, display_name in services:

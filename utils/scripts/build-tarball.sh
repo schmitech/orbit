@@ -213,13 +213,13 @@ else
     echo "⚠️ Warning: Utils directory not found in build"
 fi
 
-# Create .env.example file
-echo "Creating .env.example..."
-if [ -f ".env.example" ]; then
-    cp .env.example dist/build/${PACKAGE_NAME}/.env.example
+# Create env.example file
+echo "Creating env.example..."
+if [ -f "env.example" ]; then
+    cp env.example dist/build/${PACKAGE_NAME}/env.example
 else
-    echo "Warning: .env.example not found, creating empty .env.example..."
-    touch dist/build/${PACKAGE_NAME}/.env.example
+    echo "Warning: env.example not found, creating empty env.example..."
+    touch dist/build/${PACKAGE_NAME}/env.example
 fi
 
 # Create metadata file

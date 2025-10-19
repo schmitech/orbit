@@ -46,7 +46,7 @@ chmod +x docker-init.sh orbit-docker.sh
 ### 3. Create Environment File
 
 ```bash
-cp .env.example .env
+cp env.example .env
 ```
 
 Edit `.env` to configure for Docker and add your API keys:

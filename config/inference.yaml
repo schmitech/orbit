@@ -109,7 +109,7 @@ inference:
     ]
   gemini:
     api_key: ${GOOGLE_API_KEY}
-    model: "gemini-2.0-flash"
+    model: "gemini-2.5-flash"
     temperature: 0.1
     top_p: 0.8
     top_k: 20
@@ -321,6 +321,25 @@ inference:
       connect: 10000   # 10 seconds
       total: 120000    # 2 minutes
     
+    # Retry configuration
+    retry:
+      enabled: true
+      max_retries: 3
+      initial_wait_ms: 1000
+      max_wait_ms: 30000
+      exponential_base: 2
+  zai:
+    api_key: ${ZAI_API_KEY}
+    base_url: "https://api.z.ai/api/paas/v4/"
+    model: "glm-4.6"
+    temperature: 0.1
+    top_p: 0.8
+    max_tokens: 2000
+    stream: true
+    # Timeout configuration
+    timeout:
+      connect: 10000   # 10 seconds
+      total: 120000    # 2 minutes
     # Retry configuration
     retry:
       enabled: true
