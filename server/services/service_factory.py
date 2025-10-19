@@ -267,8 +267,46 @@ class ServiceFactory:
             clock_service=clock_service
         )
         # Initialize the pipeline provider
-        await app.state.chat_service.initialize()
-        self.logger.info("Initialized pipeline-based chat service")
+        try:
+            await app.state.chat_service.initialize()
+            self.logger.info("Initialized pipeline-based chat service")
+        except ValueError as e:
+            if "No service registered for inference with provider" in str(e):
+                # Extract available providers from the error message
+                error_msg = str(e)
+
+                # Get the configured provider
+                configured_provider = self.config.get('general', {}).get('inference_provider', 'unknown')
+
+                self.logger.warning("=" * 80)
+                self.logger.warning("CONFIGURATION WARNING: Main inference provider not available")
+                self.logger.warning("=" * 80)
+                self.logger.warning(f"The default inference provider '{configured_provider}' is not registered.")
+                self.logger.warning(f"This is likely because the provider is disabled in config/inference.yaml.")
+                self.logger.warning("")
+                self.logger.warning("The server will continue to start, but:")
+                self.logger.warning(f"  - Adapters WITHOUT their own inference_provider override will NOT work")
+                self.logger.warning(f"  - Adapters WITH their own inference_provider override WILL work normally")
+                self.logger.warning("")
+                self.logger.warning("To fix this warning:")
+                self.logger.warning(f"  1. Enable '{configured_provider}' in config/inference.yaml by setting 'enabled: true'")
+                self.logger.warning(f"  2. Change 'inference_provider' in config/config.yaml to an enabled provider")
+                self.logger.warning("")
+
+                # Try to extract available providers from error message
+                if "Available services:" in error_msg:
+                    available_inference = error_msg.split("'inference': [")[1].split("]")[0] if "'inference': [" in error_msg else "unknown"
+                    self.logger.warning(f"Available inference providers: [{available_inference}]")
+
+                self.logger.warning("=" * 80)
+
+                # Mark chat service as initialized but without default provider
+                app.state.chat_service._pipeline_initialized = True
+                app.state.chat_service._default_provider_available = False
+                self.logger.warning("Chat service initialized WITHOUT default provider - only adapter overrides will work")
+            else:
+                # Re-raise other ValueError exceptions
+                raise
         
         # Initialize Health Service
         from services.health_service import HealthService

@@ -90,7 +90,8 @@ class PipelineChatService:
         
         # Store pipeline reference for async initialization
         self._pipeline_initialized = False
-        
+        self._default_provider_available = True  # Assume available unless initialization fails
+
         # Thread-safe queue for streaming responses
         self._stream_queues = {}
         self._stream_locks = {}

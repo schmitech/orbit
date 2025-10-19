@@ -147,13 +147,13 @@ class DynamicAdapterManager:
         try:
             # Load the adapter
             adapter = await self._load_adapter(adapter_name)
-            
+
             # Cache the adapter
             with self._cache_lock:
                 self._adapter_cache[adapter_name] = adapter
                 # Create a lock for this adapter for future thread-safe operations
                 self._adapter_locks[adapter_name] = threading.Lock()
-            
+
             # Log adapter configuration details
             adapter_config = self._adapter_configs.get(adapter_name, {})
             inference_provider = adapter_config.get('inference_provider') or self.config.get('general', {}).get('inference_provider', 'default')
@@ -198,7 +198,37 @@ class DynamicAdapterManager:
 
             self.logger.info(f"{log_parts[0]} ({', '.join(log_parts[1:])})")
             return adapter
-            
+
+        except ValueError as e:
+            # Check if this is a "No service registered" error for a disabled provider
+            if "No service registered for inference with provider" in str(e):
+                adapter_config = self._adapter_configs.get(adapter_name, {})
+                inference_provider = adapter_config.get('inference_provider') or self.config.get('general', {}).get('inference_provider', 'unknown')
+
+                self.logger.warning("=" * 80)
+                self.logger.warning(f"SKIPPING ADAPTER '{adapter_name}': Inference provider not available")
+                self.logger.warning("=" * 80)
+                self.logger.warning(f"The adapter '{adapter_name}' specifies inference provider '{inference_provider}'")
+                self.logger.warning(f"which is not registered (likely disabled in config/inference.yaml).")
+                self.logger.warning("")
+                self.logger.warning("To fix this:")
+                self.logger.warning(f"  1. Enable '{inference_provider}' in config/inference.yaml, OR")
+                self.logger.warning(f"  2. Change the adapter's inference_provider in config/adapters.yaml, OR")
+                self.logger.warning(f"  3. Disable this adapter by setting 'enabled: false' in config/adapters.yaml")
+                self.logger.warning("")
+                self.logger.warning(f"The adapter '{adapter_name}' will NOT be available.")
+                self.logger.warning("=" * 80)
+
+                # Don't cache this adapter but don't crash the server
+                # The adapter simply won't be available for use
+                # Re-raise so caller knows this adapter is not available, but they can handle it
+                raise ValueError(f"Adapter '{adapter_name}' cannot be loaded: provider '{inference_provider}' is disabled") from e
+
+            else:
+                # Re-raise other ValueError exceptions
+                self.logger.error(f"Failed to load adapter {adapter_name}: {str(e)}")
+                raise
+
         except Exception as e:
             self.logger.error(f"Failed to load adapter {adapter_name}: {str(e)}")
             raise
@@ -634,11 +664,22 @@ class DynamicAdapterManager:
                     self.get_adapter(adapter_name),
                     timeout=timeout_per_adapter
                 )
-                
+
                 # Determine the inference provider and model for logging
                 adapter_config = self.get_adapter_config(adapter_name) or {}
                 inference_provider = adapter_config.get('inference_provider') or self.config.get('general', {}).get('inference_provider', 'default')
                 model_override = adapter_config.get('model')
+
+                # Also preload the inference provider to catch disabled provider errors early
+                try:
+                    await self.get_overridden_provider(inference_provider, adapter_name)
+                    self.logger.debug(f"Successfully preloaded inference provider '{inference_provider}' for adapter '{adapter_name}'")
+                except ValueError as provider_error:
+                    if "No service registered for inference with provider" in str(provider_error):
+                        # This is a disabled provider error
+                        raise ValueError(f"Adapter '{adapter_name}' uses disabled inference provider '{inference_provider}'") from provider_error
+                    else:
+                        raise
 
                 # Get embedding configuration
                 embedding_provider = adapter_config.get('embedding_provider') or self.config.get('embedding', {}).get('provider', 'ollama')
@@ -686,6 +727,22 @@ class DynamicAdapterManager:
                     "success": False,
                     "error": f"Timeout after {timeout_per_adapter}s"
                 }
+            except ValueError as e:
+                # Check if this is a disabled provider error
+                if "No service registered for inference with provider" in str(e):
+                    adapter_config = self.get_adapter_config(adapter_name) or {}
+                    inference_provider = adapter_config.get('inference_provider') or self.config.get('general', {}).get('inference_provider', 'unknown')
+                    return {
+                        "adapter_name": adapter_name,
+                        "success": False,
+                        "error": f"Inference provider '{inference_provider}' is disabled (enable in config/inference.yaml)"
+                    }
+                else:
+                    return {
+                        "adapter_name": adapter_name,
+                        "success": False,
+                        "error": str(e)
+                    }
             except Exception as e:
                 return {
                     "adapter_name": adapter_name,

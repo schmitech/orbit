@@ -112,14 +112,35 @@ class PipelineFactory:
     async def initialize_provider(self, container: ServiceContainer) -> None:
         """
         Initialize the LLM provider in the service container.
-        
+
         Args:
             container: The service container with the provider
+
+        Raises:
+            ValueError: If the provider is not registered (e.g., disabled in config)
+                       This error is raised up to be caught by the caller
         """
         llm_provider = container.get('llm_provider')
         if llm_provider:
-            await llm_provider.initialize()
-            self.logger.info("LLM provider initialized")
+            try:
+                await llm_provider.initialize()
+                self.logger.info("LLM provider initialized")
+            except ValueError as e:
+                # Check if this is a "No service registered" error
+                if "No service registered for inference with provider" in str(e):
+                    # Extract provider name from error message
+                    error_msg = str(e)
+                    provider_name = error_msg.split("provider ")[1].split(".")[0] if "provider " in error_msg else "unknown"
+
+                    self.logger.warning(
+                        f"LLM provider '{provider_name}' is not available (likely disabled in config/inference.yaml). "
+                        f"Server will continue but this provider cannot be used."
+                    )
+                    # Re-raise to let the service factory handle it gracefully
+                    raise
+                else:
+                    # Re-raise other ValueError exceptions
+                    raise
     
     def create_pipeline(
         self,
