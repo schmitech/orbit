@@ -60,7 +60,7 @@ class CohereInferenceService(InferenceService, CohereBaseService):
                 temperature=kwargs.get('temperature', self.temperature),
                 max_tokens=kwargs.get('max_tokens', self.max_tokens),
                 p=kwargs.get('top_p', self.top_p),
-                **{k: v for k, v in kwargs.items() if k not in ['temperature', 'max_tokens', 'top_p']}
+                **{k: v for k, v in kwargs.items() if k not in ['temperature', 'max_tokens', 'top_p', 'messages']}
             )
 
             return response.text
@@ -81,7 +81,7 @@ class CohereInferenceService(InferenceService, CohereBaseService):
                 temperature=kwargs.get('temperature', self.temperature),
                 max_tokens=kwargs.get('max_tokens', self.max_tokens),
                 p=kwargs.get('top_p', self.top_p),
-                **{k: v for k, v in kwargs.items() if k not in ['temperature', 'max_tokens', 'top_p', 'stream']}
+                **{k: v for k, v in kwargs.items() if k not in ['temperature', 'max_tokens', 'top_p', 'stream', 'messages']}
             )
 
             async for chunk in stream:
