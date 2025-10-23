@@ -7,9 +7,11 @@ from typing import Any, Optional
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 
-# Suppress specific deprecation warnings early in the import chain
-warnings.filterwarnings("ignore", message=".*__fields__.*", category=DeprecationWarning)
-warnings.filterwarnings("ignore", message=".*fix_entities.*", category=DeprecationWarning)
+# Import warning suppression utilities early
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from utils.warning_suppression import suppress_known_warnings
 
 import uvicorn
 from fastapi import FastAPI

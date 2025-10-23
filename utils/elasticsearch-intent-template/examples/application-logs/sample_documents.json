@@ -1,0 +1,257 @@
+{
+  "description": "Sample Elasticsearch documents for application logs",
+  "index_pattern": "logs-app-*",
+  "documents": [
+    {
+      "_index": "logs-app-demo",
+      "_id": "1",
+      "_source": {
+        "timestamp": "2025-01-16T14:23:45.123Z",
+        "level": "ERROR",
+        "message": "Failed to process payment: Database connection timeout after 30000ms",
+        "logger": "payment-service.TransactionLogger",
+        "service_name": "payment-service",
+        "environment": "production",
+        "host": "payment-service-3.production.local",
+        "request_id": "req-a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+        "user_id": "user-12345678",
+        "response_time": 30500,
+        "status_code": 500,
+        "endpoint": "/api/v1/payments",
+        "exception": {
+          "type": "TimeoutError",
+          "message": "TimeoutError: Connection timeout after 30s",
+          "stacktrace": "  File \"payment-service/transaction.py\", line 145, in processPayment\n    TransactionHandler.processPayment()\n  File \"payment-service/database.py\", line 89, in executeQuery\n    DatabaseHandler.executeQuery()\n  File \"payment-service/connection.py\", line 234, in connect\n    ConnectionPool.getConnection()\n  File \"payment-service/pool.py\", line 67, in getConnection\n    PoolManager.getConnection()"
+        }
+      }
+    },
+    {
+      "_index": "logs-app-demo",
+      "_id": "2",
+      "_source": {
+        "timestamp": "2025-01-16T14:24:12.456Z",
+        "level": "WARN",
+        "message": "Slow query detected: SELECT * FROM orders WHERE user_id = 'user-12345678' took 2547ms",
+        "logger": "order-service.QueryLogger",
+        "service_name": "order-service",
+        "environment": "production",
+        "host": "order-service-7.production.local",
+        "request_id": "req-b2c3d4e5-f6a7-8901-bcde-f12345678901",
+        "user_id": "user-12345678",
+        "response_time": 2547,
+        "status_code": 200,
+        "endpoint": "/api/v1/orders"
+      }
+    },
+    {
+      "_index": "logs-app-demo",
+      "_id": "3",
+      "_source": {
+        "timestamp": "2025-01-16T14:24:18.789Z",
+        "level": "INFO",
+        "message": "Order ORD-abc12345 created successfully",
+        "logger": "order-service.OrderLogger",
+        "service_name": "order-service",
+        "environment": "production",
+        "host": "order-service-7.production.local",
+        "request_id": "req-c3d4e5f6-a7b8-9012-cdef-123456789012",
+        "user_id": "user-87654321",
+        "response_time": 145,
+        "status_code": 201,
+        "endpoint": "/api/v1/orders"
+      }
+    },
+    {
+      "_index": "logs-app-demo",
+      "_id": "4",
+      "_source": {
+        "timestamp": "2025-01-16T14:25:03.234Z",
+        "level": "ERROR",
+        "message": "Authentication failed for user user-99887766",
+        "logger": "auth-service.AuthLogger",
+        "service_name": "auth-service",
+        "environment": "production",
+        "host": "auth-service-2.production.local",
+        "request_id": "req-d4e5f6a7-b8c9-0123-def0-234567890123",
+        "user_id": "user-99887766",
+        "response_time": 523,
+        "status_code": 401,
+        "endpoint": "/api/v1/auth/login",
+        "exception": {
+          "type": "AuthenticationError",
+          "message": "AuthenticationError: Invalid credentials",
+          "stacktrace": "  File \"auth-service/authentication.py\", line 78, in authenticate\n    AuthHandler.authenticate()\n  File \"auth-service/validator.py\", line 123, in validateCredentials\n    CredentialValidator.validateCredentials()\n  File \"auth-service/password.py\", line 45, in checkPassword\n    PasswordChecker.checkPassword()"
+        }
+      }
+    },
+    {
+      "_index": "logs-app-demo",
+      "_id": "5",
+      "_source": {
+        "timestamp": "2025-01-16T14:25:15.567Z",
+        "level": "INFO",
+        "message": "User user-11223344 logged in from 192.168.1.100",
+        "logger": "auth-service.SessionLogger",
+        "service_name": "auth-service",
+        "environment": "production",
+        "host": "auth-service-1.production.local",
+        "request_id": "req-e5f6a7b8-c9d0-1234-ef01-345678901234",
+        "user_id": "user-11223344",
+        "response_time": 87,
+        "status_code": 200,
+        "endpoint": "/api/v1/auth/login"
+      }
+    },
+    {
+      "_index": "logs-app-demo",
+      "_id": "6",
+      "_source": {
+        "timestamp": "2025-01-16T14:26:45.890Z",
+        "level": "DEBUG",
+        "message": "Cache hit for key: user_profile_user-11223344",
+        "logger": "user-service.CacheLogger",
+        "service_name": "user-service",
+        "environment": "production",
+        "host": "user-service-5.production.local",
+        "request_id": "req-f6a7b8c9-d0e1-2345-f012-456789012345"
+      }
+    },
+    {
+      "_index": "logs-app-demo",
+      "_id": "7",
+      "_source": {
+        "timestamp": "2025-01-16T14:27:30.123Z",
+        "level": "WARN",
+        "message": "High memory usage: 87%",
+        "logger": "inventory-service.MetricsLogger",
+        "service_name": "inventory-service",
+        "environment": "production",
+        "host": "inventory-service-4.production.local",
+        "request_id": "req-a7b8c9d0-e1f2-3456-0123-567890123456"
+      }
+    },
+    {
+      "_index": "logs-app-demo",
+      "_id": "8",
+      "_source": {
+        "timestamp": "2025-01-16T14:28:12.456Z",
+        "level": "ERROR",
+        "message": "Failed to send notification: API call to notification-service timed out after 5000ms",
+        "logger": "notification-service.AlertLogger",
+        "service_name": "notification-service",
+        "environment": "production",
+        "host": "notification-service-2.production.local",
+        "request_id": "req-b8c9d0e1-f2a3-4567-1234-678901234567",
+        "user_id": "user-55667788",
+        "response_time": 5234,
+        "status_code": 504,
+        "endpoint": "/api/v1/notifications",
+        "exception": {
+          "type": "TimeoutError",
+          "message": "TimeoutError: Request timeout",
+          "stacktrace": "  File \"notification-service/sender.py\", line 234, in sendNotification\n    NotificationHandler.sendNotification()\n  File \"notification-service/http.py\", line 89, in postRequest\n    HttpClient.postRequest()\n  File \"notification-service/client.py\", line 156, in send\n    RequestManager.send()"
+        }
+      }
+    },
+    {
+      "_index": "logs-app-demo",
+      "_id": "9",
+      "_source": {
+        "timestamp": "2025-01-15T10:15:30.789Z",
+        "level": "INFO",
+        "message": "Payment of $299.99 processed for order ORD-xyz98765",
+        "logger": "payment-service.TransactionLogger",
+        "service_name": "payment-service",
+        "environment": "production",
+        "host": "payment-service-1.production.local",
+        "request_id": "req-c9d0e1f2-a3b4-5678-2345-789012345678",
+        "user_id": "user-44332211",
+        "response_time": 876,
+        "status_code": 200,
+        "endpoint": "/api/v1/payments"
+      }
+    },
+    {
+      "_index": "logs-app-demo",
+      "_id": "10",
+      "_source": {
+        "timestamp": "2025-01-14T16:42:55.012Z",
+        "level": "ERROR",
+        "message": "Rate limit exceeded for user user-77665544",
+        "logger": "api-gateway.RateLimitLogger",
+        "service_name": "api-gateway",
+        "environment": "production",
+        "host": "api-gateway-6.production.local",
+        "request_id": "req-d0e1f2a3-b4c5-6789-3456-890123456789",
+        "user_id": "user-77665544",
+        "response_time": 12,
+        "status_code": 429,
+        "endpoint": "/api/v1/search",
+        "exception": {
+          "type": "RateLimitError",
+          "message": "RateLimitError: Rate limit exceeded (100 requests/minute)",
+          "stacktrace": "  File \"api-gateway/middleware.py\", line 67, in checkRateLimit\n    RateLimitHandler.checkRateLimit()\n  File \"api-gateway/limiter.py\", line 123, in isAllowed\n    RateLimiter.isAllowed()\n  File \"api-gateway/counter.py\", line 89, in incrementCounter\n    Counter.incrementCounter()"
+        }
+      }
+    },
+    {
+      "_index": "logs-app-demo",
+      "_id": "11",
+      "_source": {
+        "timestamp": "2025-01-16T14:30:00.345Z",
+        "level": "INFO",
+        "message": "Scheduled job sync_job completed",
+        "logger": "data-pipeline.JobLogger",
+        "service_name": "data-pipeline",
+        "environment": "production",
+        "host": "data-pipeline-1.production.local",
+        "request_id": "req-e1f2a3b4-c5d6-7890-4567-901234567890"
+      }
+    },
+    {
+      "_index": "logs-app-demo",
+      "_id": "12",
+      "_source": {
+        "timestamp": "2025-01-16T09:15:22.678Z",
+        "level": "WARN",
+        "message": "Deprecated API endpoint called: /api/v1/users/legacy",
+        "logger": "user-service.DeprecationLogger",
+        "service_name": "user-service",
+        "environment": "staging",
+        "host": "user-service-2.staging.local",
+        "request_id": "req-f2a3b4c5-d6e7-8901-5678-012345678901",
+        "user_id": "user-testuser",
+        "response_time": 234,
+        "status_code": 200,
+        "endpoint": "/api/v1/users/legacy"
+      }
+    }
+  ],
+  "field_descriptions": {
+    "timestamp": "ISO 8601 timestamp of when the log was generated",
+    "level": "Log level: ERROR, WARN, INFO, or DEBUG",
+    "message": "Human-readable log message",
+    "logger": "Logger name (typically service.LoggerClass)",
+    "service_name": "Name of the microservice that generated the log",
+    "environment": "Deployment environment (production, staging, development)",
+    "host": "Hostname of the server",
+    "request_id": "Unique identifier for the request (for tracing)",
+    "user_id": "User identifier (optional, present when applicable)",
+    "response_time": "Response time in milliseconds (optional, for API calls)",
+    "status_code": "HTTP status code (optional, for API calls)",
+    "endpoint": "API endpoint path (optional, for API calls)",
+    "exception": "Exception details (only present for ERROR level logs)",
+    "exception.type": "Type of exception (e.g., TimeoutError, DatabaseError)",
+    "exception.message": "Exception message",
+    "exception.stacktrace": "Full stack trace of the exception"
+  },
+  "notes": [
+    "The timestamp field uses ISO 8601 format with millisecond precision",
+    "The level field is a keyword type, allowing exact matching and aggregation",
+    "The message field is analyzed text, enabling full-text search",
+    "Optional fields (user_id, response_time, status_code, endpoint, exception) are only present when applicable",
+    "The exception object is only present for ERROR level logs",
+    "All string fields use UTF-8 encoding",
+    "The request_id field enables distributed tracing across microservices"
+  ]
+}

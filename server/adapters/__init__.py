@@ -25,6 +25,16 @@ def register_adapters():
     """Register all built-in adapters with the registry"""
     logger.info("Registering built-in domain adapters...")
 
+    # Import adapter modules to trigger their registration
+    # These modules have module-level registration code
+    try:
+        import adapters.intent.adapter  # SQL Intent adapter
+        import adapters.http.adapter     # HTTP adapter
+        import adapters.elasticsearch.adapter  # Elasticsearch adapter
+        logger.info("Imported adapter modules with auto-registration")
+    except ImportError as e:
+        logger.warning(f"Failed to import some adapter modules: {e}")
+
     # Register adapters for all supported datasources
     for datasource in ['sqlite', 'chroma', 'qdrant', 'postgres', 'pinecone']:
         # Register QA document adapter with default config

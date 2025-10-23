@@ -41,14 +41,12 @@ datasources:
     namespace: ""  # Empty string for default namespace (where data was ingested)
     embedding_provider: null
   elasticsearch:
-    node: 'https://localhost:9200'
+    node: ${DATASOURCE_ELASTICSEARCH_NODE}
+    verify_certs: true
+    timeout: 30
     auth:
       username: ${DATASOURCE_ELASTICSEARCH_USERNAME}
       password: ${DATASOURCE_ELASTICSEARCH_PASSWORD}
-      vector_field: "embedding"
-      text_field: "content"
-      verify_certs: true
-      embedding_provider: null
   redis:
     host: ${DATASOURCE_REDIS_HOST}
     port: ${DATASOURCE_REDIS_PORT}

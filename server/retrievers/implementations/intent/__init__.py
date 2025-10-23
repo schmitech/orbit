@@ -33,6 +33,15 @@ except ImportError:  # pragma: no cover - optional import guard
     _sqlite_available = False
     logger.debug("SQLite retriever import failed; IntentSQLiteRetriever unavailable")
 
+# Import Elasticsearch retriever (requires elasticsearch package)
+try:
+    from .intent_elasticsearch_retriever import IntentElasticsearchRetriever
+    _elasticsearch_available = True
+except ImportError:  # pragma: no cover - optional import guard
+    IntentElasticsearchRetriever = None
+    _elasticsearch_available = False
+    logger.debug("Elasticsearch client libraries not installed; IntentElasticsearchRetriever unavailable")
+
 __all__ = [
     'DomainParameterExtractor',
     'DomainResponseGenerator',
@@ -48,3 +57,6 @@ if _mysql_available and IntentMySQLRetriever is not None:
 
 if _sqlite_available and IntentSQLiteRetriever is not None:
     __all__.append('IntentSQLiteRetriever')
+
+if _elasticsearch_available and IntentElasticsearchRetriever is not None:
+    __all__.append('IntentElasticsearchRetriever')

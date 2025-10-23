@@ -219,6 +219,13 @@ class DatasourceRegistry:
             database = datasource_config.get('database', 'default')
             return f"{datasource_name}:{host}:{port}:{database}"
 
+        elif datasource_name in ['elasticsearch']:
+            # Elasticsearch: cache key includes node URL and username
+            node = datasource_config.get('node', 'http://localhost:9200')
+            auth_config = datasource_config.get('auth', {})
+            username = auth_config.get('username', 'anonymous')
+            return f"{datasource_name}:{node}:{username}"
+
         else:
             # Generic: use datasource name as cache key (no pooling)
             logger.warning(f"No specific cache key generation for {datasource_name}, using datasource name only")

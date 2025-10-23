@@ -20,11 +20,19 @@ def suppress_known_warnings():
     startup process, before any third-party libraries are imported.
     """
     
-    # Suppress Cohere Pydantic deprecation warnings
+    # Suppress various unclosed resource warnings
     warnings.filterwarnings(
         "ignore", 
-        message=".*__fields__.*", 
-        category=DeprecationWarning,
+        category=ResourceWarning, 
+        message="unclosed.*"
+    )
+
+    # Suppress Cohere Pydantic deprecation warnings.
+    # Pydantic v2 migration causes PydanticDeprecatedSince20 warnings, which are not of type DeprecationWarning.
+    # We match by message and module, without specifying a category.
+    warnings.filterwarnings(
+        "ignore", 
+        message=".*The `__fields__` attribute is deprecated.*", 
         module="cohere.*"
     )
     
@@ -44,15 +52,27 @@ def suppress_known_warnings():
         module="ftfy.*"
     )
     
-    # Suppress any other known warnings
+    # Suppress websockets deprecation warnings
     warnings.filterwarnings(
         "ignore", 
-        message=".*PydanticDeprecatedSince20.*", 
-        category=DeprecationWarning
+        message="remove second argument of ws_handler", 
+        category=DeprecationWarning,
+        module="websockets.legacy.server"
     )
     
-    # Set environment variable to suppress warnings at the Python level
-    os.environ.setdefault('PYTHONWARNINGS', 'ignore::DeprecationWarning:cohere,ignore::DeprecationWarning:ftfy')
+    # Also suppress websockets warnings more broadly
+    warnings.filterwarnings(
+        "ignore", 
+        category=DeprecationWarning,
+        module="websockets.*"
+    )
+    
+    # Suppress any other known Pydantic v2 deprecation warnings by matching the message content.
+    # This is broader and should catch other similar warnings.
+    warnings.filterwarnings(
+        "ignore", 
+        message=".*Pydantic V2.*", 
+    )
 
 # Automatically suppress warnings when this module is imported
 suppress_known_warnings()

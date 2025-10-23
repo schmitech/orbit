@@ -1,0 +1,197 @@
+# Elasticsearch Domain Configuration for Application Logs
+#
+# CONFIGURATION SEPARATION:
+# ========================
+#
+# This file (logs_domain.yaml):
+#   - Domain-specific schema and field definitions
+#   - Vocabulary and semantic types for NLU
+#   - Query patterns and response formatting
+#   - Domain-specific query optimization settings
+#
+# config/datasources.yaml:
+#   - Elasticsearch connection details (node URL, auth, SSL)
+#   - Connection pooling settings
+#   - Timeout and retry configuration
+#
+# config/adapters.yaml (adapter-specific):
+#   - Index pattern override (if different from domain default)
+#   - Template collection name
+#   - Confidence thresholds
+#   - Adapter-specific query settings
+#
+# SUMMARY: Connection = datasources.yaml, Domain = this file, Adapter settings = adapters.yaml
+
+domain_name: "application_logs"
+domain_type: "elasticsearch"
+version: "1.0.0"
+
+# Index/Entity Definitions (analogous to SQL tables)
+# Note: The actual index pattern can be overridden in the adapter config
+indices:
+  application_logs:
+    # Index pattern (supports wildcards)
+    index_pattern: "logs-app-*"
+
+    # Primary identifier
+    primary_key: "_id"
+    display_name: "Application Logs"
+    display_name_field: "message"
+
+    # Time field for time-based queries
+    time_field: "timestamp"
+    time_field_format: "strict_date_optional_time"
+
+    # Searchable fields (mapped fields in Elasticsearch)
+    searchable_fields:
+      - name: "message"
+        type: "text"
+        analyzer: "standard"
+      - name: "level"
+        type: "keyword"
+      - name: "logger"
+        type: "keyword"
+      - name: "exception.message"
+        type: "text"
+      - name: "exception.stacktrace"
+        type: "text"
+      - name: "user_id"
+        type: "keyword"
+      - name: "request_id"
+        type: "keyword"
+      - name: "service_name"
+        type: "keyword"
+      - name: "environment"
+        type: "keyword"
+      - name: "host"
+        type: "keyword"
+      - name: "response_time"
+        type: "integer"
+      - name: "status_code"
+        type: "integer"
+
+    # Common filters
+    common_filters:
+      - field: "level"
+        type: "term"
+        values: ["ERROR", "WARN", "INFO", "DEBUG", "TRACE"]
+      - field: "environment"
+        type: "term"
+        values: ["production", "staging", "development"]
+      - field: "service_name"
+        type: "term"
+      - field: "status_code"
+        type: "range"
+        ranges:
+          - "200-299"  # Success
+          - "400-499"  # Client errors
+          - "500-599"  # Server errors
+
+    # Common aggregations
+    common_aggregations:
+      - name: "errors_by_level"
+        type: "terms"
+        field: "level"
+        size: 10
+
+      - name: "errors_by_service"
+        type: "terms"
+        field: "service_name"
+        size: 20
+
+      - name: "errors_over_time"
+        type: "date_histogram"
+        field: "timestamp"
+        calendar_interval: "1h"
+
+      - name: "avg_response_time"
+        type: "avg"
+        field: "response_time"
+
+      - name: "percentiles_response_time"
+        type: "percentiles"
+        field: "response_time"
+        percents: [50, 95, 99]
+
+    # Default sorting
+    default_sort:
+      - field: "timestamp"
+        order: "desc"
+
+    # Highlighting configuration
+    highlighting:
+      enabled: true
+      fields:
+        - "message"
+        - "exception.message"
+      pre_tags: ["<mark>"]
+      post_tags: ["</mark>"]
+      fragment_size: 150
+      number_of_fragments: 3
+
+# Vocabulary for Natural Language Understanding
+vocabulary:
+  entity_synonyms:
+    application_logs: ["logs", "log entries", "application logs", "error logs", "system logs"]
+
+  action_synonyms:
+    search: ["find", "show", "get", "search", "look for", "display", "list"]
+    aggregate: ["count", "sum", "average", "group", "aggregate", "summarize"]
+    filter: ["filter", "where", "with", "having", "matching"]
+    sort: ["sort", "order", "rank"]
+
+  qualifier_synonyms:
+    recent: ["recent", "latest", "new", "last", "current"]
+    error: ["error", "exception", "failure", "problem", "crash", "bug"]
+    warning: ["warning", "warn", "caution", "alert"]
+    critical: ["critical", "severe", "fatal", "serious"]
+    slow: ["slow", "delayed", "timeout", "performance"]
+
+  time_expressions:
+    hour: ["hour", "hr", "h"]
+    day: ["day", "d"]
+    week: ["week", "w"]
+    month: ["month", "mo"]
+    minute: ["minute", "min", "m"]
+
+# Query DSL Patterns
+query_patterns:
+  # Default time range for time-based queries
+  date_range:
+    default_field: "timestamp"
+    default_range: "now-24h"
+    default_to: "now"
+
+  # Pagination defaults
+  pagination:
+    default_size: 100
+    max_size: 10000
+    default_from: 0
+
+  # Full-text search defaults
+  text_search:
+    default_operator: "AND"
+    fuzziness: "AUTO"
+    minimum_should_match: "75%"
+
+  # Aggregation defaults
+  aggregation:
+    default_size: 10
+    missing_bucket: false
+
+# Response Processing
+response_processing:
+  default_format: "json"
+  include_score: true
+  include_highlights: true
+  include_source: true
+  source_includes: []  # Empty means include all
+  source_excludes: []
+
+# Performance & Optimization
+performance:
+  use_scroll_api: false  # For large result sets
+  scroll_size: 1000
+  request_cache: true
+  track_total_hits: true
+  max_concurrent_shard_requests: 5
