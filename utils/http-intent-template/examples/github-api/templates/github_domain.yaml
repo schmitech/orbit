@@ -1,0 +1,222 @@
+# GitHub API Domain Configuration
+
+domain_name: "github_api"
+domain_type: "rest_api"
+version: "1.0.0"
+
+# Base API Configuration
+api_config:
+  base_url: "https://api.github.com"
+  api_version: "v3"
+  protocol: "https"
+  default_timeout: 30
+  rate_limit:
+    requests_per_hour: 5000
+    retry_after_header: "X-RateLimit-Reset"
+
+# Authentication Configuration
+authentication:
+  type: "bearer_token"
+  token_env: "GITHUB_TOKEN"
+  header_name: "Authorization"
+  token_prefix: "Bearer"
+  scopes: ["repo", "user", "read:org"]
+
+# Entity Definitions (analogous to database tables)
+entities:
+  repository:
+    entity_type: "resource"
+    endpoint_base: "/repos"
+    primary_key: "full_name"
+    display_name: "Repository"
+    display_name_field: "full_name"
+
+    # HTTP Methods supported
+    methods:
+      - GET
+      - POST
+      - PATCH
+      - DELETE
+
+    # Searchable fields
+    searchable_fields:
+      - name
+      - description
+      - topics
+      - language
+      - owner
+
+    # Common filters
+    common_filters:
+      - field: "visibility"
+        values: ["public", "private"]
+      - field: "type"
+        values: ["all", "owner", "member"]
+      - field: "sort"
+        values: ["created", "updated", "pushed", "full_name"]
+
+    # Relationships to other entities
+    relationships:
+      - entity: "user"
+        type: "belongs_to"
+        foreign_key: "owner"
+      - entity: "issue"
+        type: "has_many"
+        endpoint: "/repos/{owner}/{repo}/issues"
+      - entity: "commit"
+        type: "has_many"
+        endpoint: "/repos/{owner}/{repo}/commits"
+
+    # Response structure
+    response_structure:
+      list_wrapper: null  # Array is at root
+      item_id_field: "id"
+      pagination:
+        type: "link_header"
+        page_param: "page"
+        per_page_param: "per_page"
+        default_per_page: 30
+        max_per_page: 100
+
+  issue:
+    entity_type: "resource"
+    endpoint_base: "/repos/{owner}/{repo}/issues"
+    primary_key: "number"
+    display_name: "Issue"
+    display_name_field: "title"
+
+    methods:
+      - GET
+      - POST
+      - PATCH
+
+    searchable_fields:
+      - title
+      - body
+      - labels
+      - state
+      - assignee
+
+    common_filters:
+      - field: "state"
+        values: ["open", "closed", "all"]
+      - field: "labels"
+        type: "array"
+      - field: "sort"
+        values: ["created", "updated", "comments"]
+
+    relationships:
+      - entity: "repository"
+        type: "belongs_to"
+        foreign_key: "repository"
+      - entity: "user"
+        type: "belongs_to"
+        foreign_key: "assignee"
+      - entity: "comment"
+        type: "has_many"
+        endpoint: "/repos/{owner}/{repo}/issues/{issue_number}/comments"
+
+  user:
+    entity_type: "resource"
+    endpoint_base: "/users"
+    primary_key: "login"
+    display_name: "User"
+    display_name_field: "login"
+
+    methods:
+      - GET
+
+    searchable_fields:
+      - login
+      - name
+      - email
+      - location
+      - bio
+
+    relationships:
+      - entity: "repository"
+        type: "has_many"
+        endpoint: "/users/{username}/repos"
+      - entity: "organization"
+        type: "has_many"
+        endpoint: "/users/{username}/orgs"
+
+  organization:
+    entity_type: "resource"
+    endpoint_base: "/orgs"
+    primary_key: "login"
+    display_name: "Organization"
+    display_name_field: "login"
+
+    methods:
+      - GET
+      - PATCH
+
+    searchable_fields:
+      - login
+      - name
+      - description
+      - location
+
+    relationships:
+      - entity: "repository"
+        type: "has_many"
+        endpoint: "/orgs/{org}/repos"
+      - entity: "user"
+        type: "has_many"
+        endpoint: "/orgs/{org}/members"
+
+# Vocabulary for Natural Language Understanding
+vocabulary:
+  entity_synonyms:
+    repository: ["repo", "repos", "repository", "repositories", "project", "projects", "codebase"]
+    issue: ["issue", "issues", "bug", "bugs", "ticket", "tickets", "problem"]
+    user: ["user", "account", "profile", "developer", "person"]
+    organization: ["org", "organization", "company", "team"]
+    commit: ["commit", "commits", "change", "changes", "contribution"]
+
+  action_synonyms:
+    list: ["show", "get", "find", "list", "display", "fetch", "retrieve", "all"]
+    create: ["create", "add", "new", "make", "open"]
+    update: ["update", "modify", "change", "edit", "patch"]
+    delete: ["delete", "remove", "destroy", "close"]
+    search: ["search", "find", "look for", "query"]
+
+  qualifier_synonyms:
+    recent: ["recent", "latest", "newest", "new", "last"]
+    popular: ["popular", "starred", "trending", "top"]
+    open: ["open", "active", "ongoing"]
+    closed: ["closed", "resolved", "completed", "fixed"]
+    my: ["my", "mine", "own"]
+    public: ["public", "open source"]
+    private: ["private", "internal"]
+
+  time_expressions:
+    today: ["today", "now"]
+    yesterday: ["yesterday"]
+    week: ["week", "last week", "this week"]
+    month: ["month", "last month", "this month"]
+
+# Error Handling Configuration
+error_handling:
+  retry_on_status: [429, 500, 502, 503, 504]
+  max_retries: 3
+  backoff_factor: 2
+  timeout: 30
+
+# Response Processing
+response_processing:
+  default_format: "json"
+  content_types:
+    - "application/json"
+    - "application/vnd.github.v3+json"
+  error_field: "message"
+  pagination_headers: ["Link", "X-Total-Count"]
+
+# Rate Limiting
+rate_limiting:
+  enabled: true
+  header_limit: "X-RateLimit-Limit"
+  header_remaining: "X-RateLimit-Remaining"
+  header_reset: "X-RateLimit-Reset"
+  retry_after_header: "Retry-After"

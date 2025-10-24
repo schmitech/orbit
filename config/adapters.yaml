@@ -181,7 +181,7 @@ adapters:
   # This adapter demonstrates Elasticsearch Query DSL generation from natural language
   # Connection parameters are inherited from config/datasources.yaml
   - name: "intent-elasticsearch-app-logs"
-    enabled: false  # Enable when Elasticsearch is configured
+    enabled: true  # Enable when Elasticsearch is configured
     type: "retriever"
     datasource: "elasticsearch"  # References datasources.yaml elasticsearch config
     adapter: "intent"
@@ -224,3 +224,52 @@ adapters:
       recovery_timeout: 60.0
       max_retries: 3
       retry_delay: 1.0
+
+  # HTTP JSON API Adapter - JSONPlaceholder (Simple Testing API)
+  # This adapter uses a fake REST API for testing and debugging HTTP adapter functionality
+  # No authentication required - perfect for isolating parameter extraction issues
+  - name: "intent-http-jsonplaceholder"
+    enabled: false
+    type: "retriever"
+    datasource: "http"  # Uses HTTP datasource placeholder
+    adapter: "intent"
+    implementation: "retrievers.implementations.intent.IntentHTTPJSONRetriever"
+    inference_provider: "ollama_cloud"
+    model: "gpt-oss:120b-cloud"
+    embedding_provider: "openai"
+    config:
+      # Domain and template configuration
+      domain_config_path: "utils/http-intent-template/examples/jsonplaceholder/templates/jsonplaceholder_domain.yaml"
+      template_library_path:
+        - "utils/http-intent-template/examples/jsonplaceholder/templates/jsonplaceholder_templates.yaml"
+
+      # Vector store configuration for template matching
+      template_collection_name: "jsonplaceholder_http_templates"
+      store_name: "chroma"  # References stores.yaml
+
+      # Intent matching configuration
+      confidence_threshold: 0.4
+      max_templates: 5
+      return_results: 10
+      verbose: false  # Enable debug logging
+
+      # Template loading settings
+      reload_templates_on_start: true
+      force_reload_templates: true
+
+      # HTTP-specific configuration
+      base_url: "https://jsonplaceholder.typicode.com"
+      default_timeout: 30
+      enable_retries: true
+      max_retries: 3
+      retry_delay: 1.0
+
+      # No authentication required for JSONPlaceholder
+
+    # Fault tolerance settings
+    fault_tolerance:
+      operation_timeout: 30.0
+      failure_threshold: 5
+      recovery_timeout: 60.0
+      max_retries: 3
+      retry_delay: 1.0 

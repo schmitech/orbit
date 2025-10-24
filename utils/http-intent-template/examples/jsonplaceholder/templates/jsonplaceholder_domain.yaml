@@ -1,0 +1,163 @@
+# JSONPlaceholder API Domain Configuration
+# A simple fake REST API for testing and prototyping
+
+domain_name: "jsonplaceholder_api"
+domain_type: "rest_api"
+version: "1.0.0"
+description: "JSONPlaceholder is a free fake REST API for testing and prototyping. It provides posts, users, comments, and todos."
+
+# API Configuration
+api_config:
+  base_url: "https://jsonplaceholder.typicode.com"
+  api_version: "v1"
+  protocol: "https"
+  default_timeout: 30
+  rate_limit: null  # No rate limiting
+
+# Authentication (None required)
+authentication:
+  type: "none"
+  description: "JSONPlaceholder requires no authentication"
+
+# Entity Definitions
+entities:
+  post:
+    entity_type: "resource"
+    endpoint_base: "/posts"
+    primary_key: "id"
+    display_name: "Post"
+    description: "Blog post with title, body, and user association"
+    searchable_fields:
+      - title
+      - body
+    filterable_fields:
+      - userId
+      - id
+
+  user:
+    entity_type: "resource"
+    endpoint_base: "/users"
+    primary_key: "id"
+    display_name: "User"
+    description: "User with profile information"
+    searchable_fields:
+      - name
+      - email
+      - username
+    related_entities:
+      - posts
+      - todos
+
+  comment:
+    entity_type: "resource"
+    endpoint_base: "/comments"
+    primary_key: "id"
+    display_name: "Comment"
+    description: "Comment on a post"
+    searchable_fields:
+      - name
+      - email
+      - body
+    filterable_fields:
+      - postId
+
+  todo:
+    entity_type: "resource"
+    endpoint_base: "/todos"
+    primary_key: "id"
+    display_name: "Todo"
+    description: "Todo item with completion status"
+    searchable_fields:
+      - title
+    filterable_fields:
+      - userId
+      - completed
+
+# Vocabulary and Synonyms
+vocabulary:
+  entity_synonyms:
+    post: ["post", "article", "blog post", "entry"]
+    user: ["user", "author", "person"]
+    comment: ["comment", "reply", "feedback"]
+    todo: ["todo", "task", "item"]
+
+  action_synonyms:
+    list: ["list", "show", "get", "find", "display"]
+    retrieve: ["get", "show", "retrieve", "fetch", "find"]
+    filter: ["filter", "find by", "search by", "with"]
+
+  field_synonyms:
+    title: ["title", "name", "heading"]
+    body: ["body", "content", "text"]
+    email: ["email", "email address"]
+    completed: ["completed", "done", "finished"]
+
+# Response Patterns
+response_patterns:
+  single_item:
+    description: "Response contains a single entity"
+    format: "object"
+    example: |
+      {
+        "id": 1,
+        "title": "...",
+        "body": "..."
+      }
+
+  collection:
+    description: "Response contains an array of entities"
+    format: "array"
+    example: |
+      [
+        {"id": 1, "title": "..."},
+        {"id": 2, "title": "..."}
+      ]
+
+# Common Query Parameters
+common_parameters:
+  limit:
+    name: "_limit"
+    type: "integer"
+    description: "Limit number of results"
+    default: 10
+
+  page:
+    name: "_page"
+    type: "integer"
+    description: "Page number for pagination"
+    default: 1
+
+# Error Handling
+error_handling:
+  404:
+    description: "Resource not found"
+    action: "Return empty result or try broader query"
+
+  500:
+    description: "Server error"
+    action: "Retry with exponential backoff"
+
+# Best Practices
+best_practices:
+  - "Use specific endpoints (/posts/1) when ID is known"
+  - "Use query parameters (?userId=1) for filtering"
+  - "Results are paginated by default"
+  - "All responses are JSON"
+
+# Example Queries
+example_queries:
+  - query: "Show me post 1"
+    endpoint: "/posts/1"
+    description: "Get a specific post by ID"
+
+  - query: "List all posts by user 2"
+    endpoint: "/posts?userId=2"
+    description: "Filter posts by user ID"
+
+  - query: "Get user 5"
+    endpoint: "/users/5"
+    description: "Get a specific user profile"
+
+  - query: "Show comments on post 3"
+    endpoint: "/comments?postId=3"
+    description: "Get all comments for a post"

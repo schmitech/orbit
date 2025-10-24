@@ -1,0 +1,586 @@
+# GitHub API HTTP Request Templates
+
+templates:
+  - id: get_user_repositories
+    version: "1.0.0"
+    description: "Get all repositories for a GitHub user"
+    category: "repository_queries"
+    complexity: "simple"
+
+    # HTTP Request Configuration
+    http_method: "GET"
+    endpoint_template: "/users/{username}/repos"
+
+    # Headers
+    headers:
+      Accept: "application/vnd.github.v3+json"
+      User-Agent: "ORBIT-HTTP-Adapter/1.0"
+
+    # Query Parameters
+    query_params:
+      sort: "{{sort_by}}"
+      direction: "{{direction}}"
+      per_page: "{{limit}}"
+      page: "{{page}}"
+
+    # Template Parameters
+    parameters:
+      - name: username
+        type: string
+        required: true
+        description: "GitHub username"
+        location: "path"
+        example: "octocat"
+
+      - name: sort_by
+        type: string
+        required: false
+        default: "created"
+        description: "Sort repositories by"
+        location: "query"
+        allowed_values: ["created", "updated", "pushed", "full_name"]
+
+      - name: direction
+        type: string
+        required: false
+        default: "desc"
+        description: "Sort direction"
+        location: "query"
+        allowed_values: ["asc", "desc"]
+
+      - name: limit
+        type: integer
+        required: false
+        default: 30
+        description: "Results per page"
+        location: "query"
+        min: 1
+        max: 100
+
+      - name: page
+        type: integer
+        required: false
+        default: 1
+        description: "Page number"
+        location: "query"
+        min: 1
+
+    # Response Processing
+    response_mapping:
+      items_path: "$"
+      fields:
+        - name: "name"
+          path: "$.name"
+          type: "string"
+        - name: "full_name"
+          path: "$.full_name"
+          type: "string"
+        - name: "description"
+          path: "$.description"
+          type: "string"
+        - name: "stars"
+          path: "$.stargazers_count"
+          type: "integer"
+        - name: "language"
+          path: "$.language"
+          type: "string"
+        - name: "created_at"
+          path: "$.created_at"
+          type: "datetime"
+        - name: "url"
+          path: "$.html_url"
+          type: "string"
+
+    # Natural Language Examples
+    nl_examples:
+      - "Show me repositories for octocat"
+      - "Get repos for user torvalds"
+      - "List all repositories for user defunkt"
+      - "Find projects by user mojombo"
+      - "What repositories does user pjhyett have?"
+
+    # Semantic Tags
+    semantic_tags:
+      action: "list"
+      primary_entity: "repository"
+      secondary_entity: "user"
+      qualifiers: ["owner", "public"]
+
+    # Display settings
+    display_fields: ["full_name", "description", "stars", "language"]
+    result_format: "table"
+    timeout: 30
+
+    tags: ["github", "repository", "user", "list"]
+    approved: true
+
+  - id: get_repository_details
+    version: "1.0.0"
+    description: "Get detailed information about a specific GitHub repository"
+    category: "repository_queries"
+    complexity: "simple"
+
+    http_method: "GET"
+    endpoint_template: "/repos/{owner}/{repo}"
+
+    headers:
+      Accept: "application/vnd.github.v3+json"
+      User-Agent: "ORBIT-HTTP-Adapter/1.0"
+
+    parameters:
+      - name: owner
+        type: string
+        required: true
+        description: "Repository owner (username or organization)"
+        location: "path"
+        example: "octocat"
+
+      - name: repo
+        type: string
+        required: true
+        description: "Repository name"
+        location: "path"
+        example: "Hello-World"
+
+    response_mapping:
+      items_path: "$"
+      fields:
+        - name: "full_name"
+          path: "$.full_name"
+        - name: "description"
+          path: "$.description"
+        - name: "stars"
+          path: "$.stargazers_count"
+        - name: "forks"
+          path: "$.forks_count"
+        - name: "language"
+          path: "$.language"
+        - name: "open_issues"
+          path: "$.open_issues_count"
+        - name: "created_at"
+          path: "$.created_at"
+        - name: "updated_at"
+          path: "$.updated_at"
+        - name: "url"
+          path: "$.html_url"
+
+    nl_examples:
+      - "Show me details for octocat/Hello-World"
+      - "Get info about torvalds/linux repository"
+      - "Tell me about the facebook/react project"
+      - "What is the microsoft/vscode repository?"
+      - "Show repository information for google/guava"
+
+    semantic_tags:
+      action: "retrieve"
+      primary_entity: "repository"
+      qualifiers: ["details", "information"]
+
+    display_fields: ["full_name", "description", "stars", "forks", "language", "open_issues"]
+    result_format: "list"
+    timeout: 30
+    tags: ["github", "repository", "details"]
+    approved: true
+
+  - id: search_repositories
+    version: "1.0.0"
+    description: "Search for GitHub repositories"
+    category: "search_queries"
+    complexity: "simple"
+
+    http_method: "GET"
+    endpoint_template: "/search/repositories"
+
+    headers:
+      Accept: "application/vnd.github.v3+json"
+      User-Agent: "ORBIT-HTTP-Adapter/1.0"
+
+    query_params:
+      q: "{{search_query}}"
+      sort: "{{sort_by}}"
+      order: "{{order}}"
+      per_page: "{{limit}}"
+
+    parameters:
+      - name: search_query
+        type: string
+        required: true
+        description: "Search query string"
+        location: "query"
+        example: "machine learning"
+
+      - name: sort_by
+        type: string
+        required: false
+        default: "stars"
+        description: "Sort results by"
+        location: "query"
+        allowed_values: ["stars", "forks", "updated"]
+
+      - name: order
+        type: string
+        required: false
+        default: "desc"
+        description: "Sort order"
+        location: "query"
+        allowed_values: ["asc", "desc"]
+
+      - name: limit
+        type: integer
+        required: false
+        default: 30
+        description: "Results per page"
+        location: "query"
+        min: 1
+        max: 100
+
+    response_mapping:
+      items_path: "items"
+      fields:
+        - name: "full_name"
+          path: "$.full_name"
+        - name: "description"
+          path: "$.description"
+        - name: "stars"
+          path: "$.stargazers_count"
+        - name: "language"
+          path: "$.language"
+        - name: "url"
+          path: "$.html_url"
+
+    nl_examples:
+      - "Find repositories about machine learning"
+      - "Search for React projects"
+      - "Show me popular Python repositories"
+      - "Find repositories with topic 'api'"
+      - "Search for starred Rust projects"
+
+    semantic_tags:
+      action: "search"
+      primary_entity: "repository"
+      qualifiers: ["keyword", "topic"]
+
+    display_fields: ["full_name", "description", "stars", "language"]
+    result_format: "table"
+    timeout: 30
+    tags: ["github", "repository", "search"]
+    approved: true
+
+  - id: list_repository_issues
+    version: "1.0.0"
+    description: "List issues for a GitHub repository"
+    category: "issue_queries"
+    complexity: "simple"
+
+    http_method: "GET"
+    endpoint_template: "/repos/{owner}/{repo}/issues"
+
+    headers:
+      Accept: "application/vnd.github.v3+json"
+      User-Agent: "ORBIT-HTTP-Adapter/1.0"
+
+    query_params:
+      state: "{{state}}"
+      labels: "{{labels}}"
+      sort: "{{sort_by}}"
+      direction: "{{direction}}"
+      per_page: "{{limit}}"
+
+    parameters:
+      - name: owner
+        type: string
+        required: true
+        description: "Repository owner"
+        location: "path"
+        example: "facebook"
+
+      - name: repo
+        type: string
+        required: true
+        description: "Repository name"
+        location: "path"
+        example: "react"
+
+      - name: state
+        type: string
+        required: false
+        default: "open"
+        description: "Issue state filter"
+        location: "query"
+        allowed_values: ["open", "closed", "all"]
+
+      - name: labels
+        type: string
+        required: false
+        description: "Filter by labels (comma-separated)"
+        location: "query"
+        example: "bug,good first issue"
+
+      - name: sort_by
+        type: string
+        required: false
+        default: "created"
+        description: "Sort issues by"
+        location: "query"
+        allowed_values: ["created", "updated", "comments"]
+
+      - name: direction
+        type: string
+        required: false
+        default: "desc"
+        description: "Sort direction"
+        location: "query"
+        allowed_values: ["asc", "desc"]
+
+      - name: limit
+        type: integer
+        required: false
+        default: 30
+        description: "Results per page"
+        location: "query"
+        min: 1
+        max: 100
+
+    response_mapping:
+      items_path: "$"
+      fields:
+        - name: "number"
+          path: "$.number"
+        - name: "title"
+          path: "$.title"
+        - name: "state"
+          path: "$.state"
+        - name: "labels"
+          path: "$.labels[*].name"
+        - name: "created_at"
+          path: "$.created_at"
+        - name: "url"
+          path: "$.html_url"
+
+    nl_examples:
+      - "Show me open issues for facebook/react"
+      - "List all bugs in microsoft/vscode"
+      - "Get closed issues for nodejs/node"
+      - "Find issues labeled 'good first issue' in rust-lang/rust"
+      - "Show me recent issues in python/cpython"
+
+    semantic_tags:
+      action: "list"
+      primary_entity: "issue"
+      secondary_entity: "repository"
+      qualifiers: ["open", "closed", "labeled"]
+
+    display_fields: ["number", "title", "state", "created_at"]
+    result_format: "table"
+    timeout: 30
+    tags: ["github", "issue", "repository", "list"]
+    approved: true
+
+  - id: get_user_profile
+    version: "1.0.0"
+    description: "Get GitHub user profile information"
+    category: "user_queries"
+    complexity: "simple"
+
+    http_method: "GET"
+    endpoint_template: "/users/{username}"
+
+    headers:
+      Accept: "application/vnd.github.v3+json"
+      User-Agent: "ORBIT-HTTP-Adapter/1.0"
+
+    parameters:
+      - name: username
+        type: string
+        required: true
+        description: "GitHub username"
+        location: "path"
+        example: "octocat"
+
+    response_mapping:
+      items_path: "$"
+      fields:
+        - name: "login"
+          path: "$.login"
+        - name: "name"
+          path: "$.name"
+        - name: "bio"
+          path: "$.bio"
+        - name: "location"
+          path: "$.location"
+        - name: "followers"
+          path: "$.followers"
+        - name: "following"
+          path: "$.following"
+        - name: "public_repos"
+          path: "$.public_repos"
+        - name: "created_at"
+          path: "$.created_at"
+        - name: "url"
+          path: "$.html_url"
+
+    nl_examples:
+      - "Show me profile for user octocat"
+      - "Get information about torvalds"
+      - "Tell me about user defunkt"
+      - "Who is user mojombo?"
+      - "Show me details for github user pjhyett"
+
+    semantic_tags:
+      action: "retrieve"
+      primary_entity: "user"
+      qualifiers: ["profile", "information"]
+
+    display_fields: ["login", "name", "bio", "location", "followers", "public_repos"]
+    result_format: "list"
+    timeout: 30
+    tags: ["github", "user", "profile"]
+    approved: true
+
+  - id: get_organization
+    version: "1.0.0"
+    description: "Get GitHub organization information"
+    category: "organization_queries"
+    complexity: "simple"
+
+    http_method: "GET"
+    endpoint_template: "/orgs/{org}"
+
+    headers:
+      Accept: "application/vnd.github.v3+json"
+      User-Agent: "ORBIT-HTTP-Adapter/1.0"
+
+    parameters:
+      - name: org
+        type: string
+        required: true
+        description: "Organization name"
+        location: "path"
+        example: "github"
+
+    response_mapping:
+      items_path: "$"
+      fields:
+        - name: "login"
+          path: "$.login"
+        - name: "name"
+          path: "$.name"
+        - name: "description"
+          path: "$.description"
+        - name: "location"
+          path: "$.location"
+        - name: "public_repos"
+          path: "$.public_repos"
+        - name: "followers"
+          path: "$.followers"
+        - name: "url"
+          path: "$.html_url"
+
+    nl_examples:
+      - "Show me details about github organization"
+      - "Get information about google org"
+      - "Tell me about the facebook organization"
+      - "What is the microsoft organization?"
+
+    semantic_tags:
+      action: "retrieve"
+      primary_entity: "organization"
+      qualifiers: ["information", "details"]
+
+    display_fields: ["login", "name", "description", "public_repos"]
+    result_format: "list"
+    timeout: 30
+    tags: ["github", "organization", "details"]
+    approved: true
+
+  - id: list_organization_repositories
+    version: "1.0.0"
+    description: "List repositories for a GitHub organization"
+    category: "organization_queries"
+    complexity: "simple"
+
+    http_method: "GET"
+    endpoint_template: "/orgs/{org}/repos"
+
+    headers:
+      Accept: "application/vnd.github.v3+json"
+      User-Agent: "ORBIT-HTTP-Adapter/1.0"
+
+    query_params:
+      type: "{{repo_type}}"
+      sort: "{{sort_by}}"
+      direction: "{{direction}}"
+      per_page: "{{limit}}"
+
+    parameters:
+      - name: org
+        type: string
+        required: true
+        description: "Organization name"
+        location: "path"
+        example: "github"
+
+      - name: repo_type
+        type: string
+        required: false
+        default: "all"
+        description: "Repository type filter"
+        location: "query"
+        allowed_values: ["all", "public", "private", "forks", "sources", "member"]
+
+      - name: sort_by
+        type: string
+        required: false
+        default: "created"
+        description: "Sort repositories by"
+        location: "query"
+        allowed_values: ["created", "updated", "pushed", "full_name"]
+
+      - name: direction
+        type: string
+        required: false
+        default: "desc"
+        description: "Sort direction"
+        location: "query"
+        allowed_values: ["asc", "desc"]
+
+      - name: limit
+        type: integer
+        required: false
+        default: 30
+        description: "Results per page"
+        location: "query"
+        min: 1
+        max: 100
+
+    response_mapping:
+      items_path: "$"
+      fields:
+        - name: "full_name"
+          path: "$.full_name"
+        - name: "description"
+          path: "$.description"
+        - name: "stars"
+          path: "$.stargazers_count"
+        - name: "language"
+          path: "$.language"
+        - name: "url"
+          path: "$.html_url"
+
+    nl_examples:
+      - "Show me repositories for github organization"
+      - "List all projects from google"
+      - "Get repositories owned by facebook"
+      - "What repositories does microsoft have?"
+
+    semantic_tags:
+      action: "list"
+      primary_entity: "repository"
+      secondary_entity: "organization"
+      qualifiers: ["owned"]
+
+    display_fields: ["full_name", "description", "stars", "language"]
+    result_format: "table"
+    timeout: 30
+    tags: ["github", "repository", "organization", "list"]
+    approved: true

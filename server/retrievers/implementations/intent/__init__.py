@@ -42,6 +42,15 @@ except ImportError:  # pragma: no cover - optional import guard
     _elasticsearch_available = False
     logger.debug("Elasticsearch client libraries not installed; IntentElasticsearchRetriever unavailable")
 
+# Import HTTP JSON retriever (requires httpx package)
+try:
+    from .intent_http_json_retriever import IntentHTTPJSONRetriever
+    _http_json_available = True
+except ImportError:  # pragma: no cover - optional import guard
+    IntentHTTPJSONRetriever = None
+    _http_json_available = False
+    logger.debug("HTTP client libraries not installed; IntentHTTPJSONRetriever unavailable")
+
 __all__ = [
     'DomainParameterExtractor',
     'DomainResponseGenerator',
@@ -60,3 +69,6 @@ if _sqlite_available and IntentSQLiteRetriever is not None:
 
 if _elasticsearch_available and IntentElasticsearchRetriever is not None:
     __all__.append('IntentElasticsearchRetriever')
+
+if _http_json_available and IntentHTTPJSONRetriever is not None:
+    __all__.append('IntentHTTPJSONRetriever')

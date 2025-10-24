@@ -226,6 +226,11 @@ class DatasourceRegistry:
             username = auth_config.get('username', 'anonymous')
             return f"{datasource_name}:{node}:{username}"
 
+        elif datasource_name in ['http']:
+            # HTTP: placeholder datasource (adapters manage their own clients)
+            # Use generic key since there's no centralized connection
+            return "http:placeholder"
+
         else:
             # Generic: use datasource name as cache key (no pooling)
             logger.warning(f"No specific cache key generation for {datasource_name}, using datasource name only")
