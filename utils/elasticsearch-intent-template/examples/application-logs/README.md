@@ -1,330 +1,502 @@
-# Application Logs - Sample Documents
+# Elasticsearch Intent Template System
 
-This directory contains sample Elasticsearch document examples for application logs.
+## Overview
 
-## Files
+This directory contains tools and examples for creating Elasticsearch intent templates that translate natural language queries into Elasticsearch Query DSL. The template system enables non-technical users to query Elasticsearch data using natural language while maintaining the full power of Elasticsearch's query capabilities.
 
-### Sample Documents
+## Quick Start
 
-- **`sample_documents.json`** - Complete collection of 12 sample documents showing various log types
-- **`single_error_example.json`** - Single ERROR level log with full exception details
-- **`single_info_example.json`** - Single INFO level log showing successful operation
+### 0. Generate Sample Data (Optional but Recommended)
 
-### Scripts
-
-- **`bulk_import_example.sh`** - Shell script demonstrating manual bulk import via Elasticsearch API
-
-### Configuration Files
-
-- **`logs_domain.yaml`** - Domain configuration defining the application logs schema
-- **`logs_templates.yaml`** - Query templates for natural language to Query DSL translation
-
-## Document Structure
-
-### Required Fields
-
-All log documents include these core fields:
-
-```json
-{
-  "timestamp": "2025-01-16T14:23:45.123Z",
-  "level": "ERROR",
-  "message": "Human-readable log message",
-  "logger": "service-name.LoggerClass",
-  "service_name": "service-name",
-  "environment": "production",
-  "host": "service-name-1.production.local",
-  "request_id": "req-uuid-here"
-}
-```
-
-### Optional Fields
-
-These fields are present when applicable:
-
-```json
-{
-  "user_id": "user-12345678",
-  "response_time": 145,
-  "status_code": 200,
-  "endpoint": "/api/v1/resource"
-}
-```
-
-### Exception Object (ERROR logs only)
-
-ERROR level logs include exception details:
-
-```json
-{
-  "exception": {
-    "type": "TimeoutError",
-    "message": "Connection timeout after 30s",
-    "stacktrace": "Full stack trace..."
-  }
-}
-```
-
-## Field Descriptions
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `timestamp` | date | ISO 8601 timestamp with millisecond precision |
-| `level` | keyword | Log level (ERROR, WARN, INFO, DEBUG) |
-| `message` | text | Human-readable log message (full-text searchable) |
-| `logger` | keyword | Logger name (service.LoggerClass) |
-| `service_name` | keyword | Microservice name |
-| `environment` | keyword | Deployment environment (production, staging, development) |
-| `host` | keyword | Server hostname |
-| `request_id` | keyword | Unique request identifier for distributed tracing |
-| `user_id` | keyword | User identifier (optional) |
-| `response_time` | integer | Response time in milliseconds (optional) |
-| `status_code` | integer | HTTP status code (optional) |
-| `endpoint` | keyword | API endpoint path (optional) |
-| `exception.type` | keyword | Exception class name (ERROR logs only) |
-| `exception.message` | text | Exception message (ERROR logs only) |
-| `exception.stacktrace` | text | Full stack trace (ERROR logs only) |
-
-## Log Levels
-
-### ERROR
-Critical errors requiring immediate attention:
-- Database connection failures
-- Authentication failures
-- Payment processing errors
-- API timeouts
-- Rate limit violations
-
-### WARN
-Warning conditions that should be monitored:
-- Slow queries
-- High resource usage
-- Deprecated API usage
-- Retry attempts
-- Configuration warnings
-
-### INFO
-Informational messages about normal operations:
-- Successful transactions
-- User login events
-- Order creation
-- Job completion
-- Configuration reloads
-
-### DEBUG
-Detailed information for debugging:
-- Function entry/exit
-- Cache hits/misses
-- Query parameters
-- Data validation
-- Internal state
-
-## Services
-
-The sample data includes logs from these microservices:
-
-- **auth-service** - Authentication and authorization
-- **user-service** - User management
-- **order-service** - Order processing
-- **payment-service** - Payment processing
-- **inventory-service** - Inventory management
-- **notification-service** - Notification delivery
-- **api-gateway** - API gateway and routing
-- **data-pipeline** - Data processing and ETL
-- **search-service** - Search functionality
-- **recommendation-service** - Recommendation engine
-- **analytics-service** - Analytics and reporting
-
-## Quick Import
-
-### Using the Sample Data Generator (Recommended)
+Before querying, generate realistic sample data:
 
 ```bash
-# Generate 1000 realistic logs
+# Set Elasticsearch credentials
+export DATASOURCE_ELASTICSEARCH_USERNAME=elastic
+export DATASOURCE_ELASTICSEARCH_PASSWORD=your-password
+
+# Generate 1000 sample logs
 python utils/elasticsearch-intent-template/generate_sample_data.py \
     --count 1000 \
     --index logs-app-demo
+
+# Validate the data
+python utils/elasticsearch-intent-template/validate_data.py --index logs-app-demo
 ```
 
-### Manual Import with curl
+See [SAMPLE_DATA.md](SAMPLE_DATA.md) for detailed instructions on generating sample data.
+
+### 1. Configure Your Elasticsearch Adapter
+
+Add to `config/adapters.yaml`:
+
+```yaml
+adapters:
+  - name: "intent-elasticsearch-app-logs"
+    enabled: true
+    type: "retriever"
+    datasource: "elasticsearch"
+    adapter: "intent"
+    implementation: "retrievers.implementations.intent.IntentElasticsearchRetriever"
+    inference_provider: "openai"
+    embedding_provider: "openai"
+    config:
+      domain_config_path: "utils/elasticsearch-intent-template/examples/application-logs/logs_domain.yaml"
+      template_library_path:
+        - "utils/elasticsearch-intent-template/examples/application-logs/logs_templates.yaml"
+      template_collection_name: "elasticsearch_logs_templates"
+      store_name: "chroma"
+      confidence_threshold: 0.4
+      index_pattern: "logs-app-*"
+      base_url: "http://localhost:9200"
+      auth:
+        type: "basic_auth"
+        username_env: "ES_USERNAME"
+        password_env: "ES_PASSWORD"
+```
+
+### 2. Set Environment Variables
 
 ```bash
-# Set credentials
-export ES_URL="https://your-cluster.es.io:9200"
-export ES_USERNAME="elastic"
-export ES_PASSWORD="your-password"
-
-# Run bulk import
-./bulk_import_example.sh
+export ES_USERNAME=elastic
+export ES_PASSWORD=your-password
 ```
 
-### Single Document Import
+### 3. Use Natural Language Queries
 
-```bash
-# Import one document
-curl -X POST "$ES_URL/logs-app-demo/_doc" \
-  -u "$ES_USERNAME:$ES_PASSWORD" \
-  -H "Content-Type: application/json" \
-  -d @single_error_example.json
 ```
-
-## Example Queries
-
-After importing data, test these natural language queries:
-
-### Error Analysis
-```
-"Show me recent error logs"
-"Find errors from the last hour"
-"What errors did user-12345678 encounter?"
-"Show me errors in the payment service"
-```
-
-### Performance Analysis
-```
-"Find slow API requests"
-"Show me requests taking more than 2 seconds"
-"Which endpoints are slow?"
-```
-
-### Service Analysis
-```
+"Show me error logs from the last hour"
 "How many errors by service?"
-"Which services have the most errors?"
-"Show error count per service"
+"Find slow API requests"
+"Show me error trends over time"
 ```
 
-### User Activity
+## Directory Structure
+
 ```
-"Show me logs for user-12345678"
-"What did user-87654321 do?"
-"Find activity for user-11223344"
+elasticsearch-intent-template/
+├── README.md                           # This file
+├── examples/
+│   └── application-logs/
+│       ├── logs_domain.yaml           # Domain configuration
+│       └── logs_templates.yaml        # Query templates
 ```
 
-### Time-Based Analysis
-```
-"Show me error trends over the last 24 hours"
-"Display error timeline"
-"How have errors changed over time?"
+## Template Structure
+
+### Domain Configuration
+
+The domain configuration (`logs_domain.yaml`) defines:
+- Elasticsearch connection settings
+- Index patterns and mappings
+- Authentication configuration
+- Searchable fields and their types
+- Common filters and aggregations
+- Natural language vocabulary
+- Default query patterns
+
+Example:
+```yaml
+domain_name: "application_logs"
+domain_type: "elasticsearch"
+
+elasticsearch_config:
+  base_url: "http://localhost:9200"
+  api_version: "8.x"
+
+indices:
+  application_logs:
+    index_pattern: "logs-app-*"
+    time_field: "timestamp"
+    searchable_fields:
+      - name: "message"
+        type: "text"
+      - name: "level"
+        type: "keyword"
+
+vocabulary:
+  entity_synonyms:
+    application_logs: ["logs", "log entries", "error logs"]
+  action_synonyms:
+    search: ["find", "show", "get", "display"]
 ```
 
-## Elasticsearch Query DSL Examples
+### Query Templates
 
-### Find Error Logs
-```json
+Query templates (`logs_templates.yaml`) define:
+- Natural language to Query DSL mappings
+- Template parameters and their types
+- Elasticsearch endpoint and method
+- Response formatting instructions
+- Natural language examples for matching
+
+Example:
+```yaml
+templates:
+  - id: search_error_logs_recent
+    description: "Search for recent error logs"
+    index: "logs-app-*"
+    endpoint_type: "_search"
+
+    query_dsl: |
+      {
+        "query": {
+          "bool": {
+            "must": [{"match": {"level": "ERROR"}}],
+            "filter": [{
+              "range": {
+                "timestamp": {
+                  "gte": "{{start_time}}",
+                  "lte": "{{end_time}}"
+                }
+              }
+            }]
+          }
+        }
+      }
+
+    parameters:
+      - name: start_time
+        type: string
+        default: "now-24h"
+
+    nl_examples:
+      - "Show me recent error logs"
+      - "Find errors in the last 24 hours"
+```
+
+## Supported Query Types
+
+### 1. Search Queries
+- Full-text search
+- Term queries
+- Range queries
+- Wildcard queries
+- Boolean combinations
+
+### 2. Aggregations
+- Terms aggregations
+- Date histogram
+- Metrics (avg, sum, min, max, percentiles)
+- Nested aggregations
+- Pipeline aggregations
+
+### 3. Special Features
+- Highlighting
+- Sorting
+- Pagination
+- Field filtering
+- Source filtering
+
+## Creating Custom Templates
+
+### Step 1: Analyze Your Index
+
+```bash
+# Get index mapping
+curl -X GET "localhost:9200/your-index/_mapping"
+
+# Sample documents
+curl -X GET "localhost:9200/your-index/_search?size=5"
+```
+
+### Step 2: Define Domain Configuration
+
+Create `your_domain.yaml`:
+```yaml
+domain_name: "your_domain"
+domain_type: "elasticsearch"
+
+elasticsearch_config:
+  base_url: "http://localhost:9200"
+
+indices:
+  your_index:
+    index_pattern: "your-index-*"
+    searchable_fields:
+      - name: "field1"
+        type: "text"
+      - name: "field2"
+        type: "keyword"
+
+vocabulary:
+  entity_synonyms:
+    your_index: ["items", "records", "entries"]
+```
+
+### Step 3: Create Query Templates
+
+Create `your_templates.yaml`:
+```yaml
+templates:
+  - id: search_your_index
+    description: "Search your index"
+    index: "your-index-*"
+
+    query_dsl: |
+      {
+        "query": {
+          "match": {
+            "field1": "{{search_term}}"
+          }
+        }
+      }
+
+    parameters:
+      - name: search_term
+        type: string
+        required: true
+
+    nl_examples:
+      - "Search for items"
+      - "Find records"
+```
+
+### Step 4: Update Configuration
+
+Add your adapter to `config/adapters.yaml` pointing to your domain and templates.
+
+## Template Best Practices
+
+### 1. Use Descriptive IDs
+```yaml
+# Good
+id: search_error_logs_by_user
+
+# Bad
+id: search1
+```
+
+### 2. Provide Multiple Natural Language Examples
+```yaml
+nl_examples:
+  - "Show me errors for user john"
+  - "Find error logs by user john"
+  - "What errors did user john encounter?"
+  - "Get john's error logs"
+```
+
+### 3. Use Semantic Tags
+```yaml
+semantic_tags:
+  action: "search"
+  primary_entity: "error_logs"
+  qualifiers: ["user", "filter"]
+  time_based: true
+```
+
+### 4. Document Parameters
+```yaml
+parameters:
+  - name: user_id
+    type: string
+    required: false
+    description: "User ID to filter by"
+    example: "user123"
+    location: "body"
+```
+
+### 5. Use Conditional Logic
+```yaml
+query_dsl: |
+  {
+    "query": {
+      "bool": {
+        "must": [
+          {% if search_term %}
+          {"match": {"message": "{{search_term}}"}}
+          {% endif %}
+        ]
+      }
+    }
+  }
+```
+
+## Common Patterns
+
+### Pattern 1: Time-Range Queries
+```yaml
+query_dsl: |
+  {
+    "query": {
+      "range": {
+        "timestamp": {
+          "gte": "{{start_time}}",
+          "lte": "{{end_time}}"
+        }
+      }
+    }
+  }
+```
+
+### Pattern 2: Aggregations
+```yaml
+query_dsl: |
+  {
+    "size": 0,
+    "aggs": {
+      "by_field": {
+        "terms": {
+          "field": "{{field_name}}",
+          "size": {{agg_size}}
+        }
+      }
+    }
+  }
+```
+
+### Pattern 3: Full-Text Search with Filters
+```yaml
+query_dsl: |
+  {
+    "query": {
+      "bool": {
+        "must": [
+          {"match": {"message": "{{query}}"}}
+        ],
+        "filter": [
+          {"term": {"status": "{{status}}"}}
+        ]
+      }
+    }
+  }
+```
+
+## Troubleshooting
+
+### Templates Not Matching
+1. Check natural language examples are diverse
+2. Verify semantic tags are accurate
+3. Lower confidence threshold in config
+4. Check template collection name matches
+
+### Query Execution Errors
+1. Verify Elasticsearch is running and accessible
+2. Check authentication credentials
+3. Validate Query DSL syntax with curl
+4. Review parameter extraction logic
+
+### No Results Returned
+1. Verify index pattern matches existing indices
+2. Check time range parameters
+3. Test query directly against Elasticsearch
+4. Review field mappings
+
+## Examples
+
+### Example 1: Error Log Search
+```
+Natural Language: "Show me production errors from the last hour"
+
+Generated Query DSL:
 {
   "query": {
     "bool": {
-      "must": [
-        {"match": {"level": "ERROR"}}
-      ],
+      "must": [{"match": {"level": "ERROR"}}],
       "filter": [
-        {
-          "range": {
-            "timestamp": {
-              "gte": "now-1h",
-              "lte": "now"
-            }
-          }
-        }
+        {"term": {"environment": "production"}},
+        {"range": {"timestamp": {"gte": "now-1h", "lte": "now"}}}
       ]
     }
   }
 }
 ```
 
-### Aggregate Errors by Service
-```json
+### Example 2: Error Aggregation
+```
+Natural Language: "How many errors by service?"
+
+Generated Query DSL:
 {
   "size": 0,
   "aggs": {
     "by_service": {
       "terms": {
         "field": "service_name",
-        "size": 10
+        "size": 20
       }
     }
   }
 }
 ```
 
-### Find Slow Requests
-```json
+### Example 3: Performance Analysis
+```
+Natural Language: "Find slow requests in the last 24 hours"
+
+Generated Query DSL:
 {
   "query": {
-    "range": {
-      "response_time": {
-        "gte": 2000
-      }
+    "bool": {
+      "filter": [
+        {"range": {"response_time": {"gte": 1000}}},
+        {"range": {"timestamp": {"gte": "now-24h"}}}
+      ]
     }
   },
-  "sort": [
-    {"response_time": {"order": "desc"}}
-  ]
+  "sort": [{"response_time": {"order": "desc"}}]
 }
 ```
 
-## Index Mapping
+## Advanced Features
 
-The logs use this Elasticsearch mapping:
-
-```json
-{
-  "properties": {
-    "timestamp": {"type": "date"},
-    "level": {"type": "keyword"},
-    "message": {"type": "text", "analyzer": "standard"},
-    "logger": {"type": "keyword"},
-    "service_name": {"type": "keyword"},
-    "environment": {"type": "keyword"},
-    "host": {"type": "keyword"},
-    "request_id": {"type": "keyword"},
-    "user_id": {"type": "keyword"},
-    "response_time": {"type": "integer"},
-    "status_code": {"type": "integer"},
-    "endpoint": {"type": "keyword"},
-    "exception": {
-      "properties": {
-        "type": {"type": "keyword"},
-        "message": {"type": "text"},
-        "stacktrace": {"type": "text"}
-      }
-    }
-  }
-}
+### Multi-Index Queries
+```yaml
+index: "logs-*,metrics-*"  # Query multiple indices
 ```
 
-## Best Practices
+### Nested Aggregations
+```yaml
+aggs:
+  by_service:
+    terms:
+      field: service_name
+    aggs:
+      by_level:
+        terms:
+          field: level
+```
 
-### Indexing
-- Use bulk API for importing multiple documents
-- Set appropriate refresh intervals for your use case
-- Consider using index templates for automatic mapping
-- Use index lifecycle management for log retention
+### Highlighting
+```yaml
+highlight:
+  fields:
+    message:
+      fragment_size: 150
+      number_of_fragments: 3
+```
 
-### Querying
-- Use keyword fields for exact matching and aggregations
-- Use text fields for full-text search
-- Filter on date ranges for better performance
-- Use aggregations for analytics and summaries
+### Source Filtering
+```yaml
+_source:
+  includes: ["field1", "field2"]
+  excludes: ["internal_*"]
+```
 
-### Performance
-- Set `number_of_replicas: 0` for initial data loading
-- Increase after data is loaded for high availability
-- Use appropriate shard sizing based on data volume
-- Monitor index size and query performance
+## Resources
 
-## Next Steps
+- [Elasticsearch Query DSL Documentation](https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl.html)
+- [Elasticsearch Aggregations](https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations.html)
+- [ORBIT Documentation](../../docs/)
+- [Implementation Summary](../../docs/elasticsearch-adapter-implementation.md)
 
-1. **Generate Sample Data**: Use the sample data generator for realistic test data
-2. **Enable Adapter**: Set `enabled: true` in `config/adapters.yaml`
-3. **Test Queries**: Try natural language queries through ORBIT
-4. **Create Templates**: Add custom query templates for your use cases
-5. **Monitor Performance**: Watch query performance and optimize as needed
+## Support
 
-## Related Documentation
+For issues or questions:
+1. Check the troubleshooting section above
+2. Review the implementation documentation
+3. Check Elasticsearch logs
+4. Verify configuration files are valid YAML
 
-- [Sample Data Generator Guide](../../SAMPLE_DATA.md)
-- [Domain Configuration](logs_domain.yaml)
-- [Query Templates](logs_templates.yaml)
-- [Main README](../../README.md)
+## Contributing
+
+To add new templates:
+1. Create template following the patterns above
+2. Add diverse natural language examples
+3. Test with real queries
+4. Document any special requirements
+5. Add to appropriate template library file
+
+## License
+
+Same as ORBIT project license.

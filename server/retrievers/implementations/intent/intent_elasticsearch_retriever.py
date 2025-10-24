@@ -212,6 +212,7 @@ class IntentElasticsearchRetriever(IntentHTTPRetriever):
         hits = response.get('hits', {}).get('hits', [])
         results = []
 
+        # Handle regular search results
         for hit in hits:
             result = {
                 '_index': hit.get('_index'),
@@ -225,6 +226,48 @@ class IntentElasticsearchRetriever(IntentHTTPRetriever):
                 result['_highlights'] = hit['highlight']
 
             results.append(result)
+
+        # Handle aggregation results (when size=0 and aggregations are present)
+        if not hits and 'aggregations' in response:
+            aggregations = response['aggregations']
+            
+            # Convert aggregations to a format that can be processed
+            for agg_name, agg_data in aggregations.items():
+                if 'buckets' in agg_data:
+                    # Terms aggregation
+                    for bucket in agg_data['buckets']:
+                        result = {
+                            '_aggregation_type': 'terms',
+                            '_aggregation_name': agg_name,
+                            'key': bucket.get('key', bucket.get('key_as_string', 'Unknown')),
+                            'doc_count': bucket.get('doc_count', 0)
+                        }
+                        
+                        # Add sub-aggregations if present
+                        for sub_agg_name, sub_agg_data in bucket.items():
+                            if sub_agg_name not in ['key', 'key_as_string', 'doc_count']:
+                                if 'buckets' in sub_agg_data:
+                                    # Sub-terms aggregation
+                                    result[f'{sub_agg_name}_buckets'] = [
+                                        {
+                                            'key': sub_bucket.get('key', sub_bucket.get('key_as_string', 'Unknown')),
+                                            'doc_count': sub_bucket.get('doc_count', 0)
+                                        }
+                                        for sub_bucket in sub_agg_data['buckets']
+                                    ]
+                                elif 'value' in sub_agg_data:
+                                    # Metric aggregation (avg, sum, etc.)
+                                    result[f'{sub_agg_name}_value'] = sub_agg_data['value']
+                        
+                        results.append(result)
+                elif 'value' in agg_data:
+                    # Metric aggregation (single value)
+                    result = {
+                        '_aggregation_type': 'metric',
+                        '_aggregation_name': agg_name,
+                        'value': agg_data['value']
+                    }
+                    results.append(result)
 
         # Store the full response for advanced formatting
         if results:
@@ -310,8 +353,43 @@ class IntentElasticsearchRetriever(IntentHTTPRetriever):
         """
         lines = []
 
-        # Format hits
-        if hits:
+        # Check if this is an aggregation result
+        is_aggregation = hits and any('_aggregation_type' in hit for hit in hits)
+        
+        if is_aggregation:
+            # Format aggregation results
+            lines.append("Error Analysis by Service:")
+            
+            # Group by aggregation name
+            agg_groups = {}
+            for hit in hits:
+                agg_name = hit.get('_aggregation_name', 'unknown')
+                if agg_name not in agg_groups:
+                    agg_groups[agg_name] = []
+                agg_groups[agg_name].append(hit)
+            
+            for agg_name, agg_hits in agg_groups.items():
+                lines.append(f"\n{agg_name.replace('_', ' ').title()}:")
+                for hit in agg_hits:
+                    key = hit.get('key', 'Unknown')
+                    doc_count = hit.get('doc_count', 0)
+                    lines.append(f"  {key}: {doc_count} errors")
+                    
+                    # Add sub-aggregations if present
+                    for sub_key, sub_value in hit.items():
+                        if sub_key.endswith('_buckets') and isinstance(sub_value, list):
+                            sub_agg_name = sub_key.replace('_buckets', '').replace('_', ' ').title()
+                            lines.append(f"    {sub_agg_name}:")
+                            for sub_bucket in sub_value[:3]:  # Show first 3 sub-buckets
+                                sub_key_name = sub_bucket.get('key', 'Unknown')
+                                sub_count = sub_bucket.get('doc_count', 0)
+                                lines.append(f"      {sub_key_name}: {sub_count}")
+                        elif sub_key.endswith('_value') and sub_value is not None:
+                            sub_agg_name = sub_key.replace('_value', '').replace('_', ' ').title()
+                            lines.append(f"    {sub_agg_name}: {sub_value:.2f}ms")
+        
+        elif hits:
+            # Format regular search results
             total = len(hits)
             lines.append(f"Found {total} results:")
 

@@ -265,6 +265,66 @@ Ask questions about your data in natural language and get answers without writin
 - "What are the top 10 users by age?"
 - "Find users created in the last month"
 
+### Scenario 3: Analyze Application Logs with Elasticsearch
+Transform your application logs into actionable insights using natural language queries. Perfect for DevOps teams, SREs, and developers who need to quickly understand system behavior and troubleshoot issues.
+
+**Sample Questions:**
+- "Show me recent errors from the payment service"
+- "Which services have the most errors in the last hour?"
+- "Find slow API requests taking more than 2 seconds"
+- "What's the error trend over the last 24 hours?"
+- "Show me all timeout errors with their stack traces"
+
+#### Quick Start with Elasticsearch Log Analysis
+
+Set up Elasticsearch and generate sample log data:
+
+```bash
+# Ensure Elasticsearch is running (Docker example)
+docker run -d --name elasticsearch \
+  -p 9200:9200 -p 9300:9300 \
+  -e "discovery.type=single-node" \
+  -e "xpack.security.enabled=false" \
+  elasticsearch:8.11.0
+
+# Generate sample application logs
+python ./utils/elasticsearch-intent-template/examples/application-logs/generate_sample_data.py \
+  --count 1000 \
+  --use-ai \
+  --provider ollama \
+  --ai-usage-rate 30
+```
+
+Enable the Elasticsearch log analysis adapter in `config/adapters.yaml`:
+
+```yaml
+- name: "intent-elasticsearch-app-logs"
+  enabled: true
+  type: "retriever"
+  datasource: "elasticsearch"
+  adapter: "intent"
+  implementation: "retrievers.implementations.intent.IntentElasticsearchRetriever"
+  inference_provider: "ollama"
+  embedding_provider: "ollama"
+```
+
+Start ORBIT and create an API key:
+
+```bash
+./bin/orbit.sh start --delete-logs
+
+# Login and create API key
+./bin/orbit.sh login
+./bin/orbit.py key create \
+  --intent-elasticsearch-app-logs \
+  --name "Log Analysis Assistant" \
+  --notes "Elasticsearch log analysis with AI insights" \
+  --prompt-file examples/prompts/elasticsearch-log-assistant-prompt.txt
+
+# Start analyzing your logs
+orbit-chat --url http://localhost:3000 --api-key YOUR_API_KEY
+```
+
 #### Quick Start with Contact Example
 
 Install Ollama and pull the `nomic-embed-text:latest` embedding model. Also pull a model of choice for inference purposes.

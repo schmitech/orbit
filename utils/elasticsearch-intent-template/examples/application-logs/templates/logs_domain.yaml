@@ -31,7 +31,7 @@ version: "1.0.0"
 indices:
   application_logs:
     # Index pattern (supports wildcards)
-    index_pattern: "logs-app-*"
+    index_pattern: "application-logs-demo"
 
     # Primary identifier
     primary_key: "_id"
@@ -159,7 +159,7 @@ query_patterns:
   # Default time range for time-based queries
   date_range:
     default_field: "timestamp"
-    default_range: "now-24h"
+    default_range: "now-7d"
     default_to: "now"
 
   # Pagination defaults

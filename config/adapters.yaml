@@ -186,14 +186,14 @@ adapters:
     datasource: "elasticsearch"  # References datasources.yaml elasticsearch config
     adapter: "intent"
     implementation: "retrievers.implementations.intent.IntentElasticsearchRetriever"
-    inference_provider: "ollama_cloud"
-    model: "qwen3-coder:480b-cloud"
-    embedding_provider: "openai"
+    inference_provider: "ollama"
+    model: "gpt-oss:20b"
+    embedding_provider: "ollama"
     config:
       # Domain and template configuration
-      domain_config_path: "utils/elasticsearch-intent-template/examples/application-logs/logs_domain.yaml"
+      domain_config_path: "utils/elasticsearch-intent-template/examples/application-logs/templates/logs_domain.yaml"
       template_library_path:
-        - "utils/elasticsearch-intent-template/examples/application-logs/logs_templates.yaml"
+        - "utils/elasticsearch-intent-template/examples/application-logs/templates/logs_templates.yaml"
 
       # Vector store configuration for template matching
       template_collection_name: "elasticsearch_logs_templates"
@@ -205,13 +205,13 @@ adapters:
       return_results: 10
 
       # Template loading settings
-      reload_templates_on_start: false
-      force_reload_templates: false
+      reload_templates_on_start: true
+      force_reload_templates: true
 
       # Elasticsearch-specific configuration
       # Note: Connection parameters (node, auth, verify_certs) are in datasources.yaml
       # Only adapter-specific settings go here
-      index_pattern: "logs-app-*"  # Default index pattern for queries
+      index_pattern: "application-logs-demo"  # Default index pattern for queries
       use_query_dsl: true  # Enable Query DSL processing
       enable_aggregations: true  # Enable aggregation support
       enable_highlighting: true  # Enable search result highlighting

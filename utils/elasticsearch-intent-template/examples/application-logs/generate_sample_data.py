@@ -19,9 +19,10 @@ OPTIONAL ARGUMENTS:
     --config        Path to main config file (default: ../../config/config.yaml)
     --count         Number of log records to generate (default: 1000)
     --batch-size    Batch size for bulk indexing (default: 100)
-    --index         Elasticsearch index name (default: logs-app-demo)
+    --index         Elasticsearch index name (default: application-logs-demo)
     --use-ai        Use AI to generate realistic log messages (default: False)
     --provider      Inference provider for AI generation (default: openai)
+    --ai-usage-rate Percentage of records to generate with AI (default: 50)
     --days-back     Generate logs spanning this many days back (default: 7)
     --error-rate    Percentage of error logs (default: 10)
 
@@ -33,13 +34,20 @@ EXAMPLES:
     python utils/elasticsearch-intent-template/generate_sample_data.py \
         --count 5000 \
         --use-ai \
-        --provider anthropic
+        --provider ollama
 
     # Generate logs for 30 days with higher error rate
     python utils/elasticsearch-intent-template/generate_sample_data.py \
         --count 10000 \
         --days-back 30 \
         --error-rate 20
+
+    # Generate logs with AI but reduce AI usage to avoid rate limits
+    python utils/elasticsearch-intent-template/generate_sample_data.py \
+        --count 5000 \
+        --use-ai \
+        --provider ollama_cloud \
+        --ai-usage-rate 25
 """
 
 print("🔄 Starting Elasticsearch sample data generator...", flush=True)
@@ -53,7 +61,7 @@ import argparse
 import sys
 import os
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Any, Optional
 from faker import Faker
 
@@ -61,13 +69,14 @@ print("✅ Basic imports complete", flush=True)
 
 from dotenv import load_dotenv
 
-# Add parent directory to path for imports
-sys.path.append(str(Path(__file__).parent.parent.parent))
+# Add project root to path for imports, following template_generator.py
+project_root = Path(__file__).parent.parent.parent.parent.parent
+sys.path.insert(0, str(project_root))
 
 print("✅ Path configured", flush=True)
 
-# Load environment variables
-load_dotenv(dotenv_path=Path(__file__).parent.parent.parent / ".env")
+# Load environment variables from project root
+load_dotenv(dotenv_path=project_root / ".env")
 
 print("✅ Environment loaded", flush=True)
 
@@ -165,18 +174,20 @@ API_ENDPOINTS = [
 class SampleDataGenerator:
     """Generates realistic application log data"""
 
-    def __init__(self, config_path: str = "../../config/config.yaml",
-                 use_ai: bool = False, provider: str = None):
+    def __init__(self, config_path: str = "../../../../config/config.yaml",
+                 use_ai: bool = False, provider: str = None, ai_usage_rate: float = 50.0):
         """Initialize the generator
 
         Args:
             config_path: Path to configuration file
             use_ai: Whether to use AI for message generation
             provider: Inference provider for AI generation
+            ai_usage_rate: Percentage of records to generate with AI (0-100)
         """
         self.config = self._load_config(config_path)
         self.use_ai = use_ai
         self.provider = provider or 'openai'
+        self.ai_usage_rate = ai_usage_rate / 100.0  # Convert to 0-1 range
         self.inference_client = None
         self.fake = Faker()
         self.es_datasource = None
@@ -185,14 +196,22 @@ class SampleDataGenerator:
     def _load_config(self, config_path: str) -> Dict[str, Any]:
         """Load configuration from YAML file"""
         config_file = Path(config_path)
+        if not config_file.is_absolute():
+            # Resolve relative paths from the script's location, not the CWD
+            script_dir = Path(__file__).parent
+            config_file = (script_dir / config_file).resolve()
+
         if not config_file.exists():
-            raise FileNotFoundError(f"Config file not found: {config_path}")
+            raise FileNotFoundError(f"Config file not found: {config_file}")
 
         with open(config_file, 'r') as f:
             config = yaml.safe_load(f)
 
         # Process imports
         config = self._process_imports(config, config_file.parent)
+
+        # Process environment variables (${VAR_NAME} syntax)
+        config = self._process_env_vars(config)
 
         return config
 
@@ -238,12 +257,38 @@ class SampleDataGenerator:
                 result[key] = value
         return result
 
+    def _process_env_vars(self, config: Dict[str, Any]) -> Dict[str, Any]:
+        """Process environment variables in config values (format: ${ENV_VAR_NAME})"""
+        def replace_env_vars(value):
+            if isinstance(value, str) and value.startswith('${') and value.endswith('}'):
+                env_var_name = value[2:-1]
+                env_value = os.environ.get(env_var_name)
+                if env_value is not None:
+                    return env_value
+                else:
+                    logger.warning(f"Environment variable {env_var_name} not found")
+                    return ""
+            return value
+
+        def process_dict(d):
+            result = {}
+            for k, v in d.items():
+                if isinstance(v, dict):
+                    result[k] = process_dict(v)
+                elif isinstance(v, list):
+                    result[k] = [process_dict(item) if isinstance(item, dict) else replace_env_vars(item) for item in v]
+                else:
+                    result[k] = replace_env_vars(v)
+            return result
+
+        return process_dict(config)
+
     async def initialize(self):
         """Initialize Elasticsearch connection and optionally AI client"""
         logger.info("🔧 Initializing connections...")
 
         # Initialize Elasticsearch datasource
-        from datasources.registry import get_registry
+        from server.datasources.registry import get_registry
 
         registry = get_registry()
         self.es_datasource = registry.get_or_create_datasource(
@@ -303,13 +348,49 @@ Examples of good {level} messages:
 
 Generate one log message:"""
 
-        try:
-            response = await self.inference_client.generate(prompt)
+        # Add rate limiting and retry logic
+        max_retries = 3
+        response = None
+        timeout_seconds = 60  # 1 minute timeout per request
+
+        for attempt in range(max_retries):
+            try:
+                # Add random delay to avoid rate limiting (0.5-2 seconds)
+                delay = random.uniform(0.5, 2.0)
+                await asyncio.sleep(delay)
+
+                # Add timeout to prevent infinite hangs
+                try:
+                    response = await asyncio.wait_for(
+                        self.inference_client.generate(prompt),
+                        timeout=timeout_seconds
+                    )
+                    break  # Success, exit retry loop
+                except asyncio.TimeoutError:
+                    raise Exception(f"Request timed out after {timeout_seconds} seconds")
+
+            except Exception as e:
+                error_msg = str(e)
+                is_rate_limit_error = '500' in error_msg or 'Internal Server Error' in error_msg or 'rate limit' in error_msg.lower()
+                is_timeout = 'timeout' in error_msg.lower() or 'timed out' in error_msg.lower()
+
+                if (is_rate_limit_error or is_timeout) and attempt < max_retries - 1:
+                    # Exponential backoff with jitter
+                    wait_time = (2 ** attempt) + random.uniform(0, 1)
+                    error_type = "Rate limited" if is_rate_limit_error else "Timeout"
+                    logger.warning(f"   ⚠️  {error_type} (attempt {attempt + 1}/{max_retries}), retrying in {wait_time:.1f}s...")
+                    await asyncio.sleep(wait_time)
+                else:
+                    # Either not a recoverable error, or we've exhausted retries
+                    logger.warning(f"   ❌ AI generation failed after {attempt + 1} attempts: {error_msg}")
+                    return self._generate_template_message(level, context)
+
+        if response:
             # Clean up the response
             message = response.strip().strip('"').strip("'")
             return message
-        except Exception as e:
-            logger.warning(f"AI generation failed: {e}, using template")
+        else:
+            logger.warning("AI generation failed: no response, using template")
             return self._generate_template_message(level, context)
 
     def _generate_template_message(self, level: str, context: Dict[str, Any]) -> str:
@@ -386,14 +467,18 @@ Generate one log message:"""
         }
 
         # Generate message
-        if self.use_ai and random.random() > 0.5:  # Use AI 50% of the time
+        if self.use_ai and random.random() < self.ai_usage_rate:  # Use AI based on configurable rate
             message = await self.generate_ai_message(level, context)
         else:
             message = self._generate_template_message(level, context)
+        
+        # Add small delay between records to reduce AI call rate
+        if self.use_ai:
+            await asyncio.sleep(random.uniform(0.1, 0.3))
 
         # Base record
         record = {
-            "timestamp": timestamp.isoformat(),
+            "timestamp": timestamp.isoformat().replace('+00:00', 'Z'),
             "level": level,
             "message": message,
             "logger": f"{service_name}.{self.fake.word()}Logger",
@@ -462,7 +547,7 @@ Generate one log message:"""
         logger.info(f"📝 Generating {count} log records...")
 
         records = []
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         for i in range(count):
             # Distribute logs across the time range
@@ -551,21 +636,42 @@ Generate one log message:"""
             actions.append(action)
 
         # Bulk index with progress tracking
-        indexed = 0
-        async for ok, result in async_bulk(
-            self.es_client,
-            actions,
-            chunk_size=batch_size,
-            raise_on_error=False
-        ):
-            indexed += 1
-            if indexed % 500 == 0:
-                logger.info(f"   Indexed {indexed}/{len(records)} records...")
+        success_count = 0
+        error_count = 0
+        
+        # Process in batches
+        for i in range(0, len(actions), batch_size):
+            batch = actions[i:i + batch_size]
+            
+            try:
+                # Use the bulk helper - it returns (success_count, failed_items)
+                success_count_batch, failed_items = await async_bulk(
+                    self.es_client,
+                    batch,
+                    chunk_size=batch_size,
+                    raise_on_error=False
+                )
+                
+                success_count += success_count_batch
+                error_count += len(failed_items) if failed_items else 0
+                
+                # Log any failed items for debugging
+                if failed_items:
+                    logger.warning(f"   Batch {i//batch_size + 1}: {len(failed_items)} items failed")
+                    for item in failed_items[:3]:  # Show first 3 errors
+                        logger.warning(f"     Error: {item}")
+                
+                if (i + batch_size) % 500 == 0 or i + batch_size >= len(actions):
+                    logger.info(f"   Processed {i + len(batch)}/{len(records)} records...")
+                    
+            except Exception as e:
+                logger.error(f"   Error indexing batch {i//batch_size + 1}: {e}")
+                error_count += len(batch)
 
         # Refresh index
         await self.es_client.indices.refresh(index=index_name)
 
-        logger.info(f"✅ Indexed {indexed} records successfully")
+        logger.info(f"✅ Indexed {success_count} records successfully ({error_count} errors)")
 
     async def cleanup(self):
         """Cleanup connections"""
@@ -578,13 +684,13 @@ async def main():
     parser = argparse.ArgumentParser(
         description='Generate and index sample application log data into Elasticsearch'
     )
-    parser.add_argument('--config', default='../../config/config.yaml',
+    parser.add_argument('--config', default='../../../../config/config.yaml',
                        help='Path to main config file')
     parser.add_argument('--count', type=int, default=1000,
                        help='Number of log records to generate')
     parser.add_argument('--batch-size', type=int, default=100,
                        help='Batch size for bulk indexing')
-    parser.add_argument('--index', default='logs-app-demo',
+    parser.add_argument('--index', default='application-logs-demo',
                        help='Elasticsearch index name')
     parser.add_argument('--use-ai', action='store_true',
                        help='Use AI to generate realistic log messages')
@@ -594,6 +700,10 @@ async def main():
                        help='Generate logs spanning this many days back')
     parser.add_argument('--error-rate', type=float, default=10.0,
                        help='Percentage of error logs (0-100)')
+    parser.add_argument('--ai-usage-rate', type=float, default=50.0,
+                       help='Percentage of records to generate with AI (0-100, default: 50)')
+    parser.add_argument('--dry-run', action='store_true',
+                       help='Generate data without connecting to Elasticsearch')
 
     args = parser.parse_args()
 
@@ -607,15 +717,17 @@ async def main():
     generator = SampleDataGenerator(
         config_path=args.config,
         use_ai=args.use_ai,
-        provider=args.provider
+        provider=args.provider,
+        ai_usage_rate=args.ai_usage_rate
     )
 
     try:
-        # Initialize
-        await generator.initialize()
+        if not args.dry_run:
+            # Initialize
+            await generator.initialize()
 
-        # Create index
-        await generator.create_index(args.index)
+            # Create index
+            await generator.create_index(args.index)
 
         # Generate records
         records = await generator.generate_records(
@@ -624,18 +736,26 @@ async def main():
             error_rate=error_rate
         )
 
-        # Index records
-        await generator.index_records(
-            records=records,
-            index_name=args.index,
-            batch_size=args.batch_size
-        )
+        if not args.dry_run:
+            # Index records
+            await generator.index_records(
+                records=records,
+                index_name=args.index,
+                batch_size=args.batch_size
+            )
 
-        logger.info("=" * 60)
-        logger.info("🎉 Sample data generation complete!")
-        logger.info(f"📊 Indexed {len(records)} records into {args.index}")
-        logger.info(f"📅 Time range: {args.days_back} days")
-        logger.info(f"⚠️  Error rate: {args.error_rate}%")
+            logger.info("=" * 60)
+            logger.info("🎉 Sample data generation complete!")
+            logger.info(f"📊 Indexed {len(records)} records into {args.index}")
+            logger.info(f"📅 Time range: {args.days_back} days")
+            logger.info(f"⚠️  Error rate: {args.error_rate}%")
+        else:
+            logger.info("=" * 60)
+            logger.info("🎉 Sample data generation complete! (Dry run)")
+            logger.info(f"📊 Generated {len(records)} records")
+            logger.info(f"📅 Time range: {args.days_back} days")
+            logger.info(f"⚠️  Error rate: {args.error_rate}%")
+            logger.info("💡 Use without --dry-run to index into Elasticsearch")
 
     except Exception as e:
         logger.error(f"❌ Error: {e}", exc_info=True)

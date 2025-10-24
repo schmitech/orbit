@@ -7,7 +7,7 @@ templates:
     complexity: "simple"
 
     # Elasticsearch-specific fields
-    index: "logs-app-*"
+    index: "application-logs-demo"
     http_method: "POST"
     endpoint: "/{index}/_search"
     endpoint_type: "_search"
@@ -128,7 +128,7 @@ templates:
       - name: start_time
         type: string
         required: false
-        default: "now-24h"
+        default: "now-7d"
         description: "Start of time range"
         location: "body"
         format: "date_time"
@@ -195,7 +195,7 @@ templates:
     category: "log_analytics"
     complexity: "medium"
 
-    index: "logs-app-*"
+    index: "application-logs-demo"
     http_method: "POST"
     endpoint: "/{index}/_search"
 
@@ -260,7 +260,7 @@ templates:
       - name: start_time
         type: string
         required: false
-        default: "now-24h"
+        default: "now-7d"
         description: "Start of time range"
 
       - name: end_time
@@ -306,7 +306,7 @@ templates:
     category: "log_analytics"
     complexity: "medium"
 
-    index: "logs-app-*"
+    index: "application-logs-demo"
     http_method: "POST"
     endpoint: "/{index}/_search"
 
@@ -368,7 +368,7 @@ templates:
       - name: start_time
         type: string
         required: false
-        default: "now-24h"
+        default: "now-7d"
         description: "Start of time range"
 
       - name: end_time
@@ -412,7 +412,7 @@ templates:
     category: "performance_analysis"
     complexity: "medium"
 
-    index: "logs-app-*"
+    index: "application-logs-demo"
     http_method: "POST"
     endpoint: "/{index}/_search"
 

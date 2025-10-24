@@ -1,0 +1,1 @@
+Show me errors with message connection timeout. Display the results in a summarized table and then prepare an email for my supervisor with this information.
