@@ -28,7 +28,7 @@ templates:
                 "match": {
                   "message": {
                     "query": "{{message}}",
-                    "operator": "and",
+                    "operator": "AND",
                     "fuzziness": "AUTO"
                   }
                 }
@@ -524,3 +524,462 @@ templates:
 
     tags: ["performance", "slow", "requests", "monitoring"]
     result_format: "table"
+
+  # ============================================================================
+  # MULTI-INDEX SEARCH TEMPLATES
+  # ============================================================================
+
+  - id: search_multi_index_errors
+    version: "1.0.0"
+    description: "Search for errors across multiple log indices using wildcard patterns"
+    category: "multi_index_search"
+    complexity: "simple"
+
+    # Multi-index pattern with wildcards
+    index: "application-logs-*,system-logs-*"
+    http_method: "POST"
+    endpoint: "/{index}/_search"
+    endpoint_type: "_search"
+
+    query_dsl: |
+      {
+        "query": {
+          "bool": {
+            "must": [
+              {
+                "match": {
+                  "level": "ERROR"
+                }
+              }
+              {% if message %}
+              ,{
+                "match": {
+                  "message": "{{message}}"
+                }
+              }
+              {% endif %}
+            ],
+            "filter": [
+              {
+                "range": {
+                  "timestamp": {
+                    "gte": "{{start_time}}",
+                    "lte": "{{end_time}}"
+                  }
+                }
+              }
+              {% if indices %}
+              ,{
+                "terms": {
+                  "_index": {{indices}}
+                }
+              }
+              {% endif %}
+            ]
+          }
+        },
+        "size": {{limit}},
+        "sort": [
+          {
+            "timestamp": {
+              "order": "desc"
+            }
+          }
+        ],
+        "_source": ["timestamp", "level", "message", "service_name", "_index"]
+      }
+
+    parameters:
+      - name: message
+        type: string
+        required: false
+        description: "Error message to search for"
+        location: "body"
+
+      - name: indices
+        type: array
+        required: false
+        description: "Specific indices to search (JSON array)"
+        location: "body"
+        example: '["application-logs-demo", "system-logs-demo"]'
+
+      - name: start_time
+        type: string
+        required: false
+        default: "now-24h"
+        description: "Start of time range"
+        location: "body"
+
+      - name: end_time
+        type: string
+        required: false
+        default: "now"
+        description: "End of time range"
+        location: "body"
+
+      - name: limit
+        type: integer
+        required: false
+        default: 100
+        description: "Maximum number of results"
+        location: "body"
+
+    nl_examples:
+      - "Search for errors across all log indices"
+      - "Find errors in all application and system logs"
+      - "Show me errors from multiple log sources"
+      - "Search across all log indices for database errors"
+
+    semantic_tags:
+      action: "search"
+      primary_entity: "multiple_indices"
+      qualifiers: ["error", "cross-index", "wildcard"]
+      multi_index: true
+
+    tags: ["logs", "multi-index", "wildcard", "cross-index"]
+    result_format: "table"
+
+  # ============================================================================
+  # ADVANCED AGGREGATION PIPELINE TEMPLATES
+  # ============================================================================
+
+  - id: error_rate_trend_analysis
+    version: "1.0.0"
+    description: "Analyze error rate trends with derivative and cumulative sum"
+    category: "advanced_analytics"
+    complexity: "advanced"
+
+    index: "application-logs-demo"
+    http_method: "POST"
+    endpoint: "/{index}/_search"
+    endpoint_type: "_search"
+
+    query_dsl: |
+      {
+        "query": {
+          "bool": {
+            "must": [
+              {
+                "match": {
+                  "level": "ERROR"
+                }
+              }
+            ],
+            "filter": [
+              {
+                "range": {
+                  "timestamp": {
+                    "gte": "{{start_time}}",
+                    "lte": "{{end_time}}"
+                  }
+                }
+              }
+              {% if service_name %}
+              ,{
+                "term": {
+                  "service_name": "{{service_name}}"
+                }
+              }
+              {% endif %}
+            ]
+          }
+        },
+        "size": 0,
+        "aggs": {
+          "errors_over_time": {
+            "date_histogram": {
+              "field": "timestamp",
+              "fixed_interval": "{{interval}}",
+              "min_doc_count": 0
+            },
+            "aggs": {
+              "error_count": {
+                "value_count": {
+                  "field": "level"
+                }
+              },
+              "error_rate_derivative": {
+                "derivative": {
+                  "buckets_path": "error_count"
+                }
+              },
+              "cumulative_errors": {
+                "cumulative_sum": {
+                  "buckets_path": "error_count"
+                }
+              }
+            }
+          }
+        }
+      }
+
+    parameters:
+      - name: start_time
+        type: string
+        required: false
+        default: "now-7d"
+        description: "Start of time range"
+
+      - name: end_time
+        type: string
+        required: false
+        default: "now"
+        description: "End of time range"
+
+      - name: service_name
+        type: string
+        required: false
+        description: "Filter by service name"
+
+      - name: interval
+        type: string
+        required: false
+        default: "1h"
+        description: "Time bucket interval"
+        allowed_values: ["1m", "5m", "15m", "30m", "1h", "6h", "12h", "1d"]
+
+    nl_examples:
+      - "Show me error rate trends over time"
+      - "Analyze error rate changes over time"
+      - "What's the derivative of error rate?"
+      - "Show cumulative errors with trend analysis"
+      - "Calculate cumulative sum of errors"
+
+    semantic_tags:
+      action: "aggregate"
+      primary_entity: "application_logs"
+      aggregation_type: "pipeline"
+      advanced: true
+
+    tags: ["analytics", "pipeline", "derivative", "cumulative_sum", "trend"]
+    result_format: "timeseries"
+
+  - id: performance_percentiles_with_filters
+    version: "1.0.0"
+    description: "Calculate response time percentiles with bucket selector to filter slow services"
+    category: "advanced_analytics"
+    complexity: "advanced"
+
+    index: "application-logs-demo"
+    http_method: "POST"
+    endpoint: "/{index}/_search"
+    endpoint_type: "_search"
+
+    query_dsl: |
+      {
+        "query": {
+          "bool": {
+            "must": [
+              {
+                "exists": {
+                  "field": "response_time"
+                }
+              }
+            ],
+            "filter": [
+              {
+                "range": {
+                  "timestamp": {
+                    "gte": "{{start_time}}",
+                    "lte": "{{end_time}}"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "size": 0,
+        "aggs": {
+          "by_service": {
+            "terms": {
+              "field": "service_name",
+              "size": {{agg_size}}
+            },
+            "aggs": {
+              "response_time_stats": {
+                "percentiles": {
+                  "field": "response_time",
+                  "percents": [50, 75, 90, 95, 99]
+                }
+              },
+              "avg_response_time": {
+                "avg": {
+                  "field": "response_time"
+                }
+              },
+              "max_response_time": {
+                "max": {
+                  "field": "response_time"
+                }
+              },
+              "slow_service_filter": {
+                "bucket_selector": {
+                  "buckets_path": {
+                    "avgResponseTime": "avg_response_time"
+                  },
+                  "script": "params.avgResponseTime > {{threshold}}"
+                }
+              }
+            }
+          }
+        }
+      }
+
+    parameters:
+      - name: start_time
+        type: string
+        required: false
+        default: "now-24h"
+        description: "Start of time range"
+
+      - name: end_time
+        type: string
+        required: false
+        default: "now"
+        description: "End of time range"
+
+      - name: threshold
+        type: integer
+        required: false
+        default: 1000
+        description: "Response time threshold in ms for filtering"
+        min: 0
+
+      - name: agg_size
+        type: integer
+        required: false
+        default: 20
+        description: "Number of services to analyze"
+        min: 1
+        max: 100
+
+    nl_examples:
+      - "Show me only slow services with percentile breakdown"
+      - "Which services have high response times?"
+      - "Find services where average response time exceeds threshold"
+      - "Show performance percentiles for slow services only"
+      - "Filter services by response time and show percentiles"
+
+    semantic_tags:
+      action: "aggregate"
+      primary_entity: "application_logs"
+      aggregation_type: "pipeline"
+      qualifiers: ["performance", "percentiles", "filter"]
+
+    tags: ["performance", "percentiles", "bucket_selector", "filtering"]
+    result_format: "summary"
+
+  - id: error_spike_detection
+    version: "1.0.0"
+    description: "Detect error spikes using bucket script to calculate error rate percentage"
+    category: "advanced_analytics"
+    complexity: "advanced"
+
+    index: "application-logs-demo"
+    http_method: "POST"
+    endpoint: "/{index}/_search"
+    endpoint_type: "_search"
+
+    query_dsl: |
+      {
+        "query": {
+          "range": {
+            "timestamp": {
+              "gte": "{{start_time}}",
+              "lte": "{{end_time}}"
+            }
+          }
+        },
+        "size": 0,
+        "aggs": {
+          "by_time": {
+            "date_histogram": {
+              "field": "timestamp",
+              "fixed_interval": "{{interval}}",
+              "min_doc_count": 0
+            },
+            "aggs": {
+              "total_logs": {
+                "value_count": {
+                  "field": "level"
+                }
+              },
+              "error_logs": {
+                "filter": {
+                  "term": {
+                    "level": "ERROR"
+                  }
+                },
+                "aggs": {
+                  "count": {
+                    "value_count": {
+                      "field": "level"
+                    }
+                  }
+                }
+              },
+              "error_rate": {
+                "bucket_script": {
+                  "buckets_path": {
+                    "errors": "error_logs>count",
+                    "total": "total_logs"
+                  },
+                  "script": "params.total > 0 ? (params.errors / params.total) * 100 : 0"
+                }
+              },
+              "spike_detector": {
+                "bucket_selector": {
+                  "buckets_path": {
+                    "errorRate": "error_rate"
+                  },
+                  "script": "params.errorRate > {{spike_threshold}}"
+                }
+              }
+            }
+          }
+        }
+      }
+
+    parameters:
+      - name: start_time
+        type: string
+        required: false
+        default: "now-24h"
+        description: "Start of time range"
+
+      - name: end_time
+        type: string
+        required: false
+        default: "now"
+        description: "End of time range"
+
+      - name: interval
+        type: string
+        required: false
+        default: "5m"
+        description: "Time bucket interval"
+        allowed_values: ["1m", "5m", "15m", "30m", "1h"]
+
+      - name: spike_threshold
+        type: number
+        required: false
+        default: 10.0
+        description: "Error rate percentage threshold for spike detection"
+        min: 0
+        max: 100
+
+    nl_examples:
+      - "Detect error spikes in the last hour"
+      - "When did error rate spike above 10%?"
+      - "Show me time periods with high error rates"
+      - "Find error rate anomalies"
+      - "Calculate error percentage over time"
+
+    semantic_tags:
+      action: "aggregate"
+      primary_entity: "application_logs"
+      aggregation_type: "pipeline"
+      qualifiers: ["error", "spike", "detection", "anomaly"]
+
+    tags: ["analytics", "spike_detection", "bucket_script", "error_rate"]
+    result_format: "timeseries"

@@ -24,7 +24,21 @@ OPTIONAL ARGUMENTS:
     --provider      Inference provider for AI generation (default: openai)
     --ai-usage-rate Percentage of records to generate with AI (default: 50)
     --days-back     Generate logs spanning this many days back (default: 7)
-    --error-rate    Percentage of error logs (default: 10)
+    --error-rate    Percentage of error logs (default: 25)
+
+DATA PATTERNS:
+    The generator creates realistic patterns for testing:
+    - Error spikes at 1-3h, 10-14h, and 44-52h ago (for spike detection testing)
+    - Errors distributed across services (payment-service & api-gateway have most)
+    - Log level distribution: ERROR (25%), WARN (15%), INFO (55%), DEBUG (10%)
+    - Response times: 70% of logs have response_time field
+      * ERROR logs: 5-30 seconds (always slow)
+      * WARN logs: 1-10 seconds (moderately slow)
+      * INFO logs: Varies by endpoint performance profile
+    - Endpoint performance profiles (for "slow request" queries):
+      * Slow endpoints: /payments, /reports/generate, /export/data, /batch/process
+      * Medium endpoints: /search, /analytics, /orders
+      * Fast endpoints: /auth/login, /users, /products, /notifications
 
 EXAMPLES:
     # Generate 1000 logs with default settings
@@ -163,12 +177,32 @@ STATUS_CODES = {
     "DEBUG": [200]
 }
 
-# API endpoints
+# API endpoints with performance characteristics
+# Format: (endpoint, typical_response_time_category)
+# Categories: "slow" (usually >2000ms), "medium" (500-2000ms), "fast" (<500ms)
 API_ENDPOINTS = [
     "/api/v1/users", "/api/v1/orders", "/api/v1/payments", "/api/v1/products",
     "/api/v1/auth/login", "/api/v1/auth/logout", "/api/v1/search",
-    "/api/v1/notifications", "/api/v1/analytics", "/api/v1/inventory"
+    "/api/v1/notifications", "/api/v1/analytics", "/api/v1/inventory",
+    "/api/v1/reports/generate", "/api/v1/export/data", "/api/v1/batch/process"
 ]
+
+# Endpoint performance profiles (probability of being slow)
+ENDPOINT_PERFORMANCE = {
+    "/api/v1/payments": "slow",           # Payment processing is often slow
+    "/api/v1/reports/generate": "slow",   # Report generation is slow
+    "/api/v1/export/data": "slow",        # Data export is slow
+    "/api/v1/batch/process": "slow",      # Batch processing is slow
+    "/api/v1/search": "medium",           # Search can be slow
+    "/api/v1/analytics": "medium",        # Analytics queries are medium
+    "/api/v1/orders": "medium",           # Order processing is medium
+    "/api/v1/auth/login": "fast",         # Auth should be fast
+    "/api/v1/auth/logout": "fast",        # Logout is fast
+    "/api/v1/users": "fast",              # User lookups are fast
+    "/api/v1/products": "fast",           # Product lookups are fast
+    "/api/v1/notifications": "fast",      # Notifications are fast
+    "/api/v1/inventory": "fast"           # Inventory lookups are fast
+}
 
 
 class SampleDataGenerator:
@@ -430,6 +464,37 @@ Generate one log message:"""
             # If some placeholder is missing, return template as is
             return template
 
+    def _adjust_error_rate_for_spike(self, timestamp: datetime,
+                                     base_error_rate: float) -> float:
+        """Adjust error rate to create realistic spikes
+
+        Args:
+            timestamp: Timestamp of the log
+            base_error_rate: Base error rate
+
+        Returns:
+            Adjusted error rate for this timestamp
+        """
+        # Create error spikes at certain times to make spike detection work
+        # Spike 1: 2 hours ago (high spike)
+        # Spike 2: 12 hours ago (medium spike)
+        # Spike 3: 2 days ago (low spike)
+
+        now = datetime.now(timezone.utc)
+        hours_ago = (now - timestamp).total_seconds() / 3600
+
+        # Recent spike (1-3 hours ago): 3x error rate
+        if 1 <= hours_ago <= 3:
+            return min(base_error_rate * 3, 0.6)  # Cap at 60%
+        # Medium spike (10-14 hours ago): 2x error rate
+        elif 10 <= hours_ago <= 14:
+            return min(base_error_rate * 2, 0.4)  # Cap at 40%
+        # Old spike (44-52 hours ago): 1.5x error rate
+        elif 44 <= hours_ago <= 52:
+            return min(base_error_rate * 1.5, 0.35)  # Cap at 35%
+
+        return base_error_rate
+
     async def generate_log_record(self, timestamp: datetime,
                                   error_rate: float = 0.1) -> Dict[str, Any]:
         """Generate a single log record
@@ -441,19 +506,34 @@ Generate one log message:"""
         Returns:
             Log record dictionary
         """
+        # Adjust error rate to create spikes for realistic spike detection
+        adjusted_error_rate = self._adjust_error_rate_for_spike(timestamp, error_rate)
         # Determine log level based on error rate
+        # Ensure good distribution: ERROR, WARN, INFO, DEBUG
+        # If error_rate = 0.25, distribution: 25% ERROR, 15% WARN, 50% INFO, 10% DEBUG
         rand = random.random()
-        if rand < error_rate:
+        if rand < adjusted_error_rate:
             level = "ERROR"
-        elif rand < error_rate + 0.1:
+        elif rand < adjusted_error_rate + (adjusted_error_rate * 0.6):  # 60% of error_rate for WARN
             level = "WARN"
-        elif rand < error_rate + 0.3:
+        elif rand < adjusted_error_rate + (adjusted_error_rate * 0.6) + 0.1:  # 10% DEBUG
             level = "DEBUG"
         else:
             level = "INFO"
 
         # Basic context
-        service_name = random.choice(SERVICES)
+        # For ERROR logs, use weighted selection to create realistic error distribution
+        # Some services are more error-prone than others
+        if level == "ERROR":
+            # payment-service, auth-service, and api-gateway have more errors
+            service_name = random.choices(
+                SERVICES,
+                weights=[15, 10, 10, 20, 8, 12, 15, 5, 3, 2, 0],  # payment-service and api-gateway weighted higher
+                k=1
+            )[0]
+        else:
+            service_name = random.choice(SERVICES)
+
         user_id = f"user-{self.fake.uuid4()[:8]}" if random.random() > 0.3 else None
         environment = random.choices(
             ["production", "staging", "development"],
@@ -492,19 +572,53 @@ Generate one log message:"""
         if user_id:
             record["user_id"] = user_id
 
-        # Add response time and status code for API-related logs
-        if any(keyword in message.lower() for keyword in ['api', 'request', 'endpoint', 'call']):
+        # Add response time and status code for most logs (70% of logs)
+        # This ensures "search_slow_requests" queries return results
+        if random.random() < 0.7:  # 70% of logs have response time
+            # Select endpoint first
+            endpoint = random.choice(API_ENDPOINTS)
+            endpoint_profile = ENDPOINT_PERFORMANCE.get(endpoint, "fast")
+
+            # Base response time on log level
             if level == "ERROR":
-                record["response_time"] = random.randint(5000, 30000)
+                # Errors have slow response times (5-30 seconds)
+                base_response_time = random.randint(5000, 30000)
                 record["status_code"] = random.choice(STATUS_CODES["ERROR"])
             elif level == "WARN":
-                record["response_time"] = random.randint(2000, 10000)
+                # Warnings have moderately slow response times (1-10 seconds)
+                base_response_time = random.randint(1000, 10000)
                 record["status_code"] = random.choice(STATUS_CODES["WARN"])
             else:
-                record["response_time"] = random.randint(10, 2000)
-                record["status_code"] = random.choice(STATUS_CODES["INFO"])
+                # INFO/DEBUG logs - response time depends on endpoint profile
+                if endpoint_profile == "slow":
+                    # Slow endpoints: 70% are slow, 30% medium
+                    if random.random() < 0.7:
+                        base_response_time = random.randint(2000, 8000)  # Slow
+                    else:
+                        base_response_time = random.randint(500, 2000)   # Medium
+                elif endpoint_profile == "medium":
+                    # Medium endpoints: 50% medium, 30% slow, 20% fast
+                    rand = random.random()
+                    if rand < 0.5:
+                        base_response_time = random.randint(500, 2000)   # Medium
+                    elif rand < 0.8:
+                        base_response_time = random.randint(2000, 5000)  # Slow
+                    else:
+                        base_response_time = random.randint(50, 500)     # Fast
+                else:  # "fast"
+                    # Fast endpoints: 80% fast, 15% medium, 5% slow
+                    rand = random.random()
+                    if rand < 0.80:
+                        base_response_time = random.randint(10, 500)     # Fast
+                    elif rand < 0.95:
+                        base_response_time = random.randint(500, 2000)   # Medium
+                    else:
+                        base_response_time = random.randint(2000, 5000)  # Occasionally slow
 
-            record["endpoint"] = random.choice(API_ENDPOINTS)
+                record["status_code"] = random.choice(STATUS_CODES.get(level, STATUS_CODES["INFO"]))
+
+            record["response_time"] = base_response_time
+            record["endpoint"] = endpoint
 
         # Add exception details for errors
         if level == "ERROR":
@@ -698,7 +812,7 @@ async def main():
                        help='Inference provider for AI generation')
     parser.add_argument('--days-back', type=int, default=7,
                        help='Generate logs spanning this many days back')
-    parser.add_argument('--error-rate', type=float, default=10.0,
+    parser.add_argument('--error-rate', type=float, default=25.0,
                        help='Percentage of error logs (0-100)')
     parser.add_argument('--ai-usage-rate', type=float, default=50.0,
                        help='Percentage of records to generate with AI (0-100, default: 50)')
