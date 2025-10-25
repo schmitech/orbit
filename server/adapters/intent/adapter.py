@@ -444,6 +444,19 @@ def register_intent_adapter():
             )
             logger.info(f"Registered intent adapter for {datasource}")
         
+        # Register for HTTP datasource (used by Firecrawl and other HTTP-based intent retrievers)
+        ADAPTER_REGISTRY.register(
+            adapter_type="retriever",
+            datasource="http",
+            adapter_name="intent",
+            implementation='adapters.intent.adapter.IntentAdapter',
+            config={
+                'confidence_threshold': 0.1,
+                'verbose': False
+            }
+        )
+        logger.info("Registered intent adapter for http")
+        
         logger.info("Intent adapter registration complete")
         
     except Exception as e:

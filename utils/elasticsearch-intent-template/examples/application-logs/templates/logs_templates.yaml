@@ -189,7 +189,7 @@ templates:
     result_format: "table"
     timeout: 30
 
-  - id: aggregate_errors_by_service
+  - id: aggregate_errors_by_service #FIXME
     version: "1.0.0"
     description: "Count and group errors by service name"
     category: "log_analytics"
@@ -233,7 +233,7 @@ templates:
         "aggs": {
           "by_service": {
             "terms": {
-              "field": "service_name",
+              "field": "service_name.keyword",
               "size": {{agg_size}},
               "order": {
                 "_count": "desc"
@@ -242,7 +242,7 @@ templates:
             "aggs": {
               "error_types": {
                 "terms": {
-                  "field": "exception.type",
+                  "field": "exception.type.keyword",
                   "size": 5
                 }
               },
@@ -260,19 +260,24 @@ templates:
       - name: start_time
         type: string
         required: false
-        default: "now-7d"
+        default: "now-30d"
         description: "Start of time range"
+        location: "body"
+        format: "date_time"
 
       - name: end_time
         type: string
         required: false
         default: "now"
         description: "End of time range"
+        location: "body"
+        format: "date_time"
 
       - name: environment
         type: string
         required: false
         description: "Filter by environment"
+        location: "body"
         allowed_values: ["production", "staging", "development"]
 
       - name: agg_size
@@ -280,6 +285,7 @@ templates:
         required: false
         default: 20
         description: "Number of services to return"
+        location: "body"
         min: 1
         max: 100
 
@@ -345,7 +351,7 @@ templates:
           "errors_over_time": {
             "date_histogram": {
               "field": "timestamp",
-              "calendar_interval": "{{interval}}",
+              "fixed_interval": "{{interval}}",
               "min_doc_count": 0,
               "extended_bounds": {
                 "min": "{{start_time}}",
@@ -355,7 +361,7 @@ templates:
             "aggs": {
               "by_level": {
                 "terms": {
-                  "field": "level",
+                  "field": "level.keyword",
                   "size": 5
                 }
               }
@@ -643,7 +649,7 @@ templates:
   # ADVANCED AGGREGATION PIPELINE TEMPLATES
   # ============================================================================
 
-  - id: error_rate_trend_analysis
+  - id: error_rate_trend_analysis #FIXME
     version: "1.0.0"
     description: "Analyze error rate trends with derivative and cumulative sum"
     category: "advanced_analytics"
@@ -754,7 +760,7 @@ templates:
     tags: ["analytics", "pipeline", "derivative", "cumulative_sum", "trend"]
     result_format: "timeseries"
 
-  - id: performance_percentiles_with_filters
+  - id: performance_percentiles_with_filters #FIXME
     version: "1.0.0"
     description: "Calculate response time percentiles with bucket selector to filter slow services"
     category: "advanced_analytics"
@@ -792,7 +798,7 @@ templates:
         "aggs": {
           "by_service": {
             "terms": {
-              "field": "service_name",
+              "field": "service_name.keyword",
               "size": {{agg_size}}
             },
             "aggs": {
@@ -831,18 +837,23 @@ templates:
         required: false
         default: "now-24h"
         description: "Start of time range"
+        location: "body"
+        format: "date_time"
 
       - name: end_time
         type: string
         required: false
         default: "now"
         description: "End of time range"
+        location: "body"
+        format: "date_time"
 
       - name: threshold
         type: integer
         required: false
-        default: 1000
+        default: 500
         description: "Response time threshold in ms for filtering"
+        location: "body"
         min: 0
 
       - name: agg_size
@@ -850,6 +861,7 @@ templates:
         required: false
         default: 20
         description: "Number of services to analyze"
+        location: "body"
         min: 1
         max: 100
 
@@ -906,7 +918,7 @@ templates:
               },
               "error_logs": {
                 "filter": {
-                  "term": {
+                  "match": {
                     "level": "ERROR"
                   }
                 },
@@ -970,9 +982,9 @@ templates:
 
     nl_examples:
       - "Detect error spikes in the last hour"
-      - "When did error rate spike above 10%?"
+      - "When did error rate spike above 10%?" #FIXME
       - "Show me time periods with high error rates"
-      - "Find error rate anomalies"
+      - "Find error rate anomalies" #FIXME
       - "Calculate error percentage over time"
 
     semantic_tags:

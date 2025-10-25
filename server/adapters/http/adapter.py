@@ -365,11 +365,11 @@ def register_http_adapter():
     try:
         from adapters.registry import ADAPTER_REGISTRY
 
-        # Register for HTTP datasource
+        # Register for HTTP datasource with adapter_name="http"
         ADAPTER_REGISTRY.register(
             adapter_type="retriever",
             datasource="http",
-            adapter_name="intent",
+            adapter_name="http",
             implementation='adapters.http.adapter.HttpAdapter',
             config={
                 'confidence_threshold': 0.1,

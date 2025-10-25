@@ -24,13 +24,13 @@ OPTIONAL ARGUMENTS:
     --provider      Inference provider for AI generation (default: openai)
     --ai-usage-rate Percentage of records to generate with AI (default: 50)
     --days-back     Generate logs spanning this many days back (default: 7)
-    --error-rate    Percentage of error logs (default: 25)
+    --error-rate    Percentage of error logs (default: 30)
 
 DATA PATTERNS:
     The generator creates realistic patterns for testing:
     - Error spikes at 1-3h, 10-14h, and 44-52h ago (for spike detection testing)
     - Errors distributed across services (payment-service & api-gateway have most)
-    - Log level distribution: ERROR (25%), WARN (15%), INFO (55%), DEBUG (10%)
+    - Log level distribution: ERROR (30%), WARN (15%), INFO (50%), DEBUG (5%)
     - Response times: 70% of logs have response_time field
       * ERROR logs: 5-30 seconds (always slow)
       * WARN logs: 1-10 seconds (moderately slow)
@@ -574,7 +574,8 @@ Generate one log message:"""
 
         # Add response time and status code for most logs (70% of logs)
         # This ensures "search_slow_requests" queries return results
-        if random.random() < 0.7:  # 70% of logs have response time
+        # ERROR logs ALWAYS have response_time for aggregation queries
+        if level == "ERROR" or random.random() < 0.7:  # 70% of logs have response time, ERROR logs always do
             # Select endpoint first
             endpoint = random.choice(API_ENDPOINTS)
             endpoint_profile = ENDPOINT_PERFORMANCE.get(endpoint, "fast")
@@ -620,7 +621,7 @@ Generate one log message:"""
             record["response_time"] = base_response_time
             record["endpoint"] = endpoint
 
-        # Add exception details for errors
+        # Add exception details for errors (REQUIRED for aggregation queries)
         if level == "ERROR":
             exception_type = random.choice(EXCEPTION_TYPES)
             record["exception"] = {
@@ -705,7 +706,15 @@ Generate one log message:"""
                     "level": {"type": "keyword"},
                     "message": {"type": "text", "analyzer": "standard"},
                     "logger": {"type": "keyword"},
-                    "service_name": {"type": "keyword"},
+                    "service_name": {
+                        "type": "text",
+                        "fields": {
+                            "keyword": {
+                                "type": "keyword",
+                                "ignore_above": 256
+                            }
+                        }
+                    },
                     "environment": {"type": "keyword"},
                     "host": {"type": "keyword"},
                     "request_id": {"type": "keyword"},
@@ -715,7 +724,15 @@ Generate one log message:"""
                     "endpoint": {"type": "keyword"},
                     "exception": {
                         "properties": {
-                            "type": {"type": "keyword"},
+                            "type": {
+                                "type": "text",
+                                "fields": {
+                                    "keyword": {
+                                        "type": "keyword",
+                                        "ignore_above": 256
+                                    }
+                                }
+                            },
                             "message": {"type": "text"},
                             "stacktrace": {"type": "text"}
                         }
@@ -812,7 +829,7 @@ async def main():
                        help='Inference provider for AI generation')
     parser.add_argument('--days-back', type=int, default=7,
                        help='Generate logs spanning this many days back')
-    parser.add_argument('--error-rate', type=float, default=25.0,
+    parser.add_argument('--error-rate', type=float, default=30.0,
                        help='Percentage of error logs (0-100)')
     parser.add_argument('--ai-usage-rate', type=float, default=50.0,
                        help='Percentage of records to generate with AI (0-100, default: 50)')
