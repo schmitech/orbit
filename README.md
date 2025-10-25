@@ -325,6 +325,71 @@ Start ORBIT and create an API key:
 orbit-chat --url http://localhost:3000 --api-key YOUR_API_KEY
 ```
 
+### Scenario 4: Web-Based Knowledge Retrieval
+Access authoritative web sources (Wikipedia, official documentation) as a structured knowledge database. Perfect for research assistants, educational tools, and information lookup systems that need reliable, curated content.
+
+**Sample Questions:**
+- "Tell me about web scraping"
+- "What is machine learning?"
+- "I need Python documentation"
+- "Explain quantum computing"
+- "What is blockchain technology?"
+
+#### How It Works
+
+The Firecrawl adapter treats web sources like a database, mapping natural language questions about topics to authoritative URLs. Unlike generic web scrapers, this approach:
+- **Quality Control**: Only accesses curated, trusted sources
+- **Structured Access**: Predefined topic-to-URL mappings ensure relevant content
+- **Fresh Content**: Always retrieves the latest information from sources
+- **Consistent Format**: Returns formatted markdown content with metadata
+
+#### Quick Start with Web Knowledge Retrieval
+
+Set up your Firecrawl API key:
+
+```bash
+# Get your API key from https://firecrawl.dev
+export FIRECRAWL_API_KEY="your-api-key-here"
+```
+
+Enable the Firecrawl knowledge retrieval adapter in `config/adapters.yaml`:
+
+```yaml
+- name: "intent-firecrawl-webscrape"
+  enabled: true
+  type: "retriever"
+  datasource: "http"
+  adapter: "intent"
+  implementation: "retrievers.implementations.intent.IntentFirecrawlRetriever"
+  inference_provider: "ollama"
+  embedding_provider: "openai"
+  config:
+    domain_config_path: "utils/firecrawl-intent-template/examples/web-scraping/templates/firecrawl_domain.yaml"
+    template_library_path:
+      - "utils/firecrawl-intent-template/examples/web-scraping/templates/firecrawl_templates.yaml"
+    base_url: "https://api.firecrawl.dev/v1"
+    auth:
+      type: "bearer_token"
+      token_env: "FIRECRAWL_API_KEY"
+```
+
+Start ORBIT and create an API key:
+
+```bash
+./bin/orbit.sh start --delete-logs
+
+# Login and create API key
+./bin/orbit.sh login
+./bin/orbit.py key create \
+  --intent-firecrawl-webscrape \
+  --name "Knowledge Assistant" \
+  --notes "Web-based knowledge retrieval from authoritative sources" \
+  --prompt-file examples/prompts/firecrawl-knowledge-assistant-prompt.txt
+
+# Start asking questions about any topic
+orbit-chat --url http://localhost:3000 --api-key YOUR_API_KEY
+```
+
 #### Quick Start with Contact Example
 
 Install Ollama and pull the `nomic-embed-text:latest` embedding model. Also pull a model of choice for inference purposes.

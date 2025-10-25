@@ -1,0 +1,88 @@
+# Wikipedia Knowledge Base Domain Configuration
+# This domain defines semantic types and capabilities for web-based knowledge retrieval
+
+domain_name: "wikipedia_knowledge_base"
+version: "1.0"
+description: "Wikipedia-based knowledge retrieval system for answering questions about various topics using authoritative web sources"
+
+# Semantic types for different categories of knowledge
+semantic_types:
+  - name: "programming_knowledge"
+    description: "Information about programming languages, frameworks, and software development concepts"
+    examples:
+      - "What is Python?"
+      - "Tell me about machine learning"
+      - "How does web scraping work?"
+      - "What is object-oriented programming?"
+
+  - name: "scientific_knowledge"
+    description: "Scientific concepts, theories, and explanations from physics, chemistry, biology, etc."
+    examples:
+      - "What is quantum mechanics?"
+      - "Explain photosynthesis"
+      - "What is DNA?"
+      - "Tell me about the periodic table"
+
+  - name: "historical_knowledge"
+    description: "Historical events, periods, figures, and civilizations"
+    examples:
+      - "Tell me about World War II"
+      - "What was the Renaissance?"
+      - "Who was Albert Einstein?"
+      - "Explain the Industrial Revolution"
+
+  - name: "geographical_knowledge"
+    description: "Information about countries, cities, landmarks, and geographical features"
+    examples:
+      - "Tell me about Japan"
+      - "What is Mount Everest?"
+      - "Describe Paris"
+      - "What is the Amazon rainforest?"
+
+  - name: "technology_knowledge"
+    description: "Modern technology, computing, internet, and digital concepts"
+    examples:
+      - "What is artificial intelligence?"
+      - "Tell me about blockchain"
+      - "What is cloud computing?"
+      - "Explain the internet"
+
+  - name: "general_knowledge"
+    description: "General encyclopedia knowledge on various topics"
+    examples:
+      - "What is chess?"
+      - "Tell me about the solar system"
+      - "What is philosophy?"
+      - "Explain democracy"
+
+# Domain capabilities
+capabilities:
+  - name: "topic_retrieval"
+    description: "Retrieve comprehensive information about a specific topic from Wikipedia"
+
+  - name: "concept_explanation"
+    description: "Get detailed explanations of concepts, theories, and ideas"
+
+  - name: "factual_lookup"
+    description: "Look up factual information about subjects"
+
+# Response format preferences
+response_format:
+  preferred_formats: ["markdown"]
+  include_metadata: true
+  include_links: true
+
+# Query characteristics
+query_patterns:
+  - "What is {topic}?"
+  - "Tell me about {topic}"
+  - "Explain {concept}"
+  - "I want to learn about {subject}"
+  - "Give me information on {topic}"
+  - "{topic} information"
+
+# Source configuration
+source_preferences:
+  primary_source: "Wikipedia"
+  language: "en"
+  prefer_authoritative: true

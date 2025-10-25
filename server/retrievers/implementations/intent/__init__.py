@@ -51,6 +51,15 @@ except ImportError:  # pragma: no cover - optional import guard
     _http_json_available = False
     logger.debug("HTTP client libraries not installed; IntentHTTPJSONRetriever unavailable")
 
+# Import Firecrawl retriever (requires httpx package)
+try:
+    from .intent_firecrawl_retriever import IntentFirecrawlRetriever
+    _firecrawl_available = True
+except ImportError:  # pragma: no cover - optional import guard
+    IntentFirecrawlRetriever = None
+    _firecrawl_available = False
+    logger.debug("HTTP client libraries not installed; IntentFirecrawlRetriever unavailable")
+
 __all__ = [
     'DomainParameterExtractor',
     'DomainResponseGenerator',
@@ -72,3 +81,6 @@ if _elasticsearch_available and IntentElasticsearchRetriever is not None:
 
 if _http_json_available and IntentHTTPJSONRetriever is not None:
     __all__.append('IntentHTTPJSONRetriever')
+
+if _firecrawl_available and IntentFirecrawlRetriever is not None:
+    __all__.append('IntentFirecrawlRetriever')

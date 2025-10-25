@@ -68,7 +68,8 @@ dependencies = [
     "environs>=14.3.0",
     "marqo==3.18.0",
     "pgvector==0.4.1",
-    "opentelemetry-proto==1.28.0"
+    "opentelemetry-proto==1.28.0",
+    "firecrawl==4.5.0"
 ]
 
 [profiles.torch]

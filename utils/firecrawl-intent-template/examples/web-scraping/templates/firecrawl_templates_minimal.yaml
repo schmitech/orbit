@@ -1,0 +1,162 @@
+# Minimal Firecrawl Test Templates
+# These templates use small, simple web pages for quick testing and validation
+
+templates:
+  # ============================================================================
+  # MINIMAL TEST TEMPLATE - Example.com (Small, Reliable)
+  # ============================================================================
+
+  - id: test_example_com
+    version: "1.0.0"
+    description: "Test scraping with example.com (smallest possible test)"
+    category: "test"
+    complexity: "simple"
+
+    url_mapping:
+      source: "example"
+      url: "https://example.com"
+
+    http_method: "POST"
+    endpoint_template: "/scrape"
+
+    headers:
+      Content-Type: "application/json"
+      Accept: "application/json"
+
+    request_body: |
+      {
+        "url": "https://example.com",
+        "formats": ["markdown"]
+      }
+
+    parameters: []
+
+    response_mapping:
+      items_path: "$"
+      fields:
+        - name: "markdown"
+          path: "$.markdown"
+          type: "string"
+
+    nl_examples:
+      - "test example"
+      - "scrape example.com"
+      - "get example page"
+      - "test firecrawl"
+      - "test scraping"
+      - "example test"
+      - "show me an example"
+      - "test the scraper"
+
+    semantic_tags:
+      action: "test"
+      primary_entity: "example"
+      topic: "test"
+
+    result_format: "content"
+    tags: ["test", "example", "minimal"]
+    timeout: 30
+
+  # ============================================================================
+  # SIMPLE DOCUMENTATION - Python.org Homepage (Small and Fast)
+  # ============================================================================
+
+  - id: test_python_homepage
+    version: "1.0.0"
+    description: "Test with Python.org homepage (simple, fast)"
+    category: "test"
+    complexity: "simple"
+
+    url_mapping:
+      source: "python"
+      url: "https://www.python.org/"
+
+    http_method: "POST"
+    endpoint_template: "/scrape"
+
+    headers:
+      Content-Type: "application/json"
+      Accept: "application/json"
+
+    request_body: |
+      {
+        "url": "https://www.python.org/",
+        "formats": ["markdown"]
+      }
+
+    parameters: []
+
+    response_mapping:
+      items_path: "$"
+      fields:
+        - name: "markdown"
+          path: "$.markdown"
+          type: "string"
+
+    nl_examples:
+      - "test python homepage"
+      - "scrape python.org"
+      - "get python website"
+      - "show python homepage"
+      - "python.org test"
+
+    semantic_tags:
+      action: "test"
+      primary_entity: "python"
+      topic: "test"
+
+    result_format: "content"
+    tags: ["test", "python", "documentation"]
+    timeout: 30
+
+  # ============================================================================
+  # HTTPBIN - Simple API Testing Service
+  # ============================================================================
+
+  - id: test_httpbin
+    version: "1.0.0"
+    description: "Test with httpbin.org HTML page (very small, reliable)"
+    category: "test"
+    complexity: "simple"
+
+    url_mapping:
+      source: "httpbin"
+      url: "https://httpbin.org/html"
+
+    http_method: "POST"
+    endpoint_template: "/scrape"
+
+    headers:
+      Content-Type: "application/json"
+      Accept: "application/json"
+
+    request_body: |
+      {
+        "url": "https://httpbin.org/html",
+        "formats": ["markdown"]
+      }
+
+    parameters: []
+
+    response_mapping:
+      items_path: "$"
+      fields:
+        - name: "markdown"
+          path: "$.markdown"
+          type: "string"
+
+    nl_examples:
+      - "test httpbin"
+      - "scrape httpbin"
+      - "get httpbin html"
+      - "httpbin test"
+      - "test html page"
+
+    semantic_tags:
+      action: "test"
+      primary_entity: "httpbin"
+      topic: "test"
+
+    result_format: "content"
+    tags: ["test", "httpbin", "minimal"]
+    timeout: 30
