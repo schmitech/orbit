@@ -443,7 +443,20 @@ def register_intent_adapter():
                 }
             )
             logger.info(f"Registered intent adapter for {datasource}")
-        
+
+        # Register for MongoDB NoSQL datasource
+        ADAPTER_REGISTRY.register(
+            adapter_type="retriever",
+            datasource="mongodb",
+            adapter_name="intent",
+            implementation='adapters.intent.adapter.IntentAdapter',
+            config={
+                'confidence_threshold': 0.1,
+                'verbose': False
+            }
+        )
+        logger.info("Registered intent adapter for mongodb")
+
         # Register for HTTP datasource (used by Firecrawl and other HTTP-based intent retrievers)
         ADAPTER_REGISTRY.register(
             adapter_type="retriever",

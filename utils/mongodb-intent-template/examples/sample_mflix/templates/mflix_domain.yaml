@@ -1,0 +1,300 @@
+# MongoDB Domain Configuration for Sample MFlix Database
+#
+# CONFIGURATION SEPARATION:
+# ========================
+#
+# This file (mflix_domain.yaml):
+#   - Domain-specific schema and field definitions
+#   - Vocabulary and semantic types for NLU
+#   - Query patterns and response formatting
+#   - Domain-specific query optimization settings
+#
+# config/datasources.yaml:
+#   - MongoDB connection details (host, port, auth, SSL)
+#   - Connection pooling settings
+#   - Timeout and retry configuration
+#
+# config/adapters.yaml (adapter-specific):
+#   - Database name override (if different from domain default)
+#   - Template collection name
+#   - Confidence thresholds
+#   - Adapter-specific query settings
+#
+# SUMMARY: Connection = datasources.yaml, Domain = this file, Adapter settings = adapters.yaml
+
+domain_name: "sample_mflix"
+domain_type: "mongodb"
+version: "1.0.0"
+
+# Database/Collection Definitions (analogous to SQL tables)
+# Note: The actual database name can be overridden in the adapter config
+database: "sample_mflix"
+
+collections:
+  movies:
+    # Primary identifier
+    primary_key: "_id"
+    display_name: "Movies"
+    display_name_field: "title"
+
+    # Time field for time-based queries
+    time_field: "released"
+    time_field_format: "year"
+
+    # Searchable fields (mapped fields in MongoDB)
+    searchable_fields:
+      - name: "title"
+        type: "string"
+        searchable: true
+      - name: "plot"
+        type: "string"
+        searchable: true
+      - name: "genres"
+        type: "array"
+        searchable: true
+      - name: "directors"
+        type: "array"
+        searchable: true
+      - name: "cast"
+        type: "array"
+        searchable: true
+      - name: "year"
+        type: "integer"
+        searchable: true
+      - name: "rated"
+        type: "string"
+        searchable: true
+      - name: "runtime"
+        type: "integer"
+        searchable: true
+      - name: "imdb.rating"
+        type: "number"
+        searchable: true
+      - name: "imdb.votes"
+        type: "integer"
+        searchable: true
+      - name: "awards.wins"
+        type: "integer"
+        searchable: true
+      - name: "awards.nominations"
+        type: "integer"
+        searchable: true
+      - name: "countries"
+        type: "array"
+        searchable: true
+      - name: "languages"
+        type: "array"
+        searchable: true
+
+    # Common filters
+    common_filters:
+      - field: "genres"
+        type: "in"
+        values: ["Action", "Adventure", "Animation", "Biography", "Comedy", "Crime", "Documentary", "Drama", "Family", "Fantasy", "Film-Noir", "History", "Horror", "Music", "Musical", "Mystery", "Romance", "Sci-Fi", "Sport", "Thriller", "War", "Western"]
+      - field: "rated"
+        type: "in"
+        values: ["G", "PG", "PG-13", "R", "NC-17", "UNRATED", "TV-MA", "TV-PG", "TV-14", "TV-Y", "TV-Y7", "TV-Y7-FV"]
+      - field: "year"
+        type: "range"
+        ranges:
+          - "1900-1950"  # Classic era
+          - "1951-1980"  # Golden age
+          - "1981-2000"  # Modern era
+          - "2001-2010"  # 2000s
+          - "2011-2020"  # 2010s
+          - "2021-2030"  # Recent/Current
+      - field: "imdb.rating"
+        type: "range"
+        ranges:
+          - "0-3"    # Poor
+          - "3-5"    # Below average
+          - "5-7"    # Average
+          - "7-8"    # Good
+          - "8-10"   # Excellent
+
+    # Default sorting
+    default_sort:
+      - field: "imdb.rating"
+        order: -1  # Descending
+      - field: "year"
+        order: -1  # Descending
+
+  users:
+    primary_key: "_id"
+    display_name: "Users"
+    display_name_field: "name"
+
+    searchable_fields:
+      - name: "name"
+        type: "string"
+        searchable: true
+      - name: "email"
+        type: "string"
+        searchable: true
+      - name: "password"
+        type: "string"
+        searchable: false  # Never search passwords
+      - name: "preferences"
+        type: "object"
+        searchable: true
+
+    common_filters:
+      - field: "name"
+        type: "regex"
+        case_insensitive: true
+
+  comments:
+    primary_key: "_id"
+    display_name: "Comments"
+    display_name_field: "text"
+
+    time_field: "date"
+    time_field_format: "date_time"
+
+    searchable_fields:
+      - name: "name"
+        type: "string"
+        searchable: true
+      - name: "email"
+        type: "string"
+        searchable: true
+      - name: "movie_id"
+        type: "objectId"
+        searchable: true
+      - name: "text"
+        type: "string"
+        searchable: true
+      - name: "date"
+        type: "date"
+        searchable: true
+
+    default_sort:
+      - field: "date"
+        order: -1  # Most recent first
+
+  theaters:
+    primary_key: "_id"
+    display_name: "Theaters"
+    display_name_field: "theaterId"
+
+    searchable_fields:
+      - name: "theaterId"
+        type: "integer"
+        searchable: true
+      - name: "location.address.street1"
+        type: "string"
+        searchable: true
+      - name: "location.address.city"
+        type: "string"
+        searchable: true
+      - name: "location.address.state"
+        type: "string"
+        searchable: true
+      - name: "location.address.zipcode"
+        type: "string"
+        searchable: true
+      - name: "location.geo.coordinates"
+        type: "array"
+        searchable: false
+
+    common_filters:
+      - field: "location.address.state"
+        type: "in"
+      - field: "location.address.city"
+        type: "regex"
+        case_insensitive: true
+
+  sessions:
+    primary_key: "_id"
+    display_name: "Sessions"
+    display_name_field: "user_id"
+
+    searchable_fields:
+      - name: "user_id"
+        type: "string"
+        searchable: true
+      - name: "jwt"
+        type: "string"
+        searchable: false  # Never search JWT tokens directly
+
+    common_filters:
+      - field: "user_id"
+        type: "exact"
+
+# Vocabulary for Natural Language Understanding
+vocabulary:
+  entity_synonyms:
+    movies: ["films", "cinema", "movies", "flicks", "motion pictures", "films"]
+    users: ["people", "customers", "members", "accounts", "profiles"]
+    comments: ["reviews", "feedback", "opinions", "ratings", "comments"]
+    theaters: ["theaters", "theatres", "cinemas", "venues", "locations"]
+    sessions: ["sessions", "logins", "user sessions"]
+    directors: ["directors", "filmmakers", "auteurs"]
+    genres: ["genres", "categories", "types", "classifications"]
+
+  action_synonyms:
+    search: ["find", "show", "get", "search", "look for", "display", "list", "browse"]
+    filter: ["filter", "where", "with", "having", "matching", "that are", "which are"]
+    sort: ["sort", "order", "rank", "arrange", "organize"]
+    count: ["count", "how many", "number of", "total"]
+    analyze: ["analyze", "examine", "study", "investigate", "compare", "evaluate", "assess"]
+
+  qualifier_synonyms:
+    recent: ["recent", "latest", "new", "last", "current", "latest"]
+    popular: ["popular", "trending", "top", "best", "famous", "well-known"]
+    old: ["old", "classic", "vintage", "retro", "ancient"]
+    good: ["good", "great", "excellent", "amazing", "outstanding", "brilliant"]
+    bad: ["bad", "terrible", "awful", "poor", "horrible", "disappointing"]
+    long: ["long", "lengthy", "extended", "epic"]
+    short: ["short", "brief", "quick", "compact"]
+
+  genre_synonyms:
+    action: ["action", "adventure", "thriller", "war"]
+    comedy: ["comedy", "funny", "humor", "comic"]
+    drama: ["drama", "serious", "emotional", "melodrama"]
+    horror: ["horror", "scary", "frightening", "terrifying"]
+    romance: ["romance", "romantic", "love", "relationship"]
+    sci_fi: ["sci-fi", "science fiction", "futuristic", "space", "alien"]
+    fantasy: ["fantasy", "magical", "mythical", "fairy tale"]
+
+  rating_synonyms:
+    excellent: ["excellent", "outstanding", "amazing", "brilliant", "perfect"]
+    good: ["good", "great", "nice", "decent", "solid"]
+    average: ["average", "okay", "mediocre", "decent", "fair"]
+    poor: ["poor", "bad", "terrible", "awful", "disappointing"]
+
+# Query Patterns
+query_patterns:
+  # Default pagination
+  pagination:
+    default_limit: 100
+    max_limit: 1000
+    default_skip: 0
+
+  # Text search defaults
+  text_search:
+    case_insensitive: true
+    use_regex: true
+    regex_options: "i"  # Case insensitive regex
+
+  # Sorting defaults
+  sorting:
+    default_field: "imdb.rating"
+    default_order: -1  # Descending
+
+# Response Processing
+response_processing:
+  default_format: "json"
+  include_id: true
+  include_source: true
+  max_display_fields: 10
+  truncate_long_fields: true
+  max_field_length: 200
+
+# Performance & Optimization
+performance:
+  use_indexes: true
+  default_limit: 100
+  max_limit: 1000
+  enable_text_search: true
+  case_insensitive_regex: true

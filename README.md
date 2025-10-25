@@ -390,6 +390,90 @@ Start ORBIT and create an API key:
 orbit-chat --url http://localhost:3000 --api-key YOUR_API_KEY
 ```
 
+### Scenario 5: Movie Database Analytics with MongoDB
+Analyze movies, ratings, comments, and user engagement using natural language queries against MongoDB's sample_mflix database. Perfect for building recommendation engines, content analytics dashboards, and understanding audience preferences through multi-collection analysis.
+
+**Sample Questions:**
+- "Show me action movies from 2010s with rating above 7"
+- "Find award-winning movies with the most user engagement"
+- "What are the most commented movies this year?"
+- "Analyze genre performance trends over time"
+- "Find underrated movies with high ratings but low comments"
+
+#### How It Works
+
+The MongoDB intent adapter maps natural language questions to MongoDB queries (both simple find operations and complex aggregation pipelines). This approach enables:
+- **Multi-Collection Joins**: Combine data from movies, comments, users, theaters, and sessions collections using `$lookup`
+- **Advanced Analytics**: Perform BI-style analytics with aggregation pipelines (`$group`, `$unwind`, statistical operations)
+- **Flexible Filtering**: Dynamic query construction based on natural language intent
+- **Performance Optimized**: Templates include proper indexing hints and result limiting
+
+#### Quick Start with MongoDB Movie Analytics
+
+Set up your MongoDB connection (MongoDB Atlas recommended for sample_mflix):
+
+```bash
+# Get a free MongoDB Atlas cluster at https://www.mongodb.com/cloud/atlas
+# Load the sample_mflix database from Atlas sample datasets
+# Add your connection details to .env:
+export DATASOURCE_MONGODB_URI="mongodb+srv://username:password@cluster.mongodb.net/sample_mflix?retryWrites=true&w=majority"
+export DATASOURCE_MONGODB_DATABASE="sample_mflix"
+```
+
+Enable the MongoDB movie analytics adapter in `config/adapters.yaml`:
+
+```yaml
+- name: "intent-mongodb-mflix"
+  enabled: true
+  type: "retriever"
+  datasource: "mongodb"
+  adapter: "intent"
+  implementation: "retrievers.implementations.intent.IntentMongoDBRetriever"
+  inference_provider: "ollama"
+  embedding_provider: "ollama"
+  config:
+    domain_config_path: "utils/mongodb-intent-template/examples/sample_mflix/templates/mflix_domain.yaml"
+    template_library_path:
+      - "utils/mongodb-intent-template/examples/sample_mflix/templates/mflix_templates.yaml"
+      - "utils/mongodb-intent-template/examples/sample_mflix/templates/mflix_advanced_templates.yaml"
+    database: "sample_mflix"
+    default_collection: "movies"
+```
+
+Start ORBIT and create an API key:
+
+```bash
+./bin/orbit.sh start --delete-logs
+
+# Login and create API key
+./bin/orbit.sh login
+./bin/orbit.py key create \
+  --intent-mongodb-mflix \
+  --name "Movie Analytics Assistant" \
+  --notes "MongoDB movie database analytics with multi-collection support" \
+  --prompt-file examples/prompts/mongodb-mflix-assistant-prompt.txt
+
+# Start analyzing movies
+orbit-chat --url http://localhost:3000 --api-key YOUR_API_KEY
+```
+
+#### Advanced Analytics Examples
+
+The MongoDB adapter includes both simple queries and advanced BI analytics:
+
+**Simple Queries:**
+- Search movies by title, genre, year, or rating
+- Find users by name or email
+- Get recent comments with filtering
+
+**Advanced Analytics:**
+- Most commented movies with ratings (multi-collection join)
+- Genre performance analysis with aggregation
+- Award-winning movies with engagement metrics
+- Underrated gems analysis (high quality, low engagement)
+- Cast collaboration network patterns
+- Temporal trends and decade analysis
+
 #### Quick Start with Contact Example
 
 Install Ollama and pull the `nomic-embed-text:latest` embedding model. Also pull a model of choice for inference purposes.

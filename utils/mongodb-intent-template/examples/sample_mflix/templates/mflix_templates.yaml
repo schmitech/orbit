@@ -1,0 +1,616 @@
+# MongoDB Query Templates for Sample MFlix Database
+templates:
+  - id: search_movies_by_title
+    version: "1.0.0"
+    description: "Search movies by title using text search"
+    category: "movie_search"
+    complexity: "simple"
+
+    # MongoDB-specific fields
+    database: "sample_mflix"
+    collection: "movies"
+    query_type: "find"
+
+    # MongoDB query template (with variable substitution)
+    mongodb_query: |
+      {
+        "filter": {
+          {% set comma = joiner(",") %}
+          {% if title %}
+          {{comma()}}"title": {
+            "$regex": "{{title}}",
+            "$options": "i"
+          }
+          {% endif %}
+          {% if genres %}
+          {{comma()}}"genres": {
+            "$in": {{genres}}
+          }
+          {% endif %}
+          {% if year_min %}
+          {{comma()}}"year": {
+            "$gte": {{year_min}}
+          }
+          {% endif %}
+          {% if year_max %}
+          {{comma()}}"year": {
+            "$lte": {{year_max}}
+          }
+          {% endif %}
+          {% if rating_min %}
+          {{comma()}}"imdb.rating": {
+            "$gte": {{rating_min}}
+          }
+          {% endif %}
+        },
+        "projection": {
+          "title": 1,
+          "year": 1,
+          "genres": 1,
+          "directors": 1,
+          "imdb.rating": 1,
+          "imdb.votes": 1,
+          "plot": 1
+        },
+        "sort": [
+          {"imdb.rating": -1},
+          {"year": -1}
+        ],
+        "limit": {{limit}},
+        "skip": {{skip}}
+      }
+
+    # Template Parameters
+    parameters:
+      - name: title
+        type: string
+        required: false
+        description: "Movie title to search for"
+        example: "The Dark Knight"
+
+      - name: genres
+        type: array
+        required: false
+        description: "Genres to filter by"
+        example: ["Action", "Drama"]
+
+      - name: year_min
+        type: integer
+        required: false
+        description: "Minimum release year"
+        example: 2000
+
+      - name: year_max
+        type: integer
+        required: false
+        description: "Maximum release year"
+        example: 2020
+
+      - name: rating_min
+        type: number
+        required: false
+        description: "Minimum IMDB rating"
+        example: 7.0
+
+      - name: limit
+        type: integer
+        required: false
+        default: 50
+        description: "Maximum number of results"
+        min: 1
+        max: 1000
+
+      - name: skip
+        type: integer
+        required: false
+        default: 0
+        description: "Number of results to skip"
+        min: 0
+
+    # Natural Language Examples for Intent Matching
+    nl_examples:
+      - "Find movies with 'batman' in the title"
+      - "Show me action movies from 2010"
+      - "Search for movies with rating above 8"
+      - "Find drama movies from the 90s"
+      - "Show me recent action movies"
+      - "Search for 'inception' movie"
+      - "Find highly rated sci-fi movies"
+
+    # Semantic Tags for Template Matching
+    semantic_tags:
+      action: "search"
+      primary_entity: "movies"
+      qualifiers: ["title", "genre", "year", "rating"]
+
+    # Display configuration
+    display_fields:
+      - "title"
+      - "year"
+      - "genres"
+      - "imdb.rating"
+      - "directors"
+
+    # Tags for categorization
+    tags: ["movies", "search", "title", "genre"]
+    result_format: "table"
+    timeout: 30
+
+  - id: search_movies_by_genre_year
+    version: "1.0.0"
+    description: "Find movies by genre and year range"
+    category: "movie_search"
+    complexity: "simple"
+
+    database: "sample_mflix"
+    collection: "movies"
+    query_type: "find"
+
+    mongodb_query: |
+      {
+        "filter": {
+          {% set comma = joiner(",") %}
+          {{comma()}}"genres": {
+            "$in": {{genres}}
+          }
+          {{comma()}}"year": {
+            "$gte": {{year_min}},
+            "$lte": {{year_max}}
+          }
+          {% if rating_min %}
+          {{comma()}}"imdb.rating": {
+            "$gte": {{rating_min}}
+          }
+          {% endif %}
+        },
+        "projection": {
+          "title": 1,
+          "year": 1,
+          "genres": 1,
+          "imdb.rating": 1,
+          "imdb.votes": 1,
+          "plot": 1
+        },
+        "sort": [
+          {"imdb.rating": -1},
+          {"year": -1}
+        ],
+        "limit": {{limit}}
+      }
+
+    parameters:
+      - name: genres
+        type: array
+        required: true
+        description: "Genres to search for"
+        example: ["Action", "Adventure"]
+
+      - name: year_min
+        type: integer
+        required: false
+        default: 1900
+        description: "Minimum release year"
+
+      - name: year_max
+        type: integer
+        required: false
+        default: 2030
+        description: "Maximum release year"
+
+      - name: rating_min
+        type: number
+        required: false
+        description: "Minimum IMDB rating"
+
+      - name: limit
+        type: integer
+        required: false
+        default: 100
+        description: "Maximum number of results"
+
+    nl_examples:
+      - "Show me action movies from 2010 to 2020"
+      - "Find comedy movies from the 90s"
+      - "Get drama movies with high ratings"
+      - "Show me sci-fi movies from 2000s"
+      - "Find horror movies from 2015 onwards"
+
+    semantic_tags:
+      action: "search"
+      primary_entity: "movies"
+      qualifiers: ["genre", "year", "filter"]
+
+    display_fields:
+      - "title"
+      - "year"
+      - "genres"
+      - "imdb.rating"
+
+    tags: ["movies", "genre", "year", "filter"]
+    result_format: "table"
+
+  - id: search_users_by_name_email
+    version: "1.0.0"
+    description: "Search users by name or email"
+    category: "user_search"
+    complexity: "simple"
+
+    database: "sample_mflix"
+    collection: "users"
+    query_type: "find"
+
+    mongodb_query: |
+      {
+        "filter": {
+          {% if name and email %}
+          "$or": [
+            {"name": {"$regex": "{{name}}", "$options": "i"}},
+            {"email": {"$regex": "{{email}}", "$options": "i"}}
+          ]
+          {% elif name %}
+          "name": {"$regex": "{{name}}", "$options": "i"}
+          {% elif email %}
+          "email": {"$regex": "{{email}}", "$options": "i"}
+          {% endif %}
+        },
+        "projection": {
+          "name": 1,
+          "email": 1,
+          "preferences": 1
+        },
+        "sort": [
+          {"name": 1}
+        ],
+        "limit": {{limit}}
+      }
+
+    parameters:
+      - name: name
+        type: string
+        required: false
+        description: "User name to search for"
+        example: "john"
+
+      - name: email
+        type: string
+        required: false
+        description: "Email address to search for"
+        example: "john@example.com"
+
+      - name: limit
+        type: integer
+        required: false
+        default: 50
+        description: "Maximum number of results"
+
+    nl_examples:
+      - "Find user with name 'john'"
+      - "Search for users with email containing 'gmail'"
+      - "Show me users named 'smith'"
+      - "Find user by email address"
+
+    semantic_tags:
+      action: "search"
+      primary_entity: "users"
+      qualifiers: ["name", "email"]
+
+    display_fields:
+      - "name"
+      - "email"
+
+    tags: ["users", "search", "name", "email"]
+    result_format: "table"
+
+  - id: get_recent_comments
+    version: "1.0.0"
+    description: "Get recent comments with optional movie filter"
+    category: "comment_search"
+    complexity: "simple"
+
+    database: "sample_mflix"
+    collection: "comments"
+    query_type: "find"
+
+    mongodb_query: |
+      {
+        "filter": {
+          {% set comma = joiner(",") %}
+          {% if movie_id %}
+          {{comma()}}"movie_id": ObjectId("{{movie_id}}")
+          {% endif %}
+          {% if text %}
+          {{comma()}}"text": {
+            "$regex": "{{text}}",
+            "$options": "i"
+          }
+          {% endif %}
+        },
+        "projection": {
+          "name": 1,
+          "email": 1,
+          "text": 1,
+          "date": 1,
+          "movie_id": 1
+        },
+        "sort": [
+          {"date": -1}
+        ],
+        "limit": {{limit}}
+      }
+
+    parameters:
+      - name: movie_id
+        type: string
+        required: false
+        description: "Movie ID to filter comments"
+        example: "573a1390f29313caabcd42e8"
+
+      - name: text
+        type: string
+        required: false
+        description: "Text to search in comments"
+        example: "great movie"
+
+      - name: limit
+        type: integer
+        required: false
+        default: 20
+        description: "Maximum number of results"
+
+    nl_examples:
+      - "Show me recent comments"
+      - "Get comments for a specific movie"
+      - "Find comments mentioning 'amazing'"
+      - "Show latest user feedback"
+
+    semantic_tags:
+      action: "search"
+      primary_entity: "comments"
+      qualifiers: ["recent", "movie", "text"]
+
+    display_fields:
+      - "name"
+      - "text"
+      - "date"
+
+    tags: ["comments", "recent", "feedback"]
+    result_format: "table"
+
+  - id: get_movies_by_rating_threshold
+    version: "1.0.0"
+    description: "Find movies above a certain rating threshold"
+    category: "movie_analytics"
+    complexity: "simple"
+
+    database: "sample_mflix"
+    collection: "movies"
+    query_type: "find"
+
+    mongodb_query: |
+      {
+        "filter": {
+          "imdb.rating": {
+            "$gte": {{rating_min}}
+          }{% if rating_max %},
+          "imdb.rating": {
+            "$lte": {{rating_max}}
+          }{% endif %}{% if min_votes %},
+          "imdb.votes": {
+            "$gte": {{min_votes}}
+          }{% endif %}
+        },
+        "projection": {
+          "title": 1,
+          "year": 1,
+          "genres": 1,
+          "imdb.rating": 1,
+          "imdb.votes": 1,
+          "directors": 1
+        },
+        "sort": [
+          {"imdb.rating": -1},
+          {"imdb.votes": -1}
+        ],
+        "limit": {{limit}}
+      }
+
+    parameters:
+      - name: rating_min
+        type: number
+        required: true
+        description: "Minimum IMDB rating"
+        example: 8.0
+
+      - name: rating_max
+        type: number
+        required: false
+        description: "Maximum IMDB rating"
+        example: 10.0
+
+      - name: min_votes
+        type: integer
+        required: false
+        description: "Minimum number of IMDB votes"
+        example: 1000
+
+      - name: limit
+        type: integer
+        required: false
+        default: 100
+        description: "Maximum number of results"
+
+    nl_examples:
+      - "Show me movies with rating above 8"
+      - "Find highly rated movies with many votes"
+      - "Get movies rated between 7 and 9"
+      - "Show me top rated movies"
+
+    semantic_tags:
+      action: "search"
+      primary_entity: "movies"
+      qualifiers: ["rating", "high", "quality"]
+
+    display_fields:
+      - "title"
+      - "year"
+      - "imdb.rating"
+      - "imdb.votes"
+      - "genres"
+
+    tags: ["movies", "rating", "quality", "analytics"]
+    result_format: "table"
+
+  - id: search_movies_multi_filter
+    version: "1.0.0"
+    description: "Search movies with multiple filters (genre, year, rating, runtime)"
+    category: "movie_search"
+    complexity: "medium"
+
+    database: "sample_mflix"
+    collection: "movies"
+    query_type: "find"
+
+    mongodb_query: |
+      {
+        "filter": {
+          {% set comma = joiner(",") %}
+          {% if genres %}
+          {{comma()}}"genres": {
+            "$in": {{genres}}
+          }
+          {% endif %}
+          {% if year_min %}
+          {{comma()}}"year": {
+            "$gte": {{year_min}}
+          }
+          {% endif %}
+          {% if year_max %}
+          {{comma()}}"year": {
+            "$lte": {{year_max}}
+          }
+          {% endif %}
+          {% if rating_min %}
+          {{comma()}}"imdb.rating": {
+            "$gte": {{rating_min}}
+          }
+          {% endif %}
+          {% if rating_max %}
+          {{comma()}}"imdb.rating": {
+            "$lte": {{rating_max}}
+          }
+          {% endif %}
+          {% if runtime_min %}
+          {{comma()}}"runtime": {
+            "$gte": {{runtime_min}}
+          }
+          {% endif %}
+          {% if runtime_max %}
+          {{comma()}}"runtime": {
+            "$lte": {{runtime_max}}
+          }
+          {% endif %}
+          {% if countries %}
+          {{comma()}}"countries": {
+            "$in": {{countries}}
+          }
+          {% endif %}
+          {% if languages %}
+          {{comma()}}"languages": {
+            "$in": {{languages}}
+          }
+          {% endif %}
+        },
+        "projection": {
+          "title": 1,
+          "year": 1,
+          "genres": 1,
+          "imdb.rating": 1,
+          "runtime": 1,
+          "countries": 1,
+          "languages": 1,
+          "directors": 1
+        },
+        "sort": [
+          {"imdb.rating": -1},
+          {"year": -1}
+        ],
+        "limit": {{limit}}
+      }
+
+    parameters:
+      - name: genres
+        type: array
+        required: false
+        description: "Genres to filter by"
+        example: ["Action", "Drama"]
+
+      - name: year_min
+        type: integer
+        required: false
+        description: "Minimum release year"
+
+      - name: year_max
+        type: integer
+        required: false
+        description: "Maximum release year"
+
+      - name: rating_min
+        type: number
+        required: false
+        description: "Minimum IMDB rating"
+
+      - name: rating_max
+        type: number
+        required: false
+        description: "Maximum IMDB rating"
+
+      - name: runtime_min
+        type: integer
+        required: false
+        description: "Minimum runtime in minutes"
+
+      - name: runtime_max
+        type: integer
+        required: false
+        description: "Maximum runtime in minutes"
+
+      - name: countries
+        type: array
+        required: false
+        description: "Countries to filter by"
+        example: ["USA", "UK"]
+
+      - name: languages
+        type: array
+        required: false
+        description: "Languages to filter by"
+        example: ["English", "Spanish"]
+
+      - name: limit
+        type: integer
+        required: false
+        default: 50
+        description: "Maximum number of results"
+
+    nl_examples:
+      - "Find action movies from 2010s with rating above 7"
+      - "Show me drama movies under 2 hours"
+      - "Get English movies from USA with high ratings"
+      - "Find sci-fi movies from 2000s with long runtime"
+      - "Show me comedy movies rated between 6 and 8"
+
+    semantic_tags:
+      action: "search"
+      primary_entity: "movies"
+      qualifiers: ["multi_filter", "complex", "advanced"]
+
+    display_fields:
+      - "title"
+      - "year"
+      - "genres"
+      - "imdb.rating"
+      - "runtime"
+      - "countries"
+
+    tags: ["movies", "multi_filter", "advanced", "complex"]
+    result_format: "table"

@@ -17,7 +17,7 @@ class MongoDBDatasource(BaseDatasource):
     async def initialize(self) -> None:
         """Initialize the MongoDB client."""
         mongodb_config = self.config.get('datasources', {}).get('mongodb', {})
-        
+
         try:
             from motor.motor_asyncio import AsyncIOMotorClient
         except ImportError:
@@ -25,35 +25,68 @@ class MongoDBDatasource(BaseDatasource):
             self._client = None
             self._initialized = True
             return
-        
+
         # Extract connection parameters
-        host = mongodb_config.get('host', 'localhost')
-        port = mongodb_config.get('port', 27017)
         database = mongodb_config.get('database', 'orbit')
-        username = mongodb_config.get('username')
-        password = mongodb_config.get('password')
-        
+        timeout = mongodb_config.get('timeout', 30)
+
         try:
-            # Build connection URI
-            if username and password:
-                uri = f"mongodb://{username}:{password}@{host}:{port}/{database}"
+            # Option 1: Use connection_string if provided (preferred for MongoDB Atlas)
+            connection_string = mongodb_config.get('connection_string')
+
+            if connection_string:
+                self.logger.info(f"Initializing MongoDB using connection string to database: {database}")
+                uri = connection_string
             else:
-                uri = f"mongodb://{host}:{port}/{database}"
-            
-            self.logger.info(f"Initializing MongoDB connection to {host}:{port}/{database}")
-            
-            # Create client
-            self._client = AsyncIOMotorClient(uri)
-            
+                # Option 2: Build connection string from individual parameters
+                host = mongodb_config.get('host', 'localhost')
+                port = mongodb_config.get('port', 27017)
+                username = mongodb_config.get('username')
+                password = mongodb_config.get('password')
+                auth_source = mongodb_config.get('auth_source', 'admin')
+                tls = mongodb_config.get('tls', False)
+                retry_writes = mongodb_config.get('retry_writes', True)
+                w = mongodb_config.get('w', 'majority')
+
+                self.logger.info(f"Initializing MongoDB connection to {host}:{port}/{database}")
+
+                # Build connection URI based on host format and authentication
+                if "mongodb.net" in host and username and password:
+                    # MongoDB Atlas with authentication
+                    uri = f"mongodb+srv://{username}:{password}@{host}/{database}?retryWrites={str(retry_writes).lower()}&w={w}"
+                    self.logger.debug("Using MongoDB Atlas connection string format")
+                elif username and password:
+                    # Local or remote MongoDB with authentication
+                    auth_params = f"?authSource={auth_source}"
+                    if tls:
+                        auth_params += "&tls=true"
+                    if retry_writes:
+                        auth_params += f"&retryWrites=true&w={w}"
+                    uri = f"mongodb://{username}:{password}@{host}:{port}/{database}{auth_params}"
+                    self.logger.debug("Using MongoDB connection string with authentication")
+                else:
+                    # Local MongoDB without authentication
+                    uri = f"mongodb://{host}:{port}/{database}"
+                    self.logger.debug("Using MongoDB connection string without authentication")
+
+            # Create client with timeout
+            self._client = AsyncIOMotorClient(
+                uri,
+                serverSelectionTimeoutMS=timeout * 1000
+            )
+
             # Test the connection
             await self._client.admin.command('ping')
-            
+
             self.logger.info("MongoDB connection successful")
             self._initialized = True
-            
+
         except Exception as e:
             self.logger.error(f"Failed to connect to MongoDB: {str(e)}")
-            self.logger.error(f"Connection details: {host}:{port}/{database}")
+            if 'host' in locals():
+                self.logger.error(f"Connection details: {host}:{port}/{database}")
+            else:
+                self.logger.error(f"Database: {database}")
             raise
     
     async def health_check(self) -> bool:

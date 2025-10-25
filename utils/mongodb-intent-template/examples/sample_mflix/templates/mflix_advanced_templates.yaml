@@ -1,0 +1,1069 @@
+# Advanced MongoDB Query Templates for Sample MFlix Database
+# These templates demonstrate multi-collection aggregations, BI analytics, and complex insights
+
+templates:
+  # ============================================================================
+  # MULTI-COLLECTION QUERIES (Using $lookup for JOINs)
+  # ============================================================================
+
+  - id: most_commented_movies_with_ratings
+    version: "1.0.0"
+    description: "Find movies with the most comments, including their ratings and comment count"
+    category: "multi_collection_analytics"
+    complexity: "medium"
+
+    database: "sample_mflix"
+    collection: "movies"
+    query_type: "aggregate"
+
+    mongodb_query: |
+      {
+        "pipeline": [
+          {
+            "$match": {
+              {% if min_rating %}
+              "imdb.rating": { "$gte": {{min_rating}} },
+              {% endif %}
+              "title": { "$exists": true }
+            }
+          },
+          {
+            "$limit": 500
+          },
+          {
+            "$lookup": {
+              "from": "comments",
+              "localField": "_id",
+              "foreignField": "movie_id",
+              "as": "comments"
+            }
+          },
+          {
+            "$addFields": {
+              "comment_count": { "$size": "$comments" }
+            }
+          },
+          {
+            "$match": {
+              "comment_count": { "$gte": {{min_comments}} }
+            }
+          },
+          {
+            "$sort": { "comment_count": -1 }
+          },
+          {
+            "$limit": {{limit}}
+          },
+          {
+            "$project": {
+              "title": 1,
+              "year": 1,
+              "imdb.rating": 1,
+              "imdb.votes": 1,
+              "genres": 1,
+              "comment_count": 1,
+              "plot": 1
+            }
+          }
+        ]
+      }
+
+    parameters:
+      - name: min_comments
+        type: integer
+        required: false
+        default: 5
+        description: "Minimum number of comments"
+        example: 10
+
+      - name: min_rating
+        type: number
+        required: false
+        description: "Minimum IMDB rating"
+        example: 7.0
+
+      - name: limit
+        type: integer
+        required: false
+        default: 20
+        description: "Maximum number of results"
+        min: 1
+        max: 100
+
+    nl_examples:
+      - "Show me the most commented movies"
+      - "Find popular movies with many comments and high ratings"
+      - "What movies have the most user engagement?"
+      - "Show me highly discussed films with good ratings"
+
+    semantic_tags:
+      action: "analyze"
+      primary_entity: "movies"
+      secondary_entity: "comments"
+      qualifiers: ["engagement", "popularity", "discussion"]
+
+    display_fields:
+      - "title"
+      - "year"
+      - "imdb.rating"
+      - "comment_count"
+      - "genres"
+
+    tags: ["movies", "comments", "analytics", "engagement", "multi-collection"]
+    result_format: "table"
+
+  - id: user_engagement_analysis
+    version: "1.0.0"
+    description: "Analyze user engagement by showing users with most comments and their activity"
+    category: "user_analytics"
+    complexity: "medium"
+
+    database: "sample_mflix"
+    collection: "comments"
+    query_type: "aggregate"
+
+    mongodb_query: |
+      {
+        "pipeline": [
+          {
+            "$group": {
+              "_id": {
+                "email": "$email",
+                "name": "$name"
+              },
+              "comment_count": { "$sum": 1 },
+              "first_comment": { "$min": "$date" },
+              "last_comment": { "$max": "$date" },
+              "unique_movies": { "$addToSet": "$movie_id" }
+            }
+          },
+          {
+            "$addFields": {
+              "unique_movie_count": { "$size": "$unique_movies" },
+              "days_active": {
+                "$divide": [
+                  { "$subtract": ["$last_comment", "$first_comment"] },
+                  86400000
+                ]
+              }
+            }
+          },
+          {
+            "$match": {
+              "comment_count": { "$gte": {{min_comments}} }
+            }
+          },
+          {
+            "$sort": { "comment_count": -1 }
+          },
+          {
+            "$limit": {{limit}}
+          },
+          {
+            "$project": {
+              "email": "$_id.email",
+              "name": "$_id.name",
+              "comment_count": 1,
+              "unique_movie_count": 1,
+              "days_active": { "$round": ["$days_active", 0] },
+              "first_comment": 1,
+              "last_comment": 1,
+              "_id": 0
+            }
+          }
+        ]
+      }
+
+    parameters:
+      - name: min_comments
+        type: integer
+        required: false
+        default: 5
+        description: "Minimum number of comments"
+        example: 10
+
+      - name: limit
+        type: integer
+        required: false
+        default: 20
+        description: "Maximum number of users"
+        min: 1
+        max: 100
+
+    nl_examples:
+      - "Show me the most active users"
+      - "Who are the power users who comment the most?"
+      - "Find users with highest engagement"
+      - "Show me top commenters and their activity"
+
+    semantic_tags:
+      action: "analyze"
+      primary_entity: "users"
+      secondary_entity: "comments"
+      qualifiers: ["engagement", "activity", "power_users"]
+
+    display_fields:
+      - "name"
+      - "email"
+      - "comment_count"
+      - "unique_movie_count"
+      - "days_active"
+
+    tags: ["users", "comments", "analytics", "engagement"]
+    result_format: "table"
+
+  - id: movies_with_comment_samples
+    version: "1.0.0"
+    description: "Find movies with their recent comments to understand user feedback"
+    category: "multi_collection_analytics"
+    complexity: "medium"
+
+    database: "sample_mflix"
+    collection: "movies"
+    query_type: "aggregate"
+
+    mongodb_query: |
+      {
+        "pipeline": [
+          {
+            "$match": {
+              {% set comma = joiner(",") %}
+              {% if title %}
+              {{comma()}}"title": { "$regex": "{{title}}", "$options": "i" }
+              {% endif %}
+              {% if min_rating %}
+              {{comma()}}"imdb.rating": { "$gte": {{min_rating}} }
+              {% else %}
+              {{comma()}}"title": { "$exists": true }
+              {% endif %}
+            }
+          },
+          {
+            "$limit": 200
+          },
+          {
+            "$lookup": {
+              "from": "comments",
+              "let": { "movie_id": "$_id" },
+              "pipeline": [
+                {
+                  "$match": {
+                    "$expr": { "$eq": ["$movie_id", "$$movie_id"] }
+                  }
+                },
+                {
+                  "$sort": { "date": -1 }
+                },
+                {
+                  "$limit": 3
+                },
+                {
+                  "$project": {
+                    "name": 1,
+                    "text": 1,
+                    "date": 1
+                  }
+                }
+              ],
+              "as": "recent_comments"
+            }
+          },
+          {
+            "$addFields": {
+              "comment_count": { "$size": "$recent_comments" }
+            }
+          },
+          {
+            "$match": {
+              "comment_count": { "$gt": 0 }
+            }
+          },
+          {
+            "$sort": { "imdb.rating": -1 }
+          },
+          {
+            "$limit": {{limit}}
+          },
+          {
+            "$project": {
+              "title": 1,
+              "year": 1,
+              "imdb.rating": 1,
+              "genres": 1,
+              "recent_comments": 1,
+              "comment_count": 1
+            }
+          }
+        ]
+      }
+
+    parameters:
+      - name: title
+        type: string
+        required: false
+        description: "Movie title to search for"
+        example: "The Matrix"
+
+      - name: min_rating
+        type: number
+        required: false
+        description: "Minimum IMDB rating"
+        example: 7.0
+
+      - name: limit
+        type: integer
+        required: false
+        default: 10
+        description: "Maximum number of movies"
+        min: 1
+        max: 50
+
+    nl_examples:
+      - "Show me movies with their recent comments"
+      - "Find highly rated movies with user feedback"
+      - "What are people saying about recent movies?"
+      - "Show me movie reviews and ratings"
+
+    semantic_tags:
+      action: "search"
+      primary_entity: "movies"
+      secondary_entity: "comments"
+      qualifiers: ["feedback", "reviews", "recent"]
+
+    display_fields:
+      - "title"
+      - "year"
+      - "imdb.rating"
+      - "comment_count"
+
+    tags: ["movies", "comments", "feedback", "multi-collection"]
+    result_format: "nested"
+
+  # ============================================================================
+  # BI ANALYTICS QUERIES
+  # ============================================================================
+
+  - id: genre_performance_analysis
+    version: "1.0.0"
+    description: "Analyze movie performance by genre with ratings, counts, and engagement"
+    category: "bi_analytics"
+    complexity: "high"
+
+    database: "sample_mflix"
+    collection: "movies"
+    query_type: "aggregate"
+
+    mongodb_query: |
+      {
+        "pipeline": [
+          {
+            "$match": {
+              "genres": { "$exists": true, "$ne": [] }{% if year_min %},
+              "year": { "$gte": {{year_min}} }{% endif %}{% if year_max %},
+              "year": { "$lte": {{year_max}} }{% endif %}
+            }
+          },
+          {
+            "$limit": 1000
+          },
+          {
+            "$unwind": "$genres"
+          },
+          {
+            "$lookup": {
+              "from": "comments",
+              "localField": "_id",
+              "foreignField": "movie_id",
+              "as": "comments"
+            }
+          },
+          {
+            "$group": {
+              "_id": "$genres",
+              "movie_count": { "$sum": 1 },
+              "avg_rating": { "$avg": "$imdb.rating" },
+              "max_rating": { "$max": "$imdb.rating" },
+              "total_votes": { "$sum": "$imdb.votes" },
+              "total_comments": { "$sum": { "$size": "$comments" } },
+              "avg_runtime": { "$avg": "$runtime" }
+            }
+          },
+          {
+            "$addFields": {
+              "avg_comments_per_movie": {
+                "$divide": ["$total_comments", "$movie_count"]
+              },
+              "engagement_score": {
+                "$multiply": [
+                  { "$divide": ["$avg_rating", 10] },
+                  { "$divide": ["$total_comments", "$movie_count"] }
+                ]
+              }
+            }
+          },
+          {
+            "$match": {
+              "movie_count": { "$gte": {{min_movie_count}} }
+            }
+          },
+          {
+            "$sort": { "avg_rating": -1 }
+          },
+          {
+            "$limit": {{limit}}
+          },
+          {
+            "$project": {
+              "genre": "$_id",
+              "movie_count": 1,
+              "avg_rating": { "$round": ["$avg_rating", 2] },
+              "max_rating": 1,
+              "total_votes": 1,
+              "total_comments": 1,
+              "avg_comments_per_movie": { "$round": ["$avg_comments_per_movie", 2] },
+              "avg_runtime": { "$round": ["$avg_runtime", 0] },
+              "engagement_score": { "$round": ["$engagement_score", 3] },
+              "_id": 0
+            }
+          }
+        ]
+      }
+
+    parameters:
+      - name: year_min
+        type: integer
+        required: false
+        description: "Minimum release year"
+        example: 2000
+
+      - name: year_max
+        type: integer
+        required: false
+        description: "Maximum release year"
+        example: 2020
+
+      - name: min_movie_count
+        type: integer
+        required: false
+        default: 10
+        description: "Minimum number of movies in genre"
+        example: 20
+
+      - name: sort_by
+        type: string
+        required: false
+        default: "avg_rating"
+        description: "Field to sort by (avg_rating, movie_count, engagement_score)"
+        example: "engagement_score"
+
+      - name: limit
+        type: integer
+        required: false
+        default: 20
+        description: "Maximum number of genres"
+        min: 1
+        max: 50
+
+    nl_examples:
+      - "Analyze movie genres by performance"
+      - "Which genres have the highest ratings?"
+      - "Show me genre analytics with engagement metrics"
+      - "What are the most popular genres?"
+      - "Compare different movie genres"
+
+    semantic_tags:
+      action: "analyze"
+      primary_entity: "genres"
+      qualifiers: ["performance", "analytics", "comparison"]
+
+    display_fields:
+      - "genre"
+      - "movie_count"
+      - "avg_rating"
+      - "engagement_score"
+      - "total_comments"
+
+    tags: ["analytics", "genres", "bi", "performance", "multi-collection"]
+    result_format: "table"
+
+  - id: director_success_analysis
+    version: "1.0.0"
+    description: "Analyze director success with average ratings, movie counts, and awards"
+    category: "bi_analytics"
+    complexity: "high"
+
+    database: "sample_mflix"
+    collection: "movies"
+    query_type: "aggregate"
+
+    mongodb_query: |
+      {
+        "pipeline": [
+          {
+            "$match": {
+              "directors": { "$exists": true, "$ne": [] },
+              "imdb.rating": { "$exists": true }
+              {% if year_min %}
+              ,"year": { "$gte": {{year_min}} }
+              {% endif %}
+            }
+          },
+          {
+            "$unwind": "$directors"
+          },
+          {
+            "$group": {
+              "_id": "$directors",
+              "movie_count": { "$sum": 1 },
+              "avg_rating": { "$avg": "$imdb.rating" },
+              "max_rating": { "$max": "$imdb.rating" },
+              "total_votes": { "$sum": "$imdb.votes" },
+              "total_awards": { "$sum": "$awards.wins" },
+              "movies": {
+                "$push": {
+                  "title": "$title",
+                  "year": "$year",
+                  "rating": "$imdb.rating"
+                }
+              }
+            }
+          },
+          {
+            "$match": {
+              "movie_count": { "$gte": {{min_movies}} },
+              "avg_rating": { "$gte": {{min_avg_rating}} }
+            }
+          },
+          {
+            "$addFields": {
+              "avg_votes_per_movie": {
+                "$divide": ["$total_votes", "$movie_count"]
+              },
+              "success_score": {
+                "$multiply": [
+                  "$avg_rating",
+                  { "$log10": { "$add": ["$total_votes", 1] } }
+                ]
+              }
+            }
+          },
+          {
+            "$sort": { "{{sort_by}}": -1 }
+          },
+          {
+            "$limit": {{limit}}
+          },
+          {
+            "$project": {
+              "director": "$_id",
+              "movie_count": 1,
+              "avg_rating": { "$round": ["$avg_rating", 2] },
+              "max_rating": 1,
+              "total_awards": 1,
+              "total_votes": 1,
+              "avg_votes_per_movie": { "$round": ["$avg_votes_per_movie", 0] },
+              "success_score": { "$round": ["$success_score", 2] },
+              "top_movies": { "$slice": ["$movies", 3] },
+              "_id": 0
+            }
+          }
+        ]
+      }
+
+    parameters:
+      - name: min_movies
+        type: integer
+        required: false
+        default: 3
+        description: "Minimum number of movies directed"
+        example: 5
+
+      - name: min_avg_rating
+        type: number
+        required: false
+        default: 6.0
+        description: "Minimum average rating"
+        example: 7.0
+
+      - name: year_min
+        type: integer
+        required: false
+        description: "Minimum release year"
+        example: 2000
+
+      - name: sort_by
+        type: string
+        required: false
+        default: "success_score"
+        description: "Sort field (avg_rating, movie_count, success_score)"
+        example: "avg_rating"
+
+      - name: limit
+        type: integer
+        required: false
+        default: 20
+        description: "Maximum number of directors"
+        min: 1
+        max: 50
+
+    nl_examples:
+      - "Who are the most successful directors?"
+      - "Analyze director performance and ratings"
+      - "Show me top rated directors"
+      - "Find directors with most awards"
+      - "Compare director success metrics"
+
+    semantic_tags:
+      action: "analyze"
+      primary_entity: "directors"
+      qualifiers: ["success", "performance", "ratings"]
+
+    display_fields:
+      - "director"
+      - "movie_count"
+      - "avg_rating"
+      - "total_awards"
+      - "success_score"
+
+    tags: ["analytics", "directors", "bi", "performance"]
+    result_format: "table"
+
+  - id: temporal_genre_trends
+    version: "1.0.0"
+    description: "Analyze genre trends over time periods with ratings and production volume"
+    category: "bi_analytics"
+    complexity: "high"
+
+    database: "sample_mflix"
+    collection: "movies"
+    query_type: "aggregate"
+
+    mongodb_query: |
+      {
+        "pipeline": [
+          {
+            "$match": {
+              "year": { "$gte": {{year_min}}, "$lte": {{year_max}} },
+              "genres": { "$exists": true, "$ne": [] }
+            }
+          },
+          {
+            "$unwind": "$genres"
+          },
+          {
+            "$group": {
+              "_id": {
+                "decade": {
+                  "$subtract": [
+                    "$year",
+                    { "$mod": ["$year", 10] }
+                  ]
+                },
+                "genre": "$genres"
+              },
+              "movie_count": { "$sum": 1 },
+              "avg_rating": { "$avg": "$imdb.rating" },
+              "total_votes": { "$sum": "$imdb.votes" }
+            }
+          },
+          {
+            "$sort": { "_id.decade": 1, "movie_count": -1 }
+          },
+          {
+            "$group": {
+              "_id": "$_id.decade",
+              "genres": {
+                "$push": {
+                  "genre": "$_id.genre",
+                  "movie_count": "$movie_count",
+                  "avg_rating": "$avg_rating",
+                  "total_votes": "$total_votes"
+                }
+              },
+              "total_movies": { "$sum": "$movie_count" }
+            }
+          },
+          {
+            "$project": {
+              "decade": "$_id",
+              "total_movies": 1,
+              "top_genres": { "$slice": ["$genres", {{genres_per_decade}}] },
+              "_id": 0
+            }
+          },
+          {
+            "$sort": { "decade": -1 }
+          }
+        ]
+      }
+
+    parameters:
+      - name: year_min
+        type: integer
+        required: false
+        default: 1990
+        description: "Start year for analysis"
+        example: 2000
+
+      - name: year_max
+        type: integer
+        required: false
+        default: 2020
+        description: "End year for analysis"
+        example: 2020
+
+      - name: genres_per_decade
+        type: integer
+        required: false
+        default: 5
+        description: "Number of top genres per decade"
+        min: 3
+        max: 10
+
+    nl_examples:
+      - "Show me genre trends over time"
+      - "How have movie genres changed over the decades?"
+      - "What were the popular genres in each decade?"
+      - "Analyze genre evolution over time"
+      - "Show me temporal trends in movie genres"
+
+    semantic_tags:
+      action: "analyze"
+      primary_entity: "genres"
+      qualifiers: ["temporal", "trends", "evolution"]
+
+    display_fields:
+      - "decade"
+      - "total_movies"
+      - "top_genres"
+
+    tags: ["analytics", "genres", "temporal", "trends", "bi"]
+    result_format: "nested"
+
+  - id: award_winning_movies_analysis
+    version: "1.0.0"
+    description: "Find and analyze award-winning movies with engagement metrics"
+    category: "bi_analytics"
+    complexity: "high"
+
+    database: "sample_mflix"
+    collection: "movies"
+    query_type: "aggregate"
+
+    mongodb_query: |
+      {
+        "pipeline": [
+          {
+            "$match": {
+              {% set comma = joiner(",") %}
+              {{comma()}}"awards.wins": { "$gte": {{min_awards}} }
+              {% if year_min %}
+              {{comma()}}"year": { "$gte": {{year_min}} }
+              {% endif %}
+            }
+          },
+          {
+            "$limit": 500
+          },
+          {
+            "$lookup": {
+              "from": "comments",
+              "localField": "_id",
+              "foreignField": "movie_id",
+              "as": "comments"
+            }
+          },
+          {
+            "$addFields": {
+              "comment_count": { "$size": "$comments" },
+              "total_awards": "$awards.wins",
+              "total_nominations": "$awards.nominations",
+              "award_ratio": {
+                "$divide": [
+                  "$awards.wins",
+                  { "$add": ["$awards.nominations", 1] }
+                ]
+              }
+            }
+          },
+          {
+            "$project": {
+              "title": 1,
+              "year": 1,
+              "genres": 1,
+              "directors": 1,
+              "imdb.rating": 1,
+              "imdb.votes": 1,
+              "total_awards": 1,
+              "total_nominations": 1,
+              "award_ratio": { "$round": ["$award_ratio", 3] },
+              "comment_count": 1,
+              "plot": 1
+            }
+          },
+          {
+            "$sort": { "total_awards": -1, "imdb.rating": -1 }
+          },
+          {
+            "$limit": {{limit}}
+          }
+        ]
+      }
+
+    parameters:
+      - name: min_awards
+        type: integer
+        required: false
+        default: 5
+        description: "Minimum number of awards won"
+        example: 10
+
+      - name: year_min
+        type: integer
+        required: false
+        description: "Minimum release year"
+        example: 2000
+
+      - name: limit
+        type: integer
+        required: false
+        default: 20
+        description: "Maximum number of movies"
+        min: 1
+        max: 100
+
+    nl_examples:
+      - "Show me award-winning movies"
+      - "Find movies with the most awards"
+      - "What are the most decorated films?"
+      - "Analyze critically acclaimed movies"
+      - "Show me Oscar winners and nominees"
+
+    semantic_tags:
+      action: "search"
+      primary_entity: "movies"
+      qualifiers: ["awards", "acclaimed", "decorated"]
+
+    display_fields:
+      - "title"
+      - "year"
+      - "total_awards"
+      - "total_nominations"
+      - "imdb.rating"
+
+    tags: ["movies", "awards", "analytics", "multi-collection"]
+    result_format: "table"
+
+  - id: underrated_gems_analysis
+    version: "1.0.0"
+    description: "Find high-quality movies with low comment counts (underrated gems)"
+    category: "bi_analytics"
+    complexity: "medium"
+
+    database: "sample_mflix"
+    collection: "movies"
+    query_type: "aggregate"
+
+    mongodb_query: |
+      {
+        "pipeline": [
+          {
+            "$match": {
+              "imdb.rating": { "$gte": {{min_rating}} },
+              "imdb.votes": { "$gte": {{min_votes}} }
+            }
+          },
+          {
+            "$lookup": {
+              "from": "comments",
+              "localField": "_id",
+              "foreignField": "movie_id",
+              "as": "comments"
+            }
+          },
+          {
+            "$addFields": {
+              "comment_count": { "$size": "$comments" },
+              "underrated_score": {
+                "$divide": [
+                  "$imdb.rating",
+                  { "$add": [{ "$size": "$comments" }, 1] }
+                ]
+              }
+            }
+          },
+          {
+            "$match": {
+              "comment_count": { "$lte": {{max_comments}} }
+            }
+          },
+          {
+            "$sort": { "underrated_score": -1 }
+          },
+          {
+            "$limit": {{limit}}
+          },
+          {
+            "$project": {
+              "title": 1,
+              "year": 1,
+              "genres": 1,
+              "directors": 1,
+              "imdb.rating": 1,
+              "imdb.votes": 1,
+              "comment_count": 1,
+              "underrated_score": { "$round": ["$underrated_score", 3] },
+              "plot": 1
+            }
+          }
+        ]
+      }
+
+    parameters:
+      - name: min_rating
+        type: number
+        required: false
+        default: 7.5
+        description: "Minimum IMDB rating"
+        example: 8.0
+
+      - name: min_votes
+        type: integer
+        required: false
+        default: 1000
+        description: "Minimum IMDB votes"
+        example: 5000
+
+      - name: max_comments
+        type: integer
+        required: false
+        default: 5
+        description: "Maximum comment count"
+        example: 3
+
+      - name: limit
+        type: integer
+        required: false
+        default: 20
+        description: "Maximum number of movies"
+        min: 1
+        max: 50
+
+    nl_examples:
+      - "Find underrated movies"
+      - "Show me hidden gems with high ratings"
+      - "What are good movies that nobody talks about?"
+      - "Find quality movies with low engagement"
+      - "Show me underrated films"
+
+    semantic_tags:
+      action: "search"
+      primary_entity: "movies"
+      qualifiers: ["underrated", "hidden", "gems", "quality"]
+
+    display_fields:
+      - "title"
+      - "year"
+      - "imdb.rating"
+      - "comment_count"
+      - "underrated_score"
+
+    tags: ["movies", "analytics", "underrated", "multi-collection"]
+    result_format: "table"
+
+  - id: cast_collaboration_network
+    version: "1.0.0"
+    description: "Analyze actors who frequently work together with success metrics"
+    category: "bi_analytics"
+    complexity: "high"
+
+    database: "sample_mflix"
+    collection: "movies"
+    query_type: "aggregate"
+
+    mongodb_query: |
+      {
+        "pipeline": [
+          {
+            "$match": {
+              "cast": { "$exists": true },
+              "year": { "$gte": {{year_min}} },
+              "$expr": { "$gte": [{ "$size": "$cast" }, 2] }
+            }
+          },
+          {
+            "$project": {
+              "cast": 1,
+              "title": 1,
+              "year": 1,
+              "imdb.rating": 1
+            }
+          },
+          {
+            "$unwind": "$cast"
+          },
+          {
+            "$sort": { "_id": 1, "cast": 1 }
+          },
+          {
+            "$group": {
+              "_id": "$_id",
+              "cast_list": { "$push": "$cast" },
+              "title": { "$first": "$title" },
+              "year": { "$first": "$year" },
+              "rating": { "$first": "$imdb.rating" }
+            }
+          },
+          {
+            "$limit": {{limit}}
+          },
+          {
+            "$project": {
+              "title": 1,
+              "year": 1,
+              "rating": 1,
+              "cast_count": { "$size": "$cast_list" },
+              "main_cast": { "$slice": ["$cast_list", 5] }
+            }
+          },
+          {
+            "$sort": { "rating": -1 }
+          }
+        ]
+      }
+
+    parameters:
+      - name: year_min
+        type: integer
+        required: false
+        default: 2000
+        description: "Minimum release year"
+        example: 2010
+
+      - name: limit
+        type: integer
+        required: false
+        default: 50
+        description: "Maximum number of movies to analyze"
+        min: 10
+        max: 200
+
+    nl_examples:
+      - "Show me actors who work together often"
+      - "Find actor collaboration patterns"
+      - "What actors collaborate frequently?"
+      - "Analyze cast networks in movies"
+
+    semantic_tags:
+      action: "analyze"
+      primary_entity: "cast"
+      qualifiers: ["collaboration", "network", "patterns"]
+
+    display_fields:
+      - "title"
+      - "year"
+      - "rating"
+      - "main_cast"
+
+    tags: ["analytics", "cast", "collaboration", "network"]
+    result_format: "table"

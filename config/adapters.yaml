@@ -330,3 +330,63 @@ adapters:
       recovery_timeout: 60.0
       max_retries: 2
       retry_delay: 2.0
+
+  # MongoDB Intent Retriever for Sample MFlix Database
+  - name: "intent-mongodb-mflix"
+    enabled: false
+    type: "retriever"
+    datasource: "mongodb"
+    adapter: "intent"
+    implementation: "retrievers.implementations.intent.intent_mongodb_retriever.IntentMongoDBRetriever"
+    inference_provider: "ollama_cloud"
+    model: "gpt-oss:120b-cloud"
+    embedding_provider: "cohere"
+    config:
+      # Domain and template configuration
+      domain_config_path: "utils/mongodb-intent-template/examples/sample_mflix/templates/mflix_domain.yaml"
+      template_library_path:
+        - "utils/mongodb-intent-template/examples/sample_mflix/templates/mflix_templates.yaml"
+        - "utils/mongodb-intent-template/examples/sample_mflix/templates/mflix_advanced_templates.yaml"
+
+      # Vector store configuration for template matching
+      template_collection_name: "intent_mongodb_templates"
+      store_name: "chroma"  # References stores.yaml
+
+      # Intent matching configuration
+      confidence_threshold: 0.4
+      max_templates: 5
+      return_results: 10
+
+      # Template loading settings
+      reload_templates_on_start: true
+      force_reload_templates: false
+
+      # MongoDB-specific configuration
+      # Note: Connection parameters (connection_string, host, port, auth) are in datasources.yaml
+      # Only adapter-specific settings go here
+      database: "sample_mflix"  # Database name (can override datasource default)
+      default_collection: "movies"  # Default collection for queries
+      default_limit: 100  # Default number of results to return
+      max_limit: 1000  # Maximum allowed limit
+      enable_text_search: true  # Enable text search with regex
+      case_insensitive_regex: true  # Case-insensitive regex by default
+
+      # Placeholder base_url to satisfy parent class
+      base_url: "http://localhost:27017"
+
+    # Fault tolerance settings
+    fault_tolerance:
+      operation_timeout: 15.0
+      failure_threshold: 10
+      recovery_timeout: 30.0
+      success_threshold: 5
+      max_recovery_timeout: 120.0
+      enable_exponential_backoff: true
+      enable_thread_isolation: false
+      enable_process_isolation: false
+      max_retries: 3
+      retry_delay: 1.0
+      cleanup_interval: 3600.0
+      retention_period: 86400.0
+      event_handler:
+        type: "default"

@@ -88,9 +88,22 @@ datasources:
     username: ${DATASOURCE_CASSANDRA_USERNAME}
     password: ${DATASOURCE_CASSANDRA_PASSWORD}
   mongodb:
-    host: "localhost"
-    port: 27017
-    database: "orbit"
-    apikey_collection: "api_keys"
+    # Option 1: MongoDB Atlas connection (recommended for sample_mflix)
+    connection_string: ${DATASOURCE_MONGODB_URI}
+    database: ${DATASOURCE_MONGODB_DATABASE}
+
+    # Option 2: Local MongoDB connection (fallback)
+    host: ${DATASOURCE_MONGODB_HOST}
+    port: ${DATASOURCE_MONGODB_PORT}
     username: ${DATASOURCE_MONGODB_USERNAME}
     password: ${DATASOURCE_MONGODB_PASSWORD}
+    auth_source: ${DATASOURCE_MONGODB_AUTH_SOURCE}
+
+    # Connection settings
+    timeout: 30
+    tls: ${DATASOURCE_MONGODB_TLS}
+    retry_writes: true
+    w: "majority"
+
+    # Legacy settings (for existing orbit database)
+    apikey_collection: "api_keys"
