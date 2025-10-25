@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.5.9] - 2025-10-24
+
+### Core System Updates
+- Added HTTP REST adapter.
+- Added http and elasticsearch intent adapter types; addressed warning suppression issues.
+- Fixed issues with Cohere inference provider.
+- Errors handled gracefully when an inference provider is disabled, ensuring adapters continue to load normally.
+- Added enable setting in inference.yaml for selective provider loading; granite4:micro set as GGUF default.
+- Integrated new zAI inference service
+- More Vector Stores: Added support for faiss, marqo, milvus, pgvector, and weaviate vector stores.
+
+### Other Changes
+- Update classified demo template: Added another demonstration template.
+- Suppress Warnings: Suppressed server log runtime warnings; minor provider fix.
+- Update Setup Profiles: Moved dependencies from 'commercial' to 'minimal' profile and renamed 'commercial' to 'cloud'.
+- Setup Script, Embedding Plans: Improved setup script to prompt for python version; added embedding plan (sentence transformers); updated minimal profile.
+
 ## [1.5.8] - 2025-10-17
 
 ### Core System Updates
