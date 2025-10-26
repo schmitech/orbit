@@ -103,7 +103,7 @@ class ZaiBaseService(ProviderAIService):
             enabled=retry_config['enabled']
         )
 
-        self.logger.info(f"Configured Z.AI service with model: {self.model}")
+        self.logger.debug(f"Configured Z.AI service with model: {self.model}")
 
     async def initialize(self) -> bool:
         """

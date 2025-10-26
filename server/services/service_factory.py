@@ -586,30 +586,36 @@ class ServiceFactory:
             self.logger.info("LLM Guard is disabled, skipping LLM Guard Service initialization")
     
     async def _initialize_reranker_service(self, app: FastAPI) -> None:
-        """Initialize Reranker Service if enabled."""
+        """Initialize Reranker Service if enabled using the new unified architecture."""
         # Early return if reranker is disabled
         if not is_true_value(self.config.get('reranker', {}).get('enabled', False)):
             app.state.reranker_service = None
             self.logger.info("Reranker is disabled, skipping initialization")
             return
 
-        # Create reranker service
-        from rerankers import RerankerFactory
-        app.state.reranker_service = RerankerFactory.create(self.config)
-        
-        # Early return if no reranker provider configured
-        if not app.state.reranker_service:
-            self.logger.warning("No reranker provider configured or provider not supported")
-            app.state.reranker_service = None
-            return
+        # Create reranker service using the new unified architecture
+        from services.reranker_service_manager import RerankingServiceManager
 
-        # Initialize the reranker service
         try:
+            # Get the provider name from config
+            provider_name = self.config.get('reranker', {}).get('provider', 'ollama')
+
+            # Create the reranker service (singleton)
+            app.state.reranker_service = RerankingServiceManager.create_reranker_service(
+                self.config,
+                provider_name
+            )
+
+            # Initialize the reranker service
             if await app.state.reranker_service.initialize():
-                self.logger.info("Reranker Service initialized successfully")
+                self.logger.info(f"Reranker Service initialized successfully (provider: {provider_name})")
             else:
                 self.logger.error("Failed to initialize Reranker Service")
                 app.state.reranker_service = None
+
+        except ValueError as e:
+            self.logger.warning(f"Reranker provider not available: {str(e)}")
+            app.state.reranker_service = None
         except Exception as e:
             self.logger.error(f"Failed to initialize Reranker Service: {str(e)}")
             app.state.reranker_service = None

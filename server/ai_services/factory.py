@@ -9,10 +9,15 @@ Ollama, Cohere, Mistral, etc.).
 
 from typing import Dict, Any, Type, Optional, Tuple
 import logging
+import sys
 
 from .base import AIService, ServiceType
 
 logger = logging.getLogger(__name__)
+
+# Ensure module has consistent identity regardless of import path
+sys.modules.setdefault('ai_services.factory', sys.modules[__name__])
+sys.modules.setdefault('server.ai_services.factory', sys.modules[__name__])
 
 
 class AIServiceFactory:

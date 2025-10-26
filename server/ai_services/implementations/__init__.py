@@ -47,7 +47,12 @@ Available Moderation Services:
     - OllamaModerationService: Ollama moderation (migrated)
 
 Available Reranking Services:
-    - OllamaRerankingService: Ollama reranking (migrated)
+    - OllamaRerankingService: Ollama reranking (local, free)
+    - CohereRerankingService: Cohere Rerank API (excellent quality, multilingual)
+    - JinaRerankingService: Jina AI Reranker (fast, good quality)
+    - OpenAIRerankingService: OpenAI GPT-based reranking (complex queries)
+    - AnthropicRerankingService: Anthropic Claude-based reranking (nuanced)
+    - VoyageRerankingService: Voyage AI Reranker (cost-effective)
 
 More implementations will be added as migration progresses.
 """
@@ -103,6 +108,11 @@ _implementations = [
 
     # Reranking Services
     ('ollama_reranking_service', 'OllamaRerankingService'),
+    ('cohere_reranking_service', 'CohereRerankingService'),
+    ('jina_reranking_service', 'JinaRerankingService'),
+    ('openai_reranking_service', 'OpenAIRerankingService'),
+    ('anthropic_reranking_service', 'AnthropicRerankingService'),
+    ('voyage_reranking_service', 'VoyageRerankingService'),
 ]
 
 # Map service classes to their required SDK packages for commercial/cloud providers

@@ -1,6 +1,6 @@
 # Elasticsearch Query DSL Templates for Application Logs
 templates:
-  - id: search_error_logs_recent
+  - id: search_error_logs_recent #FIXME
     version: "1.0.0"
     description: "Search for recent error logs in application"
     category: "log_search"
@@ -935,7 +935,7 @@ templates:
                   "buckets_path": {
                     "avgResponseTime": "avg_response_time"
                   },
-                  "script": "params.avgResponseTime > {{threshold}}"
+                  "script": "params.avgResponseTime != null && params.avgResponseTime > {{threshold}}"
                 }
               }
             }
@@ -1056,7 +1056,7 @@ templates:
                   "buckets_path": {
                     "errorRate": "error_rate"
                   },
-                  "script": "params.errorRate > {{spike_threshold}}"
+                  "script": "params.errorRate != null && params.errorRate > {{spike_threshold}}"
                 }
               }
             }

@@ -30,6 +30,15 @@ class OllamaConfig:
         else:
             service_config = config.get('ollama', {})
         
+        # Check if enabled (for rerankers, embeddings, moderators)
+        # Inference doesn't use enabled flag as it's a core service
+        if service_type and service_type in ['rerankers', 'embeddings', 'moderators']:
+            enabled = service_config.get('enabled', True)
+            if enabled is False:
+                from server.utils import is_true_value
+                if not is_true_value(enabled):
+                    raise ValueError(f"Ollama provider is disabled for {service_type}")
+        
         # Base configuration
         self.base_url = service_config.get('base_url', 'http://localhost:11434')
         self.model = service_config.get('model', self._get_default_model(service_type))

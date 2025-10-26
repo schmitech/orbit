@@ -91,7 +91,7 @@ class MistralBaseService(ProviderAIService):
             enabled=retry_config['enabled']
         )
 
-        self.logger.info(f"Configured Mistral service with model: {self.model}")
+        self.logger.debug(f"Configured Mistral service with model: {self.model}")
 
     async def initialize(self) -> bool:
         """

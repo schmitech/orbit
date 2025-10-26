@@ -75,6 +75,8 @@ class CohereBaseService(ProviderAIService):
             default_model = "embed-english-v3.0"
         elif self.service_type == ServiceType.INFERENCE:
             default_model = "command-r-plus"
+        elif self.service_type == ServiceType.RERANKING:
+            default_model = "rerank-english-v3.0"
         else:
             default_model = None
 
@@ -106,7 +108,7 @@ class CohereBaseService(ProviderAIService):
             enabled=retry_config['enabled']
         )
 
-        self.logger.info(f"Configured Cohere service with model: {self.model}")
+        self.logger.debug(f"Configured Cohere service with model: {self.model}")
 
     async def initialize(self) -> bool:
         """

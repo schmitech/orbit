@@ -61,7 +61,8 @@ class OllamaRerankingService(RerankingService, OllamaBaseService):
         self,
         query: str,
         documents: List[str],
-        top_n: Optional[int] = None
+        top_n: Optional[int] = None,
+        _skip_init_check: bool = False
     ) -> List[Dict[str, Any]]:
         """
         Rerank documents based on their relevance to the query.
@@ -70,6 +71,7 @@ class OllamaRerankingService(RerankingService, OllamaBaseService):
             query: The query text
             documents: List of document texts to rerank
             top_n: Number of top results to return (if None, returns all)
+            _skip_init_check: Internal flag to skip initialization check (used during verify_connection)
 
         Returns:
             List of dictionaries containing reranked documents with scores.
@@ -78,7 +80,7 @@ class OllamaRerankingService(RerankingService, OllamaBaseService):
             - 'text': Document text
             - 'score': Relevance score (0.0 to 1.0)
         """
-        if not self.initialized:
+        if not _skip_init_check and not self.initialized:
             if not await self.initialize():
                 raise ValueError("Failed to initialize Ollama reranking service")
 
@@ -184,7 +186,8 @@ Scores:"""
             test_query = "test query"
             test_docs = ["test document"]
 
-            results = await self.rerank(test_query, test_docs, top_n=1)
+            # Skip init check to avoid infinite recursion during initialization
+            results = await self.rerank(test_query, test_docs, top_n=1, _skip_init_check=True)
 
             if results and len(results) > 0:
                 self.logger.info("Successfully verified Ollama reranking connection")

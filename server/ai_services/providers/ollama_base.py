@@ -113,7 +113,7 @@ class OllamaBaseService(ProviderAIService):
             logger=self.logger
         )
 
-        self.logger.info(f"Configured Ollama service with model: {self.model}")
+        self.logger.debug(f"Configured Ollama service with model: {self.model}")
 
     def _get_service_type_name(self) -> str:
         """

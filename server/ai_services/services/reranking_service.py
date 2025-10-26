@@ -28,6 +28,22 @@ class RerankingService(ProviderAIService):
         - Batch size configuration
     """
 
+    # Class-level service type for compatibility with provider base classes
+    service_type = ServiceType.RERANKING
+
+    def _get_batch_size(self, default: int = 5) -> int:
+        """
+        Get batch size configuration for reranking.
+
+        Args:
+            default: Default batch size if not configured
+
+        Returns:
+            Configured batch size
+        """
+        provider_config = self._extract_provider_config()
+        return provider_config.get('batch_size', default)
+
     def __init__(self, config: Dict[str, Any], provider_name: str):
         """
         Initialize the reranking service.

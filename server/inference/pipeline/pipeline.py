@@ -11,7 +11,7 @@ from typing import List, AsyncGenerator
 from .base import ProcessingContext, PipelineStep
 from .service_container import ServiceContainer
 from .monitoring import PipelineMonitor
-from .steps import SafetyFilterStep, LanguageDetectionStep, ContextRetrievalStep, LLMInferenceStep, ResponseValidationStep
+from .steps import SafetyFilterStep, LanguageDetectionStep, ContextRetrievalStep, DocumentRerankingStep, LLMInferenceStep, ResponseValidationStep
 
 class InferencePipeline:
     """
@@ -268,10 +268,13 @@ class InferencePipelineBuilder:
         
         # Language detection (if enabled)
         steps.append(LanguageDetectionStep(container))
-        
+
         # Context retrieval only if not in inference-only mode
         steps.append(ContextRetrievalStep(container))
-        
+
+        # Document reranking (if enabled and documents retrieved)
+        steps.append(DocumentRerankingStep(container))
+
         # LLM inference is always needed
         steps.append(LLMInferenceStep(container))
         

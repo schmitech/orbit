@@ -166,19 +166,37 @@ def register_moderation_services() -> None:
             )
 
 
-def register_reranking_services() -> None:
+def register_reranking_services(config: Dict[str, Any] = None) -> None:
     """
     Register all reranking service implementations with the factory.
 
     This makes them available for creation via AIServiceFactory.create_service()
     Services with missing dependencies are skipped with a warning.
+    Services that are disabled in config are not registered.
     """
     # Define services to register with their import paths
     services = [
         ("ollama", "OllamaRerankingService", "Ollama"),
+        ("cohere", "CohereRerankingService", "Cohere"),
+        ("jina", "JinaRerankingService", "Jina AI"),
+        ("openai", "OpenAIRerankingService", "OpenAI"),
+        ("anthropic", "AnthropicRerankingService", "Anthropic"),
+        ("voyage", "VoyageRerankingService", "Voyage AI"),
     ]
 
     for provider_key, class_name, display_name in services:
+        # Check if provider is enabled in config
+        if config:
+            rerankers_config = config.get('rerankers', {})
+            provider_config = rerankers_config.get(provider_key, {})
+            enabled = provider_config.get('enabled', True)
+            # Check for explicit False (boolean False or string 'false')
+            if enabled is False or (isinstance(enabled, str) and enabled.lower() == 'false'):
+                logger.info(
+                    f"Skipping {display_name} reranking service - disabled in config"
+                )
+                continue
+        
         try:
             # Lazy import - only import what we can
             module = __import__('ai_services.implementations', fromlist=[class_name])
@@ -232,7 +250,7 @@ def register_all_services(config: Dict[str, Any] = None) -> None:
         register_embedding_services()
         register_inference_services(config)
         register_moderation_services()
-        register_reranking_services()
+        register_reranking_services(config)
 
         _services_registered = True
 

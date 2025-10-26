@@ -9,7 +9,12 @@ moderation, reranking, vision, and audio services.
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional, TypeVar, Generic
 import logging
+import sys
 from enum import Enum
+
+# Ensure module has consistent identity regardless of import path
+sys.modules.setdefault('ai_services.base', sys.modules[__name__])
+sys.modules.setdefault('server.ai_services.base', sys.modules[__name__])
 
 T = TypeVar('T')
 

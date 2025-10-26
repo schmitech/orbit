@@ -52,7 +52,12 @@ class DynamicAdapterManager:
         self._embedding_cache: Dict[str, Any] = {}
         self._embedding_cache_lock = threading.Lock()
         self._embedding_initializing: Set[str] = set()
-        
+
+        # Cache for initialized reranker services
+        self._reranker_cache: Dict[str, Any] = {}
+        self._reranker_cache_lock = threading.Lock()
+        self._reranker_initializing: Set[str] = set()
+
         # Thread pool for adapter initialization
         self._thread_pool = ThreadPoolExecutor(max_workers=5)
         
@@ -165,6 +170,12 @@ class DynamicAdapterManager:
             if embedding_provider in self.config.get('embeddings', {}):
                 embedding_model = self.config.get('embeddings', {}).get(embedding_provider, {}).get('model')
 
+            # Get reranker configuration
+            reranker_provider = adapter_config.get('reranker_provider')
+            reranker_model = None
+            if reranker_provider and reranker_provider in self.config.get('rerankers', {}):
+                reranker_model = self.config.get('rerankers', {}).get(reranker_provider, {}).get('model')
+
             # Check if this is an intent adapter and get store info
             adapter_type = adapter_config.get('adapter')
             store_info = ""
@@ -187,6 +198,13 @@ class DynamicAdapterManager:
                 log_parts.append(f"embedding: {embedding_provider}/{embedding_model}")
             else:
                 log_parts.append(f"embedding: {embedding_provider}")
+
+            # Reranker provider and model
+            if reranker_provider:
+                if reranker_model:
+                    log_parts.append(f"reranker: {reranker_provider}/{reranker_model}")
+                else:
+                    log_parts.append(f"reranker: {reranker_provider}")
 
             # Store info for intent adapters
             if store_info:
@@ -421,6 +439,92 @@ class DynamicAdapterManager:
             with self._embedding_cache_lock:
                 self._embedding_initializing.discard(cache_key)
 
+    async def get_overridden_reranker(self, provider_name: str, adapter_name: str = None) -> Any:
+        """
+        Get a reranker service instance by name, loading and caching it if necessary.
+        This is for reranker providers specified as overrides in adapter configs.
+
+        Args:
+            provider_name: The name of the reranker provider to create
+            adapter_name: Optional adapter name for logging context
+        """
+        if not provider_name:
+            raise ValueError("Reranker provider name cannot be empty")
+
+        # Create cache key for the reranker service
+        # Get the model from rerankers config
+        reranker_config = self.config.get('rerankers', {}).get(provider_name, {})
+        model = reranker_config.get('model', '')
+        cache_key = f"{provider_name}:{model}" if model else provider_name
+
+        # Check cache with the specific key
+        if cache_key in self._reranker_cache:
+            if self.verbose:
+                self.logger.debug(f"Using cached reranker service: {cache_key}")
+            return self._reranker_cache[cache_key]
+
+        # Try to claim initialization ownership
+        should_initialize = False
+        with self._reranker_cache_lock:
+            if cache_key in self._reranker_cache:
+                return self._reranker_cache[cache_key]
+            if cache_key not in self._reranker_initializing:
+                self._reranker_initializing.add(cache_key)
+                should_initialize = True
+
+        # If someone else is initializing, wait for them
+        if not should_initialize:
+            while True:
+                await asyncio.sleep(0.1)
+                with self._reranker_cache_lock:
+                    if cache_key in self._reranker_cache:
+                        return self._reranker_cache[cache_key]
+                    if cache_key not in self._reranker_initializing:
+                        # Initializer failed, we should try
+                        self._reranker_initializing.add(cache_key)
+                        should_initialize = True
+                        break
+
+        try:
+            adapter_context = f" for adapter '{adapter_name}'" if adapter_name else ""
+            if model:
+                self.logger.info(f"Loading reranker service '{provider_name}/{model}'{adapter_context}")
+            else:
+                self.logger.info(f"Loading reranker service '{provider_name}'{adapter_context}")
+
+            # Import the reranker service manager
+            try:
+                from server.services.reranker_service_manager import RerankingServiceManager
+            except ImportError:
+                from services.reranker_service_manager import RerankingServiceManager
+
+            # Create the reranker service
+            reranker_service = RerankingServiceManager.create_reranker_service(
+                self.config,
+                provider_name
+            )
+
+            # Initialize if needed
+            if hasattr(reranker_service, 'initialize'):
+                if asyncio.iscoroutinefunction(reranker_service.initialize):
+                    await reranker_service.initialize()
+                else:
+                    loop = asyncio.get_event_loop()
+                    await loop.run_in_executor(self._thread_pool, reranker_service.initialize)
+
+            # Cache the initialized reranker service
+            with self._reranker_cache_lock:
+                self._reranker_cache[cache_key] = reranker_service
+
+            self.logger.info(f"Successfully cached reranker service: {cache_key}{adapter_context}")
+            return reranker_service
+        except Exception as e:
+            self.logger.error(f"Failed to load reranker service {provider_name}: {str(e)}")
+            raise
+        finally:
+            with self._reranker_cache_lock:
+                self._reranker_initializing.discard(cache_key)
+
     async def _load_adapter(self, adapter_name: str) -> Any:
         """Load and initialize an adapter asynchronously"""
         # Get adapter configuration
@@ -435,6 +539,14 @@ class DynamicAdapterManager:
                 await self.get_overridden_embedding(embedding_provider, adapter_name)
             except Exception as e:
                 self.logger.warning(f"Failed to preload embedding service for adapter {adapter_name}: {str(e)}")
+
+        # Preload reranker service if adapter has an override (and it's not null)
+        if adapter_config.get('reranker_provider'):
+            reranker_provider = adapter_config['reranker_provider']
+            try:
+                await self.get_overridden_reranker(reranker_provider, adapter_name)
+            except Exception as e:
+                self.logger.warning(f"Failed to preload reranker service for adapter {adapter_name}: {str(e)}")
 
         # Run the import and initialization in a thread pool to prevent blocking
         loop = asyncio.get_event_loop()
@@ -687,6 +799,12 @@ class DynamicAdapterManager:
                 if embedding_provider in self.config.get('embeddings', {}):
                     embedding_model = self.config.get('embeddings', {}).get(embedding_provider, {}).get('model')
 
+                # Get reranker configuration
+                reranker_provider = adapter_config.get('reranker_provider')
+                reranker_model = None
+                if reranker_provider and reranker_provider in self.config.get('rerankers', {}):
+                    reranker_model = self.config.get('rerankers', {}).get(reranker_provider, {}).get('model')
+
                 # Check if this is an intent adapter and get store info
                 adapter_type = adapter_config.get('adapter')
                 store_info = ""
@@ -709,6 +827,13 @@ class DynamicAdapterManager:
                     msg_parts.append(f"embedding: {embedding_provider}/{embedding_model}")
                 else:
                     msg_parts.append(f"embedding: {embedding_provider}")
+
+                # Reranker provider and model
+                if reranker_provider:
+                    if reranker_model:
+                        msg_parts.append(f"reranker: {reranker_provider}/{reranker_model}")
+                    else:
+                        msg_parts.append(f"reranker: {reranker_provider}")
 
                 # Store info for intent adapters
                 if store_info:

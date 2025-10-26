@@ -103,7 +103,7 @@ class OpenAIBaseService(ProviderAIService):
             enabled=retry_config['enabled']
         )
 
-        self.logger.info(f"Configured OpenAI service with model: {self.model}")
+        self.logger.debug(f"Configured OpenAI service with model: {self.model}")
 
     async def initialize(self) -> bool:
         """

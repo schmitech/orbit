@@ -66,10 +66,15 @@ class JinaBaseService(ProviderAIService):
         # Get base URL
         self.base_url = self._get_base_url(self.DEFAULT_BASE_URL)
 
-        # Get model
-        self.model = self._get_model()
+        # Get model with appropriate default based on service type
         if not self.model:
-            self.model = "jina-embeddings-v3"  # Default model
+            if self.service_type == ServiceType.EMBEDDING:
+                default_model = "jina-embeddings-v3"
+            elif self.service_type == ServiceType.RERANKING:
+                default_model = "jina-reranker-v2-base-multilingual"
+            else:
+                default_model = None
+            self.model = self._get_model(default_model)
 
         # Get endpoint
         self.endpoint = self._get_endpoint("/embeddings")  # Default
@@ -95,7 +100,7 @@ class JinaBaseService(ProviderAIService):
             enabled=retry_config['enabled']
         )
 
-        self.logger.info(f"Configured Jina service with model: {self.model}")
+        self.logger.debug(f"Configured Jina service with model: {self.model}")
 
     async def _get_session(self) -> aiohttp.ClientSession:
         """
