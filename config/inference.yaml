@@ -1,6 +1,6 @@
 inference:
   ollama:
-    enabled: false
+    enabled: true
     base_url: "http://localhost:11434"
     model: "granite4:micro"
     stream: true
@@ -56,24 +56,24 @@ inference:
     api_key: ${OLLAMA_CLOUD_API_KEY}
     model: "gpt-oss:120b-cloud"
     stream: true
-    # Generation parameters
-    temperature: 0.7
-    top_p: 0.9
+    # Generation parameters - Optimized for large SQL result sets
+    temperature: 0.3  # Lower for more factual, deterministic outputs
+    top_p: 0.8  # More focused outputs for data analysis
     top_k: 40
     min_p: 0.0
     typical_p: 0.7
-    num_predict: 1024
+    num_predict: 4096  # Increased to handle comprehensive analysis of hundreds of records
     repeat_penalty: 1.1
-    repeat_last_n: 64
+    repeat_last_n: 32
     presence_penalty: 0.0
     frequency_penalty: 0.0
     # Mirostat sampling (0=disabled, 1=Mirostat, 2=Mirostat v2)
     mirostat: 0
     mirostat_tau: 0.8
     mirostat_eta: 0.6
-    # Context and memory - Reduced for 120B model
-    num_ctx: 8192
-    num_keep: 5
+    # Context and memory - Optimized for hundreds of SQL records
+    num_ctx: 16384  # Large context window to fit hundreds of records + analysis
+    num_keep: 200  # Keep prompt instructions and query context
     penalize_newline: false
     # Stop sequences
     stop: []
@@ -112,7 +112,7 @@ inference:
       "<end_of_turn>"
     ]
   gemini:
-    enabled: false
+    enabled: true
     api_key: ${GOOGLE_API_KEY}
     model: "gemini-2.5-flash"
     temperature: 0.1
@@ -122,7 +122,7 @@ inference:
     stream: true
     transport: "rest"
   groq:
-    enabled: false
+    enabled: true
     api_key: ${GROQ_API_KEY}
     model: "llama-3.1-8b-instant"
     temperature: 0.1
@@ -130,7 +130,7 @@ inference:
     max_tokens: 32000
     stream: true
   deepseek:
-    enabled: false
+    enabled: true
     api_key: ${DEEPSEEK_API_KEY}
     api_base: "https://api.deepseek.com/v1"
     model: "deepseek-chat"
@@ -171,13 +171,13 @@ inference:
   openai:
     enabled: true
     api_key: ${OPENAI_API_KEY}
-    model: "gpt-5-nano"
+    model: "gpt-5"
     temperature: 1
     top_p: 0.8
     max_tokens: 16000
     stream: true
   mistral:
-    enabled: false
+    enabled: true
     api_key: ${MISTRAL_API_KEY}
     api_base: "https://api.mistral.ai/v1"
     model: "mistral-small-latest"
@@ -205,7 +205,7 @@ inference:
     stream: true
     show_thinking: false
   xai:
-    enabled: false
+    enabled: true
     api_key: ${XAI_API_KEY}
     api_base: "https://api.x.ai/v1"
     model: "grok-3-mini-beta"
