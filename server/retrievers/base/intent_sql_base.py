@@ -35,10 +35,17 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
             **kwargs: Additional arguments
         """
         super().__init__(config=config, datasource=datasource, **kwargs)
-        
+
         # Get intent-specific configuration from standardized key
         self.intent_config = config.get('adapter_config', {})
-        
+
+        # Override return_results from intent_config if specified (fixes default of 3 in parent class)
+        if 'return_results' in self.intent_config:
+            self.return_results = self.intent_config.get('return_results')
+            logger.info(f"Intent SQL retriever: return_results set to {self.return_results} from adapter config")
+        else:
+            logger.info(f"Intent SQL retriever: using default return_results={self.return_results} from parent class")
+
         # Store configuration for vector store
         self.store_name = self.intent_config.get('store_name')
         if not self.store_name:
@@ -538,7 +545,11 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
                     if self.verbose:
                         logger.debug(f"Template {template.get('id')} execution failed: {error}")
                     continue
-                
+
+                if results and self.return_results is not None and len(results) > self.return_results:
+                    logger.info(f"Truncating result set from {len(results)} to {self.return_results} results based on adapter config.")
+                    results = results[:self.return_results]
+
                 # Format response using domain-aware generator
                 if self.response_generator:
                     formatted_data = self.response_generator.format_response_data(results, template)
@@ -555,7 +566,7 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
                         # Format a simple table representation
                         table_data = formatted_data["table"]
                         columns = table_data["columns"]
-                        rows = table_data["rows"][:10]  # Limit to first 10 rows
+                        rows = table_data["rows"][:self.return_results]  # Limit to return_results
 
                         table_text = " | ".join(columns) + "\n"
                         table_text += "-" * len(table_text) + "\n"
@@ -568,8 +579,11 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
                         # Fallback to simple result summary
                         content_parts.append(f"Query executed successfully. Found {len(results)} results.")
 
+                    content = "\n\n".join(content_parts)
+                    logger.info(f"Generated content for LLM context (length: {len(content)}):\n{content}")
+
                     return [{
-                        "content": "\n\n".join(content_parts),
+                        "content": content,
                         "metadata": {
                             "source": "intent",
                             "template_id": template.get('id'),

@@ -20,7 +20,7 @@ templates:
     sql_template: |
       SELECT 
         EXTRACT(MONTH FROM o.order_date) as month,
-        TO_CHAR(o.order_date, 'Month') as month_name,
+        TRIM(TO_CHAR(o.order_date, 'Month')) as month_name,
         COUNT(o.id) as total_orders,
         SUM(o.total) as total_revenue,
         AVG(o.total) as average_order_value,
