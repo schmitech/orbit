@@ -11,6 +11,8 @@ import json
 import httpx
 from typing import Dict, Any, List, Optional, Tuple
 from abc import abstractmethod
+from datetime import datetime
+from pathlib import Path
 
 from .base_retriever import BaseRetriever
 from retrievers.implementations.intent.domain.extraction import DomainParameterExtractor
@@ -142,6 +144,27 @@ class IntentHTTPRetriever(BaseRetriever):
             'ephemeral': connection_params.get('ephemeral', False),
             'auto_cleanup': store_config.get('auto_cleanup', True)
         }
+
+    def dump_results_to_file(self, results: Any, prefix: str = "http_results"):
+        """
+        Dump HTTP query results to a timestamped JSON file for debugging.
+
+        Args:
+            results: HTTP query results (list, dict, or any JSON-serializable data)
+            prefix: File prefix (default: "http_results")
+        """
+        try:
+            log_dir = Path("logs")
+            log_dir.mkdir(exist_ok=True)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            file_path = log_dir / f"{prefix}_{timestamp}.json"
+
+            with open(file_path, 'w') as f:
+                json.dump(results, f, indent=2, default=str)
+
+            logger.info(f"HTTP query results saved to {file_path}")
+        except Exception as e:
+            logger.error(f"Failed to dump HTTP query results: {e}")
 
     async def initialize(self) -> None:
         """Initialize HTTP client and intent-specific features."""
@@ -578,6 +601,12 @@ class IntentHTTPRetriever(BaseRetriever):
                     if self.verbose:
                         logger.debug(f"Template {template.get('id')} execution failed: {error}")
                     continue
+
+                # Dump results to file for debugging if verbose is enabled
+                if self.verbose and results:
+                    result_count = len(results) if isinstance(results, list) else 1
+                    logger.info(f"HTTP query returned {result_count} result(s)")
+                    self.dump_results_to_file(results, prefix=f"http_{template.get('id', 'unknown')}")
 
                 if results and self.return_results is not None and len(results) > self.return_results:
                     logger.info(f"Truncating result set from {len(results)} to {self.return_results} results based on adapter config.")
