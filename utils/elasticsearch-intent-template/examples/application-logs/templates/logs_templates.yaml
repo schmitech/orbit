@@ -57,6 +57,16 @@ templates:
                     "lte": "{{end_time}}"
                   }
                 }
+              },
+              {
+                "range": {
+                  "status_code": {
+                    "gte": {{status_code_min}}
+                    {% if status_code_max %}
+                    ,"lte": {{status_code_max}}
+                    {% endif %}
+                  }
+                }
               }
               {% if environment %}
               ,{
@@ -128,7 +138,7 @@ templates:
       - name: start_time
         type: string
         required: false
-        default: "now-7d"
+        default: "now-24h"
         description: "Start of time range"
         location: "body"
         format: "date_time"
@@ -141,10 +151,27 @@ templates:
         location: "body"
         format: "date_time"
 
+      - name: status_code_min
+        type: integer
+        required: false
+        default: 500
+        description: "Minimum HTTP status code to include"
+        location: "body"
+        min: 100
+        max: 599
+
+      - name: status_code_max
+        type: integer
+        required: false
+        description: "Maximum HTTP status code to include"
+        location: "body"
+        min: 100
+        max: 599
+
       - name: limit
         type: integer
         required: false
-        default: 100
+        default: 50
         description: "Maximum number of results"
         location: "body"
         min: 1
@@ -335,6 +362,16 @@ templates:
                     "lte": "{{end_time}}"
                   }
                 }
+              },
+              {
+                "range": {
+                  "status_code": {
+                    "gte": {{status_code_min}}
+                    {% if status_code_max %}
+                    ,"lte": {{status_code_max}}
+                    {% endif %}
+                  }
+                }
               }
               {% if service_name %}
               ,{
@@ -343,10 +380,18 @@ templates:
                 }
               }
               {% endif %}
+              {% if environment %}
+              ,{
+                "term": {
+                  "environment": "{{environment}}"
+                }
+              }
+              {% endif %}
             ]
           }
         },
         "size": 0,
+        "track_total_hits": false,
         "aggs": {
           "errors_over_time": {
             "date_histogram": {
@@ -374,7 +419,7 @@ templates:
       - name: start_time
         type: string
         required: false
-        default: "now-7d"
+        default: "now-24h"
         description: "Start of time range"
 
       - name: end_time
@@ -383,15 +428,36 @@ templates:
         default: "now"
         description: "End of time range"
 
+      - name: environment
+        type: string
+        required: false
+        description: "Filter by environment"
+        allowed_values: ["production", "staging", "development"]
+
       - name: service_name
         type: string
         required: false
         description: "Filter by specific service"
 
+      - name: status_code_min
+        type: integer
+        required: false
+        default: 500
+        description: "Minimum HTTP status code to include"
+        min: 100
+        max: 599
+
+      - name: status_code_max
+        type: integer
+        required: false
+        description: "Maximum HTTP status code to include"
+        min: 100
+        max: 599
+
       - name: interval
         type: string
         required: false
-        default: "1h"
+        default: "15m"
         description: "Time bucket interval"
         allowed_values: ["1m", "5m", "15m", "30m", "1h", "6h", "12h", "1d"]
 
@@ -399,7 +465,7 @@ templates:
       - "Show me error trends over the last 24 hours"
       - "How have errors changed over time?"
       - "Display error timeline"
-      - "Graph errors per hour"
+      - "Graph errors per hour" #Too long
       - "Show error count by hour"
       - "Error spike analysis for auth service"
 
@@ -423,13 +489,16 @@ templates:
     endpoint: "/{index}/_search"
 
     query_dsl: |
+      {% set slow_response_field = response_time_field | default("response_time") %}
+      {% set slow_min_response = min_response_time | default(1000) %}
+      {% set slow_max_response = max_response_time | default(None, true) %}
       {
         "query": {
           "bool": {
             "must": [
               {
                 "exists": {
-                  "field": "response_time"
+                  "field": "{{slow_response_field}}"
                 }
               }
             ],
@@ -444,22 +513,25 @@ templates:
               },
               {
                 "range": {
-                  "response_time": {
-                    "gte": {{min_response_time}}
+                  "{{slow_response_field}}": {
+                    "gte": {{slow_min_response}}
+                    {% if slow_max_response is not none %}
+                    ,"lte": {{slow_max_response}}
+                    {% endif %}
                   }
                 }
               }
               {% if endpoint %}
               ,{
                 "wildcard": {
-                  "endpoint": "*{{endpoint}}*"
+                  "endpoint.keyword": "*{{endpoint}}*"
                 }
               }
               {% endif %}
               {% if service_name %}
               ,{
                 "term": {
-                  "service_name": "{{service_name}}"
+                  "service_name.keyword": "{{service_name}}"
                 }
               }
               {% endif %}
@@ -469,12 +541,12 @@ templates:
         "size": {{limit}},
         "sort": [
           {
-            "response_time": {
+            "{{slow_response_field}}": {
               "order": "desc"
             }
           }
         ],
-        "_source": ["timestamp", "service_name", "endpoint", "response_time", "status_code", "user_id", "request_id"]
+        "_source": ["timestamp", "service_name", "endpoint", "{{slow_response_field}}", "status_code", "user_id", "request_id"]
       }
 
     parameters:
@@ -498,7 +570,7 @@ templates:
       - name: start_time
         type: string
         required: false
-        default: "now-1h"
+        default: "now-24h"
         description: "Start of time range"
 
       - name: end_time
@@ -514,6 +586,19 @@ templates:
         description: "Maximum results"
         min: 1
         max: 1000
+
+      - name: max_response_time
+        type: integer
+        required: false
+        description: "Optional upper bound for response time"
+        min: 0
+        max: 3600000
+
+      - name: response_time_field
+        type: string
+        required: false
+        default: "response_time"
+        description: "Field name to use for response time filtering (override if your mapping differs)"
 
     nl_examples:
       - "Show me slow requests"
@@ -573,6 +658,16 @@ templates:
                     "lte": "{{end_time}}"
                   }
                 }
+              },
+              {
+                "range": {
+                  "status_code": {
+                    "gte": {{status_code_min}}
+                    {% if status_code_max %}
+                    ,"lte": {{status_code_max}}
+                    {% endif %}
+                  }
+                }
               }
               {% if indices %}
               ,{
@@ -626,9 +721,26 @@ templates:
       - name: limit
         type: integer
         required: false
-        default: 100
+        default: 50
         description: "Maximum number of results"
         location: "body"
+
+      - name: status_code_min
+        type: integer
+        required: false
+        default: 500
+        description: "Minimum HTTP status code to include"
+        location: "body"
+        min: 100
+        max: 599
+
+      - name: status_code_max
+        type: integer
+        required: false
+        description: "Maximum HTTP status code to include"
+        location: "body"
+        min: 100
+        max: 599
 
     nl_examples:
       - "Search for errors across all log indices"
