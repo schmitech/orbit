@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.6.0] - 2025-10-25
+
+### Core System Updates
+- Roadmap Updates
+- New MongoDB Intent Adapter
+- New Firecrawl Adapter
+- HTTP and ES Intent Updates
+
 ## [1.5.9] - 2025-10-24
 
 ### Core System Updates
