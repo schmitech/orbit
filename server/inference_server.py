@@ -455,7 +455,7 @@ class InferenceServer:
         # Get performance configuration
         perf_config = self.config.get('performance', {})
         workers = perf_config.get('workers', 1)  # Default to 1 worker for backward compatibility
-        
+
         # Configure uvicorn with signal handlers for graceful shutdown
         config = uvicorn.Config(
             self.app,
@@ -468,7 +468,11 @@ class InferenceServer:
             timeout_keep_alive=perf_config.get('keep_alive_timeout', 30),
             timeout_graceful_shutdown=30,
             access_log=False,  # Disable FastAPI's default access logging
-            log_config=None  # Reuse global logging configuration for consistent formatting
+            log_config=None,  # Reuse global logging configuration for consistent formatting
+            # Streaming optimization settings
+            h11_max_incomplete_event_size=16 * 1024,  # 16KB for smoother streaming
+            limit_concurrency=None,  # Don't limit concurrent connections
+            backlog=2048,  # Connection backlog
         )
         
         server = uvicorn.Server(config)

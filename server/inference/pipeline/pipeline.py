@@ -189,13 +189,15 @@ class InferencePipeline:
                 try:
                     # Pre-process step
                     await llm_step.pre_process(context)
-                    
+
                     # Execute step with streaming
                     async for chunk in llm_step.process_stream(context):
                         # Format as JSON for consistency
                         chunk_json = json.dumps({"response": chunk, "done": False})
                         yield chunk_json
-                    
+                        # Yield control to event loop to prevent buffering
+                        await asyncio.sleep(0)
+
                     # Post-process step
                     await llm_step.post_process(context)
                     

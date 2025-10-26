@@ -447,31 +447,33 @@ class PipelineChatService:
                 async for chunk in self.pipeline.process_stream(context):
                     try:
                         chunk_data = json.loads(chunk)
-                        
+
                         # Handle errors
                         if "error" in chunk_data:
                             yield f"data: {chunk}\n\n"
                             return
-                        
-                        # Stream immediately
+
+                        # Stream immediately - yield to event loop to prevent buffering
                         yield f"data: {chunk}\n\n"
-                        
+                        await asyncio.sleep(0)  # Force immediate flush to client
+
                         # Accumulate content
                         if "response" in chunk_data:
                             accumulated_text += chunk_data["response"]
-                        
+
                         # Handle sources
                         if "sources" in chunk_data:
                             sources = chunk_data["sources"]
-                        
+
                         # Handle done marker
                         if chunk_data.get("done", False):
                             stream_completed_successfully = True
                             break
-                            
+
                     except json.JSONDecodeError:
                         # Still yield the chunk even if we can't parse it
                         yield f"data: {chunk}\n\n"
+                        await asyncio.sleep(0)  # Force immediate flush
                         continue
                 
                 # Post-stream processing

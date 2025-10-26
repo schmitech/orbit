@@ -461,50 +461,77 @@ def stream_chat(url, message, api_key=None, session_id=None, debug=False, progre
                 if debug:
                     console.print(Panel(response.text, title="Full Response", border_style="red"))
                 return None, None
-            
+
             full_response = ""
             buffer = ""
+            line_buffer = ""
 
             # Start Live display first with empty markdown
             live = Live(Markdown(""), console=console, refresh_per_second=30, transient=False)
             live.start()
 
             try:
-                for line in response.iter_lines():
-                    if not line:
+                # Use iter_content with small chunk_size to avoid buffering
+                # Read bytes and decode manually
+                for byte_chunk in response.iter_content(chunk_size=16):
+                    if not byte_chunk:
                         continue
+
+                    # Decode bytes to string
                     try:
-                        line = line.decode('utf-8')
-                        if not line.startswith('data: '):
+                        chunk = byte_chunk.decode('utf-8')
+                    except UnicodeDecodeError:
+                        # Skip incomplete UTF-8 sequences
+                        continue
+
+                    # Add to line buffer
+                    line_buffer += chunk
+
+                    # Process complete lines (SSE format: "data: {...}\n")
+                    while "\n" in line_buffer:
+                        line, line_buffer = line_buffer.split("\n", 1)
+                        line = line.strip()
+
+                        if not line or not line.startswith('data: '):
                             continue
+
                         data_text = line[6:].strip()
                         if not data_text or data_text == "[DONE]":
                             continue
-                        chunk_data = json.loads(data_text)
-                        if first_token_time is None:
-                            first_token_time = time.time()
-                            # Stop the progress spinner immediately on first token
-                            if progress:
-                                progress.stop()
-                                progress = None
-                        if "response" in chunk_data:
-                            buffer += chunk_data.get("response", "")
-                        elif "error" in chunk_data:
-                            error_msg = chunk_data.get("error", "Unknown error")
-                            if isinstance(error_msg, dict):
-                                error_msg = error_msg.get("message", "Unknown error")
-                            console.print(f"\n❌ Error from server: {error_msg}", style=ERROR_STYLE)
-                            return error_msg, None
-                        clean_content = clean_response(buffer)
-                        live.update(Markdown(clean_content))
-                        full_response = clean_content
-                    except Exception as e:
-                        if debug:
-                            console.print(f"\n❌ Error processing chunk: {e}", style=ERROR_STYLE)
-                        continue
+
+                        try:
+                            chunk_data = json.loads(data_text)
+                            if first_token_time is None:
+                                first_token_time = time.time()
+                                # Stop the progress spinner immediately on first token
+                                if progress:
+                                    progress.stop()
+                                    progress = None
+
+                            if "response" in chunk_data:
+                                buffer += chunk_data.get("response", "")
+                                # Update live display immediately
+                                clean_content = clean_response(buffer)
+                                live.update(Markdown(clean_content))
+                                full_response = clean_content
+                            elif "error" in chunk_data:
+                                error_msg = chunk_data.get("error", "Unknown error")
+                                if isinstance(error_msg, dict):
+                                    error_msg = error_msg.get("message", "Unknown error")
+                                console.print(f"\n❌ Error from server: {error_msg}", style=ERROR_STYLE)
+                                return error_msg, None
+
+                        except json.JSONDecodeError as e:
+                            if debug:
+                                console.print(f"\n❌ JSON decode error: {e} for data: {data_text}", style=ERROR_STYLE)
+                            continue
+                        except Exception as e:
+                            if debug:
+                                console.print(f"\n❌ Error processing chunk: {e}", style=ERROR_STYLE)
+                            continue
             finally:
                 live.stop()
-            
+
             end_time = time.time()
             total_time = end_time - start_time
             time_to_first_token = first_token_time - start_time if first_token_time else None

@@ -546,9 +546,10 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
                         logger.debug(f"Template {template.get('id')} execution failed: {error}")
                     continue
 
-                if results and self.return_results is not None and len(results) > self.return_results:
-                    logger.info(f"Truncating result set from {len(results)} to {self.return_results} results based on adapter config.")
-                    results = results[:self.return_results]
+                if self.verbose and results:
+                    if results and self.return_results is not None and len(results) > self.return_results:
+                        logger.info(f"Truncating result set from {len(results)} to {self.return_results} results based on adapter config.")
+                        results = results[:self.return_results]
 
                 # Format response using domain-aware generator
                 if self.response_generator:
@@ -580,7 +581,9 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
                         content_parts.append(f"Query executed successfully. Found {len(results)} results.")
 
                     content = "\n\n".join(content_parts)
-                    logger.info(f"Generated content for LLM context (length: {len(content)}):\n{content}")
+                    
+                    if self.verbose:
+                        logger.info(f"Generated content for LLM context (length: {len(content)}):\n{content}")
 
                     return [{
                         "content": content,
