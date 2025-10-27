@@ -194,7 +194,7 @@ export const MessagesList: React.FC<MessagesListProps> = ({
                     <div
                       className="w-full px-4 py-3 rounded-xl border transition-all duration-300 ease-in-out cursor-pointer group-hover:shadow-md group-active:shadow-sm"
                       style={{
-                        background: theme.suggestedQuestions.background || '#ffffff',
+                        background: theme.suggestedQuestions.questionsBackground || '#ffffff',
                         borderColor: theme.suggestedQuestions.text || '#e5e7eb',
                         color: theme.suggestedQuestions.text,
                         fontWeight: 500,
@@ -215,7 +215,7 @@ export const MessagesList: React.FC<MessagesListProps> = ({
                         }
                       }}
                       onMouseLeave={(e) => {
-                        e.currentTarget.style.background = theme.suggestedQuestions.background || '#ffffff';
+                        e.currentTarget.style.background = theme.suggestedQuestions.questionsBackground || '#ffffff';
                         e.currentTarget.style.borderColor = theme.suggestedQuestions.text || '#e5e7eb';
                         e.currentTarget.style.transform = 'translateY(0)';
                         e.currentTarget.style.boxShadow = '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)';

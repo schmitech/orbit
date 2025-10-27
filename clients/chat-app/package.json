@@ -15,7 +15,11 @@
     "preview:local": "VITE_USE_LOCAL_API=true vite preview"
   },
   "dependencies": {
+<<<<<<< HEAD
+    "@schmitech/chatbot-api": "^0.5.2",
+=======
     "@schmitech/chatbot-api": "^0.5.3",
+>>>>>>> 47c6a6e5fe94e5884a66e8c0af891d017cc44394
     "@schmitech/markdown-renderer": "^0.1.6",
     "@types/markdown-it": "^14.1.2",
     "lucide-react": "^0.344.0",
