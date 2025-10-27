@@ -26,7 +26,7 @@ vector_stores:
 
   # Pinecone configuration (if enabled)
   pinecone:
-    enabled: true
+    enabled: false
     connection_params:
       api_key: "${DATASOURCE_PINECONE_API_KEY}"
       # host: "${DATASOURCE_PINECONE_HOST}"  # Only needed for pod-based indexes
@@ -37,7 +37,7 @@ vector_stores:
     cache_ttl: 1800
 
   qdrant:
-    enabled: true
+    enabled: false
     connection_params:
       host: "${DATASOURCE_QDRANT_HOST}"
       port: "${DATASOURCE_QDRANT_PORT}"
