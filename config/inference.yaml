@@ -4,13 +4,13 @@ inference:
     base_url: "http://localhost:11434"
     model: "granite4:micro"
     stream: true
-    # Generation parameters
-    temperature: 0.7
-    top_p: 0.9
+    # Generation parameters - Optimized for large SQL result sets
+    temperature: 0.3  # Lower for more factual, deterministic outputs
+    top_p: 0.8  # More focused outputs for data analysis
     top_k: 40
     min_p: 0.0
     typical_p: 0.7
-    num_predict: 1024
+    num_predict: 2048  # Increased to handle analysis of hundreds of records
     repeat_penalty: 1.1
     repeat_last_n: 33
     presence_penalty: 0.0
@@ -19,9 +19,9 @@ inference:
     mirostat: 0
     mirostat_tau: 0.8
     mirostat_eta: 0.6
-    # Context and memory
-    num_ctx: 8000
-    num_keep: 5
+    # Context and memory - Optimized for hundreds of SQL records
+    num_ctx: 16384  # Large context window to fit hundreds of records + analysis
+    num_keep: 200  # Keep prompt instructions and query context
     penalize_newline: false
     # Stop sequences
     stop: []
