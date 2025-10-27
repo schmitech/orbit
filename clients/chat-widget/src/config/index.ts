@@ -22,7 +22,7 @@ export interface ChatConfig {
       assistantText?: string;
     };
     suggestedQuestions: {
-      background: string;
+      questionsBackground: string;
       text: string;
       highlightedBackground: string;
     };
@@ -64,7 +64,7 @@ export const defaultTheme = {
     assistant: '#FFFFFF'
   },
   suggestedQuestions: {
-    background: '#F3F4F6',
+    questionsBackground: '#F3F4F6',
     text: '#1F2937',
     highlightedBackground: '#FEF3C7'
   },
