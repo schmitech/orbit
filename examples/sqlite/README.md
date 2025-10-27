@@ -1,139 +1,166 @@
-# Sample SQLite DB
+# Library Management System - SQLite Example
 
-A simple SQLite for storing and retrieving city information. This project provides tools for setting up a question-answering database, querying with fuzzy search.
+This directory contains a complete example of a library management system database schema and test queries for use with the SQL intent template generator.
 
-## Installation & Setup
+## Files
 
-### 1. Initialize the Database
+- `library_management.sql` - Complete SQLite database schema with sample data
+- `library_test_queries.md` - 195 test queries covering various search scenarios
+- `test_template_generation.sh` - Script to test template generation
+- `README.md` - This documentation file
+
+## Database Schema
+
+The library management system includes the following tables:
+
+### Core Tables
+- **authors** - Author information (name, biography, nationality, etc.)
+- **categories** - Book categories (fiction, non-fiction, science fiction, etc.)
+- **publishers** - Publisher information (name, address, contact details)
+- **books** - Book information (title, ISBN, description, availability, etc.)
+- **members** - Library member information (name, contact, membership type)
+- **loans** - Book loan records (who borrowed what and when)
+- **reservations** - Book reservation system
+- **reviews** - Member book reviews and ratings
+
+### Junction Tables
+- **book_authors** - Many-to-many relationship between books and authors
+
+### Views
+- **book_summary** - Comprehensive book information with authors and categories
+- **member_summary** - Member information with loan statistics
+- **loan_summary** - Loan information with book and member details
+
+## Sample Data
+
+The schema includes realistic sample data:
+- 8 books from classic literature and science
+- 5 authors including George Orwell, J.K. Rowling, Isaac Asimov, etc.
+- 5 publishers including major publishing houses
+- 10 categories covering different genres
+- 5 library members with different membership types
+- Sample loans, reservations, and reviews
+
+## Test Queries
+
+The `library_test_queries.md` file contains 195 test queries covering:
+
+### Book Queries (1-50)
+- Search by title, author, category, publisher
+- Search by ISBN, publication date, availability
+- Search by price range, language
+
+### Member Queries (51-71)
+- Search by name, email, membership type
+- Search by status, location
+
+### Loan Queries (72-98)
+- Search by status, member, book
+- Search by date range, due date, fine amount
+
+### Reservation Queries (99-111)
+- Search by status, member, book, priority
+
+### Review Queries (112-126)
+- Search by rating, book, member, verification status
+
+### Author Queries (127-138)
+- Search by name, nationality, birth date
+
+### Publisher Queries (139-148)
+- Search by name, location, founded year
+
+### Category Queries (149-155)
+- Search by name, parent category
+
+### Complex Queries (156-195)
+- Multi-criteria searches
+- Statistical queries
+- Administrative queries
+- Time-based analysis
+
+## Usage
+
+### 1. Generate Templates
+
+To generate SQL intent templates using this schema:
 
 ```bash
-python rag_cli.py setup --data-path sample-data/city-qa-pairs.json
+cd /path/to/orbit/utils/sql-intent-template
+./generate_templates.sh \
+    --schema ../../examples/sqlite/library_management.sql \
+    --queries ../../examples/sqlite/library_test_queries.md \
+    --auto-config \
+    --verbose
 ```
 
-This will:
-- Create the SQLite database (`rag_database.db`)
-- Set up the necessary tables and indexes
-- Load the sample city Q&A data
+### 2. Use the Test Script
 
-## Using the CLI
-
-The project provides a command-line interface (`rag_cli.py`) with several commands:
-
-### Query the Database
+Run the provided test script:
 
 ```bash
-# Basic query
-python rag_cli.py query "How do I report a pothole on my street?"
-
-# Get more results
-python rag_cli.py query "Where can I pay my water bill?" --top-n 5
-
-# Format for RAG prompt
-python rag_cli.py query "What are the hours for the recycling center?" --rag-format
+cd /path/to/orbit/examples/sqlite
+./test_template_generation.sh
 ```
 
-### Interactive Mode
+### 3. Manual Testing
 
-For multiple queries in a session:
+You can also test individual components:
 
 ```bash
-python rag_cli.py interactive
+# Test with specific configuration
+./generate_templates.sh \
+    --schema library_management.sql \
+    --queries library_test_queries.md \
+    --config configs/ecommerce-config.yaml \
+    --limit 10
+
+# Test with specific provider
+./generate_templates.sh \
+    --schema library_management.sql \
+    --queries library_test_queries.md \
+    --provider ollama \
+    --auto-config
 ```
 
-This allows you to enter multiple queries without restarting the program. Type `exit`, `quit`, or `q` to exit, and `stats` to see database statistics.
+## Schema Features
 
-### Database Management
+### SQLite-Specific Features
+- Uses `PRAGMA foreign_keys = ON` for referential integrity
+- Includes `AUTOINCREMENT` for primary keys
+- Uses `INTEGER` for boolean fields with CHECK constraints
+- Includes triggers for `updated_at` timestamps
 
-```bash
-# View database statistics
-python rag_cli.py stats
+### Data Integrity
+- Foreign key constraints
+- CHECK constraints for enums
+- UNIQUE constraints where appropriate
+- Proper indexing for performance
 
-# List QA pairs
-python rag_cli.py list --limit 10 --offset 0
+### Sample Data
+- Realistic book titles and authors
+- Varied publication dates (19th century to modern)
+- Different membership types and statuses
+- Sample loans with different statuses
+- Reviews with ratings and text
 
-# Add a new QA pair
-python rag_cli.py add --question "How do I contact the mayor?" --answer "The mayor can be contacted via email at mayor@city.gov or by phone at 555-123-4567."
+## Customization
 
-# Delete a QA pair
-python rag_cli.py delete-qa 123
+You can easily customize this schema for your needs:
 
-# Clear all data (while preserving structure)
-python rag_cli.py clear
+1. **Add more tables** - Add tables for magazines, DVDs, e-books, etc.
+2. **Modify categories** - Add more specific categories or subcategories
+3. **Extend member data** - Add more member attributes like preferences, reading history
+4. **Add more queries** - Create additional test queries for your specific use cases
+5. **Modify sample data** - Add more realistic data for your domain
 
-# Delete the entire database
-python rag_cli.py delete-db
-```
+## Integration with Orbit
 
-## How It Works
+This schema is designed to work seamlessly with the Orbit SQL intent template generator. The generated templates can be used with:
 
-### Fuzzy Search Implementation
+- Intent PostgreSQL retriever
+- SQL RAG system
+- Conversational AI applications
+- Library management systems
 
-The system uses a combination of techniques for effective fuzzy search without requiring vector embeddings:
-
-1. **Tokenization**: Questions are broken down into meaningful tokens, with stopwords removed
-2. **Token Matching**: Finds documents containing tokens from the query
-3. **String Similarity**: Uses sequence matching to calculate similarity scores
-4. **Combined Scoring**: Weights token matching and string similarity for better results
-
-### Database Structure
-
-The SQLite database contains two main tables:
-
-1. **city_qa**: Stores question-answer pairs with tokenized questions
-2. **search_tokens**: Maps tokens to questions for efficient search
-
-## Extending the System
-
-### Adding More Data
-
-To add more question-answer pairs:
-
-1. Create a JSON file in the same format as `city-qa-pairs.json`:
-```json
-[
-    {
-        "question": "Your question here?",
-        "answer": "Your answer here."
-    },
-    ...
-]
-```
-
-2. Load it using the CLI:
-```bash
-python rag_cli.py setup --data-path your-data.json
-```
-
-Or add individual pairs:
-```bash
-python rag_cli.py add --question "Your question?" --answer "Your answer."
-```
-
-## Troubleshooting
-
-### Common Issues
-
-1. **"No such table" error**
-   - Run the setup command: `python rag_cli.py setup`
-
-2. **No results for a query**
-   - Try using more generic terms
-   - Reduce the relevance threshold in config.json
-   - Check if the database has relevant data with `python rag_cli.py list`
-
-3. **LLM integration not working**
-   - Ensure you have the required packages installed (openai, anthropic, or ollama)
-   - Check API keys are set as environment variables
-   - For Ollama, ensure the local server is running
-
-## License
-
-[Specify your license here]
-
-## Contributing
-
-[Contribution guidelines if applicable]
-
-## Acknowledgments
-
-This project uses the BaseRetriever pattern which can be extended to support other retrieval systems like ChromaDB, Pinecone, or other vector databases.
+The queries are designed to test various SQL patterns and intent recognition scenarios that are common in library management systems.

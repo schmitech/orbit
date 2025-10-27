@@ -26,7 +26,7 @@ This shows all available dependency profiles defined in `dependencies.toml`:
 ./setup.sh --profile torch
 
 # Install commercial providers
-./setup.sh --profile commercial
+./setup.sh --profile cloud
 
 # Install everything
 ./setup.sh --profile all
@@ -36,7 +36,7 @@ This shows all available dependency profiles defined in `dependencies.toml`:
 
 ```bash
 # Install both PyTorch and commercial providers
-./setup.sh --profile torch --profile commercial
+./setup.sh --profile torch --profile cloud
 ```
 
 ### 4. Download GGUF Model
@@ -484,7 +484,7 @@ The installation script (`install.sh`) supports different dependency profiles to
 ./install.sh --profile torch
 
 # Install commercial providers
-./install.sh --profile commercial
+./install.sh --profile cloud
 
 # Install everything
 ./install.sh --profile all

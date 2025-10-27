@@ -20,18 +20,18 @@ class QASSQLRetriever(SQLiteRetriever):
     database-agnostic SQLite retriever foundation.
     """
 
-    def __init__(self, 
+    def __init__(self,
                 config: Dict[str, Any],
                 domain_adapter=None,
-                connection: Any = None,
+                datasource: Any = None,
                 **kwargs):
         """
         Initialize QA SQLite retriever.
-        
+
         Args:
             config: Configuration dictionary containing SQL and general settings
             domain_adapter: Optional domain adapter for document handling
-            connection: Optional SQL connection
+            datasource: Optional SQL connection
             **kwargs: Additional arguments
         """
         # Get QA-specific adapter config if available
@@ -51,7 +51,7 @@ class QASSQLRetriever(SQLiteRetriever):
                     break
         
         # Call parent constructor (SQLiteRetriever)
-        super().__init__(config=config, connection=connection, domain_adapter=domain_adapter, **kwargs)
+        super().__init__(config=config, datasource=datasource, domain_adapter=domain_adapter, **kwargs)
         
         # QA-specific settings
         self.confidence_threshold = adapter_config.get('confidence_threshold', 0.3) if adapter_config else 0.3

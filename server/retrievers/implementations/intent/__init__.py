@@ -33,6 +33,33 @@ except ImportError:  # pragma: no cover - optional import guard
     _sqlite_available = False
     logger.debug("SQLite retriever import failed; IntentSQLiteRetriever unavailable")
 
+# Import Elasticsearch retriever (requires elasticsearch package)
+try:
+    from .intent_elasticsearch_retriever import IntentElasticsearchRetriever
+    _elasticsearch_available = True
+except ImportError:  # pragma: no cover - optional import guard
+    IntentElasticsearchRetriever = None
+    _elasticsearch_available = False
+    logger.debug("Elasticsearch client libraries not installed; IntentElasticsearchRetriever unavailable")
+
+# Import HTTP JSON retriever (requires httpx package)
+try:
+    from .intent_http_json_retriever import IntentHTTPJSONRetriever
+    _http_json_available = True
+except ImportError:  # pragma: no cover - optional import guard
+    IntentHTTPJSONRetriever = None
+    _http_json_available = False
+    logger.debug("HTTP client libraries not installed; IntentHTTPJSONRetriever unavailable")
+
+# Import Firecrawl retriever (requires httpx package)
+try:
+    from .intent_firecrawl_retriever import IntentFirecrawlRetriever
+    _firecrawl_available = True
+except ImportError:  # pragma: no cover - optional import guard
+    IntentFirecrawlRetriever = None
+    _firecrawl_available = False
+    logger.debug("HTTP client libraries not installed; IntentFirecrawlRetriever unavailable")
+
 __all__ = [
     'DomainParameterExtractor',
     'DomainResponseGenerator',
@@ -48,3 +75,12 @@ if _mysql_available and IntentMySQLRetriever is not None:
 
 if _sqlite_available and IntentSQLiteRetriever is not None:
     __all__.append('IntentSQLiteRetriever')
+
+if _elasticsearch_available and IntentElasticsearchRetriever is not None:
+    __all__.append('IntentElasticsearchRetriever')
+
+if _http_json_available and IntentHTTPJSONRetriever is not None:
+    __all__.append('IntentHTTPJSONRetriever')
+
+if _firecrawl_available and IntentFirecrawlRetriever is not None:
+    __all__.append('IntentFirecrawlRetriever')

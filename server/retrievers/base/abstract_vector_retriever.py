@@ -15,60 +15,98 @@ logger = logging.getLogger(__name__)
 class AbstractVectorRetriever(BaseRetriever):
     """
     Abstract base class for vector database retrievers.
-    
+
     This class provides common vector database functionality while leaving
     database-specific implementation details to concrete subclasses.
+
+    Uses the datasource registry pattern - retrievers receive a datasource instance
+    and lazily initialize the connection when needed.
     """
-    
-    def __init__(self, 
+
+    def __init__(self,
                 config: Dict[str, Any],
                 embeddings: Optional[Any] = None,
+                datasource: Any = None,
                 domain_adapter=None,
                 **kwargs):
         """
         Initialize the abstract vector retriever.
-        
+
         Args:
             config: Configuration dictionary containing retriever settings
             embeddings: Embeddings service or model
+            datasource: Datasource instance from the registry
             domain_adapter: Optional domain adapter for document handling
             **kwargs: Additional arguments
         """
         super().__init__(config=config, domain_adapter=domain_adapter, **kwargs)
-        
+
         # Ensure logger is initialized (in case parent didn't do it)
         if not hasattr(self, 'logger'):
             self.logger = logging.getLogger(self.__class__.__name__)
-        
+
+        # Store datasource reference from registry
+        self._datasource = datasource
+        self._datasource_initialized = False
+
         # Store embeddings
         self.embeddings = embeddings
-        
+
         # Vector DB specific settings
         self.relevance_threshold = self.datasource_config.get('relevance_threshold', 0.5)
         self.distance_scaling_factor = self.datasource_config.get('distance_scaling_factor', 200.0)
-        
+
         # Flag for new embedding service
         self.using_new_embedding_service = False
-        
-        # Store vector database connection/client
-        self.vector_client = None  # Will be initialized by implementations
+
+        # Vector database client will be obtained from datasource when needed
+        self._vector_client = None
     
+    @property
+    def vector_client(self) -> Any:
+        """
+        Get the vector database client from the datasource.
+        Lazily initializes the datasource if needed.
+
+        Returns:
+            Vector database client from the datasource
+        """
+        if self._vector_client is None and self._datasource is not None:
+            # Get client from datasource
+            self._vector_client = self._datasource.get_client()
+        return self._vector_client
+
+    async def _ensure_datasource_initialized(self) -> None:
+        """
+        Ensure the datasource is initialized before use.
+        This method lazily initializes the datasource on first use.
+        """
+        if not self._datasource_initialized and self._datasource is not None:
+            if not self._datasource.is_initialized:
+                await self._datasource.initialize()
+            self._datasource_initialized = True
+            if self.verbose:
+                logger.info(f"Datasource initialized for {self._get_datasource_name()}")
+
     async def initialize(self) -> None:
-        """Initialize required services including embeddings."""
+        """Initialize required services including embeddings and datasource."""
         # Initialize base services first
         await super().initialize()
-        
+
         # Check if embedding is enabled
         embedding_enabled = self.config.get('embedding', {}).get('enabled', True)
-        
+
         # Skip initialization if embeddings are disabled
         if not embedding_enabled:
             self.embeddings = None
             return
-        
+
         # Initialize embeddings if not provided in constructor
         if self.embeddings is None:
             await self._initialize_embeddings()
+
+        # Initialize datasource lazily (will happen on first use)
+        # We don't initialize here to support lazy loading
     
     async def _initialize_embeddings(self) -> None:
         """Initialize the embedding service or model."""
@@ -100,13 +138,21 @@ class AbstractVectorRetriever(BaseRetriever):
             self.using_new_embedding_service = False
     
     async def close(self) -> None:
-        """Close any open services including embedding service."""
+        """Close any open services including embedding service and datasource."""
         # Close parent services
         await super().close()
-        
+
         # Close embedding service if using new architecture
         if self.using_new_embedding_service and self.embeddings:
             await self.embeddings.close()
+
+        # Close datasource
+        if self._datasource is not None and self._datasource.is_initialized:
+            await self._datasource.close()
+            self._datasource_initialized = False
+            self._vector_client = None
+            if self.verbose:
+                logger.info(f"Datasource closed for {self._get_datasource_name()}")
     
     async def embed_query(self, query: str) -> List[float]:
         """
@@ -229,20 +275,20 @@ class AbstractVectorRetriever(BaseRetriever):
         raise NotImplementedError("Subclasses must implement close_client()")
     
     # Common implementation methods
-    async def get_relevant_context(self, 
-                           query: str, 
-                           api_key: Optional[str] = None, 
+    async def get_relevant_context(self,
+                           query: str,
+                           api_key: Optional[str] = None,
                            collection_name: Optional[str] = None,
                            **kwargs) -> List[Dict[str, Any]]:
         """
         Retrieve and filter relevant context from the vector database.
-        
+
         Args:
             query: The user's query
             api_key: Optional API key for accessing the collection
             collection_name: Optional explicit collection name
             **kwargs: Additional parameters
-            
+
         Returns:
             A list of context items filtered by relevance
         """
@@ -250,9 +296,12 @@ class AbstractVectorRetriever(BaseRetriever):
             # Call the parent implementation which resolves collection
             # and handles common logging/error handling
             await super().get_relevant_context(query, api_key, collection_name, **kwargs)
-            
+
             debug_mode = self.verbose
-            
+
+            # Ensure datasource is initialized
+            await self._ensure_datasource_initialized()
+
             # Check for embeddings
             if not self.embeddings:
                 logger.warning("Embeddings are disabled, no vector search can be performed")

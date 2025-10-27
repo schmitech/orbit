@@ -1,0 +1,86 @@
+generation:
+  max_examples_per_template: 10
+  similarity_threshold: 0.85
+  defaults:
+    version: 1.0.0
+    approved: false
+    result_format: table
+  categories:
+  - access_control_queries
+  - audit_queries
+  - classification_queries
+  - compartment_queries
+  - user_management_queries
+  - retention_queries
+inference:
+  analysis:
+    temperature: 0.1
+    max_tokens: 1024
+  sql_generation:
+    temperature: 0.2
+    max_tokens: 2048
+validation:
+  required_fields:
+  - id
+  - description
+  - sql_template
+  - parameters
+  - nl_examples
+  min_examples: 3
+  max_sql_length: 5000
+  parameters:
+    valid_types:
+    - string
+    - integer
+    - decimal
+    - date
+    - datetime
+    - boolean
+    - enum
+    required_fields:
+    - name
+    - type
+    - description
+    - required
+schema:
+  include_tables: []
+  exclude_tables:
+  - migrations
+  - schema_version
+  special_columns:
+    classification:
+      pattern: .*classification.*
+      format: enum
+    clearance:
+      pattern: .*clearance.*
+      format: enum
+    compartments:
+      pattern: .*compartment.*
+      format: enum
+    pii:
+      pattern: .*pii.*
+      format: boolean
+    caveats:
+      pattern: .*caveat.*
+      format: enum
+grouping:
+  features:
+  - intent
+  - primary_entity
+  - secondary_entity
+  - aggregations
+  - filters
+  feature_weights:
+    intent: 0.3
+    primary_entity: 0.3
+    secondary_entity: 0.2
+    aggregations: 0.1
+    filters: 0.1
+output:
+  sort_by: primary_entity
+  group_by_category: true
+  include_metadata:
+  - created_at
+  - created_by
+  - generator_version
+  - validation_status

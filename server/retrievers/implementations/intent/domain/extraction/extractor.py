@@ -21,7 +21,7 @@ class DomainParameterExtractor:
     the new modular components.
     """
 
-    def __init__(self, inference_client, domain_config: Optional[Dict[str, Any]] = None):
+    def __init__(self, inference_client, domain_config: Optional[Dict[str, Any]] = None, domain_strategy=None):
         """Initialize the domain parameter extractor"""
         # Convert dict config to DomainConfig if needed
         if isinstance(domain_config, dict):
@@ -33,11 +33,14 @@ class DomainParameterExtractor:
 
         self.inference_client = inference_client
 
-        # Get domain strategy from registry
-        self.domain_strategy = DomainStrategyRegistry.get_strategy(
-            self.domain_config.domain_name,
-            self.domain_config,
-        )
+        # Get domain strategy from registry if not provided
+        if domain_strategy is not None:
+            self.domain_strategy = domain_strategy
+        else:
+            self.domain_strategy = DomainStrategyRegistry.get_strategy(
+                self.domain_config.domain_name,
+                self.domain_config,
+            )
 
         # Initialize components
         self._initialize_components()

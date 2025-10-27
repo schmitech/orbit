@@ -60,7 +60,7 @@ print_help() {
     echo "  --name <name>     Container name (default: orbit-server)"
     echo ""
     echo "Examples:"
-    echo "  ./orbit-podman.sh start --profile commercial"
+    echo "  ./orbit-podman.sh start --profile cloud"
     echo "  ./orbit-podman.sh logs --follow"
     echo "  ./orbit-podman.sh cli key list"
     exit 0
@@ -111,7 +111,7 @@ fi
 
 if [ ! -f "$ENV_FILE" ]; then
     echo -e "${RED}❌ Environment file not found: $ENV_FILE${NC}"
-    echo -e "${YELLOW}Create one with: cp .env.example .env${NC}"
+    echo -e "${YELLOW}Create one with: cp env.example .env${NC}"
     exit 1
 fi
 

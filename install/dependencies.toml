@@ -5,41 +5,55 @@
 description = "Core dependencies"
 dependencies = [
     "setuptools>=77.0.3,<80",
-    "ollama==0.5.4",
+    "ollama==0.6.0",
+    "openai==2.5.0",
+    "anthropic==0.71.0",
+    "cohere==5.19.0",
+    "groq==0.32.0",
+    "replicate==1.0.7",
+    "zai-sdk==0.0.4",
+    "deepseek==1.0.0",
+    "mistralai==1.9.11",
+    "google-generativeai==0.8.5",
+    "together==1.5.26",
     "motor>=3.7.1",
     "pymongo>=4.13.0",
     "redis>=6.2.0",
-    "chromadb>=1.0.12",
+    "chromadb>=1.2.0",
     "pinecone>=7.3.0",
     "qdrant-client>=1.14.2",
-    "langchain-ollama>=0.3.3",
-    "langchain-community>=0.3.25",
-    "pydantic>=2.11.5",
+    "langchain-ollama>=1.0.0",
+    "langchain-community>=0.4",
+    "pydantic>=2.12.3",
     "jinja2>=3.1.6",
     "PyYAML>=6.0.2",
-    "fastapi>=0.115.9",
-    "uvicorn==0.34.3",
+    "fastapi>=0.119.0",
+    "uvicorn==0.38.0",
     "python-dotenv==1.0.1",
-    "requests==2.32.4",
+    "requests==2.32.5",
     "python-multipart>=0.0.14",
     "pytest>=8.3.5",
     "python-json-logger>=2.0.7",
     "tqdm>=4.66.2",
-    "aiohttp>=3.12.12",
+    "aiohttp>=3.13.1",
     "aiodns>=3.4.0",
     "regex==2024.11.6",
     "sseclient-py==1.8.0",
     "psutil==7.0.0",
     "pycountry>=24.6.1",
-    "llama-cpp-python==0.3.15",
-    "elasticsearch==9.1.0",
+    "llama-cpp-python==0.3.16",
+    "elasticsearch==9.1.1",
     "keyring>=25.6.0",
     "langdetect>=1.0.9",
     "langid>=1.1.6",
     "pycld2>=0.42",
     "psycopg2-binary>=2.9.10",
-    "schmitech-orbit-client==1.1.1",
-    "markdown>=3.8.2",
+    "oracledb>=3.4.0",
+    "mysql-connector-python>=9.4.0",
+    "pymssql>=2.3.8",
+    "cassandra-driver>=3.29.2",
+    "schmitech-orbit-client==1.1.2",
+    "markdown>=3.9",
     "nh3>=0.3.0",
     "ftfy>=6.3.1",
     "unidecode>=1.3.8",
@@ -47,7 +61,15 @@ dependencies = [
     "websockets>=15.0.1",
     "fastapi-mcp==0.4.0",
     "toml>=0.10.2",
-    "rich>=14.1.0"
+    "rich>=14.1.0",
+    "faiss-cpu==1.12.0",
+    "weaviate-client==4.17.0",
+    "pymilvus>=2.6.2",
+    "environs>=14.3.0",
+    "marqo==3.18.0",
+    "pgvector==0.4.1",
+    "opentelemetry-proto==1.28.0",
+    "firecrawl==4.5.0"
 ]
 
 [profiles.torch]
@@ -59,31 +81,37 @@ dependencies = [
     "transformers>=4.52.4",
     "accelerate>=0.27.2",
     "sentencepiece>=0.2.0",
-    "protobuf>=4.25.2"
+    "protobuf>=5.27.2,<6.0.0",
+    "sentence-transformers>=5.1.1"
 ]
 
-[profiles.commercial]
+[profiles.bitnet]
+description = "BitNet 1.58-bit LLM inference framework. Requires building from source."
+extends = "minimal"
+dependencies = [
+    # BitNet requires building from source - see docs/bitnet-setup.md for installation
+    # The following are build dependencies for BitNet
+    "cmake>=3.15.0",
+    "ninja>=1.10.0",
+    "pybind11>=2.10.0",
+    # BitNet Python bindings (built from source)
+    # Note: bitnet-cpp package is not available on PyPI yet
+    # Users must build from: https://github.com/microsoft/BitNet
+]
+
+[profiles.cloud]
 description = "Dependencies for commercial/cloud inference providers"
 extends = "minimal"
 dependencies = [
-    "openai==1.102.0",
-    "anthropic==0.64.0",
-    "google-generativeai==0.8.5",
-    "cohere==5.17.0",
-    "groq==0.31.0",
-    "deepseek==1.0.0",
-    "mistralai==1.9.9",
-    "together==1.5.25",
-    "boto3==1.40.21",
+    "boto3==1.40.55",
     "azure-ai-inference==1.0.0b9",
-    "google-cloud-aiplatform==1.111.0",
-    "ibm-watsonx-ai==1.3.36",
-    "replicate==1.0.7"
+    "google-cloud-aiplatform==1.121.0",
+    "ibm-watsonx-ai==1.4.1"
 ]
 
 [profiles.all]
 description = "All available dependencies"
-extends = ["minimal", "torch", "commercial"]
+extends = ["minimal", "torch", "commercial", "bitnet"]
 dependencies = []
 
 [profiles.development]

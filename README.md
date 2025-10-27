@@ -73,20 +73,28 @@ chmod +x docker-init.sh orbit-docker.sh
 
 ```bash
 # Download the latest release archive
-curl -L https://github.com/schmitech/orbit/releases/download/v1.5.3/orbit-1.5.3.tar.gz -o orbit-1.5.3.tar.gz
-tar -xzf orbit-1.5.3.tar.gz
-cd orbit-1.5.3
+curl -L https://github.com/schmitech/orbit/releases/download/v1.6.0/orbit-1.6.0.tar.gz -o orbit-1.6.0.tar.gz
+tar -xzf orbit-1.6.0.tar.gz
+cd orbit-1.6.0
 
 # Bootstrap dependencies and download a small model
-cp .env.example .env
-./install/setup.sh --profile minimal --download-gguf gemma3-270m
+cp env.example .env
+./install/setup.sh --profile minimal --download-gguf granite4-micro
 
 # Start the ORBIT server
 source venv/bin/activate
-./bin/orbit.sh start # Logs: ./logs/orbit.log
+./bin/orbit.sh start 
+
+# Check the logs
+cat ./logs/orbit.log
 ```
 
-Keep an eye on the logs, then browse to `http://localhost:3000` to confirm your instance is responding.
+Browse to `http://localhost:3000/dashboard` to monitor the ORBIT server:
+<div align="center">
+  <img src="/docs/images/orbit-dashboard.png" alt="ORBIT Dashboard" width="800"/>
+  <br/>
+  <i>ORBIT Dashboard: Monitor, search, and configure your environment.</i>
+</div>
 
 ### Talk to ORBIT from the CLI
 
@@ -202,91 +210,326 @@ _NOTE: You need an instance of MongoDB to enable adapters_
 
 Here's the [Sample Q/A datasets](examples/city-qa-pairs.json) for this example. The knowledge base corresponds to a municipal services assistant.
 
+Set inference_only mode to false in `config/config.yaml`:
+
+```yaml
+inference_only: false
+```
+
+Enable the adapter in `config/adapters.yaml`:
+
+```yaml
+- name: "qa-sql"
+  enabled: true
+  type: "retriever"
+  datasource: "sqlite"
+  adapter: "qa"
+  implementation: "retrievers.implementations.qa.QASSQLRetriever"
+```
+
+Restart ORBIT:
+
+```bash
+./bin/orbit.sh start --delete-logs
+```
+
+Generate sample data and API Key (Default SQLite DB in `examples/sqlite/sqlite_db`):
+
 ```bash
 #Login as admin first. Default password is admin123. You should change after installing ORBIT.
 ./bin/orbit.sh login
 
-# Set up SQLite database with Q&A data
+# Set up SQLite database with Q&A data.
 ./examples/sample-db-setup.sh sqlite
 ```
 
+Start chatting with your new key:
+
+```bash
+orbit-chat --url http://localhost:3000 --api-key YOUR_API_KEY
+```
+
 <div align="center">
-  <video src="https://github.com/user-attachments/assets/b54659fe-2172-4754-b9ff-68292f7efcb1" controls>
+  <video src="https://github.com/user-attachments/assets/0ffc5160-d8f9-4006-8e76-b58d89b42aa8" controls>
     Your browser does not support the video tag.
   </video>
   <br/>
   <i>Setting up the sample SQLite Q/A dataset</i>
 </div>
 
-### Testing with the node client:
-
-```bash
-# Test using node client
-cd clients/node-api
-npm install
-npm run build
-npm run test-query-from-pairs ../../examples/city-qa-pairs.json "http://localhost:3000" "your-api-key" 5 134444
-```
-
-<div align="center">
-  <video src="https://github.com/user-attachments/assets/e6487006-02da-4927-a4f3-04be7c6a3a22" controls>
-    Your browser does not support the video tag.
-  </video>
-  <br/>
-  <i>Testing the Q/A Adapter using the node API client</i>
-</div>
-
 ### Scenario 2: Chat with Your SQL Database
 Ask questions about your data in natural language and get answers without writing SQL.
 
 **Sample Questions:**
-- "Show me all orders from John Smith"
-- "What are the top 10 customers by order value?"
+- "Show me all users from Toronto"
+- "What are the top 10 users by age?"
+- "Find users created in the last month"
+
+### Scenario 3: Analyze Application Logs with Elasticsearch
+Transform your application logs into actionable insights using natural language queries. Perfect for DevOps teams, SREs, and developers who need to quickly understand system behavior and troubleshoot issues.
+
+**Sample Questions:**
+- "Show me recent errors from the payment service"
+- "Which services have the most errors in the last hour?"
+- "Find slow API requests taking more than 2 seconds"
+- "What's the error trend over the last 24 hours?"
+- "Show me all timeout errors with their stack traces"
+
+#### Quick Start with Elasticsearch Log Analysis
+
+Set up Elasticsearch and generate sample log data:
 
 ```bash
-# Set up PostgreSQL with a sample schema and data
-cd examples/postgres
+# Ensure Elasticsearch is running (Docker example)
+docker run -d --name elasticsearch \
+  -p 9200:9200 -p 9300:9300 \
+  -e "discovery.type=single-node" \
+  -e "xpack.security.enabled=false" \
+  elasticsearch:8.11.0
 
-# Update with  your connection parameters
-cp env.example .env
+# Generate sample application logs
+python ./utils/elasticsearch-intent-template/examples/application-logs/generate_sample_data.py \
+  --count 1000 \
+  --use-ai \
+  --provider ollama \
+  --ai-usage-rate 30
+```
 
-# Test connection
-python test_connection.py
+Enable the Elasticsearch log analysis adapter in `config/adapters.yaml`:
 
-# Create the DB
-python setup_schema.py
+```yaml
+- name: "intent-elasticsearch-app-logs"
+  enabled: true
+  type: "retriever"
+  datasource: "elasticsearch"
+  adapter: "intent"
+  implementation: "retrievers.implementations.intent.IntentElasticsearchRetriever"
+  inference_provider: "ollama"
+  embedding_provider: "ollama"
+```
 
-# Install faker to generate synthetic data
-pip install faker
+Start ORBIT and create an API key:
 
-# Add sample data
-python customer-order.py --action insert --clean --customers 100 --orders 1000
-
-# Create an API key for the SQL intent adapter.
-# Make sure you are logged in as admin if auth is enabled in `/config/config.yaml`.
-python bin/orbit.py key create \
-  --adapter intent-sql-postgres \
-  --name "Order Management Assistant" \
-  --prompt-file examples/postgres/prompts/customer-assistant-enhanced-prompt.txt
-
-#make sure the sample SQL intent adapter is enabled in `/config/adapters.yaml`
-- name: "intent-sql-postgres"
-    enabled: false
-    type: "retriever"
-    datasource: "postgres"
-    adapter: "intent"
-    implementation: "retrievers.implementations.intent.IntentPostgreSQLRetriever"
-    inference_provider: "ollama"
-
-# Start or restart the server
+```bash
 ./bin/orbit.sh start --delete-logs
+
+# Login and create API key
+./bin/orbit.sh login
+./bin/orbit.py key create \
+  --intent-elasticsearch-app-logs \
+  --name "Log Analysis Assistant" \
+  --notes "Elasticsearch log analysis with AI insights" \
+  --prompt-file examples/prompts/elasticsearch-log-assistant-prompt.txt
+
+# Start analyzing your logs
+orbit-chat --url http://localhost:3000 --api-key YOUR_API_KEY
+```
+
+### Scenario 4: Web-Based Knowledge Retrieval
+Access authoritative web sources (Wikipedia, official documentation) as a structured knowledge database. Perfect for research assistants, educational tools, and information lookup systems that need reliable, curated content.
+
+**Sample Questions:**
+- "Tell me about web scraping"
+- "What is machine learning?"
+- "I need Python documentation"
+- "Explain quantum computing"
+- "What is blockchain technology?"
+
+#### How It Works
+
+The Firecrawl adapter treats web sources like a database, mapping natural language questions about topics to authoritative URLs. Unlike generic web scrapers, this approach:
+- **Quality Control**: Only accesses curated, trusted sources
+- **Structured Access**: Predefined topic-to-URL mappings ensure relevant content
+- **Fresh Content**: Always retrieves the latest information from sources
+- **Consistent Format**: Returns formatted markdown content with metadata
+
+#### Quick Start with Web Knowledge Retrieval
+
+Set up your Firecrawl API key:
+
+```bash
+# Get your API key from https://firecrawl.dev
+export FIRECRAWL_API_KEY="your-api-key-here"
+```
+
+Enable the Firecrawl knowledge retrieval adapter in `config/adapters.yaml`:
+
+```yaml
+- name: "intent-firecrawl-webscrape"
+  enabled: true
+  type: "retriever"
+  datasource: "http"
+  adapter: "intent"
+  implementation: "retrievers.implementations.intent.IntentFirecrawlRetriever"
+  inference_provider: "ollama"
+  embedding_provider: "openai"
+  config:
+    domain_config_path: "utils/firecrawl-intent-template/examples/web-scraping/templates/firecrawl_domain.yaml"
+    template_library_path:
+      - "utils/firecrawl-intent-template/examples/web-scraping/templates/firecrawl_templates.yaml"
+    base_url: "https://api.firecrawl.dev/v1"
+    auth:
+      type: "bearer_token"
+      token_env: "FIRECRAWL_API_KEY"
+```
+
+Start ORBIT and create an API key:
+
+```bash
+./bin/orbit.sh start --delete-logs
+
+# Login and create API key
+./bin/orbit.sh login
+./bin/orbit.py key create \
+  --intent-firecrawl-webscrape \
+  --name "Knowledge Assistant" \
+  --notes "Web-based knowledge retrieval from authoritative sources" \
+  --prompt-file examples/prompts/firecrawl-knowledge-assistant-prompt.txt
+
+# Start asking questions about any topic
+orbit-chat --url http://localhost:3000 --api-key YOUR_API_KEY
+```
+
+### Scenario 5: Movie Database Analytics with MongoDB
+Analyze movies, ratings, comments, and user engagement using natural language queries against MongoDB's sample_mflix database. Perfect for building recommendation engines, content analytics dashboards, and understanding audience preferences through multi-collection analysis.
+
+**Sample Questions:**
+- "Show me action movies from 2010s with rating above 7"
+- "Find award-winning movies with the most user engagement"
+- "What are the most commented movies this year?"
+- "Analyze genre performance trends over time"
+- "Find underrated movies with high ratings but low comments"
+
+#### How It Works
+
+The MongoDB intent adapter maps natural language questions to MongoDB queries (both simple find operations and complex aggregation pipelines). This approach enables:
+- **Multi-Collection Joins**: Combine data from movies, comments, users, theaters, and sessions collections using `$lookup`
+- **Advanced Analytics**: Perform BI-style analytics with aggregation pipelines (`$group`, `$unwind`, statistical operations)
+- **Flexible Filtering**: Dynamic query construction based on natural language intent
+- **Performance Optimized**: Templates include proper indexing hints and result limiting
+
+#### Quick Start with MongoDB Movie Analytics
+
+Set up your MongoDB connection (MongoDB Atlas recommended for sample_mflix):
+
+```bash
+# Get a free MongoDB Atlas cluster at https://www.mongodb.com/cloud/atlas
+# Load the sample_mflix database from Atlas sample datasets
+# Add your connection details to .env:
+export DATASOURCE_MONGODB_URI="mongodb+srv://username:password@cluster.mongodb.net/sample_mflix?retryWrites=true&w=majority"
+export DATASOURCE_MONGODB_DATABASE="sample_mflix"
+```
+
+Enable the MongoDB movie analytics adapter in `config/adapters.yaml`:
+
+```yaml
+- name: "intent-mongodb-mflix"
+  enabled: true
+  type: "retriever"
+  datasource: "mongodb"
+  adapter: "intent"
+  implementation: "retrievers.implementations.intent.IntentMongoDBRetriever"
+  inference_provider: "ollama"
+  embedding_provider: "ollama"
+  config:
+    domain_config_path: "utils/mongodb-intent-template/examples/sample_mflix/templates/mflix_domain.yaml"
+    template_library_path:
+      - "utils/mongodb-intent-template/examples/sample_mflix/templates/mflix_templates.yaml"
+      - "utils/mongodb-intent-template/examples/sample_mflix/templates/mflix_advanced_templates.yaml"
+    database: "sample_mflix"
+    default_collection: "movies"
+```
+
+Start ORBIT and create an API key:
+
+```bash
+./bin/orbit.sh start --delete-logs
+
+# Login and create API key
+./bin/orbit.sh login
+./bin/orbit.py key create \
+  --intent-mongodb-mflix \
+  --name "Movie Analytics Assistant" \
+  --notes "MongoDB movie database analytics with multi-collection support" \
+  --prompt-file examples/prompts/mongodb-mflix-assistant-prompt.txt
+
+# Start analyzing movies
+orbit-chat --url http://localhost:3000 --api-key YOUR_API_KEY
+```
+
+#### Advanced Analytics Examples
+
+The MongoDB adapter includes both simple queries and advanced BI analytics:
+
+**Simple Queries:**
+- Search movies by title, genre, year, or rating
+- Find users by name or email
+- Get recent comments with filtering
+
+**Advanced Analytics:**
+- Most commented movies with ratings (multi-collection join)
+- Genre performance analysis with aggregation
+- Award-winning movies with engagement metrics
+- Underrated gems analysis (high quality, low engagement)
+- Cast collaboration network patterns
+- Temporal trends and decade analysis
+
+#### Quick Start with Contact Example
+
+Install Ollama and pull the `nomic-embed-text:latest` embedding model. Also pull a model of choice for inference purposes.
+```bash
+ollama pull nomic-embed-text:latest
+ollama pull gemma3:12b
+```
+
+Enable the contact domain sample adapter in `/config/adapters.yaml`:
+
+```yaml
+- name: "intent-sql-sqlite-contact"
+  enabled: true
+  type: "retriever"
+  datasource: "sqlite"
+  adapter: "intent"
+  implementation: "retrievers.implementations.intent.IntentSQLiteRetriever"
+  inference_provider: "ollama"
+  model: "gemma3:12b"
+  embedding_provider: "ollama"
+```
+
+Start ORBIT:
+
+```bash
+./bin/orbit.sh start --delete-logs
+```
+
+Create an API Key for this adapter:
+
+```bash
+# Login admin credentials
+./bin/orbit.sh login
+
+# Create an API key for the SQL intent adapter
+./bin/orbit.py key create \
+  --intent-sql-sqlite-contact \
+  --name "Contact Adapter Demo" \
+  --notes "Demo using SQLite" \
+  --prompt-file examples/prompts/contact-assistant-prompt.txt
+
+# Generate sample data
+python ./utils/sql-intent-template/examples/sqlite/contact/generate_contact_data.py \
+  --records 500 \
+  --output ./examples/sqlite/sqlite_db \
+  --clean
+
+# Test data exists
+sqlite3 examples/sqlite/sqlite_db 'SELECT * FROM users LIMIT 5;'
 
 # Start chatting with your new key
 orbit-chat --url http://localhost:3000 --api-key YOUR_API_KEY
 ```
 
 <div align="center">
-  <video src="https://github.com/user-attachments/assets/d33dfb10-1668-4b05-ba83-ae3c294001ad" controls>
+  <video src="https://github.com/user-attachments/assets/0c327964-eefe-4593-8dd0-129af904b434" controls>
     Your browser does not support the video tag.
   </video>
   <br/>

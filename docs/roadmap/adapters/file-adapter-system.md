@@ -115,7 +115,7 @@ def register_generic_document_adapter():
             adapter_type="retriever",
             datasource="file",
             adapter_name="generic",
-            implementation='retrievers.adapters.file.generic_document_adapter.GenericDocumentAdapter',
+            implementation='adapters.file.adapter.FileAdapter',
             config={
                 'chunking_strategy': 'adaptive',
                 'confidence_threshold': 0.7,
@@ -147,7 +147,7 @@ adapters:
   - type: "retriever"
     datasource: "file"
     adapter: "generic"
-    implementation: "retrievers.adapters.file.generic_document_adapter.GenericDocumentAdapter"
+    implementation: "adapters.file.adapter.FileAdapter"
     enabled: true
     config:
       chunking_strategy: "adaptive"

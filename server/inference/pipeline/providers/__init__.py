@@ -1,14 +1,14 @@
 """
 Pipeline Providers
 
-This module contains clean provider implementations for the pipeline architecture.
-Providers are loaded lazily to avoid import errors for uninstalled packages.
+This module contains the unified provider factory for the new AI services architecture.
+All old provider implementations have been migrated to the unified AI services.
 """
 
 from .llm_provider import LLMProvider
-from .provider_factory import ProviderFactory
+from .unified_provider_factory import UnifiedProviderFactory
 
 __all__ = [
-    'LLMProvider',
-    'ProviderFactory'
+    'LLMProvider',  # Base interface for LLM providers
+    'UnifiedProviderFactory',  # Uses unified AI services architecture
 ] 

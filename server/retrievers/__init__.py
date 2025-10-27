@@ -11,7 +11,7 @@ logger.info("Initializing retrievers package")
 from .base.base_retriever import BaseRetriever, RetrieverFactory
 from .base.abstract_vector_retriever import AbstractVectorRetriever
 from .base.sql_retriever import AbstractSQLRetriever
-from .adapters.domain_adapters import DocumentAdapterFactory
+from adapters.factory import DocumentAdapterFactory
 
 # Import implementations to register them
 try:

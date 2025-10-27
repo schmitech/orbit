@@ -1,5 +1,6 @@
 """
-ChromaDB implementation of the AbstractVectorRetriever interface
+ChromaDB implementation of the AbstractVectorRetriever interface.
+Uses the datasource registry pattern for connection management.
 """
 
 import logging
@@ -11,35 +12,39 @@ from pathlib import Path
 
 from ...base.abstract_vector_retriever import AbstractVectorRetriever
 from ...base.base_retriever import RetrieverFactory
-from utils.lazy_loader import LazyLoader
 
 # Configure logging
 logger = logging.getLogger(__name__)
 
 class ChromaRetriever(AbstractVectorRetriever):
-    """ChromaDB implementation of the AbstractVectorRetriever interface"""
+    """
+    ChromaDB implementation of the AbstractVectorRetriever interface.
+    Connection is obtained from the datasource registry.
+    """
 
-    def __init__(self, 
+    def __init__(self,
                 config: Dict[str, Any],
                 embeddings: Optional[Any] = None,
+                datasource: Any = None,
                 domain_adapter=None,
                 **kwargs):
         """
         Initialize ChromaRetriever.
-        
+
         Args:
             config: Configuration dictionary containing Chroma and general settings
             embeddings: Optional embeddings service or model
+            datasource: ChromaDB datasource instance from the registry
             domain_adapter: Optional domain adapter for document handling
             **kwargs: Additional arguments
         """
         # Call the parent constructor first
-        super().__init__(config=config, embeddings=embeddings, domain_adapter=domain_adapter, **kwargs)
-        
+        super().__init__(config=config, embeddings=embeddings, datasource=datasource, domain_adapter=domain_adapter, **kwargs)
+
         # Store collection
         self.collection = None
         self.collection_name = None
-        
+
         # Get collection name from adapter config during initialization
         adapter_config = config.get('adapter_config', {})
         if adapter_config and 'collection' in adapter_config:
@@ -49,32 +54,7 @@ class ChromaRetriever(AbstractVectorRetriever):
             # Fallback to datasource config
             self.collection_name = self.datasource_config['collection']
             logger.debug(f"ChromaRetriever using collection from datasource config: {self.collection_name}")
-        
-        # Create a lazy loader for the ChromaDB client
-        def create_chroma_client():
-            use_local = self.datasource_config.get('use_local', False)
-            
-            if use_local:
-                # Use PersistentClient for local filesystem access
-                db_path = self.datasource_config.get('db_path', '../utils/chroma/chroma_db')
-                db_path = Path(db_path).resolve()
-                
-                # Ensure the directory exists
-                os.makedirs(db_path, exist_ok=True)
-                
-                logger.info(f"Using local ChromaDB at path: {db_path}")
-                return PersistentClient(path=str(db_path))
-            else:
-                # Use HttpClient for remote server access
-                logger.info(f"Connecting to ChromaDB at {self.datasource_config.get('host')}:{self.datasource_config.get('port')}...")
-                return HttpClient(
-                    host=self.datasource_config.get('host', 'localhost'),
-                    port=int(self.datasource_config.get('port', 8000))
-                )
-        
-        # Create a lazy loader for the ChromaDB client
-        self._chroma_client_loader = LazyLoader(create_chroma_client, "ChromaDB client")
-        
+
         # Configure ChromaDB and related HTTP client logging based on verbose setting
         if not self.verbose:
             # Only show warnings and errors when not in verbose mode
@@ -84,19 +64,20 @@ class ChromaRetriever(AbstractVectorRetriever):
 
     @property
     def chroma_client(self):
-        """Lazy-loaded ChromaDB client property."""
-        return self._chroma_client_loader.get_instance()
+        """Get ChromaDB client from datasource."""
+        return self.vector_client
 
     def _get_datasource_name(self) -> str:
         """Return the name of this datasource for config lookup"""
         return 'chroma'
 
     async def initialize_client(self) -> None:
-        """Initialize the ChromaDB client."""
-        # The client is lazily loaded, so we just ensure it's accessible
-        _ = self.chroma_client
-        logger.info("ChromaDB client initialized")
-        
+        """Initialize the ChromaDB client from datasource."""
+        # Ensure datasource is initialized
+        await self._ensure_datasource_initialized()
+
+        logger.info("ChromaDB client initialized from datasource")
+
         # Set collection if we have a collection name from config
         if self.collection_name:
             logger.debug(f"Setting collection: {self.collection_name}")
@@ -112,10 +93,9 @@ class ChromaRetriever(AbstractVectorRetriever):
             logger.warning("No collection name provided during initialization")
 
     async def close_client(self) -> None:
-        """Close the ChromaDB client."""
-        # ChromaDB doesn't require explicit closure for HTTP clients
-        # The lazy loader will handle cleanup if needed
-        logger.info("ChromaDB client closed")
+        """Close the ChromaDB client via datasource."""
+        # Datasource close is handled by parent class
+        logger.info("ChromaDB client closed via datasource")
 
     async def set_collection(self, collection_name: str) -> None:
         """

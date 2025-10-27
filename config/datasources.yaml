@@ -4,17 +4,17 @@ datasources:
     db_path: "examples/chroma/chroma_db"
     host: "localhost"
     port: 8000
-    embedding_provider: null 
+    embedding_provider: "ollama" 
   qdrant:
     host: ${DATASOURCE_QDRANT_HOST}
     port: ${DATASOURCE_QDRANT_PORT}
     timeout: 5
     prefer_grpc: false
     https: false
-    embedding_provider: null
+    embedding_provider: ollama
     collection_name: "orbit"
   sqlite:
-    db_path: "examples/sqlite/sqlite_db"
+    database: "examples/sqlite/sqlite_db"
   postgres:
     host: ${DATASOURCE_POSTGRES_HOST}
     port: ${DATASOURCE_POSTGRES_PORT}
@@ -22,6 +22,13 @@ datasources:
     username: ${DATASOURCE_POSTGRES_USERNAME}
     password: ${DATASOURCE_POSTGRES_PASSWORD}
     sslmode: ${DATASOURCE_POSTGRES_SSL_MODE}
+  supabase:
+    host: ${DATASOURCE_SUPABASE_HOST}
+    port: ${DATASOURCE_SUPABASE_PORT}
+    database: ${DATASOURCE_SUPABASE_DATABASE}
+    username: ${DATASOURCE_SUPABASE_USERNAME}
+    password: ${DATASOURCE_SUPABASE_PASSWORD}
+    sslmode: require
   milvus:
     host: "localhost"
     port: 19530
@@ -34,14 +41,12 @@ datasources:
     namespace: ""  # Empty string for default namespace (where data was ingested)
     embedding_provider: null
   elasticsearch:
-    node: 'https://localhost:9200'
+    node: ${DATASOURCE_ELASTICSEARCH_NODE}
+    verify_certs: true
+    timeout: 30
     auth:
       username: ${DATASOURCE_ELASTICSEARCH_USERNAME}
       password: ${DATASOURCE_ELASTICSEARCH_PASSWORD}
-      vector_field: "embedding"
-      text_field: "content"
-      verify_certs: true
-      embedding_provider: null
   redis:
     host: ${DATASOURCE_REDIS_HOST}
     port: ${DATASOURCE_REDIS_PORT}
@@ -51,10 +56,54 @@ datasources:
     vector_field: "embedding"
     text_field: "content"
     distance_metric: "COSINE"  # Options: L2, IP, COSINE
+  oracle:
+    host: ${DATASOURCE_ORACLE_HOST}
+    port: ${DATASOURCE_ORACLE_PORT}
+    service_name: ${DATASOURCE_ORACLE_SERVICE}
+    username: ${DATASOURCE_ORACLE_USERNAME}
+    password: ${DATASOURCE_ORACLE_PASSWORD}
+  mysql:
+    host: ${DATASOURCE_MYSQL_HOST}
+    port: ${DATASOURCE_MYSQL_PORT}
+    database: ${DATASOURCE_MYSQL_DATABASE}
+    username: ${DATASOURCE_MYSQL_USERNAME}
+    password: ${DATASOURCE_MYSQL_PASSWORD}
+  mariadb:
+    host: ${DATASOURCE_MARIADB_HOST}
+    port: ${DATASOURCE_MARIADB_PORT}
+    database: ${DATASOURCE_MARIADB_DATABASE}
+    username: ${DATASOURCE_MARIADB_USERNAME}
+    password: ${DATASOURCE_MARIADB_PASSWORD}
+  sqlserver:
+    host: ${DATASOURCE_SQLSERVER_HOST}
+    port: ${DATASOURCE_SQLSERVER_PORT}
+    database: ${DATASOURCE_SQLSERVER_DATABASE}
+    username: ${DATASOURCE_SQLSERVER_USERNAME}
+    password: ${DATASOURCE_SQLSERVER_PASSWORD}
+    driver: "ODBC Driver 18 for SQL Server"
+  cassandra:
+    contact_points: ${DATASOURCE_CASSANDRA_HOSTS}
+    port: ${DATASOURCE_CASSANDRA_PORT}
+    keyspace: ${DATASOURCE_CASSANDRA_KEYSPACE}
+    username: ${DATASOURCE_CASSANDRA_USERNAME}
+    password: ${DATASOURCE_CASSANDRA_PASSWORD}
   mongodb:
-    host: "localhost"
-    port: 27017
-    database: "orbit"
-    apikey_collection: "api_keys"
+    # Option 1: MongoDB Atlas connection (recommended for sample_mflix)
+    connection_string: ${DATASOURCE_MONGODB_URI}
+    database: ${DATASOURCE_MONGODB_DATABASE}
+
+    # Option 2: Local MongoDB connection (fallback)
+    host: ${DATASOURCE_MONGODB_HOST}
+    port: ${DATASOURCE_MONGODB_PORT}
     username: ${DATASOURCE_MONGODB_USERNAME}
     password: ${DATASOURCE_MONGODB_PASSWORD}
+    auth_source: ${DATASOURCE_MONGODB_AUTH_SOURCE}
+
+    # Connection settings
+    timeout: 30
+    tls: ${DATASOURCE_MONGODB_TLS}
+    retry_writes: true
+    w: "majority"
+
+    # Legacy settings (for existing orbit database)
+    apikey_collection: "api_keys"

@@ -64,3 +64,5 @@ CLAUDE.md
 .rag_history
 .gradle
 results/
+*.db-shm
+*.db-wal

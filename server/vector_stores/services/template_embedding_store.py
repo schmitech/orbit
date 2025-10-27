@@ -87,12 +87,8 @@ class TemplateEmbeddingStore:
             # This ensures the dimension matches the actual embeddings
             collection_exists = await self._vector_store.collection_exists(self.collection_name)
             if collection_exists:
-                # Check if existing collection has correct dimension
                 collection_info = await self._vector_store.get_collection_info(self.collection_name)
                 existing_dim = collection_info.get('metadata', {}).get('dimension')
-                if existing_dim and existing_dim != self._embedding_dimension:
-                    logger.warning(f"Existing collection has dimension {existing_dim}, may cause issues")
-            # If collection doesn't exist, it will be created automatically with first vector
             
             logger.info("TemplateEmbeddingStore initialized successfully")
             

@@ -27,12 +27,22 @@ def _lazy_import():
     try:
         from .base.store_manager import StoreManager, get_store_manager
         from .implementations.chroma_store import ChromaStore
+        from .implementations.faiss_store import FaissStore
+        from .implementations.weaviate_store import WeaviateStore
+        from .implementations.milvus_store import MilvusStore
+        from .implementations.marqo_store import MarqoStore
+        from .implementations.pgvector_store import PgvectorStore
         from .services.template_embedding_store import TemplateEmbeddingStore
         from .store_factory import create_store_manager, get_configured_store_manager
         return {
             'StoreManager': StoreManager,
             'get_store_manager': get_store_manager,
             'ChromaStore': ChromaStore,
+            'FaissStore': FaissStore,
+            'WeaviateStore': WeaviateStore,
+            'MilvusStore': MilvusStore,
+            'MarqoStore': MarqoStore,
+            'PgvectorStore': PgvectorStore,
             'TemplateEmbeddingStore': TemplateEmbeddingStore,
             'create_store_manager': create_store_manager,
             'get_configured_store_manager': get_configured_store_manager

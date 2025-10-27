@@ -27,7 +27,7 @@ The init script mirrors the Docker behaviour: it prepares config/env files, opti
 
 - The Podman compose file lives at `podman/compose.yml`. Edit it if you need to add services or change volumes.
 
-1. Copy `.env.example` to `.env` (the script does this automatically if missing).
+1. Copy `env.example` to `.env` (the script does this automatically if missing).
 2. Ensure MongoDB and Redis hosts resolve to the Compose service names:
    ```bash
    INTERNAL_SERVICES_MONGODB_HOST=mongodb
@@ -39,7 +39,7 @@ The init script mirrors the Docker behaviour: it prepares config/env files, opti
 
 Use `orbit-podman.sh` for lifecycle management:
 ```bash
-./orbit-podman.sh start --profile commercial
+./orbit-podman.sh start --profile cloud
 ./orbit-podman.sh logs --follow
 ./orbit-podman.sh status
 ./orbit-podman.sh cli key list

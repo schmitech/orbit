@@ -13,6 +13,8 @@ from fastapi import FastAPI
 from utils import is_true_value
 from services.auth_service import AuthService
 
+from ai_services.registry import register_all_services
+
 
 class ServiceFactory:
     """
@@ -29,7 +31,7 @@ class ServiceFactory:
     def __init__(self, config: Dict[str, Any], logger: logging.Logger):
         """
         Initialize the ServiceFactory.
-        
+
         Args:
             config: The application configuration dictionary
             logger: Logger instance for service initialization logging
@@ -39,10 +41,13 @@ class ServiceFactory:
         self.inference_only = is_true_value(config.get('general', {}).get('inference_only', False))
         self.chat_history_enabled = is_true_value(config.get('chat_history', {}).get('enabled', False))
         self.verbose = is_true_value(config.get('general', {}).get('verbose', False))
-        
+
         # Fault tolerance is always enabled as core functionality
         self.fault_tolerance_enabled = True
-        
+
+        # Register AI services with config to enable selective loading
+        register_all_services(config)
+
         # Log the mode detection for debugging (only when verbose)
         if self.verbose:
             self.logger.info(f"ServiceFactory initialized - inference_only={self.inference_only}, chat_history_enabled={self.chat_history_enabled}")
@@ -262,8 +267,46 @@ class ServiceFactory:
             clock_service=clock_service
         )
         # Initialize the pipeline provider
-        await app.state.chat_service.initialize()
-        self.logger.info("Initialized pipeline-based chat service")
+        try:
+            await app.state.chat_service.initialize()
+            self.logger.info("Initialized pipeline-based chat service")
+        except ValueError as e:
+            if "No service registered for inference with provider" in str(e):
+                # Extract available providers from the error message
+                error_msg = str(e)
+
+                # Get the configured provider
+                configured_provider = self.config.get('general', {}).get('inference_provider', 'unknown')
+
+                self.logger.warning("=" * 80)
+                self.logger.warning("CONFIGURATION WARNING: Main inference provider not available")
+                self.logger.warning("=" * 80)
+                self.logger.warning(f"The default inference provider '{configured_provider}' is not registered.")
+                self.logger.warning(f"This is likely because the provider is disabled in config/inference.yaml.")
+                self.logger.warning("")
+                self.logger.warning("The server will continue to start, but:")
+                self.logger.warning(f"  - Adapters WITHOUT their own inference_provider override will NOT work")
+                self.logger.warning(f"  - Adapters WITH their own inference_provider override WILL work normally")
+                self.logger.warning("")
+                self.logger.warning("To fix this warning:")
+                self.logger.warning(f"  1. Enable '{configured_provider}' in config/inference.yaml by setting 'enabled: true'")
+                self.logger.warning(f"  2. Change 'inference_provider' in config/config.yaml to an enabled provider")
+                self.logger.warning("")
+
+                # Try to extract available providers from error message
+                if "Available services:" in error_msg:
+                    available_inference = error_msg.split("'inference': [")[1].split("]")[0] if "'inference': [" in error_msg else "unknown"
+                    self.logger.warning(f"Available inference providers: [{available_inference}]")
+
+                self.logger.warning("=" * 80)
+
+                # Mark chat service as initialized but without default provider
+                app.state.chat_service._pipeline_initialized = True
+                app.state.chat_service._default_provider_available = False
+                self.logger.warning("Chat service initialized WITHOUT default provider - only adapter overrides will work")
+            else:
+                # Re-raise other ValueError exceptions
+                raise
         
         # Initialize Health Service
         from services.health_service import HealthService
@@ -543,30 +586,36 @@ class ServiceFactory:
             self.logger.info("LLM Guard is disabled, skipping LLM Guard Service initialization")
     
     async def _initialize_reranker_service(self, app: FastAPI) -> None:
-        """Initialize Reranker Service if enabled."""
+        """Initialize Reranker Service if enabled using the new unified architecture."""
         # Early return if reranker is disabled
         if not is_true_value(self.config.get('reranker', {}).get('enabled', False)):
             app.state.reranker_service = None
             self.logger.info("Reranker is disabled, skipping initialization")
             return
 
-        # Create reranker service
-        from rerankers import RerankerFactory
-        app.state.reranker_service = RerankerFactory.create(self.config)
-        
-        # Early return if no reranker provider configured
-        if not app.state.reranker_service:
-            self.logger.warning("No reranker provider configured or provider not supported")
-            app.state.reranker_service = None
-            return
+        # Create reranker service using the new unified architecture
+        from services.reranker_service_manager import RerankingServiceManager
 
-        # Initialize the reranker service
         try:
+            # Get the provider name from config
+            provider_name = self.config.get('reranker', {}).get('provider', 'ollama')
+
+            # Create the reranker service (singleton)
+            app.state.reranker_service = RerankingServiceManager.create_reranker_service(
+                self.config,
+                provider_name
+            )
+
+            # Initialize the reranker service
             if await app.state.reranker_service.initialize():
-                self.logger.info("Reranker Service initialized successfully")
+                self.logger.info(f"Reranker Service initialized successfully (provider: {provider_name})")
             else:
                 self.logger.error("Failed to initialize Reranker Service")
                 app.state.reranker_service = None
+
+        except ValueError as e:
+            self.logger.warning(f"Reranker provider not available: {str(e)}")
+            app.state.reranker_service = None
         except Exception as e:
             self.logger.error(f"Failed to initialize Reranker Service: {str(e)}")
             app.state.reranker_service = None

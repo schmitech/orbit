@@ -210,7 +210,7 @@ You can easily extend ORBIT with your own custom retrievers and domain adapters.
 Example registration:
 ```python
 # In your_adapter.py
-from retrievers.adapters.domain_adapters import DocumentAdapterFactory
+from adapters.factory import DocumentAdapterFactory
 
 # ... your adapter class definition ...
 

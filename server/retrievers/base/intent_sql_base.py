@@ -9,7 +9,7 @@ from typing import Dict, Any, List, Optional, Tuple
 from abc import abstractmethod
 
 from .base_sql_database import BaseSQLDatabaseRetriever
-from retrievers.adapters.intent.intent_adapter import IntentAdapter
+from adapters.intent.adapter import IntentAdapter
 from retrievers.implementations.intent.domain.extraction import DomainParameterExtractor
 from retrievers.implementations.intent.domain.response import DomainResponseGenerator
 from retrievers.implementations.intent.template_reranker import TemplateReranker
@@ -24,21 +24,28 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
     Combines intent functionality with database operations.
     """
     
-    def __init__(self, config: Dict[str, Any], domain_adapter=None, connection: Any = None, **kwargs):
+    def __init__(self, config: Dict[str, Any], domain_adapter=None, datasource: Any = None, **kwargs):
         """
         Initialize Intent SQL retriever.
-        
+
         Args:
             config: Configuration dictionary
             domain_adapter: Optional domain adapter
-            connection: Optional database connection
+            datasource: Datasource instance from the registry
             **kwargs: Additional arguments
         """
-        super().__init__(config=config, connection=connection, **kwargs)
-        
+        super().__init__(config=config, datasource=datasource, **kwargs)
+
         # Get intent-specific configuration from standardized key
         self.intent_config = config.get('adapter_config', {})
-        
+
+        # Override return_results from intent_config if specified (fixes default of 3 in parent class)
+        if 'return_results' in self.intent_config:
+            self.return_results = self.intent_config.get('return_results')
+            logger.info(f"Intent SQL retriever: return_results set to {self.return_results} from adapter config")
+        else:
+            logger.info(f"Intent SQL retriever: using default return_results={self.return_results} from parent class")
+
         # Store configuration for vector store
         self.store_name = self.intent_config.get('store_name')
         if not self.store_name:
@@ -114,10 +121,9 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
         """Initialize intent-specific features and database connection."""
         try:
             logger.info(f"Initializing {self.__class__.__name__} for intent-based queries")
-            
-            # Initialize database connection using parent method
-            if not self.connection:
-                self.connection = await self.create_connection()
+
+            # Ensure datasource is initialized (connection will be obtained automatically via property)
+            await self._ensure_datasource_initialized()
             
             # Initialize embedding client
             await self._initialize_embedding_client()
@@ -133,23 +139,24 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
             
             # Initialize domain-aware components
             domain_config = self.domain_adapter.get_domain_config()
-            self.parameter_extractor = DomainParameterExtractor(self.inference_client, domain_config)
-            
-            # Get domain strategy for response generator
+
+            # Get domain strategy once for all components
             from ..implementations.intent.domain_strategies.registry import DomainStrategyRegistry
             from ..implementations.intent.domain import DomainConfig
-            
+
             # Ensure domain_config is a DomainConfig object
             if isinstance(domain_config, dict):
                 domain_config = DomainConfig(domain_config)
-                
+
             domain_strategy = DomainStrategyRegistry.get_strategy(
                 domain_config.domain_name,
                 domain_config,
             )
-            
+
+            # Pass the domain_strategy to avoid redundant registry lookups
+            self.parameter_extractor = DomainParameterExtractor(self.inference_client, domain_config, domain_strategy)
             self.response_generator = DomainResponseGenerator(domain_config, domain_strategy)
-            self.template_reranker = TemplateReranker(domain_config)
+            self.template_reranker = TemplateReranker(domain_config, domain_strategy)
             self.template_processor = TemplateProcessor(domain_config)
             
             if self.verbose:
@@ -203,7 +210,7 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
     
     async def _initialize_inference_client(self):
         """Initialize inference client with adapter-specific override support."""
-        from inference.pipeline.providers.provider_factory import ProviderFactory
+        from inference.pipeline.providers import UnifiedProviderFactory as ProviderFactory
         
         # Check if there's an inference_provider override in the config
         # This would be set by the DynamicAdapterManager when it loads the adapter
@@ -426,7 +433,6 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
                         
                 except Exception as e:
                     logger.error(f"Failed to add templates to store: {e}")
-                    import traceback
                     logger.error(traceback.format_exc())
             
             if loaded_count == 0:
@@ -442,10 +448,14 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
     
     def _create_embedding_text(self, template: Dict[str, Any]) -> str:
         """Create text for embedding from template."""
+        # Extract only string tags (ignore dict tags which contain function metadata)
+        tags = template.get('tags', [])
+        string_tags = [tag for tag in tags if isinstance(tag, str)]
+
         parts = [
             template.get('description', ''),
             ' '.join(template.get('nl_examples', [])),
-            ' '.join(template.get('tags', []))
+            ' '.join(string_tags)
         ]
         
         param_names = [p['name'].replace('_', ' ') for p in template.get('parameters', [])]
@@ -535,7 +545,12 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
                     if self.verbose:
                         logger.debug(f"Template {template.get('id')} execution failed: {error}")
                     continue
-                
+
+                if self.verbose and results:
+                    if results and self.return_results is not None and len(results) > self.return_results:
+                        logger.info(f"Truncating result set from {len(results)} to {self.return_results} results based on adapter config.")
+                        results = results[:self.return_results]
+
                 # Format response using domain-aware generator
                 if self.response_generator:
                     formatted_data = self.response_generator.format_response_data(results, template)
@@ -552,7 +567,7 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
                         # Format a simple table representation
                         table_data = formatted_data["table"]
                         columns = table_data["columns"]
-                        rows = table_data["rows"][:10]  # Limit to first 10 rows
+                        rows = table_data["rows"][:self.return_results]  # Limit to return_results
 
                         table_text = " | ".join(columns) + "\n"
                         table_text += "-" * len(table_text) + "\n"
@@ -565,8 +580,13 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
                         # Fallback to simple result summary
                         content_parts.append(f"Query executed successfully. Found {len(results)} results.")
 
+                    content = "\n\n".join(content_parts)
+                    
+                    if self.verbose:
+                        logger.info(f"Generated content for LLM context (length: {len(content)}):\n{content}")
+
                     return [{
-                        "content": "\n\n".join(content_parts),
+                        "content": content,
                         "metadata": {
                             "source": "intent",
                             "template_id": template.get('id'),
@@ -676,7 +696,6 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
             
         except Exception as e:
             logger.error(f"Error finding templates: {e}")
-            import traceback
             logger.error(traceback.format_exc())
             return []
     
@@ -718,7 +737,8 @@ JSON:"""
                 parameters = json.loads(json_match.group())
             
             for param in required_params:
-                if param['name'] not in parameters and 'default' in param:
+                # Apply default if parameter is missing or None
+                if (param['name'] not in parameters or parameters[param['name']] is None) and 'default' in param:
                     parameters[param['name']] = param['default']
             
             if self.verbose:
@@ -734,25 +754,34 @@ JSON:"""
         """Execute SQL template with parameters."""
         try:
             sql_template = template.get('sql_template', template.get('sql', ''))
-            
+
             if not sql_template:
                 return [], "Template has no SQL query"
-            
+
             formatted_parameters = parameters.copy()
             for param_name, param_value in formatted_parameters.items():
                 if param_value and isinstance(param_value, str) and 'name' in param_name.lower() and 'LIKE' in sql_template.upper():
                     cleaned_value = param_value.strip().strip('"').strip("'")
                     formatted_parameters[param_name] = f"%{cleaned_value}%"
-            
+
             sql_query = self._process_sql_template(sql_template, formatted_parameters)
 
             if self.verbose:
                 logger.info(f"Executing SQL: {sql_query}")
 
-            results = await self.execute_query(sql_query, formatted_parameters)
-            
+            # For SQLite with ? placeholders, build a tuple in the correct order
+            # based on the template's parameter list (which may have duplicates)
+            param_list = template.get('parameters', [])
+            if '?' in sql_query and param_list:
+                # Build tuple in order of template parameters (preserving duplicates)
+                param_tuple = tuple(formatted_parameters.get(p['name'], p.get('default')) for p in param_list)
+                results = await self.execute_query(sql_query, param_tuple)
+            else:
+                # For named parameters or no parameters, use the dict
+                results = await self.execute_query(sql_query, formatted_parameters)
+
             return results, None
-            
+
         except Exception as e:
             error_msg = str(e)
             logger.error(f"Error executing template: {error_msg}")

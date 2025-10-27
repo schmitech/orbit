@@ -93,7 +93,7 @@ check_requirements() {
 check_required_directories() {
     local missing_dirs=()
     
-    for dir in server bin install docker examples config; do
+    for dir in server bin install docker examples config utils; do
         if [ ! -d "$dir" ]; then
             missing_dirs+=("$dir")
         fi
@@ -146,7 +146,7 @@ mkdir -p dist/build/${PACKAGE_NAME}
 
 # Create directory structure
 echo "Creating directory structure..."
-mkdir -p dist/build/${PACKAGE_NAME}/{bin,server,install,logs,docker,config}
+mkdir -p dist/build/${PACKAGE_NAME}/{bin,server,install,logs,docker,config,utils}
 
 # Copy core server files (excluding tests directory)
 echo "Copying server files..."
@@ -186,6 +186,13 @@ find config -type f -not -path "*/\.*" -not -path "*/__pycache__/*" -not -name "
     cp "$file" "dist/build/${PACKAGE_NAME}/$file"
 done
 
+# Copy utils files (excluding build-tarball.sh)
+echo "Copying utils files..."
+find utils -type f -not -path "*/\.*" -not -path "*/__pycache__/*" -not -name "*.pyc" -not -name "*.pyo" -not -name "*.pyd" -not -name "build-tarball.sh" | while read file; do
+    mkdir -p "dist/build/${PACKAGE_NAME}/$(dirname "$file")"
+    cp "$file" "dist/build/${PACKAGE_NAME}/$file"
+done
+
 # Verify config files were copied
 echo "Verifying configuration files..."
 if [ -d "dist/build/${PACKAGE_NAME}/config" ]; then
@@ -196,13 +203,23 @@ else
     echo "⚠️ Warning: Config directory not found in build"
 fi
 
-# Create .env.example file
-echo "Creating .env.example..."
-if [ -f ".env.example" ]; then
-    cp .env.example dist/build/${PACKAGE_NAME}/.env.example
+# Verify utils files were copied
+echo "Verifying utils files..."
+if [ -d "dist/build/${PACKAGE_NAME}/utils" ]; then
+    echo "✅ Utils directory created successfully"
+    echo "📁 Utils files:"
+    ls -la dist/build/${PACKAGE_NAME}/utils/
 else
-    echo "Warning: .env.example not found, creating empty .env.example..."
-    touch dist/build/${PACKAGE_NAME}/.env.example
+    echo "⚠️ Warning: Utils directory not found in build"
+fi
+
+# Create env.example file
+echo "Creating env.example..."
+if [ -f "env.example" ]; then
+    cp env.example dist/build/${PACKAGE_NAME}/env.example
+else
+    echo "Warning: env.example not found, creating empty env.example..."
+    touch dist/build/${PACKAGE_NAME}/env.example
 fi
 
 # Create metadata file

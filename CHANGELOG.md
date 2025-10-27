@@ -1,5 +1,98 @@
 # Changelog
 
+## [1.6.0] - 2025-10-25
+
+### Core System Updates
+- Roadmap Updates
+- New MongoDB Intent Adapter
+- New Firecrawl Adapter
+- HTTP and ES Intent Updates
+
+## [1.5.9] - 2025-10-24
+
+### Core System Updates
+- Added HTTP REST adapter.
+- Added http and elasticsearch intent adapter types; addressed warning suppression issues.
+- Fixed issues with Cohere inference provider.
+- Errors handled gracefully when an inference provider is disabled, ensuring adapters continue to load normally.
+- Added enable setting in inference.yaml for selective provider loading; granite4:micro set as GGUF default.
+- Integrated new zAI inference service
+- More Vector Stores: Added support for faiss, marqo, milvus, pgvector, and weaviate vector stores.
+
+### Other Changes
+- Update classified demo template: Added another demonstration template.
+- Suppress Warnings: Suppressed server log runtime warnings; minor provider fix.
+- Update Setup Profiles: Moved dependencies from 'commercial' to 'minimal' profile and renamed 'commercial' to 'cloud'.
+- Setup Script, Embedding Plans: Improved setup script to prompt for python version; added embedding plan (sentence transformers); updated minimal profile.
+
+## [1.5.8] - 2025-10-17
+
+### Core System Updates
+- Update Contact Templates: Regenerate SQL intent templates for contact example.
+- Update template_reranker.py: Fix minor issue causing some templates to throw errors.
+- Add Bitnet AI Provider: Integrate Bitnet provider; fixed SQL template strategy and reranker issues.
+- SQL Templates Fixes: Improve SQL intent templates generation logic.
+- Ollama Cloud Fixes: Resolve issues with Ollama cloud and SQL template generation scripts.
+- Create Intent Result Caching Strategy: Implement caching for follow-up questions in intent retrievers.
+- Issue #48: Enable datasource overriding in adapters.yaml for SQL adapters.
+- SQLite db parameter: Replace db_path with database in datasource.yaml for better configuration clarity.
+- Update adapters.yaml: Reinstate postgres intent template example.
+- Update inference.yaml: Remove anyscale; set Ollama default model to granite4:micro.
+- Update datasources.yaml: Complete supplemental datasource settings.
+
+## [1.5.7] - 2025-10-15
+
+### Core System Updates
+- Fixed Issue #58: Transfer safety into its own yaml file, remove from main config.yaml.
+- Fixed #53 - Dashboard: Issue resolved for DASHBOARD; linked issue and improved stability.
+- Update dashboard_routes.py: Added datasource pooling panel to the dashboard for enhanced observability.
+- Datasource Connection Pooling: Enabled connection pooling for datasources.
+- New Datasource Registry: Introduced new datasource registry system for improved adapter compatibility and loading behavior.
+
+### Other Changes
+- Refined dashboard features for improved user experience.
+- General refactoring and bug fixes for performance and stability.
+
+## [1.5.6] - 2025-10-14
+
+### Core System Updates
+- AI Provider Services Consolidation: Massive refactoring of AI providers, removing unused providers and consolidating services
+- Embedding Services Migration: Migrated embedding providers to new AI services architecture
+- Moderators Migration: Brought moderators into new AI service architecture
+- Adapters Refactoring: Improved adapter architecture for better maintenance and adaptability
+
+### Bug Fixes & Technical Improvements
+- Embedding Service Issues: Fixed double initialization of embedding services by dynamic adapter
+- Inference Registry Fixes: Fixed double initialization of inference registry items
+- Template Fixes: Fixed 'detect_anomalous_access_patterns' template and added detect_compartment_hopping
+
+## [1.5.5] - 2025-10-10
+
+### Core System Updates
+- Adapters Refactoring: Improved adapter architecture for better maintenance and adaptability
+
+## [1.5.4] - 2025-10-10
+
+### Core System Updates
+- Pinecone QA Adapter: Added new Pinecone QA Retriever Adapter for enhanced vector database support
+- Vector Store Overriding: Enabled vector store overriding in intent adapters to choose between Chroma, Pinecone, Qdrant, Milvus, etc.
+- SQL Intent Template Generator: Enhanced SQL intent template generator with improved functionality and documentation
+
+### Python Client
+- Python CLI v1.1.1: Published new python package version to PyPI
+- Chat Client Fixes: Fixed markdown formatting issues in chat client
+
+### UI & Demo Applications
+- Theme Tab Updates: Added missing message background color picker to theming interface
+- Dashboard Improvements: Enhanced dashboard UX with better line hovering and value display
+- Chat App Enhancements: Added toggle for thumbs up/down buttons based on environment variable and increased logo size
+
+### Documentation & Configuration
+- README Updates: Multiple documentation improvements including video updates, contact examples, and scenario details
+- Classified Example Updates: Updated templates and SQL Intent documentation
+- Scraping Tools: Added scraping tools back for knowledge base extraction
+- Configuration Cleanup: Removed sample adapters from default adapter.yaml configuration
+
 ## [1.5.3] - 2025-10-03
 
 ### Core System Updates

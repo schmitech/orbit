@@ -201,22 +201,24 @@ class BaseSQLDatabaseRetriever(AbstractSQLRetriever, SQLConnectionMixin, SQLType
     """
     Unified base class for all SQL database retrievers.
     Combines common functionality to reduce code duplication.
+
+    Uses the datasource registry pattern - connection is obtained from the datasource instance.
     """
-    
-    def __init__(self, config: Dict[str, Any], connection: Any = None, **kwargs):
+
+    def __init__(self, config: Dict[str, Any], datasource: Any = None, **kwargs):
         """
         Initialize base SQL database retriever.
-        
+
         Args:
             config: Configuration dictionary
-            connection: Optional database connection
+            datasource: Datasource instance from the registry
             **kwargs: Additional arguments
         """
-        super().__init__(config=config, connection=connection, **kwargs)
-        
-        # Extract connection parameters using mixin
+        super().__init__(config=config, datasource=datasource, **kwargs)
+
+        # Extract connection parameters using mixin (may still be needed for legacy code)
         self.connection_params = self.extract_connection_params(self.datasource_config)
-        
+
         # Database-specific settings
         self.use_connection_pool = self.datasource_config.get('use_connection_pool', False)
         self.pool_size = self.datasource_config.get('pool_size', 5)
@@ -225,34 +227,30 @@ class BaseSQLDatabaseRetriever(AbstractSQLRetriever, SQLConnectionMixin, SQLType
     async def test_connection(self) -> bool:
         """
         Test database connection.
-        
+
         Returns:
             True if connection successful
         """
         try:
+            # Ensure datasource is initialized
+            await self._ensure_datasource_initialized()
+
             if not self.connection:
-                self.connection = await self.create_connection()
-            
+                logger.error("Connection not available from datasource")
+                return False
+
             # Execute a simple test query
             test_query = self.get_test_query()
             result = await self.execute_query(test_query)
-            
+
             if self.verbose:
                 logger.info(f"Database connection test successful: {self._get_datasource_name()}")
-            
+
             return True
         except Exception as e:
             logger.error(f"Database connection test failed: {e}")
             return False
-    
-    @abstractmethod
-    async def create_connection(self) -> Any:
-        """
-        Create database connection using connection parameters.
-        Must be implemented by specific database types.
-        """
-        pass
-    
+
     @abstractmethod
     def get_test_query(self) -> str:
         """
@@ -265,67 +263,66 @@ class BaseSQLDatabaseRetriever(AbstractSQLRetriever, SQLConnectionMixin, SQLType
         """
         Execute query with common error handling and type conversion.
         Can be overridden by specific implementations if needed.
-        
+
         Args:
             query: SQL query
             params: Query parameters
-            
+
         Returns:
             List of result dictionaries
         """
+        # Ensure datasource is initialized
+        await self._ensure_datasource_initialized()
+
         if not self.connection:
             raise ValueError(f"{self._get_datasource_name()} connection not initialized")
-        
+
         try:
             if self.verbose:
                 logger.info(f"Executing {self._get_datasource_name()} query: {query}")
                 if params:
                     logger.info(f"Parameters: {params}")
-            
+
             # Execute query (implementation specific)
             raw_results = await self._execute_raw_query(query, params)
-            
+
             # Convert types using mixin
             results = [self.convert_row_types(row) for row in raw_results]
-            
+
             if self.verbose:
                 logger.info(f"Query returned {len(results)} rows")
                 if len(results) > 0:
                     self.dump_results_to_file(results)
-            
+
             return results
-            
+
         except Exception as e:
             error_msg = str(e).lower()
             # Check if this is a connection closed error
             if 'connection' in error_msg and ('closed' in error_msg or 'lost' in error_msg or 'broken' in error_msg):
-                logger.warning(f"Connection appears to be closed, attempting to reconnect...")
+                logger.warning(f"Connection appears to be closed, attempting to reinitialize datasource...")
                 try:
-                    # Close the existing connection properly
-                    if self.connection:
-                        try:
-                            await self._close_connection()
-                        except:
-                            pass
-                        self.connection = None
-                    
-                    # Create a new connection
-                    self.connection = await self.create_connection()
+                    # Reinitialize the datasource
+                    if self._datasource:
+                        await self._datasource.close()
+                        await self._datasource.initialize()
+                        self._connection = self._datasource.get_client()
+
                     logger.info(f"Reconnected to {self._get_datasource_name()} successfully")
-                    
+
                     # Retry the query with the new connection
                     raw_results = await self._execute_raw_query(query, params)
                     results = [self.convert_row_types(row) for row in raw_results]
-                    
+
                     if self.verbose:
                         logger.info(f"Query retry successful, returned {len(results)} rows")
-                    
+
                     return results
-                    
+
                 except Exception as reconnect_error:
                     logger.error(f"Failed to reconnect to {self._get_datasource_name()}: {reconnect_error}")
                     raise
-            
+
             logger.error(f"Error executing {self._get_datasource_name()} query: {e}")
             logger.error(f"SQL: {query}, Params: {params}")
             raise
@@ -334,27 +331,6 @@ class BaseSQLDatabaseRetriever(AbstractSQLRetriever, SQLConnectionMixin, SQLType
     async def _execute_raw_query(self, query: str, params: Optional[Any] = None) -> List[Any]:
         """
         Execute raw query and return database-specific results.
-        Must be implemented by specific database types.
-        """
-        pass
-    
-    async def close(self) -> None:
-        """
-        Close database connection with common cleanup.
-        """
-        try:
-            if self.connection:
-                await self._close_connection()
-                self.connection = None
-                if self.verbose:
-                    logger.info(f"{self._get_datasource_name()} connection closed")
-        except Exception as e:
-            logger.error(f"Error closing {self._get_datasource_name()} connection: {e}")
-    
-    @abstractmethod
-    async def _close_connection(self) -> None:
-        """
-        Close the database connection.
         Must be implemented by specific database types.
         """
         pass

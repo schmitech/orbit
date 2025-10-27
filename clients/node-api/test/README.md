@@ -26,7 +26,7 @@ npm run test:watch
 npm test -- --coverage
 
 # Test a specific query
-npm run test-query "your query here" "http://your-api-server.com"
+npm run test-query "your query here" "http://localhost:3000"
 
 # Test npm package functionality with real server
 npm run test:npm -- "your message here" "http://your-api-server.com"

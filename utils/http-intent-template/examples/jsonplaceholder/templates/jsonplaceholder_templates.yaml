@@ -1,0 +1,411 @@
+# JSONPlaceholder API Templates
+# Templates for interacting with JSONPlaceholder fake REST API
+
+templates:
+  # ============================================================================
+  # POST TEMPLATES
+  # ============================================================================
+
+  - id: get_post_by_id
+    version: "1.0.0"
+    description: "Get a specific post by its ID"
+
+    http_method: "GET"
+    endpoint_template: "/posts/{post_id}"
+
+    headers:
+      Accept: "application/json"
+
+    parameters:
+      - name: post_id
+        type: integer
+        required: true
+        description: "The ID of the post to retrieve"
+        location: "path"
+        example: 1
+        min: 1
+        max: 100
+
+    response_mapping:
+      items_path: "$"  # Single object response
+      fields:
+        - name: "id"
+          path: "$.id"
+          type: "integer"
+        - name: "title"
+          path: "$.title"
+          type: "string"
+        - name: "body"
+          path: "$.body"
+          type: "string"
+        - name: "userId"
+          path: "$.userId"
+          type: "integer"
+
+    nl_examples:
+      - "Show me post 1"
+      - "Get post number 5"
+      - "Retrieve post 42"
+      - "Find post with id 10"
+      - "Display post 3"
+
+    semantic_tags:
+      action: "retrieve"
+      primary_entity: "post"
+      requires_id: true
+
+    result_format: "single"
+    tags: ["post", "retrieve", "id"]
+
+  # ============================================================================
+
+  - id: list_posts_by_user
+    version: "1.0.0"
+    description: "List all posts created by a specific user"
+
+    http_method: "GET"
+    endpoint_template: "/posts"
+
+    headers:
+      Accept: "application/json"
+
+    query_params:
+      userId: "{{user_id}}"
+      _limit: "{{limit}}"
+
+    parameters:
+      - name: user_id
+        type: integer
+        required: true
+        description: "The ID of the user whose posts to retrieve"
+        location: "query"
+        example: 1
+        min: 1
+        max: 10
+
+      - name: limit
+        type: integer
+        required: false
+        default: 10
+        description: "Maximum number of posts to return"
+        location: "query"
+        min: 1
+        max: 100
+
+    response_mapping:
+      items_path: "$"  # Array of posts
+      fields:
+        - name: "id"
+          path: "$.id"
+          type: "integer"
+        - name: "title"
+          path: "$.title"
+          type: "string"
+        - name: "body"
+          path: "$.body"
+          type: "string"
+
+    nl_examples:
+      - "Show me posts by user 1"
+      - "List all posts from user 2"
+      - "Get posts created by user 3"
+      - "Find posts for user id 5"
+      - "Display posts from user 7"
+
+    semantic_tags:
+      action: "list"
+      primary_entity: "post"
+      filter_by: "user"
+
+    result_format: "table"
+    tags: ["post", "list", "user", "filter"]
+
+  # ============================================================================
+
+  - id: list_all_posts
+    version: "1.0.0"
+    description: "List all posts with optional limit"
+
+    http_method: "GET"
+    endpoint_template: "/posts"
+
+    headers:
+      Accept: "application/json"
+
+    query_params:
+      _limit: "{{limit}}"
+
+    parameters:
+      - name: limit
+        type: integer
+        required: false
+        default: 10
+        description: "Maximum number of posts to return"
+        location: "query"
+        min: 1
+        max: 100
+
+    response_mapping:
+      items_path: "$"
+      fields:
+        - name: "id"
+          path: "$.id"
+          type: "integer"
+        - name: "title"
+          path: "$.title"
+          type: "string"
+        - name: "userId"
+          path: "$.userId"
+          type: "integer"
+
+    nl_examples:
+      - "List all posts"
+      - "Show me posts"
+      - "Get all posts"
+      - "Display posts"
+      - "Show recent posts"
+
+    semantic_tags:
+      action: "list"
+      primary_entity: "post"
+
+    result_format: "table"
+    tags: ["post", "list", "all"]
+
+  # ============================================================================
+  # USER TEMPLATES
+  # ============================================================================
+
+  - id: get_user_by_id
+    version: "1.0.0"
+    description: "Get a specific user by their ID"
+
+    http_method: "GET"
+    endpoint_template: "/users/{user_id}"
+
+    headers:
+      Accept: "application/json"
+
+    parameters:
+      - name: user_id
+        type: integer
+        required: true
+        description: "The ID of the user to retrieve"
+        location: "path"
+        example: 1
+        min: 1
+        max: 10
+
+    response_mapping:
+      items_path: "$"
+      fields:
+        - name: "id"
+          path: "$.id"
+          type: "integer"
+        - name: "name"
+          path: "$.name"
+          type: "string"
+        - name: "username"
+          path: "$.username"
+          type: "string"
+        - name: "email"
+          path: "$.email"
+          type: "string"
+        - name: "city"
+          path: "$.address.city"
+          type: "string"
+        - name: "company"
+          path: "$.company.name"
+          type: "string"
+
+    nl_examples:
+      - "Get user 1"
+      - "Show me user 5"
+      - "Retrieve user profile 3"
+      - "Find user with id 7"
+      - "Display user 2"
+
+    semantic_tags:
+      action: "retrieve"
+      primary_entity: "user"
+      requires_id: true
+
+    result_format: "single"
+    tags: ["user", "retrieve", "profile"]
+
+  # ============================================================================
+
+  - id: list_all_users
+    version: "1.0.0"
+    description: "List all users"
+
+    http_method: "GET"
+    endpoint_template: "/users"
+
+    headers:
+      Accept: "application/json"
+
+    parameters: []
+
+    response_mapping:
+      items_path: "$"
+      fields:
+        - name: "id"
+          path: "$.id"
+          type: "integer"
+        - name: "name"
+          path: "$.name"
+          type: "string"
+        - name: "username"
+          path: "$.username"
+          type: "string"
+        - name: "email"
+          path: "$.email"
+          type: "string"
+
+    nl_examples:
+      - "List all users"
+      - "Show me all users"
+      - "Get users"
+      - "Display all users"
+      - "Show user list"
+
+    semantic_tags:
+      action: "list"
+      primary_entity: "user"
+
+    result_format: "table"
+    tags: ["user", "list", "all"]
+
+  # ============================================================================
+  # COMMENT TEMPLATES
+  # ============================================================================
+
+  - id: get_comments_for_post
+    version: "1.0.0"
+    description: "Get all comments for a specific post"
+
+    http_method: "GET"
+    endpoint_template: "/comments"
+
+    headers:
+      Accept: "application/json"
+
+    query_params:
+      postId: "{{post_id}}"
+      _limit: "{{limit}}"
+
+    parameters:
+      - name: post_id
+        type: integer
+        required: true
+        description: "The ID of the post to get comments for"
+        location: "query"
+        example: 1
+        min: 1
+        max: 100
+
+      - name: limit
+        type: integer
+        required: false
+        default: 10
+        description: "Maximum number of comments to return"
+        location: "query"
+        min: 1
+        max: 100
+
+    response_mapping:
+      items_path: "$"
+      fields:
+        - name: "id"
+          path: "$.id"
+          type: "integer"
+        - name: "name"
+          path: "$.name"
+          type: "string"
+        - name: "email"
+          path: "$.email"
+          type: "string"
+        - name: "body"
+          path: "$.body"
+          type: "string"
+
+    nl_examples:
+      - "Show comments on post 1"
+      - "Get comments for post 5"
+      - "List comments on post 10"
+      - "Display comments for post 3"
+      - "Find comments on post 7"
+
+    semantic_tags:
+      action: "list"
+      primary_entity: "comment"
+      filter_by: "post"
+
+    result_format: "table"
+    tags: ["comment", "list", "post"]
+
+  # ============================================================================
+  # TODO TEMPLATES
+  # ============================================================================
+
+  - id: get_todos_by_user
+    version: "1.0.0"
+    description: "Get all todos for a specific user"
+
+    http_method: "GET"
+    endpoint_template: "/todos"
+
+    headers:
+      Accept: "application/json"
+
+    query_params:
+      userId: "{{user_id}}"
+      _limit: "{{limit}}"
+
+    parameters:
+      - name: user_id
+        type: integer
+        required: true
+        description: "The ID of the user whose todos to retrieve"
+        location: "query"
+        example: 1
+        min: 1
+        max: 10
+
+      - name: limit
+        type: integer
+        required: false
+        default: 10
+        description: "Maximum number of todos to return"
+        location: "query"
+        min: 1
+        max: 100
+
+    response_mapping:
+      items_path: "$"
+      fields:
+        - name: "id"
+          path: "$.id"
+          type: "integer"
+        - name: "title"
+          path: "$.title"
+          type: "string"
+        - name: "completed"
+          path: "$.completed"
+          type: "boolean"
+
+    nl_examples:
+      - "Show todos for user 1"
+      - "Get tasks for user 2"
+      - "List todos by user 3"
+      - "Display tasks for user 5"
+      - "Find todos for user 7"
+
+    semantic_tags:
+      action: "list"
+      primary_entity: "todo"
+      filter_by: "user"
+
+    result_format: "table"
+    tags: ["todo", "list", "user", "tasks"]

@@ -1,0 +1,303 @@
+# Wikipedia Knowledge Base Templates
+# Comprehensive collection of templates for web-based knowledge retrieval
+
+templates:
+  # ============================================================================
+  # PROGRAMMING & TECHNOLOGY
+  # ============================================================================
+
+  - id: "wiki_python_programming"
+    description: "Get information about Python programming language"
+    semantic_type: "programming_knowledge"
+    nl_examples:
+      - "What is Python?"
+      - "Tell me about Python programming"
+      - "Python programming language information"
+      - "I want to learn about Python"
+      - "Explain Python"
+    url_mapping:
+      url: "https://en.wikipedia.org/wiki/Python_(programming_language)"
+    formats: ["markdown"]
+    timeout: 45
+
+  - id: "wiki_machine_learning"
+    description: "Get information about machine learning concepts and applications"
+    semantic_type: "programming_knowledge"
+    nl_examples:
+      - "What is machine learning?"
+      - "Tell me about machine learning"
+      - "Explain machine learning"
+      - "Machine learning information"
+      - "How does machine learning work?"
+    url_mapping:
+      url: "https://en.wikipedia.org/wiki/Machine_learning"
+    formats: ["markdown"]
+    timeout: 45
+
+  - id: "wiki_web_scraping"
+    description: "Get information about web scraping techniques and tools"
+    semantic_type: "programming_knowledge"
+    nl_examples:
+      - "What is web scraping?"
+      - "Tell me about web scraping"
+      - "How does web scraping work?"
+      - "Explain web scraping"
+      - "Web scraping information"
+    url_mapping:
+      url: "https://en.wikipedia.org/wiki/Web_scraping"
+    formats: ["markdown"]
+    timeout: 40
+
+  - id: "wiki_artificial_intelligence"
+    description: "Get information about artificial intelligence"
+    semantic_type: "technology_knowledge"
+    nl_examples:
+      - "What is artificial intelligence?"
+      - "Tell me about AI"
+      - "Explain artificial intelligence"
+      - "AI information"
+      - "How does AI work?"
+    url_mapping:
+      url: "https://en.wikipedia.org/wiki/Artificial_intelligence"
+    formats: ["markdown"]
+    timeout: 50
+
+  - id: "wiki_blockchain"
+    description: "Get information about blockchain technology"
+    semantic_type: "technology_knowledge"
+    nl_examples:
+      - "What is blockchain?"
+      - "Tell me about blockchain"
+      - "Explain blockchain technology"
+      - "Blockchain information"
+      - "How does blockchain work?"
+    url_mapping:
+      url: "https://en.wikipedia.org/wiki/Blockchain"
+    formats: ["markdown"]
+    timeout: 45
+
+  - id: "wiki_cloud_computing"
+    description: "Get information about cloud computing"
+    semantic_type: "technology_knowledge"
+    nl_examples:
+      - "What is cloud computing?"
+      - "Tell me about cloud computing"
+      - "Explain cloud computing"
+      - "Cloud computing information"
+      - "How does cloud computing work?"
+    url_mapping:
+      url: "https://en.wikipedia.org/wiki/Cloud_computing"
+    formats: ["markdown"]
+    timeout: 45
+
+  # ============================================================================
+  # SCIENCE
+  # ============================================================================
+
+  - id: "wiki_quantum_mechanics"
+    description: "Get information about quantum mechanics"
+    semantic_type: "scientific_knowledge"
+    nl_examples:
+      - "What is quantum mechanics?"
+      - "Tell me about quantum mechanics"
+      - "Explain quantum mechanics"
+      - "Quantum mechanics information"
+      - "How does quantum mechanics work?"
+    url_mapping:
+      url: "https://en.wikipedia.org/wiki/Quantum_mechanics"
+    formats: ["markdown"]
+    timeout: 50
+
+  - id: "wiki_photosynthesis"
+    description: "Get information about photosynthesis"
+    semantic_type: "scientific_knowledge"
+    nl_examples:
+      - "What is photosynthesis?"
+      - "Tell me about photosynthesis"
+      - "Explain photosynthesis"
+      - "How does photosynthesis work?"
+      - "Photosynthesis information"
+    url_mapping:
+      url: "https://en.wikipedia.org/wiki/Photosynthesis"
+    formats: ["markdown"]
+    timeout: 40
+
+  - id: "wiki_dna"
+    description: "Get information about DNA and genetics"
+    semantic_type: "scientific_knowledge"
+    nl_examples:
+      - "What is DNA?"
+      - "Tell me about DNA"
+      - "Explain DNA"
+      - "DNA information"
+      - "What does DNA do?"
+    url_mapping:
+      url: "https://en.wikipedia.org/wiki/DNA"
+    formats: ["markdown"]
+    timeout: 45
+
+  - id: "wiki_theory_relativity"
+    description: "Get information about Einstein's theory of relativity"
+    semantic_type: "scientific_knowledge"
+    nl_examples:
+      - "What is the theory of relativity?"
+      - "Tell me about relativity"
+      - "Explain Einstein's theory of relativity"
+      - "Theory of relativity information"
+      - "How does relativity work?"
+    url_mapping:
+      url: "https://en.wikipedia.org/wiki/Theory_of_relativity"
+    formats: ["markdown"]
+    timeout: 45
+
+  # ============================================================================
+  # HISTORY
+  # ============================================================================
+
+  - id: "wiki_world_war_ii"
+    description: "Get information about World War II"
+    semantic_type: "historical_knowledge"
+    nl_examples:
+      - "What was World War II?"
+      - "Tell me about World War 2"
+      - "World War II information"
+      - "WW2 history"
+      - "Explain World War II"
+    url_mapping:
+      url: "https://en.wikipedia.org/wiki/World_War_II"
+    formats: ["markdown"]
+    timeout: 60
+
+  - id: "wiki_renaissance"
+    description: "Get information about the Renaissance period"
+    semantic_type: "historical_knowledge"
+    nl_examples:
+      - "What was the Renaissance?"
+      - "Tell me about the Renaissance"
+      - "Renaissance period information"
+      - "Explain the Renaissance"
+      - "Renaissance history"
+    url_mapping:
+      url: "https://en.wikipedia.org/wiki/Renaissance"
+    formats: ["markdown"]
+    timeout: 50
+
+  - id: "wiki_industrial_revolution"
+    description: "Get information about the Industrial Revolution"
+    semantic_type: "historical_knowledge"
+    nl_examples:
+      - "What was the Industrial Revolution?"
+      - "Tell me about the Industrial Revolution"
+      - "Industrial Revolution information"
+      - "Explain the Industrial Revolution"
+      - "Industrial Revolution history"
+    url_mapping:
+      url: "https://en.wikipedia.org/wiki/Industrial_Revolution"
+    formats: ["markdown"]
+    timeout: 50
+
+  # ============================================================================
+  # GEOGRAPHY & PLACES
+  # ============================================================================
+
+  - id: "wiki_japan"
+    description: "Get information about Japan"
+    semantic_type: "geographical_knowledge"
+    nl_examples:
+      - "Tell me about Japan"
+      - "Japan information"
+      - "What is Japan like?"
+      - "Japan country information"
+      - "Facts about Japan"
+    url_mapping:
+      url: "https://en.wikipedia.org/wiki/Japan"
+    formats: ["markdown"]
+    timeout: 60
+
+  - id: "wiki_mount_everest"
+    description: "Get information about Mount Everest"
+    semantic_type: "geographical_knowledge"
+    nl_examples:
+      - "What is Mount Everest?"
+      - "Tell me about Mount Everest"
+      - "Mount Everest information"
+      - "Everest mountain facts"
+      - "Highest mountain in the world"
+    url_mapping:
+      url: "https://en.wikipedia.org/wiki/Mount_Everest"
+    formats: ["markdown"]
+    timeout: 45
+
+  - id: "wiki_amazon_rainforest"
+    description: "Get information about the Amazon rainforest"
+    semantic_type: "geographical_knowledge"
+    nl_examples:
+      - "What is the Amazon rainforest?"
+      - "Tell me about the Amazon rainforest"
+      - "Amazon rainforest information"
+      - "Amazon jungle facts"
+      - "Explain the Amazon rainforest"
+    url_mapping:
+      url: "https://en.wikipedia.org/wiki/Amazon_rainforest"
+    formats: ["markdown"]
+    timeout: 45
+
+  # ============================================================================
+  # GENERAL KNOWLEDGE
+  # ============================================================================
+
+  - id: "wiki_solar_system"
+    description: "Get information about the solar system"
+    semantic_type: "general_knowledge"
+    nl_examples:
+      - "What is the solar system?"
+      - "Tell me about the solar system"
+      - "Solar system information"
+      - "Explain our solar system"
+      - "Solar system facts"
+    url_mapping:
+      url: "https://en.wikipedia.org/wiki/Solar_System"
+    formats: ["markdown"]
+    timeout: 50
+
+  - id: "wiki_chess"
+    description: "Get information about chess"
+    semantic_type: "general_knowledge"
+    nl_examples:
+      - "What is chess?"
+      - "Tell me about chess"
+      - "Chess game information"
+      - "How to play chess"
+      - "Chess rules and history"
+    url_mapping:
+      url: "https://en.wikipedia.org/wiki/Chess"
+    formats: ["markdown"]
+    timeout: 45
+
+  - id: "wiki_philosophy"
+    description: "Get information about philosophy"
+    semantic_type: "general_knowledge"
+    nl_examples:
+      - "What is philosophy?"
+      - "Tell me about philosophy"
+      - "Philosophy information"
+      - "Explain philosophy"
+      - "What does philosophy mean?"
+    url_mapping:
+      url: "https://en.wikipedia.org/wiki/Philosophy"
+    formats: ["markdown"]
+    timeout: 50
+
+  - id: "wiki_democracy"
+    description: "Get information about democracy"
+    semantic_type: "general_knowledge"
+    nl_examples:
+      - "What is democracy?"
+      - "Tell me about democracy"
+      - "Democracy information"
+      - "Explain democracy"
+      - "How does democracy work?"
+    url_mapping:
+      url: "https://en.wikipedia.org/wiki/Democracy"
+    formats: ["markdown"]
+    timeout: 45

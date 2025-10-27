@@ -1,0 +1,103 @@
+# Minimal Firecrawl Domain Configuration for Testing
+# Simplified domain for quick validation
+
+domain_name: "web_test"
+domain_type: "http_api"
+version: "1.0.0"
+description: "Minimal domain configuration for testing Firecrawl web scraping"
+
+# Domain metadata
+domain_metadata:
+  purpose: "testing"
+  retrieval_strategy: "url_mapping"
+  content_processing: "direct_scraping"
+
+# API Configuration
+api_config:
+  protocol: "https"
+  default_timeout: 30
+  rate_limit: null
+  content_type: "application/json"
+
+# Authentication
+authentication:
+  type: "bearer_token"
+  description: "Bearer token authentication for Firecrawl API"
+  header_name: "Authorization"
+  token_prefix: "Bearer"
+
+# Semantic Types
+semantic_types:
+  test_keyword:
+    description: "Test-related keywords"
+    patterns: ["test", "scrape", "get", "show"]
+    examples: ["example", "python", "httpbin"]
+
+# API Endpoints
+endpoints:
+  scrape:
+    endpoint_path: "/scrape"
+    http_method: "POST"
+    description: "Scrape content from test URLs"
+    primary_operation: true
+    requires_auth: true
+
+    request_schema:
+      url:
+        type: "string"
+        required: true
+        description: "URL to scrape"
+      formats:
+        type: "array"
+        default: ["markdown"]
+        allowed_values: ["markdown", "html", "text"]
+      timeout:
+        type: "integer"
+        default: 30000
+
+    response_schema:
+      success:
+        type: "boolean"
+      url:
+        type: "string"
+      markdown:
+        type: "string"
+      metadata:
+        type: "object"
+
+# Vocabulary
+vocabulary:
+  action_synonyms:
+    test: ["test", "try", "check", "verify"]
+    get: ["get", "fetch", "retrieve", "scrape"]
+    show: ["show", "display", "give"]
+
+  entity_synonyms:
+    example: ["example", "sample", "test"]
+    page: ["page", "site", "website", "homepage"]
+
+# Example queries
+example_queries:
+  - query: "test example"
+    description: "Test with example.com"
+    template_match: "test_example_com"
+    mapped_url: "https://example.com"
+
+  - query: "test python homepage"
+    description: "Test with Python.org homepage"
+    template_match: "test_python_homepage"
+    mapped_url: "https://www.python.org/"
+
+  - query: "test httpbin"
+    description: "Test with httpbin HTML page"
+    template_match: "test_httpbin"
+    mapped_url: "https://httpbin.org/html"
+
+# Performance
+performance:
+  default_timeout: 30000  # 30 seconds
+  concurrent_requests: 1
+  retry_strategy:
+    max_retries: 2
+    retry_delay: 1000
+    retry_on_status: [500, 502, 503, 504]

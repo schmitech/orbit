@@ -59,7 +59,7 @@ export function Message({ message, onRegenerate }: MessageProps) {
 
       <div
         className={`flex-1 max-w-2xl space-y-3 ${
-          isAssistant ? '' : 'flex flex-col items-end text-right'
+          isAssistant ? '' : 'flex flex-col items-end'
         }`}
       >
         <div

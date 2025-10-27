@@ -1,0 +1,156 @@
+domain_name: Contact Management
+description: Contact Management database schema
+domain_type: general
+semantic_types:
+  email_address:
+    description: Email address
+    patterns:
+    - email
+    - mail
+    - contact
+    regex_patterns:
+    - \b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b
+  date_value:
+    description: Date values in various formats
+    patterns:
+    - date
+    - day
+    - time
+    - when
+    - 'on'
+    - created
+    - updated
+    regex_patterns:
+    - \b\d{4}-\d{2}-\d{2}\b
+    - \b\d{2}/\d{2}/\d{4}\b
+  identifier:
+    description: Unique identifier
+    patterns:
+    - id
+    - identifier
+    - key
+    regex_patterns:
+    - \b(\d+)\b
+vocabulary:
+  entity_synonyms: {}
+  action_verbs:
+    find:
+    - show
+    - list
+    - get
+    - find
+    - display
+    - retrieve
+    - lookup
+    - search
+    - view
+    filter:
+    - filter
+    - only
+    - just
+    - where
+    - with
+    - having
+    - containing
+    count:
+    - count
+    - number of
+    - how many
+    - total
+    - sum
+    sort:
+    - sort
+    - order
+    - arrange
+    - rank
+  field_synonyms: {}
+entities:
+  users:
+    name: users
+    entity_type: primary
+    table_name: users
+    description: Users entity
+    primary_key: id
+    display_name_field: name
+    searchable_fields:
+    - name
+    - email
+    - city
+    common_filters:
+    - id
+    default_sort_field: created_at
+    default_sort_order: ASC
+fields:
+  users:
+    id:
+      name: id
+      data_type: integer
+      db_column: id
+      description: Id
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: identifier
+      summary_priority: 10
+    name:
+      name: name
+      data_type: string
+      db_column: name
+      description: Name
+      required: true
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 9
+    email:
+      name: email
+      data_type: string
+      db_column: email
+      description: Email
+      required: true
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: email_address
+      summary_priority: 9
+    age:
+      name: age
+      data_type: integer
+      db_column: age
+      description: Age
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 5
+    city:
+      name: city
+      data_type: string
+      db_column: city
+      description: City
+      required: false
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 5
+    created_at:
+      name: created_at
+      data_type: date
+      db_column: created_at
+      description: Created At
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: date_value
+      summary_priority: 5
+relationships: []
+query_patterns: []
+metadata:
+  generated_at: '2025-10-16T20:02:17.533430'
+  generator_version: 1.0.0
+  auto_generated: true

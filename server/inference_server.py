@@ -2,12 +2,20 @@ import ssl
 import asyncio
 import atexit
 import aiohttp
+import warnings
 from typing import Any, Optional
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 
+# Import warning suppression utilities early
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from utils.warning_suppression import suppress_known_warnings
+
 import uvicorn
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 from fastapi_mcp import FastApiMCP
 
@@ -119,9 +127,10 @@ class InferenceServer:
         self.app = FastAPI(
             title="ORBIT",
             description="A FastAPI server with chat endpoint and RAG capabilities",
-            version="1.5.3",
+            version="1.6.0",
             lifespan=self._create_lifespan_manager()
         )
+        self.app.mount("/static", StaticFiles(directory="server/templates"), name="static")
         
         # Initialize application state
         self.services = {}
@@ -199,7 +208,7 @@ class InferenceServer:
         if not inference_only:
             global RetrieverFactory, ADAPTER_REGISTRY
             from retrievers.base.base_retriever import RetrieverFactory
-            from retrievers.adapters.registry import ADAPTER_REGISTRY
+            from adapters.registry import ADAPTER_REGISTRY
             self.logger.info("Initializing retrievers package for RAG mode")
         else:
             self.logger.info("Skipping retrievers initialization in inference-only mode")
@@ -446,7 +455,7 @@ class InferenceServer:
         # Get performance configuration
         perf_config = self.config.get('performance', {})
         workers = perf_config.get('workers', 1)  # Default to 1 worker for backward compatibility
-        
+
         # Configure uvicorn with signal handlers for graceful shutdown
         config = uvicorn.Config(
             self.app,
@@ -458,7 +467,12 @@ class InferenceServer:
             loop="asyncio",
             timeout_keep_alive=perf_config.get('keep_alive_timeout', 30),
             timeout_graceful_shutdown=30,
-            access_log=False  # Disable FastAPI's default access logging
+            access_log=False,  # Disable FastAPI's default access logging
+            log_config=None,  # Reuse global logging configuration for consistent formatting
+            # Streaming optimization settings
+            h11_max_incomplete_event_size=16 * 1024,  # 16KB for smoother streaming
+            limit_concurrency=None,  # Don't limit concurrent connections
+            backlog=2048,  # Connection backlog
         )
         
         server = uvicorn.Server(config)

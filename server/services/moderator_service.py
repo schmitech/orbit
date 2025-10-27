@@ -13,8 +13,12 @@ import asyncio
 import aiohttp
 import logging
 from typing import Dict, Any, Tuple, Optional
-from moderators.base import ModeratorFactory
-from moderators import register_moderator
+
+# Import from new AI services architecture
+from ai_services.factory import AIServiceFactory
+from ai_services.base import ServiceType
+from ai_services.services.moderation_service import ModerationResult
+from ai_services.registry import register_all_services
 
 from utils import is_true_value
 
@@ -47,31 +51,34 @@ class ModeratorService:
         # Get moderator information
         # First check for moderator, otherwise use the general inference provider
         self.moderator_name = safety_config.get('moderator')
-        
+
         # Debug output to help identify configuration issues
         if self.moderator_name:
             logger.info(f"Configured moderator from safety config: {self.moderator_name}")
-            
-            # Try to lazily register the configured moderator
-            registration_success = register_moderator(self.moderator_name)
-            if registration_success:
-                logger.info(f"Successfully registered moderator: {self.moderator_name}")
-            else:
-                logger.warning(f"Failed to register moderator: {self.moderator_name}")
         else:
             logger.info("No moderator specified in safety config, will use inference provider")
-            
-        # Load the available moderators
-        available_moderators = list(ModeratorFactory._registry.keys()) if hasattr(ModeratorFactory, '_registry') else []
+
+        # Ensure all AI services are registered
+        # Note: If already registered by ServiceFactory, this will be a no-op
+        register_all_services(config)
+
+        # Check available moderation services from new factory
+        available_services = AIServiceFactory.list_available_services()
+        available_moderators = available_services.get('moderation', [])
         logger.info(f"Available moderators: {available_moderators}")
-            
+
         # If using a recognized moderator
-        if self.moderator_name and self.moderator_name in ModeratorFactory._registry:
+        if self.moderator_name and self.moderator_name in available_moderators:
             try:
                 self.use_moderator = True
-                self.moderator = ModeratorFactory.create_moderator(config, self.moderator_name)
+                # Use new AI services factory
+                self.moderator = AIServiceFactory.create_service(
+                    ServiceType.MODERATION,
+                    self.moderator_name,
+                    config
+                )
                 logger.info(f"Safety service using moderator: {self.moderator_name}")
-            except ValueError as e:
+            except (ValueError, Exception) as e:
                 # If moderator initialization fails (e.g., missing API key), try to fall back
                 logger.warning(f"Failed to initialize {self.moderator_name} moderator: {str(e)}")
                 self._fallback_to_alternative_moderator(config, safety_config)
@@ -114,33 +121,42 @@ class ModeratorService:
     def _fallback_to_alternative_moderator(self, config: Dict[str, Any], safety_config: Dict[str, Any]):
         """
         Try to fall back to an alternative moderator when the primary one fails.
-        
+
         Args:
             config: Application configuration dictionary
             safety_config: Safety configuration dictionary
         """
         # Try to find an alternative moderator that doesn't require API keys
         alternative_moderators = ['ollama']  # Ollama doesn't require API keys
-        
+
+        # Get available moderators from new factory
+        available_services = AIServiceFactory.list_available_services()
+        available_moderators = available_services.get('moderation', [])
+
         for alt_moderator in alternative_moderators:
-            if alt_moderator in ModeratorFactory._registry:
+            if alt_moderator in available_moderators:
                 try:
                     self.moderator_name = alt_moderator
                     self.use_moderator = True
-                    self.moderator = ModeratorFactory.create_moderator(config, alt_moderator)
+                    # Use new AI services factory
+                    self.moderator = AIServiceFactory.create_service(
+                        ServiceType.MODERATION,
+                        alt_moderator,
+                        config
+                    )
                     logger.info(f"Successfully fell back to {alt_moderator} moderator")
                     return
                 except Exception as e:
                     logger.warning(f"Failed to initialize {alt_moderator} moderator: {str(e)}")
                     continue
-        
+
         # If no alternative moderator works, check if we should disable safety
         if safety_config.get('disable_on_fallback', False):
             logger.warning("No moderators available and disable_on_fallback is enabled, disabling safety checks")
             self.enabled = False
             self.use_moderator = False
             return
-        
+
         # Otherwise fall back to inference provider
         logger.warning("No alternative moderators available, falling back to inference provider")
         self._fallback_to_inference_provider(config, safety_config)
@@ -159,8 +175,11 @@ class ModeratorService:
         self.model = safety_config.get('model', config.get('inference', {}).get(self.provider, {}).get('model', 'gemma3:1b'))
         self.base_url = config.get('inference', {}).get(self.provider, {}).get('base_url', 'http://localhost:11434')
         
-        if self.moderator_name and self.moderator_name not in ModeratorFactory._registry:
-            logger.warning(f"Configured moderator '{self.moderator_name}' not found in registry. Falling back to {self.provider}.")
+        # Note: ModeratorFactory is deprecated, but we check available services instead
+        available_services = AIServiceFactory.list_available_services()
+        available_moderators = available_services.get('moderation', [])
+        if self.moderator_name and self.moderator_name not in available_moderators:
+            logger.warning(f"Configured moderator '{self.moderator_name}' not found in available services. Falling back to {self.provider}.")
         
         logger.info(f"Safety service using inference provider: {self.provider}")
         logger.info(f"Safety service using model: {self.model}")
@@ -321,12 +340,15 @@ Query: """
                 if self.verbose:
                     if is_safe:
                         logger.info(f"✅ MODERATION PASSED: Query was deemed SAFE by {self.moderator_name} moderator")
+                        # Show all category scores for debugging
+                        logger.debug(f"All category scores: {result.categories}")
                     else:
                         # Get flagged categories with scores > 0.5
                         try:
                             flagged_categories = {k: v for k, v in result.categories.items() if v > 0.5}
                             logger.info(f"🛑 MODERATION BLOCKED: Query was flagged as UNSAFE by {self.moderator_name} moderator")
                             logger.info(f"⚠️ Flagged categories: {flagged_categories}")
+                            logger.debug(f"All category scores: {result.categories}")
                         except Exception as category_error:
                             logger.error(f"Error processing moderation categories: {str(category_error)}")
                             logger.info(f"🛑 MODERATION BLOCKED: Query was flagged as UNSAFE (categories unavailable)")

@@ -1,0 +1,1109 @@
+# Elasticsearch Query DSL Templates for Application Logs
+templates:
+  - id: search_error_logs_recent #FIXME
+    version: "1.0.0"
+    description: "Search for recent error logs in application"
+    category: "log_search"
+    complexity: "simple"
+
+    # Elasticsearch-specific fields
+    index: "application-logs-demo"
+    http_method: "POST"
+    endpoint: "/{index}/_search"
+    endpoint_type: "_search"
+
+    # Elasticsearch Query DSL template (with variable substitution)
+    query_dsl: |
+      {
+        "query": {
+          "bool": {
+            "must": [
+              {
+                "match": {
+                  "level": "ERROR"
+                }
+              }
+              {% if message %}
+              ,{
+                "match": {
+                  "message": {
+                    "query": "{{message}}",
+                    "operator": "AND",
+                    "fuzziness": "AUTO"
+                  }
+                }
+              }
+              {% endif %}
+              {% if user_id %}
+              ,{
+                "term": {
+                  "user_id": "{{user_id}}"
+                }
+              }
+              {% endif %}
+              {% if service_name %}
+              ,{
+                "term": {
+                  "service_name": "{{service_name}}"
+                }
+              }
+              {% endif %}
+            ],
+            "filter": [
+              {
+                "range": {
+                  "timestamp": {
+                    "gte": "{{start_time}}",
+                    "lte": "{{end_time}}"
+                  }
+                }
+              },
+              {
+                "range": {
+                  "status_code": {
+                    "gte": {{status_code_min}}
+                    {% if status_code_max %}
+                    ,"lte": {{status_code_max}}
+                    {% endif %}
+                  }
+                }
+              }
+              {% if environment %}
+              ,{
+                "term": {
+                  "environment": "{{environment}}"
+                }
+              }
+              {% endif %}
+            ]
+          }
+        },
+        "size": {{limit}},
+        "from": {{offset}},
+        "sort": [
+          {
+            "timestamp": {
+              "order": "desc"
+            }
+          }
+        ],
+        "highlight": {
+          "fields": {
+            "message": {
+              "fragment_size": 150,
+              "number_of_fragments": 3
+            },
+            "exception.message": {
+              "fragment_size": 150
+            }
+          },
+          "pre_tags": ["<mark>"],
+          "post_tags": ["</mark>"]
+        },
+        "_source": {
+          "includes": ["timestamp", "level", "message", "service_name", "user_id", "exception", "request_id"]
+        }
+      }
+
+    # Template Parameters
+    parameters:
+      - name: message
+        type: string
+        required: false
+        description: "Error message text to search for"
+        location: "body"
+        example: "connection timeout"
+
+      - name: user_id
+        type: string
+        required: false
+        description: "User ID associated with error"
+        location: "body"
+        example: "user123"
+
+      - name: service_name
+        type: string
+        required: false
+        description: "Service name that generated the log"
+        location: "body"
+        example: "auth-service"
+
+      - name: environment
+        type: string
+        required: false
+        description: "Environment (production, staging, development)"
+        location: "body"
+        allowed_values: ["production", "staging", "development"]
+
+      - name: start_time
+        type: string
+        required: false
+        default: "now-24h"
+        description: "Start of time range"
+        location: "body"
+        format: "date_time"
+
+      - name: end_time
+        type: string
+        required: false
+        default: "now"
+        description: "End of time range"
+        location: "body"
+        format: "date_time"
+
+      - name: status_code_min
+        type: integer
+        required: false
+        default: 500
+        description: "Minimum HTTP status code to include"
+        location: "body"
+        min: 100
+        max: 599
+
+      - name: status_code_max
+        type: integer
+        required: false
+        description: "Maximum HTTP status code to include"
+        location: "body"
+        min: 100
+        max: 599
+
+      - name: limit
+        type: integer
+        required: false
+        default: 50
+        description: "Maximum number of results"
+        location: "body"
+        min: 1
+        max: 10000
+
+      - name: offset
+        type: integer
+        required: false
+        default: 0
+        description: "Result offset for pagination"
+        location: "body"
+        min: 0
+
+    # Natural Language Examples for Intent Matching
+    nl_examples:
+      - "Show me recent error logs"
+      - "Find errors in the last 24 hours"
+      - "What errors did user john123 encounter?"
+      - "Search for authentication errors"
+      - "Show me errors with message connection timeout"
+      - "Get error logs from the auth service"
+      - "Find production errors from yesterday"
+      - "Show me all errors for user admin"
+
+    # Semantic Tags for Template Matching
+    semantic_tags:
+      action: "search"
+      primary_entity: "application_logs"
+      qualifiers: ["error", "recent", "filter"]
+      time_based: true
+
+    # Display configuration
+    display_fields:
+      - "timestamp"
+      - "level"
+      - "service_name"
+      - "message"
+      - "user_id"
+
+    # Tags for categorization
+    tags: ["logs", "errors", "search", "recent"]
+    result_format: "table"
+    timeout: 30
+
+  - id: aggregate_errors_by_service #FIXME
+    version: "1.0.0"
+    description: "Count and group errors by service name"
+    category: "log_analytics"
+    complexity: "medium"
+
+    index: "application-logs-demo"
+    http_method: "POST"
+    endpoint: "/{index}/_search"
+
+    query_dsl: |
+      {
+        "query": {
+          "bool": {
+            "must": [
+              {
+                "match": {
+                  "level": "ERROR"
+                }
+              }
+            ],
+            "filter": [
+              {
+                "range": {
+                  "timestamp": {
+                    "gte": "{{start_time}}",
+                    "lte": "{{end_time}}"
+                  }
+                }
+              }
+              {% if environment %}
+              ,{
+                "term": {
+                  "environment": "{{environment}}"
+                }
+              }
+              {% endif %}
+            ]
+          }
+        },
+        "size": 0,
+        "aggs": {
+          "by_service": {
+            "terms": {
+              "field": "service_name.keyword",
+              "size": {{agg_size}},
+              "order": {
+                "_count": "desc"
+              }
+            },
+            "aggs": {
+              "error_types": {
+                "terms": {
+                  "field": "exception.type.keyword",
+                  "size": 5
+                }
+              },
+              "avg_response_time": {
+                "avg": {
+                  "field": "response_time"
+                }
+              }
+            }
+          }
+        }
+      }
+
+    parameters:
+      - name: start_time
+        type: string
+        required: false
+        default: "now-30d"
+        description: "Start of time range"
+        location: "body"
+        format: "date_time"
+
+      - name: end_time
+        type: string
+        required: false
+        default: "now"
+        description: "End of time range"
+        location: "body"
+        format: "date_time"
+
+      - name: environment
+        type: string
+        required: false
+        description: "Filter by environment"
+        location: "body"
+        allowed_values: ["production", "staging", "development"]
+
+      - name: agg_size
+        type: integer
+        required: false
+        default: 20
+        description: "Number of services to return"
+        location: "body"
+        min: 1
+        max: 100
+
+    nl_examples:
+      - "How many errors by service?"
+      - "Show me error count per service"
+      - "Which services have the most errors?"
+      - "Count errors grouped by service"
+      - "Break down errors by microservice"
+      - "What's the error distribution across services?"
+
+    semantic_tags:
+      action: "aggregate"
+      primary_entity: "application_logs"
+      aggregation_type: "terms"
+      group_by: "service_name"
+
+    tags: ["logs", "aggregation", "analytics", "services"]
+    result_format: "summary"
+
+  - id: error_timeline
+    version: "1.0.0"
+    description: "Show error count over time with time-series visualization"
+    category: "log_analytics"
+    complexity: "medium"
+
+    index: "application-logs-demo"
+    http_method: "POST"
+    endpoint: "/{index}/_search"
+
+    query_dsl: |
+      {
+        "query": {
+          "bool": {
+            "must": [
+              {
+                "match": {
+                  "level": "ERROR"
+                }
+              }
+            ],
+            "filter": [
+              {
+                "range": {
+                  "timestamp": {
+                    "gte": "{{start_time}}",
+                    "lte": "{{end_time}}"
+                  }
+                }
+              },
+              {
+                "range": {
+                  "status_code": {
+                    "gte": {{status_code_min}}
+                    {% if status_code_max %}
+                    ,"lte": {{status_code_max}}
+                    {% endif %}
+                  }
+                }
+              }
+              {% if service_name %}
+              ,{
+                "term": {
+                  "service_name": "{{service_name}}"
+                }
+              }
+              {% endif %}
+              {% if environment %}
+              ,{
+                "term": {
+                  "environment": "{{environment}}"
+                }
+              }
+              {% endif %}
+            ]
+          }
+        },
+        "size": 0,
+        "track_total_hits": false,
+        "aggs": {
+          "errors_over_time": {
+            "date_histogram": {
+              "field": "timestamp",
+              "fixed_interval": "{{interval}}",
+              "min_doc_count": 0,
+              "extended_bounds": {
+                "min": "{{start_time}}",
+                "max": "{{end_time}}"
+              }
+            },
+            "aggs": {
+              "by_level": {
+                "terms": {
+                  "field": "level.keyword",
+                  "size": 5
+                }
+              }
+            }
+          }
+        }
+      }
+
+    parameters:
+      - name: start_time
+        type: string
+        required: false
+        default: "now-24h"
+        description: "Start of time range"
+
+      - name: end_time
+        type: string
+        required: false
+        default: "now"
+        description: "End of time range"
+
+      - name: environment
+        type: string
+        required: false
+        description: "Filter by environment"
+        allowed_values: ["production", "staging", "development"]
+
+      - name: service_name
+        type: string
+        required: false
+        description: "Filter by specific service"
+
+      - name: status_code_min
+        type: integer
+        required: false
+        default: 500
+        description: "Minimum HTTP status code to include"
+        min: 100
+        max: 599
+
+      - name: status_code_max
+        type: integer
+        required: false
+        description: "Maximum HTTP status code to include"
+        min: 100
+        max: 599
+
+      - name: interval
+        type: string
+        required: false
+        default: "15m"
+        description: "Time bucket interval"
+        allowed_values: ["1m", "5m", "15m", "30m", "1h", "6h", "12h", "1d"]
+
+    nl_examples:
+      - "Show me error trends over the last 24 hours"
+      - "How have errors changed over time?"
+      - "Display error timeline"
+      - "Graph errors per hour" #Too long
+      - "Show error count by hour"
+      - "Error spike analysis for auth service"
+
+    semantic_tags:
+      action: "aggregate"
+      primary_entity: "application_logs"
+      aggregation_type: "date_histogram"
+      time_series: true
+
+    tags: ["logs", "analytics", "timeline", "trends"]
+    result_format: "timeseries"
+
+  - id: search_slow_requests
+    version: "1.0.0"
+    description: "Find slow API requests based on response time"
+    category: "performance_analysis"
+    complexity: "medium"
+
+    index: "application-logs-demo"
+    http_method: "POST"
+    endpoint: "/{index}/_search"
+
+    query_dsl: |
+      {% set slow_response_field = response_time_field | default("response_time") %}
+      {% set slow_min_response = min_response_time | default(1000) %}
+      {% set slow_max_response = max_response_time | default(None, true) %}
+      {
+        "query": {
+          "bool": {
+            "must": [
+              {
+                "exists": {
+                  "field": "{{slow_response_field}}"
+                }
+              }
+            ],
+            "filter": [
+              {
+                "range": {
+                  "timestamp": {
+                    "gte": "{{start_time}}",
+                    "lte": "{{end_time}}"
+                  }
+                }
+              },
+              {
+                "range": {
+                  "{{slow_response_field}}": {
+                    "gte": {{slow_min_response}}
+                    {% if slow_max_response is not none %}
+                    ,"lte": {{slow_max_response}}
+                    {% endif %}
+                  }
+                }
+              }
+              {% if endpoint %}
+              ,{
+                "wildcard": {
+                  "endpoint.keyword": "*{{endpoint}}*"
+                }
+              }
+              {% endif %}
+              {% if service_name %}
+              ,{
+                "term": {
+                  "service_name.keyword": "{{service_name}}"
+                }
+              }
+              {% endif %}
+            ]
+          }
+        },
+        "size": {{limit}},
+        "sort": [
+          {
+            "{{slow_response_field}}": {
+              "order": "desc"
+            }
+          }
+        ],
+        "_source": ["timestamp", "service_name", "endpoint", "{{slow_response_field}}", "status_code", "user_id", "request_id"]
+      }
+
+    parameters:
+      - name: min_response_time
+        type: integer
+        required: false
+        default: 1000
+        description: "Minimum response time in milliseconds"
+        min: 0
+
+      - name: endpoint
+        type: string
+        required: false
+        description: "API endpoint to filter"
+
+      - name: service_name
+        type: string
+        required: false
+        description: "Service name to filter"
+
+      - name: start_time
+        type: string
+        required: false
+        default: "now-24h"
+        description: "Start of time range"
+
+      - name: end_time
+        type: string
+        required: false
+        default: "now"
+        description: "End of time range"
+
+      - name: limit
+        type: integer
+        required: false
+        default: 50
+        description: "Maximum results"
+        min: 1
+        max: 1000
+
+      - name: max_response_time
+        type: integer
+        required: false
+        description: "Optional upper bound for response time"
+        min: 0
+        max: 3600000
+
+      - name: response_time_field
+        type: string
+        required: false
+        default: "response_time"
+        description: "Field name to use for response time filtering (override if your mapping differs)"
+
+    nl_examples:
+      - "Show me slow requests"
+      - "Find API calls taking more than 1 second"
+      - "Which endpoints are slow?"
+      - "Show requests with high response time"
+      - "Find timeouts in the auth service"
+      - "Display slowest API calls"
+
+    semantic_tags:
+      action: "search"
+      primary_entity: "application_logs"
+      qualifiers: ["slow", "performance", "timeout"]
+
+    tags: ["performance", "slow", "requests", "monitoring"]
+    result_format: "table"
+
+  # ============================================================================
+  # MULTI-INDEX SEARCH TEMPLATES
+  # ============================================================================
+
+  - id: search_multi_index_errors
+    version: "1.0.0"
+    description: "Search for errors across multiple log indices using wildcard patterns"
+    category: "multi_index_search"
+    complexity: "simple"
+
+    # Multi-index pattern with wildcards
+    index: "application-logs-*,system-logs-*"
+    http_method: "POST"
+    endpoint: "/{index}/_search"
+    endpoint_type: "_search"
+
+    query_dsl: |
+      {
+        "query": {
+          "bool": {
+            "must": [
+              {
+                "match": {
+                  "level": "ERROR"
+                }
+              }
+              {% if message %}
+              ,{
+                "match": {
+                  "message": "{{message}}"
+                }
+              }
+              {% endif %}
+            ],
+            "filter": [
+              {
+                "range": {
+                  "timestamp": {
+                    "gte": "{{start_time}}",
+                    "lte": "{{end_time}}"
+                  }
+                }
+              },
+              {
+                "range": {
+                  "status_code": {
+                    "gte": {{status_code_min}}
+                    {% if status_code_max %}
+                    ,"lte": {{status_code_max}}
+                    {% endif %}
+                  }
+                }
+              }
+              {% if indices %}
+              ,{
+                "terms": {
+                  "_index": {{indices}}
+                }
+              }
+              {% endif %}
+            ]
+          }
+        },
+        "size": {{limit}},
+        "sort": [
+          {
+            "timestamp": {
+              "order": "desc"
+            }
+          }
+        ],
+        "_source": ["timestamp", "level", "message", "service_name", "_index"]
+      }
+
+    parameters:
+      - name: message
+        type: string
+        required: false
+        description: "Error message to search for"
+        location: "body"
+
+      - name: indices
+        type: array
+        required: false
+        description: "Specific indices to search (JSON array)"
+        location: "body"
+        example: '["application-logs-demo", "system-logs-demo"]'
+
+      - name: start_time
+        type: string
+        required: false
+        default: "now-24h"
+        description: "Start of time range"
+        location: "body"
+
+      - name: end_time
+        type: string
+        required: false
+        default: "now"
+        description: "End of time range"
+        location: "body"
+
+      - name: limit
+        type: integer
+        required: false
+        default: 50
+        description: "Maximum number of results"
+        location: "body"
+
+      - name: status_code_min
+        type: integer
+        required: false
+        default: 500
+        description: "Minimum HTTP status code to include"
+        location: "body"
+        min: 100
+        max: 599
+
+      - name: status_code_max
+        type: integer
+        required: false
+        description: "Maximum HTTP status code to include"
+        location: "body"
+        min: 100
+        max: 599
+
+    nl_examples:
+      - "Search for errors across all log indices"
+      - "Find errors in all application and system logs"
+      - "Show me errors from multiple log sources"
+      - "Search across all log indices for database errors"
+
+    semantic_tags:
+      action: "search"
+      primary_entity: "multiple_indices"
+      qualifiers: ["error", "cross-index", "wildcard"]
+      multi_index: true
+
+    tags: ["logs", "multi-index", "wildcard", "cross-index"]
+    result_format: "table"
+
+  # ============================================================================
+  # ADVANCED AGGREGATION PIPELINE TEMPLATES
+  # ============================================================================
+
+  - id: error_rate_trend_analysis #FIXME
+    version: "1.0.0"
+    description: "Analyze error rate trends with derivative and cumulative sum"
+    category: "advanced_analytics"
+    complexity: "advanced"
+
+    index: "application-logs-demo"
+    http_method: "POST"
+    endpoint: "/{index}/_search"
+    endpoint_type: "_search"
+
+    query_dsl: |
+      {
+        "query": {
+          "bool": {
+            "must": [
+              {
+                "match": {
+                  "level": "ERROR"
+                }
+              }
+            ],
+            "filter": [
+              {
+                "range": {
+                  "timestamp": {
+                    "gte": "{{start_time}}",
+                    "lte": "{{end_time}}"
+                  }
+                }
+              }
+              {% if service_name %}
+              ,{
+                "term": {
+                  "service_name": "{{service_name}}"
+                }
+              }
+              {% endif %}
+            ]
+          }
+        },
+        "size": 0,
+        "aggs": {
+          "errors_over_time": {
+            "date_histogram": {
+              "field": "timestamp",
+              "fixed_interval": "{{interval}}",
+              "min_doc_count": 0
+            },
+            "aggs": {
+              "error_count": {
+                "value_count": {
+                  "field": "level"
+                }
+              },
+              "error_rate_derivative": {
+                "derivative": {
+                  "buckets_path": "error_count"
+                }
+              },
+              "cumulative_errors": {
+                "cumulative_sum": {
+                  "buckets_path": "error_count"
+                }
+              }
+            }
+          }
+        }
+      }
+
+    parameters:
+      - name: start_time
+        type: string
+        required: false
+        default: "now-7d"
+        description: "Start of time range"
+
+      - name: end_time
+        type: string
+        required: false
+        default: "now"
+        description: "End of time range"
+
+      - name: service_name
+        type: string
+        required: false
+        description: "Filter by service name"
+
+      - name: interval
+        type: string
+        required: false
+        default: "1h"
+        description: "Time bucket interval"
+        allowed_values: ["1m", "5m", "15m", "30m", "1h", "6h", "12h", "1d"]
+
+    nl_examples:
+      - "Show me error rate trends over time"
+      - "Analyze error rate changes over time"
+      - "What's the derivative of error rate?"
+      - "Show cumulative errors with trend analysis"
+      - "Calculate cumulative sum of errors"
+
+    semantic_tags:
+      action: "aggregate"
+      primary_entity: "application_logs"
+      aggregation_type: "pipeline"
+      advanced: true
+
+    tags: ["analytics", "pipeline", "derivative", "cumulative_sum", "trend"]
+    result_format: "timeseries"
+
+  - id: performance_percentiles_with_filters #FIXME
+    version: "1.0.0"
+    description: "Calculate response time percentiles with bucket selector to filter slow services"
+    category: "advanced_analytics"
+    complexity: "advanced"
+
+    index: "application-logs-demo"
+    http_method: "POST"
+    endpoint: "/{index}/_search"
+    endpoint_type: "_search"
+
+    query_dsl: |
+      {
+        "query": {
+          "bool": {
+            "must": [
+              {
+                "exists": {
+                  "field": "response_time"
+                }
+              }
+            ],
+            "filter": [
+              {
+                "range": {
+                  "timestamp": {
+                    "gte": "{{start_time}}",
+                    "lte": "{{end_time}}"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "size": 0,
+        "aggs": {
+          "by_service": {
+            "terms": {
+              "field": "service_name.keyword",
+              "size": {{agg_size}}
+            },
+            "aggs": {
+              "response_time_stats": {
+                "percentiles": {
+                  "field": "response_time",
+                  "percents": [50, 75, 90, 95, 99]
+                }
+              },
+              "avg_response_time": {
+                "avg": {
+                  "field": "response_time"
+                }
+              },
+              "max_response_time": {
+                "max": {
+                  "field": "response_time"
+                }
+              },
+              "slow_service_filter": {
+                "bucket_selector": {
+                  "buckets_path": {
+                    "avgResponseTime": "avg_response_time"
+                  },
+                  "script": "params.avgResponseTime != null && params.avgResponseTime > {{threshold}}"
+                }
+              }
+            }
+          }
+        }
+      }
+
+    parameters:
+      - name: start_time
+        type: string
+        required: false
+        default: "now-24h"
+        description: "Start of time range"
+        location: "body"
+        format: "date_time"
+
+      - name: end_time
+        type: string
+        required: false
+        default: "now"
+        description: "End of time range"
+        location: "body"
+        format: "date_time"
+
+      - name: threshold
+        type: integer
+        required: false
+        default: 500
+        description: "Response time threshold in ms for filtering"
+        location: "body"
+        min: 0
+
+      - name: agg_size
+        type: integer
+        required: false
+        default: 20
+        description: "Number of services to analyze"
+        location: "body"
+        min: 1
+        max: 100
+
+    nl_examples:
+      - "Show me only slow services with percentile breakdown"
+      - "Which services have high response times?"
+      - "Find services where average response time exceeds threshold"
+      - "Show performance percentiles for slow services only"
+      - "Filter services by response time and show percentiles"
+
+    semantic_tags:
+      action: "aggregate"
+      primary_entity: "application_logs"
+      aggregation_type: "pipeline"
+      qualifiers: ["performance", "percentiles", "filter"]
+
+    tags: ["performance", "percentiles", "bucket_selector", "filtering"]
+    result_format: "summary"
+
+  - id: error_spike_detection
+    version: "1.0.0"
+    description: "Detect error spikes using bucket script to calculate error rate percentage"
+    category: "advanced_analytics"
+    complexity: "advanced"
+
+    index: "application-logs-demo"
+    http_method: "POST"
+    endpoint: "/{index}/_search"
+    endpoint_type: "_search"
+
+    query_dsl: |
+      {
+        "query": {
+          "range": {
+            "timestamp": {
+              "gte": "{{start_time}}",
+              "lte": "{{end_time}}"
+            }
+          }
+        },
+        "size": 0,
+        "aggs": {
+          "by_time": {
+            "date_histogram": {
+              "field": "timestamp",
+              "fixed_interval": "{{interval}}",
+              "min_doc_count": 0
+            },
+            "aggs": {
+              "total_logs": {
+                "value_count": {
+                  "field": "level"
+                }
+              },
+              "error_logs": {
+                "filter": {
+                  "match": {
+                    "level": "ERROR"
+                  }
+                },
+                "aggs": {
+                  "count": {
+                    "value_count": {
+                      "field": "level"
+                    }
+                  }
+                }
+              },
+              "error_rate": {
+                "bucket_script": {
+                  "buckets_path": {
+                    "errors": "error_logs>count",
+                    "total": "total_logs"
+                  },
+                  "script": "params.total > 0 ? (params.errors / params.total) * 100 : 0"
+                }
+              },
+              "spike_detector": {
+                "bucket_selector": {
+                  "buckets_path": {
+                    "errorRate": "error_rate"
+                  },
+                  "script": "params.errorRate != null && params.errorRate > {{spike_threshold}}"
+                }
+              }
+            }
+          }
+        }
+      }
+
+    parameters:
+      - name: start_time
+        type: string
+        required: false
+        default: "now-24h"
+        description: "Start of time range"
+
+      - name: end_time
+        type: string
+        required: false
+        default: "now"
+        description: "End of time range"
+
+      - name: interval
+        type: string
+        required: false
+        default: "5m"
+        description: "Time bucket interval"
+        allowed_values: ["1m", "5m", "15m", "30m", "1h"]
+
+      - name: spike_threshold
+        type: number
+        required: false
+        default: 10.0
+        description: "Error rate percentage threshold for spike detection"
+        min: 0
+        max: 100
+
+    nl_examples:
+      - "Detect error spikes in the last hour"
+      - "When did error rate spike above 10%?" #FIXME
+      - "Show me time periods with high error rates"
+      - "Find error rate anomalies" #FIXME
+      - "Calculate error percentage over time"
+
+    semantic_tags:
+      action: "aggregate"
+      primary_entity: "application_logs"
+      aggregation_type: "pipeline"
+      qualifiers: ["error", "spike", "detection", "anomaly"]
+
+    tags: ["analytics", "spike_detection", "bucket_script", "error_rate"]
+    result_format: "timeseries"

@@ -19,31 +19,41 @@ logger = logging.getLogger(__name__)
 class AbstractSQLRetriever(BaseRetriever):
     """
     Abstract base class for SQL-based retrievers.
-    
+
     This class provides common SQL functionality while leaving database-specific
     implementation details to concrete subclasses.
+
+    Uses the datasource registry pattern - retrievers receive a datasource instance
+    and lazily initialize the connection when needed.
     """
-    
-    def __init__(self, 
+
+    def __init__(self,
                 config: Dict[str, Any],
-                connection: Any = None,
+                datasource: Any = None,
                 domain_adapter=None,
                 **kwargs):
         """
         Initialize SQL retriever with common configuration.
-        
+
         Args:
             config: Configuration dictionary
-            connection: Database connection
+            datasource: Datasource instance from the registry
             domain_adapter: Optional domain adapter for document handling
+            **kwargs: Additional keyword arguments
         """
         super().__init__(config=config, domain_adapter=domain_adapter, **kwargs)
-        
+
+        # Store datasource reference from registry
+        self._datasource = datasource
+        self._datasource_initialized = False
+
         # SQL-specific settings with sensible defaults
         self.relevance_threshold = self.datasource_config.get('relevance_threshold', 0.5)
         self.max_results = self.datasource_config.get('max_results', 10)
         self.return_results = self.datasource_config.get('return_results', 3)
-        self.connection = connection
+
+        # Connection will be obtained from datasource when needed
+        self._connection = None
         
         # Adapter granularity strategy settings
         self.query_timeout = self.datasource_config.get('query_timeout', 5000)  # Default 5 seconds
@@ -57,17 +67,43 @@ class AbstractSQLRetriever(BaseRetriever):
         
         # Define standard stopwords for tokenization
         self.stopwords = {
-            'the', 'a', 'an', 'and', 'is', 'are', 'in', 'on', 'at', 'to', 'for', 
-            'of', 'with', 'by', 'about', 'that', 'this', 'these', 'those', 'my', 
+            'the', 'a', 'an', 'and', 'is', 'are', 'in', 'on', 'at', 'to', 'for',
+            'of', 'with', 'by', 'about', 'that', 'this', 'these', 'those', 'my',
             'your', 'his', 'her', 'its', 'our', 'their', 'can', 'be',
-            'have', 'has', 'had', 'do', 'does', 'did', 'i', 'you', 'he', 'she', 
+            'have', 'has', 'had', 'do', 'does', 'did', 'i', 'you', 'he', 'she',
             'it', 'we', 'they', 'what', 'where', 'when', 'why', 'how'
         }
-        
+
         # Default fields to search
         self.default_search_fields = ['id', 'content']
-        
+
         logger.info(f"AbstractSQLRetriever initialized with relevance_threshold={self.relevance_threshold}")
+
+    @property
+    def connection(self) -> Any:
+        """
+        Get the database connection from the datasource.
+        Lazily initializes the datasource if needed.
+
+        Returns:
+            Database connection/client from the datasource
+        """
+        if self._connection is None and self._datasource is not None:
+            # Get client from datasource
+            self._connection = self._datasource.get_client()
+        return self._connection
+
+    async def _ensure_datasource_initialized(self) -> None:
+        """
+        Ensure the datasource is initialized before use.
+        This method lazily initializes the datasource on first use.
+        """
+        if not self._datasource_initialized and self._datasource is not None:
+            if not self._datasource.is_initialized:
+                await self._datasource.initialize()
+            self._datasource_initialized = True
+            if self.verbose:
+                logger.info(f"Datasource initialized for {self._get_datasource_name()}")
     
 
         
@@ -121,31 +157,34 @@ class AbstractSQLRetriever(BaseRetriever):
         """
         Execute SQL query and return results.
         This method must be implemented by specific SQL database providers.
-        
+
         Args:
             sql: SQL query string
             params: Query parameters
-            
+
         Returns:
             List of rows as dictionaries
         """
         raise NotImplementedError("Subclasses must implement execute_query()")
-    
-    @abstractmethod
+
     async def initialize(self) -> None:
         """
         Initialize required services and verify database structure.
-        This method must be implemented by specific SQL providers.
+        Default implementation initializes the datasource.
+        Can be overridden by subclasses for additional initialization.
         """
-        raise NotImplementedError("Subclasses must implement initialize()")
-    
-    @abstractmethod
+        await self._ensure_datasource_initialized()
+
     async def close(self) -> None:
         """
-        Close any open services and connections.
-        This method must be implemented by specific SQL providers.
+        Close the datasource connection and clean up resources.
         """
-        raise NotImplementedError("Subclasses must implement close()")
+        if self._datasource is not None and self._datasource.is_initialized:
+            await self._datasource.close()
+            self._datasource_initialized = False
+            self._connection = None
+            if self.verbose:
+                logger.info(f"Datasource closed for {self._get_datasource_name()}")
     
 
     
@@ -255,20 +294,20 @@ class AbstractSQLRetriever(BaseRetriever):
         
         return search_config
     
-    async def get_relevant_context(self, 
-                           query: str, 
-                           api_key: Optional[str] = None, 
+    async def get_relevant_context(self,
+                           query: str,
+                           api_key: Optional[str] = None,
                            collection_name: Optional[str] = None,
                            **kwargs) -> List[Dict[str, Any]]:
         """
         Retrieve and filter relevant context from SQL database.
-        
+
         Args:
             query: The user's query
             api_key: Optional API key for accessing the collection
             collection_name: Optional explicit collection name
             **kwargs: Additional parameters
-            
+
         Returns:
             A list of context items filtered by relevance
         """
@@ -276,9 +315,12 @@ class AbstractSQLRetriever(BaseRetriever):
             # Call the parent implementation which resolves collection
             # and handles common logging/error handling
             await super().get_relevant_context(query, api_key, collection_name, **kwargs)
-            
+
             debug_mode = self.verbose
-            
+
+            # Ensure datasource is initialized
+            await self._ensure_datasource_initialized()
+
             if not self.connection:
                 error_msg = "Database connection not initialized"
                 logger.error(error_msg)

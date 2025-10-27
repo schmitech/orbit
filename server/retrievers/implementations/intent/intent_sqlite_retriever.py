@@ -155,10 +155,32 @@ class IntentSQLiteRetriever(IntentSQLRetriever):
 
                 cursor.execute(converted_query, params)
             else:
-                # No parameter placeholders, execute as-is
-                if params and isinstance(params, (list, tuple)):
-                    cursor.execute(query, params)
+                # Handle ? placeholders (positional parameters)
+                # Check if there are ? placeholders in the query
+                placeholder_count = query.count('?')
+
+                if placeholder_count > 0:
+                    # Need to convert params dict to tuple/list for ? placeholders
+                    if params and isinstance(params, dict):
+                        # Extract parameter values in order (based on template parameter order)
+                        # Common parameter names: limit, offset
+                        param_values = []
+                        for key in ['limit', 'offset']:  # Standard order for pagination
+                            if key in params:
+                                param_values.append(params[key])
+
+                        # If we don't have enough params, try all dict values
+                        if len(param_values) < placeholder_count:
+                            param_values = list(params.values())
+
+                        cursor.execute(query, tuple(param_values))
+                    elif params and isinstance(params, (list, tuple)):
+                        cursor.execute(query, params)
+                    else:
+                        # No params provided but query has placeholders - use None values
+                        cursor.execute(query, tuple([None] * placeholder_count))
                 else:
+                    # No placeholders, execute without params
                     cursor.execute(query)
 
             if query.strip().upper().startswith("SELECT"):

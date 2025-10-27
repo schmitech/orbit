@@ -77,7 +77,7 @@ print_help() {
     echo "  ./orbit-docker.sh start"
     echo ""
     echo "  # Start with commercial profile"
-    echo "  ./orbit-docker.sh start --profile commercial"
+    echo "  ./orbit-docker.sh start --profile cloud"
     echo ""
     echo "  # View logs"
     echo "  ./orbit-docker.sh logs --follow"
@@ -163,7 +163,7 @@ fi
 # Check env file
 if [ ! -f "$ENV_FILE" ]; then
     echo -e "${RED}❌ Environment file not found: $ENV_FILE${NC}"
-    echo -e "${YELLOW}Create one with: cp .env.example .env${NC}"
+    echo -e "${YELLOW}Create one with: cp env.example .env${NC}"
     exit 1
 fi
 

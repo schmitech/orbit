@@ -1,0 +1,36 @@
+# Ollama Configuration Example
+# Copy this to config.yaml and adjust settings for your setup
+
+ollama:
+  # Ollama server settings
+  base_url: "http://localhost:11434"  # Your Ollama server URL
+  model: "llama3.2:3b"               # Model to use (adjust based on your needs)
+
+  # Q/A extraction tuning (aims to avoid meta phrasing and keep outputs direct)
+  temperature: 0.1        # Lower randomness to reduce boilerplate/meta language
+  top_p: 0.75             # Tighter nucleus sampling for focused outputs (0.70–0.80)
+  top_k: 40               # Limit candidates to likely tokens (30–40)
+  repeat_penalty: 1.15    # Discourage repeated phrases like "as described in the text"
+
+  # Generation & context
+  # For questions, 256–384 tokens is usually enough; answers may need 384–512.
+  num_predict: 384        # You can increase for longer answers
+  num_ctx: 16000          # 8k–16k is usually sufficient; increase if your pages are very long
+
+  # Runtime controls
+  num_threads: 8          # Adjust to your CPU
+  timeout: 300            # Request timeout in seconds
+  keep_alive: "30m"       # Keep model loaded between calls
+
+  # Optional (not wired in code yet): deterministic runs
+  # seed: 42
+
+  # If you want different budgets for questions vs answers,
+  # ask us to wire separate settings (e.g., num_predict_questions/answers).
+  
+  # Alternative models for different use cases:
+  # - "llama3.2:1b"      # Fastest, lower quality
+  # - "llama3.2:3b"      # Good balance of speed/quality  
+  # - "llama3.1:8b"      # Higher quality, slower
+  # - "qwen2.5:7b"       # Alternative high-quality option
+  # - "mistral:7b"       # Another good option for Q&A

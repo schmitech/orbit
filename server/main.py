@@ -18,6 +18,12 @@ Usage:
     python main.py [--config CONFIG_PATH]
 """
 
+# Import warning suppression utilities
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from utils.warning_suppression import suppress_known_warnings
+
 import os
 import argparse
 from fastapi import FastAPI
@@ -31,7 +37,7 @@ configure_mongodb_logging()
 app = FastAPI(
     title="ORBIT",
     description="MCP inference server with RAG capabilities",
-    version="1.5.3"
+    version="1.6.0"
 )
 
 def create_app() -> FastAPI:

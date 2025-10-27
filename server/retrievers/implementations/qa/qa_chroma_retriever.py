@@ -22,18 +22,24 @@ class QAChromaRetriever(QAVectorRetrieverBase, ChromaRetriever):
     ChromaRetriever for Chroma-specific database operations.
     """
     
-    def __init__(self, 
+    def __init__(self,
                  config: Dict[str, Any],
                  embeddings: Optional[Any] = None,
+                 datasource: Any = None,
                  domain_adapter=None,
                  collection: Any = None,
                  **kwargs):
         """Initialize QA ChromaDB retriever."""
+        # Extract datasource from kwargs if present (to avoid passing it twice)
+        if 'datasource' in kwargs:
+            datasource = kwargs.pop('datasource')
+
         # Call QAVectorRetrieverBase constructor first
-        QAVectorRetrieverBase.__init__(self, config, **kwargs)
-        
+        QAVectorRetrieverBase.__init__(self, config, datasource=datasource, **kwargs)
+
         # Initialize ChromaRetriever with the same config and embeddings
-        ChromaRetriever.__init__(self, config, embeddings, domain_adapter, **kwargs)
+        # Note: ChromaRetriever will get datasource from parent (AbstractVectorRetriever) via MRO
+        ChromaRetriever.__init__(self, config, embeddings=embeddings, datasource=datasource, domain_adapter=domain_adapter, **kwargs)
         
         # Store additional parameters for later use
         self._embeddings = embeddings
