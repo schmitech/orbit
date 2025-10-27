@@ -10,8 +10,12 @@ import sys
 import yaml
 from pathlib import Path
 
-# Add server to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# Get the directory of this script
+SCRIPT_DIR = Path(__file__).parent.absolute()
+
+# Add server directory to Python path
+SERVER_DIR = SCRIPT_DIR.parent
+sys.path.append(str(SERVER_DIR))
 
 from ai_services.registry import register_all_services
 from ai_services.factory import AIServiceFactory

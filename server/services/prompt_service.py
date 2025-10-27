@@ -15,7 +15,7 @@ from datetime import datetime, UTC
 from bson import ObjectId
 import re
 
-from services.mongodb_service import MongoDBService
+from services.database_service import DatabaseService
 
 try:  # Optional Redis dependency
     from services.redis_service import RedisService
@@ -25,20 +25,23 @@ except Exception:  # pragma: no cover - Redis optional, fallback to disabled cac
 logger = logging.getLogger(__name__)
 
 class PromptService:
-    """Service for managing system prompts in MongoDB"""
-    
+    """Service for managing system prompts"""
+
     def __init__(
         self,
         config: Dict[str, Any],
-        mongodb_service: Optional[MongoDBService] = None,
+        database_service: Optional[DatabaseService] = None,
         redis_service: Optional[RedisService] = None,
     ):
         """Initialize the prompt service with configuration"""
         self.config = config
         self.verbose = config.get('general', {}).get('verbose', False)
-        
-        # Use provided MongoDB service or create a new one
-        self.mongodb = mongodb_service or MongoDBService(config)
+
+        # Use provided database service or create a new one using factory
+        if database_service is None:
+            from services.database_service import create_database_service
+            database_service = create_database_service(config)
+        self.database = database_service
         
         # MongoDB collection name for prompts
         self.collection_name = config.get('mongodb', {}).get('prompts_collection', 'system_prompts')
@@ -75,10 +78,10 @@ class PromptService:
         
     async def initialize(self) -> None:
         """Initialize the service"""
-        await self.mongodb.initialize()
+        await self.database.initialize()
         
         # Create index on name field for faster lookups
-        await self.mongodb.create_index(self.collection_name, "name", unique=True)
+        await self.database.create_index(self.collection_name, "name", unique=True)
         logger.info("Created unique index on name field")
         
         logger.info("Prompt Service initialized successfully")
@@ -126,10 +129,10 @@ class PromptService:
             }
             
             # Check if a prompt with this name already exists
-            existing = await self.mongodb.find_one(self.collection_name, {"name": name})
+            existing = await self.database.find_one(self.collection_name, {"name": name})
             if existing:
                 # Update the existing prompt instead of creating a new one
-                result = await self.mongodb.update_one(
+                result = await self.database.update_one(
                     self.collection_name,
                     {"name": name},
                     {"$set": {
@@ -143,7 +146,7 @@ class PromptService:
                 return existing["_id"]
             
             # Create a new prompt
-            prompt_id = await self.mongodb.insert_one(self.collection_name, prompt_doc)
+            prompt_id = await self.database.insert_one(self.collection_name, prompt_doc)
             if self.verbose:
                 logger.info(f"Created new prompt '{name}' with ID: {prompt_id}")
             return prompt_id
@@ -151,13 +154,13 @@ class PromptService:
             logger.error(f"Error creating prompt: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Error creating prompt: {str(e)}")
     
-    async def get_prompt_by_id(self, prompt_id: ObjectId) -> Optional[Dict[str, Any]]:
+    async def get_prompt_by_id(self, prompt_id: Union[str, ObjectId]) -> Optional[Dict[str, Any]]:
         """
         Get a prompt by its ID
-        
+
         Args:
-            prompt_id: The ObjectId of the prompt
-            
+            prompt_id: The ID of the prompt (ObjectId or UUID string)
+
         Returns:
             The prompt document or None if not found
         """
@@ -167,30 +170,21 @@ class PromptService:
                 logger.info("No prompt_id provided to get_prompt_by_id")
                 return None
 
-            cache_key = self._get_cache_key(prompt_id)
-
-            # Ensure prompt_id is an ObjectId for database lookup
-            original_prompt_id = prompt_id
-            if isinstance(prompt_id, str):
-                try:
-                    prompt_id = await self.mongodb.ensure_id_is_object_id(prompt_id)
-                    if self.verbose:
-                        logger.info(f"Converted string prompt ID '{original_prompt_id}' to ObjectId: {prompt_id}")
-                except Exception as e:
-                    logger.error(f"Failed to convert prompt ID '{original_prompt_id}' to ObjectId: {str(e)}")
-                    return None
+            # Convert to string for consistency across backends
+            prompt_id_str = str(prompt_id)
+            cache_key = self._get_cache_key(prompt_id_str)
 
             # Redis cache lookup
             if self.redis_service:
                 if self.verbose:
-                    logger.info(f"Checking Redis cache for prompt {cache_key} (ID: {prompt_id})")
+                    logger.info(f"Checking Redis cache for prompt {cache_key} (ID: {prompt_id_str})")
                 cached_value = await self.redis_service.get(cache_key)
                 if cached_value:
                     try:
                         cached_prompt = json.loads(cached_value)
-                        # Convert _id string back to ObjectId
-                        if '_id' in cached_prompt:
-                            cached_prompt['_id'] = ObjectId(cached_prompt['_id'])
+                        # Keep _id as string for consistency
+                        if '_id' in cached_prompt and not isinstance(cached_prompt['_id'], str):
+                            cached_prompt['_id'] = str(cached_prompt['_id'])
                         # Convert ISO datetime strings back to datetime objects
                         for key, value in list(cached_prompt.items()):
                             if isinstance(value, str) and key in ['created_at', 'updated_at']:
@@ -215,9 +209,10 @@ class PromptService:
                         logger.info(f"✗ Cache MISS for prompt {cache_key} - fetching from MongoDB")
 
             if self.verbose:
-                logger.info(f"Looking up prompt with ID: {prompt_id}")
+                logger.info(f"Looking up prompt with ID: {prompt_id_str}")
 
-            prompt = await self.mongodb.find_one(self.collection_name, {"_id": prompt_id})
+            # Query with original ID (database service handles backend-specific format)
+            prompt = await self.database.find_one(self.collection_name, {"_id": prompt_id})
 
             if prompt:
                 if self.verbose:
@@ -273,7 +268,7 @@ class PromptService:
             The prompt document or None if not found
         """
         try:
-            return await self.mongodb.find_one(self.collection_name, {"name": name})
+            return await self.database.find_one(self.collection_name, {"name": name})
         except Exception as e:
             logger.error(f"Error retrieving prompt by name: {str(e)}")
             return None
@@ -298,7 +293,7 @@ class PromptService:
                 filter_query["name"] = {"$regex": re.escape(name_filter), "$options": "i"}
             
             # Apply pagination
-            prompts = await self.mongodb.find_many(
+            prompts = await self.database.find_many(
                 self.collection_name, 
                 filter_query,
                 limit=limit,
@@ -314,12 +309,12 @@ class PromptService:
             logger.error(f"Error listing prompts: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Error listing prompts: {str(e)}")
     
-    async def update_prompt(self, prompt_id: ObjectId, prompt_text: str, version: Optional[str] = None) -> bool:
+    async def update_prompt(self, prompt_id: Union[str, ObjectId], prompt_text: str, version: Optional[str] = None) -> bool:
         """
         Update an existing prompt
 
         Args:
-            prompt_id: The ObjectId of the prompt to update
+            prompt_id: The ID of the prompt to update (ObjectId or UUID string)
             prompt_text: The new prompt text
             version: Optional new version string
 
@@ -327,13 +322,12 @@ class PromptService:
             True if successful, False otherwise
         """
         try:
-            # Ensure prompt_id is an ObjectId
-            if isinstance(prompt_id, str):
-                prompt_id = await self.mongodb.ensure_id_is_object_id(prompt_id)
+            # Convert to string for consistency across backends
+            prompt_id_str = str(prompt_id)
 
             # Clear from cache if Redis is enabled (invalidate on update)
             if self.redis_service:
-                cache_key = self._get_cache_key(prompt_id)
+                cache_key = self._get_cache_key(prompt_id_str)
                 cache_deleted = await self.redis_service.delete(cache_key)
                 if self.verbose:
                     if cache_deleted:
@@ -342,18 +336,18 @@ class PromptService:
                         logger.info(f"  → Prompt {cache_key} was not cached")
 
             # Get the current prompt to determine version update
-            current_prompt = await self.mongodb.find_one(self.collection_name, {"_id": prompt_id})
-            
+            current_prompt = await self.database.find_one(self.collection_name, {"_id": prompt_id})
+
             if not current_prompt:
-                logger.warning(f"Prompt with ID {prompt_id} not found for update")
+                logger.warning(f"Prompt with ID {prompt_id_str} not found for update")
                 return False
-                
+
             # Prepare update document
             update_doc = {
                 "prompt": prompt_text,
                 "updated_at": datetime.now(UTC)
             }
-            
+
             # Update version if provided, otherwise increment minor version
             if version:
                 update_doc["version"] = version
@@ -372,47 +366,47 @@ class PromptService:
                 except Exception:
                     # If version parsing fails, just add .1
                     update_doc["version"] = f"{current_prompt['version']}.1"
-            
-            # Perform the update
-            success = await self.mongodb.update_one(
+
+            # Perform the update (use original prompt_id, database service handles format)
+            success = await self.database.update_one(
                 self.collection_name,
                 {"_id": prompt_id},
                 {"$set": update_doc}
             )
-            
+
             if success:
-                logger.info(f"Updated prompt with ID {prompt_id} to version {update_doc.get('version')}")
+                logger.info(f"Updated prompt with ID {prompt_id_str} to version {update_doc.get('version')}")
             else:
-                logger.warning(f"Prompt with ID {prompt_id} was not modified")
+                logger.warning(f"Prompt with ID {prompt_id_str} was not modified")
                 
             return success
         except Exception as e:
             logger.error(f"Error updating prompt: {str(e)}")
             return False
     
-    async def delete_prompt(self, prompt_id: ObjectId) -> bool:
+    async def delete_prompt(self, prompt_id: Union[str, ObjectId]) -> bool:
         """
         Delete a prompt
 
         Args:
-            prompt_id: The ObjectId of the prompt to delete
+            prompt_id: The ID of the prompt to delete (ObjectId or UUID string)
 
         Returns:
             True if successful, False otherwise
         """
         try:
-            # Ensure prompt_id is an ObjectId
-            if isinstance(prompt_id, str):
-                prompt_id = await self.mongodb.ensure_id_is_object_id(prompt_id)
+            # Convert to string for logging/caching
+            prompt_id_str = str(prompt_id)
 
             # Clear from cache if Redis is enabled
             if self.redis_service:
-                cache_key = self._get_cache_key(prompt_id)
+                cache_key = self._get_cache_key(prompt_id_str)
                 cache_deleted = await self.redis_service.delete(cache_key)
                 if self.verbose and cache_deleted:
                     logger.info(f"✓ Cleared prompt {cache_key} from Redis cache")
 
-            return await self.mongodb.delete_one(self.collection_name, {"_id": prompt_id})
+            # Use original prompt_id (database service handles backend-specific format)
+            return await self.database.delete_one(self.collection_name, {"_id": prompt_id})
         except Exception as e:
             logger.error(f"Error deleting prompt: {str(e)}")
             return False

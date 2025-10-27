@@ -17,9 +17,11 @@ from fastapi import HTTPException
 from datetime import datetime
 from bson import ObjectId
 
+from services.database_service import DatabaseService
+
 logger = logging.getLogger(__name__)
 
-class MongoDBService:
+class MongoDBService(DatabaseService):
     """Service for handling MongoDB connections and operations with singleton pattern"""
     
     _instances: Dict[str, 'MongoDBService'] = {}
@@ -60,12 +62,12 @@ class MongoDBService:
         # Prevent re-initialization of singleton instances
         if hasattr(self, '_initialized') and self._initialized:
             return
-            
-        self.config = config
+
+        # Call parent class __init__
+        super().__init__(config)
+
         self.client = None
         self.database = None
-        self._initialized = False
-        self.verbose = config.get('general', {}).get('verbose', False)
         self._collections = {}
         
     async def initialize(self) -> None:
@@ -192,23 +194,56 @@ class MongoDBService:
             logger.info(f"Created {desc}index on {collection_name}.{field_name}")
         return index_name
     
+    def _convert_string_ids_to_objectid(self, query: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Convert string IDs to ObjectId in queries for MongoDB compatibility
+
+        Args:
+            query: MongoDB query dict
+
+        Returns:
+            Query with string IDs converted to ObjectId where appropriate
+        """
+        converted_query = {}
+        for key, value in query.items():
+            # Convert _id field if it's a string that looks like an ObjectId
+            if key == '_id' and isinstance(value, str):
+                try:
+                    # Check if it's a valid 24-character hex string (ObjectId format)
+                    if len(value) == 24 and all(c in '0123456789abcdefABCDEF' for c in value):
+                        converted_query[key] = ObjectId(value)
+                    else:
+                        # Not an ObjectId format, keep as string
+                        converted_query[key] = value
+                except Exception:
+                    # If conversion fails, keep as string
+                    converted_query[key] = value
+            elif isinstance(value, dict):
+                # Recursively convert nested queries
+                converted_query[key] = self._convert_string_ids_to_objectid(value)
+            else:
+                converted_query[key] = value
+        return converted_query
+
     async def find_one(self, collection_name: str, query: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
         Find a single document in a collection
-        
+
         Args:
             collection_name: Name of the collection
             query: MongoDB query
-            
+
         Returns:
             The document if found, None otherwise
         """
         if not self._initialized:
             await self.initialize()
-            
+
         try:
             collection = self.get_collection(collection_name)
-            return await collection.find_one(query)
+            # Convert string IDs to ObjectId for MongoDB compatibility
+            converted_query = self._convert_string_ids_to_objectid(query)
+            return await collection.find_one(converted_query)
         except Exception as e:
             logger.error(f"Error finding document in {collection_name}: {str(e)}")
             return None
@@ -239,15 +274,17 @@ class MongoDBService:
             
         try:
             collection = self.get_collection(collection_name)
-            cursor = collection.find(query)
-            
+            # Convert string IDs to ObjectId for MongoDB compatibility
+            converted_query = self._convert_string_ids_to_objectid(query)
+            cursor = collection.find(converted_query)
+
             # Apply sorting if specified
             if sort:
                 cursor = cursor.sort(sort)
-            
+
             # Apply skip and limit
             cursor = cursor.skip(skip).limit(limit)
-            
+
             return await cursor.to_list(length=limit)
         except Exception as e:
             logger.error(f"Error finding documents in {collection_name}: {str(e)}")
@@ -292,7 +329,9 @@ class MongoDBService:
             
         try:
             collection = self.get_collection(collection_name)
-            result = await collection.update_one(query, update)
+            # Convert string IDs to ObjectId for MongoDB compatibility
+            converted_query = self._convert_string_ids_to_objectid(query)
+            result = await collection.update_one(converted_query, update)
             return result.modified_count > 0
         except Exception as e:
             logger.error(f"Error updating document in {collection_name}: {str(e)}")
@@ -314,7 +353,9 @@ class MongoDBService:
             
         try:
             collection = self.get_collection(collection_name)
-            result = await collection.delete_one(query)
+            # Convert string IDs to ObjectId for MongoDB compatibility
+            converted_query = self._convert_string_ids_to_objectid(query)
+            result = await collection.delete_one(converted_query)
             return result.deleted_count > 0
         except Exception as e:
             logger.error(f"Error deleting document from {collection_name}: {str(e)}")
@@ -336,7 +377,9 @@ class MongoDBService:
             
         try:
             collection = self.get_collection(collection_name)
-            result = await collection.delete_many(query)
+            # Convert string IDs to ObjectId for MongoDB compatibility
+            converted_query = self._convert_string_ids_to_objectid(query)
+            result = await collection.delete_many(converted_query)
             return result.deleted_count
         except Exception as e:
             logger.error(f"Error deleting documents from {collection_name}: {str(e)}")

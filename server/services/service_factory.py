@@ -95,32 +95,32 @@ class ServiceFactory:
         """Initialize core services that are always needed."""
         # Check if authentication is enabled
         auth_enabled = is_true_value(self.config.get('auth', {}).get('enabled', False))
-        
-        # Initialize MongoDB service if needed
-        await self._initialize_mongodb_if_needed(app, auth_enabled)
-        
+
+        # Initialize database service if needed
+        await self._initialize_database_if_needed(app, auth_enabled)
+
         # Initialize Redis service if enabled
         await self._initialize_redis_service(app)
-        
-        # Initialize authentication service (requires MongoDB to be initialized first)
+
+        # Initialize authentication service (requires database to be initialized first)
         await self._initialize_auth_service_if_available(app, auth_enabled)
     
-    async def _initialize_mongodb_if_needed(self, app: FastAPI, auth_enabled: bool) -> None:
-        """Initialize MongoDB service if required by current configuration."""
-        # MongoDB is required when:
+    async def _initialize_database_if_needed(self, app: FastAPI, auth_enabled: bool) -> None:
+        """Initialize database service if required by current configuration."""
+        # Database is required when:
         # - inference_only is false (for retriever adapters)
         # - OR auth is enabled (for authentication)
         # - OR chat_history is enabled (for chat history storage)
-        mongodb_required = (
-            not self.inference_only or 
-            auth_enabled or 
+        database_required = (
+            not self.inference_only or
+            auth_enabled or
             self.chat_history_enabled
         )
-        
-        if mongodb_required:
-            await self._initialize_mongodb_service(app)
-            
-            # Log the specific reason(s) for MongoDB initialization
+
+        if database_required:
+            await self._initialize_database_service(app)
+
+            # Log the specific reason(s) for database initialization
             reasons = []
             if not self.inference_only:
                 reasons.append("retriever adapters")
@@ -128,44 +128,47 @@ class ServiceFactory:
                 reasons.append("authentication")
             if self.chat_history_enabled:
                 reasons.append("chat history")
-            
-            self.logger.info(f"MongoDB initialized for: {', '.join(reasons)}")
+
+            # Get backend type for logging
+            backend_type = self.config.get('internal_services', {}).get('backend', {}).get('type', 'mongodb')
+            self.logger.info(f"Database ({backend_type}) initialized for: {', '.join(reasons)}")
         else:
-            app.state.mongodb_service = None
-            self.logger.info("Skipping MongoDB initialization - inference_only=true, auth disabled, and chat_history disabled")
+            app.state.database_service = None
+            app.state.mongodb_service = None  # For backward compatibility
+            self.logger.info("Skipping database initialization - inference_only=true, auth disabled, and chat_history disabled")
     
     async def _initialize_auth_service_if_available(self, app: FastAPI, auth_enabled: bool) -> None:
-        """Initialize authentication service if MongoDB is available and auth is enabled."""
-        if app.state.mongodb_service is not None:
+        """Initialize authentication service if database is available and auth is enabled."""
+        if hasattr(app.state, 'database_service') and app.state.database_service is not None:
             await self._initialize_auth_service(app)
         else:
-            # Only log warning if auth is actually enabled but MongoDB is not available
+            # Only log warning if auth is actually enabled but database is not available
             if auth_enabled:
-                self.logger.warning("Auth is enabled but MongoDB service not available - auth service will be disabled")
+                self.logger.warning("Auth is enabled but database service not available - auth service will be disabled")
             else:
                 self.logger.info("Auth service disabled in configuration")
     
     async def _initialize_auth_service(self, app: FastAPI) -> None:
         """Initialize the authentication service"""
         auth_enabled = is_true_value(self.config.get('auth', {}).get('enabled', False))
-        
+
         if not auth_enabled:
             self.logger.info("Authentication service disabled in configuration")
             app.state.auth_service = None
             return
-        
+
         try:
-            # Use the shared MongoDB service if available
-            mongodb_service = getattr(app.state, 'mongodb_service', None)
-            
+            # Use the shared database service if available
+            database_service = getattr(app.state, 'database_service', None)
+
             # Initialize auth service
             from services.auth_service import AuthService
-            auth_service = AuthService(self.config, mongodb_service)
+            auth_service = AuthService(self.config, database_service)
             await auth_service.initialize()
-            
+
             app.state.auth_service = auth_service
             self.logger.info("Authentication service initialized successfully")
-            
+
         except Exception as e:
             self.logger.error(f"Failed to initialize authentication service: {str(e)}")
             # Don't fail the entire startup if auth fails, but log it prominently
@@ -174,29 +177,30 @@ class ServiceFactory:
     async def _initialize_inference_only_services(self, app: FastAPI) -> None:
         """Initialize services specific to inference-only mode."""
         self.logger.info("Inference-only mode enabled - skipping unnecessary service initialization")
-        
+
         # Set services to None for inference-only mode
         app.state.retriever = None
         app.state.adapter_manager = None
         app.state.embedding_service = None
         app.state.prompt_service = None
         app.state.reranker_service = None
-        
-        # Initialize API key service only if MongoDB is available and auth is disabled
-        # (API key service is used for admin operations when auth is disabled but MongoDB is available)
+
+        # Initialize API key service only if database is available and auth is disabled
+        # (API key service is used for admin operations when auth is disabled but database is available)
         auth_enabled = is_true_value(self.config.get('auth', {}).get('enabled', False))
-        if not auth_enabled and app.state.mongodb_service is not None:
-            self.logger.info("Authentication disabled but MongoDB available - initializing API key service for admin operations")
+        database_available = hasattr(app.state, 'database_service') and app.state.database_service is not None
+        if not auth_enabled and database_available:
+            self.logger.info("Authentication disabled but database available - initializing API key service for admin operations")
             await self._initialize_api_key_service(app)
         else:
             app.state.api_key_service = None
             if not auth_enabled:
-                self.logger.info("Authentication disabled and MongoDB not available - skipping API key service")
+                self.logger.info("Authentication disabled and database not available - skipping API key service")
             else:
                 self.logger.info("Authentication enabled - API key service not needed in inference-only mode")
-        
+
         await self._configure_chat_history_service(app)
-        
+
         self.logger.info("Inference-only mode service initialization complete")
     
     async def _initialize_full_mode_services(self, app: FastAPI) -> None:
@@ -318,16 +322,24 @@ class ServiceFactory:
         
         self.logger.info("Dependent services initialized successfully")
     
-    async def _initialize_mongodb_service(self, app: FastAPI) -> None:
-        """Initialize MongoDB service."""
-        from services.mongodb_service import MongoDBService
-        app.state.mongodb_service = MongoDBService(self.config)
-        self.logger.info("Initializing shared MongoDB service...")
+    async def _initialize_database_service(self, app: FastAPI) -> None:
+        """Initialize database service using factory method."""
+        from services.database_service import create_database_service
+
+        # Create database service using factory
+        app.state.database_service = create_database_service(self.config)
+
+        # For backward compatibility, also set mongodb_service
+        app.state.mongodb_service = app.state.database_service
+
+        backend_type = self.config.get('internal_services', {}).get('backend', {}).get('type', 'mongodb')
+        self.logger.info(f"Initializing shared database service ({backend_type})...")
+
         try:
-            await app.state.mongodb_service.initialize()
-            self.logger.info("Shared MongoDB service initialized successfully")
+            await app.state.database_service.initialize()
+            self.logger.info(f"Shared database service ({backend_type}) initialized successfully")
         except Exception as e:
-            self.logger.error(f"Failed to initialize shared MongoDB service: {str(e)}")
+            self.logger.error(f"Failed to initialize shared database service: {str(e)}")
             raise
     
     async def _initialize_redis_service(self, app: FastAPI) -> None:
@@ -373,14 +385,14 @@ class ServiceFactory:
             self.logger.info("Creating Chat History Service instance...")
         from services.chat_history_service import ChatHistoryService
         app.state.chat_history_service = ChatHistoryService(
-            self.config, 
-            app.state.mongodb_service
+            self.config,
+            app.state.database_service
         )
         self.logger.info("Initializing Chat History Service...")
         try:
             await app.state.chat_history_service.initialize()
             self.logger.info("Chat History Service initialized successfully")
-            
+
             # Verify chat history service is working
             if self.verbose:
                 self.logger.info("Performing Chat History Service health check...")
@@ -409,7 +421,7 @@ class ServiceFactory:
     async def _initialize_api_key_service(self, app: FastAPI) -> None:
         """Initialize API Key Service."""
         from services.api_key_service import ApiKeyService
-        app.state.api_key_service = ApiKeyService(self.config, app.state.mongodb_service)
+        app.state.api_key_service = ApiKeyService(self.config, app.state.database_service)
         self.logger.info("Initializing API Key Service...")
         try:
             await app.state.api_key_service.initialize()
@@ -417,11 +429,11 @@ class ServiceFactory:
         except Exception as e:
             self.logger.error(f"Failed to initialize API Key Service: {str(e)}")
             raise
-    
+
     async def _initialize_prompt_service(self, app: FastAPI) -> None:
         """Initialize Prompt Service."""
         from services.prompt_service import PromptService
-        app.state.prompt_service = PromptService(self.config, app.state.mongodb_service)
+        app.state.prompt_service = PromptService(self.config, app.state.database_service)
         self.logger.info("Initializing Prompt Service...")
         try:
             await app.state.prompt_service.initialize()

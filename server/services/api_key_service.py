@@ -20,20 +20,20 @@ import threading
 import hashlib
 
 from utils.text_utils import mask_api_key
-from services.mongodb_service import MongoDBService
+from services.database_service import DatabaseService
 
 logger = logging.getLogger(__name__)
 
 class ApiKeyService:
     """Service for handling API key authentication and adapter/collection mapping"""
-    
+
     # Singleton pattern implementation
     _instances: Dict[str, 'ApiKeyService'] = {}
     _lock = threading.Lock()
-    
-    def __new__(cls, config: Dict[str, Any], mongodb_service: Optional[MongoDBService] = None):
+
+    def __new__(cls, config: Dict[str, Any], database_service: Optional[DatabaseService] = None):
         """Create or return existing API key service instance based on configuration"""
-        cache_key = cls._create_cache_key(config, mongodb_service)
+        cache_key = cls._create_cache_key(config, database_service)
         
         with cls._lock:
             if cache_key not in cls._instances:
@@ -45,22 +45,31 @@ class ApiKeyService:
             return cls._instances[cache_key]
     
     @classmethod
-    def _create_cache_key(cls, config: Dict[str, Any], mongodb_service: Optional[MongoDBService] = None) -> str:
-        """Create a cache key based on MongoDB configuration and collection name"""
-        # Use MongoDB configuration for the cache key since API key service depends on MongoDB
-        mongodb_config = config.get('internal_services', {}).get('mongodb', {})
+    def _create_cache_key(cls, config: Dict[str, Any], database_service: Optional[DatabaseService] = None) -> str:
+        """Create a cache key based on database configuration and collection name"""
+        # Use database configuration for the cache key
+        backend_config = config.get('internal_services', {}).get('backend', {})
+        backend_type = backend_config.get('type', 'mongodb')
         collection_name = config.get('mongodb', {}).get('apikey_collection', 'api_keys')
-        
-        # Create key from MongoDB connection parameters and collection
-        # Don't include mongodb_service ID since we want the same config to produce the same cache key
-        # regardless of whether MongoDB service is provided or created internally
-        key_parts = [
-            mongodb_config.get('host', 'localhost'),
-            str(mongodb_config.get('port', 27017)),
-            mongodb_config.get('database', 'orbit'),
-            collection_name
-        ]
-        
+
+        # Create key based on backend type
+        if backend_type == 'mongodb':
+            mongodb_config = config.get('internal_services', {}).get('mongodb', {})
+            key_parts = [
+                'mongodb',
+                mongodb_config.get('host', 'localhost'),
+                str(mongodb_config.get('port', 27017)),
+                mongodb_config.get('database', 'orbit'),
+                collection_name
+            ]
+        else:  # sqlite
+            sqlite_config = backend_config.get('sqlite', {})
+            key_parts = [
+                'sqlite',
+                sqlite_config.get('database_path', 'orbit.db'),
+                collection_name
+            ]
+
         # Create hash of the key parts for consistency
         key_string = '|'.join(key_parts)
         return hashlib.md5(key_string.encode()).hexdigest()
@@ -82,17 +91,20 @@ class ApiKeyService:
             cls._instances.clear()
             logger.debug("Cleared API key service cache")
     
-    def __init__(self, config: Dict[str, Any], mongodb_service: Optional[MongoDBService] = None):
+    def __init__(self, config: Dict[str, Any], database_service: Optional[DatabaseService] = None):
         """Initialize the API key service with configuration"""
         # Avoid re-initialization if this instance was already initialized
         if hasattr(self, '_singleton_initialized'):
             return
-            
+
         self.config = config
         self.verbose = config.get('general', {}).get('verbose', False)
-        
-        # Use provided MongoDB service or create a new one
-        self.mongodb = mongodb_service or MongoDBService(config)
+
+        # Use provided database service or create a new one using factory
+        if database_service is None:
+            from services.database_service import create_database_service
+            database_service = create_database_service(config)
+        self.database = database_service
         
         # MongoDB collection name for API keys
         self.collection_name = config.get('mongodb', {}).get('apikey_collection', 'api_keys')
@@ -111,14 +123,14 @@ class ApiKeyService:
             if self.verbose:
                 logger.debug("API Key Service already initialized, skipping")
             return
-            
-        await self.mongodb.initialize()
-        
+
+        await self.database.initialize()
+
         # Set up the API keys collection
-        self.api_keys_collection = self.mongodb.database[self.collection_name]
-        
+        self.api_keys_collection = self.database.get_collection(self.collection_name)
+
         # Create index on api_key field for faster lookups
-        await self.mongodb.create_index(self.collection_name, "api_key", unique=True)
+        await self.database.create_index(self.collection_name, "api_key", unique=True)
         logger.info("Created unique index on api_key field")
         
         # Set initialized flag
@@ -174,7 +186,7 @@ class ApiKeyService:
             Dictionary with API key status information
         """
         try:
-            key_doc = await self.mongodb.find_one(self.collection_name, {"api_key": api_key})
+            key_doc = await self.database.find_one(self.collection_name, {"api_key": api_key})
             
             if not key_doc:
                 return {
@@ -236,7 +248,7 @@ class ApiKeyService:
             
         try:
             # Find the API key in the database
-            key_doc = await self.mongodb.find_one(self.collection_name, {"api_key": api_key})
+            key_doc = await self.database.find_one(self.collection_name, {"api_key": api_key})
             
             # Create a masked version of the API key for logging
             masked_key = mask_api_key(api_key)
@@ -355,17 +367,12 @@ class ApiKeyService:
             
             # Add system prompt ID if provided
             if system_prompt_id:
-                # Ensure system_prompt_id is an ObjectId
-                if isinstance(system_prompt_id, str):
-                    try:
-                        system_prompt_id = ObjectId(system_prompt_id)
-                    except Exception as e:
-                        logger.error(f"Invalid system prompt ID format: {str(e)}")
-                        raise HTTPException(status_code=400, detail="Invalid system prompt ID format")
-                key_doc["system_prompt_id"] = system_prompt_id
+                # Convert to string to ensure consistency across backends
+                # The database service will handle the appropriate format internally
+                key_doc["system_prompt_id"] = str(system_prompt_id)
             
             # Insert into database
-            await self.mongodb.insert_one(self.collection_name, key_doc)
+            await self.database.insert_one(self.collection_name, key_doc)
             
             if self.verbose:
                 logger.info(f"Created new API key for adapter: {adapter_name}")
@@ -405,34 +412,29 @@ class ApiKeyService:
         """
         try:
             # First verify the API key exists
-            key_doc = await self.mongodb.find_one(self.collection_name, {"api_key": api_key})
+            key_doc = await self.database.find_one(self.collection_name, {"api_key": api_key})
             if not key_doc:
                 logger.warning(f"Attempted to update non-existent API key: {mask_api_key(api_key)}")
                 return False
                 
-            # Ensure system_prompt_id is an ObjectId
-            if isinstance(system_prompt_id, str):
-                try:
-                    system_prompt_id = ObjectId(system_prompt_id)
-                except Exception as e:
-                    logger.error(f"Invalid system prompt ID format: {str(e)}")
-                    return False
-                
-            # Verify the system prompt exists
-            prompt_doc = await self.mongodb.find_one('system_prompts', {"_id": system_prompt_id})
+            # Convert to string for storing (both backends store as string for consistency)
+            system_prompt_id_str = str(system_prompt_id)
+
+            # Verify the system prompt exists (use original ID for query, database handles format)
+            prompt_doc = await self.database.find_one('system_prompts', {"_id": system_prompt_id})
             if not prompt_doc:
                 logger.warning(f"Attempted to associate non-existent system prompt: {system_prompt_id}")
                 return False
-            
-            # Update the API key document
-            result = await self.mongodb.update_one(
+
+            # Update the API key document (store as string for consistency)
+            result = await self.database.update_one(
                 self.collection_name,
                 {"api_key": api_key},
-                {"$set": {"system_prompt_id": system_prompt_id}}
+                {"$set": {"system_prompt_id": system_prompt_id_str}}
             )
-            
+
             if self.verbose:
-                logger.info(f"Updated system prompt for API key {mask_api_key(api_key)} to {system_prompt_id}")
+                logger.info(f"Updated system prompt for API key {mask_api_key(api_key)} to {system_prompt_id_str}")
                 
             return result
             
@@ -451,7 +453,7 @@ class ApiKeyService:
             True if successful, False otherwise
         """
         try:
-            return await self.mongodb.update_one(
+            return await self.database.update_one(
                 self.collection_name,
                 {"api_key": api_key},
                 {"$set": {"active": False}}
@@ -471,7 +473,7 @@ class ApiKeyService:
             True if successful, False otherwise
         """
         try:
-            return await self.mongodb.delete_one(self.collection_name, {"api_key": api_key})
+            return await self.database.delete_one(self.collection_name, {"api_key": api_key})
         except Exception as e:
             logger.error(f"Error deleting API key: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Error deleting API key: {str(e)}")

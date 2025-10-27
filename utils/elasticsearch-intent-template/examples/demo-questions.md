@@ -1,1 +1,5 @@
-Show me errors with message connection timeout. Display the results in a summarized table and then prepare an email for my supervisor with this information.
+Show me recent error logs. What pattern or insights do you see?
+Which endpoints are slow?
+Find API calls taking more than 2 seconds.
+Calculate cumulative sum of errors
+Calculate error percentage over time

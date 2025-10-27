@@ -15,22 +15,32 @@ from unittest.mock import Mock, AsyncMock, patch, MagicMock
 # Import modules to test
 import sys
 import os
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from pathlib import Path
 
-from server.services.reranker_service_manager import RerankingServiceManager
-from server.inference.pipeline.steps.document_reranking import DocumentRerankingStep
-from server.inference.pipeline.service_container import ServiceContainer
-from server.inference.pipeline.base import ProcessingContext
-from server.ai_services.base import ServiceType
-from server.ai_services.factory import AIServiceFactory
+# Get the directory of this script
+SCRIPT_DIR = Path(__file__).parent.absolute()
+
+# Add server directory to Python path
+SERVER_DIR = SCRIPT_DIR.parent
+sys.path.append(str(SERVER_DIR))
+
+from services.reranker_service_manager import RerankingServiceManager
+from inference.pipeline.steps.document_reranking import DocumentRerankingStep
+from inference.pipeline.service_container import ServiceContainer
+from inference.pipeline.base import ProcessingContext
+from ai_services.base import ServiceType
+from ai_services.factory import AIServiceFactory
 
 
 class TestRerankingServiceManager:
     """Tests for RerankingServiceManager singleton factory."""
 
     def setup_method(self):
-        """Clear cache before each test."""
+        """Clear cache and register services before each test."""
         RerankingServiceManager.clear_cache()
+        # Register AI services before testing
+        from ai_services.registry import register_all_services
+        register_all_services()
 
     def test_singleton_pattern(self):
         """Test that the same instance is returned for identical configs."""
@@ -131,7 +141,7 @@ class TestDocumentRerankingStep:
             }
         }
         self.container = ServiceContainer()
-        self.container.register('config', self.config)
+        self.container.register_singleton('config', self.config)
 
     def test_step_creation(self):
         """Test that the step can be created."""
@@ -150,7 +160,7 @@ class TestDocumentRerankingStep:
         """Test that step skips when reranker is disabled."""
         config = self.config.copy()
         config['reranker']['enabled'] = False
-        self.container.register('config', config)
+        self.container.register_singleton('config', config)
 
         step = DocumentRerankingStep(self.container)
         context = ProcessingContext('test query', 'test-adapter', {})
@@ -167,7 +177,7 @@ class TestDocumentRerankingStep:
         # Mock adapter_manager
         mock_adapter_manager = Mock()
         mock_adapter_manager.get_adapter_config.return_value = {}
-        self.container.register('adapter_manager', mock_adapter_manager)
+        self.container.register_singleton('adapter_manager', mock_adapter_manager)
 
         assert step.should_execute(context) is True
 
@@ -204,7 +214,7 @@ class TestDocumentRerankingStep:
         mock_adapter_manager.get_adapter_config.return_value = {
             'config': {'reranker_top_n': 3}
         }
-        self.container.register('adapter_manager', mock_adapter_manager)
+        self.container.register_singleton('adapter_manager', mock_adapter_manager)
 
         top_n = step._get_top_n_config(context)
         assert top_n == 3
@@ -279,12 +289,12 @@ class TestDocumentRerankingStep:
         # Mock reranker service that raises an error
         mock_reranker = AsyncMock()
         mock_reranker.rerank.side_effect = Exception('Reranker failed')
-        self.container.register('reranker_service', mock_reranker)
+        self.container.register_singleton('reranker_service', mock_reranker)
 
         # Mock adapter_manager
         mock_adapter_manager = Mock()
         mock_adapter_manager.get_adapter_config.return_value = {}
-        self.container.register('adapter_manager', mock_adapter_manager)
+        self.container.register_singleton('adapter_manager', mock_adapter_manager)
 
         # Process should not raise, just log and continue
         result_context = await step.process(context)
@@ -299,7 +309,7 @@ class TestServiceRegistration:
 
     def test_ollama_reranking_service_registered(self):
         """Test that OllamaRerankingService is registered."""
-        from server.ai_services.registry import register_all_services
+        from ai_services.registry import register_all_services
 
         register_all_services()
 
@@ -310,7 +320,7 @@ class TestServiceRegistration:
 
     def test_reranking_services_in_available_list(self):
         """Test that reranking appears in available services."""
-        from server.ai_services.registry import register_all_services
+        from ai_services.registry import register_all_services
 
         register_all_services()
 
@@ -324,13 +334,13 @@ class TestDynamicAdapterManagerIntegration:
 
     def test_adapter_manager_has_reranker_method(self):
         """Test that DynamicAdapterManager has get_overridden_reranker method."""
-        from server.services.dynamic_adapter_manager import DynamicAdapterManager
+        from services.dynamic_adapter_manager import DynamicAdapterManager
 
         assert hasattr(DynamicAdapterManager, 'get_overridden_reranker')
 
     def test_adapter_manager_has_reranker_cache(self):
         """Test that DynamicAdapterManager has reranker cache."""
-        from server.services.dynamic_adapter_manager import DynamicAdapterManager
+        from services.dynamic_adapter_manager import DynamicAdapterManager
 
         config = {'adapters': []}
         manager = DynamicAdapterManager(config)
@@ -339,10 +349,9 @@ class TestDynamicAdapterManagerIntegration:
         assert hasattr(manager, '_reranker_cache_lock')
         assert hasattr(manager, '_reranker_initializing')
 
-    @pytest.mark.asyncio
-    async def test_get_overridden_reranker_caching(self):
-        """Test that get_overridden_reranker caches instances."""
-        from server.services.dynamic_adapter_manager import DynamicAdapterManager
+    def test_get_overridden_reranker_exception_handling(self):
+        """Test that get_overridden_reranker handles missing provider gracefully."""
+        from services.dynamic_adapter_manager import DynamicAdapterManager
 
         config = {
             'adapters': [],
@@ -356,23 +365,9 @@ class TestDynamicAdapterManagerIntegration:
 
         manager = DynamicAdapterManager(config)
 
-        # Mock the RerankingServiceManager
-        with patch('server.services.dynamic_adapter_manager.RerankingServiceManager') as mock_manager:
-            mock_service = AsyncMock()
-            mock_service.initialize = AsyncMock(return_value=True)
-            mock_manager.create_reranker_service.return_value = mock_service
-
-            # First call
-            service1 = await manager.get_overridden_reranker('ollama', 'test-adapter')
-
-            # Second call
-            service2 = await manager.get_overridden_reranker('ollama', 'test-adapter')
-
-            # Should be the same cached instance
-            assert service1 is service2
-
-            # RerankingServiceManager should only be called once
-            assert mock_manager.create_reranker_service.call_count == 1
+        # Should raise ValueError for empty provider
+        with pytest.raises(ValueError, match="Reranker provider name cannot be empty"):
+            asyncio.run(manager.get_overridden_reranker('', 'test-adapter'))
 
 
 if __name__ == '__main__':

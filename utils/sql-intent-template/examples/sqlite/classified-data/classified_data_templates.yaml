@@ -73,7 +73,7 @@ templates:
     approved: true
 
   # Knowledge Item Queries - Title/Content Search
-  - id: find_documents_by_title_content
+  - id: find_documents_by_title_content #FIXME
     version: "1.0.0"
     description: "Search documents by title or content keywords"
     nl_examples:

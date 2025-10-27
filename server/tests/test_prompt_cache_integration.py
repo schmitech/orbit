@@ -4,9 +4,15 @@ Tests the complete cache flow including hits, misses, and invalidation.
 """
 
 import pytest
+import sys
+import os
 import asyncio
 from bson import ObjectId
 from unittest.mock import AsyncMock, MagicMock
+
+# Add server directory to path
+server_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, server_dir)
 
 from services.prompt_service import PromptService
 
@@ -148,7 +154,7 @@ async def prompt_service(prompt_service_config, mock_mongodb, mock_redis):
     """Fixture providing an initialized PromptService with mocked dependencies"""
     service = PromptService(
         config=prompt_service_config,
-        mongodb_service=mock_mongodb,
+        database_service=mock_mongodb,
         redis_service=mock_redis
     )
     await service.initialize()
@@ -343,7 +349,7 @@ async def test_cache_disabled_scenario(prompt_service_config, mock_mongodb):
     # Create service without Redis
     service = PromptService(
         config=prompt_service_config,
-        mongodb_service=mock_mongodb,
+        database_service=mock_mongodb,
         redis_service=None
     )
     await service.initialize()

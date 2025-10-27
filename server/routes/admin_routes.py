@@ -208,29 +208,50 @@ async def list_api_keys(
         if active_only:
             filter_query["active"] = True
         
-        # Retrieve API keys with filtering and pagination
-        cursor = api_key_service.api_keys_collection.find(filter_query).skip(offset).limit(limit)
-        api_keys = await cursor.to_list(length=limit)
-        
-        # Convert MongoDB documents to JSON-serializable format
+        # Retrieve API keys with filtering and pagination using database abstraction
+        api_keys = await api_key_service.database.find_many(
+            api_key_service.collection_name,
+            filter_query,
+            limit=limit,
+            skip=offset
+        )
+
+        # Convert documents to JSON-serializable format
         serialized_keys = []
         for key in api_keys:
-            # Convert _id to string
+            # _id is already a string from the database service
             key_dict = {
-                "_id": str(key["_id"]),
+                "_id": str(key["_id"]) if key.get("_id") else None,
                 "api_key": f"***{key['api_key'][-4:]}" if key.get("api_key") else "***",
                 "adapter_name": key.get("adapter_name"),
                 "collection_name": key.get("collection_name"),  # Legacy support
                 "client_name": key.get("client_name"),
                 "notes": key.get("notes"),
                 "active": key.get("active", True),
-                "created_at": key.get("created_at").timestamp() if key.get("created_at") else None
+                "created_at": None
             }
-            
+
+            # Handle created_at timestamp (could be datetime object or ISO string from SQLite)
+            created_at = key.get("created_at")
+            if created_at:
+                if hasattr(created_at, 'timestamp'):
+                    # It's a datetime object (MongoDB)
+                    key_dict["created_at"] = created_at.timestamp()
+                elif isinstance(created_at, str):
+                    # It's an ISO string (SQLite) - parse and convert to timestamp
+                    from datetime import datetime
+                    try:
+                        dt = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+                        key_dict["created_at"] = dt.timestamp()
+                    except:
+                        key_dict["created_at"] = None
+                else:
+                    key_dict["created_at"] = created_at
+
             # Handle system_prompt_id if it exists
             if key.get("system_prompt_id"):
                 key_dict["system_prompt_id"] = str(key["system_prompt_id"])
-            
+
             serialized_keys.append(key_dict)
         
         return serialized_keys

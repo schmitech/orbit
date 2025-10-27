@@ -100,15 +100,17 @@ async def auth_service(mongodb_service: MongoDBService):
 
     await mongodb_service.database.drop_collection(users_collection_name)
     await mongodb_service.database.drop_collection(sessions_collection_name)
-    
-    service = AuthService(config, mongodb_service=mongodb_service)
+
+    # Pass as database_service (renamed parameter for backend abstraction)
+    service = AuthService(config, database_service=mongodb_service)
     await service.initialize()
-    
+
     yield service
-    
+
     logger.info("\n=== Cleaning up all test data ===")
-    await service.mongodb.database.drop_collection(users_collection_name)
-    await service.mongodb.database.drop_collection(sessions_collection_name)
+    # Use the database service's database property for cleanup
+    await service.database.database.drop_collection(users_collection_name)
+    await service.database.database.drop_collection(sessions_collection_name)
     await service.close()
     logger.info("✓ All test data cleaned up")
 

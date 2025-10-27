@@ -113,27 +113,27 @@ def test_api_key_service_with_provided_mongodb(mock_config):
     ApiKeyService.clear_cache()
     MongoDBService.clear_cache()
     
-    # Create a MongoDB service
+    # Create a MongoDB service (now used as database service)
     mongodb_service = MongoDBService(mock_config)
-    
-    # Create API key service with provided MongoDB service
-    service1 = ApiKeyService(mock_config, mongodb_service)
-    service2 = ApiKeyService(mock_config, mongodb_service)
-    
+
+    # Create API key service with provided database service
+    service1 = ApiKeyService(mock_config, database_service=mongodb_service)
+    service2 = ApiKeyService(mock_config, database_service=mongodb_service)
+
     # Should be the same instance
     assert service1 is service2
-    
-    # Should share the same MongoDB service
-    assert service1.mongodb is mongodb_service
-    assert service2.mongodb is mongodb_service
-    
-    # Create another API key service without provided MongoDB service
+
+    # Should share the same database service
+    assert service1.database is mongodb_service
+    assert service2.database is mongodb_service
+
+    # Create another API key service without provided database service
     service3 = ApiKeyService(mock_config)
-    
+
     # Should be the SAME instance because configuration is the same
-    # and MongoDB service singleton ensures the same MongoDB instance is used
+    # and MongoDB service singleton ensures the same database instance is used
     assert service1 is service3
-    assert service3.mongodb is mongodb_service  # MongoDB singleton ensures this
+    assert service3.database is mongodb_service  # Database service singleton ensures this
 
 
 def test_api_key_service_cache_key_creation():

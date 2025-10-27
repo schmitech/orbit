@@ -126,6 +126,13 @@ clock_service:
   format: "%A, %B %d, %Y at %I:%M:%S %p %Z"
 
 internal_services:
+  # Backend database configuration
+  # Choose between 'sqlite' (no installation required) or 'mongodb' (requires MongoDB server)
+  backend:
+    type: "sqlite"  # mongodb or sqlite
+    sqlite:
+      database_path: "orbit.db"  # Path to SQLite database file (relative to project root)
+  
   elasticsearch:
     enabled: false
     node: ${INTERNAL_SERVICES_ELASTICSEARCH_NODE}

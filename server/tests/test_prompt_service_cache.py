@@ -1,6 +1,12 @@
 import asyncio
+import sys
+import os
 from bson import ObjectId
 import pytest
+
+# Add server directory to path
+server_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, server_dir)
 
 from services.prompt_service import PromptService
 
@@ -55,7 +61,7 @@ async def test_prompt_service_caches_prompts_by_id():
             "mongodb": {"prompts_collection": "system_prompts"},
             "general": {"verbose": False},
         },
-        mongodb_service=fake_mongo,
+        database_service=fake_mongo,
         redis_service=fake_redis,
     )
 
@@ -64,6 +70,12 @@ async def test_prompt_service_caches_prompts_by_id():
     first = await service.get_prompt_by_id(str(prompt_id))
     second = await service.get_prompt_by_id(str(prompt_id))
 
-    assert first == prompt_doc
-    assert second == prompt_doc
+    # Compare prompt content (ID may be converted to string for backend compatibility)
+    assert first is not None
+    assert second is not None
+    assert first["prompt"] == prompt_doc["prompt"]
+    assert second["prompt"] == prompt_doc["prompt"]
+    assert str(first["_id"]) == str(prompt_id)
+    assert str(second["_id"]) == str(prompt_id)
+    # Verify caching worked - MongoDB should only be called once
     assert fake_mongo.find_one_calls == 1

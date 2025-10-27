@@ -39,25 +39,25 @@ def mock_config():
 
 def test_service_factory_pattern_with_api_key_service(mock_config):
     """Test that service factory pattern works with API key service singleton."""
-    
+
     # Clear any existing cache
     ApiKeyService.clear_cache()
     MongoDBService.clear_cache()
-    
-    # Create instance like service factory does (with shared MongoDB service)
-    shared_mongodb = MongoDBService(mock_config)
-    shared_api_key_service = ApiKeyService(mock_config, shared_mongodb)
-    
+
+    # Create instance like service factory does (with shared database service)
+    shared_database = MongoDBService(mock_config)
+    shared_api_key_service = ApiKeyService(mock_config, database_service=shared_database)
+
     # Create another instance that would normally create its own
-    another_api_key_service = ApiKeyService(mock_config, shared_mongodb)
-    
+    another_api_key_service = ApiKeyService(mock_config, database_service=shared_database)
+
     # Should be the same instance
     assert shared_api_key_service is another_api_key_service
-    
-    # Should share the same MongoDB service
-    assert shared_api_key_service.mongodb is shared_mongodb
-    assert another_api_key_service.mongodb is shared_mongodb
-    
+
+    # Should share the same database service
+    assert shared_api_key_service.database is shared_database
+    assert another_api_key_service.database is shared_database
+
     # Verify only one API key service instance cached
     stats = ApiKeyService.get_cache_stats()
     assert stats['total_cached_instances'] == 1
@@ -65,33 +65,33 @@ def test_service_factory_pattern_with_api_key_service(mock_config):
 
 def test_api_key_service_with_different_mongodb_instances(mock_config):
     """Test that different MongoDB instances create separate API key service instances."""
-    
+
     # Clear any existing cache
     ApiKeyService.clear_cache()
     MongoDBService.clear_cache()
-    
+
     # Create two different MongoDB services (this should not happen in practice due to singleton)
     mongodb1 = MongoDBService(mock_config)
     mongodb2 = MongoDBService(mock_config)  # Should be same as mongodb1 due to singleton
-    
+
     # Since MongoDB is singleton, both should be the same
     assert mongodb1 is mongodb2
-    
-    # Create API key services with same MongoDB instance
-    service1 = ApiKeyService(mock_config, mongodb1)
-    service2 = ApiKeyService(mock_config, mongodb2)
-    
-    # Should be same instance since MongoDB instances are the same
+
+    # Create API key services with same database instance
+    service1 = ApiKeyService(mock_config, database_service=mongodb1)
+    service2 = ApiKeyService(mock_config, database_service=mongodb2)
+
+    # Should be same instance since database instances are the same
     assert service1 is service2
 
 
 def test_api_key_service_mixed_initialization_patterns():
-    """Test mixing service creation with and without provided MongoDB service."""
-    
+    """Test mixing service creation with and without provided database service."""
+
     # Clear any existing cache
     ApiKeyService.clear_cache()
     MongoDBService.clear_cache()
-    
+
     config = {
         'general': {'verbose': False},
         'internal_services': {
@@ -105,19 +105,19 @@ def test_api_key_service_mixed_initialization_patterns():
             'apikey_collection': 'api_keys'
         }
     }
-    
-    # Create API key service without providing MongoDB (it will create its own)
+
+    # Create API key service without providing database service (it will create its own)
     service1 = ApiKeyService(config)
-    
-    # Create MongoDB service separately
-    mongodb_service = MongoDBService(config)
-    
-    # Since MongoDB uses singleton, service1's MongoDB should be the same
-    assert service1.mongodb is mongodb_service
-    
-    # Create another API key service with explicitly provided MongoDB
-    service2 = ApiKeyService(config, mongodb_service)
-    
+
+    # Create database service separately
+    database_service = MongoDBService(config)
+
+    # Since MongoDB uses singleton, service1's database should be the same
+    assert service1.database is database_service
+
+    # Create another API key service with explicitly provided database service
+    service2 = ApiKeyService(config, database_service=database_service)
+
     # Should be the same API key service instance
     assert service1 is service2
 
@@ -222,49 +222,49 @@ def test_api_key_service_concurrent_access():
     }
     
     services = []
-    mongodb_services = []
-    
+    database_services = []
+
     def create_services():
         # Add delay to increase chance of race conditions
         time.sleep(0.01)
-        
-        # Create MongoDB service
-        mongodb = MongoDBService(config)
-        mongodb_services.append(mongodb)
-        
+
+        # Create database service
+        database = MongoDBService(config)
+        database_services.append(database)
+
         # Create API key service
-        api_key_service = ApiKeyService(config, mongodb)
+        api_key_service = ApiKeyService(config, database_service=database)
         services.append(api_key_service)
-    
+
     # Create multiple threads
     threads = []
     for _ in range(10):
         thread = threading.Thread(target=create_services)
         threads.append(thread)
-    
+
     # Start all threads
     for thread in threads:
         thread.start()
-    
+
     # Wait for all threads to complete
     for thread in threads:
         thread.join()
-    
+
     # All API key service instances should be the same
     first_service = services[0]
     for service in services[1:]:
         assert service is first_service
-    
-    # All MongoDB services should be the same
-    first_mongodb = mongodb_services[0]
-    for mongodb in mongodb_services[1:]:
-        assert mongodb is first_mongodb
-    
+
+    # All database services should be the same
+    first_database = database_services[0]
+    for database in database_services[1:]:
+        assert database is first_database
+
     # Should have only 1 cached instance of each
     api_key_stats = ApiKeyService.get_cache_stats()
-    mongodb_stats = MongoDBService.get_cache_stats()
+    database_stats = MongoDBService.get_cache_stats()
     assert api_key_stats['total_cached_instances'] == 1
-    assert mongodb_stats['total_cached_instances'] == 1
+    assert database_stats['total_cached_instances'] == 1
 
 
 if __name__ == "__main__":

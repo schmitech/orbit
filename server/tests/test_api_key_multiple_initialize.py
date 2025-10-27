@@ -50,25 +50,25 @@ async def test_multiple_initialize_calls_only_run_once(mock_config):
     # Create an API key service
     service = ApiKeyService(mock_config)
     
-    # Mock the MongoDB service and its methods
-    with patch.object(service, 'mongodb') as mock_mongodb:
-        mock_mongodb.initialize = AsyncMock()
-        mock_mongodb.database = {'api_keys': 'mock_collection'}
-        mock_mongodb.create_index = AsyncMock()
-        
+    # Mock the database service and its methods
+    with patch.object(service, 'database') as mock_database:
+        mock_database.initialize = AsyncMock()
+        mock_database.database = {'api_keys': 'mock_collection'}
+        mock_database.create_index = AsyncMock()
+
         # Call initialize multiple times (simulating multiple adapters)
         await service.initialize()
         await service.initialize()
         await service.initialize()
         await service.initialize()
         await service.initialize()
-        
-        # MongoDB initialize should only be called once
-        mock_mongodb.initialize.assert_called_once()
-        
-        # MongoDB create_index should only be called once
-        mock_mongodb.create_index.assert_called_once_with('api_keys', 'api_key', unique=True)
-        
+
+        # Database initialize should only be called once
+        mock_database.initialize.assert_called_once()
+
+        # Database create_index should only be called once
+        mock_database.create_index.assert_called_once_with('api_keys', 'api_key', unique=True)
+
         # Service should be marked as initialized
         assert service._initialized is True
 
@@ -89,22 +89,22 @@ async def test_multiple_api_key_services_same_config_share_initialization(mock_c
     # Should be the same instance
     assert service1 is service2 is service3
     
-    # Mock the MongoDB service and its methods for all instances (they're the same)
-    with patch.object(service1, 'mongodb') as mock_mongodb:
-        mock_mongodb.initialize = AsyncMock()
-        mock_mongodb.database = {'api_keys': 'mock_collection'}
-        mock_mongodb.create_index = AsyncMock()
-        
+    # Mock the database service and its methods for all instances (they're the same)
+    with patch.object(service1, 'database') as mock_database:
+        mock_database.initialize = AsyncMock()
+        mock_database.database = {'api_keys': 'mock_collection'}
+        mock_database.create_index = AsyncMock()
+
         # Initialize all instances (should only run once since they're the same)
         await service1.initialize()
         await service2.initialize()  # Should be skipped
         await service3.initialize()  # Should be skipped
-        
-        # MongoDB initialize should only be called once
-        mock_mongodb.initialize.assert_called_once()
-        
-        # MongoDB create_index should only be called once
-        mock_mongodb.create_index.assert_called_once()
+
+        # Database initialize should only be called once
+        mock_database.initialize.assert_called_once()
+
+        # Database create_index should only be called once
+        mock_database.create_index.assert_called_once()
         
         # All instances should be marked as initialized
         assert service1._initialized is True
@@ -124,19 +124,20 @@ async def test_simulated_multiple_adapters_initialization(mock_config):
     async def simulate_adapter_initialization(adapter_name):
         # Each adapter creates an API key service (gets same singleton)
         api_key_service = ApiKeyService(mock_config)
-        
+
         # Each adapter initializes it
         await api_key_service.initialize()
-        
+
         return api_key_service, adapter_name
-    
-    # Mock MongoDB for the singleton instance that will be created
-    with patch('services.api_key_service.MongoDBService') as MockMongoDB:
-        mock_mongodb_instance = AsyncMock()
-        mock_mongodb_instance.initialize = AsyncMock()
-        mock_mongodb_instance.database = {'api_keys': 'mock_collection'}
-        mock_mongodb_instance.create_index = AsyncMock()
-        MockMongoDB.return_value = mock_mongodb_instance
+
+    # Mock the database service factory to return a mock database instance
+    with patch('services.database_service.create_database_service') as mock_factory:
+        mock_database_instance = AsyncMock()
+        mock_database_instance.initialize = AsyncMock()
+        mock_database_instance.database = {'api_keys': 'mock_collection'}
+        mock_database_instance.create_index = AsyncMock()
+        mock_database_instance.get_collection = AsyncMock(return_value='mock_collection')
+        mock_factory.return_value = mock_database_instance
         
         # Simulate 7 adapters (like in the actual config) initializing concurrently
         adapters = [
@@ -160,12 +161,12 @@ async def test_simulated_multiple_adapters_initialization(mock_config):
         first_service = services[0]
         for service in services[1:]:
             assert service is first_service
-        
-        # MongoDB initialize should only be called once despite 7 adapters
-        mock_mongodb_instance.initialize.assert_called_once()
-        
+
+        # Database initialize should only be called once despite 7 adapters
+        mock_database_instance.initialize.assert_called_once()
+
         # Create index should only be called once
-        mock_mongodb_instance.create_index.assert_called_once()
+        mock_database_instance.create_index.assert_called_once()
 
 
 if __name__ == "__main__":

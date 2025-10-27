@@ -23,21 +23,24 @@ from pymongo.errors import (
 )
 from bson.errors import InvalidId
 
-from services.mongodb_service import MongoDBService
+from services.database_service import DatabaseService
 
 logger = logging.getLogger(__name__)
 
 
 class AuthService:
     """Service for handling user authentication and session management"""
-    
-    def __init__(self, config: Dict[str, Any], mongodb_service: Optional[MongoDBService] = None):
+
+    def __init__(self, config: Dict[str, Any], database_service: Optional[DatabaseService] = None):
         """Initialize the authentication service with configuration"""
         self.config = config
         self.verbose = config.get('general', {}).get('verbose', False)
-        
-        # Use provided MongoDB service or create a new one
-        self.mongodb = mongodb_service or MongoDBService(config)
+
+        # Use provided database service or create a new one using factory
+        if database_service is None:
+            from services.database_service import create_database_service
+            database_service = create_database_service(config)
+        self.database = database_service
         
         # MongoDB collection names - read from internal_services.mongodb or fallback to mongodb section
         mongodb_config = config.get('internal_services', {}).get('mongodb', {})
@@ -62,17 +65,17 @@ class AuthService:
         
     async def initialize(self) -> None:
         """Initialize the service and create default admin user if needed"""
-        await self.mongodb.initialize()
-        
+        await self.database.initialize()
+
         # Set up collections
-        self.users_collection = self.mongodb.database[self.users_collection_name]
-        self.sessions_collection = self.mongodb.database[self.sessions_collection_name]
-        
+        self.users_collection = self.database.get_collection(self.users_collection_name)
+        self.sessions_collection = self.database.get_collection(self.sessions_collection_name)
+
         # Create indexes
-        await self.mongodb.create_index(self.users_collection_name, "username", unique=True)
-        await self.mongodb.create_index(self.sessions_collection_name, "token", unique=True)
-        await self.mongodb.create_index(self.sessions_collection_name, "expires", ttl_seconds=0)
-        
+        await self.database.create_index(self.users_collection_name, "username", unique=True)
+        await self.database.create_index(self.sessions_collection_name, "token", unique=True)
+        await self.database.create_index(self.sessions_collection_name, "expires", ttl_seconds=0)
+
         logger.info("Created indexes for users and sessions collections")
         
         # Create default admin user if it doesn't exist
@@ -154,7 +157,7 @@ class AuthService:
         """Create default admin user if it doesn't exist"""
         try:
             # Check if admin user exists
-            admin_user = await self.mongodb.find_one(
+            admin_user = await self.database.find_one(
                 self.users_collection_name,
                 {"username": self.default_admin_username}
             )
@@ -173,7 +176,7 @@ class AuthService:
                     "last_login": None
                 }
                 
-                await self.mongodb.insert_one(self.users_collection_name, user_doc)
+                await self.database.insert_one(self.users_collection_name, user_doc)
                 logger.info(f"Created default admin user: {self.default_admin_username}")
                 logger.warning("Please change the default admin password immediately!")
             else:
@@ -203,7 +206,7 @@ class AuthService:
         """
         try:
             # Find user
-            user = await self.mongodb.find_one(
+            user = await self.database.find_one(
                 self.users_collection_name,
                 {"username": username}
             )
@@ -239,10 +242,10 @@ class AuthService:
             }
             
             # Insert session
-            await self.mongodb.insert_one(self.sessions_collection_name, session_doc)
+            await self.database.insert_one(self.sessions_collection_name, session_doc)
             
             # Update last login
-            await self.mongodb.update_one(
+            await self.database.update_one(
                 self.users_collection_name,
                 {"_id": user["_id"]},
                 {"$set": {"last_login": datetime.now(UTC)}}
@@ -303,7 +306,7 @@ class AuthService:
         """
         try:
             # Find session
-            session = await self.mongodb.find_one(
+            session = await self.database.find_one(
                 self.sessions_collection_name,
                 {"token": token}
             )
@@ -317,14 +320,14 @@ class AuthService:
             
             if expires < now:
                 # Clean up expired session
-                await self.mongodb.delete_one(
+                await self.database.delete_one(
                     self.sessions_collection_name,
                     {"_id": session["_id"]}
                 )
                 return False, None
             
             # Get user info
-            user = await self.mongodb.find_one(
+            user = await self.database.find_one(
                 self.users_collection_name,
                 {"_id": session["user_id"]}
             )
@@ -362,7 +365,7 @@ class AuthService:
             True if successful, False otherwise
         """
         try:
-            result = await self.mongodb.delete_one(
+            result = await self.database.delete_one(
                 self.sessions_collection_name,
                 {"token": token}
             )
@@ -397,7 +400,7 @@ class AuthService:
         try:
             # Get user
             from bson import ObjectId
-            user = await self.mongodb.find_one(
+            user = await self.database.find_one(
                 self.users_collection_name,
                 {"_id": ObjectId(user_id)}
             )
@@ -415,7 +418,7 @@ class AuthService:
             encoded_password = self._encode_password(salt, hash_bytes)
             
             # Update password
-            result = await self.mongodb.update_one(
+            result = await self.database.update_one(
                 self.users_collection_name,
                 {"_id": user["_id"]},
                 {"$set": {"password": encoded_password}}
@@ -423,7 +426,7 @@ class AuthService:
             
             if result:
                 # Invalidate all sessions for this user
-                await self.mongodb.delete_many(
+                await self.database.delete_many(
                     self.sessions_collection_name,
                     {"user_id": user["_id"]}
                 )
@@ -460,7 +463,7 @@ class AuthService:
         """
         try:
             # Check if username already exists
-            existing = await self.mongodb.find_one(
+            existing = await self.database.find_one(
                 self.users_collection_name,
                 {"username": username}
             )
@@ -484,7 +487,7 @@ class AuthService:
             }
             
             # Insert user
-            user_id = await self.mongodb.insert_one(self.users_collection_name, user_doc)
+            user_id = await self.database.insert_one(self.users_collection_name, user_doc)
             
             if self.verbose:
                 logger.info(f"Created new user: {username} with role: {role}")
@@ -557,7 +560,7 @@ class AuthService:
         try:
             from bson import ObjectId
             
-            user = await self.mongodb.find_one(
+            user = await self.database.find_one(
                 self.users_collection_name,
                 {"_id": ObjectId(user_id)}
             )
@@ -598,7 +601,7 @@ class AuthService:
             User record with basic details (without password) or None if not found
         """
         try:
-            user = await self.mongodb.find_one(
+            user = await self.database.find_one(
                 self.users_collection_name,
                 {"username": username}
             )
@@ -638,7 +641,7 @@ class AuthService:
         """
         try:
             from bson import ObjectId
-            result = await self.mongodb.update_one(
+            result = await self.database.update_one(
                 self.users_collection_name,
                 {"_id": ObjectId(user_id)},
                 {"$set": {"active": active}}
@@ -646,12 +649,12 @@ class AuthService:
             
             if result and not active:
                 # Invalidate all sessions for deactivated user
-                user = await self.mongodb.find_one(
+                user = await self.database.find_one(
                     self.users_collection_name,
                     {"_id": ObjectId(user_id)}
                 )
                 if user:
-                    await self.mongodb.delete_many(
+                    await self.database.delete_many(
                         self.sessions_collection_name,
                         {"user_id": user["_id"]}
                     )
@@ -686,7 +689,7 @@ class AuthService:
             from bson import ObjectId
             
             # Get user
-            user = await self.mongodb.find_one(
+            user = await self.database.find_one(
                 self.users_collection_name,
                 {"_id": ObjectId(user_id)}
             )
@@ -700,7 +703,7 @@ class AuthService:
             encoded_password = self._encode_password(salt, hash_bytes)
             
             # Update password
-            result = await self.mongodb.update_one(
+            result = await self.database.update_one(
                 self.users_collection_name,
                 {"_id": user["_id"]},
                 {"$set": {"password": encoded_password}}
@@ -708,7 +711,7 @@ class AuthService:
             
             if result:
                 # Invalidate all sessions for this user
-                await self.mongodb.delete_many(
+                await self.database.delete_many(
                     self.sessions_collection_name,
                     {"user_id": user["_id"]}
                 )
@@ -745,7 +748,7 @@ class AuthService:
             from bson import ObjectId
             
             # Get user first to check if exists
-            user = await self.mongodb.find_one(
+            user = await self.database.find_one(
                 self.users_collection_name,
                 {"_id": ObjectId(user_id)}
             )
@@ -760,13 +763,13 @@ class AuthService:
                 return False
             
             # Delete all sessions for this user first
-            await self.mongodb.delete_many(
+            await self.database.delete_many(
                 self.sessions_collection_name,
                 {"user_id": user["_id"]}
             )
             
             # Delete the user
-            result = await self.mongodb.delete_one(
+            result = await self.database.delete_one(
                 self.users_collection_name,
                 {"_id": ObjectId(user_id)}
             )

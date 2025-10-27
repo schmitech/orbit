@@ -56,17 +56,21 @@ def with_retry(
 
 class ChatHistoryService:
     """Service for managing chat history and conversations"""
-    
-    def __init__(self, config: Dict[str, Any], mongodb_service=None):
+
+    def __init__(self, config: Dict[str, Any], database_service=None):
         """
         Initialize the Chat History Service
-        
+
         Args:
             config: Application configuration
-            mongodb_service: MongoDB service instance
+            database_service: Database service instance
         """
         self.config = config
-        self.mongodb_service = mongodb_service
+        # Use provided database service or create a new one using factory
+        if database_service is None:
+            from services.database_service import create_database_service
+            database_service = create_database_service(config)
+        self.database_service = database_service
         self.api_key_service = None
         
         # Initialize verbose first since it's used in calculation methods
@@ -270,7 +274,7 @@ class ChatHistoryService:
             
         try:
             # Ensure MongoDB is available
-            if not self.mongodb_service:
+            if not self.database_service:
                 raise ValueError("MongoDB service is required for chat history")
                 
             # Create indexes for efficient querying
@@ -292,31 +296,31 @@ class ChatHistoryService:
         """Create MongoDB indexes for efficient querying"""
         try:
             # Create compound index for session queries
-            await self.mongodb_service.create_index(
+            await self.database_service.create_index(
                 self.collection_name,
                 [("session_id", 1), ("timestamp", -1)]
             )
             
             # Create index for user queries
-            await self.mongodb_service.create_index(
+            await self.database_service.create_index(
                 self.collection_name,
                 [("user_id", 1), ("timestamp", -1)]
             )
             
             # Create index for cleanup queries
-            await self.mongodb_service.create_index(
+            await self.database_service.create_index(
                 self.collection_name,
                 "timestamp"
             )
             
             # Create index for API key queries
-            await self.mongodb_service.create_index(
+            await self.database_service.create_index(
                 self.collection_name,
                 "api_key"
             )
             
             # Create unique index for message deduplication
-            await self.mongodb_service.create_index(
+            await self.database_service.create_index(
                 self.collection_name,
                 [("session_id", 1), ("message_hash", 1)],
                 unique=True,
@@ -325,19 +329,19 @@ class ChatHistoryService:
             
             # Create archive collection indexes
             archive_collection = f"{self.collection_name}_archive"
-            await self.mongodb_service.create_index(
+            await self.database_service.create_index(
                 archive_collection,
                 [("session_id", 1), ("timestamp", -1)]
             )
             
             # Create index for archive cleanup queries
-            await self.mongodb_service.create_index(
+            await self.database_service.create_index(
                 archive_collection,
                 "timestamp"
             )
             
             # Create index for archive user queries
-            await self.mongodb_service.create_index(
+            await self.database_service.create_index(
                 archive_collection,
                 [("user_id", 1), ("timestamp", -1)]
             )
@@ -414,7 +418,7 @@ class ChatHistoryService:
             
             # Insert into MongoDB with duplicate handling
             try:
-                message_id = await self.mongodb_service.insert_one(
+                message_id = await self.database_service.insert_one(
                     self.collection_name,
                     message_doc
                 )
@@ -537,7 +541,7 @@ class ChatHistoryService:
                 logger.debug(f"Fetching chat history for session {session_id} with limit {effective_limit}")
             
             # Fetch messages sorted by timestamp descending to get most recent first
-            messages = await self.mongodb_service.find_many(
+            messages = await self.database_service.find_many(
                 self.collection_name,
                 query,
                 sort=[("timestamp", -1)],  # Descending to get latest messages first
@@ -611,7 +615,7 @@ class ChatHistoryService:
                 {"$limit": limit}
             ]
             
-            collection = self.mongodb_service.get_collection(self.collection_name)
+            collection = self.database_service.get_collection(self.collection_name)
             cursor = collection.aggregate(pipeline)
             sessions = await cursor.to_list(length=None)
             
@@ -659,7 +663,7 @@ class ChatHistoryService:
             
         try:
             # Delete from MongoDB
-            collection = self.mongodb_service.get_collection(self.collection_name)
+            collection = self.database_service.get_collection(self.collection_name)
             result = await collection.delete_many({"session_id": session_id})
             
             # Clear from tracking
@@ -729,7 +733,7 @@ class ChatHistoryService:
                     "deleted_count": 0
                 }
 
-            collection = self.mongodb_service.get_collection(self.collection_name)
+            collection = self.database_service.get_collection(self.collection_name)
             result = await collection.delete_many({"session_id": session_id})
 
             self._active_sessions.pop(session_id, None)
@@ -777,7 +781,7 @@ class ChatHistoryService:
             return {}
             
         try:
-            collection = self.mongodb_service.get_collection(self.collection_name)
+            collection = self.database_service.get_collection(self.collection_name)
             
             # Aggregation for session stats
             pipeline = [
@@ -832,7 +836,7 @@ class ChatHistoryService:
             session_id: Session identifier
         """
         try:
-            collection = self.mongodb_service.get_collection(self.collection_name)
+            collection = self.database_service.get_collection(self.collection_name)
             
             # Use aggregation to get count atomically
             pipeline = [
@@ -860,8 +864,8 @@ class ChatHistoryService:
                     # Simplified archive operation without transactions
                     # since $merge cannot be used in transactions
                     try:
-                        collection = self.mongodb_service.get_collection(self.collection_name)
-                        archive_collection = self.mongodb_service.get_collection(f"{self.collection_name}_archive")
+                        collection = self.database_service.get_collection(self.collection_name)
+                        archive_collection = self.database_service.get_collection(f"{self.collection_name}_archive")
                         
                         # Find oldest messages to archive
                         messages_to_archive = await collection.find(
@@ -919,35 +923,48 @@ class ChatHistoryService:
             try:
                 if self.retention_days > 0:
                     cutoff_date = datetime.now(UTC) - timedelta(days=self.retention_days)
-                    
-                    collection = self.mongodb_service.get_collection(self.collection_name)
-                    
-                    # Find sessions to clean up
-                    sessions_to_clean = await collection.distinct(
-                        "session_id",
-                        {"timestamp": {"$lt": cutoff_date}}
+
+                    # Find old messages
+                    old_messages = await self.database_service.find_many(
+                        self.collection_name,
+                        {"timestamp": {"$lt": cutoff_date}},
+                        limit=10000  # Process in batches
                     )
-                    
+
+                    # Extract unique session IDs
+                    sessions_to_clean = set()
+                    for msg in old_messages:
+                        if "session_id" in msg:
+                            sessions_to_clean.add(msg["session_id"])
+
                     total_deleted = 0
                     for session_id in sessions_to_clean:
-                        result = await collection.delete_many({
-                            "session_id": session_id,
-                            "timestamp": {"$lt": cutoff_date}
-                        })
-                        total_deleted += result.deleted_count
-                        
-                        # Clean from tracking if all messages deleted
-                        remaining = await collection.count_documents({"session_id": session_id})
-                        if remaining == 0:
+                        # Delete old messages for this session
+                        deleted = await self.database_service.delete_many(
+                            self.collection_name,
+                            {
+                                "session_id": session_id,
+                                "timestamp": {"$lt": cutoff_date}
+                            }
+                        )
+                        total_deleted += deleted
+
+                        # Check if any messages remain for this session
+                        remaining = await self.database_service.find_many(
+                            self.collection_name,
+                            {"session_id": session_id},
+                            limit=1
+                        )
+                        if not remaining:
                             self._active_sessions.pop(session_id, None)
                             self._session_message_counts.pop(session_id, None)
-                    
+
                     if total_deleted > 0:
                         logger.info(f"Cleaned up {total_deleted} old messages from {len(sessions_to_clean)} sessions")
-                
+
                 # Run cleanup once per day
                 await asyncio.sleep(86400)
-                
+
             except asyncio.CancelledError:
                 logger.info("Cleanup task cancelled")
                 break
@@ -998,18 +1015,17 @@ class ChatHistoryService:
     async def health_check(self) -> Dict[str, Any]:
         """
         Check health of the service
-        
+
         Returns:
             Dictionary with health status
         """
         try:
-            # Test MongoDB connection
-            collection = self.mongodb_service.get_collection(self.collection_name)
-            await collection.find_one({})
-            
+            # Test database connection by doing a simple query
+            await self.database_service.find_one(self.collection_name, {})
+
             return {
                 "status": "healthy",
-                "mongodb": "connected",
+                "database": "connected",
                 "enabled": self.enabled,
                 "active_sessions": len(self._active_sessions),
                 "tracked_sessions": len(self._session_message_counts)
@@ -1017,7 +1033,7 @@ class ChatHistoryService:
         except Exception as e:
             return {
                 "status": "unhealthy",
-                "mongodb": "disconnected",
+                "database": "disconnected",
                 "error": str(e)
             }
     
@@ -1033,14 +1049,14 @@ class ChatHistoryService:
             - oldest_tracked_session: Timestamp of the oldest tracked session
         """
         try:
-            collection = self.mongodb_service.get_collection(self.collection_name)
+            collection = self.database_service.get_collection(self.collection_name)
             
             # Get today's message count
             today_start = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
             today_count = await collection.count_documents({"timestamp": {"$gte": today_start}})
             
             # Get archive collection metrics
-            archive_collection = self.mongodb_service.get_collection(f"{self.collection_name}_archive")
+            archive_collection = self.database_service.get_collection(f"{self.collection_name}_archive")
             archive_count = await archive_collection.count_documents({})
             
             return {
