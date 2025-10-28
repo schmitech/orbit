@@ -4,6 +4,7 @@
 [profiles.minimal]
 description = "Core dependencies"
 dependencies = [
+    "numpy<2.0.0",  # Pin to NumPy 1.x for compatibility with PyTorch and transformers
     "setuptools>=77.0.3,<80",
     "ollama==0.6.0",
     "openai==2.6.1",
@@ -70,7 +71,14 @@ dependencies = [
     "pgvector==0.4.1",
     "opentelemetry-proto==1.28.0",
     "firecrawl==4.5.0",
-    "duckdb>=1.4.1"
+    "duckdb>=1.4.1",
+    "pypdf>=6.0.0",
+    "python-docx>=1.2.0",
+    "pandas>=2.3.3",
+    "beautifulsoup4>=4.14.1",
+    "python-magic>=0.4.27",
+    "filetype>=1.2.0",
+    "docling>=2.58.0"
 ]
 
 [profiles.torch]

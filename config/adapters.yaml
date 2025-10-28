@@ -470,3 +470,59 @@ adapters:
       retention_period: 86400.0
       event_handler:
         type: "default"
+
+  # File Adapter - Document Q&A
+  # Supports uploading and querying files (PDF, DOCX, CSV, TXT, HTML, JSON)
+  # Uses dual-path strategy: vector stores for documents, DuckDB for structured data
+  - name: "file-document-qa"
+    enabled: false
+    type: "retriever"
+    datasource: "file"
+    adapter: "file"
+    implementation: "adapters.file.adapter.FileAdapter"
+    
+    # Provider overrides
+    inference_provider: "ollama"
+    embedding_provider: "ollama"
+    
+    config:
+      # Storage configuration
+      storage_backend: "filesystem"  # Future: "s3", "minio"
+      storage_root: "./uploads"
+      max_file_size: 52428800  # 50MB
+      
+      # Processing configuration
+      chunking_strategy: "semantic"  # "fixed" or "semantic"
+      chunk_size: 1000
+      chunk_overlap: 200
+      
+      # Vector store integration
+      vector_store: "chroma"  # References stores.yaml
+      collection_prefix: "files_"
+      
+      # Supported file types
+      supported_types:
+        - "application/pdf"
+        - "text/plain"
+        - "text/markdown"
+        - "text/csv"
+        - "application/json"
+        - "text/html"
+        - "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        - "application/vnd.openxmlformats-officedocument.presentationml.presentation"  # PPTX (via Docling)
+        - "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"  # XLSX (via Docling)
+        - "image/png"
+        - "image/jpeg"
+        - "image/tiff"
+        - "audio/wav"
+        - "audio/mpeg"
+        - "text/vtt"
+      
+      # Q&A settings
+      confidence_threshold: 0.3
+      max_results: 5
+      return_results: 3
+      
+      # DuckDB integration for structured data (CSV, Parquet)
+      enable_duckdb_path: true
+      duckdb_store: "duckdb"
