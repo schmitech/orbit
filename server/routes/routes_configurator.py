@@ -322,7 +322,16 @@ class RouteConfigurator:
                         user_id=user_id
                     ):
                         yield chunk
-                return StreamingResponse(stream_generator(), media_type="text/event-stream")
+
+                # Return StreamingResponse with headers to prevent buffering
+                return StreamingResponse(
+                    stream_generator(),
+                    media_type="text/event-stream",
+                    headers={
+                        "Cache-Control": "no-cache",
+                        "X-Accel-Buffering": "no",  # Disable nginx buffering if behind proxy
+                    }
+                )
             else:
                 result = await chat_service.process_chat(
                     message=last_user_message,

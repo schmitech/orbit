@@ -442,6 +442,8 @@ class PipelineChatService:
             sources = []
             stream_completed_successfully = False
             
+            first_chunk_yielded = False
+            chunk_count = 0
             try:
                 # Process through pipeline with streaming
                 async for chunk in self.pipeline.process_stream(context):
@@ -453,9 +455,17 @@ class PipelineChatService:
                             yield f"data: {chunk}\n\n"
                             return
 
+                        # Debug: Log first chunk timing
+                        if not first_chunk_yielded and "response" in chunk_data and chunk_data["response"]:
+                            first_chunk_yielded = True
+                            if self.verbose:
+                                logger.info(f"🚀 Yielding first chunk to client: {repr(chunk_data['response'][:50])}")
+
                         # Stream immediately - yield to event loop to prevent buffering
                         yield f"data: {chunk}\n\n"
                         await asyncio.sleep(0)  # Force immediate flush to client
+
+                        chunk_count += 1
 
                         # Accumulate content
                         if "response" in chunk_data:

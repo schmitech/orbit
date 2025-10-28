@@ -6,7 +6,7 @@ description = "Core dependencies"
 dependencies = [
     "setuptools>=77.0.3,<80",
     "ollama==0.6.0",
-    "openai==2.5.0",
+    "openai==2.6.1",
     "anthropic==0.71.0",
     "cohere==5.19.0",
     "groq==0.32.0",

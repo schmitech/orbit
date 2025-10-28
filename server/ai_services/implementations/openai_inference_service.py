@@ -48,6 +48,9 @@ class OpenAIInferenceService(InferenceService, OpenAIBaseService):
         self.max_tokens = self._get_max_tokens(default=2000)
         self.top_p = self._get_top_p(default=1.0)
 
+        # Get verbose setting from general config for diagnostic logging
+        self.verbose = config.get('general', {}).get('verbose', False)
+
     async def generate(self, prompt: str, **kwargs) -> str:
         """
         Generate response using OpenAI.
@@ -131,6 +134,7 @@ class OpenAIInferenceService(InferenceService, OpenAIBaseService):
                 "messages": messages,
                 token_param: token_value,
                 "stream": True,
+                "stream_options": {"include_usage": True}  # Required for proper streaming in newer SDK versions
             }
 
             temperature = kwargs.pop('temperature', self.temperature)
@@ -143,11 +147,28 @@ class OpenAIInferenceService(InferenceService, OpenAIBaseService):
 
             params.update(kwargs)  # Any other parameters
 
+            if self.verbose:
+                self.logger.info(f"Creating OpenAI stream with params: model={params['model']}, stream={params['stream']}")
+
             stream = await self.client.chat.completions.create(**params)
 
+            if self.verbose:
+                self.logger.info(f"Stream object created, starting iteration...")
+
+            chunk_count = 0
             async for chunk in stream:
-                if chunk.choices[0].delta.content:
-                    yield chunk.choices[0].delta.content
+                chunk_count += 1
+                if chunk_count == 1 and self.verbose:
+                    self.logger.info(f"First chunk received from OpenAI!")
+
+                if chunk.choices and len(chunk.choices) > 0 and chunk.choices[0].delta.content:
+                    content = chunk.choices[0].delta.content
+                    if self.verbose and chunk_count <= 3:
+                        self.logger.info(f"Yielding chunk #{chunk_count}: {repr(content[:50])}")
+                    yield content
+
+            if self.verbose:
+                self.logger.info(f"Streaming complete. Total chunks: {chunk_count}")
 
         except Exception as e:
             self._handle_openai_error(e, "streaming generation")

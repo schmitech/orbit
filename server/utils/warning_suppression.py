@@ -15,16 +15,27 @@ import os
 def suppress_known_warnings():
     """
     Suppress known deprecation warnings from third-party libraries.
-    
+
     This function should be called as early as possible in the application
     startup process, before any third-party libraries are imported.
     """
-    
-    # Suppress various unclosed resource warnings
+
+    # Suppress ALL ResourceWarnings (including unclosed transports, files, etc.)
+    # This is more aggressive but necessary to suppress asyncio transport warnings
+    warnings.simplefilter("ignore", ResourceWarning)
+
+    # Also add specific filter for unclosed resources as backup
     warnings.filterwarnings(
-        "ignore", 
-        category=ResourceWarning, 
+        "ignore",
+        category=ResourceWarning,
         message="unclosed.*"
+    )
+
+    # Suppress asyncio transport warnings specifically
+    warnings.filterwarnings(
+        "ignore",
+        category=ResourceWarning,
+        message=".*unclosed transport.*"
     )
 
     # Suppress Cohere Pydantic deprecation warnings.

@@ -469,8 +469,8 @@ class InferenceServer:
             timeout_graceful_shutdown=30,
             access_log=False,  # Disable FastAPI's default access logging
             log_config=None,  # Reuse global logging configuration for consistent formatting
-            # Streaming optimization settings
-            h11_max_incomplete_event_size=16 * 1024,  # 16KB for smoother streaming
+            # Streaming optimization settings - CRITICAL for immediate SSE streaming
+            h11_max_incomplete_event_size=1 * 1024,  # 1KB buffer for immediate streaming (was 16KB)
             limit_concurrency=None,  # Don't limit concurrent connections
             backlog=2048,  # Connection backlog
         )
