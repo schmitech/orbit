@@ -128,6 +128,14 @@ class StoreManager:
             except ImportError:
                 logger.warning("PgvectorStore not available")
 
+        if vector_stores_config.get('duckdb', {}).get('enabled', False):
+            try:
+                from ..implementations.duckdb_store import DuckDBStore
+                self._store_classes['duckdb'] = DuckDBStore
+                logger.info("Registered DuckDBStore")
+            except ImportError:
+                logger.warning("DuckDBStore not available")
+
     @staticmethod
     def _resolve_env_variable(value: Any) -> Any:
         """

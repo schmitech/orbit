@@ -2,7 +2,7 @@
 
 ## ✅ Implementation Complete
 
-Your Firecrawl adapter has been successfully implemented as a **knowledge retrieval system** that treats authoritative web sources (Wikipedia, official documentation) as an online database, similar to how other ORBIT retrievers treat SQL databases or vector stores.
+Firecrawl adapter has been successfully implemented as a **knowledge retrieval system** that treats authoritative web sources (Wikipedia, official documentation) as an online database, similar to how other ORBIT retrievers treat SQL databases or vector stores.
 
 ---
 

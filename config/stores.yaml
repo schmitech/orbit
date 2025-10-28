@@ -93,3 +93,13 @@ vector_stores:
     cache_ttl: 1800
     ephemeral: false
     auto_cleanup: true
+
+  duckdb:
+    enabled: false
+    connection_params:
+      database_path: "./duckdb_db/orbit.duckdb"
+      read_only: false
+      threads: null
+    pool_size: 5
+    timeout: 30
+    auto_cleanup: true

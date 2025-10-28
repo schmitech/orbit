@@ -69,7 +69,8 @@ dependencies = [
     "marqo==3.18.0",
     "pgvector==0.4.1",
     "opentelemetry-proto==1.28.0",
-    "firecrawl==4.5.0"
+    "firecrawl==4.5.0",
+    "duckdb>=1.4.1"
 ]
 
 [profiles.torch]

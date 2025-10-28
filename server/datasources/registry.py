@@ -183,6 +183,11 @@ class DatasourceRegistry:
             database = datasource_config.get('database', 'sqlite_db.db')
             return f"{datasource_name}:{database}"
 
+        elif datasource_name in ['duckdb']:
+            # DuckDB: cache key is database path
+            database = datasource_config.get('database', ':memory:')
+            return f"{datasource_name}:{database}"
+
         elif datasource_name in ['postgres', 'postgresql', 'mysql', 'mssql']:
             # Relational DBs: cache key includes host, port, database
             host = datasource_config.get('host', 'localhost')

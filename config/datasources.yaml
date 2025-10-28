@@ -87,6 +87,11 @@ datasources:
     keyspace: ${DATASOURCE_CASSANDRA_KEYSPACE}
     username: ${DATASOURCE_CASSANDRA_USERNAME}
     password: ${DATASOURCE_CASSANDRA_PASSWORD}
+  duckdb:
+    database: ":memory:"
+    read_only: false
+    access_mode: "automatic"
+    threads: null
   mongodb:
     # Option 1: MongoDB Atlas connection (recommended for sample_mflix)
     connection_string: ${DATASOURCE_MONGODB_URI}
