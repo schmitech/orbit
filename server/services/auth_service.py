@@ -4,7 +4,7 @@ Authentication Service
 
 This service handles user authentication, session management, and password hashing
 using only Python standard library dependencies. Implements a simple bearer token
-system with MongoDB-backed sessions.
+system with database-backed sessions (supports both MongoDB and SQLite).
 """
 
 import hashlib
@@ -14,16 +14,15 @@ import base64
 import logging
 from typing import Dict, Any, Optional, Tuple
 from datetime import datetime, timedelta, UTC
-from pymongo.errors import (
-    ServerSelectionTimeoutError, 
-    OperationFailure, 
-    DuplicateKeyError,
-    ConnectionFailure,
-    PyMongoError
-)
-from bson.errors import InvalidId
 
-from services.database_service import DatabaseService
+from services.database_service import (
+    DatabaseService,
+    DatabaseError,
+    DatabaseConnectionError,
+    DatabaseOperationError,
+    DatabaseDuplicateKeyError,
+    DatabaseTimeoutError
+)
 
 logger = logging.getLogger(__name__)
 
@@ -41,15 +40,22 @@ class AuthService:
             from services.database_service import create_database_service
             database_service = create_database_service(config)
         self.database = database_service
-        
-        # MongoDB collection names - read from internal_services.mongodb or fallback to mongodb section
-        mongodb_config = config.get('internal_services', {}).get('mongodb', {})
-        if not mongodb_config:
-            # Fallback to root mongodb section for backward compatibility
-            mongodb_config = config.get('mongodb', {})
-        
-        self.users_collection_name = mongodb_config.get('users_collection', 'users')
-        self.sessions_collection_name = mongodb_config.get('sessions_collection', 'sessions')
+
+        # Collection/table names - read from backend-specific config or use defaults
+        backend_type = config.get('internal_services', {}).get('backend', {}).get('type', 'mongodb')
+
+        if backend_type == 'mongodb':
+            # MongoDB: read collection names from config
+            mongodb_config = config.get('internal_services', {}).get('mongodb', {})
+            if not mongodb_config:
+                # Fallback to root mongodb section for backward compatibility
+                mongodb_config = config.get('mongodb', {})
+            self.users_collection_name = mongodb_config.get('users_collection', 'users')
+            self.sessions_collection_name = mongodb_config.get('sessions_collection', 'sessions')
+        else:
+            # SQLite or other backends: use default table names
+            self.users_collection_name = 'users'
+            self.sessions_collection_name = 'sessions'
         
         # Session configuration
         self.session_duration_hours = config.get('auth', {}).get('session_duration_hours', 12)
@@ -161,12 +167,12 @@ class AuthService:
                 self.users_collection_name,
                 {"username": self.default_admin_username}
             )
-            
+
             if not admin_user:
                 # Create default admin user
                 salt, hash_bytes = self._hash_password(self.default_admin_password)
                 encoded_password = self._encode_password(salt, hash_bytes)
-                
+
                 user_doc = {
                     "username": self.default_admin_username,
                     "password": encoded_password,
@@ -175,19 +181,19 @@ class AuthService:
                     "created_at": datetime.now(UTC),
                     "last_login": None
                 }
-                
+
                 await self.database.insert_one(self.users_collection_name, user_doc)
                 logger.info(f"Created default admin user: {self.default_admin_username}")
                 logger.warning("Please change the default admin password immediately!")
             else:
                 if self.verbose:
                     logger.info(f"Default admin user already exists: {self.default_admin_username}")
-                    
-        except (ServerSelectionTimeoutError, ConnectionFailure) as e:
-            logger.error(f"MongoDB connection error creating default admin user: {str(e)}")
+
+        except (DatabaseConnectionError, DatabaseTimeoutError) as e:
+            logger.error(f"Database connection error creating default admin user: {str(e)}")
             raise
-        except (OperationFailure, DuplicateKeyError) as e:
-            logger.error(f"MongoDB operation error creating default admin user: {str(e)}")
+        except (DatabaseOperationError, DatabaseDuplicateKeyError) as e:
+            logger.error(f"Database operation error creating default admin user: {str(e)}")
             raise
         except Exception as e:
             logger.error(f"Unexpected error creating default admin user: {str(e)}")
@@ -263,12 +269,12 @@ class AuthService:
             }
             
             return True, token, user_info
-            
-        except (ServerSelectionTimeoutError, ConnectionFailure) as e:
-            logger.error(f"MongoDB connection error authenticating user {username}: {str(e)}")
+
+        except (DatabaseConnectionError, DatabaseTimeoutError) as e:
+            logger.error(f"Database connection error authenticating user {username}: {str(e)}")
             return False, None, None
-        except (OperationFailure, DuplicateKeyError) as e:
-            logger.error(f"MongoDB operation error authenticating user {username}: {str(e)}")
+        except (DatabaseOperationError, DatabaseDuplicateKeyError) as e:
+            logger.error(f"Database operation error authenticating user {username}: {str(e)}")
             return False, None, None
         except Exception as e:
             logger.error(f"Unexpected error authenticating user {username}: {str(e)}")
@@ -344,11 +350,11 @@ class AuthService:
             
             return True, user_info
             
-        except (ServerSelectionTimeoutError, ConnectionFailure) as e:
-            logger.error(f"MongoDB connection error validating token: {str(e)}")
+        except (DatabaseConnectionError, DatabaseTimeoutError) as e:
+            logger.error(f"Database connection error validating token: {str(e)}")
             return False, None
-        except (OperationFailure, DuplicateKeyError) as e:
-            logger.error(f"MongoDB operation error validating token: {str(e)}")
+        except (DatabaseOperationError, DatabaseDuplicateKeyError) as e:
+            logger.error(f"Database operation error validating token: {str(e)}")
             return False, None
         except Exception as e:
             logger.error(f"Unexpected error validating token: {str(e)}")
@@ -375,11 +381,11 @@ class AuthService:
             
             return result
             
-        except (ServerSelectionTimeoutError, ConnectionFailure) as e:
-            logger.error(f"MongoDB connection error during logout: {str(e)}")
+        except (DatabaseConnectionError, DatabaseTimeoutError) as e:
+            logger.error(f"Database connection error during logout: {str(e)}")
             return False
-        except (OperationFailure, DuplicateKeyError) as e:
-            logger.error(f"MongoDB operation error during logout: {str(e)}")
+        except (DatabaseOperationError, DatabaseDuplicateKeyError) as e:
+            logger.error(f"Database operation error during logout: {str(e)}")
             return False
         except Exception as e:
             logger.error(f"Unexpected error during logout: {str(e)}")
@@ -399,10 +405,11 @@ class AuthService:
         """
         try:
             # Get user
-            from bson import ObjectId
+            # Use database service to ensure ID is in correct format for backend
+            user_id_converted = await self.database.ensure_id_is_object_id(user_id)
             user = await self.database.find_one(
                 self.users_collection_name,
-                {"_id": ObjectId(user_id)}
+                {"_id": user_id_converted}
             )
             
             if not user:
@@ -436,14 +443,14 @@ class AuthService:
             
             return result
             
-        except InvalidId as e:
+        except ValueError as e:
             logger.error(f"Invalid user ID format: {str(e)}")
             return False
-        except (ServerSelectionTimeoutError, ConnectionFailure) as e:
-            logger.error(f"MongoDB connection error changing password: {str(e)}")
+        except (DatabaseConnectionError, DatabaseTimeoutError) as e:
+            logger.error(f"Database connection error changing password: {str(e)}")
             return False
-        except (OperationFailure, DuplicateKeyError) as e:
-            logger.error(f"MongoDB operation error changing password: {str(e)}")
+        except (DatabaseOperationError, DatabaseDuplicateKeyError) as e:
+            logger.error(f"Database operation error changing password: {str(e)}")
             return False
         except Exception as e:
             logger.error(f"Unexpected error changing password: {str(e)}")
@@ -493,12 +500,12 @@ class AuthService:
                 logger.info(f"Created new user: {username} with role: {role}")
             
             return str(user_id)
-            
-        except (ServerSelectionTimeoutError, ConnectionFailure) as e:
-            logger.error(f"MongoDB connection error creating user {username}: {str(e)}")
+
+        except (DatabaseConnectionError, DatabaseTimeoutError) as e:
+            logger.error(f"Database connection error creating user {username}: {str(e)}")
             return None
-        except (OperationFailure, DuplicateKeyError) as e:
-            logger.error(f"MongoDB operation error creating user {username}: {str(e)}")
+        except (DatabaseOperationError, DatabaseDuplicateKeyError) as e:
+            logger.error(f"Database operation error creating user {username}: {str(e)}")
             return None
         except Exception as e:
             logger.error(f"Unexpected error creating user {username}: {str(e)}")
@@ -517,15 +524,21 @@ class AuthService:
             List of user records (without passwords)
         """
         try:
-            users = []
-            
             # Use the provided filter query or default to empty dict
             query = filter_query or {}
             
-            # Apply pagination
-            cursor = self.users_collection.find(query).skip(offset).limit(limit)
+            # Use database service abstraction for backend-agnostic querying
+            results = await self.database.find_many(
+                self.users_collection_name,
+                query,
+                limit=limit,
+                skip=offset,
+                sort=[("created_at", -1)]  # Sort by created_at descending
+            )
             
-            async for user in cursor:
+            # Convert to user records without passwords
+            users = []
+            for user in results:
                 users.append({
                     "id": str(user["_id"]),
                     "username": user["username"],
@@ -536,12 +549,12 @@ class AuthService:
                 })
             
             return users
-            
-        except (ServerSelectionTimeoutError, ConnectionFailure) as e:
-            logger.error(f"MongoDB connection error listing users: {str(e)}")
+
+        except (DatabaseConnectionError, DatabaseTimeoutError) as e:
+            logger.error(f"Database connection error listing users: {str(e)}")
             return []
-        except (OperationFailure, DuplicateKeyError) as e:
-            logger.error(f"MongoDB operation error listing users: {str(e)}")
+        except (DatabaseOperationError, DatabaseDuplicateKeyError) as e:
+            logger.error(f"Database operation error listing users: {str(e)}")
             return []
         except Exception as e:
             logger.error(f"Unexpected error listing users: {str(e)}")
@@ -558,11 +571,12 @@ class AuthService:
             User record with full details (without password) or None if not found
         """
         try:
-            from bson import ObjectId
+            # Use database service to ensure ID is in correct format for backend
+            user_id_converted = await self.database.ensure_id_is_object_id(user_id)
             
             user = await self.database.find_one(
                 self.users_collection_name,
-                {"_id": ObjectId(user_id)}
+                {"_id": user_id_converted}
             )
             
             if not user:
@@ -577,14 +591,14 @@ class AuthService:
                 "last_login": user.get("last_login")
             }
             
-        except InvalidId as e:
+        except ValueError as e:
             logger.error(f"Invalid user ID format: {str(e)}")
             return None
-        except (ServerSelectionTimeoutError, ConnectionFailure) as e:
-            logger.error(f"MongoDB connection error getting user by ID: {str(e)}")
+        except (DatabaseConnectionError, DatabaseTimeoutError) as e:
+            logger.error(f"Database connection error getting user by ID: {str(e)}")
             return None
-        except (OperationFailure, DuplicateKeyError) as e:
-            logger.error(f"MongoDB operation error getting user by ID: {str(e)}")
+        except (DatabaseOperationError, DatabaseDuplicateKeyError) as e:
+            logger.error(f"Database operation error getting user by ID: {str(e)}")
             return None
         except Exception as e:
             logger.error(f"Unexpected error getting user by ID: {str(e)}")
@@ -617,12 +631,12 @@ class AuthService:
                 "created_at": user.get("created_at"),
                 "last_login": user.get("last_login")
             }
-            
-        except (ServerSelectionTimeoutError, ConnectionFailure) as e:
-            logger.error(f"MongoDB connection error getting user by username: {str(e)}")
+
+        except (DatabaseConnectionError, DatabaseTimeoutError) as e:
+            logger.error(f"Database connection error getting user by username: {str(e)}")
             return None
-        except (OperationFailure, DuplicateKeyError) as e:
-            logger.error(f"MongoDB operation error getting user by username: {str(e)}")
+        except (DatabaseOperationError, DatabaseDuplicateKeyError) as e:
+            logger.error(f"Database operation error getting user by username: {str(e)}")
             return None
         except Exception as e:
             logger.error(f"Unexpected error getting user by username: {str(e)}")
@@ -640,10 +654,12 @@ class AuthService:
             True if successful, False otherwise
         """
         try:
-            from bson import ObjectId
+            # Use database service to ensure ID is in correct format for backend
+            user_id_converted = await self.database.ensure_id_is_object_id(user_id)
+            
             result = await self.database.update_one(
                 self.users_collection_name,
-                {"_id": ObjectId(user_id)},
+                {"_id": user_id_converted},
                 {"$set": {"active": active}}
             )
             
@@ -651,7 +667,7 @@ class AuthService:
                 # Invalidate all sessions for deactivated user
                 user = await self.database.find_one(
                     self.users_collection_name,
-                    {"_id": ObjectId(user_id)}
+                    {"_id": user_id_converted}
                 )
                 if user:
                     await self.database.delete_many(
@@ -661,14 +677,14 @@ class AuthService:
             
             return result
             
-        except InvalidId as e:
+        except ValueError as e:
             logger.error(f"Invalid user ID format: {str(e)}")
             return False
-        except (ServerSelectionTimeoutError, ConnectionFailure) as e:
-            logger.error(f"MongoDB connection error updating user status: {str(e)}")
+        except (DatabaseConnectionError, DatabaseTimeoutError) as e:
+            logger.error(f"Database connection error updating user status: {str(e)}")
             return False
-        except (OperationFailure, DuplicateKeyError) as e:
-            logger.error(f"MongoDB operation error updating user status: {str(e)}")
+        except (DatabaseOperationError, DatabaseDuplicateKeyError) as e:
+            logger.error(f"Database operation error updating user status: {str(e)}")
             return False
         except Exception as e:
             logger.error(f"Unexpected error updating user status: {str(e)}")
@@ -686,12 +702,13 @@ class AuthService:
             True if successful, False otherwise
         """
         try:
-            from bson import ObjectId
+            # Use database service to ensure ID is in correct format for backend
+            user_id_converted = await self.database.ensure_id_is_object_id(user_id)
             
             # Get user
             user = await self.database.find_one(
                 self.users_collection_name,
-                {"_id": ObjectId(user_id)}
+                {"_id": user_id_converted}
             )
             
             if not user:
@@ -721,14 +738,14 @@ class AuthService:
             
             return result
             
-        except InvalidId as e:
+        except ValueError as e:
             logger.error(f"Invalid user ID format: {str(e)}")
             return False
-        except (ServerSelectionTimeoutError, ConnectionFailure) as e:
-            logger.error(f"MongoDB connection error resetting password: {str(e)}")
+        except (DatabaseConnectionError, DatabaseTimeoutError) as e:
+            logger.error(f"Database connection error resetting password: {str(e)}")
             return False
-        except (OperationFailure, DuplicateKeyError) as e:
-            logger.error(f"MongoDB operation error resetting password: {str(e)}")
+        except (DatabaseOperationError, DatabaseDuplicateKeyError) as e:
+            logger.error(f"Database operation error resetting password: {str(e)}")
             return False
         except Exception as e:
             logger.error(f"Unexpected error resetting password: {str(e)}")
@@ -745,12 +762,13 @@ class AuthService:
             True if successful, False otherwise
         """
         try:
-            from bson import ObjectId
+            # Use database service to ensure ID is in correct format for backend
+            user_id_converted = await self.database.ensure_id_is_object_id(user_id)
             
             # Get user first to check if exists
             user = await self.database.find_one(
                 self.users_collection_name,
-                {"_id": ObjectId(user_id)}
+                {"_id": user_id_converted}
             )
             
             if not user:
@@ -771,7 +789,7 @@ class AuthService:
             # Delete the user
             result = await self.database.delete_one(
                 self.users_collection_name,
-                {"_id": ObjectId(user_id)}
+                {"_id": user_id_converted}
             )
             
             if result and self.verbose:
@@ -779,14 +797,14 @@ class AuthService:
             
             return result
             
-        except InvalidId as e:
+        except ValueError as e:
             logger.error(f"Invalid user ID format: {str(e)}")
             return False
-        except (ServerSelectionTimeoutError, ConnectionFailure) as e:
-            logger.error(f"MongoDB connection error deleting user: {str(e)}")
+        except (DatabaseConnectionError, DatabaseTimeoutError) as e:
+            logger.error(f"Database connection error deleting user: {str(e)}")
             return False
-        except (OperationFailure, DuplicateKeyError) as e:
-            logger.error(f"MongoDB operation error deleting user: {str(e)}")
+        except (DatabaseOperationError, DatabaseDuplicateKeyError) as e:
+            logger.error(f"Database operation error deleting user: {str(e)}")
             return False
         except Exception as e:
             logger.error(f"Unexpected error deleting user: {str(e)}")

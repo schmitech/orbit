@@ -2,7 +2,7 @@
 Prompt Service
 =============
 
-This service manages system prompts stored in MongoDB.
+This service manages system prompts stored in the database (supports MongoDB and SQLite).
 It provides functionality to create, retrieve, and update system prompts
 that can be associated with API keys.
 """
@@ -42,9 +42,20 @@ class PromptService:
             from services.database_service import create_database_service
             database_service = create_database_service(config)
         self.database = database_service
-        
-        # MongoDB collection name for prompts
-        self.collection_name = config.get('mongodb', {}).get('prompts_collection', 'system_prompts')
+
+        # Collection/table name for prompts - read from backend-specific config
+        backend_type = config.get('internal_services', {}).get('backend', {}).get('type', 'mongodb')
+
+        if backend_type == 'mongodb':
+            # MongoDB: read collection name from mongodb config
+            mongodb_config = config.get('internal_services', {}).get('mongodb', {})
+            if not mongodb_config:
+                # Fallback to root mongodb section for backward compatibility
+                mongodb_config = config.get('mongodb', {})
+            self.collection_name = mongodb_config.get('prompts_collection', 'system_prompts')
+        else:
+            # SQLite or other backends: use default table name
+            self.collection_name = 'system_prompts'
 
         # Redis caching support
         self.redis_service = redis_service

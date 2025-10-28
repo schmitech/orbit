@@ -13,6 +13,7 @@ import sys
 import time
 from pathlib import Path
 from dotenv import load_dotenv
+import yaml
 import pytest
 import pytest_asyncio
 
@@ -34,83 +35,183 @@ if not env_path.exists():
 load_dotenv(env_path)
 
 from services.auth_service import AuthService
-from services.mongodb_service import MongoDBService
+from services.database_service import create_database_service
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+def resolve_env_variables(config_dict):
+    """
+    Recursively resolve environment variable placeholders in config dictionary.
+    Replaces ${VAR_NAME} with the actual environment variable value.
+    """
+    if isinstance(config_dict, dict):
+        return {key: resolve_env_variables(value) for key, value in config_dict.items()}
+    elif isinstance(config_dict, list):
+        return [resolve_env_variables(item) for item in config_dict]
+    elif isinstance(config_dict, str):
+        # Check if it's an environment variable placeholder
+        if config_dict.startswith('${') and config_dict.endswith('}'):
+            env_var_name = config_dict[2:-1]  # Extract variable name
+            resolved_value = os.getenv(env_var_name)
+            if resolved_value is None:
+                logger.warning(f"Environment variable {env_var_name} not found, keeping placeholder")
+                return config_dict
+            return resolved_value
+        return config_dict
+    else:
+        return config_dict
 
-# Test configuration using environment variables
-TEST_CONFIG = {
-    'general': {'verbose': True},
-    'internal_services': {
-        'mongodb': {
-            'host': os.getenv("INTERNAL_SERVICES_MONGODB_HOST"),
-            'port': int(os.getenv("INTERNAL_SERVICES_MONGODB_PORT", 27017)),
-            'database': os.getenv("INTERNAL_SERVICES_MONGODB_DATABASE", "orbit_test"),
-            'username': os.getenv("INTERNAL_SERVICES_MONGODB_USERNAME"),
-            'password': os.getenv("INTERNAL_SERVICES_MONGODB_PASSWORD")
-        }
-    },
-    'mongodb': {
-        'users_collection': 'test_users',
-        'sessions_collection': 'test_sessions'
-    },
-    'auth': {
-        'session_duration_hours': 1,
-        'default_admin_username': 'admin',
-        'default_admin_password': 'admin123',
-        'pbkdf2_iterations': 600000
-    }
-}
-
-# Validate required environment variables
-required_vars = ["INTERNAL_SERVICES_MONGODB_HOST", "INTERNAL_SERVICES_MONGODB_USERNAME", 
-                 "INTERNAL_SERVICES_MONGODB_PASSWORD"]
-missing_vars = [var for var in required_vars if not os.getenv(var)]
-if missing_vars:
-    logger.error(f"Missing required environment variables: {', '.join(missing_vars)}")
-    logger.error("Please check your .env file and ensure all required MongoDB variables are set")
-    sys.exit(1)
-
-@pytest_asyncio.fixture(scope="function")
-async def mongodb_service():
-    """Fixture for a shared MongoDBService instance."""
-    config = TEST_CONFIG
-    mongodb = MongoDBService(config)
-    await mongodb.initialize()
+# Load config.yaml to detect backend type and configure tests
+config_path = PROJECT_ROOT / 'config' / 'config.yaml'
+if config_path.exists():
+    with open(config_path, 'r') as f:
+        project_config = yaml.safe_load(f)
+    # Determine backend type from config file or environment variable, default to sqlite
+    BACKEND_TYPE = os.getenv("TEST_BACKEND_TYPE", 
+                             project_config.get('internal_services', {}).get('backend', {}).get('type', 'sqlite'))
+    logger.info(f"Detected backend type from config: {BACKEND_TYPE}")
     
-    logger.info(f"Testing with MongoDB at: {config['internal_services']['mongodb']['host']}:{config['internal_services']['mongodb']['port']}")
-    logger.info(f"Using database: {config['internal_services']['mongodb']['database']}")
-    username = config['internal_services']['mongodb']['username']
-    if username:
-        masked_username = username[:2] + '*' * (len(username) - 2) if len(username) > 2 else '*****'
-        logger.info(f"Using username: {masked_username}")
+    # Use the project's internal_services configuration
+    TEST_CONFIG = {
+        'general': project_config.get('general', {}),
+        'internal_services': project_config.get('internal_services', {}),
+        'auth': project_config.get('auth', {})
+    }
 
-    yield mongodb
-    mongodb.close()
+    # Resolve all environment variables in the config
+    TEST_CONFIG = resolve_env_variables(TEST_CONFIG)
+    logger.info("Resolved environment variables in test configuration")
+    
+    # Override backend type for tests
+    TEST_CONFIG['internal_services']['backend']['type'] = BACKEND_TYPE
+    
+    # Use test database path for SQLite
+    if BACKEND_TYPE == 'sqlite':
+        TEST_CONFIG['internal_services']['backend']['sqlite'] = {
+            'database_path': 'orbit_test.db'  # Use separate test database
+        }
+    
+    # Override MongoDB collections for testing
+    if BACKEND_TYPE == 'mongodb':
+        if 'mongodb' not in TEST_CONFIG['internal_services']:
+            TEST_CONFIG['internal_services']['mongodb'] = {}
+        TEST_CONFIG['internal_services']['mongodb']['users_collection'] = 'test_users'
+        TEST_CONFIG['internal_services']['mongodb']['sessions_collection'] = 'test_sessions'
+else:
+    # Fallback configuration if config.yaml is not found
+    # First set BACKEND_TYPE for fallback mode
+    BACKEND_TYPE = os.getenv("TEST_BACKEND_TYPE", "sqlite")
+
+    TEST_CONFIG = {
+        'general': {'verbose': True},
+        'internal_services': {
+            'backend': {
+                'type': BACKEND_TYPE,
+                'sqlite': {
+                    'database_path': 'orbit_test.db'
+                }
+            },
+            'mongodb': {
+                'host': os.getenv("INTERNAL_SERVICES_MONGODB_HOST"),
+                'port': int(os.getenv("INTERNAL_SERVICES_MONGODB_PORT", 27017)),
+                'database': os.getenv("INTERNAL_SERVICES_MONGODB_DATABASE", "orbit_test"),
+                'username': os.getenv("INTERNAL_SERVICES_MONGODB_USERNAME"),
+                'password': os.getenv("INTERNAL_SERVICES_MONGODB_PASSWORD"),
+                'users_collection': 'test_users',
+                'sessions_collection': 'test_sessions'
+            }
+        },
+        'auth': {
+            'session_duration_hours': 1,
+            'default_admin_username': 'admin',
+            'default_admin_password': 'admin123',
+            'pbkdf2_iterations': 600000
+        }
+    }
+
+# Validate required environment variables only for MongoDB
+if BACKEND_TYPE == 'mongodb':
+    required_vars = ["INTERNAL_SERVICES_MONGODB_HOST", "INTERNAL_SERVICES_MONGODB_USERNAME", 
+                     "INTERNAL_SERVICES_MONGODB_PASSWORD"]
+    missing_vars = [var for var in required_vars if not os.getenv(var)]
+    if missing_vars:
+        logger.error(f"Missing required environment variables: {', '.join(missing_vars)}")
+        logger.error("Please check your .env file and ensure all required MongoDB variables are set")
+        sys.exit(1)
 
 @pytest_asyncio.fixture(scope="function")
-async def auth_service(mongodb_service: MongoDBService):
+async def database_service():
+    """Fixture for a database service instance (works with both SQLite and MongoDB)."""
+    config = TEST_CONFIG
+    backend_type = config['internal_services']['backend']['type']
+
+    # Clean up SQLite singleton cache and test database BEFORE creating the service
+    if backend_type == 'sqlite':
+        from services.sqlite_service import SQLiteService
+        # Clear the singleton cache to ensure a fresh instance
+        SQLiteService.clear_cache()
+
+        test_db_path = config['internal_services']['backend']['sqlite']['database_path']
+        if os.path.exists(test_db_path):
+            os.remove(test_db_path)
+            logger.info(f"Removed existing SQLite test database before initialization: {test_db_path}")
+
+    database = create_database_service(config)
+    await database.initialize()
+
+    logger.info(f"Testing with backend: {backend_type.upper()}")
+
+    if backend_type == 'mongodb':
+        logger.info(f"  MongoDB host: {config['internal_services']['mongodb']['host']}:{config['internal_services']['mongodb']['port']}")
+        logger.info(f"  Database: {config['internal_services']['mongodb']['database']}")
+    elif backend_type == 'sqlite':
+        logger.info(f"  SQLite database: {config['internal_services']['backend']['sqlite']['database_path']}")
+
+    yield database
+
+    # Clean up after test
+    if backend_type == 'sqlite':
+        database.close()
+        test_db_path = config['internal_services']['backend']['sqlite']['database_path']
+        if os.path.exists(test_db_path):
+            os.remove(test_db_path)
+            logger.info(f"Cleaned up SQLite test database: {test_db_path}")
+        # Clear cache again after closing
+        from services.sqlite_service import SQLiteService
+        SQLiteService.clear_cache()
+    else:
+        database.close()
+
+@pytest_asyncio.fixture(scope="function")
+async def auth_service(database_service):
     """Pytest fixture for initializing the AuthService and cleaning up."""
     config = TEST_CONFIG
-    users_collection_name = config.get('mongodb', {}).get('users_collection', 'test_users')
-    sessions_collection_name = config.get('mongodb', {}).get('sessions_collection', 'test_sessions')
+    backend_type = config['internal_services']['backend']['type']
 
-    await mongodb_service.database.drop_collection(users_collection_name)
-    await mongodb_service.database.drop_collection(sessions_collection_name)
+    # Get collection names based on backend
+    if backend_type == 'mongodb':
+        users_collection_name = config.get('internal_services', {}).get('mongodb', {}).get('users_collection', 'test_users')
+        sessions_collection_name = config.get('internal_services', {}).get('mongodb', {}).get('sessions_collection', 'test_sessions')
+
+        # Clean up MongoDB collections before starting
+        if hasattr(database_service, 'database'):
+            await database_service.database.drop_collection(users_collection_name)
+            await database_service.database.drop_collection(sessions_collection_name)
 
     # Pass as database_service (renamed parameter for backend abstraction)
-    service = AuthService(config, database_service=mongodb_service)
+    service = AuthService(config, database_service=database_service)
     await service.initialize()
 
     yield service
 
     logger.info("\n=== Cleaning up all test data ===")
-    # Use the database service's database property for cleanup
-    await service.database.database.drop_collection(users_collection_name)
-    await service.database.database.drop_collection(sessions_collection_name)
+    # Clean up based on backend type
+    if backend_type == 'mongodb' and hasattr(database_service, 'database'):
+        await database_service.database.drop_collection(users_collection_name)
+        await database_service.database.drop_collection(sessions_collection_name)
+
     await service.close()
     logger.info("✓ All test data cleaned up")
 

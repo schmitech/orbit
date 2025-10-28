@@ -2,7 +2,8 @@
 Chat History Service
 ====================
 
-This service manages chat conversation history using MongoDB for persistence.
+This service manages chat conversation history with database persistence
+(supports both MongoDB and SQLite backends).
 Simplified version without Redis caching for better maintainability.
 """
 
@@ -11,9 +12,14 @@ import asyncio
 import hashlib
 from typing import Dict, Any, Optional, List, Tuple, Callable, TypeVar, Awaitable
 from datetime import datetime, timedelta, UTC
-from bson import ObjectId
-from motor.motor_asyncio import AsyncIOMotorClient
-from pymongo.errors import ServerSelectionTimeoutError, OperationFailure, DuplicateKeyError
+
+from services.database_service import (
+    DatabaseError,
+    DatabaseConnectionError,
+    DatabaseOperationError,
+    DatabaseDuplicateKeyError,
+    DatabaseTimeoutError
+)
 
 logger = logging.getLogger(__name__)
 
@@ -23,16 +29,16 @@ def with_retry(
     max_attempts: int = 3,
     base_delay: float = 1.0,
     max_delay: float = 10.0,
-    retry_on: tuple = (ServerSelectionTimeoutError, OperationFailure)
+    retry_on: tuple = (DatabaseConnectionError, DatabaseTimeoutError, DatabaseOperationError)
 ):
     """
     Decorator that adds retry logic with exponential backoff
-    
+
     Args:
         max_attempts: Maximum number of retry attempts
         base_delay: Base delay for exponential backoff in seconds
         max_delay: Maximum delay between retries in seconds
-        retry_on: Tuple of exceptions to retry on
+        retry_on: Tuple of database exceptions to retry on
     """
     def decorator(func: Callable[..., Awaitable[T]]) -> Callable[..., Awaitable[T]]:
         async def wrapper(*args, **kwargs) -> T:
@@ -369,7 +375,7 @@ class ChatHistoryService:
         api_key: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
         idempotency_key: Optional[str] = None
-    ) -> Optional[ObjectId]:
+    ) -> Optional[Any]:
         """
         Add a message to chat history with retry logic
         
@@ -383,7 +389,7 @@ class ChatHistoryService:
             idempotency_key: Optional key for deduplication
             
         Returns:
-            ObjectId of the inserted message, or None if disabled/failed
+            Database ID of the inserted message, or None if disabled/failed
         """
         if not self.enabled:
             return None
@@ -438,8 +444,8 @@ class ChatHistoryService:
                     await self._cleanup_inactive_sessions()
                 
                 return message_id
-                
-            except DuplicateKeyError:
+
+            except DatabaseDuplicateKeyError:
                 logger.warning(f"Duplicate message detected for session {session_id}")
                 return None
             
@@ -455,7 +461,7 @@ class ChatHistoryService:
         user_id: Optional[str] = None,
         api_key: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None
-    ) -> Tuple[Optional[ObjectId], Optional[ObjectId]]:
+    ) -> Tuple[Optional[Any], Optional[Any]]:
         """
         Add a complete conversation turn (user message + assistant response)
         
@@ -584,66 +590,79 @@ class ChatHistoryService:
     ) -> List[Dict[str, Any]]:
         """
         Get list of sessions for a user
-        
+
         Args:
             user_id: User identifier
             limit: Maximum number of sessions to return
             offset: Number of sessions to skip
             include_summary: Include first/last message preview
-            
+
         Returns:
             List of session summaries
         """
         if not self.enabled:
             return []
-            
+
         try:
-            # Base aggregation pipeline
-            pipeline = [
-                {"$match": {"user_id": user_id}},
-                {"$sort": {"timestamp": -1}},
-                {"$group": {
-                    "_id": "$session_id",
-                    "last_activity": {"$first": "$timestamp"},
-                    "first_activity": {"$last": "$timestamp"},
-                    "message_count": {"$sum": 1},
-                    "last_message": {"$first": "$content"},
-                    "last_role": {"$first": "$role"}
-                }},
-                {"$sort": {"last_activity": -1}},
-                {"$skip": offset},
-                {"$limit": limit}
-            ]
-            
-            collection = self.database_service.get_collection(self.collection_name)
-            cursor = collection.aggregate(pipeline)
-            sessions = await cursor.to_list(length=None)
-            
-            # Format results
-            results = []
-            for session in sessions:
+            # Get all messages for the user, sorted by timestamp descending
+            messages = await self.database_service.find_many(
+                self.collection_name,
+                {"user_id": user_id},
+                sort=[("timestamp", -1)],
+                limit=10000  # reasonable limit to prevent memory issues
+            )
+
+            # Group messages by session_id in Python
+            sessions_dict = {}
+            for msg in messages:
+                session_id = msg.get("session_id")
+                if not session_id:
+                    continue
+
+                if session_id not in sessions_dict:
+                    sessions_dict[session_id] = {
+                        "messages": [],
+                        "last_activity": msg.get("timestamp"),
+                        "first_activity": msg.get("timestamp"),
+                        "last_message": msg.get("content", ""),
+                        "last_role": msg.get("role")
+                    }
+
+                sessions_dict[session_id]["messages"].append(msg)
+                # Update first_activity (since messages are sorted desc, last one we see is oldest)
+                sessions_dict[session_id]["first_activity"] = msg.get("timestamp")
+
+            # Convert to list and calculate stats
+            sessions_list = []
+            for session_id, data in sessions_dict.items():
                 session_data = {
-                    "session_id": session["_id"],
-                    "last_activity": session["last_activity"],
-                    "first_activity": session["first_activity"],
-                    "message_count": session["message_count"],
+                    "session_id": session_id,
+                    "last_activity": data["last_activity"],
+                    "first_activity": data["first_activity"],
+                    "message_count": len(data["messages"]),
                     "duration_seconds": (
-                        session["last_activity"] - session["first_activity"]
-                    ).total_seconds()
+                        data["last_activity"] - data["first_activity"]
+                    ).total_seconds() if data["last_activity"] and data["first_activity"] else 0
                 }
-                
+
                 if include_summary:
                     # Truncate message preview
-                    preview = session.get("last_message", "")[:100]
-                    if len(session.get("last_message", "")) > 100:
+                    preview = data.get("last_message", "")[:100]
+                    if len(data.get("last_message", "")) > 100:
                         preview += "..."
                     session_data["last_message_preview"] = preview
-                    session_data["last_message_role"] = session.get("last_role")
-                
-                results.append(session_data)
-            
-            return results
-            
+                    session_data["last_message_role"] = data.get("last_role")
+
+                sessions_list.append(session_data)
+
+            # Sort by last_activity descending
+            sessions_list.sort(key=lambda x: x["last_activity"], reverse=True)
+
+            # Apply pagination
+            paginated_results = sessions_list[offset:offset + limit]
+
+            return paginated_results
+
         except Exception as e:
             logger.error(f"Error getting user sessions: {str(e)}")
             return []
@@ -651,30 +670,32 @@ class ChatHistoryService:
     async def clear_session_history(self, session_id: str) -> bool:
         """
         Clear all history for a session
-        
+
         Args:
             session_id: Session identifier
-            
+
         Returns:
             True if successful, False otherwise
         """
         if not self.enabled:
             return False
-            
+
         try:
-            # Delete from MongoDB
-            collection = self.database_service.get_collection(self.collection_name)
-            result = await collection.delete_many({"session_id": session_id})
-            
+            # Delete from database
+            deleted_count = await self.database_service.delete_many(
+                self.collection_name,
+                {"session_id": session_id}
+            )
+
             # Clear from tracking
             self._active_sessions.pop(session_id, None)
             self._session_message_counts.pop(session_id, None)
-            
+
             if self.verbose:
-                logger.info(f"Cleared history for session {session_id}: {result.deleted_count} messages")
-                
-            return result.deleted_count > 0
-            
+                logger.info(f"Cleared history for session {session_id}: {deleted_count} messages")
+
+            return deleted_count > 0
+
         except Exception as e:
             logger.error(f"Error clearing session history: {str(e)}")
             return False
@@ -733,8 +754,10 @@ class ChatHistoryService:
                     "deleted_count": 0
                 }
 
-            collection = self.database_service.get_collection(self.collection_name)
-            result = await collection.delete_many({"session_id": session_id})
+            deleted_count = await self.database_service.delete_many(
+                self.collection_name,
+                {"session_id": session_id}
+            )
 
             self._active_sessions.pop(session_id, None)
             self._session_message_counts.pop(session_id, None)
@@ -743,13 +766,13 @@ class ChatHistoryService:
                 logger.info(
                     "Cleared conversation history for session %s: %s messages deleted",
                     session_id,
-                    result.deleted_count
+                    deleted_count
                 )
 
             return {
                 "success": True,
                 "session_id": session_id,
-                "deleted_count": result.deleted_count,
+                "deleted_count": deleted_count,
                 "api_key_validated": True,
                 "adapter_name": adapter_name,
                 "timestamp": datetime.now(UTC).isoformat()
@@ -770,59 +793,50 @@ class ChatHistoryService:
     async def get_session_stats(self, session_id: str) -> Dict[str, Any]:
         """
         Get statistics for a session
-        
+
         Args:
             session_id: Session identifier
-            
+
         Returns:
             Dictionary with session statistics
         """
         if not self.enabled:
             return {}
-            
+
         try:
-            collection = self.database_service.get_collection(self.collection_name)
-            
-            # Aggregation for session stats
-            pipeline = [
-                {"$match": {"session_id": session_id}},
-                {"$group": {
-                    "_id": None,
-                    "message_count": {"$sum": 1},
-                    "user_messages": {
-                        "$sum": {"$cond": [{"$eq": ["$role", "user"]}, 1, 0]}
-                    },
-                    "assistant_messages": {
-                        "$sum": {"$cond": [{"$eq": ["$role", "assistant"]}, 1, 0]}
-                    },
-                    "first_message": {"$min": "$timestamp"},
-                    "last_message": {"$max": "$timestamp"},
-                    "total_chars": {"$sum": {"$strLenCP": "$content"}}
-                }}
-            ]
-            
-            cursor = collection.aggregate(pipeline)
-            results = await cursor.to_list(length=1)
-            
-            if not results:
+            # Get all messages for the session
+            messages = await self.database_service.find_many(
+                self.collection_name,
+                {"session_id": session_id},
+                sort=[("timestamp", 1)],  # Sort ascending to get first/last easily
+                limit=10000  # reasonable limit
+            )
+
+            if not messages:
                 return {"session_id": session_id, "message_count": 0}
-            
-            stats = results[0]
+
+            # Calculate stats in Python
+            message_count = len(messages)
+            user_messages = sum(1 for msg in messages if msg.get("role") == "user")
+            assistant_messages = sum(1 for msg in messages if msg.get("role") == "assistant")
+            total_chars = sum(len(msg.get("content", "")) for msg in messages)
+            first_message = messages[0].get("timestamp") if messages else None
+            last_message = messages[-1].get("timestamp") if messages else None
+
             return {
                 "session_id": session_id,
-                "message_count": stats["message_count"],
-                "user_messages": stats["user_messages"],
-                "assistant_messages": stats["assistant_messages"],
-                "first_message": stats["first_message"],
-                "last_message": stats["last_message"],
+                "message_count": message_count,
+                "user_messages": user_messages,
+                "assistant_messages": assistant_messages,
+                "first_message": first_message,
+                "last_message": last_message,
                 "duration_seconds": (
-                    stats["last_message"] - stats["first_message"]
-                ).total_seconds() if stats["last_message"] else 0,
-                "total_characters": stats["total_chars"],
-                "avg_message_length": stats["total_chars"] // stats["message_count"] 
-                    if stats["message_count"] > 0 else 0
+                    last_message - first_message
+                ).total_seconds() if last_message and first_message else 0,
+                "total_characters": total_chars,
+                "avg_message_length": total_chars // message_count if message_count > 0 else 0
             }
-            
+
         except Exception as e:
             logger.error(f"Error getting session stats: {str(e)}")
             return {"session_id": session_id, "error": str(e)}
@@ -831,47 +845,43 @@ class ChatHistoryService:
     async def _check_conversation_limits(self, session_id: str) -> None:
         """
         Check and handle conversation size limits atomically with retry logic
-        
+
         Args:
             session_id: Session identifier
         """
         try:
-            collection = self.database_service.get_collection(self.collection_name)
-            
-            # Use aggregation to get count atomically
-            pipeline = [
-                {"$match": {"session_id": session_id}},
-                {"$count": "total"}
-            ]
-            result = await collection.aggregate(pipeline).to_list(1)
-            message_count = result[0]["total"] if result else 0
-            
+            # Get count of messages for this session using database service
+            messages = await self.database_service.find_many(
+                self.collection_name,
+                {"session_id": session_id},
+                limit=self.max_conversation_messages + 1000  # Get slightly more to ensure accurate count
+            )
+            message_count = len(messages)
+
             # Update cache
             self._session_message_counts[session_id] = message_count
-            
+
             if self.verbose:
                 logger.info(f"Session {session_id}: Current message count = {message_count}, Limit = {self.max_conversation_messages}")
-            
+
             if message_count >= self.max_conversation_messages:
                 # Calculate how many messages to archive (keep 90% instead of 80%)
                 keep_count = int(self.max_conversation_messages * 0.9)
                 archive_count = message_count - keep_count
-                
+
                 if self.verbose:
                     logger.info(f"Session {session_id}: ARCHIVING TRIGGERED - Need to archive {archive_count} messages, keeping {keep_count} most recent")
-                
+
                 if archive_count > 0:
-                    # Simplified archive operation without transactions
-                    # since $merge cannot be used in transactions
                     try:
-                        collection = self.database_service.get_collection(self.collection_name)
-                        archive_collection = self.database_service.get_collection(f"{self.collection_name}_archive")
-                        
                         # Find oldest messages to archive
-                        messages_to_archive = await collection.find(
-                            {"session_id": session_id}
-                        ).sort("timestamp", 1).limit(archive_count).to_list(length=None)
-                        
+                        messages_to_archive = await self.database_service.find_many(
+                            self.collection_name,
+                            {"session_id": session_id},
+                            sort=[("timestamp", 1)],  # Sort ascending to get oldest first
+                            limit=archive_count
+                        )
+
                         if messages_to_archive:
                             if self.verbose:
                                 # Show details of messages being archived
@@ -881,29 +891,39 @@ class ChatHistoryService:
                                     role = msg.get('role', 'unknown')
                                     content_preview = msg.get('content', '')[:50] + "..." if len(msg.get('content', '')) > 50 else msg.get('content', '')
                                     logger.info(f"  [{i+1}] {timestamp_str} - {role}: {content_preview}")
-                            
-                            # Insert into archive collection
-                            await archive_collection.insert_many(messages_to_archive)
-                            
+
+                            # Insert into archive collection (one at a time for compatibility)
+                            archive_collection = f"{self.collection_name}_archive"
+                            for msg in messages_to_archive:
+                                await self.database_service.insert_one(archive_collection, msg)
+
                             if self.verbose:
                                 logger.info(f"Session {session_id}: Successfully moved {len(messages_to_archive)} messages to archive collection")
-                            
-                            # Delete from main collection
+
+                            # Delete from main collection using IDs
                             message_ids = [msg["_id"] for msg in messages_to_archive]
-                            delete_result = await collection.delete_many({"_id": {"$in": message_ids}})
-                            
+                            deleted_count = 0
+                            for msg_id in message_ids:
+                                if await self.database_service.delete_one(self.collection_name, {"_id": msg_id}):
+                                    deleted_count += 1
+
                             if self.verbose:
-                                logger.info(f"Session {session_id}: Deleted {delete_result.deleted_count} messages from main collection")
-                            
+                                logger.info(f"Session {session_id}: Deleted {deleted_count} messages from main collection")
+
                             # Update cache
                             self._session_message_counts[session_id] = keep_count
-                            
+
                             # Verify final state
                             if self.verbose:
-                                final_count = await collection.count_documents({"session_id": session_id})
+                                final_messages = await self.database_service.find_many(
+                                    self.collection_name,
+                                    {"session_id": session_id},
+                                    limit=self.max_conversation_messages + 100
+                                )
+                                final_count = len(final_messages)
                                 logger.info(f"Session {session_id}: ARCHIVING COMPLETE - Final message count: {final_count}/{self.max_conversation_messages}")
                                 logger.info(f"Session {session_id}: Sliding window now contains most recent {final_count} messages")
-                                
+
                     except Exception as e:
                         logger.error(f"Session {session_id}: Error during archive operation: {str(e)}")
                         # Continue without archiving to prevent blocking new messages
@@ -1040,7 +1060,7 @@ class ChatHistoryService:
     async def get_metrics(self) -> Dict[str, Any]:
         """
         Get service metrics for monitoring
-        
+
         Returns:
             Dictionary with service metrics including:
             - active_sessions: Number of currently active sessions
@@ -1049,16 +1069,23 @@ class ChatHistoryService:
             - oldest_tracked_session: Timestamp of the oldest tracked session
         """
         try:
-            collection = self.database_service.get_collection(self.collection_name)
-            
-            # Get today's message count
+            # Get today's message count using database service
             today_start = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
-            today_count = await collection.count_documents({"timestamp": {"$gte": today_start}})
-            
+            today_messages = await self.database_service.find_many(
+                self.collection_name,
+                {"timestamp": {"$gte": today_start}},
+                limit=100000  # Large limit to get count
+            )
+            today_count = len(today_messages)
+
             # Get archive collection metrics
-            archive_collection = self.database_service.get_collection(f"{self.collection_name}_archive")
-            archive_count = await archive_collection.count_documents({})
-            
+            archive_messages = await self.database_service.find_many(
+                f"{self.collection_name}_archive",
+                {},
+                limit=100000  # Large limit to get count
+            )
+            archive_count = len(archive_messages)
+
             return {
                 "active_sessions": len(self._active_sessions),
                 "tracked_sessions": len(self._session_message_counts),

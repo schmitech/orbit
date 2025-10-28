@@ -197,6 +197,9 @@ class ConfigurationSummaryLogger:
     def _log_service_configurations(self) -> None:
         """Log service configuration details."""
         try:
+            # Log backend configuration
+            self._log_backend_configuration()
+            
             # Log chat history information if in inference_only mode
             inference_only = is_true_value(self.config.get('general', {}).get('inference_only', False))
             if inference_only:
@@ -222,6 +225,27 @@ class ConfigurationSummaryLogger:
                 self._log_message("Max conversation messages: dynamically calculated based on inference provider context window", indent=2)
         except Exception as e:
             self._log_message(f"Error logging chat history configuration: {str(e)}", level='error')
+    
+    def _log_backend_configuration(self) -> None:
+        """Log backend database configuration."""
+        try:
+            backend_config = self.config.get('internal_services', {}).get('backend', {})
+            backend_type = backend_config.get('type', 'unknown')
+            self._log_message(f"Backend: {backend_type.upper()}")
+            
+            if backend_type == 'sqlite':
+                sqlite_config = backend_config.get('sqlite', {})
+                database_path = sqlite_config.get('database_path', 'orbit.db')
+                self._log_message(f"Database path: {database_path}", indent=2)
+            elif backend_type == 'mongodb':
+                mongodb_config = self.config.get('internal_services', {}).get('mongodb', {})
+                host = mongodb_config.get('host', 'localhost')
+                port = mongodb_config.get('port', 27017)
+                database = mongodb_config.get('database', 'orbit')
+                self._log_message(f"MongoDB host: {host}:{port}", indent=2)
+                self._log_message(f"MongoDB database: {database}", indent=2)
+        except Exception as e:
+            self._log_message(f"Error logging backend configuration: {str(e)}", level='error')
     
     def _log_fault_tolerance_configuration(self) -> None:
         """Log fault tolerance service configuration."""

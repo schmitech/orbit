@@ -17,6 +17,32 @@ from typing import Dict, Any, Optional, List, Union, Tuple, Callable, Awaitable
 logger = logging.getLogger(__name__)
 
 
+# Custom database exceptions for backend-agnostic error handling
+class DatabaseError(Exception):
+    """Base exception for all database errors"""
+    pass
+
+
+class DatabaseConnectionError(DatabaseError):
+    """Raised when there's a connection error to the database"""
+    pass
+
+
+class DatabaseOperationError(DatabaseError):
+    """Raised when a database operation fails"""
+    pass
+
+
+class DatabaseDuplicateKeyError(DatabaseError):
+    """Raised when trying to insert a duplicate key"""
+    pass
+
+
+class DatabaseTimeoutError(DatabaseError):
+    """Raised when a database operation times out"""
+    pass
+
+
 class DatabaseService(ABC):
     """
     Abstract base class for database operations.

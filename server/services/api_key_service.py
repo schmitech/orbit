@@ -2,9 +2,9 @@
 API Key Service
 ==============
 
-This service handles API key authentication and retrieval of associated collection names.
-It provides functionality to validate API keys and fetch the corresponding Chroma collection
-and system prompt for a given API key.
+This service handles API key authentication and retrieval of associated collection names
+(supports MongoDB and SQLite backends). It provides functionality to validate API keys
+and fetch the corresponding adapter configuration and system prompt for a given API key.
 
 Updated to support adapter-based API keys per the adapter migration strategy.
 """
@@ -50,7 +50,15 @@ class ApiKeyService:
         # Use database configuration for the cache key
         backend_config = config.get('internal_services', {}).get('backend', {})
         backend_type = backend_config.get('type', 'mongodb')
-        collection_name = config.get('mongodb', {}).get('apikey_collection', 'api_keys')
+
+        # Get collection name based on backend type
+        if backend_type == 'mongodb':
+            mongodb_config = config.get('internal_services', {}).get('mongodb', {})
+            if not mongodb_config:
+                mongodb_config = config.get('mongodb', {})
+            collection_name = mongodb_config.get('apikey_collection', 'api_keys')
+        else:
+            collection_name = 'api_keys'
 
         # Create key based on backend type
         if backend_type == 'mongodb':
@@ -105,9 +113,20 @@ class ApiKeyService:
             from services.database_service import create_database_service
             database_service = create_database_service(config)
         self.database = database_service
-        
-        # MongoDB collection name for API keys
-        self.collection_name = config.get('mongodb', {}).get('apikey_collection', 'api_keys')
+
+        # Collection/table name for API keys - read from backend-specific config
+        backend_type = config.get('internal_services', {}).get('backend', {}).get('type', 'mongodb')
+
+        if backend_type == 'mongodb':
+            # MongoDB: read collection name from mongodb config
+            mongodb_config = config.get('internal_services', {}).get('mongodb', {})
+            if not mongodb_config:
+                # Fallback to root mongodb section for backward compatibility
+                mongodb_config = config.get('mongodb', {})
+            self.collection_name = mongodb_config.get('apikey_collection', 'api_keys')
+        else:
+            # SQLite or other backends: use default table name
+            self.collection_name = 'api_keys'
         
         # Initialize state
         self._initialized = False
@@ -479,8 +498,8 @@ class ApiKeyService:
             raise HTTPException(status_code=500, detail=f"Error deleting API key: {str(e)}")
     
     async def close(self) -> None:
-        """Close the API key service (does not close shared MongoDB service)"""
-        # Since MongoDB service might be shared, we don't close it
-        # The service itself doesn't maintain any persistent connections beyond MongoDB
+        """Close the API key service (does not close shared database service)"""
+        # Since database service might be shared, we don't close it
+        # The service itself doesn't maintain any persistent connections beyond the database
         self._initialized = False
         self.api_keys_collection = None
