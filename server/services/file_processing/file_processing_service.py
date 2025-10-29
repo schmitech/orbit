@@ -7,7 +7,7 @@ Main service for processing uploaded files: extraction, chunking, and storage pr
 import logging
 import uuid
 from typing import Dict, Any, List, Optional
-from datetime import datetime
+from datetime import datetime, UTC
 
 from services.file_processing.processor_registry import FileProcessorRegistry
 from services.file_processing.chunking import FixedSizeChunker, SemanticChunker, Chunk
@@ -39,15 +39,21 @@ class FileProcessingService:
         self.config = config
         self.logger = logging.getLogger(self.__class__.__name__)
         
+        # Get files configuration section
+        files_config = config.get('files', {})
+        processing_config = files_config.get('processing', {})
+        
         # Initialize components
         self.storage = self._init_storage()
-        self.metadata_store = FileMetadataStore()
+        self.metadata_store = FileMetadataStore(config=config)
         self.processor_registry = FileProcessorRegistry()
         self.chunker = self._init_chunker()
         
-        # Configuration
-        self.max_file_size = config.get('max_file_size', 52428800)  # 50MB
-        self.supported_types = config.get('supported_types', [
+        # Configuration - get from adapter config first, then files.processing, then default
+        self.max_file_size = config.get('max_file_size') or \
+                             processing_config.get('max_file_size', 52428800)  # 50MB
+        self.supported_types = config.get('supported_types') or \
+                              processing_config.get('supported_types', [
             'application/pdf',
             'text/plain',
             'text/markdown',
@@ -65,21 +71,31 @@ class FileProcessingService:
             'image/webp',
         ])
         
-        # Vision service configuration
-        self.enable_vision = config.get('enable_vision', True)
-        self.vision_provider = config.get('vision_provider', 'openai')
-        self.vision_config = config.get('vision', {})
+        # Vision service configuration - get from adapter config, then files.processing.vision, then default
+        vision_config = config.get('vision') or processing_config.get('vision', {})
+        self.enable_vision = config.get('enable_vision') or \
+                           vision_config.get('enabled', True)
+        self.vision_provider = config.get('vision_provider') or \
+                              vision_config.get('provider', 'openai')
+        self.vision_config = vision_config
     
     def _init_storage(self) -> FilesystemStorage:
         """Initialize storage backend."""
-        storage_root = self.config.get('storage_root', './uploads')
+        # Get from adapter config first, then global files config, then default
+        storage_root = self.config.get('storage_root') or \
+                      self.config.get('files', {}).get('storage_root', './uploads')
         return FilesystemStorage(storage_root=storage_root)
     
     def _init_chunker(self):
         """Initialize chunking strategy."""
-        strategy = self.config.get('chunking_strategy', 'fixed')
-        chunk_size = self.config.get('chunk_size', 1000)
-        overlap = self.config.get('chunk_overlap', 200)
+        # Get from adapter config first, then global files config, then defaults
+        files_config = self.config.get('files', {})
+        strategy = self.config.get('chunking_strategy') or \
+                  files_config.get('default_chunking_strategy', 'fixed')
+        chunk_size = self.config.get('chunk_size') or \
+                    files_config.get('default_chunk_size', 1000)
+        overlap = self.config.get('chunk_overlap') or \
+                 files_config.get('default_chunk_overlap', 200)
         
         if strategy == 'semantic':
             return SemanticChunker(chunk_size=chunk_size, overlap=overlap)
@@ -119,7 +135,7 @@ class FileProcessingService:
                 'filename': filename,
                 'mime_type': mime_type,
                 'file_size': len(file_data),
-                'upload_time': datetime.utcnow().isoformat(),
+                'upload_time': datetime.now(UTC).isoformat(),
             }
             
             await self.storage.put_file(file_data, storage_key, metadata)
@@ -145,14 +161,25 @@ class FileProcessingService:
             # 6. Chunk content
             chunks = await self._chunk_content(extracted_text, file_id, file_metadata)
             
-            # 7. Update metadata store with chunk count
+            # 7. Record chunks in metadata store
+            for chunk in chunks:
+                await self.metadata_store.record_chunk(
+                    chunk_id=chunk.chunk_id,
+                    file_id=file_id,
+                    chunk_index=chunk.chunk_index,
+                    vector_store_id=None,  # Will be set when indexed
+                    collection_name=None,  # Will be set when indexed
+                    metadata=chunk.metadata
+                )
+            
+            # 8. Update metadata store with chunk count
             await self.metadata_store.update_processing_status(
                 file_id,
                 'completed',
                 chunk_count=len(chunks),
             )
             
-            # 8. Prepare response
+            # 9. Prepare response
             return {
                 'file_id': file_id,
                 'status': 'completed',

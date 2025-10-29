@@ -15,6 +15,7 @@ sys.path.insert(0, server_dir)
 
 from services.api_key_service import ApiKeyService
 from services.mongodb_service import MongoDBService
+from services.sqlite_service import SQLiteService
 
 
 @pytest.fixture
@@ -395,6 +396,200 @@ def test_api_key_service_thread_safety():
     # Should have only 1 cached instance
     stats = ApiKeyService.get_cache_stats()
     assert stats['total_cached_instances'] == 1
+
+
+# SQLite backend tests
+
+@pytest.fixture
+def mock_sqlite_config():
+    """Create a mock SQLite configuration for testing."""
+    return {
+        'general': {
+            'verbose': False
+        },
+        'internal_services': {
+            'backend': {
+                'type': 'sqlite',
+                'sqlite': {
+                    'database_path': 'test_sqlite.db'
+                }
+            }
+        }
+    }
+
+
+@pytest.fixture
+def alternate_sqlite_config():
+    """Create an alternate SQLite configuration for testing."""
+    return {
+        'general': {
+            'verbose': False
+        },
+        'internal_services': {
+            'backend': {
+                'type': 'sqlite',
+                'sqlite': {
+                    'database_path': 'test_sqlite_alt.db'  # Different database path
+                }
+            }
+        }
+    }
+
+
+def test_api_key_service_singleton_sqlite_same_config(mock_sqlite_config):
+    """Test that same SQLite configuration returns the same API key service instance."""
+    
+    # Clear any existing cache
+    ApiKeyService.clear_cache()
+    SQLiteService.clear_cache()
+    
+    # Create multiple API key service instances with same config
+    service1 = ApiKeyService(mock_sqlite_config)
+    service2 = ApiKeyService(mock_sqlite_config)
+    service3 = ApiKeyService(mock_sqlite_config)
+    
+    # All should be the same instance
+    assert service1 is service2
+    assert service2 is service3
+    assert service1 is service3
+    
+    # Verify only one instance was cached
+    stats = ApiKeyService.get_cache_stats()
+    assert stats['total_cached_instances'] == 1
+
+
+def test_api_key_service_singleton_sqlite_different_configs(mock_sqlite_config, alternate_sqlite_config):
+    """Test that different SQLite configurations create separate instances."""
+    
+    # Clear any existing cache
+    ApiKeyService.clear_cache()
+    SQLiteService.clear_cache()
+    
+    # Create API key services with different configs
+    service1 = ApiKeyService(mock_sqlite_config)
+    service2 = ApiKeyService(alternate_sqlite_config)
+    
+    # Should have different instances
+    assert service1 is not service2
+    
+    # Should have 2 cached instances
+    stats = ApiKeyService.get_cache_stats()
+    assert stats['total_cached_instances'] == 2
+    
+    # Same config should return same instance
+    service3 = ApiKeyService(mock_sqlite_config)
+    assert service1 is service3
+    
+    # Still should have 2 cached instances
+    stats = ApiKeyService.get_cache_stats()
+    assert stats['total_cached_instances'] == 2
+
+
+def test_api_key_service_cache_key_creation_sqlite():
+    """Test cache key creation for SQLite configurations."""
+    
+    config1 = {
+        'internal_services': {
+            'backend': {
+                'type': 'sqlite',
+                'sqlite': {
+                    'database_path': 'test1.db'
+                }
+            }
+        }
+    }
+    
+    config2 = {
+        'internal_services': {
+            'backend': {
+                'type': 'sqlite',
+                'sqlite': {
+                    'database_path': 'test2.db'  # Different database path
+                }
+            }
+        }
+    }
+    
+    key1 = ApiKeyService._create_cache_key(config1)
+    key2 = ApiKeyService._create_cache_key(config2)
+    
+    # Different configs should create different keys
+    assert key1 != key2
+    
+    # Same config should create same key
+    key1_again = ApiKeyService._create_cache_key(config1)
+    assert key1 == key1_again
+
+
+def test_api_key_service_sqlite_collection_name():
+    """Test that SQLite backend uses default collection name."""
+    
+    # Clear cache
+    ApiKeyService.clear_cache()
+    SQLiteService.clear_cache()
+    
+    config = {
+        'internal_services': {
+            'backend': {
+                'type': 'sqlite',
+                'sqlite': {
+                    'database_path': 'test_sqlite.db'
+                }
+            }
+        }
+    }
+    
+    service = ApiKeyService(config)
+    
+    # SQLite should use default collection name 'api_keys'
+    assert service.collection_name == 'api_keys'
+
+
+def test_api_key_service_mixed_backends():
+    """Test that MongoDB and SQLite backends create separate instances."""
+    
+    # Clear cache
+    ApiKeyService.clear_cache()
+    MongoDBService.clear_cache()
+    SQLiteService.clear_cache()
+    
+    mongodb_config = {
+        'internal_services': {
+            'mongodb': {
+                'host': 'localhost',
+                'port': 27017,
+                'database': 'test_db'
+            }
+        },
+        'mongodb': {
+            'apikey_collection': 'api_keys'
+        }
+    }
+    
+    sqlite_config = {
+        'internal_services': {
+            'backend': {
+                'type': 'sqlite',
+                'sqlite': {
+                    'database_path': 'test_sqlite.db'
+                }
+            }
+        }
+    }
+    
+    mongodb_service = ApiKeyService(mongodb_config)
+    sqlite_service = ApiKeyService(sqlite_config)
+    
+    # Should be different instances
+    assert mongodb_service is not sqlite_service
+    
+    # Should have 2 cached instances
+    stats = ApiKeyService.get_cache_stats()
+    assert stats['total_cached_instances'] == 2
+    
+    # Should have different collection names (though both default to 'api_keys')
+    assert mongodb_service.collection_name == 'api_keys'
+    assert sqlite_service.collection_name == 'api_keys'
 
 
 if __name__ == "__main__":

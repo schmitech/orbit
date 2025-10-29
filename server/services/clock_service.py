@@ -3,7 +3,7 @@ Clock Service for providing timezone-aware timestamps.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, UTC
 from typing import Optional
 
 # Use zoneinfo if available (Python 3.9+), otherwise fallback to pytz
@@ -49,7 +49,7 @@ class ClockService:
                 return now.strftime(self.format)
             except ZoneInfoNotFoundError:
                 logger.error(f"Default timezone '{self.default_timezone}' also not found. Returning UTC time.")
-                return datetime.utcnow().strftime(self.format)
+                return datetime.now(UTC).strftime(self.format)
         except Exception as e:
             logger.error(f"Error getting current time: {e}")
             return None

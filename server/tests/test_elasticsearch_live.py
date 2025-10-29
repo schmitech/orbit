@@ -15,7 +15,7 @@ import aiohttp
 import json
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, UTC
 from pathlib import Path
 from dotenv import load_dotenv
 from elasticsearch import AsyncElasticsearch
@@ -41,7 +41,7 @@ async def test_chat_endpoint():
     print("=" * 60)
     
     # Create test session ID
-    session_id = f"test-live-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+    session_id = f"test-live-{datetime.now(UTC).strftime('%Y%m%d-%H%M%S')}"
     
     # Test message
     test_message = "What is 2 + 2?"

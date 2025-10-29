@@ -21,7 +21,7 @@ import json
 import statistics
 import csv
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from typing import Dict, List, Any, Optional
 import concurrent.futures
 import threading
@@ -378,7 +378,7 @@ async def main():
     output_dir.mkdir(exist_ok=True)
     
     # Generate timestamp for this test run
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
     
     print(f"🚀 Starting advanced performance test")
     print(f"Target: {args.host}")

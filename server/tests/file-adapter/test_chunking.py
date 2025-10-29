@@ -262,7 +262,8 @@ def test_chunk_repr():
     )
 
     repr_str = repr(chunk)
-    assert "file_123_" in repr_str
+    # chunk_id is truncated to first 8 chars in __repr__, so check for "file_12"
+    assert "file_12" in repr_str
     assert "chunk_index=0" in repr_str
     assert "len=" in repr_str
 

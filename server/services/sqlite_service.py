@@ -75,6 +75,9 @@ class SQLiteService(DatabaseService):
         self.connection = None
         self.executor = ThreadPoolExecutor(max_workers=10, thread_name_prefix='sqlite_')
         self._collections = {}
+        
+        # Lock for thread-safe database operations (SQLite doesn't handle concurrent writes well)
+        self._db_lock = threading.Lock()
 
         # Track pending indexes for tables that don't exist yet
         self._pending_indexes = {}
@@ -253,36 +256,40 @@ class SQLiteService(DatabaseService):
                 )
 
     def _execute_sql(self, sql: str, params: tuple) -> sqlite3.Cursor:
-        """Execute SQL statement (runs in thread)"""
-        cursor = self.connection.cursor()
-        cursor.execute(sql, params)
-        self.connection.commit()
-        return cursor
+        """Execute SQL statement (runs in thread) - thread-safe"""
+        with self._db_lock:
+            cursor = self.connection.cursor()
+            cursor.execute(sql, params)
+            self.connection.commit()
+            return cursor
 
     def _execute_sql_fetchone(self, sql: str, params: tuple) -> Optional[Dict[str, Any]]:
-        """Execute SQL and fetch one result (runs in thread)"""
-        cursor = self.connection.cursor()
-        cursor.execute(sql, params)
-        row = cursor.fetchone()
-        if row:
-            return dict(row)
-        return None
+        """Execute SQL and fetch one result (runs in thread) - thread-safe"""
+        with self._db_lock:
+            cursor = self.connection.cursor()
+            cursor.execute(sql, params)
+            row = cursor.fetchone()
+            if row:
+                return dict(row)
+            return None
 
     def _execute_sql_fetchall(self, sql: str, params: tuple) -> List[Dict[str, Any]]:
-        """Execute SQL and fetch all results (runs in thread)"""
-        cursor = self.connection.cursor()
-        cursor.execute(sql, params)
-        rows = cursor.fetchall()
-        return [dict(row) for row in rows]
+        """Execute SQL and fetch all results (runs in thread) - thread-safe"""
+        with self._db_lock:
+            cursor = self.connection.cursor()
+            cursor.execute(sql, params)
+            rows = cursor.fetchall()
+            return [dict(row) for row in rows]
 
     def _table_exists(self, table_name: str) -> bool:
-        """Check if a table exists (runs in thread)"""
-        cursor = self.connection.cursor()
-        cursor.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
-            (table_name,)
-        )
-        return cursor.fetchone() is not None
+        """Check if a table exists (runs in thread) - thread-safe"""
+        with self._db_lock:
+            cursor = self.connection.cursor()
+            cursor.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+                (table_name,)
+            )
+            return cursor.fetchone() is not None
 
     def _create_table_from_document(self, table_name: str, document: Dict[str, Any]) -> None:
         """
@@ -319,9 +326,10 @@ class SQLiteService(DatabaseService):
 
         # Create the table
         sql = f"CREATE TABLE IF NOT EXISTS {table_name} ({', '.join(columns)})"
-        cursor = self.connection.cursor()
-        cursor.execute(sql)
-        self.connection.commit()
+        with self._db_lock:
+            cursor = self.connection.cursor()
+            cursor.execute(sql)
+            self.connection.commit()
 
         if self.verbose:
             logger.info(f"Auto-created table: {table_name}")

@@ -11,7 +11,7 @@ import uuid
 
 from retrievers.base.abstract_vector_retriever import AbstractVectorRetriever
 from services.file_metadata.metadata_store import FileMetadataStore
-from vector_stores.store_manager import StoreManager
+from vector_stores.base.store_manager import StoreManager
 
 logger = logging.getLogger(__name__)
 
@@ -34,15 +34,31 @@ class FileVectorRetriever(AbstractVectorRetriever):
             domain_adapter: Domain adapter for formatting
             **kwargs: Additional parameters
         """
+        # Ensure config is not None or empty (base_retriever requires non-empty config)
+        if config is None or config == {}:
+            # Provide minimal config structure
+            config = {'files': {}}
+        
         super().__init__(config=config, domain_adapter=domain_adapter, **kwargs)
         
         # File-specific configuration
-        self.metadata_store = FileMetadataStore()
-        self.collection_prefix = self.config.get('collection_prefix', 'files_')
+        self.metadata_store = FileMetadataStore(config=config)
+        
+        # Get collection_prefix from adapter config first, then files.retriever, then global files config, then default
+        files_config = self.config.get('files', {})
+        retriever_config = files_config.get('retriever', {})
+        self.collection_prefix = self.config.get('collection_prefix') or \
+                                retriever_config.get('collection_prefix') or \
+                                files_config.get('default_collection_prefix', 'files_')
         
         # Initialize store manager for vector operations
         self.store_manager = None
         self._default_store = None
+    
+    async def ensure_initialized(self):
+        """Ensure retriever is initialized before use."""
+        if not self.initialized:
+            await self.initialize()
     
     async def initialize(self):
         """Initialize the retriever."""
@@ -52,15 +68,41 @@ class FileVectorRetriever(AbstractVectorRetriever):
         # Initialize embeddings
         await super().initialize()
         
-        # Initialize store manager
-        self.store_manager = StoreManager()
+        # Initialize store manager (only if not already set - allows test mocking)
+        if self.store_manager is None:
+            self.store_manager = StoreManager()
         
-        # Get default vector store
-        vector_store_name = self.config.get('vector_store', 'chroma')
-        self._default_store = await self.store_manager.get_store(vector_store_name)
+        # Get default vector store from adapter config first, then global files.retriever config, then default
+        files_config = self.config.get('files', {})
+        retriever_config = files_config.get('retriever', {})
+        vector_store_name = self.config.get('vector_store') or \
+                           retriever_config.get('vector_store') or \
+                           files_config.get('default_vector_store', 'chroma')
         
-        if not self._default_store:
-            logger.error(f"Could not initialize vector store: {vector_store_name}")
+        try:
+            # First try to get existing store
+            self._default_store = await self.store_manager.get_store(vector_store_name)
+            
+            # If not found, try to create it (will use default Chroma config if available)
+            if not self._default_store:
+                try:
+                    logger.debug(f"Store '{vector_store_name}' not found, attempting to create it...")
+                    self._default_store = await self.store_manager.get_or_create_store(
+                        name=vector_store_name,
+                        store_type='chroma'  # Default type
+                    )
+                    logger.info(f"Created vector store: {vector_store_name}")
+                except Exception as create_error:
+                    logger.warning(f"Could not create vector store '{vector_store_name}': {create_error}. "
+                                 f"File adapter will operate in limited mode without vector search. "
+                                 f"Ensure Chroma is configured in config/stores.yaml")
+                    self._default_store = None
+            else:
+                logger.info(f"Initialized vector store: {vector_store_name}")
+        except Exception as e:
+            logger.warning(f"Error initializing vector store {vector_store_name}: {e}. "
+                         f"File adapter will operate in limited mode. Check vector store configuration in config/stores.yaml.")
+            self._default_store = None
         
         self.initialized = True
         logger.info("FileVectorRetriever initialized")
@@ -280,3 +322,53 @@ class FileVectorRetriever(AbstractVectorRetriever):
         except Exception as e:
             logger.error(f"Error deleting file chunks: {e}")
             return False
+    
+    # Implement abstract methods required by AbstractVectorRetriever
+    
+    def _get_datasource_name(self) -> str:
+        """Return the name of this datasource for config lookup"""
+        return "file"
+    
+    async def vector_search(self, query_embedding: List[float], top_k: int) -> List[Dict[str, Any]]:
+        """
+        Perform vector similarity search.
+        
+        This method is required by AbstractVectorRetriever but FileVectorRetriever
+        uses a different search pattern via _search_collection. This is a stub implementation.
+        
+        Args:
+            query_embedding: The query embedding vector
+            top_k: Number of results to return
+            
+        Returns:
+            List of search results
+        """
+        # FileVectorRetriever uses collection-based search via get_relevant_context
+        # This is called from parent's get_relevant_context, but we override it
+        # So this method should not be called in normal operation
+        logger.warning("vector_search called on FileVectorRetriever - this should use get_relevant_context instead")
+        return []
+    
+    async def set_collection(self, collection_name: str) -> None:
+        """
+        Set the current collection for retrieval.
+        
+        Args:
+            collection_name: Name of the collection to use
+        """
+        # FileVectorRetriever handles collections dynamically in _get_collections
+        # No need to set a single collection
+        pass
+    
+    async def initialize_client(self) -> None:
+        """Initialize the vector database client/connection."""
+        # FileVectorRetriever uses StoreManager which is initialized in initialize()
+        # This is called from parent but we handle it differently
+        # Don't call initialize() here to avoid double initialization
+        pass
+    
+    async def close_client(self) -> None:
+        """Close the vector database client/connection."""
+        # FileVectorRetriever doesn't maintain a persistent client connection
+        # The store manager handles its own lifecycle
+        pass

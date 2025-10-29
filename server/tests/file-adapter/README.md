@@ -1,6 +1,6 @@
 # File Adapter Test Suite
 
-Comprehensive test suite for the ORBIT File Adapter System.
+Test suite for the ORBIT File Adapter System.
 
 ## Test Structure
 
@@ -48,8 +48,32 @@ Tests for file processors and processing service:
 - Validation (file type, size limits)
 - Chunking strategy initialization
 - Error handling
+- Configuration handling (adapter config → global defaults → hardcoded defaults)
 
 **Coverage**: File processing pipeline (Phase 1.2 & Phase 2)
+
+#### `test_file_adapter.py`
+Tests for FileAdapter document formatting and domain-specific processing:
+- Adapter initialization (default, custom, global config)
+- Document formatting (basic, with title/summary, file metadata)
+- Content type classification (document, spreadsheet, data, image)
+- Direct answer extraction
+- Domain-specific filtering and confidence boosting
+- Content type relevance checking
+
+**Coverage**: File adapter formatting and filtering (Phase 2)
+
+#### `test_file_retriever.py`
+Tests for FileVectorRetriever vector search and retrieval:
+- Retriever initialization (default, adapter config, global config)
+- Configuration priority (adapter → global → default)
+- Collection retrieval by file_id, api_key, collection_name
+- Vector store search operations
+- Result formatting with metadata enrichment
+- Chunk indexing and deletion
+- Integration with metadata store
+
+**Coverage**: File vector retrieval (Phase 3)
 
 ### Integration Tests
 
@@ -126,10 +150,12 @@ pytest tests/file-adapter/test_integration.py -v
 | File Storage | 20+ | Storage backend, atomic writes, metadata |
 | Chunking | 25+ | Fixed and semantic strategies |
 | Metadata Store | 20+ | SQLite operations, multi-tenancy |
-| File Processing | 25+ | Processors, service, validation |
+| File Processing | 30+ | Processors, service, validation, config handling |
+| File Adapter | 30+ | Document formatting, filtering, content classification |
+| File Retriever | 25+ | Vector search, collection management, config priority |
 | Integration | 20+ | End-to-end workflows |
 
-**Total**: 110+ test cases
+**Total**: 170+ test cases
 
 ## Test Requirements
 
@@ -298,7 +324,9 @@ Potential areas for additional test coverage:
 - [ ] DOCX processor tests with actual DOCX files
 - [ ] CSV processor tests with various CSV formats
 - [ ] Vector store integration tests (requires Chroma/Qdrant)
-- [ ] File retriever tests
+- [x] File retriever tests ✓
+- [x] File adapter tests ✓
+- [x] Configuration handling tests ✓
 - [ ] API endpoint tests (FastAPI integration)
 - [ ] DuckDB path tests for structured data
 - [ ] S3 storage backend tests (when implemented)
@@ -312,7 +340,3 @@ When contributing tests:
 3. Maintain or improve coverage
 4. Follow existing patterns and conventions
 5. Update documentation as needed
-
-## License
-
-These tests are part of the ORBIT project and follow the same license.

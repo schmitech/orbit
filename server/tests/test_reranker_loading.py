@@ -34,6 +34,19 @@ def config():
 @pytest.fixture(autouse=True)
 def register_services(config):
     """Register all services before each test."""
+    # Clear reranking services from registry to ensure fresh state per test
+    # This is necessary because register_all_services() has a guard that prevents
+    # re-registration, but we need to test with different configs (enabled/disabled providers)
+    available = AIServiceFactory.list_available_services()
+    reranking_providers = available.get('reranking', [])
+    for provider in reranking_providers:
+        AIServiceFactory.unregister_service(ServiceType.RERANKING, provider)
+    
+    # Reset the registry flag to allow re-registration
+    import ai_services.registry as registry
+    registry._services_registered = False
+    
+    # Now register all services with current config
     register_all_services(config)
 
 

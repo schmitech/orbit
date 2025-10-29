@@ -179,6 +179,24 @@ chat_history:
     header_name: "X-User-ID"
     required: false
 
+files:
+  # Global defaults for all file adapters
+  # Individual adapters in adapters.yaml can override these settings
+  
+  metadata_db_path: "files.db"  # Path to SQLite database for file metadata (relative to project root)
+  
+  # Default storage configuration (can be overridden per adapter)
+  storage_root: "./uploads"  # Default root directory for storing uploaded files
+  
+  # Default processing settings (can be overridden per adapter)
+  default_chunking_strategy: "fixed"  # Default: "fixed" or "semantic"
+  default_chunk_size: 1000  # Default chunk size for fixed chunking (characters)
+  default_chunk_overlap: 200  # Default overlap for fixed chunking (characters)
+  
+  # Default vector store settings (can be overridden per adapter)
+  default_vector_store: "chroma"  # Default vector store to use
+  default_collection_prefix: "files_"  # Default prefix for collection names
+
 reranker:
   provider: "ollama"
   enabled: false

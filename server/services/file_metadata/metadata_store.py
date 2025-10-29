@@ -25,13 +25,27 @@ class FileMetadataStore:
     - Vector store mappings
     """
     
-    def __init__(self, db_path: str = "orbit.db"):
+    def __init__(self, db_path: str = None, config: Dict[str, Any] = None):
         """
         Initialize metadata store.
         
         Args:
-            db_path: Path to SQLite database
+            db_path: Path to SQLite database (optional, will use config if not provided)
+            config: Configuration dictionary (optional, used to get db_path if not provided)
         """
+        # Get db_path from config if not provided
+        if db_path is None:
+            if config:
+                db_path = config.get('files', {}).get('metadata_db_path', 'orbit.db')
+            else:
+                # Fallback to loading config if not provided
+                try:
+                    from config.config_manager import load_config
+                    config = load_config()
+                    db_path = config.get('files', {}).get('metadata_db_path', 'orbit.db')
+                except Exception:
+                    db_path = 'orbit.db'
+        
         self.db_path = db_path
         self.connection = None
         self._init_schema()
@@ -120,8 +134,8 @@ class FileMetadataStore:
             True if successful
         """
         try:
-            import datetime
-            timestamp = datetime.datetime.utcnow().isoformat()
+            from datetime import datetime, UTC
+            timestamp = datetime.now(UTC).isoformat()
             
             cursor = self.connection.cursor()
             cursor.execute("""
@@ -350,6 +364,57 @@ class FileMetadataStore:
         except Exception as e:
             logger.error(f"Error getting file chunks: {e}")
             return []
+    
+    async def get_chunk_info(self, chunk_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Get chunk information by chunk_id.
+        
+        Args:
+            chunk_id: Chunk identifier
+            
+        Returns:
+            Chunk metadata dictionary or None
+        """
+        try:
+            cursor = self.connection.cursor()
+            cursor.execute("SELECT * FROM file_chunks WHERE chunk_id = ?", (chunk_id,))
+            row = cursor.fetchone()
+            
+            if row:
+                chunk_info = dict(row)
+                # Parse JSON metadata if present
+                if 'chunk_metadata' in chunk_info and chunk_info['chunk_metadata']:
+                    try:
+                        chunk_info['chunk_metadata'] = json.loads(chunk_info['chunk_metadata'])
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+                return chunk_info
+            return None
+        
+        except Exception as e:
+            logger.error(f"Error getting chunk info: {e}")
+            return None
+    
+    async def delete_file_chunks(self, file_id: str) -> bool:
+        """
+        Delete all chunks for a file.
+        
+        Args:
+            file_id: File identifier
+            
+        Returns:
+            True if successful
+        """
+        try:
+            cursor = self.connection.cursor()
+            cursor.execute("DELETE FROM file_chunks WHERE file_id = ?", (file_id,))
+            self.connection.commit()
+            logger.debug(f"Deleted chunks for file {file_id}")
+            return True
+        
+        except Exception as e:
+            logger.error(f"Error deleting file chunks: {e}")
+            return False
     
     def close(self):
         """Close database connection."""

@@ -7,6 +7,7 @@ import pytest
 import sys
 import os
 import asyncio
+import copy
 from bson import ObjectId
 from unittest.mock import AsyncMock, MagicMock
 
@@ -346,9 +347,13 @@ async def test_cache_with_string_id(prompt_service, mock_mongodb, mock_redis):
 @pytest.mark.asyncio
 async def test_cache_disabled_scenario(prompt_service_config, mock_mongodb):
     """Test that service works correctly when Redis is disabled"""
-    # Create service without Redis
+    # Deep copy config and disable Redis to prevent auto-creation
+    disabled_redis_config = copy.deepcopy(prompt_service_config)
+    disabled_redis_config['internal_services']['redis']['enabled'] = False
+    
+    # Create service without Redis (explicitly None, and config also disables it)
     service = PromptService(
-        config=prompt_service_config,
+        config=disabled_redis_config,
         database_service=mock_mongodb,
         redis_service=None
     )

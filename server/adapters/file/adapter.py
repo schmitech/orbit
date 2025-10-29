@@ -22,14 +22,46 @@ class FileAdapter(DocumentAdapter):
         """
         super().__init__(config=config, **kwargs)
         
-        # Extract configuration values
-        self.confidence_threshold = self.config.get('confidence_threshold', 0.5)
-        self.preserve_file_structure = self.config.get('preserve_file_structure', True)
-        self.extract_metadata = self.config.get('extract_metadata', True)
-        self.verbose = self.config.get('verbose', False)
-        self.max_summary_length = self.config.get('max_summary_length', 200)
-        self.enable_vision = self.config.get('enable_vision', True)
-        self.vision_provider = self.config.get('vision_provider', 'openai')
+        # Get files configuration section
+        files_config = self.config.get('files', {})
+        adapter_config = files_config.get('adapter', {})
+        processing_config = files_config.get('processing', {})
+        vision_config = processing_config.get('vision', {})
+        
+        # Extract configuration values - get from adapter config first, then root config, then defaults
+        # Use helper to check adapter config first, then root config, then default
+        def get_config_value(key, default, adapter_dict=None, root_dict=None):
+            """Get config value with priority: adapter > root > default"""
+            if adapter_dict and key in adapter_dict:
+                return adapter_dict[key]
+            if root_dict and key in root_dict:
+                return root_dict[key]
+            return default
+        
+        self.confidence_threshold = get_config_value('confidence_threshold', 0.5, adapter_config, self.config)
+        self.preserve_file_structure = get_config_value('preserve_file_structure', True, adapter_config, self.config)
+        self.extract_metadata = get_config_value('extract_metadata', True, adapter_config, self.config)
+        self.verbose = get_config_value('verbose', False, adapter_config, self.config)
+        self.max_summary_length = get_config_value('max_summary_length', 200, adapter_config, self.config)
+        
+        # Vision settings - check files.processing.vision first, then adapter_config, then root config
+        if 'enabled' in vision_config:
+            self.enable_vision = vision_config['enabled']
+        elif 'enable_vision' in adapter_config:
+            self.enable_vision = adapter_config['enable_vision']
+        elif 'enable_vision' in self.config:
+            self.enable_vision = self.config['enable_vision']
+        else:
+            self.enable_vision = True
+            
+        if 'provider' in vision_config:
+            self.vision_provider = vision_config['provider']
+        elif 'vision_provider' in adapter_config:
+            self.vision_provider = adapter_config['vision_provider']
+        elif 'vision_provider' in self.config:
+            self.vision_provider = self.config['vision_provider']
+        else:
+            self.vision_provider = 'openai'
         
         if self.verbose:
             logger.info(f"Initialized File Adapter with confidence_threshold: {self.confidence_threshold}")
@@ -161,16 +193,17 @@ class FileAdapter(DocumentAdapter):
     
     def _classify_content_type(self, mime_type: str) -> str:
         """Classify file content type based on MIME type"""
-        if mime_type.startswith('text/'):
+        # Check for spreadsheet types first (before generic text/)
+        if mime_type in ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                          'application/vnd.ms-excel', 'text/csv']:
+            return 'spreadsheet'
+        elif mime_type.startswith('text/'):
             return 'text'
         elif mime_type == 'application/pdf':
             return 'document'
         elif mime_type in ['application/vnd.openxmlformats-officedocument.wordprocessingml.document',
                           'application/msword']:
             return 'document'
-        elif mime_type in ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                          'application/vnd.ms-excel', 'text/csv']:
-            return 'spreadsheet'
         elif mime_type == 'application/json':
             return 'data'
         elif mime_type.startswith('image/'):
@@ -312,4 +345,36 @@ def create_file_adapter(config: Dict[str, Any] = None, **kwargs) -> FileAdapter:
 
 # Register the adapter with the factory
 DocumentAdapterFactory.register_adapter("file", create_file_adapter)
-logger.info("Registered FileAdapter as 'file'") 
+logger.info("Registered FileAdapter as 'file'")
+
+
+# Register adapter with the global registry for dynamic loading
+def register_file_adapter():
+    """Register file adapter with the global adapter registry"""
+    logger.info("Registering file adapter with global registry...")
+    try:
+        from adapters.registry import ADAPTER_REGISTRY
+        
+        # Register for file datasource with adapter_name="file"
+        ADAPTER_REGISTRY.register(
+            adapter_type="retriever",
+            datasource="file",
+            adapter_name="file",
+            implementation='adapters.file.adapter.FileAdapter',
+            factory_func=create_file_adapter,
+            config={
+                'confidence_threshold': 0.5,
+                'preserve_file_structure': True,
+                'extract_metadata': True,
+                'verbose': False,
+                'max_summary_length': 200,
+                'enable_vision': True,
+                'vision_provider': 'openai'
+            }
+        )
+        logger.info("Registered file adapter for file datasource")
+    except Exception as e:
+        logger.error(f"Failed to register file adapter: {e}")
+
+
+register_file_adapter() 

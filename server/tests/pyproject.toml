@@ -17,6 +17,11 @@ addopts = [
     "--strict-markers",
 ]
 
+# Filter warnings from third-party libraries we can't control
+filterwarnings = [
+    "ignore::pydantic.warnings.PydanticDeprecatedSince212:docling_core",
+]
+
 # Test directories
 testpaths = ["tests"]
 

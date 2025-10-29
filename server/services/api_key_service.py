@@ -53,16 +53,27 @@ class ApiKeyService:
 
         # Get collection name based on backend type
         if backend_type == 'mongodb':
-            mongodb_config = config.get('internal_services', {}).get('mongodb', {})
-            if not mongodb_config:
-                mongodb_config = config.get('mongodb', {})
-            collection_name = mongodb_config.get('apikey_collection', 'api_keys')
+            # First try to get collection from internal_services.mongodb
+            internal_mongodb_config = config.get('internal_services', {}).get('mongodb', {})
+            # Also try top-level mongodb config for collection name
+            top_level_mongodb_config = config.get('mongodb', {})
+            
+            # Collection name can be in either location
+            collection_name = (
+                internal_mongodb_config.get('apikey_collection') or
+                top_level_mongodb_config.get('apikey_collection') or
+                'api_keys'
+            )
         else:
             collection_name = 'api_keys'
 
         # Create key based on backend type
         if backend_type == 'mongodb':
+            # Get MongoDB config for connection info (with fallback)
             mongodb_config = config.get('internal_services', {}).get('mongodb', {})
+            if not mongodb_config:
+                mongodb_config = config.get('mongodb', {})
+            
             key_parts = [
                 'mongodb',
                 mongodb_config.get('host', 'localhost'),
@@ -119,11 +130,16 @@ class ApiKeyService:
 
         if backend_type == 'mongodb':
             # MongoDB: read collection name from mongodb config
-            mongodb_config = config.get('internal_services', {}).get('mongodb', {})
-            if not mongodb_config:
-                # Fallback to root mongodb section for backward compatibility
-                mongodb_config = config.get('mongodb', {})
-            self.collection_name = mongodb_config.get('apikey_collection', 'api_keys')
+            # Check both internal_services.mongodb and top-level mongodb config
+            internal_mongodb_config = config.get('internal_services', {}).get('mongodb', {})
+            top_level_mongodb_config = config.get('mongodb', {})
+            
+            # Collection name can be in either location
+            self.collection_name = (
+                internal_mongodb_config.get('apikey_collection') or
+                top_level_mongodb_config.get('apikey_collection') or
+                'api_keys'
+            )
         else:
             # SQLite or other backends: use default table name
             self.collection_name = 'api_keys'

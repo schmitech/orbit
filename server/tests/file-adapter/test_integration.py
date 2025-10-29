@@ -25,6 +25,10 @@ async def integrated_system(tmp_path):
     Fixture providing a complete file processing system
     with all components initialized.
     """
+    import os
+    # Use a temporary database for test isolation
+    test_db_path = str(tmp_path / "test_orbit.db")
+    
     config = {
         'storage_root': str(tmp_path / "uploads"),
         'chunking_strategy': 'fixed',
@@ -39,8 +43,12 @@ async def integrated_system(tmp_path):
         ]
     }
 
-    # Initialize service
+    # Initialize service with temporary database
     service = FileProcessingService(config)
+    # Replace metadata store with one using temporary database
+    from services.file_metadata.metadata_store import FileMetadataStore
+    service.metadata_store.close()  # Close the default one
+    service.metadata_store = FileMetadataStore(db_path=test_db_path)
 
     yield {
         'service': service,
@@ -49,6 +57,9 @@ async def integrated_system(tmp_path):
 
     # Cleanup
     service.metadata_store.close()
+    # Clean up test database
+    if os.path.exists(test_db_path):
+        os.remove(test_db_path)
 
 
 @pytest.mark.asyncio
@@ -332,7 +343,9 @@ async def test_file_lifecycle_workflow(integrated_system):
 @pytest.mark.asyncio
 async def test_chunking_strategies_comparison(tmp_path):
     """Test different chunking strategies produce different results"""
+    import os
     # Test with fixed chunking
+    test_db_fixed = str(tmp_path / "test_orbit_fixed.db")
     config_fixed = {
         'storage_root': str(tmp_path / "uploads_fixed"),
         'chunking_strategy': 'fixed',
@@ -341,8 +354,11 @@ async def test_chunking_strategies_comparison(tmp_path):
     }
 
     service_fixed = FileProcessingService(config_fixed)
+    service_fixed.metadata_store.close()
+    service_fixed.metadata_store = FileMetadataStore(db_path=test_db_fixed)
 
     # Test with semantic chunking
+    test_db_semantic = str(tmp_path / "test_orbit_semantic.db")
     config_semantic = {
         'storage_root': str(tmp_path / "uploads_semantic"),
         'chunking_strategy': 'semantic',
@@ -351,6 +367,8 @@ async def test_chunking_strategies_comparison(tmp_path):
     }
 
     service_semantic = FileProcessingService(config_semantic)
+    service_semantic.metadata_store.close()
+    service_semantic.metadata_store = FileMetadataStore(db_path=test_db_semantic)
 
     # Same content, different strategies
     file_data = b"First sentence. Second sentence. Third sentence. " * 10
@@ -385,6 +403,10 @@ async def test_chunking_strategies_comparison(tmp_path):
     # Cleanup
     service_fixed.metadata_store.close()
     service_semantic.metadata_store.close()
+    if os.path.exists(test_db_fixed):
+        os.remove(test_db_fixed)
+    if os.path.exists(test_db_semantic):
+        os.remove(test_db_semantic)
 
 
 @pytest.mark.asyncio

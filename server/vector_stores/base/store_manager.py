@@ -7,7 +7,7 @@ import os
 import warnings
 from typing import Dict, Any, Optional, List, Type
 import asyncio
-from datetime import datetime
+from datetime import datetime, UTC
 import yaml
 from pathlib import Path
 
@@ -349,7 +349,7 @@ class StoreManager:
         Args:
             max_age_seconds: Maximum age in seconds before cleanup
         """
-        current_time = datetime.utcnow()
+        current_time = datetime.now(UTC)
         stores_to_remove = []
         
         for name, store in self._stores.items():

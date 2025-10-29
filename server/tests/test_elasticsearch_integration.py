@@ -15,7 +15,7 @@ import os
 import sys
 import json
 import pytest
-from datetime import datetime
+from datetime import datetime, UTC
 from pathlib import Path
 from dotenv import load_dotenv
 from pytest_asyncio import fixture
@@ -125,7 +125,7 @@ async def test_log_conversation(logger_service: LoggerService):
         "backend": "ollama",
         "blocked": False,
         "api_key": "orbit_test_key_123456789",
-        "session_id": f"test-session-{datetime.now().strftime('%Y%m%d-%H%M%S')}",
+        "session_id": f"test-session-{datetime.now(UTC).strftime('%Y%m%d-%H%M%S')}",
         "user_id": "test-user-001"
     }
     
@@ -172,7 +172,7 @@ async def test_blocked_conversation(logger_service: LoggerService):
         "backend": "ollama",
         "blocked": True,
         "api_key": None,
-        "session_id": f"test-blocked-{datetime.now().strftime('%Y%m%d-%H%M%S')}",
+        "session_id": f"test-blocked-{datetime.now(UTC).strftime('%Y%m%d-%H%M%S')}",
         "user_id": None
     }
     
@@ -298,7 +298,7 @@ async def standalone_test():
             "backend": "ollama",
             "blocked": False,
             "api_key": "orbit_test_key_123456789",
-            "session_id": f"test-session-{datetime.now().strftime('%Y%m%d-%H%M%S')}",
+            "session_id": f"test-session-{datetime.now(UTC).strftime('%Y%m%d-%H%M%S')}",
             "user_id": "test-user-001"
         }
         
@@ -333,7 +333,7 @@ async def standalone_test():
             "backend": "ollama",
             "blocked": True,
             "api_key": None,
-            "session_id": f"test-blocked-{datetime.now().strftime('%Y%m%d-%H%M%S')}",
+            "session_id": f"test-blocked-{datetime.now(UTC).strftime('%Y%m%d-%H%M%S')}",
             "user_id": None
         }
         
