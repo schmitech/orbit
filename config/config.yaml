@@ -105,6 +105,10 @@ logging:
   capture_warnings: true
   propagate: false
   loggers:
+    py.warnings:
+      level: "ERROR"
+      propagate: false
+      disabled: true
     inference.clients.llama_cpp:
       level: "ERROR"
     llama_cpp:

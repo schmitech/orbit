@@ -182,12 +182,17 @@ class RedisService:
             return True
 
         try:
-            redis_config = self.config["internal_services"]["redis"]
+            redis_config = self.config.get("internal_services", {}).get("redis", {})
             if not redis_config.get("enabled", False):
                 logger.warning("Redis is not enabled in configuration")
+                self.enabled = False
+                self.client = None
                 return False
 
             # Test connection
+            if not self.client:
+                self._initialize_redis()
+
             await self.client.ping()
             logger.info("Successfully connected to Redis")
 
@@ -199,7 +204,10 @@ class RedisService:
 
         except Exception as e:
             logger.error(f"Failed to initialize Redis: {str(e)}")
-            raise
+            self.enabled = False
+            self.client = None
+            self.initialized = False
+            return False
 
     async def _clear_prompt_cache_on_startup(self) -> None:
         """Clear all prompt cache keys on server startup"""
@@ -455,10 +463,8 @@ class RedisService:
                 await self.rpush(key, *json_strings)
                 
                 # Set expiration if needed
-                if ttl is not None:
-                    await self.ttl(key)
-                else:
-                    await self.ttl(key)
+                ttl_to_use = ttl if ttl is not None else self.default_ttl
+                await self.expire(key, ttl_to_use)
                     
             return True
         except Exception as e:
@@ -490,7 +496,7 @@ class RedisService:
     async def close(self) -> None:
         """Close Redis connection"""
         if self.client:
-            await self.client.aclose()
+            await self.client.close()
             self.client = None
             self.initialized = False
     

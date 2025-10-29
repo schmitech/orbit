@@ -22,8 +22,9 @@ templates:
           {
             "$match": {
               {% if min_rating %}
-              "imdb.rating": { "$gte": {{min_rating}} },
+              "imdb.rating": { "$gte": {{min_rating}} }
               {% endif %}
+              {% if min_rating %},{% endif %}
               "title": { "$exists": true }
             }
           },
@@ -227,14 +228,15 @@ templates:
         "pipeline": [
           {
             "$match": {
-              {% set comma = joiner(",") %}
               {% if title %}
-              {{comma()}}"title": { "$regex": "{{title}}", "$options": "i" }
+              "title": { "$regex": "{{title}}", "$options": "i" }
               {% endif %}
+              {% if title and min_rating %},{% endif %}
               {% if min_rating %}
-              {{comma()}}"imdb.rating": { "$gte": {{min_rating}} }
-              {% else %}
-              {{comma()}}"title": { "$exists": true }
+              "imdb.rating": { "$gte": {{min_rating}} }
+              {% endif %}
+              {% if not title and not min_rating %}
+              "title": { "$exists": true }
               {% endif %}
             }
           },
@@ -358,9 +360,14 @@ templates:
         "pipeline": [
           {
             "$match": {
-              "genres": { "$exists": true, "$ne": [] }{% if year_min %},
-              "year": { "$gte": {{year_min}} }{% endif %}{% if year_max %},
-              "year": { "$lte": {{year_max}} }{% endif %}
+              "genres": { "$exists": true, "$ne": [] }
+              {% if year_min or year_max %}
+              , "year": {
+                {% if year_min %}"$gte": {{year_min}}{% endif %}
+                {% if year_min and year_max %},{% endif %}
+                {% if year_max %}"$lte": {{year_max}}{% endif %}
+              }
+              {% endif %}
             }
           },
           {
@@ -504,7 +511,7 @@ templates:
               "directors": { "$exists": true, "$ne": [] },
               "imdb.rating": { "$exists": true }
               {% if year_min %}
-              ,"year": { "$gte": {{year_min}} }
+              , "year": { "$gte": {{year_min}} }
               {% endif %}
             }
           },
@@ -755,10 +762,9 @@ templates:
         "pipeline": [
           {
             "$match": {
-              {% set comma = joiner(",") %}
-              {{comma()}}"awards.wins": { "$gte": {{min_awards}} }
+              "awards.wins": { "$gte": {{min_awards}} }
               {% if year_min %}
-              {{comma()}}"year": { "$gte": {{year_min}} }
+              , "year": { "$gte": {{year_min}} }
               {% endif %}
             }
           },

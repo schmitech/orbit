@@ -15,6 +15,7 @@ templates:
     mongodb_query: |
       {
         "filter": {
+          {% if title or genres or year_min or year_max or rating_min %}
           {% set comma = joiner(",") %}
           {% if title %}
           {{comma()}}"title": {
@@ -27,20 +28,20 @@ templates:
             "$in": {{genres}}
           }
           {% endif %}
-          {% if year_min %}
+          {% if year_min or year_max %}
           {{comma()}}"year": {
-            "$gte": {{year_min}}
-          }
-          {% endif %}
-          {% if year_max %}
-          {{comma()}}"year": {
-            "$lte": {{year_max}}
+            {% if year_min %}"$gte": {{year_min}}{% endif %}
+            {% if year_min and year_max %},{% endif %}
+            {% if year_max %}"$lte": {{year_max}}{% endif %}
           }
           {% endif %}
           {% if rating_min %}
           {{comma()}}"imdb.rating": {
             "$gte": {{rating_min}}
           }
+          {% endif %}
+          {% else %}
+          "title": { "$exists": true }
           {% endif %}
         },
         "projection": {
@@ -149,16 +150,15 @@ templates:
     mongodb_query: |
       {
         "filter": {
-          {% set comma = joiner(",") %}
-          {{comma()}}"genres": {
+          "genres": {
             "$in": {{genres}}
-          }
-          {{comma()}}"year": {
+          },
+          "year": {
             "$gte": {{year_min}},
             "$lte": {{year_max}}
           }
           {% if rating_min %}
-          {{comma()}}"imdb.rating": {
+          , "imdb.rating": {
             "$gte": {{rating_min}}
           }
           {% endif %}
@@ -251,6 +251,8 @@ templates:
           "name": {"$regex": "{{name}}", "$options": "i"}
           {% elif email %}
           "email": {"$regex": "{{email}}", "$options": "i"}
+          {% else %}
+          "name": { "$exists": true }
           {% endif %}
         },
         "projection": {
@@ -314,15 +316,19 @@ templates:
     mongodb_query: |
       {
         "filter": {
-          {% set comma = joiner(",") %}
+          {% if movie_id or text %}
           {% if movie_id %}
-          {{comma()}}"movie_id": ObjectId("{{movie_id}}")
+          "movie_id": ObjectId("{{movie_id}}")
           {% endif %}
+          {% if movie_id and text %},{% endif %}
           {% if text %}
-          {{comma()}}"text": {
+          "text": {
             "$regex": "{{text}}",
             "$options": "i"
           }
+          {% endif %}
+          {% else %}
+          "text": { "$exists": true }
           {% endif %}
         },
         "projection": {
@@ -391,13 +397,15 @@ templates:
         "filter": {
           "imdb.rating": {
             "$gte": {{rating_min}}
-          }{% if rating_max %},
-          "imdb.rating": {
-            "$lte": {{rating_max}}
-          }{% endif %}{% if min_votes %},
-          "imdb.votes": {
+            {% if rating_max %}
+            , "$lte": {{rating_max}}
+            {% endif %}
+          }
+          {% if min_votes %}
+          , "imdb.votes": {
             "$gte": {{min_votes}}
-          }{% endif %}
+          }
+          {% endif %}
         },
         "projection": {
           "title": 1,
@@ -473,40 +481,32 @@ templates:
     mongodb_query: |
       {
         "filter": {
+          {% if genres or year_min or year_max or rating_min or rating_max or runtime_min or runtime_max or countries or languages %}
           {% set comma = joiner(",") %}
           {% if genres %}
           {{comma()}}"genres": {
             "$in": {{genres}}
           }
           {% endif %}
-          {% if year_min %}
+          {% if year_min or year_max %}
           {{comma()}}"year": {
-            "$gte": {{year_min}}
+            {% if year_min %}"$gte": {{year_min}}{% endif %}
+            {% if year_min and year_max %},{% endif %}
+            {% if year_max %}"$lte": {{year_max}}{% endif %}
           }
           {% endif %}
-          {% if year_max %}
-          {{comma()}}"year": {
-            "$lte": {{year_max}}
-          }
-          {% endif %}
-          {% if rating_min %}
+          {% if rating_min or rating_max %}
           {{comma()}}"imdb.rating": {
-            "$gte": {{rating_min}}
+            {% if rating_min %}"$gte": {{rating_min}}{% endif %}
+            {% if rating_min and rating_max %},{% endif %}
+            {% if rating_max %}"$lte": {{rating_max}}{% endif %}
           }
           {% endif %}
-          {% if rating_max %}
-          {{comma()}}"imdb.rating": {
-            "$lte": {{rating_max}}
-          }
-          {% endif %}
-          {% if runtime_min %}
+          {% if runtime_min or runtime_max %}
           {{comma()}}"runtime": {
-            "$gte": {{runtime_min}}
-          }
-          {% endif %}
-          {% if runtime_max %}
-          {{comma()}}"runtime": {
-            "$lte": {{runtime_max}}
+            {% if runtime_min %}"$gte": {{runtime_min}}{% endif %}
+            {% if runtime_min and runtime_max %},{% endif %}
+            {% if runtime_max %}"$lte": {{runtime_max}}{% endif %}
           }
           {% endif %}
           {% if countries %}
@@ -518,6 +518,9 @@ templates:
           {{comma()}}"languages": {
             "$in": {{languages}}
           }
+          {% endif %}
+          {% else %}
+          "title": { "$exists": true }
           {% endif %}
         },
         "projection": {

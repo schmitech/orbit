@@ -135,16 +135,17 @@ class LoggingConfigurator:
                 json_formatter, text_formatter, log_level
             )
         
-        # Configure specific loggers
-        if 'loggers' in log_config:
-            LoggingConfigurator._configure_specific_loggers(log_config)
-        
         # Set propagation for root logger
         root_logger.propagate = is_true_value(log_config.get('propagate', False))
         
-        # Capture warnings if configured
+        # Capture warnings if configured - do this BEFORE configuring specific loggers
+        # so that py.warnings logger is created and can be configured
         if is_true_value(log_config.get('capture_warnings', True)):
             logging.captureWarnings(True)
+        
+        # Configure specific loggers (including py.warnings which was just created)
+        if 'loggers' in log_config:
+            LoggingConfigurator._configure_specific_loggers(log_config)
         
         # Get a new logger instance for the calling module
         logger = logging.getLogger(__name__)
@@ -208,12 +209,24 @@ class LoggingConfigurator:
     def _configure_specific_loggers(log_config: Dict[str, Any]) -> None:
         """
         Configure specific loggers with custom settings.
-        
+
         Args:
             log_config: The logging configuration dictionary
         """
         for logger_name, logger_config in log_config['loggers'].items():
             logger = logging.getLogger(logger_name)
+            
+            # Handle disabled flag first
+            if is_true_value(logger_config.get('disabled', False)):
+                logger.disabled = True
+                logger.setLevel(logging.CRITICAL)
+                continue
+            
             logger_level = getattr(logging, logger_config.get('level', 'INFO').upper())
             logger.setLevel(logger_level)
-            logger.propagate = is_true_value(log_config.get('propagate', False))
+            
+            # Allow override of propagate per logger
+            if 'propagate' in logger_config:
+                logger.propagate = is_true_value(logger_config.get('propagate'))
+            else:
+                logger.propagate = is_true_value(log_config.get('propagate', False))

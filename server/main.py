@@ -18,12 +18,6 @@ Usage:
     python main.py [--config CONFIG_PATH]
 """
 
-# Import warning suppression utilities
-import sys
-import os
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from utils.warning_suppression import suppress_known_warnings
-
 import os
 import argparse
 from fastapi import FastAPI

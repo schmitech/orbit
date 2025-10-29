@@ -55,7 +55,20 @@ class FileProcessingService:
             'application/json',
             'text/html',
             'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            # Image types
+            'image/png',
+            'image/jpeg',
+            'image/jpg',
+            'image/gif',
+            'image/bmp',
+            'image/tiff',
+            'image/webp',
         ])
+        
+        # Vision service configuration
+        self.enable_vision = config.get('enable_vision', True)
+        self.vision_provider = config.get('vision_provider', 'openai')
+        self.vision_config = config.get('vision', {})
     
     def _init_storage(self) -> FilesystemStorage:
         """Initialize storage backend."""
@@ -175,6 +188,10 @@ class FileProcessingService:
     
     async def _extract_content(self, file_data: bytes, filename: str, mime_type: str) -> tuple[str, Dict[str, Any]]:
         """Extract text and metadata from file."""
+        # Check if this is an image file
+        if self.enable_vision and mime_type.startswith('image/'):
+            return await self._extract_image_content(file_data, filename, mime_type)
+        
         processor = self.processor_registry.get_processor(mime_type)
         
         if not processor:
@@ -184,6 +201,54 @@ class FileProcessingService:
         metadata = await processor.extract_metadata(file_data, filename)
         
         return text, metadata
+    
+    async def _extract_image_content(self, file_data: bytes, filename: str, mime_type: str) -> tuple[str, Dict[str, Any]]:
+        """Extract content from image using vision services."""
+        try:
+            from ai_services import AIServiceFactory, ServiceType
+            
+            # Get vision service
+            vision_service = AIServiceFactory.create_service(
+                ServiceType.VISION,
+                self.vision_provider,
+                {'vision': self.vision_config}
+            )
+            
+            # Initialize if needed
+            if not vision_service.initialized:
+                await vision_service.initialize()
+            
+            # Extract text from image
+            extracted_text = await vision_service.extract_text_from_image(file_data)
+            
+            # Generate description
+            description = await vision_service.describe_image(file_data)
+            
+            metadata = {
+                'filename': filename,
+                'mime_type': mime_type,
+                'file_size': len(file_data),
+                'extraction_method': 'vision',
+                'vision_provider': self.vision_provider,
+                'image_description': description,
+                'image_text': extracted_text,
+            }
+            
+            # Combine description and extracted text
+            text = f"{description}\n\nExtracted text:\n{extracted_text}"
+            
+            return text, metadata
+            
+        except Exception as e:
+            self.logger.error(f"Error extracting image content: {e}")
+            # Return empty content if vision processing fails
+            metadata = {
+                'filename': filename,
+                'mime_type': mime_type,
+                'file_size': len(file_data),
+                'extraction_method': 'none',
+            }
+            return "", metadata
     
     async def _chunk_content(self, text: str, file_id: str, metadata: Dict[str, Any]) -> List[Chunk]:
         """Chunk text content."""

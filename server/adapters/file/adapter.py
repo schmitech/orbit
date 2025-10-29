@@ -28,6 +28,8 @@ class FileAdapter(DocumentAdapter):
         self.extract_metadata = self.config.get('extract_metadata', True)
         self.verbose = self.config.get('verbose', False)
         self.max_summary_length = self.config.get('max_summary_length', 200)
+        self.enable_vision = self.config.get('enable_vision', True)
+        self.vision_provider = self.config.get('vision_provider', 'openai')
         
         if self.verbose:
             logger.info(f"Initialized File Adapter with confidence_threshold: {self.confidence_threshold}")
@@ -78,6 +80,8 @@ class FileAdapter(DocumentAdapter):
                     item = self._format_spreadsheet_content(item, raw_doc, metadata)
                 elif item['content_type'] == 'data':
                     item = self._format_data_content(item, raw_doc, metadata)
+                elif item['content_type'] == 'image':
+                    item = self._format_image_content(item, raw_doc, metadata)
         
         return item
     
@@ -169,6 +173,8 @@ class FileAdapter(DocumentAdapter):
             return 'spreadsheet'
         elif mime_type == 'application/json':
             return 'data'
+        elif mime_type.startswith('image/'):
+            return 'image'
         else:
             return 'unknown'
     
@@ -225,6 +231,26 @@ class FileAdapter(DocumentAdapter):
         
         return item
     
+    def _format_image_content(self, item: Dict[str, Any], raw_doc: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
+        """Format image file content with vision processing"""
+        # If vision is enabled and raw_doc contains image data, process it
+        if self.enable_vision and raw_doc:
+            try:
+                # Store image description if available
+                if 'image_description' in metadata:
+                    item['description'] = metadata['image_description']
+                    item['content'] = f"Image: {metadata.get('filename', 'Unknown')}\n\n"
+                    item['content'] += f"Description: {metadata['image_description']}\n"
+                
+                # Store extracted text if available
+                if 'image_text' in metadata:
+                    item['extracted_text'] = metadata['image_text']
+                    item['content'] += f"\nExtracted text: {metadata['image_text']}"
+            except Exception as e:
+                logger.warning(f"Error formatting image content: {e}")
+        
+        return item
+    
     def _extract_document_answer(self, result: Dict[str, Any], filename: str) -> str:
         """Extract answer for document files"""
         answer = f"From document '{filename}':\n\n"
@@ -271,6 +297,8 @@ class FileAdapter(DocumentAdapter):
         elif content_type == 'spreadsheet' and any(word in query_lower for word in ['data', 'table', 'spreadsheet', 'excel', 'csv']):
             return True
         elif content_type == 'data' and any(word in query_lower for word in ['data', 'json', 'structure']):
+            return True
+        elif content_type == 'image' and any(word in query_lower for word in ['image', 'picture', 'photo', 'screenshot', 'chart', 'diagram']):
             return True
         
         return False

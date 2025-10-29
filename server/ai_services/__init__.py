@@ -103,6 +103,7 @@ from .registry import (
     register_inference_services,
     register_moderation_services,
     register_reranking_services,
+    register_vision_services,
     get_embedding_service_legacy
 )
 
@@ -136,5 +137,6 @@ __all__ = [
     'register_inference_services',
     'register_moderation_services',
     'register_reranking_services',
+    'register_vision_services',
     'get_embedding_service_legacy',
 ] + _available_providers  # Add dynamically loaded provider base classes

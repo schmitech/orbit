@@ -54,6 +54,11 @@ Available Reranking Services:
     - AnthropicRerankingService: Anthropic Claude-based reranking (nuanced)
     - VoyageRerankingService: Voyage AI Reranker (cost-effective)
 
+Available Vision Services:
+    - OpenAIVisionService: OpenAI vision (GPT-4o, multimodal)
+    - GeminiVisionService: Gemini vision (multimodal, OCR)
+    - AnthropicVisionService: Anthropic Claude vision (multimodal analysis)
+
 More implementations will be added as migration progresses.
 """
 
@@ -113,6 +118,11 @@ _implementations = [
     ('openai_reranking_service', 'OpenAIRerankingService'),
     ('anthropic_reranking_service', 'AnthropicRerankingService'),
     ('voyage_reranking_service', 'VoyageRerankingService'),
+    
+    # Vision Services
+    ('openai_vision_service', 'OpenAIVisionService'),
+    ('gemini_vision_service', 'GeminiVisionService'),
+    ('anthropic_vision_service', 'AnthropicVisionService'),
 ]
 
 # Map service classes to their required SDK packages for commercial/cloud providers
@@ -152,6 +162,11 @@ _required_packages = {
     # Note: VLLMInferenceService, OllamaCloudInferenceService, NVIDIAInferenceService are NOT in this list
     # They use openai SDK (in minimal profile) to connect to local/self-hosted servers
     # Ollama, Llama.cpp, Jina also don't need validation - they use packages in minimal profile
+    
+    # Vision services
+    'OpenAIVisionService': 'openai',
+    'GeminiVisionService': 'google.generativeai',
+    'AnthropicVisionService': 'anthropic',
 }
 
 # Try importing each implementation

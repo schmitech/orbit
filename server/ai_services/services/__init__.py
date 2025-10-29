@@ -2,16 +2,16 @@
 Service-specific interfaces for AI services.
 
 This package contains service-specific interfaces and implementations
-for different AI service types (embeddings, inference, moderation, reranking).
+for different AI service types (embeddings, inference, moderation, reranking, vision).
 
 Available Services:
     - EmbeddingService: Interface for embedding services
     - InferenceService: Interface for LLM inference services
     - ModerationService: Interface for content moderation services
     - RerankingService: Interface for document reranking services
+    - VisionService: Interface for vision services
 
 Future Services:
-    - VisionService: Vision service interface (Phase 5)
     - AudioService: Audio service interface (Phase 5)
 """
 
@@ -40,6 +40,12 @@ from .reranking_service import (
     create_reranking_service
 )
 
+from .vision_service import (
+    VisionService,
+    VisionResult,
+    create_vision_service
+)
+
 __all__ = [
     # Embedding
     'EmbeddingService',
@@ -61,4 +67,9 @@ __all__ = [
     'RerankingService',
     'RerankingResult',
     'create_reranking_service',
+
+    # Vision
+    'VisionService',
+    'VisionResult',
+    'create_vision_service',
 ]

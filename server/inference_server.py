@@ -7,12 +7,6 @@ from typing import Any, Optional
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 
-# Import warning suppression utilities early
-import sys
-import os
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from utils.warning_suppression import suppress_known_warnings
-
 import uvicorn
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
