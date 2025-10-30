@@ -132,7 +132,8 @@ class ChromaStore(BaseVectorStore):
                          vectors: List[List[float]], 
                          ids: List[str], 
                          metadata: Optional[List[Dict[str, Any]]] = None,
-                         collection_name: Optional[str] = None) -> bool:
+                         collection_name: Optional[str] = None,
+                         documents: Optional[List[str]] = None) -> bool:
         """
         Add vectors to ChromaDB collection.
         
@@ -141,6 +142,7 @@ class ChromaStore(BaseVectorStore):
             ids: Unique identifiers for each vector
             metadata: Optional metadata for each vector
             collection_name: Name of the collection to add to
+            documents: Optional list of text documents (required for ChromaDB search)
             
         Returns:
             True if successful, False otherwise
@@ -154,12 +156,23 @@ class ChromaStore(BaseVectorStore):
             collection = await self._get_or_create_collection(collection_name, len(vectors[0]) if vectors else 768)
             
             # Prepare documents (ChromaDB expects string documents)
-            documents = [f"vector_{i}" for i in range(len(vectors))]
+            # If documents provided, use them; otherwise try to extract from metadata, or use placeholder
+            if documents and len(documents) == len(vectors):
+                doc_texts = documents
+            elif metadata:
+                # Try to extract text from metadata
+                doc_texts = []
+                for meta in metadata:
+                    # Check for common text fields in metadata
+                    text = meta.get('text') or meta.get('content') or meta.get('document') or ''
+                    doc_texts.append(text if text else f"vector_{len(doc_texts)}")
+            else:
+                doc_texts = [f"vector_{i}" for i in range(len(vectors))]
             
             # Add to collection
             collection.add(
                 embeddings=vectors,
-                documents=documents,
+                documents=doc_texts,
                 metadatas=metadata or [{}] * len(vectors),
                 ids=ids
             )
@@ -199,12 +212,12 @@ class ChromaStore(BaseVectorStore):
                 logger.warning(f"Collection {collection_name} not found")
                 return []
             
-            # Perform search
+            # Perform search (include documents for ChromaDB)
             results = collection.query(
                 query_embeddings=[query_vector],
                 n_results=limit,
                 where=filter_metadata,
-                include=['embeddings', 'metadatas', 'distances']
+                include=['embeddings', 'metadatas', 'distances', 'documents']
             )
             
             # Format results
@@ -232,11 +245,18 @@ class ChromaStore(BaseVectorStore):
                         # Default: assume smaller distance is better
                         score = max(0, 1.0 - distance)
                     
+                    # Get document text if available
+                    document_text = ''
+                    if results.get('documents') and results['documents'][0] and i < len(results['documents'][0]):
+                        document_text = results['documents'][0][i] or ''
+                    
                     result_item = {
                         'id': vector_id,
                         'score': score,
                         'metadata': results['metadatas'][0][i] if results['metadatas'] else {},
-                        'vector': results['embeddings'][0][i] if results['embeddings'] else None
+                        'vector': results['embeddings'][0][i] if results['embeddings'] else None,
+                        'text': document_text,  # Include document text
+                        'content': document_text  # Also include as 'content' for compatibility
                     }
                     formatted_results.append(result_item)
             

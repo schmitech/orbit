@@ -477,9 +477,9 @@ adapters:
   - name: "file-document-qa"
     enabled: false
     type: "retriever"
-    datasource: "file"
+    datasource: "none"  # File adapter manages its own storage, no external datasource needed
     adapter: "file"
-    implementation: "adapters.file.adapter.FileAdapter"
+    implementation: "retrievers.implementations.file.file_retriever.FileVectorRetriever"
     
     # Provider overrides
     inference_provider: "ollama"

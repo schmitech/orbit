@@ -50,27 +50,59 @@ class MarqoStore(BaseVectorStore):
         except Exception:
             return False
 
-    async def add_vectors(self, vectors: List[List[float]], ids: List[str], metadata: Optional[List[Dict[str, Any]]] = None, collection_name: Optional[str] = None) -> bool:
+    async def add_vectors(self, vectors: List[List[float]], ids: List[str], metadata: Optional[List[Dict[str, Any]]] = None, collection_name: Optional[str] = None, documents: Optional[List[str]] = None) -> bool:
         collection_name = collection_name or self._default_collection
-        
-        documents = []
+
+        marqo_documents = []
         for i, id_ in enumerate(ids):
             doc = {"_id": id_}
+
+            # Add metadata
             if metadata and i < len(metadata):
                 doc.update(metadata[i])
-            documents.append(doc)
 
-        tensor_fields = list(metadata[0].keys()) if metadata else []
+            # Add document text - Marqo needs text content for search
+            if documents and i < len(documents):
+                doc["text"] = documents[i]
+                doc["content"] = documents[i]
+            elif metadata and i < len(metadata):
+                # Try to extract text from metadata
+                text = metadata[i].get('text') or metadata[i].get('content') or metadata[i].get('document')
+                if text:
+                    doc["text"] = text
+                    doc["content"] = text
+                else:
+                    # Fallback: use a placeholder
+                    doc["text"] = f"Document {id_}"
+                    doc["content"] = f"Document {id_}"
+
+            marqo_documents.append(doc)
+
+        # Determine tensor fields (fields that Marqo should vectorize)
+        # We want to vectorize the text/content field
+        tensor_fields = ["text"]
 
         try:
-            self._client.index(collection_name).add_documents(documents, tensor_fields=tensor_fields)
+            self._client.index(collection_name).add_documents(marqo_documents, tensor_fields=tensor_fields)
+            logger.debug(f"Added {len(marqo_documents)} documents to Marqo collection '{collection_name}'")
             return True
         except Exception as e:
             logger.error(f"Error adding documents to Marqo: {e}")
             return False
 
     async def search_vectors(self, query_vector: List[float], limit: int = 10, collection_name: Optional[str] = None, filter_metadata: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
-        raise NotImplementedError("MarqoStore does not support search by vector directly.")
+        """
+        Marqo doesn't support direct vector search, so we use text-based search instead.
+        This is a limitation - for true vector search, use ChromaDB, Qdrant, or Pinecone.
+        """
+        collection_name = collection_name or self._default_collection
+
+        logger.warning("MarqoStore does not support search by vector directly. " +
+                      "For file chunking with vector search, use ChromaDB, Qdrant, Pinecone, or Milvus instead.")
+
+        # Return empty results since we can't search by vector
+        # The file adapter should not use Marqo for vector-based file chunking
+        return []
 
     async def create_collection(self, collection_name: str, dimension: int, **kwargs) -> bool:
         try:

@@ -2,7 +2,7 @@
 File Metadata Store
 
 Manages metadata for uploaded files and their processing status.
-Uses SQLite (orbit.db) for persistence.
+Uses SQLite (files.db by default, configurable via config.yaml) for persistence.
 """
 
 import logging
@@ -36,15 +36,15 @@ class FileMetadataStore:
         # Get db_path from config if not provided
         if db_path is None:
             if config:
-                db_path = config.get('files', {}).get('metadata_db_path', 'orbit.db')
+                db_path = config.get('files', {}).get('metadata_db_path', 'files.db')
             else:
                 # Fallback to loading config if not provided
                 try:
                     from config.config_manager import load_config
                     config = load_config()
-                    db_path = config.get('files', {}).get('metadata_db_path', 'orbit.db')
+                    db_path = config.get('files', {}).get('metadata_db_path', 'files.db')
                 except Exception:
-                    db_path = 'orbit.db'
+                    db_path = 'files.db'
         
         self.db_path = db_path
         self.connection = None

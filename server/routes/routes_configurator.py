@@ -384,5 +384,14 @@ class RouteConfigurator:
             self.logger.info("Dashboard routes registered")
         except Exception as e:
             self.logger.warning(f"Failed to register dashboard routes: {e}")
+        
+        # Include file routes for file upload and management
+        try:
+            from routes.file_routes import create_file_router
+            file_router = create_file_router()
+            app.include_router(file_router)
+            self.logger.info("File routes registered")
+        except Exception as e:
+            self.logger.warning(f"Failed to register file routes: {e}")
     
     

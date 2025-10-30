@@ -119,7 +119,8 @@ class PineconeStore(BaseVectorStore):
                          vectors: List[List[float]],
                          ids: List[str],
                          metadata: Optional[List[Dict[str, Any]]] = None,
-                         collection_name: Optional[str] = None) -> bool:
+                         collection_name: Optional[str] = None,
+                         documents: Optional[List[str]] = None) -> bool:
         """
         Add vectors to Pinecone index.
 
@@ -128,6 +129,7 @@ class PineconeStore(BaseVectorStore):
             ids: Unique identifiers for each vector
             metadata: Optional metadata for each vector
             collection_name: Name of the collection (index) to add to
+            documents: Optional list of text documents to store with vectors
 
         Returns:
             True if successful, False otherwise
@@ -157,8 +159,26 @@ class PineconeStore(BaseVectorStore):
                     "values": vector
                 }
 
+                # Prepare metadata with document text if provided
+                vector_metadata = {}
                 if metadata and i < len(metadata):
-                    vector_data["metadata"] = metadata[i]
+                    vector_metadata = metadata[i].copy()
+
+                # Add document text to metadata if provided
+                if documents and i < len(documents):
+                    vector_metadata["text"] = documents[i]
+                    vector_metadata["content"] = documents[i]  # For compatibility
+                elif metadata and i < len(metadata):
+                    # Try to extract text from existing metadata if documents not provided
+                    if "text" not in vector_metadata and "content" not in vector_metadata:
+                        # Check for common text fields
+                        text = metadata[i].get('text') or metadata[i].get('content') or metadata[i].get('document')
+                        if text:
+                            vector_metadata["text"] = text
+                            vector_metadata["content"] = text
+
+                if vector_metadata:
+                    vector_data["metadata"] = vector_metadata
 
                 vectors_to_upsert.append(vector_data)
 
@@ -211,11 +231,19 @@ class PineconeStore(BaseVectorStore):
             # Format results
             results = []
             for match in search_results.get('matches', []):
-                results.append({
+                metadata = match.get('metadata', {})
+
+                # Extract text from metadata for file chunking support
+                text = metadata.get('text', metadata.get('content', ''))
+
+                result = {
                     'id': match['id'],
                     'score': match['score'],
-                    'metadata': match.get('metadata', {})
-                })
+                    'metadata': metadata,
+                    'text': text,  # For file adapter compatibility
+                    'content': text  # Alternative field for compatibility
+                }
+                results.append(result)
 
             return results
 

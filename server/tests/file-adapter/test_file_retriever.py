@@ -553,9 +553,15 @@ async def test_index_file_chunks(mock_retriever):
     assert result is True
     assert mock_store.add_vectors.called
     
-    # Verify chunks were recorded in metadata store
-    chunk_info = await mock_retriever.metadata_store.get_file_chunks('file_1')
-    assert len(chunk_info) == 2
+    # Verify add_vectors was called with correct parameters
+    call_args = mock_store.add_vectors.call_args
+    assert call_args[1]['collection_name'] == 'test_collection'
+    assert 'documents' in call_args[1]  # Should include documents parameter
+    assert len(call_args[1]['documents']) == 2  # Should have 2 chunk texts
+    
+    # Note: Chunks are no longer recorded in metadata store here.
+    # They are recorded earlier in FileProcessingService.process_file() before indexing.
+    # This method only handles vector store indexing.
 
 
 @pytest.mark.asyncio

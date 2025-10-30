@@ -216,7 +216,7 @@ class FileVectorRetriever(AbstractVectorRetriever):
             file_id = result.get('metadata', {}).get('file_id')
             if file_id:
                 formatted_item = {
-                    'content': result.get('text', ''),
+                    'content': result.get('content', result.get('text', '')),
                     'metadata': {
                         'chunk_id': result.get('id'),
                         'file_id': file_id,
@@ -268,24 +268,18 @@ class FileVectorRetriever(AbstractVectorRetriever):
                     **chunk.metadata
                 })
             
-            # Add to vector store
+            # Add to vector store with chunk texts as documents
             success = await self._default_store.add_vectors(
                 vectors=embeddings,
                 ids=ids,
                 metadata=metadata,
-                collection_name=collection_name
+                collection_name=collection_name,
+                documents=chunk_texts  # Pass chunk texts as documents for ChromaDB
             )
             
-            if success:
-                # Record chunks in metadata store
-                for chunk in chunks:
-                    await self.metadata_store.record_chunk(
-                        chunk_id=chunk.chunk_id,
-                        file_id=file_id,
-                        chunk_index=chunk.chunk_index,
-                        collection_name=collection_name,
-                        metadata=chunk.metadata
-                    )
+            # Note: Chunks are already recorded in FileProcessingService.process_file()
+            # before indexing, so we don't need to record them again here.
+            # This method only handles the vector store indexing.
             
             return success
         

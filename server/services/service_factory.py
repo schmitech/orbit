@@ -237,6 +237,9 @@ class ServiceFactory:
         # Initialize LLM Guard Service if enabled
         await self._initialize_llm_guard_service(app)
         
+        # Initialize File Processing Service (for file upload API)
+        await self._initialize_file_processing_service(app)
+        
         # Initialize Reranker Service if enabled and not in inference-only mode
         if not self.inference_only and is_true_value(self.config.get('reranker', {}).get('enabled', False)):
             await self._initialize_reranker_service(app)
@@ -596,6 +599,20 @@ class ServiceFactory:
         else:
             app.state.llm_guard_service = None
             self.logger.info("LLM Guard is disabled, skipping LLM Guard Service initialization")
+    
+    async def _initialize_file_processing_service(self, app: FastAPI) -> None:
+        """Initialize File Processing Service for file upload API."""
+        try:
+            from services.file_processing.file_processing_service import FileProcessingService
+            
+            # Initialize file processing service with config
+            app.state.file_processing_service = FileProcessingService(config=self.config)
+            self.logger.info("File Processing Service initialized successfully")
+        except Exception as e:
+            self.logger.error(f"Failed to initialize File Processing Service: {str(e)}")
+            # Don't raise - allow server to continue without file processing
+            app.state.file_processing_service = None
+            self.logger.warning("Continuing without File Processing Service")
     
     async def _initialize_reranker_service(self, app: FastAPI) -> None:
         """Initialize Reranker Service if enabled using the new unified architecture."""

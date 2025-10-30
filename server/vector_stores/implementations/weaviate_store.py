@@ -57,17 +57,32 @@ class WeaviateStore(BaseVectorStore):
             return False
         return self._client.is_ready()
 
-    async def add_vectors(self, vectors: List[List[float]], ids: List[str], metadata: Optional[List[Dict[str, Any]]] = None, collection_name: Optional[str] = None) -> bool:
+    async def add_vectors(self, vectors: List[List[float]], ids: List[str], metadata: Optional[List[Dict[str, Any]]] = None, collection_name: Optional[str] = None, documents: Optional[List[str]] = None) -> bool:
         collection_name = collection_name or self._default_collection
         collection = self._client.collections.get(collection_name)
-        
+
         data_objects = []
         for i, id_ in enumerate(ids):
-            props = metadata[i] if metadata and i < len(metadata) else {}
+            props = {}
+            if metadata and i < len(metadata):
+                props = metadata[i].copy()
+
+            # Add document text if provided
+            if documents and i < len(documents):
+                props["text"] = documents[i]
+                props["content"] = documents[i]
+            elif "text" not in props and "content" not in props:
+                # Try to extract from existing metadata
+                text = props.get('text') or props.get('content') or props.get('document')
+                if text:
+                    props["text"] = text
+                    props["content"] = text
+
             data_objects.append(wvc.data.DataObject(properties=props, vector=vectors[i], uuid=uuid.UUID(id_)))
-        
+
         try:
             collection.data.insert_many(data_objects)
+            logger.debug(f"Added {len(vectors)} vectors to Weaviate collection '{collection_name}'")
             return True
         except Exception as e:
             logger.error(f"Error adding vectors to Weaviate: {e}")
@@ -76,19 +91,59 @@ class WeaviateStore(BaseVectorStore):
     async def search_vectors(self, query_vector: List[float], limit: int = 10, collection_name: Optional[str] = None, filter_metadata: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         collection_name = collection_name or self._default_collection
         collection = self._client.collections.get(collection_name)
-        
-        query_results = collection.query.near_vector(
-            near_vector=query_vector,
-            limit=limit,
-            return_metadata=wvc.query.MetadataQuery(distance=True)
-        )
-        
+
+        # Build Weaviate filter if metadata filters provided
+        weaviate_filter = None
+        if filter_metadata:
+            try:
+                # Build filter using Weaviate's filter syntax
+                filter_conditions = []
+                for key, value in filter_metadata.items():
+                    filter_conditions.append(
+                        wvc.query.Filter.by_property(key).equal(value)
+                    )
+
+                # Combine multiple conditions with AND
+                if len(filter_conditions) == 1:
+                    weaviate_filter = filter_conditions[0]
+                elif len(filter_conditions) > 1:
+                    weaviate_filter = filter_conditions[0]
+                    for condition in filter_conditions[1:]:
+                        weaviate_filter = weaviate_filter & condition
+            except Exception as e:
+                logger.warning(f"Error building Weaviate filter: {e}. Proceeding without filter.")
+                weaviate_filter = None
+
+        # Perform search
+        try:
+            query_results = collection.query.near_vector(
+                near_vector=query_vector,
+                limit=limit,
+                return_metadata=wvc.query.MetadataQuery(distance=True),
+                filters=weaviate_filter
+            )
+        except Exception as e:
+            logger.error(f"Error in Weaviate search: {e}")
+            # Fallback to search without filter if filter fails
+            query_results = collection.query.near_vector(
+                near_vector=query_vector,
+                limit=limit,
+                return_metadata=wvc.query.MetadataQuery(distance=True)
+            )
+
         results = []
         for item in query_results.objects:
+            properties = item.properties or {}
+
+            # Extract text for file chunking support
+            text = properties.get('text', properties.get('content', ''))
+
             results.append({
                 "id": str(item.uuid),
                 "score": 1 - item.metadata.distance,
-                "metadata": item.properties
+                "metadata": properties,
+                "text": text,
+                "content": text
             })
         return results
 

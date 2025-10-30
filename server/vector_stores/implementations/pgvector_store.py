@@ -54,17 +54,35 @@ class PgvectorStore(BaseVectorStore):
         except Exception:
             return False
 
-    async def add_vectors(self, vectors: List[List[float]], ids: List[str], metadata: Optional[List[Dict[str, Any]]] = None, collection_name: Optional[str] = None) -> bool:
+    async def add_vectors(self, vectors: List[List[float]], ids: List[str], metadata: Optional[List[Dict[str, Any]]] = None, collection_name: Optional[str] = None, documents: Optional[List[str]] = None) -> bool:
         collection_name = collection_name or self._default_collection
-        
+
         try:
             for i, id_ in enumerate(ids):
-                meta = metadata[i] if metadata and i < len(metadata) else {}
+                meta = metadata[i].copy() if metadata and i < len(metadata) else {}
+
+                # Extract or set text
+                text = None
+                if documents and i < len(documents):
+                    text = documents[i]
+                    # Also store in metadata for compatibility
+                    meta["text"] = text
+                    meta["content"] = text
+                elif meta.get('text') or meta.get('content') or meta.get('document'):
+                    # Extract from existing metadata
+                    text = meta.get('text') or meta.get('content') or meta.get('document')
+                    if 'text' not in meta:
+                        meta["text"] = text
+                    if 'content' not in meta:
+                        meta["content"] = text
+
+                # Insert with text column
                 self._cursor.execute(
-                    f"INSERT INTO {collection_name} (id, embedding, metadata) VALUES (%s, %s, %s)",
-                    (id_, vectors[i], json.dumps(meta))
+                    f"INSERT INTO {collection_name} (id, embedding, metadata, text, content) VALUES (%s, %s, %s, %s, %s)",
+                    (id_, vectors[i], json.dumps(meta), text, text)
                 )
             self._conn.commit()
+            logger.debug(f"Added {len(vectors)} vectors to PGVector collection '{collection_name}'")
             return True
         except Exception as e:
             self._conn.rollback()
@@ -73,22 +91,72 @@ class PgvectorStore(BaseVectorStore):
 
     async def search_vectors(self, query_vector: List[float], limit: int = 10, collection_name: Optional[str] = None, filter_metadata: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         collection_name = collection_name or self._default_collection
-        
+
         try:
-            self._cursor.execute(
-                f"SELECT id, metadata, 1 - (embedding <-> %s) AS score FROM {collection_name} ORDER BY embedding <-> %s LIMIT %s",
-                (query_vector, query_vector, limit)
-            )
+            # Build WHERE clause for metadata filtering
+            where_clause = ""
+            params = [query_vector, query_vector]
+
+            if filter_metadata:
+                conditions = []
+                for key, value in filter_metadata.items():
+                    # Use JSONB operators for filtering
+                    if isinstance(value, str):
+                        conditions.append(f"metadata->>'{key}' = %s")
+                    else:
+                        conditions.append(f"(metadata->'{key}')::text = %s::text")
+                    params.append(str(value))
+
+                if conditions:
+                    where_clause = " WHERE " + " AND ".join(conditions)
+
+            # Add limit to params
+            params.append(limit)
+
+            # Execute query with text retrieval
+            query = f"""
+                SELECT id, metadata, text, content, 1 - (embedding <-> %s) AS score
+                FROM {collection_name}
+                {where_clause}
+                ORDER BY embedding <-> %s
+                LIMIT %s
+            """
+
+            self._cursor.execute(query, params)
             results = self._cursor.fetchall()
-            return [{"id": row[0], "metadata": row[1], "score": row[2]} for row in results]
+
+            formatted_results = []
+            for row in results:
+                text = row[2] or row[3] or ''  # text or content column
+                formatted_results.append({
+                    "id": row[0],
+                    "metadata": row[1],
+                    "text": text,
+                    "content": text,
+                    "score": row[4]
+                })
+
+            return formatted_results
         except Exception as e:
             logger.error(f"Error searching vectors in Pgvector: {e}")
             return []
 
     async def create_collection(self, collection_name: str, dimension: int, **kwargs) -> bool:
         try:
-            self._cursor.execute(f"CREATE TABLE IF NOT EXISTS {collection_name} (id VARCHAR PRIMARY KEY, embedding vector({dimension}), metadata JSONB)")
+            # Create table with dedicated text column for better performance
+            self._cursor.execute(f"""
+                CREATE TABLE IF NOT EXISTS {collection_name} (
+                    id VARCHAR PRIMARY KEY,
+                    embedding vector({dimension}),
+                    metadata JSONB,
+                    text TEXT,
+                    content TEXT
+                )
+            """)
+            # Create index on text column for faster text search
+            self._cursor.execute(f"CREATE INDEX IF NOT EXISTS {collection_name}_text_idx ON {collection_name} USING GIN (to_tsvector('english', text))")
             self._conn.commit()
+            logger.debug(f"Created PGVector collection '{collection_name}' with text column and index")
             return True
         except Exception as e:
             self._conn.rollback()

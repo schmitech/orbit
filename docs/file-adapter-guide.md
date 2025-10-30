@@ -80,7 +80,7 @@ Docling is registered as a fallback processor and automatically handles complex 
 ### Upload File
 
 ```bash
-curl -X POST "http://localhost:8000/api/files/upload" \
+curl -X POST "http://localhost:3000/api/files/upload" \
   -H "X-API-Key: your-api-key" \
   -F "file=@document.pdf"
 ```
@@ -101,7 +101,7 @@ Response:
 ### List Files
 
 ```bash
-curl -X GET "http://localhost:8000/api/files" \
+curl -X GET "http://localhost:3000/api/files" \
   -H "X-API-Key: your-api-key"
 ```
 
@@ -124,14 +124,14 @@ Response:
 ### Get File Info
 
 ```bash
-curl -X GET "http://localhost:8000/api/files/{file_id}" \
+curl -X GET "http://localhost:3000/api/files/{file_id}" \
   -H "X-API-Key: your-api-key"
 ```
 
 ### Query File
 
 ```bash
-curl -X POST "http://localhost:8000/api/files/{file_id}/query" \
+curl -X POST "http://localhost:3000/api/files/{file_id}/query" \
   -H "X-API-Key: your-api-key" \
   -H "Content-Type: application/json" \
   -d '{"query": "What is this document about?", "max_results": 5}'
@@ -158,9 +158,37 @@ Response:
 ### Delete File
 
 ```bash
-curl -X DELETE "http://localhost:8000/api/files/{file_id}" \
+curl -X DELETE "http://localhost:3000/api/files/{file_id}" \
   -H "X-API-Key: your-api-key"
 ```
+
+Response:
+```json
+{
+  "message": "File deleted successfully",
+  "file_id": "uuid"
+}
+```
+
+### Delete All Files
+
+Delete all files for an API key:
+
+```bash
+curl -X DELETE "http://localhost:3000/api/files" \
+  -H "X-API-Key: your-api-key"
+```
+
+Response:
+```json
+{
+  "message": "Deleted 5 file(s)",
+  "deleted_count": 5,
+  "errors": null
+}
+```
+
+This endpoint deletes all files, chunks, and vector store entries for the specified API key. Useful for cleanup and testing.
 
 ## Configuration
 
@@ -278,7 +306,7 @@ chunk_overlap: 2
 ### Querying a PDF Document
 
 ```bash
-curl -X POST "http://localhost:8000/api/files/{file_id}/query" \
+curl -X POST "http://localhost:3000/api/files/{file_id}/query" \
   -H "X-API-Key: key" \
   -H "Content-Type: application/json" \
   -d '{"query": "What are the main conclusions in this document?"}'
@@ -289,7 +317,7 @@ curl -X POST "http://localhost:8000/api/files/{file_id}/query" \
 CSV files are loaded into DuckDB for SQL-like querying:
 
 ```bash
-curl -X POST "http://localhost:8000/api/files/{csv_file_id}/query" \
+curl -X POST "http://localhost:3000/api/files/{csv_file_id}/query" \
   -H "X-API-Key: key" \
   -d '{"query": "What are the total sales by region?"}'
 ```
@@ -301,7 +329,7 @@ This translates to intent-based SQL queries using templates.
 Images are processed with OCR:
 
 ```bash
-curl -X POST "http://localhost:8000/api/files/{image_id}/query" \
+curl -X POST "http://localhost:3000/api/files/{image_id}/query" \
   -H "X-API-Key: key" \
   -d '{"query": "What text is visible in this image?"}'
 ```
@@ -311,7 +339,7 @@ curl -X POST "http://localhost:8000/api/files/{image_id}/query" \
 Audio files use ASR for transcription:
 
 ```bash
-curl -X POST "http://localhost:8000/api/files/{audio_id}/query" \
+curl -X POST "http://localhost:3000/api/files/{audio_id}/query" \
   -H "X-API-Key: key" \
   -d '{"query": "What was discussed in this recording?"}'
 ```
@@ -343,7 +371,7 @@ storage_backend: "s3"  # instead of "filesystem"
 
 ## Metadata Store
 
-File metadata is tracked in SQLite (`orbit.db`):
+File metadata is tracked in SQLite (`files.db` by default, configurable via `config.yaml`):
 
 - `uploaded_files`: File metadata and processing status
 - `file_chunks`: Chunk references and vector store mappings

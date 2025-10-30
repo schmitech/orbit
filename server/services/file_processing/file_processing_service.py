@@ -161,25 +161,33 @@ class FileProcessingService:
             # 6. Chunk content
             chunks = await self._chunk_content(extracted_text, file_id, file_metadata)
             
-            # 7. Record chunks in metadata store
+            # 7. Index chunks into vector store
+            collection_name = await self._index_chunks_in_vector_store(
+                file_id=file_id,
+                api_key=api_key,
+                chunks=chunks
+            )
+            
+            # 8. Record chunks in metadata store (with collection name)
             for chunk in chunks:
                 await self.metadata_store.record_chunk(
                     chunk_id=chunk.chunk_id,
                     file_id=file_id,
                     chunk_index=chunk.chunk_index,
-                    vector_store_id=None,  # Will be set when indexed
-                    collection_name=None,  # Will be set when indexed
+                    vector_store_id=chunk.chunk_id,  # Use chunk_id as vector_store_id
+                    collection_name=collection_name,
                     metadata=chunk.metadata
                 )
             
-            # 8. Update metadata store with chunk count
+            # 9. Update metadata store with chunk count and collection name
             await self.metadata_store.update_processing_status(
                 file_id,
                 'completed',
                 chunk_count=len(chunks),
+                collection_name=collection_name,
             )
             
-            # 9. Prepare response
+            # 10. Prepare response
             return {
                 'file_id': file_id,
                 'status': 'completed',
@@ -187,6 +195,7 @@ class FileProcessingService:
                 'filename': filename,
                 'mime_type': mime_type,
                 'file_size': len(file_data),
+                'collection_name': collection_name,
                 'chunks': chunks,
                 'metadata': file_metadata,
             }
@@ -280,6 +289,58 @@ class FileProcessingService:
     async def _chunk_content(self, text: str, file_id: str, metadata: Dict[str, Any]) -> List[Chunk]:
         """Chunk text content."""
         return self.chunker.chunk_text(text, file_id, metadata)
+    
+    async def _index_chunks_in_vector_store(
+        self,
+        file_id: str,
+        api_key: str,
+        chunks: List[Chunk]
+    ) -> Optional[str]:
+        """
+        Index chunks into vector store.
+        
+        Args:
+            file_id: File identifier
+            api_key: API key
+            chunks: List of chunks to index
+            
+        Returns:
+            Collection name if successful, None otherwise
+        """
+        if not chunks:
+            return None
+        
+        try:
+            from retrievers.implementations.file.file_retriever import FileVectorRetriever
+            
+            # Initialize file retriever with config
+            retriever = FileVectorRetriever(config=self.config)
+            await retriever.initialize()
+            
+            # Generate collection name based on API key
+            from datetime import datetime, UTC
+            timestamp = datetime.now(UTC).strftime('%Y%m%d_%H%M%S')
+            collection_prefix = self.config.get('collection_prefix', 'files_')
+            collection_name = f"{collection_prefix}{api_key}_{timestamp}"
+            
+            # Index chunks
+            success = await retriever.index_file_chunks(
+                file_id=file_id,
+                chunks=chunks,
+                collection_name=collection_name
+            )
+            
+            if success:
+                self.logger.info(f"Indexed {len(chunks)} chunks into collection {collection_name}")
+                return collection_name
+            else:
+                self.logger.warning(f"Failed to index chunks for file {file_id}")
+                return None
+                
+        except Exception as e:
+            self.logger.error(f"Error indexing chunks into vector store: {e}")
+            # Don't fail the upload if indexing fails
+            return None
     
     async def get_file(self, file_id: str, api_key: str) -> bytes:
         """Retrieve file contents."""

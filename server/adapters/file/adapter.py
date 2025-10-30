@@ -355,10 +355,11 @@ def register_file_adapter():
     try:
         from adapters.registry import ADAPTER_REGISTRY
         
-        # Register for file datasource with adapter_name="file"
+        # Register with datasource="none" to match adapter config
+        # File adapter manages its own storage and doesn't need a traditional datasource
         ADAPTER_REGISTRY.register(
             adapter_type="retriever",
-            datasource="file",
+            datasource="none",
             adapter_name="file",
             implementation='adapters.file.adapter.FileAdapter',
             factory_func=create_file_adapter,
@@ -372,7 +373,7 @@ def register_file_adapter():
                 'vision_provider': 'openai'
             }
         )
-        logger.info("Registered file adapter for file datasource")
+        logger.info("Registered file adapter with datasource='none'")
     except Exception as e:
         logger.error(f"Failed to register file adapter: {e}")
 

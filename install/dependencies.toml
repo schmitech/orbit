@@ -78,7 +78,8 @@ dependencies = [
     "beautifulsoup4>=4.14.1",
     "python-magic>=0.4.27",
     "filetype>=1.2.0",
-    "docling>=2.58.0"
+    "docling>=2.58.0",
+    "sentence-transformers>=5.1.2"
 ]
 
 [profiles.torch]
@@ -90,8 +91,7 @@ dependencies = [
     "transformers>=4.52.4",
     "accelerate>=0.27.2",
     "sentencepiece>=0.2.0",
-    "protobuf>=5.27.2,<6.0.0",
-    "sentence-transformers>=5.1.1"
+    "protobuf>=5.27.2,<6.0.0"
 ]
 
 [profiles.bitnet]
