@@ -136,6 +136,9 @@ pytest tests/file-adapter/test_file_retriever_multiple_files.py -v
 
 # File routes integration tests
 pytest tests/file-adapter/test_file_routes_integration.py -v
+
+# Full pipeline tests for all file types (NEW)
+pytest tests/file-adapter/test_file_types_full_pipeline.py -v
 ```
 
 ### Run Specific Tests
@@ -172,8 +175,9 @@ pytest tests/file-adapter/test_integration.py -v
 | **Chat with File Context** | **25+** | **Pipeline integration, context retrieval, file_ids** |
 | **Chat Routes Integration** | **20+** | **HTTP endpoints, streaming, multi-file support** |
 | **Multiple File Retrieval** | **15+** | **Multiple file_ids, filtering, aggregation** |
+| **File Types Full Pipeline** | **11+** | **MD, TXT, PDF, DOCX, CSV, JSON, HTML, PNG, JPEG, vision service** |
 
-**Total**: 230+ test cases
+**Total**: 241+ test cases
 
 ## Test Requirements
 
@@ -377,13 +381,32 @@ Tests for multiple file_ids support in FileVectorRetriever:
 
 **Coverage**: Multiple file querying functionality (NEW)
 
+#### `test_file_types_full_pipeline.py`
+Full pipeline integration tests for each supported file type:
+- Markdown (.md) - full upload → process → query → chat → delete cycle
+- Plain text (.txt) - text extraction and chunking verification
+- PDF (.pdf) - PDF processor with reportlab-generated test files
+- DOCX (.docx) - Word document processing with python-docx
+- CSV (.csv) - structured data handling
+- JSON (.json) - JSON parsing and indexing
+- HTML (.html) - HTML text extraction
+- PNG images (.png) - vision service integration and OCR
+- JPEG images (.jpg) - vision service with different image format
+- Unsupported file type handling
+- Oversized file rejection
+
+**Purpose**: These tests simulate actual client usage through the Node API, testing the complete server-side pipeline for each file type. Particularly useful for debugging vision service integration issues with images.
+
+**Coverage**: End-to-end file type processing with vision service (NEW)
+
 ## Future Test Additions
 
 Potential areas for additional test coverage:
 
-- [ ] PDF processor tests with actual PDF files
-- [ ] DOCX processor tests with actual DOCX files
-- [ ] CSV processor tests with various CSV formats
+- [x] PDF processor tests with actual PDF files ✓ (NEW)
+- [x] DOCX processor tests with actual DOCX files ✓ (NEW)
+- [x] CSV processor tests with various CSV formats ✓ (NEW)
+- [x] Image processor tests with vision service ✓ (NEW)
 - [ ] Vector store integration tests (requires Chroma/Qdrant)
 - [x] File retriever tests ✓
 - [x] File adapter tests ✓
@@ -391,8 +414,12 @@ Potential areas for additional test coverage:
 - [x] Chat integration with file context ✓ (NEW)
 - [x] Multiple file_ids support ✓ (NEW)
 - [x] API endpoint tests (FastAPI integration) ✓ (NEW)
+- [x] Full pipeline tests for all file types ✓ (NEW)
 - [ ] DuckDB path tests for structured data
 - [ ] S3 storage backend tests (when implemented)
+- [ ] Multi-page PDF processing tests
+- [ ] Large image file handling tests
+- [ ] Vision service error handling tests
 
 ## Contributing
 

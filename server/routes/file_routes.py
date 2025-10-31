@@ -61,6 +61,7 @@ class FileInfoResponse(BaseModel):
     processing_status: str
     chunk_count: int
     storage_type: str
+    error_message: Optional[str] = None  # Error message if processing failed
 
 
 class QueryRequest(BaseModel):
@@ -250,12 +251,10 @@ def create_file_router() -> APIRouter:
         try:
             if not x_api_key:
                 raise HTTPException(status_code=401, detail="API key required")
-            
-            # Get file metadata
-            config = getattr(request.app.state, 'config', None)
-            metadata_store = FileMetadataStore(config=config)
-            
-            file_info = await metadata_store.get_file_info(file_id)
+
+            # Get file metadata from the processing service's metadata store
+            # Reuse existing connection instead of creating a new one
+            file_info = await processing_service.metadata_store.get_file_info(file_id)
             
             if not file_info:
                 raise HTTPException(status_code=404, detail="File not found")
@@ -263,7 +262,17 @@ def create_file_router() -> APIRouter:
             # Check API key matches
             if file_info['api_key'] != x_api_key:
                 raise HTTPException(status_code=403, detail="Access denied")
-            
+
+            # Extract error message from metadata if processing failed
+            error_message = None
+            if file_info['processing_status'] == 'failed' and file_info.get('metadata'):
+                try:
+                    import json
+                    metadata = json.loads(file_info['metadata'])
+                    error_message = metadata.get('error')
+                except Exception:
+                    pass  # Ignore metadata parsing errors
+
             return FileInfoResponse(
                 file_id=file_info['file_id'],
                 filename=file_info['filename'],
@@ -272,7 +281,8 @@ def create_file_router() -> APIRouter:
                 upload_timestamp=file_info['upload_timestamp'],
                 processing_status=file_info['processing_status'],
                 chunk_count=file_info['chunk_count'],
-                storage_type=file_info['storage_type']
+                storage_type=file_info['storage_type'],
+                error_message=error_message
             )
         
         except HTTPException:
@@ -305,17 +315,8 @@ def create_file_router() -> APIRouter:
             if not x_api_key:
                 raise HTTPException(status_code=401, detail="API key required")
             
-            # Get config from request
-            config = getattr(request.app.state, 'config', None) if 'request' in locals() else None
-            if config is None:
-                try:
-                    from config.config_manager import load_config
-                    config = load_config()
-                except Exception:
-                    config = None
-            metadata_store = FileMetadataStore(config=config)
-            
-            files = await metadata_store.list_files(x_api_key)
+            # Use the processing service's metadata store to avoid creating new connections
+            files = await processing_service.metadata_store.list_files(x_api_key)
             
             return [
                 FileInfoResponse(
@@ -358,18 +359,8 @@ def create_file_router() -> APIRouter:
             if not x_api_key:
                 raise HTTPException(status_code=401, detail="API key required")
             
-            # Get config from request
-            config = getattr(request.app.state, 'config', None)
-            if config is None:
-                try:
-                    from config.config_manager import load_config
-                    config = load_config()
-                except Exception:
-                    config = None
-            metadata_store = FileMetadataStore(config=config)
-            
-            # List all files for this API key
-            files = await metadata_store.list_files(x_api_key)
+            # List all files for this API key using the processing service's metadata store
+            files = await processing_service.metadata_store.list_files(x_api_key)
             
             # Delete each file
             deleted_count = 0
@@ -428,12 +419,8 @@ def create_file_router() -> APIRouter:
             if not x_api_key:
                 raise HTTPException(status_code=401, detail="API key required")
             
-            # Check file exists and API key matches
-            # Get config from request
-            config = getattr(request.app.state, 'config', None)
-            metadata_store = FileMetadataStore(config=config)
-            
-            file_info = await metadata_store.get_file_info(file_id)
+            # Check file exists and API key matches using the processing service's metadata store
+            file_info = await processing_service.metadata_store.get_file_info(file_id)
             if not file_info:
                 raise HTTPException(status_code=404, detail="File not found")
             
@@ -486,12 +473,8 @@ def create_file_router() -> APIRouter:
             if not x_api_key:
                 raise HTTPException(status_code=401, detail="API key required")
             
-            # Get file info
-            # Get config from request
-            config = getattr(request.app.state, 'config', None)
-            metadata_store = FileMetadataStore(config=config)
-            
-            file_info = await metadata_store.get_file_info(file_id)
+            # Get file info using the processing service's metadata store
+            file_info = await processing_service.metadata_store.get_file_info(file_id)
             if not file_info:
                 raise HTTPException(status_code=404, detail="File not found")
             
@@ -500,7 +483,9 @@ def create_file_router() -> APIRouter:
             
             # Initialize retriever and query
             from retrievers.implementations.file.file_retriever import FileVectorRetriever
-            
+
+            # Get config from request
+            config = getattr(request.app.state, 'config', {})
             retriever = FileVectorRetriever(config=config)
             await retriever.initialize()
             

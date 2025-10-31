@@ -63,9 +63,16 @@ class GeminiVisionService(VisionService, GoogleBaseService):
             pil_image = PILImage.open(BytesIO(image_bytes))
 
             # Create content with image and prompt
-            response = await model.generate_content_async(
-                [prompt, pil_image]
-            )
+            # REST transport uses synchronous methods, gRPC uses async
+            if self.transport == 'rest':
+                response = await asyncio.to_thread(
+                    model.generate_content,
+                    [prompt, pil_image]
+                )
+            else:
+                response = await model.generate_content_async(
+                    [prompt, pil_image]
+                )
 
             if not response.candidates or not response.candidates[0].content:
                 raise ValueError("No content returned from Gemini")

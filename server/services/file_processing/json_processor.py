@@ -54,7 +54,7 @@ class JSONProcessor(FileProcessor):
             if isinstance(data, dict):
                 metadata.update({
                     'object_type': 'dict',
-                    'keys': list(data.keys()),
+                    'keys': ', '.join(str(k) for k in data.keys()),  # Convert to comma-separated string
                     'key_count': len(data),
                 })
             elif isinstance(data, list):

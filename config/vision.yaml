@@ -1,16 +1,22 @@
+# Global vision configuration
 vision:
+  provider: "gemini"  # Default vision provider: openai, gemini, anthropic
+  enabled: true       # Whether vision processing is enabled globally
+
+# Provider-specific configurations
+visions:
   openai:
     enabled: true
     api_key: ${OPENAI_API_KEY}
     api_base: "https://api.openai.com/v1"
-    model: "gpt-4o"
+    model: "gpt-5"
     temperature: 0.0
     max_tokens: 1000
     stream: false
     # Timeout configuration
     timeout:
-      connect: 10000   # 10 seconds
-      total: 60000     # 1 minute
+      connect: 15000   # 15 seconds (increased for slow networks)
+      total: 90000     # 90 seconds (increased to handle concurrent API calls + retries)
     # Retry configuration
     retry:
       enabled: true
@@ -31,8 +37,8 @@ vision:
     transport: "rest"  # Use REST to avoid gRPC/ALTS warnings
     # Timeout configuration
     timeout:
-      connect: 10000   # 10 seconds
-      total: 60000     # 1 minute
+      connect: 15000   # 15 seconds (increased for slow networks)
+      total: 90000     # 90 seconds (increased to handle concurrent API calls + retries)
     # Retry configuration
     retry:
       enabled: true
@@ -51,8 +57,8 @@ vision:
     stream: false
     # Timeout configuration
     timeout:
-      connect: 10000   # 10 seconds
-      total: 60000     # 1 minute
+      connect: 15000   # 15 seconds (increased for slow networks)
+      total: 90000     # 90 seconds (increased to handle concurrent API calls + retries)
     # Retry configuration
     retry:
       enabled: true

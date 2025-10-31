@@ -6,6 +6,7 @@ Main service for processing uploaded files: extraction, chunking, and storage pr
 
 import logging
 import uuid
+import json
 from typing import Dict, Any, List, Optional
 from datetime import datetime, UTC
 
@@ -71,24 +72,26 @@ class FileProcessingService:
             'image/webp',
         ])
         
-        # Vision service configuration - get from adapter config, then files.processing.vision, then default
-        # Get vision config from top-level config (merged from vision.yaml)
-        vision_config = config.get('vision', {})
-        # If not found at top level, check files.processing.vision
-        if not vision_config:
-            vision_config = processing_config.get('vision', {})
-        
+        # Vision service configuration - follows same pattern as embeddings/inference
+        # Priority: adapter config > global vision config > default
+        vision_global_config = config.get('vision', {})
+
+        # Enable/disable vision processing
         self.enable_vision = config.get('enable_vision') or \
-                           vision_config.get('enabled', True)
+                           vision_global_config.get('enabled', True)
+
+        # Get vision provider (adapter override > global config > default)
         self.vision_provider = config.get('vision_provider') or \
-                              vision_config.get('provider', 'openai')
-        self.vision_config = vision_config
+                              vision_global_config.get('provider', 'gemini')
+
+        # Get provider-specific configs from 'visions' section (plural, like 'embeddings', 'inferences')
+        self.vision_config = config.get('visions', {})
         
-        # Log vision configuration for debugging
+        # Log vision configuration
         if self.enable_vision:
-            provider_config = vision_config.get(self.vision_provider, {})
+            provider_config = self.vision_config.get(self.vision_provider, {})
             model = provider_config.get('model', 'default')
-            self.logger.debug(f"Vision service configured: provider={self.vision_provider}, model={model}")
+            self.logger.info(f"Vision service configured: provider={self.vision_provider}, model={model}")
     
     def _init_storage(self) -> FilesystemStorage:
         """Initialize storage backend."""
@@ -223,10 +226,29 @@ class FileProcessingService:
             self.logger.info(f"File content processed successfully: {file_id} ({len(chunks)} chunks)")
             
         except Exception as e:
-            self.logger.error(f"Error processing file content for {file_id}: {e}")
-            # Update status to failed
-            await self.metadata_store.update_processing_status(file_id, 'failed')
-            raise
+            error_message = str(e)
+            self.logger.error(f"Error processing file content for {file_id}: {error_message}")
+
+            # Update status to failed with error details
+            await self.metadata_store.update_processing_status(
+                file_id,
+                'failed',
+                chunk_count=0
+            )
+
+            # Store error message in file metadata for user feedback
+            try:
+                cursor = self.metadata_store.connection.cursor()
+                cursor.execute(
+                    "UPDATE uploaded_files SET metadata = ? WHERE file_id = ?",
+                    (json.dumps({'error': error_message, 'failed_at': datetime.now(UTC).isoformat()}), file_id)
+                )
+                self.metadata_store.connection.commit()
+            except Exception as meta_error:
+                self.logger.warning(f"Failed to store error metadata for {file_id}: {meta_error}")
+
+            # Don't raise - let background task complete gracefully
+            # The file is now marked as "failed" so users can see the error
     
     async def process_file(
         self,
@@ -366,26 +388,39 @@ class FileProcessingService:
     
     async def _extract_image_content(self, file_data: bytes, filename: str, mime_type: str) -> tuple[str, Dict[str, Any]]:
         """Extract content from image using vision services."""
+        import asyncio
+        from ai_services import AIServiceFactory, ServiceType
+
         try:
-            from ai_services import AIServiceFactory, ServiceType
-            
             # Get vision service
             vision_service = AIServiceFactory.create_service(
                 ServiceType.VISION,
                 self.vision_provider,
                 {'vision': self.vision_config}
             )
-            
+
             # Initialize if needed
             if not vision_service.initialized:
                 await vision_service.initialize()
-            
-            # Extract text from image
-            extracted_text = await vision_service.extract_text_from_image(file_data)
-            
-            # Generate description
-            description = await vision_service.describe_image(file_data)
-            
+
+            # PERFORMANCE FIX: Make both API calls concurrently instead of sequentially
+            # This reduces total processing time from ~120s to ~60s
+            self.logger.info(f"Starting vision processing for {filename} (provider: {self.vision_provider})")
+
+            try:
+                extracted_text, description = await asyncio.gather(
+                    vision_service.extract_text_from_image(file_data),
+                    vision_service.describe_image(file_data)
+                )
+            except asyncio.TimeoutError as e:
+                self.logger.error(f"Vision API timeout for {filename}: {e}")
+                raise Exception(f"Vision API request timed out. The image may be too large or the API is experiencing latency. Please try again or contact support if the issue persists.")
+            except Exception as e:
+                self.logger.error(f"Vision API error for {filename}: {e}")
+                raise Exception(f"Vision processing failed: {str(e)}")
+
+            self.logger.info(f"Vision processing completed for {filename}")
+
             metadata = {
                 'filename': filename,
                 'mime_type': mime_type,
@@ -395,22 +430,22 @@ class FileProcessingService:
                 'image_description': description,
                 'image_text': extracted_text,
             }
-            
+
             # Combine description and extracted text
-            text = f"{description}\n\nExtracted text:\n{extracted_text}"
-            
+            text = f"Image Description:\n{description}\n\nExtracted Text:\n{extracted_text}"
+
+            # Validate that we got meaningful content
+            if not text.strip() or (not description and not extracted_text):
+                self.logger.warning(f"Vision service returned empty content for {filename}")
+                raise Exception("Vision service did not extract any content from the image")
+
             return text, metadata
-            
+
         except Exception as e:
-            self.logger.error(f"Error extracting image content: {e}")
-            # Return empty content if vision processing fails
-            metadata = {
-                'filename': filename,
-                'mime_type': mime_type,
-                'file_size': len(file_data),
-                'extraction_method': 'none',
-            }
-            return "", metadata
+            # PRODUCTION FIX: Don't swallow exceptions - let them bubble up
+            # This ensures files are marked as "failed" instead of "completed with 0 chunks"
+            self.logger.error(f"Failed to process image {filename}: {e}")
+            raise
     
     async def _chunk_content(self, text: str, file_id: str, metadata: Dict[str, Any]) -> List[Chunk]:
         """Chunk text content."""

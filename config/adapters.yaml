@@ -504,11 +504,12 @@ adapters:
     datasource: "none"  # File adapter manages its own storage, no external datasource needed
     adapter: "file"
     implementation: "retrievers.implementations.file.file_retriever.FileVectorRetriever"
-    
+
     # Provider overrides
     inference_provider: "ollama"
     embedding_provider: "ollama"
-    
+    vision_provider: "gemini"  # Vision provider for image files: openai, gemini, anthropic (see vision.yaml)
+
     config:
       # Storage configuration
       storage_backend: "filesystem"  # Future: "s3", "minio"
