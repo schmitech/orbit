@@ -50,7 +50,9 @@ def test_file(tmp_path):
 @pytest.fixture
 async def http_client():
     """Create an HTTP client for making requests"""
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    # Use 120 second timeout for file processing operations which may involve
+    # chunking, embedding generation, and vector indexing
+    async with httpx.AsyncClient(timeout=120.0) as client:
         yield client
 
 

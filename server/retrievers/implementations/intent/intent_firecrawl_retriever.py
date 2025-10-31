@@ -4,6 +4,11 @@ Firecrawl intent retriever implementation.
 This retriever extends IntentHTTPRetriever to provide web scraping capabilities using Firecrawl,
 allowing natural language queries to be translated into web scraping requests.
 Supports both cloud API (api.firecrawl.dev) and self-hosted Firecrawl deployments.
+
+Features:
+- Intelligent content chunking for large documents
+- Vector store caching for improved performance
+- Embedding-based chunk ranking for relevance
 """
 
 import logging
@@ -14,6 +19,8 @@ from typing import Dict, Any, List, Optional, Tuple
 
 from retrievers.base.intent_http_base import IntentHTTPRetriever
 from retrievers.base.base_retriever import RetrieverFactory
+from utils.content_chunker import ContentChunker
+from utils.chunk_manager import ChunkManager
 
 logger = logging.getLogger(__name__)
 
@@ -57,8 +64,81 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
         self.max_retries = self.intent_config.get('max_retries', 2)
         self.retry_delay = self.intent_config.get('retry_delay', 2.0)
 
+        # Content chunking configuration
+        self.enable_chunking = self.intent_config.get('enable_chunking', True)
+        self.max_chunk_tokens = self.intent_config.get('max_chunk_tokens', 4000)
+        self.chunk_overlap_tokens = self.intent_config.get('chunk_overlap_tokens', 200)
+        self.min_chunk_tokens = self.intent_config.get('min_chunk_tokens', 500)
+        self.chunks_collection = self.intent_config.get('chunks_collection', 'firecrawl_chunks')
+        self.chunk_cache_ttl_hours = self.intent_config.get('chunk_cache_ttl_hours', 24)
+        self.top_chunks_to_return = self.intent_config.get('top_chunks_to_return', 3)
+        self.min_chunk_similarity = self.intent_config.get('min_chunk_similarity', 0.3)
+        # Max tokens for embedding model (OpenAI: 8191, Cohere: 512, Jina: 8192)
+        # Use 7500 default to provide safety buffer for estimation errors
+        self.max_embedding_tokens = self.intent_config.get('max_embedding_tokens', 7500)
+
+        # Initialize chunking components (will be set up in initialize())
+        self.content_chunker: Optional[ContentChunker] = None
+        self.chunk_manager: Optional[ChunkManager] = None
+
         if self.verbose:
             logger.info(f"Firecrawl retriever initialized with base_url: {self.base_url}")
+            if self.enable_chunking:
+                logger.info(f"Content chunking enabled: max_tokens={self.max_chunk_tokens}, "
+                          f"top_chunks={self.top_chunks_to_return}")
+
+    async def initialize(self) -> None:
+        """Initialize the Firecrawl retriever and chunking components."""
+        # Call parent initialization
+        await super().initialize()
+
+        # Initialize chunking if enabled
+        if self.enable_chunking:
+            # Create content chunker
+            self.content_chunker = ContentChunker(
+                max_chunk_tokens=self.max_chunk_tokens,
+                chunk_overlap_tokens=self.chunk_overlap_tokens,
+                min_chunk_tokens=self.min_chunk_tokens
+            )
+
+            # Create chunk manager with vector store and embedding client
+            if self.store_manager and self.embedding_client:
+                try:
+                    # Get store configuration from config
+                    store_config = self._get_store_config()
+
+                    # Get or create vector store for chunks
+                    # Use the same store as templates but with a different collection
+                    chunk_store = await self.store_manager.get_or_create_store(
+                        name=f'firecrawl_chunks_{self.store_name}',
+                        store_type=self.store_name,  # Use same type (chroma, qdrant, etc.)
+                        config={'connection_params': store_config.get('connection_params', {})}
+                    )
+
+                    if not chunk_store:
+                        raise Exception("Failed to create/get chunk vector store")
+
+                    self.chunk_manager = ChunkManager(
+                        vector_store=chunk_store,
+                        embedding_client=self.embedding_client,
+                        collection_name=self.chunks_collection,
+                        cache_ttl_hours=self.chunk_cache_ttl_hours,
+                        min_similarity_score=self.min_chunk_similarity,
+                        max_embedding_tokens=self.max_embedding_tokens
+                    )
+
+                    # Initialize chunk manager
+                    await self.chunk_manager.initialize()
+
+                    logger.info(f"Chunk manager initialized successfully with {self.store_name} store")
+                except Exception as e:
+                    logger.warning(f"Failed to initialize chunk manager: {e}")
+                    logger.warning("Chunking will be disabled for this session")
+                    logger.error(traceback.format_exc())
+                    self.enable_chunking = False
+            else:
+                logger.warning("Store manager or embedding client not available, disabling chunking")
+                self.enable_chunking = False
 
     def _get_datasource_name(self) -> str:
         """
@@ -67,6 +147,103 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
         Note: Firecrawl uses the HTTP placeholder datasource since it's a remote API.
         """
         return "http"
+
+    async def get_relevant_context(self, query: str, api_key: Optional[str] = None,
+                                   collection_name: Optional[str] = None,
+                                   **kwargs) -> List[Dict[str, Any]]:
+        """
+        Process a natural language query using intent-based Firecrawl scraping with chunking.
+
+        This override adds chunking support to the base intent HTTP retriever.
+
+        Args:
+            query: The natural language query
+            api_key: Optional API key
+            collection_name: Optional collection name
+            **kwargs: Additional arguments
+
+        Returns:
+            List of context dictionaries with scraped and chunked content
+        """
+        try:
+            if self.verbose:
+                logger.info(f"Processing Firecrawl query with chunking: {query}")
+
+            # Find best matching templates
+            templates = await self._find_best_templates(query)
+
+            if not templates:
+                logger.warning("No matching templates found")
+                return [{
+                    "content": "I couldn't find a matching query pattern for your request.",
+                    "metadata": {"source": "firecrawl", "error": "no_matching_template"},
+                    "confidence": 0.0
+                }]
+
+            # Rerank templates using domain-specific rules
+            if self.template_reranker:
+                templates = self.template_reranker.rerank_templates(templates, query)
+
+            # Try templates in order of relevance
+            for template_info in templates:
+                template = template_info['template']
+                similarity = template_info['similarity']
+
+                if similarity < self.confidence_threshold:
+                    continue
+
+                if self.verbose:
+                    logger.info(f"Trying template: {template.get('id')} (similarity: {similarity:.2%})")
+
+                # Extract parameters
+                if self.parameter_extractor:
+                    parameters = await self.parameter_extractor.extract_parameters(query, template)
+                    validation_errors = self.parameter_extractor.validate_parameters(parameters)
+                    if validation_errors:
+                        if self.verbose:
+                            logger.debug(f"Parameter validation failed: {validation_errors}")
+                        continue
+                else:
+                    parameters = await self._extract_parameters(query, template)
+
+                # Execute template (scrape content)
+                results, error = await self._execute_template(template, parameters)
+
+                if error:
+                    if self.verbose:
+                        logger.debug(f"Template execution failed: {error}")
+                    continue
+
+                # Format results with chunking support
+                formatted_results = await self._format_http_results_async(
+                    results=results,
+                    template=template,
+                    parameters=parameters,
+                    similarity=similarity,
+                    query=query  # Pass query for chunk ranking
+                )
+
+                if self.verbose:
+                    logger.info(f"Successfully processed Firecrawl query")
+
+                return formatted_results
+
+            # If no template succeeded
+            logger.warning("All templates failed to execute")
+            return [{
+                "content": "I couldn't scrape content with the available templates.",
+                "metadata": {"source": "firecrawl", "error": "all_templates_failed"},
+                "confidence": 0.0
+            }]
+
+        except Exception as e:
+            logger.error(f"Error in get_relevant_context: {e}")
+            logger.error(traceback.format_exc())
+            return [{
+                "content": f"An error occurred while processing your query: {str(e)}",
+                "metadata": {"source": "firecrawl", "error": "exception"},
+                "confidence": 0.0
+            }]
 
     async def _execute_template(self, template: Dict[str, Any],
                                 parameters: Dict[str, Any]) -> Tuple[Any, Optional[str]]:
@@ -282,10 +459,92 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
             logger.error(traceback.format_exc())
             return [{'error': str(e), 'raw_response': response.text[:500]}]
 
+    async def _format_http_results_async(self, results: Any, template: Dict,
+                                         parameters: Dict, similarity: float,
+                                         query: str) -> List[Dict[str, Any]]:
+        """
+        Format Firecrawl results with chunking support (async version).
+
+        Args:
+            results: Firecrawl scraping results
+            template: The template that was executed
+            parameters: Parameters used in the request
+            similarity: Template matching similarity score
+            query: The original user query for chunk ranking
+
+        Returns:
+            List of formatted context items
+        """
+        if not results:
+            return [{
+                "content": "No content was scraped from the provided URL.",
+                "metadata": {
+                    "source": "firecrawl",
+                    "template_id": template.get('id'),
+                    "parameters_used": parameters,
+                    "similarity": similarity,
+                    "result_count": 0
+                },
+                "confidence": similarity
+            }]
+
+        # Get the scraped result
+        result = results[0] if results else {}
+        source_url = result.get('url', parameters.get('url', ''))
+
+        # Check if we should use chunking
+        should_chunk = False
+        if self.enable_chunking and self.content_chunker and self.chunk_manager:
+            # Check if content exists and is markdown
+            if 'markdown' in result and result['markdown']:
+                should_chunk = self.content_chunker.should_chunk(result['markdown'])
+
+        # If chunking is enabled and content is large enough
+        if should_chunk:
+            try:
+                content = await self._process_with_chunking(
+                    results, template, parameters, query, source_url
+                )
+            except Exception as e:
+                logger.warning(f"Chunking failed, falling back to full content: {e}")
+                content = self._format_firecrawl_results(results, template)
+        else:
+            # Use regular formatting
+            content = self._format_firecrawl_results(results, template)
+
+        # Build metadata
+        metadata = {
+            "source": "firecrawl",
+            "template_id": template.get('id'),
+            "query_intent": template.get('description', ''),
+            "parameters_used": parameters,
+            "similarity": similarity,
+            "result_count": len(results),
+            "results": results,
+            "chunked": should_chunk
+        }
+
+        # Add URL and success status
+        if results and len(results) > 0:
+            metadata['scraped_url'] = result.get('url', '')
+            metadata['scrape_success'] = result.get('success', False)
+
+            # Add metadata from Firecrawl
+            if 'metadata' in result:
+                metadata['page_metadata'] = result['metadata']
+
+        return [{
+            "content": content,
+            "metadata": metadata,
+            "confidence": similarity
+        }]
+
     def _format_http_results(self, results: Any, template: Dict,
                             parameters: Dict, similarity: float) -> List[Dict[str, Any]]:
         """
-        Format Firecrawl results into context documents.
+        Format Firecrawl results into context documents (sync wrapper).
+
+        Note: This is kept for compatibility but chunking requires the async version.
 
         Args:
             results: Firecrawl scraping results
@@ -309,7 +568,7 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
                 "confidence": similarity
             }]
 
-        # Format the response
+        # Format the response (without chunking)
         content = self._format_firecrawl_results(results, template)
 
         # Build metadata
@@ -320,7 +579,8 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
             "parameters_used": parameters,
             "similarity": similarity,
             "result_count": len(results),
-            "results": results
+            "results": results,
+            "chunked": False
         }
 
         # Add URL and success status
@@ -328,7 +588,7 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
             result = results[0]
             metadata['scraped_url'] = result.get('url', '')
             metadata['scrape_success'] = result.get('success', False)
-            
+
             # Add metadata from Firecrawl
             if 'metadata' in result:
                 metadata['page_metadata'] = result['metadata']
@@ -338,6 +598,131 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
             "metadata": metadata,
             "confidence": similarity
         }]
+
+    async def _process_with_chunking(self, results: List[Dict], template: Dict,
+                                     parameters: Dict, query: str,
+                                     source_url: str) -> str:
+        """
+        Process large content with chunking and ranking.
+
+        Args:
+            results: Firecrawl results
+            template: Template used
+            parameters: Extracted parameters
+            query: User's query for ranking
+            source_url: URL of the scraped page
+
+        Returns:
+            Formatted string with relevant chunks
+        """
+        result = results[0]
+        markdown_content = result.get('markdown', '')
+
+        if not markdown_content:
+            return "No markdown content available."
+
+        # Prepare metadata for chunking
+        page_metadata = result.get('metadata', {})
+        chunk_metadata = {
+            'url': source_url,
+            'title': page_metadata.get('title', 'Document'),
+            'description': page_metadata.get('description', ''),
+            'author': page_metadata.get('author', ''),
+            'language': page_metadata.get('language', '')
+        }
+
+        # Check if we have cached chunks
+        if await self.chunk_manager.has_cached_chunks(source_url):
+            if self.verbose:
+                logger.info(f"Using cached chunks for {source_url}")
+        else:
+            # Chunk the content
+            if self.verbose:
+                logger.info(f"Chunking content ({len(markdown_content)} chars)")
+
+            chunks = self.content_chunker.chunk_markdown(markdown_content, chunk_metadata)
+
+            # Store chunks in vector store
+            await self.chunk_manager.store_chunks(chunks, source_url, chunk_metadata)
+
+            if self.verbose:
+                logger.info(f"Created and stored {len(chunks)} chunks")
+
+        # Retrieve relevant chunks based on query
+        relevant_chunks = await self.chunk_manager.retrieve_chunks(
+            query=query,
+            source_url=source_url,
+            top_k=self.top_chunks_to_return,
+            min_score=self.min_chunk_similarity
+        )
+
+        if not relevant_chunks:
+            logger.warning("No relevant chunks found, returning full content")
+            return self._format_firecrawl_results(results, template)
+
+        # Format the chunked response
+        return self._format_chunked_results(
+            chunks=relevant_chunks,
+            source_url=source_url,
+            page_metadata=page_metadata,
+            total_content_size=len(markdown_content)
+        )
+
+    def _format_chunked_results(self, chunks: List[Dict[str, Any]],
+                                source_url: str,
+                                page_metadata: Dict[str, Any],
+                                total_content_size: int) -> str:
+        """
+        Format chunked results for display.
+
+        Args:
+            chunks: List of relevant chunks
+            source_url: Source URL
+            page_metadata: Page metadata
+            total_content_size: Total size of original content
+
+        Returns:
+            Formatted string
+        """
+        lines = []
+
+        # Header
+        lines.append(f"Successfully scraped and analyzed content from: {source_url}")
+        lines.append(f"Original content size: {total_content_size // 4} tokens (~{total_content_size} chars)")
+        lines.append(f"Showing {len(chunks)} most relevant section(s):\n")
+
+        # Page info
+        if page_metadata.get('title'):
+            lines.append(f"Title: {page_metadata['title']}")
+        if page_metadata.get('description'):
+            lines.append(f"Description: {page_metadata['description']}")
+        lines.append("")
+
+        # Show each relevant chunk
+        for i, chunk in enumerate(chunks, 1):
+            similarity = chunk.get('similarity_score', 0.0)
+            section = chunk.get('section', 'Section')
+            hierarchy = chunk.get('hierarchy', [])
+            position = chunk.get('position', 0)
+            total_chunks = chunk.get('total_chunks', 1)
+
+            lines.append("=" * 70)
+            lines.append(f"RELEVANT SECTION {i}/{len(chunks)} "
+                        f"(Relevance: {similarity:.1%}, "
+                        f"Part {position + 1}/{total_chunks})")
+            lines.append(f"Path: {' > '.join(hierarchy)}")
+            lines.append("=" * 70)
+            lines.append("")
+            lines.append(chunk['content'])
+            lines.append("")
+
+        # Footer
+        lines.append("=" * 70)
+        lines.append(f"Note: Showing top {len(chunks)} relevant sections out of {chunks[0].get('total_chunks', '?')} total sections.")
+        lines.append("The full content has been cached for follow-up queries.")
+        lines.append("=" * 70)
+
+        return '\n'.join(lines)
 
     def _format_firecrawl_results(self, results: List[Dict], template: Dict) -> str:
         """

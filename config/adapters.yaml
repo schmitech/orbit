@@ -352,22 +352,20 @@ adapters:
       max_retries: 3
       retry_delay: 1.0
 
-  # Firecrawl Intent Adapter - Web Scraping (TESTING WITH MINIMAL TEMPLATES)
+  # Firecrawl Intent Adapter - Web Scraping with vector chunking
   # This adapter demonstrates web scraping using Firecrawl with natural language queries
   # Supports both cloud API (api.firecrawl.dev) and self-hosted Firecrawl deployments
-  # Currently configured with minimal test templates for validation
+  # Features content chunking for large documents (e.g., Wikipedia articles)
   - name: "intent-firecrawl-webscrape"
     enabled: false
     type: "retriever"
-    datasource: "http"  # Reuse HTTP placeholder
+    datasource: "http"
     adapter: "intent"
     implementation: "retrievers.implementations.intent.IntentFirecrawlRetriever"
     inference_provider: "ollama"
     model: "granite4:micro"
-    embedding_provider: "ollama"
+    embedding_provider: "ollama"  # Used for chunk ranking
     config:
-      # TESTING: Using minimal templates for validation
-      # Switch to firecrawl_domain.yaml and firecrawl_templates.yaml for full Wikipedia templates
       domain_config_path: "utils/firecrawl-intent-template/examples/web-scraping/templates/firecrawl_domain.yaml"
       template_library_path:
         - "utils/firecrawl-intent-template/examples/web-scraping/templates/firecrawl_templates.yaml"
@@ -392,7 +390,7 @@ adapters:
       # For cloud API: set base_url to https://api.firecrawl.dev/v1
       # For self-hosted: set to your instance URL
       base_url: "https://api.firecrawl.dev/v1"
-      default_timeout: 30  # Lower timeout for small test pages
+      default_timeout: 60  # Increased for large pages
       default_formats: ["markdown"]
 
       # Authentication (for cloud API)
@@ -402,8 +400,34 @@ adapters:
         header_name: "Authorization"
         token_prefix: "Bearer"
 
+      # ========================================
+      # Content Chunking Configuration
+      # ========================================
+      # Automatically chunks large web content to prevent exceeding LLM context limits
+      # and improve response relevance through semantic search
+
+      enable_chunking: true                    # Enable/disable chunking
+      max_chunk_tokens: 4000                   # Maximum tokens per chunk (~16KB)
+      chunk_overlap_tokens: 200                # Overlap between chunks for context continuity
+      min_chunk_tokens: 500                    # Minimum chunk size
+
+      # Embedding model limits (CRITICAL: Set based on your embedding provider)
+      # OpenAI text-embedding-3-*: 8191 tokens → Use 7500 for safety
+      # OpenAI text-embedding-ada-002: 8191 tokens → Use 7500 for safety
+      # Cohere embed-english-v3.0: 512 tokens → Use 450 for safety!
+      # Jina jina-embeddings-v3: 8192 tokens → Use 7500 for safety
+      max_embedding_tokens: 7500               # Max tokens with safety buffer (accounts for estimation error)
+
+      # Chunk storage and retrieval
+      chunks_collection: "firecrawl_chunks"    # Vector store collection for chunks
+      chunk_cache_ttl_hours: 24                # Cache duration (24 hours for Wikipedia)
+
+      # Chunk ranking and selection
+      top_chunks_to_return: 3                  # Number of most relevant chunks to return
+      min_chunk_similarity: 0.3                # Minimum similarity score for chunk retrieval
+
     fault_tolerance:
-      operation_timeout: 30.0  # Lower timeout for testing
+      operation_timeout: 60.0  # Increased for large content
       failure_threshold: 5
       recovery_timeout: 60.0
       max_retries: 2
