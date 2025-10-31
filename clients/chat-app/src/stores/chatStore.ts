@@ -40,7 +40,7 @@ interface ExtendedChatState extends ChatState {
   createConversation: () => string;
   selectConversation: (id: string) => Promise<void>;
   deleteConversation: (id: string) => Promise<void>;
-  sendMessage: (content: string) => Promise<void>;
+  sendMessage: (content: string, fileIds?: string[]) => Promise<void>;
   appendToLastMessage: (content: string) => void;
   regenerateResponse: (messageId: string) => Promise<void>;
   updateConversationTitle: (id: string, title: string) => void;
@@ -285,7 +285,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
     });
   },
 
-  sendMessage: async (content: string) => {
+  sendMessage: async (content: string, fileIds?: string[]) => {
     try {
       // Prevent multiple simultaneous requests
       if (get().isLoading) {
@@ -307,11 +307,18 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       }
 
       // Add user message and assistant streaming message in a single atomic update
+      // Store file attachments with the message if provided
       const userMessage: Message = {
         id: generateUniqueMessageId('user'),
         content,
         role: 'user',
-        timestamp: new Date()
+        timestamp: new Date(),
+        attachments: fileIds ? fileIds.map(fileId => ({
+          file_id: fileId,
+          filename: '', // Will be populated from file metadata if needed
+          mime_type: '',
+          file_size: 0
+        })) : undefined
       };
 
       const assistantMessageId = generateUniqueMessageId('assistant');
@@ -374,7 +381,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         
         // Load the API and stream the response
         const api = await getApi();
-        for await (const response of api.streamChat(content)) {
+        for await (const response of api.streamChat(content, true, fileIds)) {
           if (response.text) {
             get().appendToLastMessage(response.text);
             receivedAnyText = true;
@@ -521,7 +528,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         }
         
         const api = await getApi();
-        for await (const response of api.streamChat(userMessage.content)) {
+        for await (const response of api.streamChat(userMessage.content, true, undefined)) {
           if (response.text) {
             get().appendToLastMessage(response.text);
             receivedAnyText = true;

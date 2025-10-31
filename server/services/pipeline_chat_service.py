@@ -276,7 +276,8 @@ class PipelineChatService:
     
     async def process_chat(self, message: str, client_ip: str, adapter_name: str, 
                           system_prompt_id: Optional[ObjectId] = None, api_key: Optional[str] = None,
-                          session_id: Optional[str] = None, user_id: Optional[str] = None) -> Dict[str, Any]:
+                          session_id: Optional[str] = None, user_id: Optional[str] = None,
+                          file_ids: Optional[List[str]] = None) -> Dict[str, Any]:
         """
         Process a chat message using the pipeline architecture.
         
@@ -288,6 +289,7 @@ class PipelineChatService:
             api_key: Optional API key for authentication
             session_id: Optional session identifier for chat history
             user_id: Optional user identifier
+            file_ids: Optional list of file IDs for file context
             
         Returns:
             Dictionary containing response and metadata
@@ -326,7 +328,8 @@ class PipelineChatService:
                 user_id=user_id,
                 session_id=session_id,
                 api_key=api_key,
-                timezone=timezone
+                timezone=timezone,
+                file_ids=file_ids or []
             )
             
             # Process through pipeline
@@ -384,7 +387,8 @@ class PipelineChatService:
     
     async def process_chat_stream(self, message: str, client_ip: str, adapter_name: str, 
                                  system_prompt_id: Optional[ObjectId] = None, api_key: Optional[str] = None,
-                                 session_id: Optional[str] = None, user_id: Optional[str] = None):
+                                 session_id: Optional[str] = None, user_id: Optional[str] = None,
+                                 file_ids: Optional[List[str]] = None):
         """
         Process a chat message with streaming response using the pipeline architecture.
         
@@ -396,6 +400,7 @@ class PipelineChatService:
             api_key: Optional API key for authentication
             session_id: Optional session identifier for chat history
             user_id: Optional user identifier
+            file_ids: Optional list of file IDs for file context
             
         Yields:
             Streaming response chunks
@@ -434,7 +439,8 @@ class PipelineChatService:
                 user_id=user_id,
                 session_id=session_id,
                 api_key=api_key,
-                timezone=timezone
+                timezone=timezone,
+                file_ids=file_ids or []
             )
             
             # Buffer to accumulate the complete response

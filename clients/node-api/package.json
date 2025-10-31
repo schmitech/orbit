@@ -25,6 +25,7 @@
     "scripts": {
         "dev": "vite",
         "build": "vite build",
+        "build:chat-app": "vite build && mkdir -p ../chat-app/src/api/local && cp dist/api.mjs ../chat-app/src/api/local/api.mjs && cp dist/api.mjs.map ../chat-app/src/api/local/api.mjs.map && cp dist/api.d.ts ../chat-app/src/api/local/api.d.ts",
         "lint": "eslint .",
         "preview": "vite preview",
         "test": "vitest run",

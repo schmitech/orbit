@@ -1,9 +1,20 @@
+export interface FileAttachment {
+  file_id: string;
+  filename: string;
+  mime_type: string;
+  file_size: number;
+  upload_timestamp?: string;
+  processing_status?: string;
+  chunk_count?: number;
+}
+
 export interface Message {
   id: string;
   content: string;
   role: 'user' | 'assistant';
   timestamp: Date;
   isStreaming?: boolean;
+  attachments?: FileAttachment[];
 }
 
 export interface Conversation {
@@ -13,6 +24,7 @@ export interface Conversation {
   messages: Message[];
   createdAt: Date;
   updatedAt: Date;
+  attachedFiles?: FileAttachment[];  // Files attached to this conversation
 }
 
 export interface ChatState {

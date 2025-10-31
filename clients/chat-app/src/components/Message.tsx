@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Bot, Copy, RotateCcw, ThumbsDown, ThumbsUp, User2 } from 'lucide-react';
+import { Bot, Copy, RotateCcw, ThumbsDown, ThumbsUp, User2, File } from 'lucide-react';
 import { Message as MessageType } from '../types';
 import { MarkdownRenderer } from '@schmitech/markdown-renderer';
 
@@ -80,26 +80,49 @@ export function Message({ message, onRegenerate }: MessageProps) {
             isAssistant
               ? 'bg-white/90 dark:bg-slate-900/90 border border-emerald-100/60 dark:border-emerald-500/20 text-slate-900 dark:text-slate-100 shadow-[0_20px_60px_rgba(16,185,129,0.16)]'
               : 'bg-slate-100 text-slate-900 dark:bg-slate-900 dark:text-slate-100 shadow-[0_18px_40px_rgba(15,23,42,0.35)]'
-          } relative rounded-2xl px-5 py-4 leading-relaxed backdrop-blur-sm transition-transform duration-200 ${
+          } relative rounded-2xl px-5 py-4 leading-relaxed backdrop-blur-sm transition-transform duration-200 overflow-visible ${
             isAssistant ? 'hover:-translate-y-0.5' : 'ml-auto hover:-translate-y-0.5'
           }`}
         >
           <div className={contentClass}>
             {message.isStreaming && (!message.content || message.content === '…') ? (
-              <div className="flex items-center gap-1">
-                <span className="inline-block w-2 h-2 bg-emerald-600 dark:bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                <span className="inline-block w-2 h-2 bg-emerald-600 dark:bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                <span className="inline-block w-2 h-2 bg-emerald-600 dark:bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+              <div className="flex items-center gap-1.5 py-1">
+                <span className="inline-block w-2.5 h-2.5 bg-emerald-600 dark:bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                <span className="inline-block w-2.5 h-2.5 bg-emerald-600 dark:bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                <span className="inline-block w-2.5 h-2.5 bg-emerald-600 dark:bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
               </div>
             ) : (
               <MarkdownRenderer content={message.content || ''} />
             )}
           </div>
+
+          {/* File attachments */}
+          {message.attachments && message.attachments.length > 0 && (
+            <div className="mt-3 space-y-2">
+              {message.attachments.map((file) => (
+                <div
+                  key={file.file_id}
+                  className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg"
+                >
+                  <File className="w-5 h-5 text-slate-500 dark:text-slate-400 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300 truncate">
+                      {file.filename}
+                    </p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      {(file.file_size / 1024).toFixed(1)} KB
+                      {file.chunk_count ? ` • ${file.chunk_count} chunks` : ''}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
           {message.isStreaming && message.content && message.content !== '…' && (
-            <div className="inline-flex items-center gap-1 ml-2">
-              <span className="inline-block w-2 h-2 bg-emerald-500 dark:bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-              <span className="inline-block w-2 h-2 bg-emerald-500 dark:bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-              <span className="inline-block w-2 h-2 bg-emerald-500 dark:bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+            <div className="inline-flex items-center gap-1.5 ml-2 mt-2 py-1">
+              <span className="inline-block w-2.5 h-2.5 bg-emerald-500 dark:bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+              <span className="inline-block w-2.5 h-2.5 bg-emerald-500 dark:bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+              <span className="inline-block w-2.5 h-2.5 bg-emerald-500 dark:bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
             </div>
           )}
         </div>

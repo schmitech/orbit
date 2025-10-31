@@ -119,8 +119,23 @@ pytest tests/file-adapter/test_metadata_store.py -v
 # Processing tests only
 pytest tests/file-adapter/test_file_processing.py -v
 
+# Retriever tests only
+pytest tests/file-adapter/test_file_retriever.py -v
+
 # Integration tests only
 pytest tests/file-adapter/test_integration.py -v
+
+# Chat with file context tests (NEW)
+pytest tests/file-adapter/test_chat_with_file_context.py -v
+
+# Chat routes integration tests (NEW)
+pytest tests/file-adapter/test_chat_routes_with_files.py -v
+
+# Multiple file retrieval tests (NEW)
+pytest tests/file-adapter/test_file_retriever_multiple_files.py -v
+
+# File routes integration tests
+pytest tests/file-adapter/test_file_routes_integration.py -v
 ```
 
 ### Run Specific Tests
@@ -154,8 +169,11 @@ pytest tests/file-adapter/test_integration.py -v
 | File Adapter | 30+ | Document formatting, filtering, content classification |
 | File Retriever | 25+ | Vector search, collection management, config priority |
 | Integration | 20+ | End-to-end workflows |
+| **Chat with File Context** | **25+** | **Pipeline integration, context retrieval, file_ids** |
+| **Chat Routes Integration** | **20+** | **HTTP endpoints, streaming, multi-file support** |
+| **Multiple File Retrieval** | **15+** | **Multiple file_ids, filtering, aggregation** |
 
-**Total**: 170+ test cases
+**Total**: 230+ test cases
 
 ## Test Requirements
 
@@ -316,6 +334,49 @@ Some tests include performance checks:
 
 These can be used as baseline benchmarks for performance optimization.
 
+#### `test_chat_with_file_context.py`
+Tests for chat integration with file context:
+- Processing context file_ids storage
+- Context retrieval step passing file_ids to retriever
+- File retriever handling multiple file_ids
+- File filtering by file_ids
+- Adapter routing (file-document-qa vs others)
+- API key ownership validation with file context
+- Backward compatibility with single file_id
+- Chat service passing file_ids through pipeline
+- Streaming chat with file_ids
+
+**Coverage**: Chat integration with file uploads (NEW)
+
+#### `test_chat_routes_with_files.py`
+Integration tests for /v1/chat endpoint with file_ids:
+- Chat with single file context
+- Chat with multiple file contexts
+- Streaming chat with file context
+- Chat without file context (normal operation)
+- Empty file_ids handling
+- Invalid file_id handling
+- Multi-tenancy file context isolation
+- Complete workflow: upload → chat → delete
+- Request schema validation
+- Performance testing with file context
+
+**Coverage**: HTTP chat routes with file integration (NEW)
+
+#### `test_file_retriever_multiple_files.py`
+Tests for multiple file_ids support in FileVectorRetriever:
+- Getting collections for multiple file_ids
+- Collection name override behavior
+- Empty vs None file_ids handling
+- Non-existent file_ids handling
+- Post-filtering with multiple file_ids
+- Single file_id filter_metadata usage
+- Backward compatibility with single file_id
+- Mixed existing/non-existing file_ids
+- Result aggregation across collections
+
+**Coverage**: Multiple file querying functionality (NEW)
+
 ## Future Test Additions
 
 Potential areas for additional test coverage:
@@ -327,7 +388,9 @@ Potential areas for additional test coverage:
 - [x] File retriever tests ✓
 - [x] File adapter tests ✓
 - [x] Configuration handling tests ✓
-- [ ] API endpoint tests (FastAPI integration)
+- [x] Chat integration with file context ✓ (NEW)
+- [x] Multiple file_ids support ✓ (NEW)
+- [x] API endpoint tests (FastAPI integration) ✓ (NEW)
 - [ ] DuckDB path tests for structured data
 - [ ] S3 storage backend tests (when implemented)
 

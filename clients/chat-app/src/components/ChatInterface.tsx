@@ -40,8 +40,8 @@ export function ChatInterface({ onOpenSettings }: ChatInterfaceProps) {
     localStorage.setItem('chat-api-key', apiKey);
   }, [apiUrl, apiKey]);
 
-  const handleSendMessage = (content: string) => {
-    sendMessage(content);
+  const handleSendMessage = (content: string, fileIds?: string[]) => {
+    sendMessage(content, fileIds);
   };
 
   const handleConfigureApi = async () => {
@@ -146,17 +146,17 @@ export function ChatInterface({ onOpenSettings }: ChatInterfaceProps) {
       )}
 
       {/* Chat Header */}
-      <div className="px-10 py-6 bg-gradient-to-b from-transparent via-transparent to-transparent backdrop-blur-sm relative z-10">
+      <div className="px-10 py-4 bg-gradient-to-b from-transparent via-transparent to-transparent backdrop-blur-sm relative z-10">
         <div className="flex items-center justify-between gap-6">
           <div className="min-w-0">
-            <p className="text-xs uppercase tracking-[0.28em] text-slate-500 dark:text-slate-400 font-semibold mb-2">
+            <p className="text-xs uppercase tracking-[0.28em] text-slate-500 dark:text-slate-400 font-semibold mb-1">
               Conversation
             </p>
-            <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100 truncate">
+            <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100 truncate">
               {currentConversation?.title || 'New Chat'}
             </h1>
             {currentConversation && (
-              <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                 {currentConversation.messages.length} messages · Updated {' '}
                 {currentConversation.updatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </p>

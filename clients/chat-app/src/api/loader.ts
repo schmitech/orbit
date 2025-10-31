@@ -7,7 +7,11 @@ import { getApiPackageVersion } from '../utils/version';
 
 // Check if we should use local API
 const useLocalApi = (import.meta.env as any).VITE_USE_LOCAL_API === 'true';
-const localApiPath = (import.meta.env as any).VITE_LOCAL_API_PATH || '../node-api/dist';
+// Vite serves files from public/ directory at root path
+// So /api.mjs maps to public/api.mjs
+// If VITE_LOCAL_API_PATH is not set, use /api.mjs (public directory)
+// If VITE_LOCAL_API_PATH is set, use it as-is (must be a path Vite can serve)
+const localApiPath = (import.meta.env as any).VITE_LOCAL_API_PATH;
 const debugMode = (import.meta.env as any).VITE_CONSOLE_DEBUG === 'true';
 
 // Type definitions for the API
@@ -17,7 +21,7 @@ export interface StreamResponse {
 }
 
 export interface ApiClient {
-  streamChat(message: string, stream?: boolean): AsyncGenerator<StreamResponse>;
+  streamChat(message: string, stream?: boolean, fileIds?: string[]): AsyncGenerator<StreamResponse>;
   clearConversationHistory?(sessionId?: string): Promise<{
     status: string;
     message: string;
@@ -26,11 +30,54 @@ export interface ApiClient {
     timestamp: string;
   }>;
   getSessionId(): string | null;
+  uploadFile?(file: File): Promise<{
+    file_id: string;
+    filename: string;
+    mime_type: string;
+    file_size: number;
+    status: string;
+    chunk_count: number;
+    message: string;
+  }>;
+  listFiles?(): Promise<Array<{
+    file_id: string;
+    filename: string;
+    mime_type: string;
+    file_size: number;
+    upload_timestamp: string;
+    processing_status: string;
+    chunk_count: number;
+    storage_type: string;
+  }>>;
+  getFileInfo?(fileId: string): Promise<{
+    file_id: string;
+    filename: string;
+    mime_type: string;
+    file_size: number;
+    upload_timestamp: string;
+    processing_status: string;
+    chunk_count: number;
+    storage_type: string;
+  }>;
+  queryFile?(fileId: string, query: string, maxResults?: number): Promise<{
+    file_id: string;
+    filename: string;
+    results: Array<{
+      content: string;
+      metadata: {
+        chunk_id: string;
+        file_id: string;
+        chunk_index: number;
+        confidence: number;
+      };
+    }>;
+  }>;
+  deleteFile?(fileId: string): Promise<{ message: string; file_id: string }>;
 }
 
 export interface ApiFunctions {
   configureApi: (apiUrl: string, apiKey?: string | null, sessionId?: string | null) => void;
-  streamChat: (message: string, stream?: boolean) => AsyncGenerator<StreamResponse>;
+  streamChat: (message: string, stream?: boolean, fileIds?: string[]) => AsyncGenerator<StreamResponse>;
   ApiClient: new (config: { apiUrl: string; apiKey?: string | null; sessionId?: string | null }) => ApiClient;
 }
 
@@ -47,9 +94,36 @@ export async function loadApi(): Promise<ApiFunctions> {
 
   try {
     if (useLocalApi) {
-      if (debugMode) console.log(`🔧 Loading local API from: ${localApiPath}`);
-      // Load from public directory
-      const localApi = await import(/* @vite-ignore */ `${localApiPath}/api.mjs`);
+      // Determine the correct path for loading
+      // Files should be in src/api/local/ directory (not public/) to be importable by Vite
+      // If VITE_LOCAL_API_PATH is set, use it; otherwise default to local directory
+      let apiPath: string;
+      if (localApiPath) {
+        // If a custom path is provided, use it (must be a relative path that Vite can resolve)
+        if (localApiPath.startsWith('/')) {
+          // Absolute path - convert to relative from src
+          apiPath = localApiPath.startsWith('/src/') 
+            ? `.${localApiPath.substring(4)}${localApiPath.endsWith('.mjs') ? '' : '/api.mjs'}`
+            : `./local/api.mjs`;
+        } else if (localApiPath.startsWith('../') || localApiPath.startsWith('./')) {
+          // Relative path - if it's ../node-api/dist, use local directory instead
+          if (localApiPath.includes('node-api/dist')) {
+            apiPath = './local/api.mjs';
+          } else {
+            apiPath = localApiPath.endsWith('.mjs') ? localApiPath : `${localApiPath}/api.mjs`;
+          }
+        } else {
+          // Treat as path relative to current file
+          apiPath = `./${localApiPath}${localApiPath.endsWith('.mjs') ? '' : '/api.mjs'}`;
+        }
+      } else {
+        // Default: use local directory (src/api/local/api.mjs)
+        apiPath = './local/api.mjs';
+      }
+      
+      if (debugMode) console.log(`🔧 Loading local API from: ${apiPath}`);
+      // Load from src directory (can be imported by Vite)
+      const localApi = await import(/* @vite-ignore */ apiPath);
       apiCache = {
         configureApi: localApi.configureApi,
         streamChat: localApi.streamChat,

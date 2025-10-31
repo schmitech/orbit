@@ -284,6 +284,7 @@ class RouteConfigurator:
         class ChatRequest(BaseModel):
             messages: List[Dict[str, str]]
             stream: bool = False
+            file_ids: Optional[List[str]] = None  # Optional list of file IDs for file context
 
         @app.post("/v1/chat", operation_id="chat")
         async def chat_endpoint(
@@ -309,6 +310,9 @@ class RouteConfigurator:
                 raise HTTPException(status_code=400, detail="No user message found in request")
             
             last_user_message = user_messages[-1].get("content", "")
+            
+            # Extract file_ids from request (for file context in conversations)
+            file_ids = chat_request.file_ids or []
 
             if chat_request.stream:
                 async def stream_generator():
@@ -319,7 +323,8 @@ class RouteConfigurator:
                         system_prompt_id=system_prompt_id,
                         api_key=api_key,
                         session_id=session_id,
-                        user_id=user_id
+                        user_id=user_id,
+                        file_ids=file_ids
                     ):
                         yield chunk
 
@@ -340,7 +345,8 @@ class RouteConfigurator:
                     system_prompt_id=system_prompt_id,
                     api_key=api_key,
                     session_id=session_id,
-                    user_id=user_id
+                    user_id=user_id,
+                    file_ids=file_ids
                 )
                 return result
     

@@ -74,6 +74,8 @@ class OpenAIBaseService(ProviderAIService):
             default_model = "gpt-4o-mini"
         elif self.service_type == ServiceType.MODERATION:
             default_model = "text-moderation-latest"
+        elif self.service_type == ServiceType.VISION:
+            default_model = "gpt-5"  # Default vision model
         else:
             default_model = None
 

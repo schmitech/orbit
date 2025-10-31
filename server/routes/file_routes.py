@@ -7,7 +7,7 @@ Provides endpoints for uploading, querying, and managing files.
 import logging
 import mimetypes
 from typing import List, Optional, Dict, Any
-from fastapi import APIRouter, UploadFile, File, HTTPException, Header, Depends, Request
+from fastapi import APIRouter, UploadFile, File, HTTPException, Header, Depends, Request, BackgroundTasks
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from datetime import datetime
@@ -87,6 +87,7 @@ def create_file_router() -> APIRouter:
     
     @router.post("/api/files/upload", response_model=UploadResponse)
     async def upload_file(
+        background_tasks: BackgroundTasks,
         request: Request,
         file: UploadFile = File(...),
         x_api_key: Optional[str] = Header(None, alias="X-API-Key"),
@@ -163,25 +164,57 @@ def create_file_router() -> APIRouter:
             if mime_type == 'application/octet-stream':
                 logger.warning(f"Could not determine MIME type for file: {file.filename}")
             
-            # Process file
-            result = await processing_service.process_file(
-                file_data=file_data,
-                filename=file.filename,
-                mime_type=mime_type,
-                api_key=x_api_key
-            )
-            
-            logger.info(f"File uploaded successfully: {result['file_id']}")
-            
-            return UploadResponse(
-                file_id=result['file_id'],
-                filename=result['filename'],
-                mime_type=result['mime_type'],
-                file_size=result['file_size'],
-                status=result['status'],
-                chunk_count=result['chunk_count'],
-                message="File uploaded and processed successfully"
-            )
+            # For images, store file and process in background to avoid blocking
+            if mime_type and mime_type.startswith('image/'):
+                # Quick upload: store file and return immediately
+                file_id = await processing_service.quick_upload(
+                    file_data=file_data,
+                    filename=file.filename,
+                    mime_type=mime_type,
+                    api_key=x_api_key
+                )
+                
+                # Process image content in background (vision API calls)
+                background_tasks.add_task(
+                    processing_service.process_file_content,
+                    file_id=file_id,
+                    file_data=file_data,
+                    filename=file.filename,
+                    mime_type=mime_type,
+                    api_key=x_api_key
+                )
+                
+                logger.info(f"File uploaded (processing in background): {file_id}")
+                
+                return UploadResponse(
+                    file_id=file_id,
+                    filename=file.filename,
+                    mime_type=mime_type,
+                    file_size=len(file_data),
+                    status='processing',
+                    chunk_count=0,
+                    message="File uploaded, processing in background"
+                )
+            else:
+                # For non-image files, process synchronously (usually fast)
+                result = await processing_service.process_file(
+                    file_data=file_data,
+                    filename=file.filename,
+                    mime_type=mime_type,
+                    api_key=x_api_key
+                )
+                
+                logger.info(f"File uploaded successfully: {result['file_id']}")
+                
+                return UploadResponse(
+                    file_id=result['file_id'],
+                    filename=result['filename'],
+                    mime_type=result['mime_type'],
+                    file_size=result['file_size'],
+                    status=result['status'],
+                    chunk_count=result['chunk_count'],
+                    message="File uploaded and processed successfully"
+                )
         
         except HTTPException:
             # Re-raise HTTP exceptions (like 401 for invalid API key)

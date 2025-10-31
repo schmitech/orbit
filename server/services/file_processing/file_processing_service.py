@@ -72,12 +72,23 @@ class FileProcessingService:
         ])
         
         # Vision service configuration - get from adapter config, then files.processing.vision, then default
-        vision_config = config.get('vision') or processing_config.get('vision', {})
+        # Get vision config from top-level config (merged from vision.yaml)
+        vision_config = config.get('vision', {})
+        # If not found at top level, check files.processing.vision
+        if not vision_config:
+            vision_config = processing_config.get('vision', {})
+        
         self.enable_vision = config.get('enable_vision') or \
                            vision_config.get('enabled', True)
         self.vision_provider = config.get('vision_provider') or \
                               vision_config.get('provider', 'openai')
         self.vision_config = vision_config
+        
+        # Log vision configuration for debugging
+        if self.enable_vision:
+            provider_config = vision_config.get(self.vision_provider, {})
+            model = provider_config.get('model', 'default')
+            self.logger.debug(f"Vision service configured: provider={self.vision_provider}, model={model}")
     
     def _init_storage(self) -> FilesystemStorage:
         """Initialize storage backend."""
@@ -101,6 +112,121 @@ class FileProcessingService:
             return SemanticChunker(chunk_size=chunk_size, overlap=overlap)
         else:
             return FixedSizeChunker(chunk_size=chunk_size, overlap=overlap)
+    
+    async def quick_upload(
+        self,
+        file_data: bytes,
+        filename: str,
+        mime_type: str,
+        api_key: str
+    ) -> str:
+        """
+        Quick file upload - stores file and returns file_id immediately.
+        Content processing happens in background via process_file_content.
+        
+        Args:
+            file_data: File contents as bytes
+            filename: Original filename
+            mime_type: MIME type
+            api_key: API key of uploader
+            
+        Returns:
+            file_id: Unique file identifier
+        """
+        # Generate unique file ID
+        file_id = str(uuid.uuid4())
+        
+        # Validate file
+        if not self._validate_file(file_data, mime_type):
+            raise ValueError(f"Unsupported file type: {mime_type}")
+        
+        # Store file
+        storage_key = f"{api_key}/{file_id}/{filename}"
+        metadata = {
+            'filename': filename,
+            'mime_type': mime_type,
+            'file_size': len(file_data),
+            'upload_time': datetime.now(UTC).isoformat(),
+        }
+        
+        await self.storage.put_file(file_data, storage_key, metadata)
+        
+        # Record in metadata store with status 'processing'
+        await self.metadata_store.record_file_upload(
+            file_id=file_id,
+            api_key=api_key,
+            filename=filename,
+            mime_type=mime_type,
+            file_size=len(file_data),
+            storage_key=storage_key,
+            storage_type='vector',
+            metadata=metadata,
+        )
+        
+        # Set status to processing
+        await self.metadata_store.update_processing_status(file_id, 'processing')
+        
+        return file_id
+    
+    async def process_file_content(
+        self,
+        file_id: str,
+        file_data: bytes,
+        filename: str,
+        mime_type: str,
+        api_key: str
+    ) -> None:
+        """
+        Process file content (extraction, chunking, indexing) in background.
+        Called after quick_upload for async processing.
+        
+        Args:
+            file_id: File identifier from quick_upload
+            file_data: File contents as bytes
+            filename: Original filename
+            mime_type: MIME type
+            api_key: API key of uploader
+        """
+        try:
+            # Extract text and metadata
+            extracted_text, file_metadata = await self._extract_content(file_data, filename, mime_type)
+            
+            # Chunk content
+            chunks = await self._chunk_content(extracted_text, file_id, file_metadata)
+            
+            # Index chunks into vector store
+            collection_name = await self._index_chunks_in_vector_store(
+                file_id=file_id,
+                api_key=api_key,
+                chunks=chunks
+            )
+            
+            # Record chunks in metadata store (with collection name)
+            for chunk in chunks:
+                await self.metadata_store.record_chunk(
+                    chunk_id=chunk.chunk_id,
+                    file_id=file_id,
+                    chunk_index=chunk.chunk_index,
+                    vector_store_id=chunk.chunk_id,
+                    collection_name=collection_name,
+                    metadata=chunk.metadata
+                )
+            
+            # Update metadata store with chunk count and collection name
+            await self.metadata_store.update_processing_status(
+                file_id,
+                'completed',
+                chunk_count=len(chunks),
+                collection_name=collection_name,
+            )
+            
+            self.logger.info(f"File content processed successfully: {file_id} ({len(chunks)} chunks)")
+            
+        except Exception as e:
+            self.logger.error(f"Error processing file content for {file_id}: {e}")
+            # Update status to failed
+            await self.metadata_store.update_processing_status(file_id, 'failed')
+            raise
     
     async def process_file(
         self,

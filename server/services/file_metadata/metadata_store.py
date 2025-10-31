@@ -52,7 +52,8 @@ class FileMetadataStore:
     
     def _init_schema(self):
         """Initialize database schema."""
-        self.connection = sqlite3.connect(self.db_path)
+        # Allow cross-thread usage since FastAPI uses async/await with multiple threads
+        self.connection = sqlite3.connect(self.db_path, check_same_thread=False)
         self.connection.row_factory = sqlite3.Row
         
         cursor = self.connection.cursor()
@@ -276,16 +277,29 @@ class FileMetadataStore:
             File metadata dictionary or None
         """
         try:
+            # Ensure connection is available (may need to reconnect if closed)
+            if not self.connection:
+                self._init_schema()
+            
             cursor = self.connection.cursor()
             cursor.execute("SELECT * FROM uploaded_files WHERE file_id = ?", (file_id,))
             row = cursor.fetchone()
             
             if row:
-                return dict(row)
+                file_info = dict(row)
+                # Ensure file_size is an integer (handle None case)
+                if file_info.get('file_size') is None:
+                    file_info['file_size'] = 0
+                return file_info
             return None
         
         except Exception as e:
             logger.error(f"Error getting file info: {e}")
+            # Try to reconnect on error
+            try:
+                self._init_schema()
+            except:
+                pass
             return None
     
     async def list_files(self, api_key: str) -> List[Dict[str, Any]]:

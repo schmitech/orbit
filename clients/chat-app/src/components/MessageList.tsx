@@ -47,19 +47,19 @@ export function MessageList({ messages, onRegenerate, isLoading }: MessageListPr
 
   if (messages.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center p-12">
-        <div className="max-w-md text-center space-y-6">
+      <div className="flex-1 flex items-start justify-center pt-8 pb-4 px-12">
+        <div className="max-w-md text-center space-y-4">
           <img
             src={orbitLogo}
             alt="ORBIT"
-            className="w-64 h-64 mx-auto drop-shadow-[0_10px_30px_rgba(37,99,235,0.25)]"
+            className="w-48 h-48 mx-auto drop-shadow-[0_10px_30px_rgba(37,99,235,0.25)]"
           />
-          <div className="space-y-3">
-            <h2 className="text-3xl font-semibold text-slate-900 dark:text-slate-100">
+          <div className="space-y-2">
+            <h2 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">
               Welcome to ORBIT
             </h2>
-            <p className="text-base text-slate-600 dark:text-slate-400 leading-relaxed">
-              Ask thoughtful questions, explore ideas, or iterate on your work. I’ll respond instantly and evolve with your conversation.
+            <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+              Ask thoughtful questions, explore ideas, or iterate on your work. I'll respond instantly and evolve with your conversation.
             </p>
           </div>
         </div>
@@ -74,9 +74,9 @@ export function MessageList({ messages, onRegenerate, isLoading }: MessageListPr
       onScroll={handleScroll}
     >
       {/* Top gradient fade */}
-      <div className="pointer-events-none sticky top-0 left-0 right-0 h-12 bg-gradient-to-b from-white/20 to-transparent dark:from-slate-950/20 dark:to-transparent z-10" />
+      <div className="pointer-events-none sticky top-0 left-0 right-0 h-8 bg-gradient-to-b from-white/20 to-transparent dark:from-slate-950/20 dark:to-transparent z-10" />
 
-      <div className="max-w-3xl mx-auto pt-2 pb-4 space-y-6">
+      <div className="max-w-3xl mx-auto pt-1 pb-2 space-y-4">
         {messages.map((message) => (
           <Message
             key={message.id}

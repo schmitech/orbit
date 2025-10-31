@@ -74,9 +74,22 @@ class ContextRetrievalStep(PipelineStep):
                 self.logger.debug(f"Using static retriever with adapter_name: {context.adapter_name}")
             
             # Get relevant documents
+            # Pass file_ids if present (for file adapter filtering)
+            retriever_kwargs = {}
+            if context.file_ids:
+                # For file adapter, pass file_ids to filter by specific files
+                if context.adapter_name == 'file-document-qa' or hasattr(retriever, 'get_relevant_context'):
+                    # FileVectorRetriever accepts file_id parameter
+                    # If multiple file_ids, we'll pass all of them and let retriever handle it
+                    retriever_kwargs['file_ids'] = context.file_ids
+                    # Also pass api_key for file ownership validation
+                    if context.api_key:
+                        retriever_kwargs['api_key'] = context.api_key
+            
             docs = await retriever.get_relevant_context(
                 query=context.message,
-                adapter_name=context.adapter_name
+                adapter_name=context.adapter_name,
+                **retriever_kwargs
             )
             
             context.retrieved_docs = docs

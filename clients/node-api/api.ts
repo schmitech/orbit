@@ -42,6 +42,48 @@ export interface ChatResponse {
 interface ChatRequest {
   messages: Array<{ role: string; content: string; }>;
   stream: boolean;
+  file_ids?: string[];  // Optional list of file IDs for file context
+}
+
+// File-related interfaces
+export interface FileUploadResponse {
+  file_id: string;
+  filename: string;
+  mime_type: string;
+  file_size: number;
+  status: string;
+  chunk_count: number;
+  message: string;
+}
+
+export interface FileInfo {
+  file_id: string;
+  filename: string;
+  mime_type: string;
+  file_size: number;
+  upload_timestamp: string;
+  processing_status: string;
+  chunk_count: number;
+  storage_type: string;
+}
+
+export interface FileQueryRequest {
+  query: string;
+  max_results?: number;
+}
+
+export interface FileQueryResponse {
+  file_id: string;
+  filename: string;
+  results: Array<{
+    content: string;
+    metadata: {
+      chunk_id: string;
+      file_id: string;
+      chunk_index: number;
+      confidence: number;
+    };
+  }>;
 }
 
 export class ApiClient {
@@ -103,9 +145,15 @@ export class ApiClient {
       Object.assign(headers, baseOptions.headers);
     }
 
-    // Merge original request headers
+    // Merge original request headers (but don't overwrite API key)
     if (options.headers) {
-      Object.assign(headers, options.headers);
+      const incomingHeaders = options.headers as Record<string, string>;
+      for (const [key, value] of Object.entries(incomingHeaders)) {
+        // Don't overwrite X-API-Key if we have one
+        if (key.toLowerCase() !== 'x-api-key' || !this.apiKey) {
+          headers[key] = value;
+        }
+      }
     }
 
     if (this.apiKey) {
@@ -124,18 +172,23 @@ export class ApiClient {
   }
 
   // Create Chat request
-  private createChatRequest(message: string, stream: boolean = true): ChatRequest {
-    return {
+  private createChatRequest(message: string, stream: boolean = true, fileIds?: string[]): ChatRequest {
+    const request: ChatRequest = {
       messages: [
         { role: "user", content: message }
       ],
       stream
     };
+    if (fileIds && fileIds.length > 0) {
+      request.file_ids = fileIds;
+    }
+    return request;
   }
 
   public async *streamChat(
     message: string,
-    stream: boolean = true
+    stream: boolean = true,
+    fileIds?: string[]
   ): AsyncGenerator<StreamResponse> {
     try {
       // Add timeout to the fetch request
@@ -149,7 +202,7 @@ export class ApiClient {
             'Content-Type': 'application/json',
             'Accept': stream ? 'text/event-stream' : 'application/json'
           },
-          body: JSON.stringify(this.createChatRequest(message, stream)),
+          body: JSON.stringify(this.createChatRequest(message, stream, fileIds)),
         }),
         signal: controller.signal
       });
@@ -314,6 +367,185 @@ export class ApiClient {
       }
     }
   }
+
+  /**
+   * Upload a file for processing and indexing.
+   * 
+   * @param file - The file to upload
+   * @returns Promise resolving to upload response with file_id
+   * @throws Error if upload fails
+   */
+  public async uploadFile(file: File): Promise<FileUploadResponse> {
+    if (!this.apiKey) {
+      throw new Error('API key is required for file upload');
+    }
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const response = await fetch(`${this.apiUrl}/api/files/upload`, {
+        ...this.getFetchOptions({
+          method: 'POST',
+          body: formData
+        })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to upload file: ${response.status} ${errorText}`);
+      }
+
+      return await response.json();
+    } catch (error: any) {
+      if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+        throw new Error('Could not connect to the server. Please check if the server is running.');
+      } else {
+        throw error;
+      }
+    }
+  }
+
+  /**
+   * List all files for the current API key.
+   * 
+   * @returns Promise resolving to list of file information
+   * @throws Error if request fails
+   */
+  public async listFiles(): Promise<FileInfo[]> {
+    if (!this.apiKey) {
+      throw new Error('API key is required for listing files');
+    }
+
+    try {
+      const response = await fetch(`${this.apiUrl}/api/files`, {
+        ...this.getFetchOptions({
+          method: 'GET'
+        })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to list files: ${response.status} ${errorText}`);
+      }
+
+      return await response.json();
+    } catch (error: any) {
+      if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+        throw new Error('Could not connect to the server. Please check if the server is running.');
+      } else {
+        throw error;
+      }
+    }
+  }
+
+  /**
+   * Get information about a specific file.
+   * 
+   * @param fileId - The file ID
+   * @returns Promise resolving to file information
+   * @throws Error if file not found or request fails
+   */
+  public async getFileInfo(fileId: string): Promise<FileInfo> {
+    if (!this.apiKey) {
+      throw new Error('API key is required for getting file info');
+    }
+
+    try {
+      const response = await fetch(`${this.apiUrl}/api/files/${fileId}`, {
+        ...this.getFetchOptions({
+          method: 'GET'
+        })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to get file info: ${response.status} ${errorText}`);
+      }
+
+      return await response.json();
+    } catch (error: any) {
+      if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+        throw new Error('Could not connect to the server. Please check if the server is running.');
+      } else {
+        throw error;
+      }
+    }
+  }
+
+  /**
+   * Query a specific file using semantic search.
+   * 
+   * @param fileId - The file ID
+   * @param query - The search query
+   * @param maxResults - Maximum number of results (default: 10)
+   * @returns Promise resolving to query results
+   * @throws Error if query fails
+   */
+  public async queryFile(fileId: string, query: string, maxResults: number = 10): Promise<FileQueryResponse> {
+    if (!this.apiKey) {
+      throw new Error('API key is required for querying files');
+    }
+
+    try {
+      const response = await fetch(`${this.apiUrl}/api/files/${fileId}/query`, {
+        ...this.getFetchOptions({
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ query, max_results: maxResults })
+        })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to query file: ${response.status} ${errorText}`);
+      }
+
+      return await response.json();
+    } catch (error: any) {
+      if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+        throw new Error('Could not connect to the server. Please check if the server is running.');
+      } else {
+        throw error;
+      }
+    }
+  }
+
+  /**
+   * Delete a specific file.
+   * 
+   * @param fileId - The file ID
+   * @returns Promise resolving to deletion result
+   * @throws Error if deletion fails
+   */
+  public async deleteFile(fileId: string): Promise<{ message: string; file_id: string }> {
+    if (!this.apiKey) {
+      throw new Error('API key is required for deleting files');
+    }
+
+    try {
+      const response = await fetch(`${this.apiUrl}/api/files/${fileId}`, {
+        ...this.getFetchOptions({
+          method: 'DELETE'
+        })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to delete file: ${response.status} ${errorText}`);
+      }
+
+      return await response.json();
+    } catch (error: any) {
+      if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+        throw new Error('Could not connect to the server. Please check if the server is running.');
+      } else {
+        throw error;
+      }
+    }
+  }
 }
 
 // Legacy compatibility functions - these create a default client instance
@@ -329,12 +561,13 @@ export const configureApi = (apiUrl: string, apiKey: string | null = null, sessi
 // Legacy streamChat function that uses the default client
 export async function* streamChat(
   message: string,
-  stream: boolean = true
+  stream: boolean = true,
+  fileIds?: string[]
 ): AsyncGenerator<StreamResponse> {
   if (!defaultClient) {
     throw new Error('API not configured. Please call configureApi() with your server URL before using any API functions.');
   }
   
-  yield* defaultClient.streamChat(message, stream);
+  yield* defaultClient.streamChat(message, stream, fileIds);
 }
 

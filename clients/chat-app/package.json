@@ -8,7 +8,7 @@
     "dev:local": "VITE_USE_LOCAL_API=true vite",
     "build": "tsc && vite build",
     "build:local": "VITE_USE_LOCAL_API=true tsc && vite build",
-    "build:api": "cd ../node-api && npm run build",
+    "build:api": "cd ../node-api && npm run build && mkdir -p ../chat-app/src/api/local && cp dist/api.mjs ../chat-app/src/api/local/api.mjs && cp dist/api.mjs.map ../chat-app/src/api/local/api.mjs.map && cp dist/api.d.ts ../chat-app/src/api/local/api.d.ts",
     "dev:with-api": "npm run build:api && npm run dev:local",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",

@@ -51,6 +51,9 @@ class ProcessingContext:
     api_key: Optional[str] = None
     timezone: Optional[str] = None
     
+    # File context
+    file_ids: List[str] = field(default_factory=list)  # Optional list of file IDs for file context
+    
     def has_error(self) -> bool:
         """Check if the context has an error."""
         return self.is_blocked or self.error is not None

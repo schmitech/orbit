@@ -109,6 +109,7 @@ class FileVectorRetriever(AbstractVectorRetriever):
     
     async def get_relevant_context(self, query: str, api_key: Optional[str] = None, 
                                   file_id: Optional[str] = None,
+                                  file_ids: Optional[List[str]] = None,
                                   collection_name: Optional[str] = None,
                                   **kwargs) -> List[Dict[str, Any]]:
         """
@@ -117,7 +118,8 @@ class FileVectorRetriever(AbstractVectorRetriever):
         Args:
             query: User query
             api_key: API key for filtering
-            file_id: Optional specific file to query
+            file_id: Optional specific file to query (legacy parameter)
+            file_ids: Optional list of specific files to query
             collection_name: Optional specific collection
             
         Returns:
@@ -125,11 +127,14 @@ class FileVectorRetriever(AbstractVectorRetriever):
         """
         await self.ensure_initialized()
         
+        # Support both file_id (singular) and file_ids (plural) for backward compatibility
+        target_file_ids = file_ids or ([file_id] if file_id else None)
+        
         # Generate query embedding
         query_embedding = await self.embed_query(query)
         
         # Determine collections to search
-        collections = await self._get_collections(file_id, api_key, collection_name)
+        collections = await self._get_collections_multiple(target_file_ids, api_key, collection_name)
         
         # Search across collections
         results = []
@@ -137,7 +142,7 @@ class FileVectorRetriever(AbstractVectorRetriever):
             collection_results = await self._search_collection(
                 collection,
                 query_embedding,
-                file_id=file_id
+                file_ids=target_file_ids
             )
             results.extend(collection_results)
         
@@ -151,15 +156,23 @@ class FileVectorRetriever(AbstractVectorRetriever):
     
     async def _get_collections(self, file_id: Optional[str], api_key: Optional[str],
                               collection_name: Optional[str]) -> List[str]:
-        """Get list of collections to search."""
+        """Get list of collections to search (legacy method for single file_id)."""
+        return await self._get_collections_multiple([file_id] if file_id else None, api_key, collection_name)
+    
+    async def _get_collections_multiple(self, file_ids: Optional[List[str]], api_key: Optional[str],
+                                       collection_name: Optional[str]) -> List[str]:
+        """Get list of collections to search for multiple file IDs."""
         if collection_name:
             return [collection_name]
         
-        if file_id:
-            # Get file info to find its collection
-            file_info = await self.metadata_store.get_file_info(file_id)
-            if file_info and file_info.get('collection_name'):
-                return [file_info['collection_name']]
+        if file_ids:
+            # Get collections for all specified files
+            collections = set()
+            for file_id in file_ids:
+                file_info = await self.metadata_store.get_file_info(file_id)
+                if file_info and file_info.get('collection_name'):
+                    collections.add(file_info['collection_name'])
+            return list(collections) if collections else []
         
         # Get all collections for API key
         if api_key:
@@ -170,7 +183,8 @@ class FileVectorRetriever(AbstractVectorRetriever):
         return []
     
     async def _search_collection(self, collection_name: str, query_embedding: List[float],
-                                 file_id: Optional[str] = None, limit: int = 10) -> List[Dict[str, Any]]:
+                                 file_id: Optional[str] = None, file_ids: Optional[List[str]] = None,
+                                 limit: int = 10) -> List[Dict[str, Any]]:
         """Search a specific collection for relevant chunks."""
         if not self._default_store:
             return []
@@ -178,8 +192,15 @@ class FileVectorRetriever(AbstractVectorRetriever):
         try:
             # Build metadata filter
             filter_metadata = {}
-            if file_id:
-                filter_metadata['file_id'] = file_id
+            # Support both single file_id and multiple file_ids
+            target_file_ids = file_ids or ([file_id] if file_id else None)
+            if target_file_ids:
+                # If multiple file_ids, we need to filter by any of them
+                # Note: Some vector stores support OR filters, others may need multiple queries
+                # For now, filter by the first file_id if multiple (we'll search all collections anyway)
+                if len(target_file_ids) == 1:
+                    filter_metadata['file_id'] = target_file_ids[0]
+                # TODO: Support proper OR filtering for multiple file_ids in vector store queries
             
             # Search vector store
             results = await self._default_store.search_vectors(
@@ -188,6 +209,10 @@ class FileVectorRetriever(AbstractVectorRetriever):
                 collection_name=collection_name,
                 filter_metadata=filter_metadata
             )
+            
+            # Post-filter results by file_ids if multiple files specified
+            if target_file_ids and len(target_file_ids) > 1:
+                results = [r for r in results if r.get('metadata', {}).get('file_id') in target_file_ids]
             
             # Retrieve full chunk information from metadata store
             enriched_results = []
