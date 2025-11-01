@@ -1,8 +1,9 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Send, Mic, MicOff, Paperclip, X } from 'lucide-react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { Send, Mic, MicOff, Paperclip, X, Loader2 } from 'lucide-react';
 import { useVoice } from '../hooks/useVoice';
 import { FileUpload } from './FileUpload';
 import { FileAttachment } from '../types';
+import { useChatStore } from '../stores/chatStore';
 
 interface MessageInputProps {
   onSend: (message: string, fileIds?: string[]) => void;
@@ -20,7 +21,13 @@ export function MessageInput({
   const [isFocused, setIsFocused] = useState(false);
   const [showFileUpload, setShowFileUpload] = useState(false);
   const [attachedFiles, setAttachedFiles] = useState<FileAttachment[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const [isHoveringUpload, setIsHoveringUpload] = useState(false);
+  const [isHoveringMic, setIsHoveringMic] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const processedFilesRef = useRef<Set<string>>(new Set());
+
+  const { createConversation, currentConversationId, removeFileFromConversation, conversations } = useChatStore();
 
   const {
     isListening,
@@ -32,6 +39,33 @@ export function MessageInput({
     setMessage(prev => (prev + text).slice(0, 1000));
   });
 
+  // Check if any files are currently uploading or processing
+  const currentConversation = conversations.find(conv => conv.id === currentConversationId);
+  const conversationFiles = currentConversation?.attachedFiles || [];
+  
+  // Check if any attached files are still processing
+  // Include files with undefined status (still uploading), 'uploading', or 'processing' status
+  const hasProcessingFiles = attachedFiles.some(file => {
+    if (!file.processing_status) {
+      // File doesn't have status yet - likely still uploading
+      return true;
+    }
+    return file.processing_status !== 'completed' && 
+           file.processing_status !== 'error' &&
+           file.processing_status !== 'failed';
+  }) || conversationFiles.some(file => {
+    if (!file.processing_status) {
+      // File doesn't have status yet - likely still uploading
+      return true;
+    }
+    return file.processing_status !== 'completed' && 
+           file.processing_status !== 'error' &&
+           file.processing_status !== 'failed';
+  });
+
+  // Disable input if files are uploading, processing, or if already disabled
+  const isInputDisabled = disabled || hasProcessingFiles || isUploading;
+
   // Auto-resize textarea
   useEffect(() => {
     if (textareaRef.current) {
@@ -42,14 +76,24 @@ export function MessageInput({
 
   // Auto-focus when not disabled (when AI response is complete)
   useEffect(() => {
-    if (!disabled && textareaRef.current) {
+    if (!isInputDisabled && textareaRef.current) {
       textareaRef.current.focus();
     }
-  }, [disabled]);
+  }, [isInputDisabled]);
+
+  // Close upload area when files finish uploading (upload complete, processing may continue)
+  // This prevents users from uploading more files while current ones are processing
+  // Note: We don't close immediately when upload starts to allow files to be properly added to state
+  useEffect(() => {
+    if (!isUploading && attachedFiles.length > 0 && showFileUpload) {
+      // Upload has finished - close the upload area (processing may continue in background)
+      setShowFileUpload(false);
+    }
+  }, [isUploading, attachedFiles.length, showFileUpload]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if ((message.trim() || attachedFiles.length > 0) && !disabled && !isComposing) {
+    if ((message.trim() || attachedFiles.length > 0) && !isInputDisabled && !isComposing) {
       const fileIds = attachedFiles.map(f => f.file_id);
       onSend(message.trim(), fileIds.length > 0 ? fileIds : undefined);
       setMessage('');
@@ -61,12 +105,72 @@ export function MessageInput({
     }
   };
 
-  const handleFilesSelected = (files: FileAttachment[]) => {
+  const handleFilesSelected = useCallback((files: FileAttachment[]) => {
     setAttachedFiles(files);
-  };
+    
+    // Automatically add uploaded files to the current conversation
+    // Use setTimeout to defer state updates and avoid infinite loops
+    setTimeout(() => {
+      // Get fresh state inside setTimeout to avoid dependency issues
+      const store = useChatStore.getState();
+      let conversationId = store.currentConversationId;
+      
+      if (!conversationId) {
+        // Create a new conversation if none exists
+        conversationId = createConversation();
+        // Get updated state after creating conversation
+        const updatedStore = useChatStore.getState();
+        conversationId = updatedStore.currentConversationId || conversationId;
+      }
+      
+      // Get fresh store state to access addFileToConversation
+      const updatedStore = useChatStore.getState();
+      
+      // Clean up processedFilesRef: remove entries for files that are no longer in the current list
+      // This prevents stale entries from blocking new file uploads
+      const currentFileIds = new Set(files.map(f => f.file_id));
+      const keysToRemove: string[] = [];
+      processedFilesRef.current.forEach((_, key) => {
+        const fileId = key.split('-').slice(1).join('-'); // Extract file_id from "conversationId-file_id"
+        if (!currentFileIds.has(fileId)) {
+          keysToRemove.push(key);
+        }
+      });
+      keysToRemove.forEach(key => processedFilesRef.current.delete(key));
+      
+      // Add each file to the conversation (will update status if already exists)
+      // The upload polling will ensure status is updated when processing completes
+      files.forEach(file => {
+        const fileKey = `${conversationId}-${file.file_id}`;
+        if (!processedFilesRef.current.has(fileKey)) {
+          processedFilesRef.current.add(fileKey);
+          
+          // Always add/update the file in conversation (addFileToConversation handles updates)
+          // This ensures the status is updated when polling completes
+          updatedStore.addFileToConversation(conversationId!, file);
+        }
+      });
+    }, 0);
+  }, [createConversation]);
 
-  const handleRemoveFile = (fileId: string) => {
+  const handleRemoveFile = async (fileId: string) => {
+    // Remove from local attached files list
     setAttachedFiles(prev => prev.filter(f => f.file_id !== fileId));
+    
+    // Remove from processedFilesRef to allow re-uploading if needed
+    if (currentConversationId) {
+      const fileKey = `${currentConversationId}-${fileId}`;
+      processedFilesRef.current.delete(fileKey);
+    }
+    
+    // Remove from conversation and delete from server if conversation exists
+    if (currentConversationId) {
+      try {
+        await removeFileFromConversation(currentConversationId, fileId);
+      } catch (error) {
+        console.error(`Failed to remove file ${fileId} from conversation:`, error);
+      }
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -105,19 +209,33 @@ export function MessageInput({
             type="button"
             onClick={(e) => {
               e.preventDefault();
-              setShowFileUpload(!showFileUpload);
+              if (!isInputDisabled) {
+                setShowFileUpload(!showFileUpload);
+              }
             }}
-            disabled={disabled}
+            disabled={isInputDisabled}
+            onMouseEnter={() => setIsHoveringUpload(true)}
+            onMouseLeave={() => setIsHoveringUpload(false)}
             className={`flex-shrink-0 p-2 transition-all duration-200 rounded-lg ${
               showFileUpload || attachedFiles.length > 0
                 ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20'
-                : disabled
+                : isInputDisabled
                 ? 'text-slate-300 dark:text-slate-600 cursor-not-allowed opacity-50'
                 : 'text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
             }`}
-            title={attachedFiles.length > 0 ? `${attachedFiles.length} file(s) attached` : 'Attach files'}
+            title={
+              isInputDisabled 
+                ? 'Files are uploading/processing. Please wait...' 
+                : attachedFiles.length > 0 
+                  ? `${attachedFiles.length} file(s) attached` 
+                  : 'Attach files'
+            }
           >
-            <Paperclip className="w-5 h-5" />
+            {isInputDisabled && isHoveringUpload ? (
+              <X className="w-5 h-5" />
+            ) : (
+              <Paperclip className="w-5 h-5" />
+            )}
           </button>
 
           {/* Text input */}
@@ -130,8 +248,8 @@ export function MessageInput({
             onCompositionEnd={() => setIsComposing(false)}
             onFocus={() => setIsFocused(true)}
             onBlur={() => setIsFocused(false)}
-            placeholder={placeholder}
-            disabled={disabled}
+            placeholder={(hasProcessingFiles || isUploading) ? 'Files are uploading/processing, please wait...' : placeholder}
+            disabled={isInputDisabled}
             rows={1}
             maxLength={1000}
             className="flex-1 bg-transparent border-none outline-none resize-none text-slate-900 dark:text-slate-100 placeholder-slate-500 dark:placeholder-slate-400 max-h-32 leading-relaxed font-medium focus:outline-none focus:ring-0 focus:border-none appearance-none"
@@ -160,23 +278,45 @@ export function MessageInput({
             <button
               type="button"
               onClick={handleVoiceToggle}
+              disabled={isInputDisabled}
+              onMouseEnter={() => setIsHoveringMic(true)}
+              onMouseLeave={() => setIsHoveringMic(false)}
               className={`flex-shrink-0 p-2 transition-all duration-200 rounded-lg ${
                 isListening
                   ? 'text-red-500 bg-red-50 dark:text-red-400 dark:bg-red-900/20 shadow-sm transform scale-110'
+                  : isInputDisabled
+                  ? 'text-slate-300 dark:text-slate-600 cursor-not-allowed opacity-50'
                   : 'text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 hover:scale-110'
               }`}
-              title={isListening ? 'Stop recording' : 'Start voice input'}
+              title={
+                isInputDisabled 
+                  ? 'Files are uploading/processing. Please wait...'
+                  : isListening 
+                    ? 'Stop recording' 
+                    : 'Start voice input'
+              }
             >
-              {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+              {isListening || (isInputDisabled && isHoveringMic) ? (
+                <MicOff className="w-5 h-5" />
+              ) : (
+                <Mic className="w-5 h-5" />
+              )}
             </button>
+          )}
+
+          {/* Processing indicator (spinning icon) */}
+          {(hasProcessingFiles || isUploading) && (
+            <div className="flex-shrink-0 flex items-center justify-center">
+              <Loader2 className="w-5 h-5 text-amber-500 dark:text-amber-400 animate-spin" />
+            </div>
           )}
 
           {/* Send button */}
           <button
             type="submit"
-            disabled={(!message.trim() && attachedFiles.length === 0) || disabled || isComposing}
+            disabled={(!message.trim() && attachedFiles.length === 0) || isInputDisabled || isComposing}
             className={`flex-shrink-0 px-4 py-2 rounded-xl transition-all duration-200 font-semibold ${
-              (message.trim() || attachedFiles.length > 0) && !disabled && !isComposing
+              (message.trim() || attachedFiles.length > 0) && !isInputDisabled && !isComposing
                 ? 'bg-slate-800 dark:bg-emerald-500 text-white shadow-[0_14px_40px_rgba(15,23,42,0.25)] dark:shadow-[0_14px_40px_rgba(16,185,129,0.35)] hover:bg-slate-900 dark:hover:bg-emerald-600 hover:-translate-y-0.5 active:translate-y-0'
                 : 'bg-slate-200 dark:bg-slate-700 text-slate-400 dark:text-slate-500 cursor-not-allowed'
             }`}
@@ -233,8 +373,9 @@ export function MessageInput({
                   console.error('File upload error:', error);
                   // Could show toast notification here
                 }}
+                onUploadingChange={setIsUploading}
                 maxFiles={5}
-                disabled={disabled}
+                disabled={isInputDisabled}
               />
             </div>
           </div>

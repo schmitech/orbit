@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { getApi } from '../api/loader';
-import { Message, Conversation, ChatState } from '../types';
+import { Message, Conversation, ChatState, FileAttachment } from '../types';
+import { FileUploadService } from '../services/fileService';
 
 // Session management utilities
 const getOrCreateSessionId = (): string => {
@@ -50,6 +51,11 @@ interface ExtendedChatState extends ChatState {
   cleanupStreamingMessages: () => void;
   canCreateNewConversation: () => boolean;
   getConversationCount: () => number;
+  // File management methods
+  addFileToConversation: (conversationId: string, file: FileAttachment) => void;
+  removeFileFromConversation: (conversationId: string, fileId: string) => Promise<void>;
+  loadConversationFiles: (conversationId: string) => Promise<void>;
+  syncConversationFiles: (conversationId: string) => Promise<void>;
 }
 
 // API configuration state
@@ -198,6 +204,9 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         const api = await getApi();
         api.configureApi(apiUrl, apiKey, conversation.sessionId);
       }
+
+      // Sync files for this conversation
+      await get().syncConversationFiles(id);
     }
     
     // Save to localStorage
@@ -219,8 +228,26 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         conversationId: id,
         sessionId: conversation?.sessionId,
         title: conversation?.title,
-        messageCount: conversation?.messages.length
+        messageCount: conversation?.messages.length,
+        fileCount: conversation?.attachedFiles?.length || 0
       });
+    }
+    
+    // Delete associated files from server
+    if (conversation?.attachedFiles && conversation.attachedFiles.length > 0) {
+      const fileDeletionPromises = conversation.attachedFiles.map(async (file) => {
+        try {
+          await FileUploadService.deleteFile(file.file_id);
+          if (debugMode) {
+            console.log(`✅ Deleted file ${file.file_id} (${file.filename})`);
+          }
+        } catch (error) {
+          console.error(`Failed to delete file ${file.file_id} (${file.filename}):`, error);
+          // Continue with other files even if one fails
+        }
+      });
+      
+      await Promise.allSettled(fileDeletionPromises);
     }
     
     // If conversation has a session ID, clear it from the server
@@ -306,6 +333,34 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         conversationId = get().createConversation();
       }
 
+      // Get file attachments for the message from conversation's attachedFiles
+      const conversation = get().conversations.find(conv => conv.id === conversationId);
+      const fileAttachments: FileAttachment[] = fileIds
+        ? fileIds
+            .map(fileId => {
+              // Try to find in conversation's attachedFiles first
+              const existingFile = conversation?.attachedFiles?.find(f => f.file_id === fileId);
+              if (existingFile) {
+                return existingFile;
+              }
+              // Fallback: create minimal attachment
+              return {
+                file_id: fileId,
+                filename: '',
+                mime_type: '',
+                file_size: 0
+              };
+            })
+            .filter((f): f is FileAttachment => f !== undefined)
+        : [];
+
+      // If fileIds were provided, ensure they're added to conversation's attachedFiles
+      if (fileAttachments.length > 0) {
+        fileAttachments.forEach(file => {
+          get().addFileToConversation(conversationId, file);
+        });
+      }
+
       // Add user message and assistant streaming message in a single atomic update
       // Store file attachments with the message if provided
       const userMessage: Message = {
@@ -313,12 +368,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         content,
         role: 'user',
         timestamp: new Date(),
-        attachments: fileIds ? fileIds.map(fileId => ({
-          file_id: fileId,
-          filename: '', // Will be populated from file metadata if needed
-          mime_type: '',
-          file_size: 0
-        })) : undefined
+        attachments: fileAttachments.length > 0 ? fileAttachments : undefined
       };
 
       const assistantMessageId = generateUniqueMessageId('assistant');
@@ -634,6 +684,145 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
   // Get current conversation count
   getConversationCount: () => {
     return get().conversations.length;
+  },
+
+  // Add file to conversation
+  addFileToConversation: (conversationId: string, file: FileAttachment) => {
+    set(state => ({
+      conversations: state.conversations.map(conv =>
+        conv.id === conversationId
+          ? {
+              ...conv,
+              attachedFiles: [
+                ...(conv.attachedFiles || []).filter(f => f.file_id !== file.file_id),
+                file
+              ],
+              updatedAt: new Date()
+            }
+          : conv
+      )
+    }));
+
+    // Save to localStorage
+    setTimeout(() => {
+      const currentState = get();
+      localStorage.setItem('chat-state', JSON.stringify({
+        conversations: currentState.conversations,
+        currentConversationId: currentState.currentConversationId
+      }));
+    }, 0);
+  },
+
+  // Remove file from conversation and delete from server
+  removeFileFromConversation: async (conversationId: string, fileId: string) => {
+    try {
+      // Delete from server
+      await FileUploadService.deleteFile(fileId);
+    } catch (error: any) {
+      // If file was already deleted (404), that's fine - just log and continue
+      if (error.message && (error.message.includes('404') || error.message.includes('File not found'))) {
+        console.log(`File ${fileId} was already deleted from server`);
+      } else {
+        console.error(`Failed to delete file ${fileId} from server:`, error);
+      }
+      // Continue with local removal even if server deletion fails
+    }
+
+    // Remove from conversation locally
+    set(state => ({
+      conversations: state.conversations.map(conv =>
+        conv.id === conversationId
+          ? {
+              ...conv,
+              attachedFiles: (conv.attachedFiles || []).filter(f => f.file_id !== fileId),
+              updatedAt: new Date()
+            }
+          : conv
+      )
+    }));
+
+    // Save to localStorage
+    setTimeout(() => {
+      const currentState = get();
+      localStorage.setItem('chat-state', JSON.stringify({
+        conversations: currentState.conversations,
+        currentConversationId: currentState.currentConversationId
+      }));
+    }, 0);
+  },
+
+  // Load files from server for a conversation
+  loadConversationFiles: async (conversationId: string) => {
+    try {
+      const files = await FileUploadService.listFiles();
+      
+      // Convert to FileAttachment format and update conversation
+      const fileAttachments: FileAttachment[] = files.map(file => ({
+        file_id: file.file_id,
+        filename: file.filename,
+        mime_type: file.mime_type,
+        file_size: file.file_size,
+        upload_timestamp: file.upload_timestamp,
+        processing_status: file.processing_status,
+        chunk_count: file.chunk_count
+      }));
+
+      // Update conversation with loaded files (merge with existing, avoid duplicates, update statuses)
+      set(state => {
+        const conversation = state.conversations.find(conv => conv.id === conversationId);
+        if (!conversation) return state;
+
+        // Create a map of server files for quick lookup
+        const serverFilesMap = new Map(
+          fileAttachments.map(file => [file.file_id, file])
+        );
+
+        // Merge: update existing files with server status, add new server files
+        const mergedFiles: FileAttachment[] = [
+          // Update existing files with server status if available
+          ...(conversation.attachedFiles || []).map(existingFile => {
+            const serverFile = serverFilesMap.get(existingFile.file_id);
+            // Use server file if available (has latest status), otherwise keep existing
+            return serverFile || existingFile;
+          }),
+          // Add new files from server that aren't in conversation yet
+          ...fileAttachments.filter(
+            serverFile => !(conversation.attachedFiles || []).some(
+              existingFile => existingFile.file_id === serverFile.file_id
+            )
+          )
+        ];
+
+        return {
+          conversations: state.conversations.map(conv =>
+            conv.id === conversationId
+              ? {
+                  ...conv,
+                  attachedFiles: mergedFiles,
+                  updatedAt: new Date()
+                }
+              : conv
+          )
+        };
+      });
+
+      // Save to localStorage
+      setTimeout(() => {
+        const currentState = get();
+        localStorage.setItem('chat-state', JSON.stringify({
+          conversations: currentState.conversations,
+          currentConversationId: currentState.currentConversationId
+        }));
+      }, 0);
+    } catch (error) {
+      console.error(`Failed to load files for conversation ${conversationId}:`, error);
+      // Don't throw - allow conversation to load even if file loading fails
+    }
+  },
+
+  // Sync files when switching conversations
+  syncConversationFiles: async (conversationId: string) => {
+    await get().loadConversationFiles(conversationId);
   }
 }));
 
@@ -656,6 +845,7 @@ const initializeStore = () => {
         sessionId: conv.sessionId || generateUniqueSessionId(), // Generate sessionId for existing conversations if missing
         createdAt: new Date(conv.createdAt),
         updatedAt: new Date(conv.updatedAt),
+        attachedFiles: conv.attachedFiles || [], // Ensure attachedFiles exists
         messages: conv.messages
           .filter((msg: any) => !(msg.role === 'assistant' && msg.isStreaming)) // Remove any streaming messages
           .map((msg: any) => ({

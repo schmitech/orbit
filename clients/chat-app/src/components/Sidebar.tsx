@@ -3,6 +3,7 @@ import { Plus, Search, MessageSquare, Trash2, Edit2 } from 'lucide-react';
 import { useChatStore } from '../stores/chatStore';
 import { Conversation } from '../types';
 import { ConfirmationModal } from './ConfirmationModal';
+import { FileList } from './FileList';
 
 interface SidebarProps {}
 
@@ -164,7 +165,7 @@ export function Sidebar({}: SidebarProps) {
         </div>
 
         {/* Conversations List */}
-        <div className="flex-1 overflow-y-auto px-4 pb-4 relative z-10">
+        <div className="flex-1 overflow-y-auto px-4 pb-2 relative z-10 min-h-0">
           {filteredConversations.length === 0 ? (
             <div className="p-8 text-center">
               <MessageSquare className="w-12 h-12 mx-auto mb-4 text-slate-300 dark:text-slate-600" />
@@ -219,6 +220,11 @@ export function Sidebar({}: SidebarProps) {
                       </h3>
                       <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">
                         {conversation.messages.length} messages
+                        {conversation.attachedFiles && conversation.attachedFiles.length > 0 && (
+                          <span className="ml-2">
+                            · {conversation.attachedFiles.length} file{conversation.attachedFiles.length !== 1 ? 's' : ''}
+                          </span>
+                        )}
                       </p>
                     </div>
                   )}
@@ -245,6 +251,10 @@ export function Sidebar({}: SidebarProps) {
           )}
         </div>
 
+        {/* File List */}
+        <div className="flex-shrink-0 relative z-10">
+          <FileList />
+        </div>
 
       </div>
 

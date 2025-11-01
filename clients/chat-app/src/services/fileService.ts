@@ -46,6 +46,9 @@ export class FileUploadService {
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         'application/vnd.openxmlformats-officedocument.presentationml.presentation',
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        // Alternative Excel MIME types browsers might use
+        'application/vnd.ms-excel',
+        'application/vnd.ms-excel.sheet.macroEnabled.12',
         'image/png',
         'image/jpeg',
         'image/tiff',
@@ -55,8 +58,13 @@ export class FileUploadService {
       ];
 
       // Check MIME type or extension
+      // Note: Some browsers may detect Excel files as application/x-zip-compressed
+      // or application/zip because XLSX files are ZIP archives, so we also check by extension
       const isValidType = allowedTypes.includes(file.type) ||
-        /\.(pdf|txt|md|csv|json|html|docx|pptx|xlsx|png|jpe?g|tiff?|wav|mp3|vtt)$/i.test(file.name);
+        /\.(pdf|txt|md|csv|json|html|docx|pptx|xlsx|png|jpe?g|tiff?|wav|mp3|vtt)$/i.test(file.name) ||
+        // Handle cases where Excel files are detected as ZIP
+        (file.type === 'application/x-zip-compressed' || file.type === 'application/zip') && 
+        /\.xlsx$/i.test(file.name);
 
       if (!isValidType) {
         throw new Error(`File type not supported: ${file.type || 'unknown'}`);
@@ -125,28 +133,43 @@ export class FileUploadService {
         });
       }
 
-      // Wait a moment for processing to complete
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Poll file status until processing is complete
+      let fileInfo: FileAttachment;
+      try {
+        // Poll every 2 seconds for up to 60 seconds (30 attempts)
+        // Note: checkMounted parameter not available in this context, but errors will be caught
+        fileInfo = await this.pollFileStatus(response.file_id, 30, 2000);
+      } catch (error: any) {
+        // If polling fails, times out, or file was deleted, return the initial response
+        // This allows the UI to handle the state appropriately
+        if (error.message && error.message.includes('was deleted')) {
+          // File was deleted during upload - re-throw to handle cleanup
+          throw new Error(`File ${response.file_id} was deleted during upload`);
+        }
+        // For other errors, log and return initial response
+        console.warn(`File status polling failed for ${response.file_id}:`, error.message || error);
+        fileInfo = {
+          file_id: response.file_id,
+          filename: response.filename,
+          mime_type: response.mime_type,
+          file_size: response.file_size,
+          processing_status: response.status || 'processing',
+          chunk_count: response.chunk_count
+        };
+      }
 
       // Report completion
       if (onProgress) {
         onProgress({
           filename: file.name,
           progress: 100,
-          status: 'completed',
+          status: fileInfo.processing_status === 'completed' ? 'completed' : 'processing',
           fileId: response.file_id
         });
       }
 
-      // Return file attachment metadata
-      return {
-        file_id: response.file_id,
-        filename: response.filename,
-        mime_type: response.mime_type,
-        file_size: response.file_size,
-        processing_status: response.status,
-        chunk_count: response.chunk_count
-      };
+      // Return file attachment metadata with updated status
+      return fileInfo;
 
     } catch (error: any) {
       let errorMessage = error.message || 'Upload failed';
@@ -209,6 +232,211 @@ export class FileUploadService {
     });
 
     return Promise.all(uploadPromises);
+  }
+
+  /**
+   * List all files for the current API key
+   * 
+   * @returns Promise resolving to array of file attachments
+   * @throws Error if request fails
+   */
+  static async listFiles(): Promise<FileAttachment[]> {
+    try {
+      const api = await getApi();
+      const apiUrl = localStorage.getItem('chat-api-url') || 
+                     (import.meta.env as any).VITE_API_URL || 
+                     (window as any).CHATBOT_API_URL ||
+                     'http://localhost:3000';
+      const apiKey = localStorage.getItem('chat-api-key') || 
+                     (import.meta.env as any).VITE_API_KEY ||
+                     (window as any).CHATBOT_API_KEY ||
+                     'orbit-123456789';
+      
+      if (!apiKey || apiKey === 'your-api-key-here' || apiKey === 'orbit-123456789') {
+        throw new Error('API key not configured');
+      }
+
+      const client = new api.ApiClient({ apiUrl, apiKey, sessionId: null });
+
+      if (!client.listFiles) {
+        throw new Error('File listing is not available. Please use the local API build or update the npm package.');
+      }
+
+      const files = await client.listFiles();
+      
+      // Convert server response to FileAttachment format
+      return files.map(file => ({
+        file_id: file.file_id,
+        filename: file.filename,
+        mime_type: file.mime_type,
+        file_size: file.file_size,
+        upload_timestamp: file.upload_timestamp,
+        processing_status: file.processing_status,
+        chunk_count: file.chunk_count
+      }));
+    } catch (error: any) {
+      console.error('Failed to list files:', error);
+      throw new Error(error.message || 'Failed to list files');
+    }
+  }
+
+  /**
+   * Get file information from the server
+   * 
+   * @param fileId - The file ID to get info for
+   * @returns Promise resolving to file attachment metadata
+   * @throws Error if request fails
+   */
+  static async getFileInfo(fileId: string): Promise<FileAttachment> {
+    try {
+      const api = await getApi();
+      const apiUrl = localStorage.getItem('chat-api-url') || 
+                     (import.meta.env as any).VITE_API_URL || 
+                     (window as any).CHATBOT_API_URL ||
+                     'http://localhost:3000';
+      const apiKey = localStorage.getItem('chat-api-key') || 
+                     (import.meta.env as any).VITE_API_KEY ||
+                     (window as any).CHATBOT_API_KEY ||
+                     'orbit-123456789';
+      
+      if (!apiKey || apiKey === 'your-api-key-here' || apiKey === 'orbit-123456789') {
+        throw new Error('API key not configured');
+      }
+
+      const client = new api.ApiClient({ apiUrl, apiKey, sessionId: null });
+
+      if (!client.getFileInfo) {
+        throw new Error('File info retrieval is not available. Please use the local API build or update the npm package.');
+      }
+
+      const fileInfo = await client.getFileInfo(fileId);
+      
+      // Convert server response to FileAttachment format
+      return {
+        file_id: fileInfo.file_id,
+        filename: fileInfo.filename,
+        mime_type: fileInfo.mime_type,
+        file_size: fileInfo.file_size,
+        upload_timestamp: fileInfo.upload_timestamp,
+        processing_status: fileInfo.processing_status,
+        chunk_count: fileInfo.chunk_count
+      };
+    } catch (error: any) {
+      // Handle 404 specifically - file was deleted
+      if (error.message && (error.message.includes('404') || error.message.includes('File not found'))) {
+        throw new Error(`File ${fileId} was deleted`);
+      }
+      console.error(`Failed to get file info for ${fileId}:`, error);
+      throw new Error(error.message || `Failed to get file info: ${fileId}`);
+    }
+  }
+
+  /**
+   * Poll file status until processing is complete
+   * 
+   * @param fileId - The file ID to poll
+   * @param maxAttempts - Maximum number of polling attempts (default: 30)
+   * @param pollInterval - Interval between polls in milliseconds (default: 2000)
+   * @param checkMounted - Optional function to check if component is still mounted
+   * @returns Promise resolving to file attachment metadata when processing is complete
+   * @throws Error if polling times out or fails
+   */
+  static async pollFileStatus(
+    fileId: string,
+    maxAttempts: number = 30,
+    pollInterval: number = 2000,
+    checkMounted?: () => boolean
+  ): Promise<FileAttachment> {
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      try {
+        // Check if component is still mounted before polling
+        if (checkMounted && !checkMounted()) {
+          throw new Error(`Polling cancelled - component unmounted`);
+        }
+
+        const fileInfo = await this.getFileInfo(fileId);
+        
+        // If processing is complete, return the file info
+        if (fileInfo.processing_status === 'completed') {
+          return fileInfo;
+        }
+        
+        // If there's an error status, throw
+        if (fileInfo.processing_status === 'error' || fileInfo.processing_status === 'failed') {
+          throw new Error(`File processing failed for ${fileId}`);
+        }
+        
+        // Wait before next poll
+        if (attempt < maxAttempts - 1) {
+          await new Promise(resolve => setTimeout(resolve, pollInterval));
+        }
+      } catch (error: any) {
+        // If file not found (404) or was deleted, stop polling immediately
+        if (error.message && (
+          error.message.includes('404') || 
+          error.message.includes('File not found') ||
+          error.message.includes('was deleted')
+        )) {
+          throw new Error(`File ${fileId} was deleted during upload`);
+        }
+        
+        // If component unmounted, stop polling
+        if (error.message && error.message.includes('component unmounted')) {
+          throw error;
+        }
+        
+        // If it's not the last attempt, continue polling
+        if (attempt < maxAttempts - 1) {
+          await new Promise(resolve => setTimeout(resolve, pollInterval));
+          continue;
+        }
+        throw error;
+      }
+    }
+    
+    throw new Error(`File processing timeout: ${fileId} did not complete within ${maxAttempts * pollInterval / 1000} seconds`);
+  }
+
+  /**
+   * Delete a file from the server
+   * 
+   * @param fileId - The file ID to delete
+   * @returns Promise resolving to deletion result
+   * @throws Error if deletion fails
+   */
+  static async deleteFile(fileId: string): Promise<{ message: string; file_id: string }> {
+    try {
+      const api = await getApi();
+      const apiUrl = localStorage.getItem('chat-api-url') || 
+                     (import.meta.env as any).VITE_API_URL || 
+                     (window as any).CHATBOT_API_URL ||
+                     'http://localhost:3000';
+      const apiKey = localStorage.getItem('chat-api-key') || 
+                     (import.meta.env as any).VITE_API_KEY ||
+                     (window as any).CHATBOT_API_KEY ||
+                     'orbit-123456789';
+      
+      if (!apiKey || apiKey === 'your-api-key-here' || apiKey === 'orbit-123456789') {
+        throw new Error('API key not configured');
+      }
+
+      const client = new api.ApiClient({ apiUrl, apiKey, sessionId: null });
+
+      if (!client.deleteFile) {
+        throw new Error('File deletion is not available. Please use the local API build or update the npm package.');
+      }
+
+      return await client.deleteFile(fileId);
+    } catch (error: any) {
+      // If file was already deleted (404), that's fine - return a success response
+      if (error.message && (error.message.includes('404') || error.message.includes('File not found') || error.message.includes('Not Found'))) {
+        console.log(`File ${fileId} was already deleted from server`);
+        return { message: 'File already deleted', file_id: fileId };
+      }
+      
+      console.error(`Failed to delete file ${fileId}:`, error);
+      throw new Error(error.message || `Failed to delete file: ${fileId}`);
+    }
   }
 }
 

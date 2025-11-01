@@ -111,7 +111,6 @@ export function Message({ message, onRegenerate }: MessageProps) {
                     </p>
                     <p className="text-xs text-slate-500 dark:text-slate-400">
                       {(file.file_size / 1024).toFixed(1)} KB
-                      {file.chunk_count ? ` • ${file.chunk_count} chunks` : ''}
                     </p>
                   </div>
                 </div>
