@@ -51,6 +51,8 @@ WantedBy=default.target
 EOF
 ```
 
+Also export the environment setting: `export OLLAMA_HOST=0.0.0.0`
+
 ### 4. Enable and Start the Service
 ```bash
 # Reload systemd configuration
