@@ -10,7 +10,7 @@ let widgetInitialized = false;
 export const generateThemeConfig = (customColors: CustomColors): ThemeConfig => ({
   primary: customColors.primary,
   secondary: customColors.secondary,
-  background: customColors.background,
+  questionsBackground: customColors.questionsBackground,
   text: {
     primary: customColors.textPrimary,
     secondary: customColors.textSecondary,
@@ -28,7 +28,7 @@ export const generateThemeConfig = (customColors: CustomColors): ThemeConfig => 
   },
   suggestedQuestions: {
     text: customColors.suggestedText,
-    background: customColors.background,
+    questionsBackground: customColors.questionsBackground,
     highlightedBackground: customColors.highlightedBackground
   },
   chatButton: {

@@ -1,7 +1,7 @@
 export interface CustomColors {
     primary: string;
     secondary: string;
-    background: string;
+    questionsBackground: string;
     textPrimary: string;
     textSecondary: string;
     textInverse: string;
@@ -43,7 +43,7 @@ export interface CustomColors {
   export interface ThemeConfig {
     primary: string;
     secondary: string;
-    background: string;
+    questionsBackground: string;
     text: {
       primary: string;
       secondary: string;
@@ -61,7 +61,7 @@ export interface CustomColors {
     };
     suggestedQuestions: {
       text: string;
-      background: string;
+      questionsBackground: string;
       highlightedBackground: string;
     };
     chatButton: {

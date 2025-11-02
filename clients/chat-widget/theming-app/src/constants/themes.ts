@@ -4,7 +4,7 @@ export const defaultCustomColors: CustomColors = {
   // Refined, modern default palette (name preserved)
   primary: '#2563eb',              // cobalt
   secondary: '#7c3aed',            // vivid violet accent
-  background: '#ffffff',
+  questionsBackground: '#ffffff',
   textPrimary: '#111827',          // darker for title
   textSecondary: '#6b7280',        // lighter gray for description
   textInverse: '#ffffff',
@@ -65,7 +65,7 @@ export const themes: Record<string, Theme> = {
     colors: {
       primary: '#1d4ed8',                 // cobalt
       secondary: '#3b82f6',               // blue-500 - better contrast for send button
-      background: '#ffffff',              // soft gray-blue
+      questionsBackground: '#ffffff',              // soft gray-blue
       textPrimary: '#111827',             // dark for title
       textSecondary: '#475569',            // slate-600 - darker gray for better contrast
       textInverse: '#ffffff',
@@ -91,7 +91,7 @@ export const themes: Record<string, Theme> = {
     colors: {
       primary: '#0284c7',
       secondary: '#0ea5e9',               // sky-500 - better contrast for send button
-      background: '#ffffff',
+      questionsBackground: '#ffffff',
       textPrimary: '#0f172a',
       textSecondary: '#475569',            // slate-600 - darker for better contrast
       textInverse: '#ffffff',
@@ -118,7 +118,7 @@ export const themes: Record<string, Theme> = {
     colors: {
       primary: '#14532d',                 // deep forest green
       secondary: '#16a34a',               // green-600 - better contrast for send button
-      background: '#f0fdf4',              // light green-tinted
+      questionsBackground: '#f0fdf4',              // light green-tinted
       textPrimary: '#111827',             // dark for title
       textSecondary: '#4b5563',            // gray-600 - darker for better contrast
       textInverse: '#ffffff',
@@ -145,7 +145,7 @@ export const themes: Record<string, Theme> = {
     colors: {
       primary: '#0d9488',
       secondary: '#2dd4bf',
-      background: '#0b1f24',
+      questionsBackground: '#0b1f24',
       textPrimary: '#ccfbf1',
       textSecondary: '#99f6e4',
       textInverse: '#ffffff',
@@ -170,7 +170,7 @@ export const themes: Record<string, Theme> = {
     colors: {
       primary: '#a21caf',
       secondary: '#e879f9',
-      background: '#fff7fb',
+      questionsBackground: '#fff7fb',
       textPrimary: '#4a044e',
       textSecondary: '#86198f',
       textInverse: '#ffffff',
@@ -196,7 +196,7 @@ export const themes: Record<string, Theme> = {
     colors: {
       primary: '#1e40af',
       secondary: '#6366f1',
-      background: '#0f172a',
+      questionsBackground: '#0f172a',
       textPrimary: '#e0e7ff',
       textSecondary: '#a5b4fc',
       textInverse: '#ffffff',
@@ -224,7 +224,7 @@ export const themes: Record<string, Theme> = {
     colors: {
       primary: '#374151',                 // slate-700
       secondary: '#6b7280',               // slate-500
-      background: '#111827',              // slate-900
+      questionsBackground: '#111827',              // slate-900
       textPrimary: '#f3f4f6',
       textSecondary: '#9ca3af',            // slate-400 - lighter for better contrast
       textInverse: '#ffffff',
@@ -250,7 +250,7 @@ export const themes: Record<string, Theme> = {
     colors: {
       primary: '#111111',
       secondary: '#525252',               // neutral-600 - better contrast for send button
-      background: '#0a0a0a',
+      questionsBackground: '#0a0a0a',
       textPrimary: '#e5e5e5',
       textSecondary: '#737373',            // neutral-500 - darker for better contrast
       textInverse: '#ffffff',
@@ -277,7 +277,7 @@ export const themes: Record<string, Theme> = {
     colors: {
       primary: '#06b6d4',
       secondary: '#0891b2',
-      background: '#f0fdfa',
+      questionsBackground: '#f0fdfa',
       textPrimary: '#0f766e',
       textSecondary: '#155e75',
       textInverse: '#ffffff',

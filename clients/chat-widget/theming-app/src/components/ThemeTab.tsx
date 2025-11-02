@@ -189,7 +189,7 @@ export const ThemeTab: React.FC<ThemeTabProps> = ({
               <div 
                 className="h-32 w-full relative border border-gray-200"
                 style={{ 
-                  background: theme.colors.inputBackground || theme.colors.background
+                  background: theme.colors.inputBackground || theme.colors.questionsBackground
                 }}
               >
                 {/* Chat Header */}
@@ -233,7 +233,7 @@ export const ThemeTab: React.FC<ThemeTabProps> = ({
                   className="absolute bottom-0 left-0 right-0 h-7 border-t flex items-center px-2"
                   style={{ 
                     borderColor: theme.colors.secondary,
-                    background: theme.colors.inputBackground || theme.colors.background
+                    background: theme.colors.inputBackground || theme.colors.questionsBackground
                   }}
                 >
                   <div className="flex-1 flex items-center">
@@ -293,7 +293,7 @@ export const ThemeTab: React.FC<ThemeTabProps> = ({
             {[
               { key: 'primary', label: 'Header & Minimized Button Background' },
               { key: 'secondary', label: 'Input Border & Send Button' },
-              { key: 'background', label: 'Suggested Questions Background' },
+              { key: 'questionsBackground', label: 'Suggested Questions Background' },
               { key: 'inputBackground', label: 'Chat Window Background' },
               { key: 'highlightedBackground', label: 'Suggested Questions Highlighted Background' }
             ].map(({ key, label }) => (
