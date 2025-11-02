@@ -121,7 +121,7 @@ class TestVisionFileProcessingIntegration:
             'chunk_overlap': 200,
             'enable_vision': True,
             'vision_provider': 'openai',
-            'vision': {
+            'visions': {
                 'openai': {
                     'enabled': True,
                     'api_key': 'test-key',
@@ -171,7 +171,7 @@ class TestVisionFileProcessingIntegration:
         service = FileProcessingService(file_processing_config)
 
         assert service.enable_vision is True
-        assert service.vision_provider == 'openai'
+        assert service.default_vision_provider == 'openai'
         assert 'openai' in service.vision_config
 
     def test_file_processing_validates_image_files(self, file_processing_config, sample_png_bytes):
@@ -214,7 +214,8 @@ class TestVisionFileProcessingIntegration:
             extracted_text, metadata = await service._extract_image_content(
                 sample_png_bytes,
                 'test_image.png',
-                'image/png'
+                'image/png',
+                'test-api-key'
             )
 
             # Verify extraction

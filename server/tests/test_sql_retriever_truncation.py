@@ -33,6 +33,15 @@ class MockSQLRetriever(AbstractSQLRetriever):
         """Set the mock results that will be returned"""
         self.mock_results = results
 
+    async def set_collection(self, collection_name: str) -> None:
+        """Set the current collection for retrieval"""
+        self.collection = collection_name
+
+    def _calculate_similarity(self, query: str, text: str) -> float:
+        """Override similarity calculation to always return high score for testing"""
+        # Return a high score so all results pass relevance threshold
+        return 0.9
+
 
 @pytest.fixture
 def test_config():
