@@ -408,16 +408,33 @@ class AbstractSQLRetriever(BaseRetriever):
             
             # 4. Apply domain-specific filtering
             results = self.apply_domain_filtering(results, query)
-            
+
             # 5. Sort and limit results
             results.sort(key=lambda x: x.get("confidence", 0), reverse=True)
+
+            # Track original count before truncation
+            original_count = len(results)
+            was_truncated = original_count > self.return_results
+
+            if was_truncated:
+                logger.info(f"Truncating result set from {original_count} to {self.return_results} results based on return_results config")
+
             results = results[:self.return_results]
-            
+
+            # Add truncation metadata to all results
+            for result in results:
+                if "metadata" not in result:
+                    result["metadata"] = {}
+                result["metadata"]["total_available"] = original_count
+                result["metadata"]["truncated"] = was_truncated
+                result["metadata"]["result_count"] = len(results)
+
             if debug_mode:
-                logger.info(f"Retrieved {len(results)} relevant context items")
+                logger.info(f"Retrieved {len(results)} relevant context items" +
+                          (f" (truncated from {original_count})" if was_truncated else ""))
                 if results:
                     logger.info(f"Top confidence score: {results[0].get('confidence', 0)}")
-            
+
             return results
                 
         except Exception as e:

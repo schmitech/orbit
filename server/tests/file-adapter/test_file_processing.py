@@ -7,7 +7,16 @@ Tests file processors, processing service, and processor registry.
 import pytest
 import pytest_asyncio
 import sys
+import warnings
 from pathlib import Path
+
+# Suppress SWIG-related deprecation warnings from dependencies (FAISS, numpy, etc.)
+# These warnings come from SWIG-generated bindings and are harmless
+# They're raised during import of dependencies that use SWIG bindings
+warnings.filterwarnings("ignore", category=DeprecationWarning, message=".*builtin type SwigPyPacked.*")
+warnings.filterwarnings("ignore", category=DeprecationWarning, message=".*builtin type SwigPyObject.*")
+warnings.filterwarnings("ignore", category=DeprecationWarning, message=".*builtin type swigvarlink.*")
+warnings.filterwarnings("ignore", category=DeprecationWarning, message=".*__module__ attribute.*")
 
 # Add server directory to Python path
 SCRIPT_DIR = Path(__file__).parent.absolute()
@@ -789,27 +798,24 @@ async def test_config_global_default_chunking_strategy(tmp_path):
 
 @pytest.mark.asyncio
 async def test_config_vision_settings_from_global_config(tmp_path):
-    """Test that vision settings come from files.processing.vision config"""
+    """Test that vision settings come from global vision config"""
     test_db_path = str(tmp_path / "test_config.db")
-    
+
+    # Updated to use modern config structure: config['vision'] instead of config['files']['processing']['vision']
     config = {
-        'files': {
-            'processing': {
-                'vision': {
-                    'enabled': False,
-                    'provider': 'anthropic'
-                }
-            }
+        'vision': {
+            'enabled': False,
+            'provider': 'anthropic'
         }
     }
-    
+
     service = FileProcessingService(config)
     service.metadata_store.close()
     from services.file_metadata.metadata_store import FileMetadataStore
     service.metadata_store = FileMetadataStore(db_path=test_db_path)
-    
+
     assert service.enable_vision is False
-    assert service.vision_provider == 'anthropic'
+    assert service.default_vision_provider == 'anthropic'
     
     service.metadata_store.close()
     import os
@@ -821,28 +827,25 @@ async def test_config_vision_settings_from_global_config(tmp_path):
 async def test_config_adapter_overrides_global_vision(tmp_path):
     """Test that adapter vision config overrides global config"""
     test_db_path = str(tmp_path / "test_config.db")
-    
+
+    # Updated to use modern config structure
     config = {
-        'enable_vision': True,  # Adapter config
-        'vision_provider': 'custom',  # Adapter config
-        'files': {
-            'processing': {
-                'vision': {
-                    'enabled': False,  # Global config (should be overridden)
-                    'provider': 'openai'  # Global config (should be overridden)
-                }
-            }
+        'enable_vision': True,  # Adapter config (top-level override)
+        'vision_provider': 'custom',  # Adapter config (top-level override)
+        'vision': {
+            'enabled': False,  # Global config (should be overridden)
+            'provider': 'openai'  # Global config (should be overridden)
         }
     }
-    
+
     service = FileProcessingService(config)
     service.metadata_store.close()
     from services.file_metadata.metadata_store import FileMetadataStore
     service.metadata_store = FileMetadataStore(db_path=test_db_path)
     
-    # Should use adapter config
+    # Should use adapter config (top-level overrides)
     assert service.enable_vision is True
-    assert service.vision_provider == 'custom'
+    assert service.default_vision_provider == 'custom'
     
     service.metadata_store.close()
     import os

@@ -7,7 +7,7 @@ Provides endpoints for uploading, querying, and managing files.
 import logging
 import mimetypes
 from typing import List, Optional, Dict, Any
-from fastapi import APIRouter, UploadFile, File, HTTPException, Header, Depends, Request, BackgroundTasks
+from fastapi import APIRouter, UploadFile, File, HTTPException, Header, Depends, Request, BackgroundTasks, Form
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from datetime import datetime
@@ -91,6 +91,7 @@ def create_file_router() -> APIRouter:
         background_tasks: BackgroundTasks,
         request: Request,
         file: UploadFile = File(...),
+        prompt: Optional[str] = Form(None),
         x_api_key: Optional[str] = Header(None, alias="X-API-Key"),
         processing_service: FileProcessingService = Depends(get_processing_service)
     ):
@@ -182,7 +183,8 @@ def create_file_router() -> APIRouter:
                     file_data=file_data,
                     filename=file.filename,
                     mime_type=mime_type,
-                    api_key=x_api_key
+                    api_key=x_api_key,
+                    vision_prompt=prompt
                 )
                 
                 logger.info(f"File uploaded (processing in background): {file_id}")

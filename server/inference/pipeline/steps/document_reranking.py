@@ -175,8 +175,8 @@ class DocumentRerankingStep(PipelineStep):
                 reranked_results
             )
 
-            # Update formatted context
-            context.formatted_context = self._format_context(context.retrieved_docs)
+            # Update formatted context (pass adapter_name for formatting decision)
+            context.formatted_context = self._format_context(context.retrieved_docs, context.adapter_name)
 
             # Store reranking metadata
             if not hasattr(context, 'metadata'):
@@ -328,12 +328,13 @@ class DocumentRerankingStep(PipelineStep):
 
         return reranked_docs
 
-    def _format_context(self, documents: List[Dict[str, Any]]) -> str:
+    def _format_context(self, documents: List[Dict[str, Any]], adapter_name: str = None) -> str:
         """
         Format reranked documents into a context string.
 
         Args:
             documents: List of reranked documents
+            adapter_name: Name of the adapter (used to determine formatting style)
 
         Returns:
             Formatted context string
@@ -341,16 +342,22 @@ class DocumentRerankingStep(PipelineStep):
         if not documents:
             return "No relevant information found."
 
+        # For file adapter, use clean formatting without citations to prevent
+        # LLMs (especially Gemini) from adding citation markers like 【Document 1】
+        is_file_adapter = adapter_name and 'file' in adapter_name.lower()
+
         context = ""
         for i, doc in enumerate(documents):
             content = doc.get('content', '')
-            metadata = doc.get('metadata', {})
-            source = metadata.get('source', f"Document {i+1}")
 
-            # Use reranked score if available, otherwise use original confidence
-            relevance = doc.get('relevance', doc.get('confidence', 0.0))
+            if is_file_adapter:
+                # Clean format without source labels or relevance scores
+                context += f"{content}\n\n"
+            else:
+                # Standard format with document references for other adapters
+                metadata = doc.get('metadata', {})
+                source = metadata.get('source', f"Document {i+1}")
+                relevance = doc.get('relevance', doc.get('confidence', 0.0))
+                context += f"[{i+1}] {source} (relevance: {relevance:.2f})\n{content}\n\n"
 
-            # Add document to context with relevance score
-            context += f"[{i+1}] {source} (relevance: {relevance:.2f})\n{content}\n\n"
-
-        return context
+        return context.strip()

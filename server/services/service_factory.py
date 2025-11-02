@@ -604,9 +604,12 @@ class ServiceFactory:
         """Initialize File Processing Service for file upload API."""
         try:
             from services.file_processing.file_processing_service import FileProcessingService
-            
-            # Initialize file processing service with config
-            app.state.file_processing_service = FileProcessingService(config=self.config)
+
+            # Initialize file processing service with config and app_state for adapter-aware vision provider
+            app.state.file_processing_service = FileProcessingService(
+                config=self.config,
+                app_state=app.state
+            )
             self.logger.info("File Processing Service initialized successfully")
         except Exception as e:
             self.logger.error(f"Failed to initialize File Processing Service: {str(e)}")

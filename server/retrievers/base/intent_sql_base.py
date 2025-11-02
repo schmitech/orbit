@@ -540,16 +540,24 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
                 
                 # Execute template
                 results, error = await self._execute_template(template, parameters)
-                
+
                 if error:
                     if self.verbose:
                         logger.debug(f"Template {template.get('id')} execution failed: {error}")
                     continue
 
+                # Track original count before any truncation
+                original_result_count = len(results) if results else 0
+                was_truncated = False
+
                 if self.verbose and results:
-                    if results and self.return_results is not None and len(results) > self.return_results:
-                        logger.info(f"Truncating result set from {len(results)} to {self.return_results} results based on adapter config.")
-                        results = results[:self.return_results]
+                    logger.info(f"SQL query returned {original_result_count} rows from database")
+
+                # Apply truncation if needed
+                if results and self.return_results is not None and len(results) > self.return_results:
+                    logger.info(f"Truncating result set from {len(results)} to {self.return_results} results based on adapter config (return_results={self.return_results})")
+                    results = results[:self.return_results]
+                    was_truncated = True
 
                 # Format response using domain-aware generator
                 if self.response_generator:
@@ -567,23 +575,34 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
                         # Format a simple table representation
                         table_data = formatted_data["table"]
                         columns = table_data["columns"]
-                        rows = table_data["rows"][:self.return_results]  # Limit to return_results
+                        rows = table_data["rows"][:self.return_results] if self.return_results else table_data["rows"]
 
                         table_text = " | ".join(columns) + "\n"
                         table_text += "-" * len(table_text) + "\n"
                         for row in rows:
                             table_text += " | ".join(str(v) for v in row) + "\n"
 
-                        content_parts.append(f"Found {formatted_data['result_count']} results:\n{table_text}")
+                        # Show truncation status in message
+                        if was_truncated:
+                            result_message = f"Showing {len(results)} of {original_result_count} total results (truncated):\n{table_text}"
+                        else:
+                            result_message = f"Found {formatted_data['result_count']} results:\n{table_text}"
+
+                        content_parts.append(result_message)
 
                     if not content_parts:
                         # Fallback to simple result summary
-                        content_parts.append(f"Query executed successfully. Found {len(results)} results.")
+                        if was_truncated:
+                            content_parts.append(f"Query executed successfully. Showing {len(results)} of {original_result_count} total results.")
+                        else:
+                            content_parts.append(f"Query executed successfully. Found {len(results)} results.")
 
                     content = "\n\n".join(content_parts)
-                    
+
                     if self.verbose:
                         logger.info(f"Generated content for LLM context (length: {len(content)}):\n{content}")
+                        if was_truncated:
+                            logger.info(f"Note: LLM will only see {len(results)} of {original_result_count} records")
 
                     return [{
                         "content": content,
@@ -594,13 +613,20 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
                             "parameters_used": parameters,
                             "formatted_data": formatted_data,
                             "similarity": similarity,
-                            "result_count": len(results),
+                            "result_count": len(results),  # Actual count passed to LLM
+                            "total_available": original_result_count,  # Total from SQL
+                            "truncated": was_truncated,  # Truncation flag
                             "domain_aware": True
                         },
                         "confidence": similarity
                     }]
                 else:
-                    formatted_results = self._format_sql_results(results, template, parameters, similarity)
+                    # Pass original count and truncation info to fallback formatter
+                    formatted_results = self._format_sql_results(
+                        results, template, parameters, similarity,
+                        original_count=original_result_count,
+                        was_truncated=was_truncated
+                    )
                     if formatted_results:
                         return formatted_results
             
@@ -820,7 +846,8 @@ JSON:"""
             logger.warning(f"Error processing SQL template: {e}")
             return sql_template
     
-    def _format_sql_results(self, results: List[Dict], template: Dict, parameters: Dict, similarity: float) -> List[Dict[str, Any]]:
+    def _format_sql_results(self, results: List[Dict], template: Dict, parameters: Dict, similarity: float,
+                           original_count: int = None, was_truncated: bool = False) -> List[Dict[str, Any]]:
         """Format SQL results into context documents."""
         if not results:
             return [{
@@ -830,12 +857,19 @@ JSON:"""
                     "template_id": template.get('id'),
                     "parameters_used": parameters,
                     "similarity": similarity,
-                    "result_count": 0
+                    "result_count": 0,
+                    "total_available": 0,
+                    "truncated": False
                 },
                 "confidence": similarity
             }]
-        
+
         import json
+
+        # Set original count if not provided
+        if original_count is None:
+            original_count = len(results)
+
         formatted_doc = self.domain_adapter.format_document(
             raw_doc=json.dumps(results, default=str),
             metadata={
@@ -845,12 +879,14 @@ JSON:"""
                 "parameters_used": parameters,
                 "results": results,
                 "similarity": similarity,
-                "result_count": len(results)
+                "result_count": len(results),  # Actual count passed to LLM
+                "total_available": original_count,  # Total from SQL
+                "truncated": was_truncated  # Truncation flag
             }
         )
-        
+
         formatted_doc["confidence"] = similarity
-        
+
         return [formatted_doc]
     
     async def set_collection(self, collection_name: str) -> None:

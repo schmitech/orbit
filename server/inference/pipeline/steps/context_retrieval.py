@@ -93,10 +93,25 @@ class ContextRetrievalStep(PipelineStep):
             )
             
             context.retrieved_docs = docs
-            self.logger.debug(f"Retrieved {len(docs)} documents")
-            
-            # Format context for LLM
-            context.formatted_context = self._format_context(docs)
+
+            # Check if results were truncated
+            truncation_info = None
+            if docs and len(docs) > 0:
+                # Check first document for truncation metadata
+                first_doc_metadata = docs[0].get('metadata', {})
+                if first_doc_metadata.get('truncated', False):
+                    truncation_info = {
+                        'shown': first_doc_metadata.get('result_count', len(docs)),
+                        'total': first_doc_metadata.get('total_available', len(docs))
+                    }
+                    self.logger.info(f"Retrieved {len(docs)} documents (truncated from {truncation_info['total']} total)")
+                else:
+                    self.logger.debug(f"Retrieved {len(docs)} documents")
+            else:
+                self.logger.debug(f"Retrieved {len(docs)} documents")
+
+            # Format context for LLM (pass adapter_name and truncation info for formatting decision)
+            context.formatted_context = self._format_context(docs, context.adapter_name, truncation_info)
             
         except Exception as e:
             self.logger.error(f"Error during context retrieval: {str(e)}")
@@ -104,29 +119,45 @@ class ContextRetrievalStep(PipelineStep):
         
         return context
     
-    def _format_context(self, documents: list) -> str:
+    def _format_context(self, documents: list, adapter_name: str = None, truncation_info: dict = None) -> str:
         """
         Format retrieved documents into a context string.
-        
+
         Args:
             documents: List of retrieved documents
-            
+            adapter_name: Name of the adapter (used to determine formatting style)
+            truncation_info: Dict with 'shown' and 'total' keys if results were truncated
+
         Returns:
             Formatted context string
         """
         if not documents:
             return "No relevant information found."
-        
+
+        # For file adapter, use clean formatting without citations to prevent
+        # LLMs (especially Gemini) from adding citation markers like 【Document 1】
+        is_file_adapter = adapter_name and 'file' in adapter_name.lower()
+
         context = ""
+
+        # Add truncation notice at the beginning if applicable
+        if truncation_info:
+            shown = truncation_info.get('shown', len(documents))
+            total = truncation_info.get('total', len(documents))
+            if shown < total:
+                context += f"NOTE: Showing {shown} of {total} total results from database. Results have been truncated.\n\n"
+
         for i, doc in enumerate(documents):
             content = doc.get('content', '')
-            metadata = doc.get('metadata', {})
-            source = metadata.get('source', f"Document {i+1}")
-            
-            # Try different field names based on what's available
-            confidence = doc.get('confidence', doc.get('relevance', 0.0))
-            
-            # Add document to context with confidence score if available
-            context += f"[{i+1}] {source} (confidence: {confidence:.2f})\n{content}\n\n"
-        
-        return context 
+
+            if is_file_adapter:
+                # Clean format without source labels or confidence scores
+                context += f"{content}\n\n"
+            else:
+                # Standard format with document references for other adapters
+                metadata = doc.get('metadata', {})
+                source = metadata.get('source', f"Document {i+1}")
+                confidence = doc.get('confidence', doc.get('relevance', 0.0))
+                context += f"[{i+1}] {source} (confidence: {confidence:.2f})\n{content}\n\n"
+
+        return context.strip() 

@@ -30,26 +30,28 @@ class FileProcessingService:
     - Metadata tracking
     """
     
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: Dict[str, Any], app_state=None):
         """
         Initialize file processing service.
-        
+
         Args:
             config: Configuration dictionary
+            app_state: Optional FastAPI app state for accessing services (e.g., dynamic_adapter_manager)
         """
         self.config = config
+        self.app_state = app_state
         self.logger = logging.getLogger(self.__class__.__name__)
-        
+
         # Get files configuration section
         files_config = config.get('files', {})
         processing_config = files_config.get('processing', {})
-        
+
         # Initialize components
         self.storage = self._init_storage()
         self.metadata_store = FileMetadataStore(config=config)
         self.processor_registry = FileProcessorRegistry()
         self.chunker = self._init_chunker()
-        
+
         # Configuration - get from adapter config first, then files.processing, then default
         self.max_file_size = config.get('max_file_size') or \
                              processing_config.get('max_file_size', 52428800)  # 50MB
@@ -62,6 +64,8 @@ class FileProcessingService:
             'application/json',
             'text/html',
             'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/vnd.openxmlformats-officedocument.presentationml.presentation',  # PPTX
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',  # XLSX
             # Image types
             'image/png',
             'image/jpeg',
@@ -71,27 +75,29 @@ class FileProcessingService:
             'image/tiff',
             'image/webp',
         ])
-        
+
         # Vision service configuration - follows same pattern as embeddings/inference
         # Priority: adapter config > global vision config > default
-        vision_global_config = config.get('vision', {})
+        # NOTE: Default vision provider is set here, but can be overridden per-file based on API key's adapter
+        vision_config = config.get('vision', {})
 
         # Enable/disable vision processing
-        self.enable_vision = config.get('enable_vision') or \
-                           vision_global_config.get('enabled', True)
+        # Priority: adapter config > global vision config > default True
+        self.enable_vision = config.get('enable_vision', vision_config.get('enabled', True))
 
-        # Get vision provider (adapter override > global config > default)
-        self.vision_provider = config.get('vision_provider') or \
-                              vision_global_config.get('provider', 'gemini')
+        # Get DEFAULT vision provider (can be overridden per-upload based on adapter)
+        # Priority: adapter config > global vision config > default
+        self.default_vision_provider = config.get('vision_provider', vision_config.get('provider', 'gemini'))
 
         # Get provider-specific configs from 'visions' section (plural, like 'embeddings', 'inferences')
         self.vision_config = config.get('visions', {})
-        
-        # Log vision configuration
+
+        # Log default vision configuration
         if self.enable_vision:
-            provider_config = self.vision_config.get(self.vision_provider, {})
+            provider_config = self.vision_config.get(self.default_vision_provider, {})
             model = provider_config.get('model', 'default')
-            self.logger.info(f"Vision service configured: provider={self.vision_provider}, model={model}")
+            self.logger.info(f"Default vision service configured: provider={self.default_vision_provider}, model={model}")
+            self.logger.info("Vision provider can be overridden per-upload based on API key's adapter configuration")
     
     def _init_storage(self) -> FilesystemStorage:
         """Initialize storage backend."""
@@ -115,7 +121,50 @@ class FileProcessingService:
             return SemanticChunker(chunk_size=chunk_size, overlap=overlap)
         else:
             return FixedSizeChunker(chunk_size=chunk_size, overlap=overlap)
-    
+
+    async def _get_vision_provider_for_api_key(self, api_key: str) -> str:
+        """
+        Get the vision provider for a given API key by looking up its adapter configuration.
+
+        This enables adapter-specific vision provider overrides (e.g., adapter A uses OpenAI, adapter B uses Gemini).
+
+        Args:
+            api_key: The API key to lookup
+
+        Returns:
+            Vision provider name (e.g., 'openai', 'gemini', 'anthropic')
+        """
+        try:
+            # Try to get adapter manager from app state
+            if self.app_state and hasattr(self.app_state, 'dynamic_adapter_manager'):
+                adapter_manager = self.app_state.dynamic_adapter_manager
+
+                # Get API key service to lookup which adapter this API key uses
+                if hasattr(self.app_state, 'api_key_service'):
+                    api_key_service = self.app_state.api_key_service
+
+                    # Get adapter name for this API key
+                    adapter_name, _ = await api_key_service.get_adapter_for_api_key(api_key)
+
+                    if adapter_name:
+                        # Get adapter config from adapter manager
+                        adapter_config = adapter_manager.get_adapter_config(adapter_name)
+
+                        if adapter_config:
+                            # Check if adapter has vision_provider override
+                            vision_provider = adapter_config.get('vision_provider')
+
+                            if vision_provider:
+                                self.logger.info(f"Using adapter-specific vision provider '{vision_provider}' for adapter '{adapter_name}' (api_key: {api_key[:8]}...)")
+                                return vision_provider
+
+        except Exception as e:
+            self.logger.warning(f"Could not lookup adapter-specific vision provider for API key: {e}")
+
+        # Fall back to default vision provider
+        self.logger.debug(f"Using default vision provider '{self.default_vision_provider}' for api_key: {api_key[:8]}...")
+        return self.default_vision_provider
+
     async def quick_upload(
         self,
         file_data: bytes,
@@ -177,7 +226,8 @@ class FileProcessingService:
         file_data: bytes,
         filename: str,
         mime_type: str,
-        api_key: str
+        api_key: str,
+        vision_prompt: Optional[str] = None
     ) -> None:
         """
         Process file content (extraction, chunking, indexing) in background.
@@ -192,8 +242,10 @@ class FileProcessingService:
         """
         try:
             # Extract text and metadata
-            extracted_text, file_metadata = await self._extract_content(file_data, filename, mime_type)
-            
+            extracted_text, file_metadata = await self._extract_content(
+                file_data, filename, mime_type, api_key=api_key, vision_prompt=vision_prompt
+            )
+
             # Chunk content
             chunks = await self._chunk_content(extracted_text, file_id, file_metadata)
             
@@ -302,10 +354,12 @@ class FileProcessingService:
             
             # 4. Update status to processing
             await self.metadata_store.update_processing_status(file_id, 'processing')
-            
+
             # 5. Extract text and metadata
-            extracted_text, file_metadata = await self._extract_content(file_data, filename, mime_type)
-            
+            extracted_text, file_metadata = await self._extract_content(
+                file_data, filename, mime_type, api_key=api_key
+            )
+
             # 6. Chunk content
             chunks = await self._chunk_content(extracted_text, file_id, file_metadata)
             
@@ -370,32 +424,51 @@ class FileProcessingService:
         processor = self.processor_registry.get_processor(mime_type)
         return processor is not None
     
-    async def _extract_content(self, file_data: bytes, filename: str, mime_type: str) -> tuple[str, Dict[str, Any]]:
+    async def _extract_content(
+        self,
+        file_data: bytes,
+        filename: str,
+        mime_type: str,
+        api_key: str,
+        vision_prompt: Optional[str] = None
+    ) -> tuple[str, Dict[str, Any]]:
         """Extract text and metadata from file."""
         # Check if this is an image file
         if self.enable_vision and mime_type.startswith('image/'):
-            return await self._extract_image_content(file_data, filename, mime_type)
-        
+            return await self._extract_image_content(
+                file_data, filename, mime_type, api_key=api_key, vision_prompt=vision_prompt
+            )
+
         processor = self.processor_registry.get_processor(mime_type)
-        
+
         if not processor:
             raise ValueError(f"No processor available for MIME type: {mime_type}")
-        
+
         text = await processor.extract_text(file_data, filename)
         metadata = await processor.extract_metadata(file_data, filename)
-        
+
         return text, metadata
     
-    async def _extract_image_content(self, file_data: bytes, filename: str, mime_type: str) -> tuple[str, Dict[str, Any]]:
+    async def _extract_image_content(
+        self,
+        file_data: bytes,
+        filename: str,
+        mime_type: str,
+        api_key: str,
+        vision_prompt: Optional[str] = None
+    ) -> tuple[str, Dict[str, Any]]:
         """Extract content from image using vision services."""
         import asyncio
         from ai_services import AIServiceFactory, ServiceType
 
         try:
+            # Get adapter-specific vision provider (or fallback to default)
+            vision_provider = await self._get_vision_provider_for_api_key(api_key)
+
             # Get vision service
             vision_service = AIServiceFactory.create_service(
                 ServiceType.VISION,
-                self.vision_provider,
+                vision_provider,
                 {'vision': self.vision_config}
             )
 
@@ -405,13 +478,22 @@ class FileProcessingService:
 
             # PERFORMANCE FIX: Make both API calls concurrently instead of sequentially
             # This reduces total processing time from ~120s to ~60s
-            self.logger.info(f"Starting vision processing for {filename} (provider: {self.vision_provider})")
+            self.logger.info(f"Starting vision processing for {filename} (provider: {vision_provider})")
 
+            # Use custom prompt if provided, otherwise use default describe_image
             try:
-                extracted_text, description = await asyncio.gather(
-                    vision_service.extract_text_from_image(file_data),
-                    vision_service.describe_image(file_data)
-                )
+                if vision_prompt:
+                    self.logger.info(f"Using custom prompt for vision analysis: {vision_prompt[:50]}...")
+                    # Use analyze_image with custom prompt instead of describe_image
+                    extracted_text, description = await asyncio.gather(
+                        vision_service.extract_text_from_image(file_data),
+                        vision_service.analyze_image(file_data, prompt=vision_prompt)
+                    )
+                else:
+                    extracted_text, description = await asyncio.gather(
+                        vision_service.extract_text_from_image(file_data),
+                        vision_service.describe_image(file_data)
+                    )
             except asyncio.TimeoutError as e:
                 self.logger.error(f"Vision API timeout for {filename}: {e}")
                 raise Exception(f"Vision API request timed out. The image may be too large or the API is experiencing latency. Please try again or contact support if the issue persists.")
@@ -426,7 +508,7 @@ class FileProcessingService:
                 'mime_type': mime_type,
                 'file_size': len(file_data),
                 'extraction_method': 'vision',
-                'vision_provider': self.vision_provider,
+                'vision_provider': vision_provider,
                 'image_description': description,
                 'image_text': extracted_text,
             }

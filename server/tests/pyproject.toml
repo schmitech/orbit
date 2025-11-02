@@ -20,6 +20,11 @@ addopts = [
 # Filter warnings from third-party libraries we can't control
 filterwarnings = [
     "ignore::pydantic.warnings.PydanticDeprecatedSince212:docling_core",
+    # Suppress SWIG-related deprecation warnings from FAISS/numpy dependencies
+    "ignore:builtin type SwigPyPacked.*:DeprecationWarning",
+    "ignore:builtin type SwigPyObject.*:DeprecationWarning",
+    "ignore:builtin type swigvarlink.*:DeprecationWarning",
+    "ignore:.*__module__ attribute.*:DeprecationWarning",
 ]
 
 # Test directories

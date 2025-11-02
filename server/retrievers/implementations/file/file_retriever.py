@@ -27,7 +27,7 @@ class FileVectorRetriever(AbstractVectorRetriever):
     def __init__(self, config: Dict[str, Any] = None, datasource=None, domain_adapter=None, **kwargs):
         """
         Initialize file retriever.
-        
+
         Args:
             config: Configuration dictionary
             datasource: Not used (file adapter manages storage)
@@ -38,19 +38,19 @@ class FileVectorRetriever(AbstractVectorRetriever):
         if config is None or config == {}:
             # Provide minimal config structure
             config = {'files': {}}
-        
+
         super().__init__(config=config, domain_adapter=domain_adapter, **kwargs)
-        
+
         # File-specific configuration
         self.metadata_store = FileMetadataStore(config=config)
-        
-        # Get collection_prefix from adapter config first, then files.retriever, then global files config, then default
+
+        # Get collection_prefix from adapter config first, then global files config, then default
+        # NOTE: Adapter-specific config from adapters.yaml is at config['adapter_config'] (set by dynamic_adapter_manager)
+        adapter_config = self.config.get('adapter_config', {})
         files_config = self.config.get('files', {})
-        retriever_config = files_config.get('retriever', {})
-        self.collection_prefix = self.config.get('collection_prefix') or \
-                                retriever_config.get('collection_prefix') or \
+        self.collection_prefix = adapter_config.get('collection_prefix') or \
                                 files_config.get('default_collection_prefix', 'files_')
-        
+
         # Initialize store manager for vector operations
         self.store_manager = None
         self._default_store = None
@@ -67,16 +67,16 @@ class FileVectorRetriever(AbstractVectorRetriever):
         
         # Initialize embeddings
         await super().initialize()
-        
+
         # Initialize store manager (only if not already set - allows test mocking)
         if self.store_manager is None:
             self.store_manager = StoreManager()
-        
-        # Get default vector store from adapter config first, then global files.retriever config, then default
+
+        # Get default vector store from adapter config first, then global files config, then default
+        # NOTE: Adapter-specific config from adapters.yaml is at config['adapter_config'] (set by dynamic_adapter_manager)
+        adapter_config = self.config.get('adapter_config', {})
         files_config = self.config.get('files', {})
-        retriever_config = files_config.get('retriever', {})
-        vector_store_name = self.config.get('vector_store') or \
-                           retriever_config.get('vector_store') or \
+        vector_store_name = adapter_config.get('vector_store') or \
                            files_config.get('default_vector_store', 'chroma')
         
         try:
@@ -191,7 +191,7 @@ class FileVectorRetriever(AbstractVectorRetriever):
         
         try:
             # Build metadata filter
-            filter_metadata = {}
+            filter_metadata = None
             # Support both single file_id and multiple file_ids
             target_file_ids = file_ids or ([file_id] if file_id else None)
             if target_file_ids:
@@ -199,15 +199,15 @@ class FileVectorRetriever(AbstractVectorRetriever):
                 # Note: Some vector stores support OR filters, others may need multiple queries
                 # For now, filter by the first file_id if multiple (we'll search all collections anyway)
                 if len(target_file_ids) == 1:
-                    filter_metadata['file_id'] = target_file_ids[0]
+                    filter_metadata = {'file_id': target_file_ids[0]}
                 # TODO: Support proper OR filtering for multiple file_ids in vector store queries
-            
+
             # Search vector store
             results = await self._default_store.search_vectors(
                 query_vector=query_embedding,
                 limit=limit,
                 collection_name=collection_name,
-                filter_metadata=filter_metadata
+                filter_metadata=filter_metadata  # Pass None if no filter needed
             )
             
             # Post-filter results by file_ids if multiple files specified
@@ -343,10 +343,37 @@ class FileVectorRetriever(AbstractVectorRetriever):
             return False
     
     # Implement abstract methods required by AbstractVectorRetriever
-    
+
     def _get_datasource_name(self) -> str:
         """Return the name of this datasource for config lookup"""
-        return "file"
+        # Note: File adapter doesn't use traditional datasources (datasource: "none" in adapter config)
+        # This is used by parent class for legacy config lookup
+        return "files"  # Match the global config section name
+
+    def _get_datasource_config(self) -> Dict[str, Any]:
+        """
+        Override to get file adapter configuration from the correct location.
+
+        The file adapter gets its configuration from:
+        1. adapter_config (set by dynamic_adapter_manager from adapters.yaml)
+        2. Fallback to global 'files' config section
+
+        Returns:
+            Dict containing file adapter configuration with settings like
+            confidence_threshold, max_results, return_results, etc.
+        """
+        # First try to get adapter-specific config (from adapters.yaml)
+        adapter_config = self.config.get('adapter_config', {})
+        if adapter_config:
+            return adapter_config
+
+        # Fallback to global 'files' config section
+        files_config = self.config.get('files', {})
+        if files_config:
+            return files_config
+
+        # Final fallback to parent's logic (for edge cases)
+        return super()._get_datasource_config()
     
     async def vector_search(self, query_embedding: List[float], top_k: int) -> List[Dict[str, Any]]:
         """

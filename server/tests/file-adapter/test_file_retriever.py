@@ -53,46 +53,49 @@ def test_file_retriever_initialization_defaults():
 
 def test_file_retriever_initialization_adapter_config():
     """Test FileVectorRetriever initialization with adapter-specific config"""
+    # In production, DynamicAdapterManager places adapter config at config['adapter_config']
     config = {
-        'collection_prefix': 'custom_prefix_',
-        'vector_store': 'pinecone'
+        'adapter_config': {
+            'collection_prefix': 'custom_prefix_',
+            'vector_store': 'pinecone'
+        }
     }
-    
+
     retriever = FileVectorRetriever(config=config)
-    
+
     assert retriever.collection_prefix == 'custom_prefix_'
 
 
 def test_file_retriever_initialization_global_config():
-    """Test FileVectorRetriever initialization reading from files.retriever config"""
+    """Test FileVectorRetriever initialization reading from global files config"""
+    # Updated to use modern config structure: files.default_* instead of files.retriever.*
     config = {
         'files': {
-            'retriever': {
-                'collection_prefix': 'global_files_',
-                'vector_store': 'qdrant'
-            }
+            'default_collection_prefix': 'global_files_',
+            'default_vector_store': 'qdrant'
         }
     }
-    
+
     retriever = FileVectorRetriever(config=config)
-    
+
     assert retriever.collection_prefix == 'global_files_'
 
 
 def test_file_retriever_config_priority_adapter_over_global():
     """Test that adapter config takes priority over global config"""
+    # Updated to use modern config structure
     config = {
-        'collection_prefix': 'adapter_prefix_',  # Adapter config
+        'adapter_config': {
+            'collection_prefix': 'adapter_prefix_',  # Adapter-specific config
+        },
         'files': {
-            'retriever': {
-                'collection_prefix': 'global_prefix_',  # Global config
-                'vector_store': 'chroma'
-            }
+            'default_collection_prefix': 'global_prefix_',  # Global config
+            'default_vector_store': 'chroma'
         }
     }
-    
+
     retriever = FileVectorRetriever(config=config)
-    
+
     # Adapter config should win
     assert retriever.collection_prefix == 'adapter_prefix_'
 
@@ -358,12 +361,11 @@ async def test_initialize(mock_api_key_service_class, mock_store_manager_class):
 @patch('vector_stores.base.store_manager.StoreManager')
 @patch('services.api_key_service.ApiKeyService')
 async def test_initialize_uses_global_vector_store_config(mock_api_key_service_class, mock_store_manager_class):
-    """Test initialization uses global files.retriever.vector_store config"""
+    """Test initialization uses global files.default_vector_store config"""
+    # Updated to use modern config structure
     config = {
         'files': {
-            'retriever': {
-                'vector_store': 'qdrant'  # Global config
-            }
+            'default_vector_store': 'qdrant'  # Global config
         }
     }
     
@@ -398,12 +400,13 @@ async def test_initialize_uses_global_vector_store_config(mock_api_key_service_c
 @patch('services.api_key_service.ApiKeyService')
 async def test_initialize_adapter_config_overrides_global(mock_api_key_service_class, mock_store_manager_class):
     """Test initialization uses adapter config over global config"""
+    # Updated to use modern config structure
     config = {
-        'vector_store': 'pinecone',  # Adapter config (should win)
+        'adapter_config': {
+            'vector_store': 'pinecone',  # Adapter config (should win)
+        },
         'files': {
-            'retriever': {
-                'vector_store': 'chroma'  # Global config (should be ignored)
-            }
+            'default_vector_store': 'chroma'  # Global config (should be ignored)
         }
     }
     

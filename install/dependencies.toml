@@ -135,7 +135,8 @@ dependencies = [
     "mypy>=1.17.1",
     "faker>=37.5.3",
     "pre-commit>=4.2.0",
-    "locust>=2.38.1"
+    "locust>=2.38.1",
+    "reportlab>=4.4.4"
 ]
 
 # Custom profile example - users can add their own

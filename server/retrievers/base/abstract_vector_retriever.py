@@ -111,7 +111,11 @@ class AbstractVectorRetriever(BaseRetriever):
     async def _initialize_embeddings(self) -> None:
         """Initialize the embedding service or model."""
         embedding_provider = self.config.get('embedding', {}).get('provider')
-        
+
+        # Log which embedding provider is being used (helpful for debugging overrides)
+        if self.verbose and embedding_provider:
+            logger.info(f"Initializing embeddings with provider: {embedding_provider}")
+
         # Use new embedding service architecture if specified
         if embedding_provider and 'embeddings' in self.config:
             from embeddings.base import EmbeddingServiceFactory
@@ -319,20 +323,23 @@ class AbstractVectorRetriever(BaseRetriever):
             
             # 2. Perform vector search
             search_results = await self.vector_search(query_embedding, self.max_results)
-            
+
+            # Track counts at each stage for transparency
+            vector_search_count = len(search_results)
+
             if debug_mode:
-                logger.info(f"Vector search returned {len(search_results)} results")
-            
-            # 3. Process and filter results
+                logger.info(f"Vector search returned {vector_search_count} results")
+
+            # 3. Process and filter results by confidence threshold
             context_items = []
-            
+
             for result in search_results:
                 # Extract data from result
                 doc = result.get('document', '')
                 metadata = result.get('metadata', {})
                 distance = result.get('distance', float('inf'))
                 score = result.get('score')  # Some DBs return similarity score directly
-                
+
                 # Calculate similarity score
                 if score is not None:
                     # Use provided score if available
@@ -340,7 +347,7 @@ class AbstractVectorRetriever(BaseRetriever):
                 else:
                     # Convert distance to similarity
                     similarity = self.calculate_similarity_from_distance(distance)
-                
+
                 # Only include results that meet threshold
                 if similarity >= self.confidence_threshold:
                     # Format document using domain adapter
@@ -349,30 +356,63 @@ class AbstractVectorRetriever(BaseRetriever):
                     item["metadata"]["source"] = self._get_datasource_name()
                     item["metadata"]["collection"] = self.collection
                     item["metadata"]["similarity"] = similarity
-                    
+
                     if distance != float('inf'):
                         item["metadata"]["distance"] = distance
-                    
+
                     context_items.append(item)
-                    
+
                     if debug_mode:
                         logger.info(f"Accepted result with confidence: {similarity:.4f}")
                 else:
                     if debug_mode:
                         logger.info(f"Rejected result with confidence: {similarity:.4f} (threshold: {self.confidence_threshold})")
-            
+
+            # Track count after confidence filtering
+            after_confidence_filtering = len(context_items)
+
+            if debug_mode and after_confidence_filtering < vector_search_count:
+                logger.info(f"Confidence filtering: {vector_search_count} → {after_confidence_filtering} results (threshold: {self.confidence_threshold})")
+
             # 4. Sort by confidence
             context_items = sorted(context_items, key=lambda x: x.get("confidence", 0), reverse=True)
-            
+
             # 5. Apply domain-specific filtering
             context_items = self.apply_domain_filtering(context_items, query)
-            
-            # 6. Apply final limit
+
+            # Track count after domain filtering
+            after_domain_filtering = len(context_items)
+
+            if debug_mode and after_domain_filtering < after_confidence_filtering:
+                logger.info(f"Domain filtering: {after_confidence_filtering} → {after_domain_filtering} results")
+
+            # 6. Track original count before final truncation
+            original_count = len(context_items)
+            was_truncated = original_count > self.return_results
+
+            if was_truncated:
+                logger.info(f"Truncating vector search results from {original_count} to {self.return_results} based on return_results config")
+
+            # Apply final limit
             context_items = context_items[:self.return_results]
-            
+
+            # Add truncation metadata to all results
+            for item in context_items:
+                if "metadata" not in item:
+                    item["metadata"] = {}
+                item["metadata"]["total_available"] = original_count
+                item["metadata"]["truncated"] = was_truncated
+                item["metadata"]["result_count"] = len(context_items)
+                item["metadata"]["vector_search_count"] = vector_search_count
+                item["metadata"]["after_confidence_filtering"] = after_confidence_filtering
+                item["metadata"]["after_domain_filtering"] = after_domain_filtering
+
             if debug_mode:
-                logger.info(f"Retrieved {len(context_items)} relevant context items")
-                
+                logger.info(f"Retrieved {len(context_items)} relevant context items" +
+                          (f" (truncated from {original_count})" if was_truncated else ""))
+                if was_truncated:
+                    logger.info(f"Note: LLM will only see {len(context_items)} of {original_count} qualifying results")
+
             return context_items
                 
         except Exception as e:

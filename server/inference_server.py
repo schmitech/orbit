@@ -347,7 +347,15 @@ class InferenceServer:
         # Close Chat History service
         if hasattr(app.state, 'chat_history_service'):
             add_shutdown_task(app.state.chat_history_service, 'Chat History Service')
-        
+
+        # Close Adapter Manager (includes file retriever cleanup)
+        if hasattr(app.state, 'adapter_manager'):
+            add_shutdown_task(app.state.adapter_manager, 'Adapter Manager')
+
+        # Close File Processing Service
+        if hasattr(app.state, 'file_processing_service'):
+            add_shutdown_task(app.state.file_processing_service, 'File Processing Service')
+
         # Close fault tolerance services
         if hasattr(self.service_factory, '_shutdown_fault_tolerance_services'):
             try:
