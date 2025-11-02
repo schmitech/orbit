@@ -1,0 +1,413 @@
+domain_name: Analytics Database
+description: Sales and product analytics database for DuckDB
+domain_type: analytical
+semantic_types:
+  date_value:
+    description: Date values in various formats
+    patterns:
+    - date
+    - day
+    - time
+    - when
+    - 'on'
+    - created
+    - updated
+    - sold
+    regex_patterns:
+    - \b\d{4}-\d{2}-\d{2}\b
+    - \b\d{2}/\d{2}/\d{4}\b
+  identifier:
+    description: Unique identifier
+    patterns:
+    - id
+    - identifier
+    - key
+    regex_patterns:
+    - \b(\d+)\b
+  decimal_value:
+    description: Decimal/money values
+    patterns:
+    - amount
+    - price
+    - cost
+    - total
+    - revenue
+    - sales
+    regex_patterns:
+    - \$\d+\.?\d*
+    - \d+\.\d+
+vocabulary:
+  entity_synonyms: {}
+  action_verbs:
+    find:
+    - show
+    - list
+    - get
+    - find
+    - display
+    - retrieve
+    - lookup
+    - search
+    - view
+    filter:
+    - filter
+    - only
+    - just
+    - where
+    - with
+    - having
+    - containing
+    count:
+    - count
+    - number of
+    - how many
+    - total
+    - sum
+    sort:
+    - sort
+    - order
+    - arrange
+    - rank
+    - top
+    - highest
+    - lowest
+    calculate:
+    - calculate
+    - compute
+    - aggregate
+    - sum
+    - average
+    - avg
+    - total
+    compare:
+    - compare
+    - vs
+    - versus
+    - difference
+    - change
+entities:
+  sales:
+    name: sales
+    entity_type: primary
+    table_name: sales
+    description: Sales transactions
+    primary_key: id
+    display_name_field: product_name
+    searchable_fields:
+    - product_name
+    - category
+    - region
+    common_filters:
+    - sale_date
+    - region
+    - category
+    - product_id
+    default_sort_field: sale_date
+    default_sort_order: DESC
+  products:
+    name: products
+    entity_type: primary
+    table_name: products
+    description: Product catalog
+    primary_key: id
+    display_name_field: product_name
+    searchable_fields:
+    - product_name
+    - category
+    - description
+    common_filters:
+    - category
+    - id
+    default_sort_field: product_name
+    default_sort_order: ASC
+  customers:
+    name: customers
+    entity_type: primary
+    table_name: customers
+    description: Customer information
+    primary_key: id
+    display_name_field: customer_name
+    searchable_fields:
+    - customer_name
+    - email
+    - region
+    - segment
+    common_filters:
+    - region
+    - segment
+    default_sort_field: customer_name
+    default_sort_order: ASC
+fields:
+  sales:
+    id:
+      name: id
+      data_type: integer
+      db_column: id
+      description: Sale ID
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: identifier
+      summary_priority: 10
+    sale_date:
+      name: sale_date
+      data_type: date
+      db_column: sale_date
+      description: Sale Date
+      required: true
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: date_value
+      summary_priority: 9
+    product_id:
+      name: product_id
+      data_type: integer
+      db_column: product_id
+      description: Product ID
+      required: true
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: identifier
+      summary_priority: 8
+    product_name:
+      name: product_name
+      data_type: string
+      db_column: product_name
+      description: Product Name
+      required: true
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 9
+    category:
+      name: category
+      data_type: string
+      db_column: category
+      description: Product Category
+      required: false
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 7
+    region:
+      name: region
+      data_type: string
+      db_column: region
+      description: Sales Region
+      required: true
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 8
+    customer_id:
+      name: customer_id
+      data_type: integer
+      db_column: customer_id
+      description: Customer ID
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: identifier
+      summary_priority: 5
+    sales_amount:
+      name: sales_amount
+      data_type: decimal
+      db_column: sales_amount
+      description: Sales Amount
+      required: true
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: decimal_value
+      summary_priority: 10
+    quantity:
+      name: quantity
+      data_type: integer
+      db_column: quantity
+      description: Quantity Sold
+      required: true
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 6
+    created_at:
+      name: created_at
+      data_type: timestamp
+      db_column: created_at
+      description: Created At
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: date_value
+      summary_priority: 3
+  products:
+    id:
+      name: id
+      data_type: integer
+      db_column: id
+      description: Product ID
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: identifier
+      summary_priority: 10
+    product_name:
+      name: product_name
+      data_type: string
+      db_column: product_name
+      description: Product Name
+      required: true
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 9
+    category:
+      name: category
+      data_type: string
+      db_column: category
+      description: Product Category
+      required: true
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 8
+    price:
+      name: price
+      data_type: decimal
+      db_column: price
+      description: Product Price
+      required: true
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: decimal_value
+      summary_priority: 7
+    cost:
+      name: cost
+      data_type: decimal
+      db_column: cost
+      description: Product Cost
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: decimal_value
+      summary_priority: 5
+    description:
+      name: description
+      data_type: string
+      db_column: description
+      description: Product Description
+      required: false
+      searchable: true
+      filterable: false
+      sortable: false
+      semantic_type: null
+      summary_priority: 3
+    created_at:
+      name: created_at
+      data_type: timestamp
+      db_column: created_at
+      description: Created At
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: date_value
+      summary_priority: 2
+  customers:
+    id:
+      name: id
+      data_type: integer
+      db_column: id
+      description: Customer ID
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: identifier
+      summary_priority: 10
+    customer_name:
+      name: customer_name
+      data_type: string
+      db_column: customer_name
+      description: Customer Name
+      required: true
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 9
+    email:
+      name: email
+      data_type: string
+      db_column: email
+      description: Email Address
+      required: false
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 7
+    region:
+      name: region
+      data_type: string
+      db_column: region
+      description: Customer Region
+      required: false
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 8
+    segment:
+      name: segment
+      data_type: string
+      db_column: segment
+      description: Customer Segment
+      required: false
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 6
+    created_at:
+      name: created_at
+      data_type: timestamp
+      db_column: created_at
+      description: Created At
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: date_value
+      summary_priority: 3
+relationships:
+- entity1: sales
+  entity2: products
+  relationship_type: many_to_one
+  foreign_key: product_id
+  description: Sales reference products
+- entity1: sales
+  entity2: customers
+  relationship_type: many_to_one
+  foreign_key: customer_id
+  description: Sales reference customers
+query_patterns: []
+metadata:
+  generated_at: '2025-01-27T12:00:00.000000'
+  generator_version: 1.0.0
+  auto_generated: true
+

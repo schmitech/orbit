@@ -1,0 +1,459 @@
+status: completed
+generated_at: '2025-01-27T12:00:00.000000'
+last_updated: '2025-01-27T12:00:00.000000'
+generator_version: 1.0.0
+total_templates: 15
+templates:
+- id: find_all_sales
+  description: Retrieve all sales with optional pagination
+  sql: SELECT id, sale_date, product_name, category, region, sales_amount, quantity FROM sales ORDER BY sale_date DESC LIMIT :limit OFFSET :offset
+  parameters:
+  - name: limit
+    type: integer
+    description: Maximum number of records to return
+    required: false
+    default: 100
+  - name: offset
+    type: integer
+    description: Number of records to skip
+    required: false
+    default: 0
+  nl_examples:
+  - Show me all sales
+  - List all sales
+  - Get all sales records
+  - Display sales
+  - What sales do we have?
+  - Find all sales
+  - Show every sale
+  - I need all sales
+  - Get all available sales
+  - Display entire sales list
+  result_format: table
+  version: 1.0.0
+  approved: false
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: find
+    primary_entity: sales
+    secondary_entity: null
+    qualifiers: []
+  tags:
+  - find
+  - sales
+- id: count_all_sales
+  description: Counts the total number of sales in the database
+  sql: SELECT COUNT(*) AS sale_count FROM sales
+  parameters: []
+  nl_examples:
+  - How many sales do we have?
+  - Count all sales
+  - What's the total number of sales?
+  - How many sales are there?
+  - Get the sales count
+  - Show me total sales
+  - What is the total sales count?
+  - How many sales in the system?
+  - Get total number of sales
+  - Show me sales count
+  result_format: summary
+  version: 1.0.0
+  approved: false
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: calculate
+    primary_entity: sales
+    secondary_entity: null
+    qualifiers: []
+  tags:
+  - calculate
+  - sales
+  - count
+- id: find_sales_by_region
+  description: Find sales filtered by region
+  sql: SELECT id, sale_date, product_name, category, region, sales_amount, quantity FROM sales WHERE region = :region ORDER BY sale_date DESC
+  parameters:
+  - name: region
+    type: string
+    description: Sales region filter
+    required: true
+  nl_examples:
+  - Show me sales from the west region
+  - List sales in the east
+  - Get sales for west region
+  - Find sales in California
+  - Display sales from the north region
+  - Show me west region sales
+  result_format: table
+  version: 1.0.0
+  approved: false
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: find
+    primary_entity: sales
+    secondary_entity: null
+    qualifiers:
+    - region
+  tags:
+  - find
+  - sales
+  - region
+- id: find_sales_by_category
+  description: Find sales filtered by product category
+  sql: SELECT id, sale_date, product_name, category, region, sales_amount, quantity FROM sales WHERE category = :category ORDER BY sale_date DESC
+  parameters:
+  - name: category
+    type: string
+    description: Product category filter
+    required: true
+  nl_examples:
+  - Show me sales for Electronics category
+  - List sales in Clothing category
+  - Get sales for Electronics
+  - Find sales with category Electronics
+  - Display Electronics sales
+  result_format: table
+  version: 1.0.0
+  approved: false
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: find
+    primary_entity: sales
+    secondary_entity: null
+    qualifiers:
+    - category
+  tags:
+  - find
+  - sales
+  - category
+- id: total_sales_amount
+  description: Calculate total sales amount with optional filtering by region
+  sql: SELECT SUM(sales_amount) AS total_sales FROM sales WHERE (:region IS NULL OR region = :region)
+  parameters:
+  - name: region
+    type: string
+    description: Optional region filter
+    required: false
+    default: null
+  nl_examples:
+  - What's the total sales amount?
+  - Show me total revenue
+  - Calculate total sales
+  - Get sum of all sales
+  - What's the total revenue for the west region?
+  - Calculate total sales in west
+  result_format: summary
+  version: 1.0.0
+  approved: false
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: calculate
+    primary_entity: sales
+    secondary_entity: null
+    qualifiers: []
+  tags:
+  - calculate
+  - sales
+  - total
+- id: top_products_by_sales
+  description: Find top N products by total sales amount
+  sql: SELECT product_name, SUM(sales_amount) AS total_sales, SUM(quantity) AS total_quantity FROM sales GROUP BY product_name ORDER BY total_sales DESC LIMIT :limit
+  parameters:
+  - name: limit
+    type: integer
+    description: Number of top products to return
+    required: false
+    default: 10
+  nl_examples:
+  - Show me top 10 products by sales
+  - List top products by revenue
+  - Get highest selling products
+  - Find best selling products
+  - Display top 5 products by sales
+  - Show me top selling products
+  result_format: table
+  version: 1.0.0
+  approved: false
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: find
+    primary_entity: sales
+    secondary_entity: products
+    qualifiers: []
+  tags:
+  - find
+  - sales
+  - products
+  - top
+- id: sales_by_category_total
+  description: Calculate total sales grouped by category
+  sql: SELECT category, SUM(sales_amount) AS total_sales, COUNT(*) AS sale_count FROM sales GROUP BY category ORDER BY total_sales DESC
+  parameters: []
+  nl_examples:
+  - Show me sales grouped by category
+  - List total sales per category
+  - Get sales amount by category
+  - Find total revenue by product category
+  - Display sales breakdown by category
+  - Show me category sales totals
+  result_format: table
+  version: 1.0.0
+  approved: false
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: calculate
+    primary_entity: sales
+    secondary_entity: null
+    qualifiers:
+    - category
+  tags:
+  - calculate
+  - sales
+  - category
+- id: sales_by_region_total
+  description: Calculate total sales grouped by region
+  sql: SELECT region, SUM(sales_amount) AS total_sales, COUNT(*) AS sale_count FROM sales GROUP BY region ORDER BY total_sales DESC
+  parameters: []
+  nl_examples:
+  - Show me sales by region
+  - List total sales per region
+  - Get sales amount grouped by region
+  - Find which region has the most sales
+  - Display sales breakdown by region
+  - Show me regional sales totals
+  result_format: table
+  version: 1.0.0
+  approved: false
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: calculate
+    primary_entity: sales
+    secondary_entity: null
+    qualifiers:
+    - region
+  tags:
+  - calculate
+  - sales
+  - region
+- id: find_all_products
+  description: Retrieve all products with optional pagination
+  sql: SELECT id, product_name, category, price, cost FROM products ORDER BY product_name ASC LIMIT :limit OFFSET :offset
+  parameters:
+  - name: limit
+    type: integer
+    description: Maximum number of records to return
+    required: false
+    default: 100
+  - name: offset
+    type: integer
+    description: Number of records to skip
+    required: false
+    default: 0
+  nl_examples:
+  - Show me all products
+  - List all products
+  - Get all product information
+  - Display product catalog
+  - Find all products
+  - Show every product
+  result_format: table
+  version: 1.0.0
+  approved: false
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: find
+    primary_entity: products
+    secondary_entity: null
+    qualifiers: []
+  tags:
+  - find
+  - products
+- id: find_products_by_category
+  description: Find products filtered by category
+  sql: SELECT id, product_name, category, price, cost FROM products WHERE category = :category ORDER BY product_name ASC
+  parameters:
+  - name: category
+    type: string
+    description: Product category filter
+    required: true
+  nl_examples:
+  - Show me Electronics products
+  - List products in the Clothing category
+  - Get products with category Electronics
+  - Find products in a specific category
+  - Display Electronics category products
+  result_format: table
+  version: 1.0.0
+  approved: false
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: find
+    primary_entity: products
+    secondary_entity: null
+    qualifiers:
+    - category
+  tags:
+  - find
+  - products
+  - category
+- id: count_all_products
+  description: Counts the total number of products in the database
+  sql: SELECT COUNT(*) AS product_count FROM products
+  parameters: []
+  nl_examples:
+  - How many products do we have?
+  - Count all products
+  - What's the total number of products?
+  - How many products are there?
+  - Get the product count
+  - Show me total products
+  result_format: summary
+  version: 1.0.0
+  approved: false
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: calculate
+    primary_entity: products
+    secondary_entity: null
+    qualifiers: []
+  tags:
+  - calculate
+  - products
+  - count
+- id: find_all_customers
+  description: Retrieve all customers with optional pagination
+  sql: SELECT id, customer_name, email, region, segment FROM customers ORDER BY customer_name ASC LIMIT :limit OFFSET :offset
+  parameters:
+  - name: limit
+    type: integer
+    description: Maximum number of records to return
+    required: false
+    default: 100
+  - name: offset
+    type: integer
+    description: Number of records to skip
+    required: false
+    default: 0
+  nl_examples:
+  - Show me all customers
+  - List all customers
+  - Get customer information
+  - Display customer list
+  - Find all customers
+  - Show every customer
+  result_format: table
+  version: 1.0.0
+  approved: false
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: find
+    primary_entity: customers
+    secondary_entity: null
+    qualifiers: []
+  tags:
+  - find
+  - customers
+- id: find_customers_by_region
+  description: Find customers filtered by region
+  sql: SELECT id, customer_name, email, region, segment FROM customers WHERE region = :region ORDER BY customer_name ASC
+  parameters:
+  - name: region
+    type: string
+    description: Customer region filter
+    required: true
+  nl_examples:
+  - Show me customers in the west region
+  - List customers in the east
+  - Get customers for west region
+  - Find customers in California
+  - Display customers from the north region
+  result_format: table
+  version: 1.0.0
+  approved: false
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: find
+    primary_entity: customers
+    secondary_entity: null
+    qualifiers:
+    - region
+  tags:
+  - find
+  - customers
+  - region
+- id: sales_date_range
+  description: Find sales within a date range
+  sql: SELECT id, sale_date, product_name, category, region, sales_amount, quantity FROM sales WHERE sale_date >= :start_date AND sale_date <= :end_date ORDER BY sale_date DESC
+  parameters:
+  - name: start_date
+    type: date
+    description: Start date for the range
+    required: true
+  - name: end_date
+    type: date
+    description: End date for the range
+    required: true
+  nl_examples:
+  - Show me sales between January 1 and March 31, 2024
+  - List sales from last month
+  - Get sales for this year
+  - Find sales in date range
+  - Display sales for the last 30 days
+  result_format: table
+  version: 1.0.0
+  approved: false
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: find
+    primary_entity: sales
+    secondary_entity: null
+    qualifiers:
+    - date
+  tags:
+  - find
+  - sales
+  - date
+- id: average_sales_amount
+  description: Calculate average sales amount with optional filtering
+  sql: SELECT AVG(sales_amount) AS avg_sales, MIN(sales_amount) AS min_sales, MAX(sales_amount) AS max_sales FROM sales WHERE (:region IS NULL OR region = :region)
+  parameters:
+  - name: region
+    type: string
+    description: Optional region filter
+    required: false
+    default: null
+  nl_examples:
+  - What's the average sales amount?
+  - Show me average sales per transaction
+  - Get average sales in the west region
+  - Calculate mean sales amount
+  - Display average, min, and max sales
+  result_format: summary
+  version: 1.0.0
+  approved: false
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: calculate
+    primary_entity: sales
+    secondary_entity: null
+    qualifiers: []
+  tags:
+  - calculate
+  - sales
+  - average
+

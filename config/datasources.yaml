@@ -88,9 +88,9 @@ datasources:
     username: ${DATASOURCE_CASSANDRA_USERNAME}
     password: ${DATASOURCE_CASSANDRA_PASSWORD}
   duckdb:
-    database: ":memory:"
-    read_only: false
-    access_mode: "automatic"
+    database: "examples/duckdb/analytics.duckdb"
+    read_only: true  # Allow concurrent reads from multiple processes
+    access_mode: "READ_ONLY"  # Multiple processes can read simultaneously
     threads: null
   mongodb:
     # Option 1: MongoDB Atlas connection (recommended for sample_mflix)

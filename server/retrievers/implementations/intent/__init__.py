@@ -33,6 +33,15 @@ except ImportError:  # pragma: no cover - optional import guard
     _sqlite_available = False
     logger.debug("SQLite retriever import failed; IntentSQLiteRetriever unavailable")
 
+# Import DuckDB retriever (requires duckdb package)
+try:
+    from .intent_duckdb_retriever import IntentDuckDBRetriever
+    _duckdb_available = True
+except ImportError:  # pragma: no cover - optional import guard
+    IntentDuckDBRetriever = None
+    _duckdb_available = False
+    logger.debug("duckdb not installed; IntentDuckDBRetriever unavailable")
+
 # Import Elasticsearch retriever (requires elasticsearch package)
 try:
     from .intent_elasticsearch_retriever import IntentElasticsearchRetriever
@@ -75,6 +84,9 @@ if _mysql_available and IntentMySQLRetriever is not None:
 
 if _sqlite_available and IntentSQLiteRetriever is not None:
     __all__.append('IntentSQLiteRetriever')
+
+if _duckdb_available and IntentDuckDBRetriever is not None:
+    __all__.append('IntentDuckDBRetriever')
 
 if _elasticsearch_available and IntentElasticsearchRetriever is not None:
     __all__.append('IntentElasticsearchRetriever')

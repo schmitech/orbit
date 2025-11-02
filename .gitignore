@@ -66,3 +66,4 @@ CLAUDE.md
 results/
 *.db-shm
 *.db-wal
+*.duckdb
