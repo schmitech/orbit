@@ -274,25 +274,70 @@ def load_config():
         return defaults
 
 def clean_response(text):
-    """Cleans up model response text."""
-    # First, protect currency patterns from being modified
-    currency_patterns = []
-    def protect_currency(match):
-        placeholder = f"__CURRENCY_{len(currency_patterns)}__"
-        currency_patterns.append(match.group(0))
+    """Cleans up model response text by protecting numeric values, emails, and other structured data."""
+    # Storage for protected patterns
+    protected_patterns = []
+    pattern_counter = 0
+    
+    def protect_pattern(match):
+        """Create a unique placeholder for a matched pattern."""
+        nonlocal pattern_counter
+        placeholder = f"__PROTECTED_{pattern_counter}__"
+        protected_patterns.append(match.group(0))
+        pattern_counter += 1
         return placeholder
     
-    # Protect currency amounts (e.g., $12,144.32, $1,234.56)
-    text = re.sub(r'\$\d{1,3}(?:,\d{3})*(?:\.\d+)?', protect_currency, text)
+    # Protect email addresses (e.g., user@example.com, test.email@domain.co.uk)
+    text = re.sub(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b', protect_pattern, text)
     
-    # Apply the original cleaning logic
+    # Protect time formats (e.g., 1:00 PM, 1:00AM, 13:00, 1:00:30 PM)
+    # Handle cases where colon might have spaces after it (1: 00 PM -> 1:00 PM)
+    def normalize_and_protect_time(match):
+        """Normalize time format by removing spaces after colon, then protect."""
+        nonlocal pattern_counter
+        time_str = match.group(0)
+        # Remove spaces after colons
+        normalized = re.sub(r':\s+', ':', time_str)
+        placeholder = f"__PROTECTED_{pattern_counter}__"
+        protected_patterns.append(normalized)
+        pattern_counter += 1
+        return placeholder
+    
+    # Match times with AM/PM first (most specific) - handles spaces after colon
+    text = re.sub(r'\b\d{1,2}:\s*\d{2}(?::\s*\d{2})?\s*(?:AM|PM|am|pm)\b', 
+                  normalize_and_protect_time, text, flags=re.IGNORECASE)
+    # Then match 24-hour time format (HH:MM or HH:MM:SS), also normalize spaces
+    text = re.sub(r'\b\d{1,2}:\s*\d{2}(?::\s*\d{2})?\b', normalize_and_protect_time, text)
+    
+    # Protect date formats
+    # ISO date format (YYYY-MM-DD)
+    text = re.sub(r'\b\d{4}-\d{2}-\d{2}\b', protect_pattern, text)
+    # US date format (MM/DD/YYYY or M/D/YYYY)
+    text = re.sub(r'\b\d{1,2}/\d{1,2}/\d{4}\b', protect_pattern, text)
+    # Date format with month names (Jan 15, 2025 or January 15, 2025)
+    text = re.sub(r'\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2},?\s+\d{4}\b', protect_pattern, text, flags=re.IGNORECASE)
+    text = re.sub(r'\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+\d{4}\b', protect_pattern, text, flags=re.IGNORECASE)
+    
+    # Protect currency amounts (e.g., $12,144.32, $1,234.56, $123.45)
+    text = re.sub(r'\$\d{1,3}(?:,\d{3})*(?:\.\d+)?', protect_pattern, text)
+    
+    # Protect numbers with commas and optional decimals (e.g., 567,481.6, 72,604.0, 1,234,567)
+    text = re.sub(r'\d{1,3}(?:,\d{3})+(?:\.\d+)?', protect_pattern, text)
+    
+    # Protect plain decimal numbers that might be part of data (e.g., 123.45, 0.123)
+    # Only protect if they're not already part of a protected pattern and look like numeric data
+    # This protects decimals that are standalone or followed by units/whitespace
+    text = re.sub(r'\b\d+\.\d+\b', protect_pattern, text)
+    
+    # Apply the original cleaning logic (spacing after punctuation)
     text = re.sub(r'([.,!?:;])(?!\]d)([A-Za-z0-9])', r'\1 \2', text)
     text = re.sub(r'([.!?])([A-Z])', r'\1 \2', text)
     
-    # Restore currency patterns
-    for i, pattern in enumerate(currency_patterns):
-        text = text.replace(f"__CURRENCY_{i}__", pattern)
+    # Restore all protected patterns in reverse order to avoid conflicts
+    for i in range(len(protected_patterns) - 1, -1, -1):
+        text = text.replace(f"__PROTECTED_{i}__", protected_patterns[i])
     
+    # Remove common AI response prefixes
     prefixes = ["Assistant:", "A:", "Model:", "AI:", "Gemma:", "Assistant: "]
     for prefix in prefixes:
         if text.lower().startswith(prefix.lower()):

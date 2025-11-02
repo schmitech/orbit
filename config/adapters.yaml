@@ -551,3 +551,47 @@ adapters:
       # DuckDB integration for structured data (CSV, Parquet)
       enable_duckdb_path: true
       duckdb_store: "duckdb"
+
+  - name: "intent-duckdb-analytics"
+    enabled: false
+    type: "retriever"
+    datasource: "duckdb"
+    adapter: "intent"
+    implementation: "retrievers.implementations.intent.IntentDuckDBRetriever"
+    inference_provider: "ollama"
+    model: "granite4:micro"
+    embedding_provider: "ollama"
+    database: "utils/duckdb-intent-template/examples/analytics/analytics.duckdb"
+    config:
+      # Path to the domain definition file
+      domain_config_path: "utils/duckdb-intent-template/examples/analytics/analytics_domain.yaml"
+      template_library_path:
+        - "utils/duckdb-intent-template/examples/analytics/analytics_templates.yaml"
+
+      # Name for the vector store collection for templates
+      template_collection_name: "duckdb_analytics_templates"
+      # Store configuration - references stores.yaml
+      store_name: "chroma"
+      confidence_threshold: 0.4
+
+      # Maximum templates to consider
+      max_templates: 5
+
+      # Return top N results
+      return_results: 100
+
+      # Template loading settings
+      reload_templates_on_start: true  # Whether to reload templates on startup
+      force_reload_templates: true  # Force reload even if templates exist in storage
+
+      # DuckDB-specific configuration
+      # Database path is configured in datasources.yaml (defaults to examples/duckdb/analytics.duckdb)
+      # Can override here if needed:
+      # database: "path/to/custom.duckdb"  # Optional: override datasource default
+      read_only: true  # Allow concurrent reads from multiple processes (no writes needed for intent queries)
+      access_mode: "READ_ONLY"  # Multiple processes can read simultaneously (see https://duckdb.org/docs/stable/connect/concurrency)
+      threads: null  # Use default thread count
+
+      # Query monitoring (automatically provided by unified base)
+      enable_query_monitoring: true
+      query_timeout: 5000  # 5 seconds
