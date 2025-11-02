@@ -307,6 +307,55 @@ async def get_api_key_status(
     return status
 
 
+@admin_router.patch("/api-keys/{old_api_key}/rename")
+async def rename_api_key(
+    old_api_key: str,
+    new_api_key: str,
+    request: Request,
+    authorized: bool = Depends(admin_auth_check)
+):
+    """
+    Rename an API key by updating its value
+
+    This endpoint allows administrators to rename an existing API key to a new value.
+    The new key must not already exist in the system.
+
+    Security considerations:
+    - This is an admin-only endpoint
+    - Should be protected by additional authentication
+    - Both old and new keys are masked in logs
+
+    Args:
+        old_api_key: The current API key to rename
+        new_api_key: The new API key value (as query parameter)
+        request: The incoming request
+        authorized: Authentication check result
+
+    Returns:
+        Success message with status
+
+    Raises:
+        HTTPException: If old key doesn't exist, new key already exists, or rename fails
+    """
+    check_inference_only_mode(request, "API key management")
+
+    # Check if API key service is available
+    api_key_service = getattr(request.app.state, 'api_key_service', None)
+    check_service_availability(api_key_service, "API key service")
+
+    success = await api_key_service.rename_api_key(old_api_key, new_api_key)
+
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to rename API key")
+
+    # Log with masked API keys
+    masked_old_key = f"***{old_api_key[-4:]}" if old_api_key else "***"
+    masked_new_key = f"***{new_api_key[-4:]}" if new_api_key else "***"
+    logger.info(f"Renamed API key from {masked_old_key} to {masked_new_key}")
+
+    return {"status": "success", "message": f"API key renamed successfully", "new_api_key": new_api_key}
+
+
 @admin_router.post("/api-keys/deactivate")
 async def deactivate_api_key(
     data: ApiKeyDeactivate,
@@ -315,20 +364,20 @@ async def deactivate_api_key(
 ):
     """
     Deactivate an API key
-    
+
     This is an admin-only endpoint and should be properly secured in production.
     """
     # In production, add authentication middleware to restrict access to admin endpoints
-    
+
     success = await api_key_service.deactivate_api_key(data.api_key)
-    
+
     if not success:
         raise HTTPException(status_code=404, detail="API key not found")
-    
+
     # Log with masked API key
     masked_api_key = f"***{data.api_key[-4:]}" if data.api_key else "***"
     logger.info(f"Deactivated API key: {masked_api_key}")
-        
+
     return {"status": "success", "message": "API key deactivated"}
 
 

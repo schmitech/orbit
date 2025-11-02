@@ -477,13 +477,63 @@ class ApiKeyService:
             logger.error(f"Error updating API key system prompt: {str(e)}")
             return False
     
+    async def rename_api_key(self, old_api_key: str, new_api_key: str) -> bool:
+        """
+        Rename an API key by updating its api_key value
+
+        Args:
+            old_api_key: The current API key to rename
+            new_api_key: The new API key value
+
+        Returns:
+            True if successful, False otherwise
+
+        Raises:
+            HTTPException: If the new key already exists or the old key doesn't exist
+        """
+        try:
+            # First check if the old API key exists
+            old_key_doc = await self.database.find_one(self.collection_name, {"api_key": old_api_key})
+            if not old_key_doc:
+                masked_old_key = mask_api_key(old_api_key)
+                logger.warning(f"Attempted to rename non-existent API key: {masked_old_key}")
+                raise HTTPException(status_code=404, detail="Old API key not found")
+
+            # Check if the new API key already exists
+            new_key_doc = await self.database.find_one(self.collection_name, {"api_key": new_api_key})
+            if new_key_doc:
+                masked_new_key = mask_api_key(new_api_key)
+                logger.warning(f"Attempted to rename to existing API key: {masked_new_key}")
+                raise HTTPException(status_code=409, detail="New API key already exists")
+
+            # Update the API key
+            result = await self.database.update_one(
+                self.collection_name,
+                {"api_key": old_api_key},
+                {"$set": {"api_key": new_api_key}}
+            )
+
+            if self.verbose and result:
+                masked_old_key = mask_api_key(old_api_key)
+                masked_new_key = mask_api_key(new_api_key)
+                logger.info(f"Renamed API key from {masked_old_key} to {masked_new_key}")
+
+            return result
+
+        except HTTPException:
+            # Re-raise HTTP exceptions as-is
+            raise
+        except Exception as e:
+            logger.error(f"Error renaming API key: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Error renaming API key: {str(e)}")
+
     async def deactivate_api_key(self, api_key: str) -> bool:
         """
         Deactivate an API key
-        
+
         Args:
             api_key: The API key to deactivate
-            
+
         Returns:
             True if successful, False otherwise
         """

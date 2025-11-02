@@ -44,6 +44,7 @@ API Key Management Commands:
     orbit key list [--active-only]
     orbit key status --key KEY
     orbit key test --key KEY
+    orbit key rename --old-key OLD_KEY --new-key NEW_KEY
     orbit key deactivate --key KEY
     orbit key delete --key KEY [--force]
 
@@ -102,6 +103,7 @@ Examples:
     orbit key list --active-only                        # List only active keys
     orbit key test --key api_abcd1234                   # Test an API key
     orbit key status --key api_abcd1234                 # Get detailed status
+    orbit key rename --old-key api_abcd1234 --new-key api_newkey5678  # Rename an API key
     orbit key deactivate --key api_abcd1234             # Deactivate an API key
     orbit key delete --key api_abcd1234                 # Delete an API key
     orbit key delete --key api_abcd1234 --force         # Delete without confirmation
@@ -2090,29 +2092,61 @@ class ApiManager:
         except Exception as e:
             raise OrbitError(f"Error listing API keys: {str(e)}")
     
+    @handle_api_errors(
+        operation_name="Rename API key",
+        custom_errors={
+            404: "Old API key not found",
+            409: "New API key already exists"
+        }
+    )
+    def rename_api_key(self, old_api_key: str, new_api_key: str) -> Dict[str, Any]:
+        """
+        Rename an API key
+
+        Args:
+            old_api_key: The current API key to rename
+            new_api_key: The new API key value
+
+        Returns:
+            Dictionary containing the result of the operation
+        """
+        self._ensure_authenticated()
+        url = f"{self.server_url}/admin/api-keys/{old_api_key}/rename"
+
+        # Add new_api_key as query parameter
+        url = f"{url}?new_api_key={new_api_key}"
+
+        headers = {
+            "Authorization": f"Bearer {self.admin_token}"
+        }
+
+        response = self._make_request("PATCH", url, headers=headers)
+        response.raise_for_status()
+        return response.json()
+
     @handle_api_errors(operation_name="Deactivate API key")
     def deactivate_api_key(self, api_key: str) -> Dict[str, Any]:
         """
         Deactivate an API key
-        
+
         Args:
             api_key: The API key to deactivate
-            
+
         Returns:
             Dictionary containing the result of the operation
         """
         self._ensure_authenticated()
         url = f"{self.server_url}/admin/api-keys/deactivate"
-        
+
         headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self.admin_token}"
         }
-        
+
         data = {
             "api_key": api_key
         }
-        
+
         response = self._make_request("POST", url, headers=headers, json_data=data)
         response.raise_for_status()
         return response.json()
@@ -2752,18 +2786,28 @@ Report issues at: https://github.com/schmitech/orbit/issues
         status_parser.add_argument('--key', required=True, help='API key to check')
         status_parser.set_defaults(func=self.handle_key_status_command)
         
+        # Rename command
+        rename_parser = key_subparsers.add_parser(
+            'rename',
+            help='Rename an API key',
+            description='Rename an existing API key to a new value'
+        )
+        rename_parser.add_argument('--old-key', required=True, help='Current API key to rename')
+        rename_parser.add_argument('--new-key', required=True, help='New API key value')
+        rename_parser.set_defaults(func=self.handle_key_rename_command)
+
         # Deactivate command
         deactivate_parser = key_subparsers.add_parser(
-            'deactivate', 
+            'deactivate',
             help='Deactivate an API key',
             description='Temporarily deactivate an API key'
         )
         deactivate_parser.add_argument('--key', required=True, help='API key to deactivate')
         deactivate_parser.set_defaults(func=self.handle_key_deactivate_command)
-        
+
         # Delete command
         delete_parser = key_subparsers.add_parser(
-            'delete', 
+            'delete',
             help='Delete an API key',
             description='Permanently delete an API key'
         )
@@ -3248,6 +3292,21 @@ Report issues at: https://github.com/schmitech/orbit/issues
             self._display_api_key_status(result)
         return 0
     
+    def handle_key_rename_command(self, args):
+        """Handler for the 'key rename' command."""
+        api_manager = self.get_api_manager(args.server_url)
+        result = api_manager.rename_api_key(args.old_key, args.new_key)
+        if args.output == 'json':
+            self.formatter.format_json(result)
+        else:
+            self.formatter.success("API key renamed successfully")
+            # Mask the keys for display
+            masked_old = f"***{args.old_key[-4:]}" if len(args.old_key) > 4 else "***"
+            masked_new = f"***{args.new_key[-4:]}" if len(args.new_key) > 4 else "***"
+            console.print(f"Old key: {masked_old}")
+            console.print(f"New key: {masked_new}")
+        return 0
+
     def handle_key_deactivate_command(self, args):
         """Handler for the 'key deactivate' command."""
         api_manager = self.get_api_manager(args.server_url)

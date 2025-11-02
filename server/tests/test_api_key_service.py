@@ -683,10 +683,211 @@ async def test_deactivated_api_key_validation_with_adapters(api_key_service):
         client_name="Deactivate Test Client",
         adapter_name="qa-sql"
     )
-    
+
     api_key = result["api_key"]
     await api_key_service.deactivate_api_key(api_key)
-    
+
     # Should fail validation
     is_valid, adapter_name, prompt_id = await api_key_service.validate_api_key(api_key)
     assert is_valid is False
+
+# ========================
+# API KEY RENAME TESTS
+# ========================
+
+@pytest.mark.asyncio
+async def test_rename_api_key_success(api_key_service):
+    """Test successfully renaming an API key"""
+    # Create an API key
+    result = await api_key_service.create_api_key(
+        client_name="Rename Test Client",
+        adapter_name="qa-sql",
+        notes="Test rename key"
+    )
+
+    old_api_key = result["api_key"]
+    new_api_key = f"{api_key_service.config['api_keys']['prefix']}renamed_key_123"
+
+    # Rename the key
+    success = await api_key_service.rename_api_key(old_api_key, new_api_key)
+    assert success is True
+
+    # Verify old key no longer exists
+    old_status = await api_key_service.get_api_key_status(old_api_key)
+    assert old_status is None or old_status.get("exists") is False
+
+    # Verify new key exists and has correct properties
+    new_status = await api_key_service.get_api_key_status(new_api_key)
+    assert new_status is not None
+    assert new_status.get("exists") is True
+    assert new_status.get("active") is True
+    assert new_status.get("adapter_name") == "qa-sql"
+    assert new_status.get("client_name") == "Rename Test Client"
+
+    # Verify new key validates correctly
+    is_valid, adapter_name, prompt_id = await api_key_service.validate_api_key(new_api_key)
+    assert is_valid is True
+    assert adapter_name == "qa-sql"
+
+
+@pytest.mark.asyncio
+async def test_rename_api_key_to_existing_key(api_key_service):
+    """Test that renaming to an existing key fails"""
+    # Create two API keys
+    result1 = await api_key_service.create_api_key(
+        client_name="Test Client 1",
+        adapter_name="qa-sql"
+    )
+    result2 = await api_key_service.create_api_key(
+        client_name="Test Client 2",
+        adapter_name="qa-vector-chroma"
+    )
+
+    old_api_key = result1["api_key"]
+    existing_api_key = result2["api_key"]
+
+    # Try to rename to existing key - should raise HTTPException with 409
+    from fastapi import HTTPException
+    with pytest.raises(HTTPException) as exc_info:
+        await api_key_service.rename_api_key(old_api_key, existing_api_key)
+
+    assert exc_info.value.status_code == 409
+    assert "already exists" in str(exc_info.value.detail)
+
+    # Verify original keys still exist
+    status1 = await api_key_service.get_api_key_status(old_api_key)
+    assert status1.get("exists") is True
+
+    status2 = await api_key_service.get_api_key_status(existing_api_key)
+    assert status2.get("exists") is True
+
+
+@pytest.mark.asyncio
+async def test_rename_nonexistent_api_key(api_key_service):
+    """Test that renaming a non-existent key fails"""
+    old_api_key = "nonexistent_key_123"
+    new_api_key = f"{api_key_service.config['api_keys']['prefix']}new_key_456"
+
+    # Try to rename non-existent key - should raise HTTPException with 404
+    from fastapi import HTTPException
+    with pytest.raises(HTTPException) as exc_info:
+        await api_key_service.rename_api_key(old_api_key, new_api_key)
+
+    assert exc_info.value.status_code == 404
+    assert "not found" in str(exc_info.value.detail)
+
+
+@pytest.mark.asyncio
+async def test_rename_api_key_preserves_associations(api_key_service, prompt_service):
+    """Test that renaming an API key preserves system prompt associations"""
+    # Create a prompt
+    prompt_id = await prompt_service.create_prompt(
+        "Test Prompt for Rename",
+        "This is a test system prompt",
+        "1.0"
+    )
+
+    # Create an API key with associated prompt
+    result = await api_key_service.create_api_key(
+        client_name="Rename Test Client",
+        adapter_name="qa-sql",
+        notes="Test rename with prompt",
+        system_prompt_id=str(prompt_id)
+    )
+
+    old_api_key = result["api_key"]
+    new_api_key = f"{api_key_service.config['api_keys']['prefix']}renamed_key_with_prompt"
+
+    # Rename the key
+    success = await api_key_service.rename_api_key(old_api_key, new_api_key)
+    assert success is True
+
+    # Verify new key has the prompt association
+    new_status = await api_key_service.get_api_key_status(new_api_key)
+    assert new_status is not None
+
+    # Check prompt association is preserved
+    stored_prompt_id = new_status.get("system_prompt", {}).get("id") if isinstance(new_status.get("system_prompt"), dict) else new_status.get("system_prompt_id")
+
+    if stored_prompt_id:
+        assert str(stored_prompt_id) == str(prompt_id)
+    else:
+        # Also check via validation
+        is_valid, adapter_name, returned_prompt_id = await api_key_service.validate_api_key(new_api_key)
+        assert is_valid is True
+        assert str(returned_prompt_id) == str(prompt_id)
+
+
+@pytest.mark.asyncio
+async def test_rename_api_key_preserves_notes_and_metadata(api_key_service):
+    """Test that renaming an API key preserves all metadata"""
+    # Create an API key with notes
+    result = await api_key_service.create_api_key(
+        client_name="Metadata Test Client",
+        adapter_name="qa-vector-chroma",
+        notes="Important notes about this key"
+    )
+
+    old_api_key = result["api_key"]
+    new_api_key = f"{api_key_service.config['api_keys']['prefix']}renamed_key_metadata"
+
+    # Get original created_at timestamp
+    original_status = await api_key_service.get_api_key_status(old_api_key)
+    original_created_at = original_status.get("created_at")
+
+    # Rename the key
+    success = await api_key_service.rename_api_key(old_api_key, new_api_key)
+    assert success is True
+
+    # Verify all metadata is preserved
+    new_status = await api_key_service.get_api_key_status(new_api_key)
+    assert new_status.get("client_name") == "Metadata Test Client"
+    assert new_status.get("adapter_name") == "qa-vector-chroma"
+    # Note: notes are not returned in get_api_key_status, would need to query directly
+
+    # Verify created_at is preserved by querying the database directly
+    key_doc = await api_key_service.database.find_one(
+        api_key_service.collection_name,
+        {"api_key": new_api_key}
+    )
+    assert key_doc is not None
+    assert key_doc.get("notes") == "Important notes about this key"
+    # Created_at should be preserved (comparing datetime objects from MongoDB)
+    created_at = key_doc.get("created_at")
+    if created_at and original_created_at:
+        # Both should be datetime objects - compare them directly
+        # If original_created_at is a timestamp, convert created_at to timestamp for comparison
+        if hasattr(created_at, 'timestamp') and hasattr(original_created_at, 'timestamp'):
+            # Both are datetime objects
+            assert created_at == original_created_at
+        elif hasattr(created_at, 'timestamp') and isinstance(original_created_at, (int, float)):
+            # created_at is datetime, original_created_at is timestamp
+            assert created_at.timestamp() == original_created_at
+        else:
+            # Just compare directly
+            assert created_at == original_created_at
+
+
+@pytest.mark.asyncio
+async def test_rename_deactivated_api_key(api_key_service):
+    """Test that deactivated API keys can be renamed"""
+    # Create and deactivate an API key
+    result = await api_key_service.create_api_key(
+        client_name="Deactivated Rename Test",
+        adapter_name="qa-sql"
+    )
+
+    old_api_key = result["api_key"]
+    await api_key_service.deactivate_api_key(old_api_key)
+
+    new_api_key = f"{api_key_service.config['api_keys']['prefix']}renamed_deactivated_key"
+
+    # Rename the deactivated key - should succeed
+    success = await api_key_service.rename_api_key(old_api_key, new_api_key)
+    assert success is True
+
+    # Verify new key exists and is still deactivated
+    new_status = await api_key_service.get_api_key_status(new_api_key)
+    assert new_status is not None
+    assert new_status.get("exists") is True
+    assert new_status.get("active") is False
