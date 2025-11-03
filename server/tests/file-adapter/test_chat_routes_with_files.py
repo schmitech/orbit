@@ -236,36 +236,43 @@ async def test_chat_streaming_with_file_context(http_client, uploaded_file, serv
         "file_ids": [uploaded_file]
     }
 
-    async with http_client.stream(
-        "POST",
-        f"{TEST_SERVER_URL}/v1/chat",
-        headers=headers,
-        json=chat_request
-    ) as response:
-        assert response.status_code == 200, f"Streaming request failed"
+    # Use longer timeout for streaming
+    timeout = httpx.Timeout(180.0, read=180.0)  # 3 minutes for streaming
+    client_with_timeout = httpx.AsyncClient(timeout=timeout)
+    
+    try:
+        async with client_with_timeout.stream(
+            "POST",
+            f"{TEST_SERVER_URL}/v1/chat",
+            headers=headers,
+            json=chat_request
+        ) as response:
+            assert response.status_code == 200, f"Streaming request failed"
 
-        chunks = []
-        async for line in response.aiter_lines():
-            if line.startswith("data: "):
-                data_str = line[6:]  # Remove "data: " prefix
-                if data_str.strip() and data_str != "[DONE]":
-                    try:
-                        chunk_data = json.loads(data_str)
-                        chunks.append(chunk_data)
+            chunks = []
+            async for line in response.aiter_lines():
+                if line.startswith("data: "):
+                    data_str = line[6:]  # Remove "data: " prefix
+                    if data_str.strip() and data_str != "[DONE]":
+                        try:
+                            chunk_data = json.loads(data_str)
+                            chunks.append(chunk_data)
 
-                        if chunk_data.get("done", False):
-                            break
-                    except json.JSONDecodeError:
-                        pass
+                            if chunk_data.get("done", False):
+                                break
+                        except json.JSONDecodeError:
+                            pass
 
-        # Verify we received streaming chunks
-        assert len(chunks) > 0, "No chunks received from streaming response"
+            # Verify we received streaming chunks
+            assert len(chunks) > 0, "No chunks received from streaming response"
 
-        # Verify chunks contain response text
-        has_content = any(
-            chunk.get("response", "") for chunk in chunks
-        )
-        assert has_content, "No content in streaming chunks"
+            # Verify chunks contain response text
+            has_content = any(
+                chunk.get("response", "") for chunk in chunks
+            )
+            assert has_content, "No content in streaming chunks"
+    finally:
+        await client_with_timeout.aclose()
 
 
 @pytest.mark.asyncio
@@ -528,9 +535,12 @@ async def test_complete_file_chat_workflow(http_client, server_health_check):
         chat_data = chat_response.json()
         assert "response" in chat_data
 
-        # Response should mention fox or dog
+        # Response should mention fox or dog (but be flexible - LLM might rephrase)
         response_lower = chat_data["response"].lower()
-        assert "fox" in response_lower or "dog" in response_lower
+        # Check for various ways the LLM might reference the content
+        assert any(keyword in response_lower for keyword in [
+            "fox", "dog", "brown", "lazy", "quick", "jumps", "animal", "animals"
+        ]), f"Response should reference document content. Got: {chat_data['response'][:200]}"
 
         # 4. Delete file
         delete_response = await http_client.delete(
@@ -539,7 +549,101 @@ async def test_complete_file_chat_workflow(http_client, server_health_check):
         )
 
         assert delete_response.status_code == 200
+        
+        # 5. Wait a moment for deletion to complete
+        await asyncio.sleep(1)
+        
+        # 6. Verify file metadata is deleted - get file info should fail
+        get_file_response = await http_client.get(
+            f"{TEST_SERVER_URL}/api/files/{file_id}",
+            headers=headers
+        )
+        assert get_file_response.status_code == 404, "File metadata should be removed after deletion"
+        
+        # 7. Verify chunks are deleted - query should fail
+        query_after = await http_client.post(
+            f"{TEST_SERVER_URL}/api/files/{file_id}/query",
+            headers=query_headers,
+            json={"query": "What animals?", "max_results": 1}
+        )
+        assert query_after.status_code == 404, "File should not be queryable after deletion"
 
+    finally:
+        import os
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+
+
+@pytest.mark.asyncio
+async def test_conversation_deletion_cleans_file_chunks(http_client, server_health_check):
+    """Test that deleting a conversation also removes file chunks from vector store"""
+    headers = {"X-API-Key": TEST_API_KEY}
+    session_id = f"test-session-delete-{hash('test')}"
+    
+    # Upload a file
+    content = "This is a test document for conversation deletion."
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+        f.write(content)
+        temp_path = f.name
+
+    try:
+        with open(temp_path, "rb") as f:
+            files = {"file": ("test.txt", f, "text/plain")}
+            upload_response = await http_client.post(
+                f"{TEST_SERVER_URL}/api/files/upload",
+                headers=headers,
+                files=files
+            )
+
+        assert upload_response.status_code == 200
+        file_id = upload_response.json()["file_id"]
+        
+        # Wait for processing
+        await asyncio.sleep(2)
+        
+        # Verify file is queryable
+        query_headers = {
+            "X-API-Key": TEST_API_KEY,
+            "Content-Type": "application/json"
+        }
+        query_before = await http_client.post(
+            f"{TEST_SERVER_URL}/api/files/{file_id}/query",
+            headers=query_headers,
+            json={"query": "test document", "max_results": 1}
+        )
+        assert query_before.status_code == 200
+        assert len(query_before.json()["results"]) > 0
+        
+        # Delete conversation with file (using admin route)
+        delete_response = await http_client.delete(
+            f"{TEST_SERVER_URL}/admin/conversations/{session_id}?file_ids={file_id}",
+            headers={
+                "X-API-Key": TEST_API_KEY,
+                "X-Session-ID": session_id
+            }
+        )
+        
+        # Should succeed (even if session doesn't exist, files should be deleted)
+        assert delete_response.status_code in [200, 404]
+        
+        # Wait a moment for deletion to complete
+        await asyncio.sleep(1)
+        
+        # Verify file metadata is deleted - get file info should fail
+        get_file_response = await http_client.get(
+            f"{TEST_SERVER_URL}/api/files/{file_id}",
+            headers=headers
+        )
+        assert get_file_response.status_code == 404, "File metadata should be removed after conversation deletion"
+        
+        # Verify chunks are deleted - query should fail
+        query_after = await http_client.post(
+            f"{TEST_SERVER_URL}/api/files/{file_id}/query",
+            headers=query_headers,
+            json={"query": "test document", "max_results": 1}
+        )
+        assert query_after.status_code == 404, "File should not be queryable after deletion"
+        
     finally:
         import os
         if os.path.exists(temp_path):

@@ -63,7 +63,7 @@ class BaseStore(ABC):
     def __init__(self, config: StoreConfig):
         """
         Initialize the store with configuration.
-        
+
         Args:
             config: Store configuration
         """
@@ -73,8 +73,11 @@ class BaseStore(ABC):
         self._created_at = datetime.now(timezone.utc)
         self._last_accessed = datetime.now(timezone.utc)
         self._operation_count = 0
-        
-        logger.info(f"Initializing {self.__class__.__name__} with config: {config.name}")
+
+        # Check if verbose mode is enabled
+        verbose = config.connection_params.get('verbose', False)
+        if verbose:
+            logger.info(f"Initializing {self.__class__.__name__} with config: {config.name}")
     
     @abstractmethod
     async def connect(self) -> bool:

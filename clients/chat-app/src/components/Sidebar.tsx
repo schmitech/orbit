@@ -4,6 +4,7 @@ import { useChatStore } from '../stores/chatStore';
 import { Conversation } from '../types';
 import { ConfirmationModal } from './ConfirmationModal';
 import { FileList } from './FileList';
+import { debugWarn, debugError } from '../utils/debug';
 
 interface SidebarProps {}
 
@@ -47,7 +48,7 @@ export function Sidebar({}: SidebarProps) {
     try {
       createConversation();
     } catch (error) {
-      console.warn('Cannot create new conversation:', error instanceof Error ? error.message : 'Unknown error');
+      debugWarn('Cannot create new conversation:', error instanceof Error ? error.message : 'Unknown error');
     }
   };
 
@@ -72,7 +73,7 @@ export function Sidebar({}: SidebarProps) {
         isDeleting: false
       });
     } catch (error) {
-      console.error('Failed to delete conversation:', error);
+      debugError('Failed to delete conversation:', error);
       // Still close the modal even if there was an error
       setDeleteConfirmation({
         isOpen: false,

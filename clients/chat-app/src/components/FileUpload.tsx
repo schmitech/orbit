@@ -3,6 +3,7 @@ import { Upload, X, Loader2 } from 'lucide-react';
 import { FileAttachment } from '../types';
 import { FileUploadService, FileUploadProgress } from '../services/fileService';
 import { useChatStore } from '../stores/chatStore';
+import { debugLog, debugWarn, debugError } from '../utils/debug';
 
 interface FileUploadProps {
   onFilesSelected: (files: FileAttachment[]) => void;
@@ -46,7 +47,7 @@ export function FileUpload({
     if (uploadedFiles.length !== prevUploadedFilesLengthRef.current) {
       prevUploadedFilesLengthRef.current = uploadedFiles.length;
       
-      console.log(`[FileUpload] Notifying parent about ${uploadedFiles.length} files:`, uploadedFiles);
+      debugLog(`[FileUpload] Notifying parent about ${uploadedFiles.length} files:`, uploadedFiles);
       onFilesSelected(uploadedFiles);
       
       // When files are selected and parent adds them to conversation,
@@ -144,7 +145,7 @@ export function FileUpload({
             } catch (error: any) {
               // Silently handle errors during cleanup (including 404s)
               if (!error.message?.includes('404') && !error.message?.includes('File not found')) {
-                console.warn(`Failed to cleanup file ${fileId} during component unmount:`, error);
+                debugWarn(`Failed to cleanup file ${fileId} during component unmount:`, error);
               }
             }
           });
@@ -199,7 +200,7 @@ export function FileUpload({
             if (fileIdMatch && fileIdMatch[1]) {
               uploadedFileIdsRef.current.delete(fileIdMatch[1]);
             }
-            console.log(`File ${file.name} was deleted during upload`);
+            debugLog(`File ${file.name} was deleted during upload`);
             return null;
           }
           throw error;
@@ -212,14 +213,14 @@ export function FileUpload({
             uploadedFileIdsRef.current.add(uploadedAttachment.file_id);
           }
           newFiles.push(uploadedAttachment);
-          console.log(`File ${file.name} uploaded successfully, added to list:`, uploadedAttachment);
+          debugLog(`File ${file.name} uploaded successfully, added to list:`, uploadedAttachment);
         } else {
-          console.warn(`Upload completed for ${file.name} but uploadedAttachment is null`);
+          debugWarn(`Upload completed for ${file.name} but uploadedAttachment is null`);
         }
       } catch (error: any) {
         // If error is from abort or component unmounted, don't show error message
         if (error.name === 'AbortError' || abortController.signal.aborted || !isMountedRef.current) {
-          console.log(`Upload cancelled for ${file.name}`);
+          debugLog(`Upload cancelled for ${file.name}`);
           // Remove from tracking if we have the ID
           if (uploadedFileId) {
             uploadedFileIdsRef.current.delete(uploadedFileId);
@@ -228,7 +229,7 @@ export function FileUpload({
         }
         // If file was deleted during upload, handle gracefully
         if (error.message && error.message.includes('was deleted')) {
-          console.log(`File ${file.name} was deleted during upload`);
+          debugLog(`File ${file.name} was deleted during upload`);
           // Remove from tracking since it's already deleted
           if (uploadedFileId) {
             uploadedFileIdsRef.current.delete(uploadedFileId);
@@ -242,12 +243,12 @@ export function FileUpload({
         }
         // Only show error if component is still mounted
         if (isMountedRef.current) {
-          console.error(`Failed to upload file ${file.name}:`, error);
-          console.error(`File type: ${file.type}, File name: ${file.name}`);
+          debugError(`Failed to upload file ${file.name}:`, error);
+          debugError(`File type: ${file.type}, File name: ${file.name}`);
           onUploadError?.(error.message || `Failed to upload ${file.name}`);
         } else {
           // Log even if unmounted for debugging
-          console.warn(`Upload error for ${file.name} (component unmounted):`, error.message);
+          debugWarn(`Upload error for ${file.name} (component unmounted):`, error.message);
         }
         // Remove from tracking on error
         if (uploadedFileId) {
@@ -276,7 +277,7 @@ export function FileUpload({
         const filesToAdd = newFiles.filter(f => !existingIds.has(f.file_id));
         if (filesToAdd.length > 0) {
           const updated = [...prev, ...filesToAdd];
-          console.log(`[FileUpload] Updated uploadedFiles: ${updated.length} files`, updated);
+          debugLog(`[FileUpload] Updated uploadedFiles: ${updated.length} files`, updated);
           return updated;
         }
         return prev;
@@ -319,7 +320,7 @@ export function FileUpload({
   }, [handleFiles]);
 
   const handleRemoveFile = useCallback(async (fileId: string) => {
-    console.log(`[FileUpload] handleRemoveFile called for file ${fileId}`, {
+    debugLog(`[FileUpload] handleRemoveFile called for file ${fileId}`, {
       currentConversationId,
       hasRemoveFileFromConversation: !!removeFileFromConversation
     });
@@ -333,21 +334,21 @@ export function FileUpload({
     // Remove from conversation and delete from server if conversation exists
     if (currentConversationId) {
       try {
-        console.log(`[FileUpload] Calling removeFileFromConversation for ${fileId}`);
+        debugLog(`[FileUpload] Calling removeFileFromConversation for ${fileId}`);
         await removeFileFromConversation(currentConversationId, fileId);
-        console.log(`[FileUpload] Successfully removed file ${fileId} from conversation`);
+        debugLog(`[FileUpload] Successfully removed file ${fileId} from conversation`);
       } catch (error) {
-        console.error(`[FileUpload] Failed to remove file ${fileId} from conversation:`, error);
+        debugError(`[FileUpload] Failed to remove file ${fileId} from conversation:`, error);
         // File is already removed from local list, so continue
       }
     } else {
       // If no conversation, just delete from server
       try {
-        console.log(`[FileUpload] Calling FileUploadService.deleteFile for ${fileId}`);
+        debugLog(`[FileUpload] Calling FileUploadService.deleteFile for ${fileId}`);
         await FileUploadService.deleteFile(fileId);
-        console.log(`[FileUpload] Successfully deleted file ${fileId} from server`);
+        debugLog(`[FileUpload] Successfully deleted file ${fileId} from server`);
       } catch (error) {
-        console.error(`[FileUpload] Failed to delete file ${fileId} from server:`, error);
+        debugError(`[FileUpload] Failed to delete file ${fileId} from server:`, error);
       }
     }
   }, [currentConversationId, removeFileFromConversation]);

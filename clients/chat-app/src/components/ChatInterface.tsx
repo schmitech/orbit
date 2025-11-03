@@ -3,6 +3,7 @@ import { MessageList } from './MessageList';
 import { MessageInput } from './MessageInput';
 import { useChatStore } from '../stores/chatStore';
 import { Eye, EyeOff, Settings } from 'lucide-react';
+import { debugError } from '../utils/debug';
 
 interface ChatInterfaceProps {
   onOpenSettings: () => void;
@@ -52,7 +53,7 @@ export function ChatInterface({ onOpenSettings }: ChatInterfaceProps) {
         // Clear any existing error after successful configuration
         clearError();
       } catch (error) {
-        console.error('Failed to configure API:', error);
+        debugError('Failed to configure API:', error);
         // Error will be handled by the store
       }
     }

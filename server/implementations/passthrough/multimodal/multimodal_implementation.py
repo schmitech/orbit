@@ -77,7 +77,8 @@ class MultimodalImplementation(BaseRetriever):
                                  f"Multimodal adapter will operate without file retrieval.")
                 self._file_retriever = None
 
-        self.logger.info("Multimodal conversational implementation ready")
+        if self.verbose:
+            self.logger.info("Multimodal conversational implementation ready")
     
     async def close(self) -> None:
         """Close BaseRetriever resources and file retriever."""
@@ -134,13 +135,15 @@ class MultimodalImplementation(BaseRetriever):
 
         # If no file_ids provided, return empty context (pure conversation mode)
         if not file_ids:
-            self.logger.info("Multimodal adapter: No file_ids provided, returning empty context (conversation-only mode)")
+            if self.verbose:
+                self.logger.info("Multimodal adapter: No file_ids provided, returning empty context (conversation-only mode)")
             return []
 
         # Retrieve chunks from the provided files
         try:
-            self.logger.info(f"Multimodal adapter: Retrieving chunks from {len(file_ids)} files: {file_ids}")
-            self.logger.info(f"Query: {query[:100]}...")
+            if self.verbose:
+                self.logger.info(f"Multimodal adapter: Retrieving chunks from {len(file_ids)} files: {file_ids}")
+                self.logger.info(f"Query: {query[:100]}...")
 
             # Use FileVectorRetriever to get relevant chunks
             chunks = await self._file_retriever.get_relevant_context(
@@ -150,7 +153,8 @@ class MultimodalImplementation(BaseRetriever):
                 collection_name=None  # Let retriever find collections by file_id
             )
 
-            self.logger.info(f"Multimodal adapter: Retrieved {len(chunks)} chunks from {len(file_ids)} files")
+            if self.verbose:
+                self.logger.info(f"Multimodal adapter: Retrieved {len(chunks)} chunks from {len(file_ids)} files")
             if chunks:
                 self.logger.debug(f"First chunk preview: {chunks[0].get('content', '')[:200]}...")
 

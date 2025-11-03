@@ -99,13 +99,14 @@ async def mock_retriever(tmp_path):
     """Fixture providing a mocked FileVectorRetriever"""
     config = {
         'collection_prefix': 'test_files_',
-        'vector_store': 'chroma'
+        'vector_store': 'chroma',
+        'embedding': {'provider': 'test'}  # Add provider for signature matching
     }
 
     retriever = FileVectorRetriever(config=config)
     retriever.initialized = True
 
-    # Mock embedding generation
+    # Mock embedding generation - 3 dimensions to match provider signature 'test_3'
     retriever.embed_query = AsyncMock(return_value=[0.1, 0.2, 0.3])
 
     # Mock vector store
@@ -113,7 +114,7 @@ async def mock_retriever(tmp_path):
     mock_store.search_vectors = AsyncMock(return_value=[
         {
             'id': 'chunk_1',
-            'content': 'This is relevant content from the file.',
+            'text': 'This is relevant content from the file.',
             'score': 0.9,
             'metadata': {
                 'file_id': 'file_123',
@@ -122,6 +123,10 @@ async def mock_retriever(tmp_path):
         }
     ])
     retriever._default_store = mock_store
+
+    # Mock methods needed for get_relevant_context
+    retriever._format_results = lambda x: x
+    retriever.apply_domain_filtering = lambda x, y: x
 
     yield retriever
 
@@ -169,6 +174,7 @@ async def test_file_retriever_get_relevant_context_with_file_ids(mock_retriever)
         mock_retriever.metadata_store = metadata_store
 
         # Create test files in metadata store
+        # Collection names include provider signature 'test_3' (provider='test', dimensions=3)
         file_ids = ['file_123', 'file_456']
         for file_id in file_ids:
             await metadata_store.record_file_upload(
@@ -183,7 +189,7 @@ async def test_file_retriever_get_relevant_context_with_file_ids(mock_retriever)
             await metadata_store.update_processing_status(
                 file_id=file_id,
                 status='completed',
-                collection_name=f'collection_{file_id}'
+                collection_name=f'files_test_3_collection_{file_id}'
             )
 
         # Call get_relevant_context with file_ids
@@ -201,7 +207,7 @@ async def test_file_retriever_get_relevant_context_with_file_ids(mock_retriever)
 
 @pytest.mark.asyncio
 async def test_file_retriever_get_relevant_context_single_file_id(mock_retriever):
-    """Test FileVectorRetriever with single file_id (backward compatibility)"""
+    """Test FileVectorRetriever with single file_id in file_ids array"""
     from services.file_metadata.metadata_store import FileMetadataStore
 
     import tempfile
@@ -225,14 +231,14 @@ async def test_file_retriever_get_relevant_context_single_file_id(mock_retriever
         await metadata_store.update_processing_status(
             file_id=file_id,
             status='completed',
-            collection_name='collection_123'
+            collection_name='files_test_3_collection_123'
         )
 
-        # Call get_relevant_context with single file_id
+        # Call get_relevant_context with file_ids array
         results = await mock_retriever.get_relevant_context(
             query="Test query",
             api_key='test_key',
-            file_id=file_id  # Single file_id parameter
+            file_ids=[file_id]  # Use file_ids array
         )
 
         # Verify search was performed
@@ -246,31 +252,34 @@ async def test_file_retriever_multiple_file_ids_filtering():
     """Test that FileVectorRetriever properly filters by multiple file_ids"""
     config = {
         'collection_prefix': 'test_files_',
-        'vector_store': 'chroma'
+        'vector_store': 'chroma',
+        'embedding': {'provider': 'test'}
     }
 
     retriever = FileVectorRetriever(config=config)
     retriever.initialized = True
     retriever.embed_query = AsyncMock(return_value=[0.1, 0.2, 0.3])
+    retriever._format_results = lambda x: x
+    retriever.apply_domain_filtering = lambda x, y: x
 
     # Mock vector store returning results from different files
     mock_store = AsyncMock()
     mock_store.search_vectors = AsyncMock(return_value=[
         {
             'id': 'chunk_1',
-            'content': 'Content from file 1',
+            'text': 'Content from file 1',
             'score': 0.9,
             'metadata': {'file_id': 'file_123', 'chunk_index': 0}
         },
         {
             'id': 'chunk_2',
-            'content': 'Content from file 2',
+            'text': 'Content from file 2',
             'score': 0.85,
             'metadata': {'file_id': 'file_456', 'chunk_index': 0}
         },
         {
             'id': 'chunk_3',
-            'content': 'Content from file 3',
+            'text': 'Content from file 3',
             'score': 0.8,
             'metadata': {'file_id': 'file_789', 'chunk_index': 0}
         }
@@ -286,7 +295,7 @@ async def test_file_retriever_multiple_file_ids_filtering():
         metadata_store = FileMetadataStore(db_path=db_path)
         retriever.metadata_store = metadata_store
 
-        # Create test files
+        # Create test files with provider-aware collection names
         for file_id in ['file_123', 'file_456', 'file_789']:
             await metadata_store.record_file_upload(
                 file_id=file_id,
@@ -300,7 +309,7 @@ async def test_file_retriever_multiple_file_ids_filtering():
             await metadata_store.update_processing_status(
                 file_id=file_id,
                 status='completed',
-                collection_name=f'collection_{file_id}'
+                collection_name=f'files_test_3_collection_{file_id}'
             )
 
         # Search with specific file_ids
@@ -350,12 +359,15 @@ async def test_empty_file_ids_does_not_add_filter():
     """Test that empty file_ids list doesn't add unnecessary filters"""
     config = {
         'collection_prefix': 'test_files_',
-        'vector_store': 'chroma'
+        'vector_store': 'chroma',
+        'embedding': {'provider': 'test'}
     }
 
     retriever = FileVectorRetriever(config=config)
     retriever.initialized = True
     retriever.embed_query = AsyncMock(return_value=[0.1, 0.2, 0.3])
+    retriever._format_results = lambda x: x
+    retriever.apply_domain_filtering = lambda x, y: x
 
     # Mock vector store
     mock_store = AsyncMock()
@@ -384,7 +396,7 @@ async def test_empty_file_ids_does_not_add_filter():
         await metadata_store.update_processing_status(
             file_id='file_1',
             status='completed',
-            collection_name='collection_1'
+            collection_name='files_test_3_collection_1'
         )
 
         # Query with empty file_ids
@@ -405,12 +417,15 @@ async def test_file_ids_with_api_key_ownership_validation():
     """Test that file_ids are validated against API key ownership"""
     config = {
         'collection_prefix': 'test_files_',
-        'vector_store': 'chroma'
+        'vector_store': 'chroma',
+        'embedding': {'provider': 'test'}
     }
 
     retriever = FileVectorRetriever(config=config)
     retriever.initialized = True
     retriever.embed_query = AsyncMock(return_value=[0.1, 0.2, 0.3])
+    retriever._format_results = lambda x: x
+    retriever.apply_domain_filtering = lambda x, y: x
 
     # Mock vector store
     mock_store = AsyncMock()
@@ -439,7 +454,7 @@ async def test_file_ids_with_api_key_ownership_validation():
         await metadata_store.update_processing_status(
             file_id='file_owned',
             status='completed',
-            collection_name='collection_owned'
+            collection_name='files_test_3_collection_owned'
         )
 
         # Try to access owned file

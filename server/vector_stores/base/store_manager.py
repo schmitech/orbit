@@ -25,7 +25,7 @@ class StoreManager:
     def __init__(self, config_path: Optional[str] = None):
         """
         Initialize the store manager.
-        
+
         Args:
             config_path: Path to the stores configuration file
         """
@@ -34,17 +34,26 @@ class StoreManager:
         self._lock = asyncio.Lock()
         self._config = {}
 
+        # Get verbose setting from global config
+        try:
+            from config.config_manager import load_config
+            global_config = load_config()
+            self.verbose = global_config.get('general', {}).get('verbose', False)
+        except Exception:
+            self.verbose = False
+
         if config_path is None:
             config_path = "config/stores.yaml"
-        
+
         # Load configuration if provided
         if config_path:
             self._load_config(config_path)
-        
+
         # Register available store classes
         self._register_store_classes()
-        
-        logger.info("StoreManager initialized")
+
+        if self.verbose:
+            logger.info("StoreManager initialized")
     
     def _load_config(self, config_path: str):
         """Load configuration from YAML file."""
@@ -53,7 +62,8 @@ class StoreManager:
             if path.exists():
                 with open(path, 'r') as f:
                     self._config = yaml.safe_load(f)
-                logger.info(f"Loaded configuration from {config_path}")
+                if self.verbose:
+                    logger.info(f"Loaded configuration from {config_path}")
         except Exception as e:
             logger.error(f"Error loading configuration: {e}")
     
@@ -65,7 +75,8 @@ class StoreManager:
             try:
                 from ..implementations.chroma_store import ChromaStore
                 self._store_classes['chroma'] = ChromaStore
-                logger.info("Registered ChromaStore")
+                if self.verbose:
+                    logger.info("Registered ChromaStore")
             except ImportError:
                 logger.warning("ChromaStore not available")
 
@@ -198,7 +209,8 @@ class StoreManager:
             # Initialize connection
             if await store.connect():
                 self._stores[name] = store
-                logger.info(f"Store {name} created and connected successfully")
+                if self.verbose:
+                    logger.info(f"Store {name} created and connected successfully")
                 return store
             else:
                 raise ConnectionError(f"Failed to connect to store {name}")
@@ -245,9 +257,13 @@ class StoreManager:
                 final_config['connection_params']
             )
 
+        # Add verbose setting to connection_params
+        connection_params = final_config.get('connection_params', {})
+        connection_params['verbose'] = self.verbose
+
         return StoreConfig(
             name=name,
-            connection_params=final_config.get('connection_params', {}),
+            connection_params=connection_params,
             pool_size=final_config.get('pool_size', 5),
             timeout=final_config.get('timeout', 30),
             ephemeral=final_config.get('ephemeral', False),

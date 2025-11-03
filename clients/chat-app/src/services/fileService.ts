@@ -6,6 +6,7 @@
 
 import { getApi } from '../api/loader';
 import { FileAttachment } from '../types';
+import { debugLog, debugWarn, debugError, logError } from '../utils/debug';
 
 export interface FileUploadProgress {
   filename: string;
@@ -108,10 +109,7 @@ export class FileUploadService {
         ? `${apiKey.substring(0, 8)}...${apiKey.substring(apiKey.length - 4)}`
         : `${apiKey.substring(0, Math.min(4, apiKey.length))}...`;
       
-      const debugMode = (import.meta.env as any).VITE_CONSOLE_DEBUG === 'true';
-      if (debugMode) {
-        console.log(`🔑 Using API key: ${maskedKey} (masked for security)`);
-      }
+      debugLog(`🔑 Using API key: ${maskedKey} (masked for security)`);
       
       const client = new api.ApiClient({ apiUrl, apiKey, sessionId: null });
 
@@ -147,7 +145,7 @@ export class FileUploadService {
           throw new Error(`File ${response.file_id} was deleted during upload`);
         }
         // For other errors, log and return initial response
-        console.warn(`File status polling failed for ${response.file_id}:`, error.message || error);
+        debugWarn(`File status polling failed for ${response.file_id}:`, error.message || error);
         fileInfo = {
           file_id: response.file_id,
           filename: response.filename,
@@ -226,7 +224,7 @@ export class FileUploadService {
         });
       } catch (error) {
         // Continue with other files even if one fails
-        console.error(`Failed to upload file ${file.name}:`, error);
+        logError(`Failed to upload file ${file.name}:`, error);
         throw error;
       }
     });
@@ -275,7 +273,7 @@ export class FileUploadService {
         chunk_count: file.chunk_count
       }));
     } catch (error: any) {
-      console.error('Failed to list files:', error);
+      logError('Failed to list files:', error);
       throw new Error(error.message || 'Failed to list files');
     }
   }
@@ -326,7 +324,7 @@ export class FileUploadService {
       if (error.message && (error.message.includes('404') || error.message.includes('File not found'))) {
         throw new Error(`File ${fileId} was deleted`);
       }
-      console.error(`Failed to get file info for ${fileId}:`, error);
+      logError(`Failed to get file info for ${fileId}:`, error);
       throw new Error(error.message || `Failed to get file info: ${fileId}`);
     }
   }
@@ -430,11 +428,11 @@ export class FileUploadService {
     } catch (error: any) {
       // If file was already deleted (404), that's fine - return a success response
       if (error.message && (error.message.includes('404') || error.message.includes('File not found') || error.message.includes('Not Found'))) {
-        console.log(`File ${fileId} was already deleted from server`);
+        debugLog(`File ${fileId} was already deleted from server`);
         return { message: 'File already deleted', file_id: fileId };
       }
       
-      console.error(`Failed to delete file ${fileId}:`, error);
+      logError(`Failed to delete file ${fileId}:`, error);
       throw new Error(error.message || `Failed to delete file: ${fileId}`);
     }
   }

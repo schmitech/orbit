@@ -27,20 +27,24 @@ class ChromaStore(BaseVectorStore):
     def __init__(self, config: StoreConfig):
         """
         Initialize ChromaDB store.
-        
+
         Args:
             config: Store configuration
         """
         super().__init__(config)
-        
+
         # ChromaDB-specific configuration
         self.persist_directory = config.connection_params.get('persist_directory')
         self.allow_reset = config.connection_params.get('allow_reset', False)
-        
+
+        # Get verbose setting from config
+        # Note: config is StoreConfig, need to access global config through connection_params
+        self.verbose = config.connection_params.get('verbose', False)
+
         # Connection and state
         self._client = None
         self._collections = {}  # Cache for collection objects
-        
+
         # Create persist directory if specified
         if self.persist_directory:
             Path(self.persist_directory).mkdir(parents=True, exist_ok=True)
@@ -176,8 +180,9 @@ class ChromaStore(BaseVectorStore):
                 metadatas=metadata or [{}] * len(vectors),
                 ids=ids
             )
-            
-            logger.info(f"Added {len(vectors)} vectors to collection {collection_name}")
+
+            if self.verbose:
+                logger.info(f"Added {len(vectors)} vectors to collection {collection_name}")
             return True
             
         except Exception as e:
@@ -346,8 +351,9 @@ class ChromaStore(BaseVectorStore):
             
             # ChromaDB uses upsert for updates
             collection.upsert(**update_params)
-            
-            logger.info(f"Updated vector {vector_id} in collection {collection_name}")
+
+            if self.verbose:
+                logger.info(f"Updated vector {vector_id} in collection {collection_name}")
             return True
             
         except Exception as e:
@@ -378,8 +384,9 @@ class ChromaStore(BaseVectorStore):
                 return False
             
             collection.delete(ids=[vector_id])
-            
-            logger.info(f"Deleted vector {vector_id} from collection {collection_name}")
+
+            if self.verbose:
+                logger.info(f"Deleted vector {vector_id} from collection {collection_name}")
             return True
             
         except Exception as e:
@@ -414,8 +421,9 @@ class ChromaStore(BaseVectorStore):
             
             # Cache the collection
             self._collections[collection_name] = collection
-            
-            logger.info(f"Created ChromaDB collection: {collection_name}")
+
+            if self.verbose:
+                logger.info(f"Created ChromaDB collection: {collection_name}")
             return True
             
         except Exception as e:
@@ -440,8 +448,9 @@ class ChromaStore(BaseVectorStore):
             # Remove from cache
             if collection_name in self._collections:
                 del self._collections[collection_name]
-            
-            logger.info(f"Deleted ChromaDB collection: {collection_name}")
+
+            if self.verbose:
+                logger.info(f"Deleted ChromaDB collection: {collection_name}")
             return True
             
         except Exception as e:

@@ -98,7 +98,7 @@ class FilesystemStorage(FileStorageBackend):
         return file_path.read_bytes()
     
     async def delete_file(self, key: str) -> bool:
-        """Delete file and metadata sidecar."""
+        """Delete file and metadata sidecar, and clean up empty directories."""
         file_path = self._get_file_path(key)
         metadata_path = self._get_metadata_path(key)
         
@@ -112,6 +112,51 @@ class FilesystemStorage(FileStorageBackend):
         if metadata_path.exists():
             metadata_path.unlink()
             logger.debug(f"Deleted metadata {metadata_path}")
+        
+        # Clean up empty directories
+        # Directory structure: {storage_root}/{api_key}/{file_id}/
+        # After deleting file, remove empty {file_id} and {api_key} directories
+        try:
+            # Start from the file's parent directory (file_id level)
+            current_dir = file_path.parent
+            
+            # Remove file_id directory if empty
+            if current_dir.exists() and current_dir.is_dir():
+                try:
+                    # Check if directory is completely empty (no files, no subdirectories)
+                    try:
+                        remaining_items = list(current_dir.iterdir())
+                        if not remaining_items:
+                            # Directory is empty, safe to remove
+                            current_dir.rmdir()
+                            logger.debug(f"Removed empty directory {current_dir}")
+                            
+                            # Try to remove parent directory (api_key level) if empty
+                            parent_dir = current_dir.parent
+                            if parent_dir.exists() and parent_dir.is_dir():
+                                try:
+                                    remaining_items_in_parent = list(parent_dir.iterdir())
+                                    if not remaining_items_in_parent:
+                                        parent_dir.rmdir()
+                                        logger.debug(f"Removed empty directory {parent_dir}")
+                                except OSError as parent_err:
+                                    # Directory not empty or can't be removed - that's okay
+                                    logger.debug(f"Could not remove parent directory {parent_dir}: {parent_err}")
+                                    pass
+                        else:
+                            # Directory has remaining items, don't remove
+                            logger.debug(f"Directory {current_dir} not empty, contains {len(remaining_items)} item(s)")
+                    except OSError as iter_err:
+                        # Can't read directory - skip cleanup
+                        logger.debug(f"Could not read directory {current_dir}: {iter_err}")
+                        pass
+                except OSError as rmdir_err:
+                    # Directory not empty or can't be removed - that's okay
+                    logger.debug(f"Could not remove directory {current_dir}: {rmdir_err}")
+                    pass
+        except Exception as e:
+            # Log but don't fail deletion if directory cleanup fails
+            logger.debug(f"Could not clean up empty directories for {key}: {e}")
         
         return deleted
     

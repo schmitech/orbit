@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { getApi, ApiClient } from '../api/loader';
 import { Message, Conversation, ChatState, FileAttachment } from '../types';
 import { FileUploadService } from '../services/fileService';
+import { debugLog, debugWarn, debugError, logError } from '../utils/debug';
 
 // Session management utilities
 const getOrCreateSessionId = (): string => {
@@ -84,7 +85,7 @@ async function ensureApiConfigured(): Promise<boolean> {
     apiConfigured = true;
     return true;
   } catch (error) {
-    console.error('Failed to configure API:', error);
+    logError('Failed to configure API:', error);
     return false;
   }
 }
@@ -117,7 +118,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       currentApiUrl = apiUrl;
       apiConfigured = true;
     } catch (error) {
-      console.error('Failed to configure API:', error);
+      logError('Failed to configure API:', error);
       throw new Error('Failed to configure API settings');
     }
 
@@ -222,16 +223,13 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
   deleteConversation: async (id: string) => {
     const conversation = get().conversations.find(conv => conv.id === id);
 
-    const debugMode = (import.meta.env as any).VITE_CONSOLE_DEBUG === 'true';
-    if (debugMode) {
-      console.log(`🗑️ Deleting conversation ${id}:`, {
-        conversationId: id,
-        sessionId: conversation?.sessionId,
-        title: conversation?.title,
-        messageCount: conversation?.messages.length,
-        fileCount: conversation?.attachedFiles?.length || 0
-      });
-    }
+    debugLog(`🗑️ Deleting conversation ${id}:`, {
+      conversationId: id,
+      sessionId: conversation?.sessionId,
+      title: conversation?.title,
+      messageCount: conversation?.messages.length,
+      fileCount: conversation?.attachedFiles?.length || 0
+    });
 
     // If conversation has a session ID, delete conversation and files in one call
     if (conversation?.sessionId) {
@@ -239,7 +237,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         // Ensure API is properly configured first
         const isConfigured = await ensureApiConfigured();
         if (!isConfigured) {
-          console.error('Failed to configure API for conversation deletion');
+          logError('Failed to configure API for conversation deletion');
           // Continue with local deletion even if API configuration fails
         } else {
           // Create API client with the conversation's session ID
@@ -253,34 +251,28 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
           // Extract file IDs from attached files
           const fileIds = conversation?.attachedFiles?.map(f => f.file_id) || [];
 
-          if (debugMode) {
-            console.log(`🔧 Calling deleteConversationWithFiles for session: ${conversation.sessionId}`);
-            console.log(`🔧 File IDs to delete: ${fileIds.join(', ') || 'none'}`);
-          }
+          debugLog(`🔧 Calling deleteConversationWithFiles for session: ${conversation.sessionId}`);
+          debugLog(`🔧 File IDs to delete: ${fileIds.join(', ') || 'none'}`);
 
           // Delete conversation and all associated files in one call
           if (apiClient.deleteConversationWithFiles) {
             const result = await apiClient.deleteConversationWithFiles(conversation.sessionId, fileIds);
-            if (debugMode) {
-              console.log(`✅ Deleted conversation and files for session: ${conversation.sessionId}`, result);
-              console.log(`   - Deleted ${result.deleted_messages} messages`);
-              console.log(`   - Deleted ${result.deleted_files} files`);
-              if (result.file_deletion_errors && result.file_deletion_errors.length > 0) {
-                console.warn(`   - Errors deleting files: ${result.file_deletion_errors.join(', ')}`);
-              }
+            debugLog(`✅ Deleted conversation and files for session: ${conversation.sessionId}`, result);
+            debugLog(`   - Deleted ${result.deleted_messages} messages`);
+            debugLog(`   - Deleted ${result.deleted_files} files`);
+            if (result.file_deletion_errors && result.file_deletion_errors.length > 0) {
+              debugWarn(`   - Errors deleting files: ${result.file_deletion_errors.join(', ')}`);
             }
           } else {
-            if (debugMode) {
-              console.warn(`⚠️ deleteConversationWithFiles method not available on API client`);
-            }
+            debugWarn(`⚠️ deleteConversationWithFiles method not available on API client`);
           }
         }
       } catch (error) {
-        console.error('Failed to clear conversation history from server:', error);
+        logError('Failed to clear conversation history from server:', error);
         // Continue with local deletion even if server clear fails
       }
     } else {
-      console.warn(`⚠️ No session ID found for conversation ${id}, skipping server-side deletion`);
+      debugWarn(`⚠️ No session ID found for conversation ${id}, skipping server-side deletion`);
     }
 
     set((state: ExtendedChatState) => {
@@ -308,7 +300,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
     try {
       // Prevent multiple simultaneous requests
       if (get().isLoading) {
-        console.warn('Another request is already in progress');
+        debugWarn('Another request is already in progress');
         return;
       }
 
@@ -378,7 +370,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         const currentConv = state.conversations.find(c => c.id === conversationId);
         const streamingMsgs = currentConv?.messages.filter(m => m.role === 'assistant' && m.isStreaming) || [];
         if (streamingMsgs.length > 0) {
-          console.warn(`Cleaning up ${streamingMsgs.length} existing streaming messages`);
+          debugWarn(`Cleaning up ${streamingMsgs.length} existing streaming messages`);
         }
 
         return {
@@ -423,9 +415,9 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         
         // Load the API and stream the response
         const api = await getApi();
-        console.log(`[chatStore] Starting streamChat with fileIds:`, fileIds);
+        debugLog(`[chatStore] Starting streamChat with fileIds:`, fileIds);
         for await (const response of api.streamChat(content, true, fileIds)) {
-          console.log(`[chatStore] Received stream chunk:`, { text: response.text?.substring(0, 50), done: response.done });
+          debugLog(`[chatStore] Received stream chunk:`, { text: response.text?.substring(0, 50), done: response.done });
           if (response.text) {
             get().appendToLastMessage(response.text);
             receivedAnyText = true;
@@ -434,18 +426,18 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
           }
           
           if (response.done) {
-            console.log(`[chatStore] Stream completed, receivedAnyText:`, receivedAnyText);
+            debugLog(`[chatStore] Stream completed, receivedAnyText:`, receivedAnyText);
             break;
           }
         }
 
         // If no text received, show error
         if (!receivedAnyText) {
-          console.warn(`[chatStore] No text received from stream, showing error message`);
+          debugWarn(`[chatStore] No text received from stream, showing error message`);
           get().appendToLastMessage('No response received from the server. Please try again later.');
         }
       } catch (error) {
-        console.error('Chat API error:', error);
+        logError('Chat API error:', error);
         get().appendToLastMessage('Sorry, there was an error processing your request.');
       }
 
@@ -477,7 +469,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       }, 0);
 
     } catch (error) {
-      console.error('Chat store error:', error);
+      logError('Chat store error:', error);
       set(() => ({
         isLoading: false,
         error: `Failed to send message: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -514,7 +506,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
     try {
       // Prevent multiple simultaneous requests
       if (get().isLoading) {
-        console.warn('Another request is already in progress');
+        debugWarn('Another request is already in progress');
         return;
       }
 
@@ -591,7 +583,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
           get().appendToLastMessage('No response received from the server. Please try again later.');
         }
       } catch (error) {
-        console.error('Regenerate API error:', error);
+        logError('Regenerate API error:', error);
         get().appendToLastMessage('Sorry, there was an error regenerating the response.');
       }
 
@@ -614,7 +606,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       }));
 
     } catch (error) {
-      console.error('Regenerate error:', error);
+      logError('Regenerate error:', error);
       set({
         isLoading: false,
         error: `Failed to regenerate response: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -684,7 +676,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
 
   // Add file to conversation
   addFileToConversation: (conversationId: string, file: FileAttachment) => {
-    console.log(`[chatStore] addFileToConversation called`, { conversationId, fileId: file.file_id, filename: file.filename });
+    debugLog(`[chatStore] addFileToConversation called`, { conversationId, fileId: file.file_id, filename: file.filename });
     set(state => {
       const updated = {
         conversations: state.conversations.map(conv =>
@@ -701,7 +693,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         )
       };
       const conversation = updated.conversations.find(conv => conv.id === conversationId);
-      console.log(`[chatStore] Updated conversation ${conversationId}`, {
+      debugLog(`[chatStore] Updated conversation ${conversationId}`, {
         hasConversation: !!conversation,
         attachedFilesCount: conversation?.attachedFiles?.length || 0,
         attachedFiles: conversation?.attachedFiles?.map(f => ({ file_id: f.file_id, filename: f.filename }))
@@ -721,21 +713,21 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
 
   // Remove file from conversation and delete from server
   removeFileFromConversation: async (conversationId: string, fileId: string) => {
-    console.log(`[chatStore] removeFileFromConversation called`, {
+    debugLog(`[chatStore] removeFileFromConversation called`, {
       conversationId,
       fileId
     });
     try {
       // Delete from server
-      console.log(`[chatStore] Calling FileUploadService.deleteFile for ${fileId}`);
+      debugLog(`[chatStore] Calling FileUploadService.deleteFile for ${fileId}`);
       await FileUploadService.deleteFile(fileId);
-      console.log(`[chatStore] Successfully deleted file ${fileId} from server`);
+      debugLog(`[chatStore] Successfully deleted file ${fileId} from server`);
     } catch (error: any) {
       // If file was already deleted (404), that's fine - just log and continue
       if (error.message && (error.message.includes('404') || error.message.includes('File not found'))) {
-        console.log(`[chatStore] File ${fileId} was already deleted from server`);
+        debugLog(`[chatStore] File ${fileId} was already deleted from server`);
       } else {
-        console.error(`[chatStore] Failed to delete file ${fileId} from server:`, error);
+        debugError(`[chatStore] Failed to delete file ${fileId} from server:`, error);
       }
       // Continue with local removal even if server deletion fails
     }
@@ -827,7 +819,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         }));
       }, 0);
     } catch (error) {
-      console.error(`Failed to load files for conversation ${conversationId}:`, error);
+      logError(`Failed to load files for conversation ${conversationId}:`, error);
       // Don't throw - allow conversation to load even if file loading fails
     }
   },
@@ -884,22 +876,19 @@ const initializeStore = () => {
       });
       
       // Debug: Log loaded conversations and their session IDs
-      const debugMode = (import.meta.env as any).VITE_CONSOLE_DEBUG === 'true';
-      if (debugMode) {
-        console.log('📋 Loaded conversations:', parsedState.conversations.map((conv: any) => ({
-          id: conv.id,
-          title: conv.title,
-          sessionId: conv.sessionId,
-          messageCount: conv.messages?.length || 0
-        })));
-      }
+      debugLog('📋 Loaded conversations:', parsedState.conversations.map((conv: any) => ({
+        id: conv.id,
+        title: conv.title,
+        sessionId: conv.sessionId,
+        messageCount: conv.messages?.length || 0
+      })));
       
       // Clean up any residual streaming messages after initialization
       setTimeout(() => {
         useChatStore.getState().cleanupStreamingMessages();
       }, 100);
     } catch (error) {
-      console.error('Failed to load chat state:', error);
+      logError('Failed to load chat state:', error);
     }
   }
   
@@ -909,7 +898,7 @@ const initializeStore = () => {
     currentApiUrl = savedApiUrl;
     apiConfigured = true;
   }).catch(error => {
-    console.error('Failed to initialize API:', error);
+    logError('Failed to initialize API:', error);
   });
 };
 

@@ -251,6 +251,24 @@ async def test_delete_file(http_client, test_file, server_health_check):
     assert upload_response.status_code == 200
     file_id = upload_response.json()["file_id"]
     
+    # Wait for processing to complete
+    import asyncio
+    await asyncio.sleep(2)
+    
+    # Verify file is queryable before deletion
+    query_headers = {
+        "X-API-Key": TEST_API_KEY,
+        "Content-Type": "application/json"
+    }
+    query_response = await http_client.post(
+        f"{TEST_SERVER_URL}/api/files/{file_id}/query",
+        headers=query_headers,
+        json={"query": "test", "max_results": 1}
+    )
+    assert query_response.status_code == 200
+    assert len(query_response.json()["results"]) > 0
+    
+    # Delete file
     response = await http_client.delete(
         f"{TEST_SERVER_URL}/api/files/{file_id}",
         headers=headers
@@ -268,6 +286,68 @@ async def test_delete_file(http_client, test_file, server_health_check):
         headers=headers
     )
     assert get_response.status_code == 404
+    
+    # Verify chunks are deleted - query should return 404 or empty results
+    query_response_after = await http_client.post(
+        f"{TEST_SERVER_URL}/api/files/{file_id}/query",
+        headers=query_headers,
+        json={"query": "test", "max_results": 1}
+    )
+    # File not found should return 404
+    assert query_response_after.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_delete_file_cleans_vector_store_chunks(http_client, test_file, server_health_check):
+    """Test that deleting a file removes chunks from vector store"""
+    headers = {"X-API-Key": TEST_API_KEY}
+    
+    # Upload a file
+    with open(test_file, "rb") as f:
+        files = {"file": (test_file.name, f, "text/markdown")}
+        upload_response = await http_client.post(
+            f"{TEST_SERVER_URL}/api/files/upload",
+            headers=headers,
+            files=files
+        )
+    
+    assert upload_response.status_code == 200
+    upload_data = upload_response.json()
+    file_id = upload_data["file_id"]
+    
+    # Wait for processing
+    import asyncio
+    await asyncio.sleep(3)
+    
+    # Verify file can be queried (chunks exist in vector store)
+    query_headers = {
+        "X-API-Key": TEST_API_KEY,
+        "Content-Type": "application/json"
+    }
+    query_before = await http_client.post(
+        f"{TEST_SERVER_URL}/api/files/{file_id}/query",
+        headers=query_headers,
+        json={"query": "Remsy", "max_results": 5}
+    )
+    assert query_before.status_code == 200
+    results_before = query_before.json()["results"]
+    assert len(results_before) > 0, "File should have chunks in vector store before deletion"
+    
+    # Delete file
+    delete_response = await http_client.delete(
+        f"{TEST_SERVER_URL}/api/files/{file_id}",
+        headers=headers
+    )
+    assert delete_response.status_code == 200
+    
+    # Verify chunks are removed from vector store
+    # Query should fail because file no longer exists
+    query_after = await http_client.post(
+        f"{TEST_SERVER_URL}/api/files/{file_id}/query",
+        headers=query_headers,
+        json={"query": "Remsy", "max_results": 5}
+    )
+    assert query_after.status_code == 404, "File chunks should be removed from vector store"
 
 
 @pytest.mark.asyncio
@@ -322,6 +402,19 @@ async def test_delete_all_files(http_client, server_health_check):
     
     # All files for this API key should be gone
     assert len(files_after) == 0
+    
+    # Verify chunks are deleted - try to query deleted files (should fail)
+    query_headers = {
+        "X-API-Key": TEST_API_KEY,
+        "Content-Type": "application/json"
+    }
+    for file_id in test_files:
+        query_response = await http_client.post(
+            f"{TEST_SERVER_URL}/api/files/{file_id}/query",
+            headers=query_headers,
+            json={"query": "test", "max_results": 1}
+        )
+        assert query_response.status_code == 404, f"File {file_id} chunks should be deleted"
 
 
 @pytest.mark.asyncio

@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Bot, Copy, RotateCcw, ThumbsDown, ThumbsUp, User2, File } from 'lucide-react';
 import { Message as MessageType } from '../types';
 import { MarkdownRenderer } from '@schmitech/markdown-renderer';
+import { debugError } from '../utils/debug';
 
 interface MessageProps {
   message: MessageType;
@@ -33,7 +34,7 @@ export function Message({ message, onRegenerate }: MessageProps) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (error) {
-      console.error('Failed to copy text:', error);
+      debugError('Failed to copy text:', error);
     }
   };
 

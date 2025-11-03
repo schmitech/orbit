@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
+import { debugLog, debugError } from '../utils/debug';
 
 interface UseVoiceReturn {
   isListening: boolean;
@@ -45,7 +46,7 @@ export function useVoice(onResult: (text: string) => void): UseVoiceReturn {
       recognition.onstart = () => {
         setIsListening(true);
         setError(null);
-        console.log('Speech recognition started');
+        debugLog('Speech recognition started');
       };
 
       recognition.onresult = (event) => {
@@ -66,11 +67,11 @@ export function useVoice(onResult: (text: string) => void): UseVoiceReturn {
       recognition.onend = () => {
         setIsListening(false);
         recognitionRef.current = null;
-        console.log('Speech recognition ended');
+        debugLog('Speech recognition ended');
       };
 
       recognition.onerror = (event) => {
-        console.error('Speech recognition error:', event.error);
+        debugError('Speech recognition error:', event.error);
         setIsListening(false);
         recognitionRef.current = null;
         
@@ -95,7 +96,7 @@ export function useVoice(onResult: (text: string) => void): UseVoiceReturn {
       recognition.start();
       recognitionRef.current = recognition;
     } catch (err) {
-      console.error('Failed to start speech recognition:', err);
+      debugError('Failed to start speech recognition:', err);
       setError('Failed to start speech recognition. Please try again.');
       setIsListening(false);
     }

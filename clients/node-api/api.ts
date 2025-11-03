@@ -261,7 +261,6 @@ export class ApiClient {
 
               try {
                 const data = JSON.parse(jsonText);
-                console.log(`[ApiClient] Parsed SSE chunk:`, { hasResponse: !!data.response, done: data.done, error: data.error });
                 
                 if (data.error) {
                   console.error(`[ApiClient] Server error:`, data.error);
@@ -270,15 +269,10 @@ export class ApiClient {
                 
                 if (data.response) {
                   hasReceivedContent = true;
-                  console.log(`[ApiClient] Yielding response chunk:`, data.response.substring(0, 50));
                   yield { text: data.response, done: data.done || false };
-                } else if (data.done) {
-                  // Done marker might not have response
-                  console.log(`[ApiClient] Received done marker without response`);
                 }
 
                 if (data.done) {
-                    console.log(`[ApiClient] Stream done, yielding final done marker`);
                     yield { text: '', done: true };
                     return;
                 }
@@ -606,13 +600,6 @@ export class ApiClient {
       method: 'DELETE'
     });
 
-    console.log(`[ApiClient] Deleting file ${fileId}`, {
-      url,
-      method: 'DELETE',
-      hasApiKey: !!this.apiKey,
-      headers: fetchOptions.headers
-    });
-
     try {
       const response = await fetch(url, fetchOptions);
 
@@ -623,7 +610,6 @@ export class ApiClient {
       }
 
       const result = await response.json();
-      console.log(`[ApiClient] File deleted successfully: ${fileId}`, result);
       return result;
     } catch (error: any) {
       console.error(`[ApiClient] Delete error for file ${fileId}:`, error);

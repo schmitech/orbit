@@ -29,14 +29,15 @@ async def retriever_with_metadata(tmp_path):
 
     config = {
         'collection_prefix': 'test_files_',
-        'vector_store': 'chroma'
+        'vector_store': 'chroma',
+        'embedding': {'provider': 'test'}  # Add provider for signature matching
     }
 
     retriever = FileVectorRetriever(config=config)
     retriever.metadata_store = FileMetadataStore(db_path=db_path)
     retriever.initialized = True
 
-    # Mock embeddings
+    # Mock embeddings - 3 dimensions to match provider signature 'test_3'
     retriever.embed_query = AsyncMock(return_value=[0.1, 0.2, 0.3])
 
     yield retriever
@@ -52,10 +53,11 @@ async def test_get_collections_multiple_file_ids(retriever_with_metadata):
     api_key = 'test_key'
 
     # Create multiple files with different collections
+    # Collection names include provider signature 'test_3' (provider='test', dimensions=3)
     file_data = [
-        ('file_1', 'collection_1'),
-        ('file_2', 'collection_2'),
-        ('file_3', 'collection_3'),
+        ('file_1', 'files_test_3_collection_1'),
+        ('file_2', 'files_test_3_collection_2'),
+        ('file_3', 'files_test_3_collection_3'),
     ]
 
     for file_id, collection_name in file_data:
@@ -84,9 +86,9 @@ async def test_get_collections_multiple_file_ids(retriever_with_metadata):
 
     # Should return collections for specified files only
     assert len(collections) == 2
-    assert 'collection_1' in collections
-    assert 'collection_2' in collections
-    assert 'collection_3' not in collections
+    assert 'files_test_3_collection_1' in collections
+    assert 'files_test_3_collection_2' in collections
+    assert 'files_test_3_collection_3' not in collections
 
 
 @pytest.mark.asyncio
@@ -109,7 +111,7 @@ async def test_get_collections_multiple_with_none_file_ids(retriever_with_metada
         await retriever_with_metadata.metadata_store.update_processing_status(
             file_id=file_id,
             status='completed',
-            collection_name=f'collection_{i}'
+            collection_name=f'files_test_3_collection_{i}'
         )
 
     # Get all collections for API key
@@ -121,7 +123,7 @@ async def test_get_collections_multiple_with_none_file_ids(retriever_with_metada
 
     # Should return all collections for this API key
     assert len(collections) == 3
-    assert all(f'collection_{i}' in collections for i in range(3))
+    assert all(f'files_test_3_collection_{i}' in collections for i in range(3))
 
 
 @pytest.mark.asyncio
@@ -156,7 +158,7 @@ async def test_get_collections_multiple_empty_file_ids(retriever_with_metadata):
     await retriever_with_metadata.metadata_store.update_processing_status(
         file_id='file_1',
         status='completed',
-        collection_name='collection_1'
+        collection_name='files_test_3_collection_1'
     )
 
     # Empty file_ids should fall back to api_key lookup
@@ -259,7 +261,7 @@ async def test_get_relevant_context_with_multiple_file_ids(retriever_with_metada
         await retriever_with_metadata.metadata_store.update_processing_status(
             file_id=file_id,
             status='completed',
-            collection_name=f'collection_{i}'
+            collection_name=f'files_test_3_collection_{i}'
         )
 
     # Mock vector store
@@ -267,18 +269,21 @@ async def test_get_relevant_context_with_multiple_file_ids(retriever_with_metada
     mock_store.search_vectors = AsyncMock(return_value=[
         {
             'id': 'chunk_0',
-            'content': 'Content 0',
+            'text': 'Content 0',
             'score': 0.9,
             'metadata': {'file_id': 'file_0', 'chunk_index': 0}
         },
         {
             'id': 'chunk_1',
-            'content': 'Content 1',
+            'text': 'Content 1',
             'score': 0.85,
             'metadata': {'file_id': 'file_1', 'chunk_index': 0}
         }
     ])
     retriever_with_metadata._default_store = mock_store
+    retriever_with_metadata.metadata_store.get_chunk_info = AsyncMock(return_value={})
+    retriever_with_metadata._format_results = lambda x: x
+    retriever_with_metadata.apply_domain_filtering = lambda x, y: x
 
     # Query specific files
     target_file_ids = ['file_0', 'file_1']
@@ -296,8 +301,8 @@ async def test_get_relevant_context_with_multiple_file_ids(retriever_with_metada
 
 
 @pytest.mark.asyncio
-async def test_backward_compatibility_single_file_id(retriever_with_metadata):
-    """Test backward compatibility with single file_id parameter"""
+async def test_single_file_id_in_array(retriever_with_metadata):
+    """Test using single file_id in file_ids array"""
     api_key = 'test_key'
 
     # Create file
@@ -314,7 +319,7 @@ async def test_backward_compatibility_single_file_id(retriever_with_metadata):
     await retriever_with_metadata.metadata_store.update_processing_status(
         file_id=file_id,
         status='completed',
-        collection_name='collection_123'
+        collection_name='files_test_3_collection_123'
     )
 
     # Mock vector store
@@ -322,20 +327,20 @@ async def test_backward_compatibility_single_file_id(retriever_with_metadata):
     mock_store.search_vectors = AsyncMock(return_value=[])
     retriever_with_metadata._default_store = mock_store
 
-    # Call with single file_id (old API)
+    # Call with single file_id in file_ids array
     results = await retriever_with_metadata.get_relevant_context(
         query="Test",
         api_key=api_key,
-        file_id=file_id  # Old parameter name
+        file_ids=[file_id]  # Use file_ids array with single file
     )
 
-    # Should work (backward compatible)
+    # Should work
     assert isinstance(results, list)
 
 
 @pytest.mark.asyncio
-async def test_file_ids_and_file_id_together(retriever_with_metadata):
-    """Test behavior when both file_id and file_ids are provided"""
+async def test_multiple_file_ids_in_array(retriever_with_metadata):
+    """Test using multiple file_ids in array"""
     api_key = 'test_key'
 
     # Create files
@@ -353,24 +358,24 @@ async def test_file_ids_and_file_id_together(retriever_with_metadata):
         await retriever_with_metadata.metadata_store.update_processing_status(
             file_id=file_id,
             status='completed',
-            collection_name=f'collection_{i}'
+            collection_name=f'files_test_3_collection_{i}'
         )
 
     # Mock vector store
     mock_store = AsyncMock()
     mock_store.search_vectors = AsyncMock(return_value=[])
     retriever_with_metadata._default_store = mock_store
+    retriever_with_metadata._format_results = lambda x: x
+    retriever_with_metadata.apply_domain_filtering = lambda x, y: x
 
-    # Call with both file_id and file_ids
-    # file_ids should take priority
+    # Call with multiple file_ids
     results = await retriever_with_metadata.get_relevant_context(
         query="Test",
         api_key=api_key,
-        file_id='file_0',  # Should be ignored
-        file_ids=['file_1', 'file_2']  # Should be used
+        file_ids=['file_1', 'file_2']  # Use file_ids array
     )
 
-    # Should work and use file_ids
+    # Should work
     assert isinstance(results, list)
 
 
@@ -392,7 +397,7 @@ async def test_get_collections_multiple_mixed_existence(retriever_with_metadata)
     await retriever_with_metadata.metadata_store.update_processing_status(
         file_id='file_exists',
         status='completed',
-        collection_name='collection_exists'
+        collection_name='files_test_3_collection_exists'
     )
 
     # Query with mix of existing and non-existing
@@ -405,7 +410,7 @@ async def test_get_collections_multiple_mixed_existence(retriever_with_metadata)
 
     # Should return only collections for existing files
     assert len(collections) == 1
-    assert 'collection_exists' in collections
+    assert 'files_test_3_collection_exists' in collections
 
 
 @pytest.mark.asyncio
@@ -422,11 +427,11 @@ async def test_search_collection_single_file_id_uses_filter_metadata():
     retriever.metadata_store = AsyncMock()
     retriever.metadata_store.get_chunk_info = AsyncMock(return_value={})
 
-    # Search with single file_id
+    # Search with single file_id in file_ids array
     await retriever._search_collection(
         collection_name='test_collection',
         query_embedding=[0.1, 0.2, 0.3],
-        file_id='single_file'
+        file_ids=['single_file']
     )
 
     # Verify filter_metadata was used
@@ -489,7 +494,7 @@ async def test_get_relevant_context_aggregates_across_collections(retriever_with
         await retriever_with_metadata.metadata_store.update_processing_status(
             file_id=file_id,
             status='completed',
-            collection_name=f'collection_{i}'
+            collection_name=f'files_test_3_collection_{i}'
         )
 
     # Mock vector store to return different results per collection
@@ -501,7 +506,7 @@ async def test_get_relevant_context_aggregates_across_collections(retriever_with
         return [
             {
                 'id': f'chunk_{result_index}',
-                'content': f'Content from collection {result_index}',
+                'text': f'Content from collection {result_index}',
                 'score': 0.9 - (result_index * 0.1),
                 'metadata': {
                     'file_id': f'file_{result_index}',
@@ -513,6 +518,9 @@ async def test_get_relevant_context_aggregates_across_collections(retriever_with
     mock_store = AsyncMock()
     mock_store.search_vectors = mock_search_vectors
     retriever_with_metadata._default_store = mock_store
+    retriever_with_metadata.metadata_store.get_chunk_info = AsyncMock(return_value={})
+    retriever_with_metadata._format_results = lambda x: x
+    retriever_with_metadata.apply_domain_filtering = lambda x, y: x
 
     # Query multiple files
     results = await retriever_with_metadata.get_relevant_context(
@@ -522,8 +530,7 @@ async def test_get_relevant_context_aggregates_across_collections(retriever_with
     )
 
     # Should have results from both collections
-    # The exact number depends on how results are aggregated
-    assert len(results) >= 0  # At least we tested the flow
+    assert len(results) > 0  # Should have results from both collections
 
 
 @pytest.mark.asyncio
@@ -544,13 +551,15 @@ async def test_file_ids_empty_vs_none(retriever_with_metadata):
     await retriever_with_metadata.metadata_store.update_processing_status(
         file_id='file_1',
         status='completed',
-        collection_name='collection_1'
+        collection_name='files_test_3_collection_1'
     )
 
     # Mock store
     mock_store = AsyncMock()
     mock_store.search_vectors = AsyncMock(return_value=[])
     retriever_with_metadata._default_store = mock_store
+    retriever_with_metadata._format_results = lambda x: x
+    retriever_with_metadata.apply_domain_filtering = lambda x, y: x
 
     # Test with None (should use api_key)
     await retriever_with_metadata.get_relevant_context(

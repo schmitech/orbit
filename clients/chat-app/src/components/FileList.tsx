@@ -3,6 +3,7 @@ import { FileText, Trash2, X, Paperclip } from 'lucide-react';
 import { useChatStore } from '../stores/chatStore';
 import { FileAttachment } from '../types';
 import { ConfirmationModal } from './ConfirmationModal';
+import { debugError } from '../utils/debug';
 
 interface FileListProps {}
 
@@ -57,7 +58,7 @@ export function FileList({}: FileListProps) {
         isDeleting: false
       });
     } catch (error) {
-      console.error('Failed to delete file:', error);
+      debugError('Failed to delete file:', error);
       // Still close the modal even if there was an error
       setDeleteConfirmation({
         isOpen: false,

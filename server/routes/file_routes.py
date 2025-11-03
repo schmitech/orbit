@@ -504,7 +504,7 @@ def create_file_router() -> APIRouter:
             results = await retriever.get_relevant_context(
                 query=query_request.query,
                 api_key=x_api_key,
-                file_id=file_id,
+                file_ids=[file_id],  # Use file_ids array instead of legacy file_id
                 collection_name=collection_name,
                 limit=max_results
             )

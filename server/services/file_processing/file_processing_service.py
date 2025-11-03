@@ -42,6 +42,9 @@ class FileProcessingService:
         self.app_state = app_state
         self.logger = logging.getLogger(self.__class__.__name__)
 
+        # Get verbose setting from config
+        self.verbose = config.get('general', {}).get('verbose', False)
+
         # Get files configuration section
         files_config = config.get('files', {})
         processing_config = files_config.get('processing', {})
@@ -283,8 +286,9 @@ class FileProcessingService:
                 embedding_provider=embedding_provider,
                 embedding_dimensions=embedding_dimensions
             )
-            
-            self.logger.info(f"File content processed successfully: {file_id} ({len(chunks)} chunks)")
+
+            if self.verbose:
+                self.logger.info(f"File content processed successfully: {file_id} ({len(chunks)} chunks)")
             
         except Exception as e:
             error_message = str(e)
@@ -658,7 +662,8 @@ class FileProcessingService:
             # Format: files_{provider}_{dimensions}_{apikey}_{timestamp}
             collection_name = f"{collection_prefix}{embedding_provider}_{embedding_dimensions}_{api_key}_{timestamp}"
 
-            self.logger.info(f"Creating collection with provider-aware naming: {collection_name}")
+            if self.verbose:
+                self.logger.info(f"Creating collection with provider-aware naming: {collection_name}")
 
             # Index chunks
             success = await retriever.index_file_chunks(
@@ -668,7 +673,8 @@ class FileProcessingService:
             )
 
             if success:
-                self.logger.info(f"Indexed {len(chunks)} chunks into collection {collection_name}")
+                if self.verbose:
+                    self.logger.info(f"Indexed {len(chunks)} chunks into collection {collection_name}")
                 return (collection_name, embedding_provider, embedding_dimensions)
             else:
                 self.logger.warning(f"Failed to index chunks for file {file_id}")
@@ -693,7 +699,7 @@ class FileProcessingService:
         return await self.storage.get_file(storage_key)
     
     async def delete_file(self, file_id: str, api_key: str) -> bool:
-        """Delete file and all associated chunks."""
+        """Delete file and all associated chunks from vector store, storage, and metadata store."""
         file_info = await self.metadata_store.get_file_info(file_id)
         
         if not file_info:
@@ -702,12 +708,47 @@ class FileProcessingService:
         if file_info['api_key'] != api_key:
             raise PermissionError("Access denied")
         
-        # Delete from storage
-        storage_key = file_info['storage_key']
-        await self.storage.delete_file(storage_key)
+        chunks_already_deleted = False  # Track if chunks were already deleted
+        try:
+            # 1. Delete chunks from vector store and metadata store
+            # Get adapter-specific config for this API key (includes embedding provider override)
+            adapter_aware_config = await self._get_adapter_config_for_api_key(api_key)
+            
+            # Initialize file retriever with adapter-aware config to delete chunks from vector store
+            from retrievers.implementations.file.file_retriever import FileVectorRetriever
+            retriever = FileVectorRetriever(config=adapter_aware_config)
+            await retriever.initialize()
+            
+            # Delete chunks from both vector store and metadata store
+            chunks_deleted = await retriever.delete_file_chunks(file_id)
+            if not chunks_deleted:
+                self.logger.warning(f"Failed to delete chunks for file {file_id}, continuing with file deletion")
+            else:
+                chunks_already_deleted = True  # Chunks successfully deleted from metadata store
+        except Exception as e:
+            # Log error but continue with file deletion
+            self.logger.error(f"Error deleting chunks from vector store for file {file_id}: {e}. Continuing with file deletion.")
         
-        # Delete from metadata store
-        return await self.metadata_store.delete_file(file_id)
+        # 2. Delete file from storage (filesystem)
+        try:
+            storage_key = file_info['storage_key']
+            await self.storage.delete_file(storage_key)
+            if self.verbose:
+                self.logger.info(f"Deleted file from storage: {storage_key}")
+        except Exception as e:
+            self.logger.error(f"Error deleting file from storage {storage_key}: {e}")
+            # Continue even if storage deletion fails
+
+        # 3. Delete from metadata store (skip chunk deletion if already done)
+        metadata_deleted = await self.metadata_store.delete_file(file_id, skip_chunks=chunks_already_deleted)
+
+        if metadata_deleted:
+            if self.verbose:
+                self.logger.info(f"Successfully deleted file {file_id} and all associated data")
+        else:
+            self.logger.error(f"Failed to delete file {file_id} from metadata store")
+        
+        return metadata_deleted
     
     async def list_files(self, api_key: str) -> List[Dict[str, Any]]:
         """List all files for an API key."""

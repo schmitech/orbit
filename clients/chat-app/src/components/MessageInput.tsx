@@ -4,6 +4,7 @@ import { useVoice } from '../hooks/useVoice';
 import { FileUpload } from './FileUpload';
 import { FileAttachment } from '../types';
 import { useChatStore } from '../stores/chatStore';
+import { debugLog, debugError } from '../utils/debug';
 
 interface MessageInputProps {
   onSend: (message: string, fileIds?: string[]) => void;
@@ -120,7 +121,7 @@ export function MessageInput({
   };
 
   const handleFilesSelected = useCallback((files: FileAttachment[]) => {
-    console.log(`[MessageInput] handleFilesSelected called with ${files.length} files:`, files);
+    debugLog(`[MessageInput] handleFilesSelected called with ${files.length} files:`, files);
     setAttachedFiles(files);
     
     // Automatically add uploaded files to the current conversation
@@ -160,7 +161,7 @@ export function MessageInput({
         if (!processedFilesRef.current.has(fileKey)) {
           processedFilesRef.current.add(fileKey);
           
-          console.log(`[MessageInput] Adding file ${file.file_id} to conversation ${conversationId}`);
+          debugLog(`[MessageInput] Adding file ${file.file_id} to conversation ${conversationId}`);
           // Always add/update the file in conversation (addFileToConversation handles updates)
           // This ensures the status is updated when polling completes
           updatedStore.addFileToConversation(conversationId!, file);
@@ -184,7 +185,7 @@ export function MessageInput({
       try {
         await removeFileFromConversation(currentConversationId, fileId);
       } catch (error) {
-        console.error(`Failed to remove file ${fileId} from conversation:`, error);
+        debugError(`Failed to remove file ${fileId} from conversation:`, error);
       }
     }
   };
@@ -397,7 +398,7 @@ export function MessageInput({
               <FileUpload
                 onFilesSelected={handleFilesSelected}
                 onUploadError={(error) => {
-                  console.error('File upload error:', error);
+                  debugError('File upload error:', error);
                   // Could show toast notification here
                 }}
                 onUploadingChange={setIsUploading}

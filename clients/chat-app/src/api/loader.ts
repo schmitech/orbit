@@ -4,6 +4,7 @@
  */
 
 import { getApiPackageVersion } from '../utils/version';
+import { debugLog, debugError } from '../utils/debug';
 
 // Check if we should use local API
 const useLocalApi = (import.meta.env as any).VITE_USE_LOCAL_API === 'true';
@@ -12,7 +13,6 @@ const useLocalApi = (import.meta.env as any).VITE_USE_LOCAL_API === 'true';
 // If VITE_LOCAL_API_PATH is not set, use /api.mjs (public directory)
 // If VITE_LOCAL_API_PATH is set, use it as-is (must be a path Vite can serve)
 const localApiPath = (import.meta.env as any).VITE_LOCAL_API_PATH;
-const debugMode = (import.meta.env as any).VITE_CONSOLE_DEBUG === 'true';
 
 // Type definitions for the API
 export interface StreamResponse {
@@ -130,7 +130,7 @@ export async function loadApi(): Promise<ApiFunctions> {
         apiPath = './local/api.mjs';
       }
       
-      if (debugMode) console.log(`🔧 Loading local API from: ${apiPath}`);
+      debugLog(`🔧 Loading local API from: ${apiPath}`);
       // Load from src directory (can be imported by Vite)
       const localApi = await import(/* @vite-ignore */ apiPath);
       apiCache = {
@@ -138,9 +138,9 @@ export async function loadApi(): Promise<ApiFunctions> {
         streamChat: localApi.streamChat,
         ApiClient: localApi.ApiClient
       };
-      if (debugMode) console.log('✅ Local API loaded successfully');
+      debugLog('✅ Local API loaded successfully');
     } else {
-      if (debugMode) console.log('📦 Loading npm package API');
+      debugLog('📦 Loading npm package API');
       // @ts-ignore - Dynamic import that may not be available at compile time
       const npmApi = await import('@schmitech/chatbot-api');
       apiCache = {
@@ -148,17 +148,15 @@ export async function loadApi(): Promise<ApiFunctions> {
         streamChat: npmApi.streamChat,
         ApiClient: npmApi.ApiClient
       };
-      if (debugMode) {
-        const apiVersion = await getApiPackageVersion();
-        console.log(`✅ NPM package API loaded successfully (v${apiVersion})`);
-      }
+      const apiVersion = await getApiPackageVersion();
+      debugLog(`✅ NPM package API loaded successfully (v${apiVersion})`);
     }
   } catch (error) {
-    if (debugMode) console.error('❌ Failed to load API:', error);
+    debugError('❌ Failed to load API:', error);
 
     // Fallback to npm package if local loading fails
     if (useLocalApi) {
-      if (debugMode) console.log('🔄 Falling back to npm package...');
+      debugLog('🔄 Falling back to npm package...');
       try {
         // @ts-ignore - Dynamic import that may not be available at compile time
         const npmApi = await import('@schmitech/chatbot-api');
@@ -167,12 +165,10 @@ export async function loadApi(): Promise<ApiFunctions> {
           streamChat: npmApi.streamChat,
           ApiClient: npmApi.ApiClient
         };
-        if (debugMode) {
-          const apiVersion = await getApiPackageVersion();
-          console.log(`✅ Fallback to NPM package successful (v${apiVersion})`);
-        }
+        const apiVersion = await getApiPackageVersion();
+        debugLog(`✅ Fallback to NPM package successful (v${apiVersion})`);
       } catch (fallbackError) {
-        if (debugMode) console.error('❌ Fallback to NPM package also failed:', fallbackError);
+        debugError('❌ Fallback to NPM package also failed:', fallbackError);
         throw new Error('Failed to load both local and npm API packages');
       }
     } else {

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
 import { ChatState, Conversation, Message } from '../types';
+import { debugLog, debugError } from '../utils/debug';
 
 interface ChatContextType extends ChatState {
   createConversation: () => string;
@@ -157,7 +158,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         }));
         dispatch({ type: 'LOAD_STATE', state: parsedState });
       } catch (error) {
-        console.error('Failed to load chat state:', error);
+        debugError('Failed to load chat state:', error);
       }
     }
   }, []);
@@ -235,7 +236,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     });
 
     try {
-      console.log(`Sending message to session: ${currentConversation.sessionId}`);
+      debugLog(`Sending message to session: ${currentConversation.sessionId}`);
       
       // Make API call to backend with session ID in header
       // NOTE: We only send the current user message, NOT the entire conversation history
@@ -290,7 +291,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         });
       }
     } catch (error) {
-      console.error('Error sending message:', error);
+      debugError('Error sending message:', error);
       dispatch({ 
         type: 'SET_ERROR', 
         error: error instanceof Error ? error.message : 'Failed to send message' 
@@ -302,7 +303,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 
   const regenerateResponse = async (messageId: string) => {
     // Implementation for regenerating AI responses
-    console.log('Regenerating response for:', messageId);
+    debugLog('Regenerating response for:', messageId);
   };
 
   const updateConversationTitle = (id: string, title: string) => {
@@ -354,7 +355,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         });
       }
     } catch (error) {
-      console.error('Failed to sync conversation from backend:', error);
+      debugError('Failed to sync conversation from backend:', error);
     }
   };
 

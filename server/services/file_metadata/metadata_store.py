@@ -28,7 +28,7 @@ class FileMetadataStore:
     def __init__(self, db_path: str = None, config: Dict[str, Any] = None):
         """
         Initialize metadata store.
-        
+
         Args:
             db_path: Path to SQLite database (optional, will use config if not provided)
             config: Configuration dictionary (optional, used to get db_path if not provided)
@@ -45,7 +45,18 @@ class FileMetadataStore:
                     db_path = config.get('files', {}).get('metadata_db_path', 'files.db')
                 except Exception:
                     db_path = 'files.db'
-        
+
+        # Get verbose setting from config
+        if config:
+            self.verbose = config.get('general', {}).get('verbose', False)
+        else:
+            try:
+                from config.config_manager import load_config
+                loaded_config = load_config()
+                self.verbose = loaded_config.get('general', {}).get('verbose', False)
+            except Exception:
+                self.verbose = False
+
         self.db_path = db_path
         self.connection = None
         self._init_schema()
@@ -110,7 +121,8 @@ class FileMetadataStore:
         self._run_migrations(cursor)
 
         self.connection.commit()
-        logger.info(f"Initialized FileMetadataStore at {self.db_path}")
+        if self.verbose:
+            logger.info(f"Initialized FileMetadataStore at {self.db_path}")
 
     def _run_migrations(self, cursor):
         """Run database migrations to add new columns if they don't exist."""
@@ -135,7 +147,8 @@ class FileMetadataStore:
                     ADD COLUMN embedding_dimensions INTEGER
                 """)
 
-            logger.info("Database migrations completed successfully")
+            if self.verbose:
+                logger.info("Database migrations completed successfully")
 
         except Exception as e:
             logger.error(f"Error running database migrations: {e}")
@@ -374,12 +387,13 @@ class FileMetadataStore:
             logger.error(f"Error listing files: {e}")
             return []
     
-    async def delete_file(self, file_id: str) -> bool:
+    async def delete_file(self, file_id: str, skip_chunks: bool = False) -> bool:
         """
         Delete file and all associated chunks.
         
         Args:
             file_id: File identifier
+            skip_chunks: If True, skip deleting chunks (useful if already deleted)
             
         Returns:
             True if successful
@@ -387,14 +401,16 @@ class FileMetadataStore:
         try:
             cursor = self.connection.cursor()
             
-            # Delete chunks first
-            cursor.execute("DELETE FROM file_chunks WHERE file_id = ?", (file_id,))
+            # Delete chunks first (unless already deleted)
+            if not skip_chunks:
+                cursor.execute("DELETE FROM file_chunks WHERE file_id = ?", (file_id,))
             
             # Delete file
             cursor.execute("DELETE FROM uploaded_files WHERE file_id = ?", (file_id,))
-            
+
             self.connection.commit()
-            logger.info(f"Deleted file {file_id} and chunks")
+            if self.verbose:
+                logger.info(f"Deleted file {file_id} and chunks")
             return True
         
         except Exception as e:
@@ -476,6 +492,72 @@ class FileMetadataStore:
         except Exception as e:
             logger.error(f"Error deleting file chunks: {e}")
             return False
+    
+    async def vacuum(self) -> bool:
+        """
+        Reclaim space in SQLite database after deletions.
+        
+        VACUUM rebuilds the database file, reclaiming space occupied by deleted records.
+        This should be called periodically after bulk deletions to prevent database file growth.
+        
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            cursor = self.connection.cursor()
+            cursor.execute("VACUUM")
+            self.connection.commit()
+            logger.info(f"Vacuumed database {self.db_path}")
+            return True
+        except Exception as e:
+            logger.error(f"Error vacuuming database: {e}")
+            return False
+    
+    async def get_database_stats(self) -> Dict[str, Any]:
+        """
+        Get statistics about the database.
+        
+        Returns:
+            Dictionary with database statistics including size and record counts
+        """
+        try:
+            import os
+            stats = {}
+            
+            # Get database file size
+            if os.path.exists(self.db_path):
+                stats['file_size_bytes'] = os.path.getsize(self.db_path)
+                stats['file_size_mb'] = round(stats['file_size_bytes'] / (1024 * 1024), 2)
+            
+            cursor = self.connection.cursor()
+            
+            # Count files
+            cursor.execute("SELECT COUNT(*) FROM uploaded_files")
+            stats['file_count'] = cursor.fetchone()[0]
+            
+            # Count chunks
+            cursor.execute("SELECT COUNT(*) FROM file_chunks")
+            stats['chunk_count'] = cursor.fetchone()[0]
+            
+            # Get database page info
+            cursor.execute("PRAGMA page_count")
+            stats['page_count'] = cursor.fetchone()[0]
+            
+            cursor.execute("PRAGMA page_size")
+            stats['page_size'] = cursor.fetchone()[0]
+            
+            # Calculate used space
+            stats['estimated_used_bytes'] = stats['page_count'] * stats['page_size']
+            
+            # Get free pages (space that can be reclaimed with VACUUM)
+            cursor.execute("PRAGMA freelist_count")
+            stats['free_pages'] = cursor.fetchone()[0]
+            stats['estimated_free_bytes'] = stats['free_pages'] * stats['page_size']
+            
+            return stats
+        except Exception as e:
+            logger.error(f"Error getting database stats: {e}")
+            return {}
     
     def close(self):
         """Close database connection."""
