@@ -107,51 +107,74 @@ class FileVectorRetriever(AbstractVectorRetriever):
         self.initialized = True
         logger.info("FileVectorRetriever initialized")
     
-    async def get_relevant_context(self, query: str, api_key: Optional[str] = None, 
+    async def get_relevant_context(self, query: str, api_key: Optional[str] = None,
                                   file_id: Optional[str] = None,
                                   file_ids: Optional[List[str]] = None,
                                   collection_name: Optional[str] = None,
                                   **kwargs) -> List[Dict[str, Any]]:
         """
         Retrieve relevant context from uploaded files.
-        
+
         Args:
             query: User query
             api_key: API key for filtering
             file_id: Optional specific file to query (legacy parameter)
             file_ids: Optional list of specific files to query
             collection_name: Optional specific collection
-            
+
         Returns:
             List of relevant context items
         """
+        logger.info("=" * 80)
+        logger.info(f"FileVectorRetriever.get_relevant_context called")
+        logger.info(f"  Query: {query[:100]}")
+        logger.info(f"  file_ids: {file_ids}")
+        logger.info(f"  file_id (legacy): {file_id}")
+        logger.info(f"  api_key: {'provided' if api_key else 'None'}")
+        logger.info(f"  collection_name: {collection_name}")
+        logger.info("=" * 80)
+
         await self.ensure_initialized()
-        
+
         # Support both file_id (singular) and file_ids (plural) for backward compatibility
         target_file_ids = file_ids or ([file_id] if file_id else None)
-        
+        logger.info(f"FileVectorRetriever: Target file_ids after legacy conversion: {target_file_ids}")
+
         # Generate query embedding
         query_embedding = await self.embed_query(query)
-        
+        logger.info(f"FileVectorRetriever: Generated query embedding with {len(query_embedding)} dimensions")
+
         # Determine collections to search
         collections = await self._get_collections_multiple(target_file_ids, api_key, collection_name)
-        
+        logger.info(f"FileVectorRetriever: Collections to search: {collections}")
+
+        if not collections:
+            logger.warning("FileVectorRetriever: No collections found! Returning empty results.")
+            return []
+
         # Search across collections
         results = []
         for collection in collections:
+            logger.info(f"FileVectorRetriever: Searching collection: {collection}")
             collection_results = await self._search_collection(
                 collection,
                 query_embedding,
                 file_ids=target_file_ids
             )
+            logger.info(f"FileVectorRetriever: Found {len(collection_results)} results in collection {collection}")
             results.extend(collection_results)
-        
+
+        logger.info(f"FileVectorRetriever: Total raw results: {len(results)}")
+
         # Apply domain filtering
         results = self.apply_domain_filtering(results, query)
-        
+        logger.info(f"FileVectorRetriever: After domain filtering: {len(results)} results")
+
         # Group and format results
         formatted_results = self._format_results(results)
-        
+        logger.info(f"FileVectorRetriever: Final formatted results: {len(formatted_results)} chunks")
+        logger.info("=" * 80)
+
         return formatted_results
     
     async def _get_collections(self, file_id: Optional[str], api_key: Optional[str],
@@ -161,25 +184,92 @@ class FileVectorRetriever(AbstractVectorRetriever):
     
     async def _get_collections_multiple(self, file_ids: Optional[List[str]], api_key: Optional[str],
                                        collection_name: Optional[str]) -> List[str]:
-        """Get list of collections to search for multiple file IDs."""
+        """
+        Get list of collections to search for multiple file IDs.
+
+        This method filters collections to only include those matching the current
+        embedding provider and dimensions to prevent dimension mismatch errors.
+        """
         if collection_name:
             return [collection_name]
-        
+
+        # Get current embedding provider and dimensions
+        try:
+            embedding_provider = self.config.get('embedding', {}).get('provider', 'ollama')
+
+            # Get current embedding dimensions
+            if self.embeddings and hasattr(self.embeddings, 'get_dimensions'):
+                embedding_dimensions = await self.embeddings.get_dimensions()
+            else:
+                # Fallback: try to get dimensions by embedding a test query
+                test_embedding = await self.embed_query("test")
+                embedding_dimensions = len(test_embedding)
+
+            # Create provider signature for filtering
+            provider_signature = f"{embedding_provider}_{embedding_dimensions}"
+
+            logger.debug(f"Filtering collections for provider: {provider_signature}")
+
+        except Exception as e:
+            logger.warning(f"Could not determine embedding provider info: {e}. Collections may not be filtered correctly.")
+            provider_signature = None
+
         if file_ids:
             # Get collections for all specified files
             collections = set()
             for file_id in file_ids:
+                logger.info(f"FileVectorRetriever: Looking up metadata for file_id: {file_id}")
                 file_info = await self.metadata_store.get_file_info(file_id)
-                if file_info and file_info.get('collection_name'):
-                    collections.add(file_info['collection_name'])
+
+                if not file_info:
+                    logger.warning(f"FileVectorRetriever: No metadata found for file_id: {file_id}")
+                    continue
+
+                logger.info(f"FileVectorRetriever: File info: {file_info}")
+
+                if file_info.get('collection_name'):
+                    coll_name = file_info['collection_name']
+                    logger.info(f"FileVectorRetriever: Found collection_name: {coll_name}")
+
+                    # Filter by provider signature if available
+                    if provider_signature:
+                        logger.info(f"FileVectorRetriever: Checking provider signature: {provider_signature}")
+                        # Check if collection name contains the provider signature
+                        # Format: files_{provider}_{dimensions}_{apikey}_{timestamp}
+                        if provider_signature in coll_name:
+                            logger.info(f"FileVectorRetriever: ✓ Collection {coll_name} matches provider {provider_signature}")
+                            collections.add(coll_name)
+                        else:
+                            logger.warning(f"FileVectorRetriever: ✗ Skipping collection {coll_name} (provider signature '{provider_signature}' not found)")
+                    else:
+                        # If we can't determine provider, include all collections (backward compatibility)
+                        logger.info(f"FileVectorRetriever: No provider signature - using collection {coll_name} (backward compatibility)")
+                        collections.add(coll_name)
+                else:
+                    logger.warning(f"FileVectorRetriever: File {file_id} has no collection_name in metadata")
+
+            logger.info(f"FileVectorRetriever: Final collections to search: {list(collections)}")
             return list(collections) if collections else []
-        
+
         # Get all collections for API key
         if api_key:
             files = await self.metadata_store.list_files(api_key)
-            collections = {f['collection_name'] for f in files if f.get('collection_name')}
+            collections = set()
+
+            for f in files:
+                if f.get('collection_name'):
+                    coll_name = f['collection_name']
+
+                    # Filter by provider signature if available
+                    if provider_signature:
+                        if provider_signature in coll_name:
+                            collections.add(coll_name)
+                    else:
+                        # If we can't determine provider, include all collections (backward compatibility)
+                        collections.add(coll_name)
+
             return list(collections)
-        
+
         return []
     
     async def _search_collection(self, collection_name: str, query_embedding: List[float],

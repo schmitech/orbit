@@ -29,6 +29,15 @@ export interface ApiClient {
     deleted_count: number;
     timestamp: string;
   }>;
+  deleteConversationWithFiles?(sessionId?: string, fileIds?: string[]): Promise<{
+    status: string;
+    message: string;
+    session_id: string;
+    deleted_messages: number;
+    deleted_files: number;
+    file_deletion_errors: string[] | null;
+    timestamp: string;
+  }>;
   getSessionId(): string | null;
   uploadFile?(file: File): Promise<{
     file_id: string;

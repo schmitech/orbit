@@ -38,36 +38,40 @@ export function FileUpload({
   }, [uploadingFiles, onUploadingChange]);
 
   // Notify parent component when uploaded files change
-  // Use useEffect to avoid calling setState during render
-  // Note: Always notify about files even if component unmounts - files need to be added to parent state
+  // Use a ref to track previous length to avoid unnecessary updates
+  const prevUploadedFilesLengthRef = useRef(0);
+  
   useEffect(() => {
-    // Always notify parent about files - they need to be added to MessageInput state
-    // This ensures files aren't lost when upload area closes
-    onFilesSelected(uploadedFiles);
-    
-    // When files are selected and parent adds them to conversation,
-    // remove them from cleanup tracking (they're now safely in conversation)
-    // We'll wait a moment for the async addition to complete
-    if (uploadedFiles.length > 0 && currentConversationId) {
-      setTimeout(() => {
-        // Check mount status inside timeout
-        if (isMountedRef.current) {
-          const store = useChatStore.getState();
-          const conversation = store.conversations.find(conv => conv.id === currentConversationId);
-          const filesInConversation = new Set(
-            conversation?.attachedFiles?.map(f => f.file_id) || []
-          );
-          
-          // Remove files that are now in conversation from cleanup tracking
-          uploadedFiles.forEach(file => {
-            if (filesInConversation.has(file.file_id)) {
-              uploadedFileIdsRef.current.delete(file.file_id);
-            }
-          });
-        }
-      }, 100); // Small delay to allow conversation update to complete
+    // Only notify if the length actually changed
+    if (uploadedFiles.length !== prevUploadedFilesLengthRef.current) {
+      prevUploadedFilesLengthRef.current = uploadedFiles.length;
+      
+      console.log(`[FileUpload] Notifying parent about ${uploadedFiles.length} files:`, uploadedFiles);
+      onFilesSelected(uploadedFiles);
+      
+      // When files are selected and parent adds them to conversation,
+      // remove them from cleanup tracking (they're now safely in conversation)
+      if (uploadedFiles.length > 0 && currentConversationId) {
+        setTimeout(() => {
+          // Check mount status inside timeout
+          if (isMountedRef.current) {
+            const store = useChatStore.getState();
+            const conversation = store.conversations.find(conv => conv.id === currentConversationId);
+            const filesInConversation = new Set(
+              conversation?.attachedFiles?.map(f => f.file_id) || []
+            );
+            
+            // Remove files that are now in conversation from cleanup tracking
+            uploadedFiles.forEach(file => {
+              if (filesInConversation.has(file.file_id)) {
+                uploadedFileIdsRef.current.delete(file.file_id);
+              }
+            });
+          }
+        }, 100); // Small delay to allow conversation update to complete
+      }
     }
-  }, [uploadedFiles, onFilesSelected, currentConversationId]);
+  }, [uploadedFiles.length, onFilesSelected, currentConversationId]); // Only depend on length
 
   // Track mount status
   useEffect(() => {
@@ -271,7 +275,9 @@ export function FileUpload({
         const existingIds = new Set(prev.map(f => f.file_id));
         const filesToAdd = newFiles.filter(f => !existingIds.has(f.file_id));
         if (filesToAdd.length > 0) {
-          return [...prev, ...filesToAdd];
+          const updated = [...prev, ...filesToAdd];
+          console.log(`[FileUpload] Updated uploadedFiles: ${updated.length} files`, updated);
+          return updated;
         }
         return prev;
       });
@@ -313,6 +319,11 @@ export function FileUpload({
   }, [handleFiles]);
 
   const handleRemoveFile = useCallback(async (fileId: string) => {
+    console.log(`[FileUpload] handleRemoveFile called for file ${fileId}`, {
+      currentConversationId,
+      hasRemoveFileFromConversation: !!removeFileFromConversation
+    });
+    
     // Remove from local list first
     setUploadedFiles(prev => prev.filter(f => f.file_id !== fileId));
     
@@ -322,17 +333,21 @@ export function FileUpload({
     // Remove from conversation and delete from server if conversation exists
     if (currentConversationId) {
       try {
+        console.log(`[FileUpload] Calling removeFileFromConversation for ${fileId}`);
         await removeFileFromConversation(currentConversationId, fileId);
+        console.log(`[FileUpload] Successfully removed file ${fileId} from conversation`);
       } catch (error) {
-        console.error(`Failed to remove file ${fileId} from conversation:`, error);
+        console.error(`[FileUpload] Failed to remove file ${fileId} from conversation:`, error);
         // File is already removed from local list, so continue
       }
     } else {
       // If no conversation, just delete from server
       try {
+        console.log(`[FileUpload] Calling FileUploadService.deleteFile for ${fileId}`);
         await FileUploadService.deleteFile(fileId);
+        console.log(`[FileUpload] Successfully deleted file ${fileId} from server`);
       } catch (error) {
-        console.error(`Failed to delete file ${fileId} from server:`, error);
+        console.error(`[FileUpload] Failed to delete file ${fileId} from server:`, error);
       }
     }
   }, [currentConversationId, removeFileFromConversation]);
@@ -360,49 +375,55 @@ export function FileUpload({
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
   };
 
+  // Hide upload area when files are uploading OR when files have been uploaded
+  const isUploading = uploadingFiles.size > 0;
+  const hasUploadedFiles = uploadedFiles.length > 0;
+
   return (
     <div className="w-full max-w-full overflow-hidden space-y-3">
-      {/* Upload area */}
-      <div
-        onClick={handleClick}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-        className={`
-          relative w-full max-w-full border-2 border-dashed rounded-xl p-3 sm:p-4 transition-all cursor-pointer
-          ${isDragging 
-            ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 dark:border-emerald-400' 
-            : disabled
-            ? 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 cursor-not-allowed opacity-50'
-            : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900/50 hover:border-emerald-400 hover:bg-emerald-50/30 dark:hover:bg-emerald-900/10'
-          }
-        `}
-      >
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          onChange={handleFileInputChange}
-          className="hidden"
-          disabled={disabled}
-          accept=".pdf,.doc,.docx,.txt,.md,.csv,.json,.html,.pptx,.xlsx,.png,.jpg,.jpeg,.tiff,.wav,.mp3,.vtt"
-        />
-        
-        <div className="flex flex-col items-center justify-center gap-2 text-center">
-          <Upload className={`w-6 h-6 ${isDragging ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'}`} />
-          <div className="px-2">
-            <p className="text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300">
-              {disabled ? 'File upload disabled' : isDragging ? 'Drop files here' : 'Click or drag files to upload'}
-            </p>
-            <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-0.5 px-1">
-              PDF, DOCX, TXT, CSV, JSON, HTML, images, audio (max {maxFiles} files)
-            </p>
+      {/* Upload area - only show when not uploading AND no files uploaded yet */}
+      {!isUploading && !hasUploadedFiles && (
+        <div
+          onClick={handleClick}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          className={`
+            relative w-full max-w-full border-2 border-dashed rounded-xl p-3 sm:p-4 transition-all cursor-pointer
+            ${isDragging 
+              ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 dark:border-emerald-400' 
+              : disabled
+              ? 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 cursor-not-allowed opacity-50'
+              : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900/50 hover:border-emerald-400 hover:bg-emerald-50/30 dark:hover:bg-emerald-900/10'
+            }
+          `}
+        >
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            onChange={handleFileInputChange}
+            className="hidden"
+            disabled={disabled}
+            accept=".pdf,.doc,.docx,.txt,.md,.csv,.json,.html,.pptx,.xlsx,.png,.jpg,.jpeg,.tiff,.wav,.mp3,.vtt"
+          />
+          
+          <div className="flex flex-col items-center justify-center gap-2 text-center">
+            <Upload className={`w-6 h-6 ${isDragging ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'}`} />
+            <div className="px-2">
+              <p className="text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300">
+                {disabled ? 'File upload disabled' : isDragging ? 'Drop files here' : 'Click or drag files to upload'}
+              </p>
+              <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-0.5 px-1">
+                PDF, DOCX, TXT, CSV, JSON, HTML, images, audio (max {maxFiles} files)
+              </p>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
-      {/* Upload progress */}
-      {uploadingFiles.size > 0 && (
+      {/* Upload progress - show when uploading */}
+      {isUploading && (
         <div className="w-full max-w-full overflow-hidden space-y-2">
           {Array.from(uploadingFiles.values()).map((progress) => (
             <div key={progress.filename} className="w-full max-w-full flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg overflow-hidden">
@@ -428,39 +449,7 @@ export function FileUpload({
         </div>
       )}
 
-      {/* Uploaded files */}
-      {uploadedFiles.length > 0 && (
-        <div className="w-full max-w-full overflow-hidden space-y-2">
-          {uploadedFiles.map((file) => (
-            <div
-              key={file.file_id}
-              className="w-full max-w-full flex items-center gap-3 p-3 bg-white dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 overflow-hidden"
-            >
-              <span className="text-2xl">{getFileIcon(file.mime_type)}</span>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-slate-700 dark:text-slate-300 truncate">
-                  {file.filename}
-                </p>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  {formatFileSize(file.file_size)}
-                </p>
-              </div>
-              {!disabled && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleRemoveFile(file.file_id);
-                  }}
-                  className="p-1.5 text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20"
-                  title="Remove file"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+      {/* Uploaded files are shown in MessageInput's attachedFiles pills above, not here */}
     </div>
   );
 }

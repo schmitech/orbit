@@ -465,7 +465,7 @@ async def test_get_relevant_context_basic(mock_retriever):
     # Initialize retriever
     mock_retriever.initialized = True
     mock_retriever.embed_query = AsyncMock(return_value=[0.1, 0.2, 0.3])
-    
+
     # Mock store and search
     mock_store = AsyncMock()
     mock_store.search_vectors = AsyncMock(return_value=[
@@ -478,14 +478,16 @@ async def test_get_relevant_context_basic(mock_retriever):
     ])
     mock_retriever._default_store = mock_store
     mock_retriever.store_manager = Mock()
-    
-    # Mock collection retrieval
-    async def mock_get_collections(file_id, api_key, collection_name):
-        return ['collection_1']
-    
-    mock_retriever._get_collections = mock_get_collections
+
+    # Mock collection retrieval with provider-aware collection name
+    # Format: files_{provider}_{dimensions}_{apikey}_{timestamp}
+    provider_aware_collection = 'files_ollama_3_test_key_12345'
+    async def mock_get_collections_multiple(file_ids, api_key, collection_name):
+        return [provider_aware_collection]
+
+    mock_retriever._get_collections_multiple = mock_get_collections_multiple
     mock_retriever._format_results = lambda x: x
-    
+
     # Create a file for metadata lookup
     await mock_retriever.metadata_store.record_file_upload(
         file_id='file_1',
@@ -499,14 +501,14 @@ async def test_get_relevant_context_basic(mock_retriever):
     await mock_retriever.metadata_store.update_processing_status(
         file_id='file_1',
         status='completed',
-        collection_name='collection_1'
+        collection_name=provider_aware_collection
     )
-    
+
     results = await mock_retriever.get_relevant_context(
         query="test query",
         api_key="test_key"
     )
-    
+
     assert len(results) > 0
     assert mock_retriever.embed_query.called
 

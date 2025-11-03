@@ -43,6 +43,9 @@ export function MessageInput({
   const currentConversation = conversations.find(conv => conv.id === currentConversationId);
   const conversationFiles = currentConversation?.attachedFiles || [];
   
+  // Don't sync attachedFiles with conversationFiles - attachedFiles should only show files attached to current message
+  // Files in conversation will be included when sending the message via conversationFiles
+  
   // Check if any attached files are still processing
   // Include files with undefined status (still uploading), 'uploading', or 'processing' status
   const hasProcessingFiles = attachedFiles.some(file => {
@@ -81,21 +84,32 @@ export function MessageInput({
     }
   }, [isInputDisabled]);
 
-  // Close upload area when files finish uploading (upload complete, processing may continue)
-  // This prevents users from uploading more files while current ones are processing
-  // Note: We don't close immediately when upload starts to allow files to be properly added to state
+  // Close upload area when upload starts (hide upload widget, show only progress)
   useEffect(() => {
-    if (!isUploading && attachedFiles.length > 0 && showFileUpload) {
-      // Upload has finished - close the upload area (processing may continue in background)
+    if (isUploading && showFileUpload) {
+      // Upload has started - hide upload widget, only progress will be visible
       setShowFileUpload(false);
+    }
+  }, [isUploading, showFileUpload]);
+
+  // Re-open upload area when upload completes (if user wants to upload more)
+  // Only reopen if no files are attached yet (otherwise user probably doesn't need it)
+  useEffect(() => {
+    if (!isUploading && attachedFiles.length === 0 && !showFileUpload) {
+      // Upload completed and no files attached - could reopen if needed
+      // But we'll keep it closed by default and let user click icon to reopen
     }
   }, [isUploading, attachedFiles.length, showFileUpload]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if ((message.trim() || attachedFiles.length > 0) && !isInputDisabled && !isComposing) {
-      const fileIds = attachedFiles.map(f => f.file_id);
-      onSend(message.trim(), fileIds.length > 0 ? fileIds : undefined);
+      // For multimodal conversations, send ALL files attached to the conversation
+      // (not just the newly attached ones in this message)
+      const conversationFiles = currentConversation?.attachedFiles || [];
+      const allFileIds = conversationFiles.map(f => f.file_id);
+
+      onSend(message.trim(), allFileIds.length > 0 ? allFileIds : undefined);
       setMessage('');
       setAttachedFiles([]);
       setShowFileUpload(false);
@@ -106,6 +120,7 @@ export function MessageInput({
   };
 
   const handleFilesSelected = useCallback((files: FileAttachment[]) => {
+    console.log(`[MessageInput] handleFilesSelected called with ${files.length} files:`, files);
     setAttachedFiles(files);
     
     // Automatically add uploaded files to the current conversation
@@ -145,6 +160,7 @@ export function MessageInput({
         if (!processedFilesRef.current.has(fileKey)) {
           processedFilesRef.current.add(fileKey);
           
+          console.log(`[MessageInput] Adding file ${file.file_id} to conversation ${conversationId}`);
           // Always add/update the file in conversation (addFileToConversation handles updates)
           // This ensures the status is updated when polling completes
           updatedStore.addFileToConversation(conversationId!, file);
@@ -351,21 +367,32 @@ export function MessageInput({
           </div>
         )}
 
-        {/* File upload component */}
-        {showFileUpload && (
+        {/* File upload component - show when open OR when uploading (hide when files are uploaded) */}
+        {(showFileUpload || isUploading) && (
           <div className="mt-4 mb-2 w-full max-w-full overflow-visible p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300">
-                Upload Files
-              </h3>
-              <button
-                onClick={() => setShowFileUpload(false)}
-                className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
-                title="Close"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+            {/* Header - only show when upload widget is open (not just uploading) */}
+            {showFileUpload && (
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300">
+                  Upload Files
+                </h3>
+                <button
+                  onClick={() => setShowFileUpload(false)}
+                  className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
+                  title="Close"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+            {/* Progress-only header when uploading and widget is closed */}
+            {isUploading && !showFileUpload && (
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300">
+                  Uploading Files
+                </h3>
+              </div>
+            )}
             <div className="w-full overflow-visible pb-1">
               <FileUpload
                 onFilesSelected={handleFilesSelected}

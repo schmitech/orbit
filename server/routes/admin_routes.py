@@ -9,8 +9,9 @@ This module contains all admin-related endpoints including:
 
 import json
 import logging
+from datetime import datetime
 from typing import Optional
-from fastapi import APIRouter, Request, Depends, HTTPException, Header
+from fastapi import APIRouter, Request, Depends, HTTPException, Header, Query
 from bson import ObjectId
 
 from utils import is_true_value
@@ -659,3 +660,123 @@ async def clear_chat_history(
         deleted_count=result['deleted_count'],
         timestamp=result['timestamp']
     )
+
+
+@admin_router.delete("/conversations/{session_id}")
+async def delete_conversation_with_files(
+    session_id: str,
+    request: Request,
+    x_api_key: str = Header(..., alias="X-API-Key"),
+    x_session_id: Optional[str] = Header(None, alias="X-Session-ID"),
+    file_ids: str = Query(default="", description="Comma-separated list of file IDs to delete")
+):
+    """
+    Delete a conversation and all associated files.
+
+    This endpoint performs a complete conversation deletion:
+    1. Deletes each file provided in file_ids (metadata, content, and vector store chunks)
+    2. Clears conversation history
+
+    File tracking is managed by the frontend (localStorage). The backend is stateless
+    and requires file_ids to be provided explicitly.
+
+    Args:
+        session_id: The session identifier for the conversation
+        file_ids: Comma-separated list of file IDs to delete (from frontend)
+        x_api_key: API key for authentication
+        x_session_id: Optional session ID header (must match URL parameter)
+
+    Returns:
+        Status message with deletion details
+
+    Raises:
+        HTTPException: If deletion fails or services unavailable
+    """
+    config = getattr(request.app.state, 'config', {})
+    verbose = is_true_value(config.get('general', {}).get('verbose', False))
+
+    # Validate session ID consistency
+    if x_session_id and x_session_id != session_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Session ID in header does not match URL parameter"
+        )
+
+    if not x_api_key:
+        raise HTTPException(
+            status_code=400,
+            detail="API key is required for deleting conversation"
+        )
+
+    # Get required services
+    chat_history_service = getattr(request.app.state, 'chat_history_service', None)
+    file_processing_service = getattr(request.app.state, 'file_processing_service', None)
+
+    # Parse file_ids from query parameter
+    file_ids_list = [fid.strip() for fid in file_ids.split(',') if fid.strip()] if file_ids else []
+
+    # Track deletion results
+    deleted_files_count = 0
+    deleted_messages_count = 0
+    file_deletion_errors = []
+
+    # Step 1: Delete provided files
+    if file_ids_list and file_processing_service:
+        if verbose:
+            logger.info(f"Deleting {len(file_ids_list)} file(s) for session {session_id}")
+
+        for file_id in file_ids_list:
+            try:
+                # Delete file (includes metadata, content, and vector chunks)
+                success = await file_processing_service.delete_file(file_id, x_api_key)
+                if success:
+                    deleted_files_count += 1
+                    if verbose:
+                        logger.debug(f"Deleted file {file_id}")
+                else:
+                    file_deletion_errors.append(file_id)
+                    logger.warning(f"Failed to delete file {file_id}")
+            except Exception as e:
+                logger.error(f"Error deleting file {file_id}: {e}")
+                file_deletion_errors.append(file_id)
+
+    # Step 2: Clear conversation history
+    if chat_history_service:
+        try:
+            api_key_service = getattr(request.app.state, 'api_key_service', None)
+            if api_key_service:
+                setattr(chat_history_service, 'api_key_service', api_key_service)
+
+            result = await chat_history_service.clear_conversation_history(
+                session_id=session_id,
+                api_key=x_api_key
+            )
+
+            if result.get("success"):
+                deleted_messages_count = result.get("deleted_count", 0)
+                if verbose:
+                    logger.info(f"Cleared {deleted_messages_count} messages for session {session_id}")
+            else:
+                logger.warning(f"Failed to clear conversation history: {result.get('error')}")
+        except Exception as e:
+            logger.error(f"Error clearing conversation history: {e}")
+            # Don't fail the entire request if only history clearing fails
+
+    # Build response message
+    message_parts = []
+    if deleted_messages_count > 0:
+        message_parts.append(f"{deleted_messages_count} message(s)")
+    if deleted_files_count > 0:
+        message_parts.append(f"{deleted_files_count} file(s)")
+
+    message = f"Deleted conversation: {', '.join(message_parts) if message_parts else 'no data found'}"
+
+    return {
+        "status": "success",
+        "message": message,
+        "session_id": session_id,
+        "deleted_messages": deleted_messages_count,
+        "deleted_files": deleted_files_count,
+        "file_deletion_errors": file_deletion_errors if file_deletion_errors else None,
+        "timestamp": datetime.now().isoformat()
+    }

@@ -248,14 +248,21 @@ class FileProcessingService:
 
             # Chunk content
             chunks = await self._chunk_content(extracted_text, file_id, file_metadata)
-            
+
             # Index chunks into vector store
-            collection_name = await self._index_chunks_in_vector_store(
+            index_result = await self._index_chunks_in_vector_store(
                 file_id=file_id,
                 api_key=api_key,
                 chunks=chunks
             )
-            
+
+            # Extract collection info
+            collection_name = None
+            embedding_provider = None
+            embedding_dimensions = None
+            if index_result:
+                collection_name, embedding_provider, embedding_dimensions = index_result
+
             # Record chunks in metadata store (with collection name)
             for chunk in chunks:
                 await self.metadata_store.record_chunk(
@@ -266,13 +273,15 @@ class FileProcessingService:
                     collection_name=collection_name,
                     metadata=chunk.metadata
                 )
-            
-            # Update metadata store with chunk count and collection name
+
+            # Update metadata store with chunk count, collection name, and provider info
             await self.metadata_store.update_processing_status(
                 file_id,
                 'completed',
                 chunk_count=len(chunks),
                 collection_name=collection_name,
+                embedding_provider=embedding_provider,
+                embedding_dimensions=embedding_dimensions
             )
             
             self.logger.info(f"File content processed successfully: {file_id} ({len(chunks)} chunks)")
@@ -362,14 +371,21 @@ class FileProcessingService:
 
             # 6. Chunk content
             chunks = await self._chunk_content(extracted_text, file_id, file_metadata)
-            
+
             # 7. Index chunks into vector store
-            collection_name = await self._index_chunks_in_vector_store(
+            index_result = await self._index_chunks_in_vector_store(
                 file_id=file_id,
                 api_key=api_key,
                 chunks=chunks
             )
-            
+
+            # Extract collection info
+            collection_name = None
+            embedding_provider = None
+            embedding_dimensions = None
+            if index_result:
+                collection_name, embedding_provider, embedding_dimensions = index_result
+
             # 8. Record chunks in metadata store (with collection name)
             for chunk in chunks:
                 await self.metadata_store.record_chunk(
@@ -380,13 +396,15 @@ class FileProcessingService:
                     collection_name=collection_name,
                     metadata=chunk.metadata
                 )
-            
-            # 9. Update metadata store with chunk count and collection name
+
+            # 9. Update metadata store with chunk count, collection name, and provider info
             await self.metadata_store.update_processing_status(
                 file_id,
                 'completed',
                 chunk_count=len(chunks),
                 collection_name=collection_name,
+                embedding_provider=embedding_provider,
+                embedding_dimensions=embedding_dimensions
             )
             
             # 10. Prepare response
@@ -533,53 +551,129 @@ class FileProcessingService:
         """Chunk text content."""
         return self.chunker.chunk_text(text, file_id, metadata)
     
+    async def _get_adapter_config_for_api_key(self, api_key: str) -> Dict[str, Any]:
+        """
+        Get the adapter configuration for a given API key.
+
+        This enables adapter-specific provider overrides (e.g., adapter A uses OpenAI, adapter B uses Ollama).
+
+        Args:
+            api_key: The API key to lookup
+
+        Returns:
+            Dict containing adapter config merged with global config, or just global config as fallback
+        """
+        try:
+            # Try to get adapter manager from app state
+            if self.app_state and hasattr(self.app_state, 'dynamic_adapter_manager'):
+                adapter_manager = self.app_state.dynamic_adapter_manager
+
+                # Get API key service to lookup which adapter this API key uses
+                if hasattr(self.app_state, 'api_key_service'):
+                    api_key_service = self.app_state.api_key_service
+
+                    # Get adapter name for this API key
+                    adapter_name, _ = await api_key_service.get_adapter_for_api_key(api_key)
+
+                    if adapter_name:
+                        # Get adapter config from adapter manager
+                        adapter_config = adapter_manager.get_adapter_config(adapter_name)
+
+                        if adapter_config:
+                            self.logger.info(f"Using adapter-specific config for adapter '{adapter_name}' (api_key: {api_key[:8]}...)")
+
+                            # Merge adapter config with global config
+                            # Adapter config takes precedence for provider overrides
+                            merged_config = self.config.copy()
+
+                            # Override embedding provider if specified in adapter
+                            if 'embedding_provider' in adapter_config:
+                                if 'embedding' not in merged_config:
+                                    merged_config['embedding'] = {}
+                                merged_config['embedding']['provider'] = adapter_config['embedding_provider']
+                                self.logger.info(f"Using adapter embedding provider: {adapter_config['embedding_provider']}")
+
+                            # Pass adapter-specific config to retriever
+                            merged_config['adapter_config'] = adapter_config.get('config', {})
+
+                            return merged_config
+
+        except Exception as e:
+            self.logger.warning(f"Could not lookup adapter-specific config for API key: {e}")
+
+        # Fall back to global config
+        self.logger.debug(f"Using global config for api_key: {api_key[:8]}...")
+        return self.config
+
     async def _index_chunks_in_vector_store(
         self,
         file_id: str,
         api_key: str,
         chunks: List[Chunk]
-    ) -> Optional[str]:
+    ) -> Optional[tuple]:
         """
-        Index chunks into vector store.
-        
+        Index chunks into vector store with provider-aware collection naming.
+
         Args:
             file_id: File identifier
             api_key: API key
             chunks: List of chunks to index
-            
+
         Returns:
-            Collection name if successful, None otherwise
+            Tuple of (collection_name, embedding_provider, embedding_dimensions) if successful, None otherwise
         """
         if not chunks:
             return None
-        
+
         try:
             from retrievers.implementations.file.file_retriever import FileVectorRetriever
-            
-            # Initialize file retriever with config
-            retriever = FileVectorRetriever(config=self.config)
+
+            # Get adapter-specific config for this API key (includes embedding provider override)
+            adapter_aware_config = await self._get_adapter_config_for_api_key(api_key)
+
+            # Initialize file retriever with adapter-aware config
+            retriever = FileVectorRetriever(config=adapter_aware_config)
             await retriever.initialize()
-            
-            # Generate collection name based on API key
+
+            # Get embedding provider info for collection naming (now uses adapter-specific provider)
+            embedding_provider = adapter_aware_config.get('embedding', {}).get('provider', 'ollama')
+
+            # Get embedding dimensions
+            try:
+                if retriever.embeddings and hasattr(retriever.embeddings, 'get_dimensions'):
+                    embedding_dimensions = await retriever.embeddings.get_dimensions()
+                else:
+                    # Fallback: try to get dimensions by embedding a test query
+                    test_embedding = await retriever.embed_query("test")
+                    embedding_dimensions = len(test_embedding)
+            except Exception as e:
+                self.logger.warning(f"Could not determine embedding dimensions: {e}. Using default 768")
+                embedding_dimensions = 768
+
+            # Generate collection name with provider and dimensions
             from datetime import datetime, UTC
             timestamp = datetime.now(UTC).strftime('%Y%m%d_%H%M%S')
-            collection_prefix = self.config.get('collection_prefix', 'files_')
-            collection_name = f"{collection_prefix}{api_key}_{timestamp}"
-            
+            collection_prefix = adapter_aware_config.get('collection_prefix', 'files_')
+
+            # Format: files_{provider}_{dimensions}_{apikey}_{timestamp}
+            collection_name = f"{collection_prefix}{embedding_provider}_{embedding_dimensions}_{api_key}_{timestamp}"
+
+            self.logger.info(f"Creating collection with provider-aware naming: {collection_name}")
+
             # Index chunks
             success = await retriever.index_file_chunks(
                 file_id=file_id,
                 chunks=chunks,
                 collection_name=collection_name
             )
-            
+
             if success:
                 self.logger.info(f"Indexed {len(chunks)} chunks into collection {collection_name}")
-                return collection_name
+                return (collection_name, embedding_provider, embedding_dimensions)
             else:
                 self.logger.warning(f"Failed to index chunks for file {file_id}")
                 return None
-                
+
         except Exception as e:
             self.logger.error(f"Error indexing chunks into vector store: {e}")
             # Don't fail the upload if indexing fails

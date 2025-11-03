@@ -87,6 +87,26 @@ def register_adapters():
 
     logger.info("Registered conversational passthrough adapter")
 
+    # Register passthrough multimodal adapter
+    def _create_multimodal_adapter(config=None, **kwargs):
+        from adapters.passthrough.adapter import MultimodalAdapter
+        return MultimodalAdapter(config=config, **kwargs)
+
+    DocumentAdapterFactory.register_adapter(
+        "multimodal",
+        _create_multimodal_adapter
+    )
+
+    ADAPTER_REGISTRY.register(
+        adapter_type="passthrough",
+        datasource="none",
+        adapter_name="multimodal",
+        factory_func=_create_multimodal_adapter,
+        config={}
+    )
+
+    logger.info("Registered multimodal passthrough adapter")
+
 
 # Register adapters when module is imported
 register_adapters()

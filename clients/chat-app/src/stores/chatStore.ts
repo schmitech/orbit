@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { getApi } from '../api/loader';
+import { getApi, ApiClient } from '../api/loader';
 import { Message, Conversation, ChatState, FileAttachment } from '../types';
 import { FileUploadService } from '../services/fileService';
 
@@ -221,7 +221,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
 
   deleteConversation: async (id: string) => {
     const conversation = get().conversations.find(conv => conv.id === id);
-    
+
     const debugMode = (import.meta.env as any).VITE_CONSOLE_DEBUG === 'true';
     if (debugMode) {
       console.log(`🗑️ Deleting conversation ${id}:`, {
@@ -232,25 +232,8 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         fileCount: conversation?.attachedFiles?.length || 0
       });
     }
-    
-    // Delete associated files from server
-    if (conversation?.attachedFiles && conversation.attachedFiles.length > 0) {
-      const fileDeletionPromises = conversation.attachedFiles.map(async (file) => {
-        try {
-          await FileUploadService.deleteFile(file.file_id);
-          if (debugMode) {
-            console.log(`✅ Deleted file ${file.file_id} (${file.filename})`);
-          }
-        } catch (error) {
-          console.error(`Failed to delete file ${file.file_id} (${file.filename}):`, error);
-          // Continue with other files even if one fails
-        }
-      });
-      
-      await Promise.allSettled(fileDeletionPromises);
-    }
-    
-    // If conversation has a session ID, clear it from the server
+
+    // If conversation has a session ID, delete conversation and files in one call
     if (conversation?.sessionId) {
       try {
         // Ensure API is properly configured first
@@ -261,25 +244,34 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         } else {
           // Create API client with the conversation's session ID
           const api = await getApi();
-          const apiClient = new api.ApiClient({
+          const apiClient: ApiClient = new api.ApiClient({
             apiUrl: localStorage.getItem('chat-api-url') || 'http://localhost:3000',
             apiKey: localStorage.getItem('chat-api-key') || 'orbit-123456789',
             sessionId: conversation.sessionId
           });
-          
+
+          // Extract file IDs from attached files
+          const fileIds = conversation?.attachedFiles?.map(f => f.file_id) || [];
+
           if (debugMode) {
-            console.log(`🔧 Calling clearConversationHistory for session: ${conversation.sessionId}`);
-            console.log(`🔧 API Client session ID: ${apiClient.getSessionId()}`);
+            console.log(`🔧 Calling deleteConversationWithFiles for session: ${conversation.sessionId}`);
+            console.log(`🔧 File IDs to delete: ${fileIds.join(', ') || 'none'}`);
           }
-          
-          if (apiClient.clearConversationHistory) {
-            const result = await apiClient.clearConversationHistory(conversation.sessionId);
+
+          // Delete conversation and all associated files in one call
+          if (apiClient.deleteConversationWithFiles) {
+            const result = await apiClient.deleteConversationWithFiles(conversation.sessionId, fileIds);
             if (debugMode) {
-              console.log(`✅ Cleared conversation history for session: ${conversation.sessionId}`, result);
+              console.log(`✅ Deleted conversation and files for session: ${conversation.sessionId}`, result);
+              console.log(`   - Deleted ${result.deleted_messages} messages`);
+              console.log(`   - Deleted ${result.deleted_files} files`);
+              if (result.file_deletion_errors && result.file_deletion_errors.length > 0) {
+                console.warn(`   - Errors deleting files: ${result.file_deletion_errors.join(', ')}`);
+              }
             }
           } else {
             if (debugMode) {
-              console.warn(`⚠️ clearConversationHistory method not available on API client`);
+              console.warn(`⚠️ deleteConversationWithFiles method not available on API client`);
             }
           }
         }
@@ -431,7 +423,9 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         
         // Load the API and stream the response
         const api = await getApi();
+        console.log(`[chatStore] Starting streamChat with fileIds:`, fileIds);
         for await (const response of api.streamChat(content, true, fileIds)) {
+          console.log(`[chatStore] Received stream chunk:`, { text: response.text?.substring(0, 50), done: response.done });
           if (response.text) {
             get().appendToLastMessage(response.text);
             receivedAnyText = true;
@@ -440,12 +434,14 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
           }
           
           if (response.done) {
+            console.log(`[chatStore] Stream completed, receivedAnyText:`, receivedAnyText);
             break;
           }
         }
 
         // If no text received, show error
         if (!receivedAnyText) {
+          console.warn(`[chatStore] No text received from stream, showing error message`);
           get().appendToLastMessage('No response received from the server. Please try again later.');
         }
       } catch (error) {
@@ -688,20 +684,30 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
 
   // Add file to conversation
   addFileToConversation: (conversationId: string, file: FileAttachment) => {
-    set(state => ({
-      conversations: state.conversations.map(conv =>
-        conv.id === conversationId
-          ? {
-              ...conv,
-              attachedFiles: [
-                ...(conv.attachedFiles || []).filter(f => f.file_id !== file.file_id),
-                file
-              ],
-              updatedAt: new Date()
-            }
-          : conv
-      )
-    }));
+    console.log(`[chatStore] addFileToConversation called`, { conversationId, fileId: file.file_id, filename: file.filename });
+    set(state => {
+      const updated = {
+        conversations: state.conversations.map(conv =>
+          conv.id === conversationId
+            ? {
+                ...conv,
+                attachedFiles: [
+                  ...(conv.attachedFiles || []).filter(f => f.file_id !== file.file_id),
+                  file
+                ],
+                updatedAt: new Date()
+              }
+            : conv
+        )
+      };
+      const conversation = updated.conversations.find(conv => conv.id === conversationId);
+      console.log(`[chatStore] Updated conversation ${conversationId}`, {
+        hasConversation: !!conversation,
+        attachedFilesCount: conversation?.attachedFiles?.length || 0,
+        attachedFiles: conversation?.attachedFiles?.map(f => ({ file_id: f.file_id, filename: f.filename }))
+      });
+      return updated;
+    });
 
     // Save to localStorage
     setTimeout(() => {
@@ -715,15 +721,21 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
 
   // Remove file from conversation and delete from server
   removeFileFromConversation: async (conversationId: string, fileId: string) => {
+    console.log(`[chatStore] removeFileFromConversation called`, {
+      conversationId,
+      fileId
+    });
     try {
       // Delete from server
+      console.log(`[chatStore] Calling FileUploadService.deleteFile for ${fileId}`);
       await FileUploadService.deleteFile(fileId);
+      console.log(`[chatStore] Successfully deleted file ${fileId} from server`);
     } catch (error: any) {
       // If file was already deleted (404), that's fine - just log and continue
       if (error.message && (error.message.includes('404') || error.message.includes('File not found'))) {
-        console.log(`File ${fileId} was already deleted from server`);
+        console.log(`[chatStore] File ${fileId} was already deleted from server`);
       } else {
-        console.error(`Failed to delete file ${fileId} from server:`, error);
+        console.error(`[chatStore] Failed to delete file ${fileId} from server:`, error);
       }
       // Continue with local removal even if server deletion fails
     }

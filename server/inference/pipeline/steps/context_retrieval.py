@@ -39,11 +39,14 @@ class ContextRetrievalStep(PipelineStep):
             return False
 
         # Skip retrieval for passthrough adapters that explicitly opt out of context fetching
+        # Exception: multimodal adapter (conversational-multimodal) needs to retrieve file chunks
         if self.container.has('adapter_manager'):
             adapter_manager = self.container.get('adapter_manager')
             adapter_config = adapter_manager.get_adapter_config(context.adapter_name) or {}
             if adapter_config.get('type') == 'passthrough':
-                return False
+                # Allow multimodal adapter to execute (it needs file retrieval)
+                if context.adapter_name != 'conversational-multimodal':
+                    return False
 
         return True
     
@@ -74,22 +77,32 @@ class ContextRetrievalStep(PipelineStep):
                 self.logger.debug(f"Using static retriever with adapter_name: {context.adapter_name}")
             
             # Get relevant documents
-            # Pass file_ids if present (for file adapter filtering)
+            # Pass file_ids and session_id if present (for file adapter and multimodal adapter)
             retriever_kwargs = {}
             if context.file_ids:
-                # For file adapter, pass file_ids to filter by specific files
-                if context.adapter_name == 'file-document-qa' or hasattr(retriever, 'get_relevant_context'):
-                    # FileVectorRetriever accepts file_id parameter
+                # For file adapter and multimodal adapter, pass file_ids to filter by specific files
+                if context.adapter_name in ['file-document-qa', 'conversational-multimodal'] or hasattr(retriever, 'get_relevant_context'):
+                    # FileVectorRetriever and MultimodalImplementation accept file_ids parameter
                     # If multiple file_ids, we'll pass all of them and let retriever handle it
                     retriever_kwargs['file_ids'] = context.file_ids
                     # Also pass api_key for file ownership validation
                     if context.api_key:
                         retriever_kwargs['api_key'] = context.api_key
             
+            # Pass session_id for multimodal adapter (for logging and tracking purposes)
+            if context.adapter_name == 'conversational-multimodal' and context.session_id:
+                retriever_kwargs['session_id'] = context.session_id
+            
+            # Prepare get_relevant_context call
+            # Don't pass api_key twice if it's already in retriever_kwargs
+            get_context_kwargs = retriever_kwargs.copy()
+            if context.api_key and 'api_key' not in get_context_kwargs:
+                get_context_kwargs['api_key'] = context.api_key
+            
             docs = await retriever.get_relevant_context(
                 query=context.message,
-                adapter_name=context.adapter_name,
-                **retriever_kwargs
+                collection_name=None,
+                **get_context_kwargs
             )
             
             context.retrieved_docs = docs
@@ -134,9 +147,9 @@ class ContextRetrievalStep(PipelineStep):
         if not documents:
             return "No relevant information found."
 
-        # For file adapter, use clean formatting without citations to prevent
+        # For file adapter and multimodal adapter, use clean formatting without citations to prevent
         # LLMs (especially Gemini) from adding citation markers like 【Document 1】
-        is_file_adapter = adapter_name and 'file' in adapter_name.lower()
+        is_file_adapter = adapter_name and ('file' in adapter_name.lower() or 'multimodal' in adapter_name.lower())
 
         context = ""
 
@@ -152,6 +165,9 @@ class ContextRetrievalStep(PipelineStep):
 
             if is_file_adapter:
                 # Clean format without source labels or confidence scores
+                # Add context label for first chunk to help LLM understand this is document content
+                if i == 0:
+                    context += "## Content extracted from uploaded file(s):\n\n"
                 context += f"{content}\n\n"
             else:
                 # Standard format with document references for other adapters

@@ -105,13 +105,15 @@ async def test_update_processing_status(metadata_store):
     file_info = await metadata_store.get_file_info("file_123")
     assert file_info["processing_status"] == "processing"
 
-    # Update status to completed with chunk count
+    # Update status to completed with chunk count and embedding info
     result = await metadata_store.update_processing_status(
         file_id="file_123",
         status="completed",
         chunk_count=10,
         vector_store="chroma",
-        collection_name="test_collection"
+        collection_name="test_collection",
+        embedding_provider="ollama",
+        embedding_dimensions=768
     )
     assert result is True
 
@@ -120,6 +122,8 @@ async def test_update_processing_status(metadata_store):
     assert file_info["chunk_count"] == 10
     assert file_info["vector_store"] == "chroma"
     assert file_info["collection_name"] == "test_collection"
+    assert file_info["embedding_provider"] == "ollama"
+    assert file_info["embedding_dimensions"] == 768
 
 
 @pytest.mark.asyncio
@@ -537,3 +541,127 @@ async def test_large_file_metadata(metadata_store):
     file_info = await metadata_store.get_file_info("large_meta_file")
     assert file_info is not None
     assert file_info["metadata"] is not None
+
+
+@pytest.mark.asyncio
+async def test_migration_adds_embedding_columns(tmp_path):
+    """Test that migration automatically adds embedding_provider and embedding_dimensions columns"""
+    import sqlite3
+
+    db_path = tmp_path / "old_schema.db"
+
+    # Create database with old schema (without embedding columns)
+    conn = sqlite3.connect(str(db_path))
+    cursor = conn.cursor()
+
+    # Create old schema without embedding columns
+    cursor.execute("""
+        CREATE TABLE uploaded_files (
+            file_id TEXT PRIMARY KEY,
+            api_key TEXT NOT NULL,
+            filename TEXT NOT NULL,
+            mime_type TEXT,
+            file_size INTEGER,
+            upload_timestamp TEXT,
+            processing_status TEXT,
+            storage_key TEXT,
+            chunk_count INTEGER DEFAULT 0,
+            vector_store TEXT,
+            collection_name TEXT,
+            storage_type TEXT DEFAULT 'vector',
+            metadata TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    # Insert test data
+    cursor.execute("""
+        INSERT INTO uploaded_files
+        (file_id, api_key, filename, mime_type, file_size, upload_timestamp,
+         processing_status, storage_key, storage_type)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, ("old_file", "test_key", "test.txt", "text/plain", 100,
+          "2024-01-01T00:00:00", "completed", "key", "vector"))
+
+    conn.commit()
+    conn.close()
+
+    # Verify columns don't exist
+    conn = sqlite3.connect(str(db_path))
+    cursor = conn.cursor()
+    cursor.execute("PRAGMA table_info(uploaded_files)")
+    columns = [row[1] for row in cursor.fetchall()]
+    assert 'embedding_provider' not in columns
+    assert 'embedding_dimensions' not in columns
+    conn.close()
+
+    # Now open with FileMetadataStore (should run migration)
+    store = FileMetadataStore(db_path=str(db_path))
+
+    # Verify columns were added
+    cursor = store.connection.cursor()
+    cursor.execute("PRAGMA table_info(uploaded_files)")
+    columns = [row[1] for row in cursor.fetchall()]
+    assert 'embedding_provider' in columns, "embedding_provider column should be added by migration"
+    assert 'embedding_dimensions' in columns, "embedding_dimensions column should be added by migration"
+
+    # Verify existing data is intact
+    file_info = await store.get_file_info("old_file")
+    assert file_info is not None
+    assert file_info["file_id"] == "old_file"
+    assert file_info["filename"] == "test.txt"
+    # New columns should be NULL for existing records
+    assert file_info.get("embedding_provider") is None
+    assert file_info.get("embedding_dimensions") is None
+
+    # Verify we can update with new columns
+    result = await store.update_processing_status(
+        file_id="old_file",
+        status="completed",
+        embedding_provider="openai",
+        embedding_dimensions=1536
+    )
+    assert result is True
+
+    # Verify update worked
+    file_info = await store.get_file_info("old_file")
+    assert file_info["embedding_provider"] == "openai"
+    assert file_info["embedding_dimensions"] == 1536
+
+    store.close()
+
+
+@pytest.mark.asyncio
+async def test_migration_idempotent(tmp_path):
+    """Test that migration can run multiple times without errors"""
+    db_path = tmp_path / "idempotent_test.db"
+
+    # Create first store (runs migration)
+    store1 = FileMetadataStore(db_path=str(db_path))
+    store1.close()
+
+    # Create second store (migration should be idempotent)
+    store2 = FileMetadataStore(db_path=str(db_path))
+
+    # Verify columns exist
+    cursor = store2.connection.cursor()
+    cursor.execute("PRAGMA table_info(uploaded_files)")
+    columns = [row[1] for row in cursor.fetchall()]
+    assert 'embedding_provider' in columns
+    assert 'embedding_dimensions' in columns
+
+    # Verify we can still use the store
+    await store2.record_file_upload(
+        file_id="test_file",
+        api_key="test_key",
+        filename="test.txt",
+        mime_type="text/plain",
+        file_size=100,
+        storage_key="key",
+        storage_type="vector"
+    )
+
+    file_info = await store2.get_file_info("test_file")
+    assert file_info is not None
+
+    store2.close()

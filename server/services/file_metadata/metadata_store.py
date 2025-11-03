@@ -74,6 +74,8 @@ class FileMetadataStore:
                 collection_name TEXT,
                 storage_type TEXT DEFAULT 'vector',
                 metadata TEXT,
+                embedding_provider TEXT,
+                embedding_dimensions INTEGER,
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP
             )
         """)
@@ -100,12 +102,45 @@ class FileMetadataStore:
         
         # Create index on api_key for filtering
         cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_uploaded_files_api_key 
+            CREATE INDEX IF NOT EXISTS idx_uploaded_files_api_key
             ON uploaded_files(api_key)
         """)
-        
+
+        # Run migrations to add new columns if they don't exist
+        self._run_migrations(cursor)
+
         self.connection.commit()
         logger.info(f"Initialized FileMetadataStore at {self.db_path}")
+
+    def _run_migrations(self, cursor):
+        """Run database migrations to add new columns if they don't exist."""
+        try:
+            # Check if embedding_provider column exists
+            cursor.execute("PRAGMA table_info(uploaded_files)")
+            columns = [row[1] for row in cursor.fetchall()]
+
+            # Add embedding_provider column if it doesn't exist
+            if 'embedding_provider' not in columns:
+                logger.info("Adding 'embedding_provider' column to uploaded_files table")
+                cursor.execute("""
+                    ALTER TABLE uploaded_files
+                    ADD COLUMN embedding_provider TEXT
+                """)
+
+            # Add embedding_dimensions column if it doesn't exist
+            if 'embedding_dimensions' not in columns:
+                logger.info("Adding 'embedding_dimensions' column to uploaded_files table")
+                cursor.execute("""
+                    ALTER TABLE uploaded_files
+                    ADD COLUMN embedding_dimensions INTEGER
+                """)
+
+            logger.info("Database migrations completed successfully")
+
+        except Exception as e:
+            logger.error(f"Error running database migrations: {e}")
+            # Don't fail initialization if migrations fail
+            pass
     
     async def record_file_upload(
         self,
@@ -171,47 +206,59 @@ class FileMetadataStore:
         status: str,
         chunk_count: int = None,
         vector_store: str = None,
-        collection_name: str = None
+        collection_name: str = None,
+        embedding_provider: str = None,
+        embedding_dimensions: int = None
     ) -> bool:
         """
         Update file processing status.
-        
+
         Args:
             file_id: File identifier
             status: New status ('pending', 'processing', 'completed', 'failed')
             chunk_count: Number of chunks created
             vector_store: Vector store used
             collection_name: Collection name
-            
+            embedding_provider: Embedding provider used (e.g., 'openai', 'ollama')
+            embedding_dimensions: Embedding vector dimensions (e.g., 768, 1536)
+
         Returns:
             True if successful
         """
         try:
             cursor = self.connection.cursor()
-            
+
             updates = ['processing_status = ?']
             params = [status]
-            
+
             if chunk_count is not None:
                 updates.append('chunk_count = ?')
                 params.append(chunk_count)
-            
+
             if vector_store:
                 updates.append('vector_store = ?')
                 params.append(vector_store)
-            
+
             if collection_name:
                 updates.append('collection_name = ?')
                 params.append(collection_name)
-            
+
+            if embedding_provider:
+                updates.append('embedding_provider = ?')
+                params.append(embedding_provider)
+
+            if embedding_dimensions is not None:
+                updates.append('embedding_dimensions = ?')
+                params.append(embedding_dimensions)
+
             params.append(file_id)
-            
+
             cursor.execute(f"""
-                UPDATE uploaded_files 
+                UPDATE uploaded_files
                 SET {', '.join(updates)}
                 WHERE file_id = ?
             """, params)
-            
+
             self.connection.commit()
             logger.debug(f"Updated file {file_id} status to {status}")
             return True

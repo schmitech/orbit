@@ -241,12 +241,22 @@ class LLMInferenceStep(PipelineStep):
         if language_instruction:
             parts.append(language_instruction)
 
-        # Add context instructions based on adapter type
+        # Add file/document content for file-based adapters (CRITICAL FIX)
+        # For message format, the file content MUST be in the system message
         if context.formatted_context:
-            parts.append("\n<IMPORTANT>\nWhen answering, you MUST prioritize information from any provided 'Context' section. If the context does not contain the answer, you may use information from this system prompt. If the answer is not found in either, state that you don't know.\n</IMPORTANT>")
+            # Check if this is a file/multimodal adapter
+            is_file_or_multimodal = context.adapter_name and ('file' in context.adapter_name.lower() or 'multimodal' in context.adapter_name.lower())
+
+            if is_file_or_multimodal:
+                # Add file content to system message for file adapters
+                parts.append(f"\n## UPLOADED FILE CONTENT\n\nThe user has uploaded a file. Here is the content:\n\n{context.formatted_context}\n\n## END OF FILE CONTENT\n")
+                parts.append("\n<IMPORTANT>\nThe content above is from the user's uploaded file. When they ask questions, answer based on this file content. The file content is provided in the system message above.\n</IMPORTANT>")
+            else:
+                # For non-file adapters, add regular context instructions
+                parts.append("\n<IMPORTANT>\nWhen answering, prioritize information from the 'Context' section. Use the provided context to answer accurately while maintaining your conversational style. If the context contains the answer, provide it clearly. If the answer is not in the context or system prompt, acknowledge that you don't have that specific information.\n</IMPORTANT>")
         else:
-            # For passthrough adapters, include conversation-specific instructions
-            parts.append("\n<IMPORTANT>\nAnswer any questions based on the information in this system prompt. If the user's input doesn't seem to be a question, provide a brief, neutral acknowledgement. Do not introduce yourself unless specifically asked.\n</IMPORTANT>")
+            # For passthrough adapters without context, include conversation-specific instructions
+            parts.append("\n<IMPORTANT>\nAnswer based on the information in the system prompt. Maintain your persona and conversational style. If the user's input doesn't seem to be a question, provide a brief acknowledgement.\n</IMPORTANT>")
 
         return "\n".join(parts)
 
@@ -269,7 +279,12 @@ class LLMInferenceStep(PipelineStep):
         # Build context section
         context_section = ""
         if context.formatted_context:
-            context_section = f"\nContext:\n{context.formatted_context}"
+            # Add clearer label for file/multimodal adapters
+            is_file_or_multimodal = context.adapter_name and ('file' in context.adapter_name.lower() or 'multimodal' in context.adapter_name.lower())
+            if is_file_or_multimodal:
+                context_section = f"\n**FILE CONTENT (The user has uploaded this file and is asking about it):**\n\n{context.formatted_context}\n\n**END OF FILE CONTENT**\n\nREMEMBER: The content above IS the file the user is asking about. Answer questions about what's in this file based on the content shown above."
+            else:
+                context_section = f"\nContext:\n{context.formatted_context}"
 
         # Build the complete prompt
         parts = [system_prompt]
@@ -292,9 +307,13 @@ class LLMInferenceStep(PipelineStep):
 
         # Add explicit instruction right before the question
         if context.formatted_context:
-            parts.append("\n<IMPORTANT>\nWhen answering, you MUST prioritize information from the 'Context' section. If the 'Context' section does not contain the answer, you may use the information provided in the system prompt (at the beginning). If the answer is not found in either the 'Context' or the system prompt, you must state that you don't know the answer. Your response should ONLY contain the answer and nothing else. Do not add any conversational text, suggestions, or any information not directly found in the provided context or system prompt.\n</IMPORTANT>")
+            is_file_or_multimodal = context.adapter_name and ('file' in context.adapter_name.lower() or 'multimodal' in context.adapter_name.lower())
+            if is_file_or_multimodal:
+                parts.append("\n<CRITICAL INSTRUCTION>\nThe user has uploaded a file and is asking about it. The FILE CONTENT is shown above between 'FILE CONTENT' and 'END OF FILE CONTENT'. You MUST answer their question using the file content shown above. Do NOT say you don't see a file - the file content is RIGHT ABOVE in the 'FILE CONTENT' section. Answer based on what's in the file content.\n</CRITICAL INSTRUCTION>")
+            else:
+                parts.append("\n<IMPORTANT>\nWhen answering, prioritize information from the 'Context' section above. Use the provided context to answer accurately while maintaining your conversational style. If the context contains the answer, provide it clearly. If the answer is not in the context or system prompt, acknowledge that you don't have that specific information.\n</IMPORTANT>")
         else:
-            parts.append("\n<IMPORTANT>\nAnswer any questions based on the information in the system prompt. If the user's input doesn't seem to be a question, provide a brief, neutral acknowledgement (e.g., 'OK'). Do not introduce yourself unless you are specifically asked who you are.\n</IMPORTANT>")
+            parts.append("\n<IMPORTANT>\nAnswer based on the information in the system prompt. Maintain your persona and conversational style. If the user's input doesn't seem to be a question, provide a brief acknowledgement.\n</IMPORTANT>")
 
         parts.append(f"\nUser: {context.message}")
         parts.append("Assistant:")

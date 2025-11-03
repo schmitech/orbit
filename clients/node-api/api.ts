@@ -261,23 +261,30 @@ export class ApiClient {
 
               try {
                 const data = JSON.parse(jsonText);
+                console.log(`[ApiClient] Parsed SSE chunk:`, { hasResponse: !!data.response, done: data.done, error: data.error });
                 
                 if (data.error) {
+                  console.error(`[ApiClient] Server error:`, data.error);
                   throw new Error(`Server Error: ${data.error.message}`);
                 }
                 
                 if (data.response) {
                   hasReceivedContent = true;
+                  console.log(`[ApiClient] Yielding response chunk:`, data.response.substring(0, 50));
                   yield { text: data.response, done: data.done || false };
+                } else if (data.done) {
+                  // Done marker might not have response
+                  console.log(`[ApiClient] Received done marker without response`);
                 }
 
                 if (data.done) {
+                    console.log(`[ApiClient] Stream done, yielding final done marker`);
                     yield { text: '', done: true };
                     return;
                 }
                 
               } catch (parseError) {
-                console.warn('Error parsing JSON chunk:', parseError, 'Chunk:', jsonText);
+                console.warn('[ApiClient] Error parsing JSON chunk:', parseError, 'Chunk:', jsonText);
               }
             } else if (line) {
                 // Handle raw text chunks that are not in SSE format
@@ -322,27 +329,27 @@ export class ApiClient {
   }> {
     /**
      * Clear conversation history for a session.
-     * 
+     *
      * @param sessionId - Optional session ID to clear. If not provided, uses current session.
      * @returns Promise resolving to operation result
      * @throws Error if the operation fails
      */
     const targetSessionId = sessionId || this.sessionId;
-    
+
     if (!targetSessionId) {
       throw new Error('No session ID provided and no current session available');
     }
-    
+
     if (!this.apiKey) {
       throw new Error('API key is required for clearing conversation history');
     }
-    
+
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       'X-Session-ID': targetSessionId,
       'X-API-Key': this.apiKey
     };
-    
+
     try {
       const response = await fetch(`${this.apiUrl}/admin/chat-history/${targetSessionId}`, {
         ...this.getFetchOptions({
@@ -350,15 +357,84 @@ export class ApiClient {
           headers
         })
       });
-      
+
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(`Failed to clear conversation history: ${response.status} ${errorText}`);
       }
-      
+
       const result = await response.json();
       return result;
-      
+
+    } catch (error: any) {
+      if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+        throw new Error('Could not connect to the server. Please check if the server is running.');
+      } else {
+        throw error;
+      }
+    }
+  }
+
+  public async deleteConversationWithFiles(sessionId?: string, fileIds?: string[]): Promise<{
+    status: string;
+    message: string;
+    session_id: string;
+    deleted_messages: number;
+    deleted_files: number;
+    file_deletion_errors: string[] | null;
+    timestamp: string;
+  }> {
+    /**
+     * Delete a conversation and all associated files.
+     *
+     * This method performs a complete conversation deletion:
+     * - Deletes each file provided in fileIds (metadata, content, and vector store chunks)
+     * - Clears conversation history
+     *
+     * File tracking is managed by the frontend (localStorage). The backend is stateless
+     * and requires fileIds to be provided explicitly.
+     *
+     * @param sessionId - Optional session ID to delete. If not provided, uses current session.
+     * @param fileIds - Optional list of file IDs to delete (from conversation's attachedFiles)
+     * @returns Promise resolving to deletion result with counts
+     * @throws Error if the operation fails
+     */
+    const targetSessionId = sessionId || this.sessionId;
+
+    if (!targetSessionId) {
+      throw new Error('No session ID provided and no current session available');
+    }
+
+    if (!this.apiKey) {
+      throw new Error('API key is required for deleting conversation');
+    }
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'X-Session-ID': targetSessionId,
+      'X-API-Key': this.apiKey
+    };
+
+    // Build URL with file_ids query parameter
+    const fileIdsParam = fileIds && fileIds.length > 0 ? `?file_ids=${fileIds.join(',')}` : '';
+    const url = `${this.apiUrl}/admin/conversations/${targetSessionId}${fileIdsParam}`;
+
+    try {
+      const response = await fetch(url, {
+        ...this.getFetchOptions({
+          method: 'DELETE',
+          headers
+        })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to delete conversation: ${response.status} ${errorText}`);
+      }
+
+      const result = await response.json();
+      return result;
+
     } catch (error: any) {
       if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
         throw new Error('Could not connect to the server. Please check if the server is running.');
@@ -370,7 +446,7 @@ export class ApiClient {
 
   /**
    * Upload a file for processing and indexing.
-   * 
+   *
    * @param file - The file to upload
    * @returns Promise resolving to upload response with file_id
    * @throws Error if upload fails
@@ -525,20 +601,32 @@ export class ApiClient {
       throw new Error('API key is required for deleting files');
     }
 
+    const url = `${this.apiUrl}/api/files/${fileId}`;
+    const fetchOptions = this.getFetchOptions({
+      method: 'DELETE'
+    });
+
+    console.log(`[ApiClient] Deleting file ${fileId}`, {
+      url,
+      method: 'DELETE',
+      hasApiKey: !!this.apiKey,
+      headers: fetchOptions.headers
+    });
+
     try {
-      const response = await fetch(`${this.apiUrl}/api/files/${fileId}`, {
-        ...this.getFetchOptions({
-          method: 'DELETE'
-        })
-      });
+      const response = await fetch(url, fetchOptions);
 
       if (!response.ok) {
         const errorText = await response.text();
+        console.error(`[ApiClient] Delete failed: ${response.status}`, errorText);
         throw new Error(`Failed to delete file: ${response.status} ${errorText}`);
       }
 
-      return await response.json();
+      const result = await response.json();
+      console.log(`[ApiClient] File deleted successfully: ${fileId}`, result);
+      return result;
     } catch (error: any) {
+      console.error(`[ApiClient] Delete error for file ${fileId}:`, error);
       if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
         throw new Error('Could not connect to the server. Please check if the server is running.');
       } else {

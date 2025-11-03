@@ -20,6 +20,40 @@ adapters:
     # embedding_provider: "ollama"    # Not used for passthrough adapters
     # model: "gpt-oss:20b"            # Specific model for this adapter
     
+  - name: "conversational-multimodal"
+    enabled: false
+    type: "passthrough"  # Passthrough adapter with file retrieval capabilities
+    datasource: "none"  # No actual datasource needed (files managed separately)
+    adapter: "multimodal"
+    implementation: "implementations.passthrough.multimodal.MultimodalImplementation"
+    # Provider overrides (optional - use when you want different providers than global defaults)
+    inference_provider: "ollama_cloud"    # Override default inference provider
+    model: "minimax-m2:cloud"            # Specific model for this adapter
+    embedding_provider: "openai"          # Embeddings for file chunk retrieval (matches uploaded files)
+    vision_provider: "gemini"             # Vision provider for image files: openai, gemini, anthropic (see vision.yaml)
+    
+    config:
+      # File adapter configuration (similar to file-document-qa)
+      # Storage configuration
+      storage_backend: "filesystem"  # Future: "s3", "minio"
+      storage_root: "./uploads"
+      max_file_size: 52428800  # 50MB
+      
+      # Processing configuration
+      chunking_strategy: "semantic"  # "fixed" or "semantic"
+      chunk_size: 1000
+      chunk_overlap: 200
+      
+      # Vector store integration
+      vector_store: "chroma"  # References stores.yaml
+      collection_prefix: "files_"
+      
+      # Q&A settings
+      confidence_threshold: 0.3
+      max_results: 5
+      return_results: 3
+  
+  
   # This is an example of a QA adapter for a SQL database.
   # It is used as an example of how to create a QA adapter for a SQL database.
   # Run /examples/sample-db-setup.sh sqlite to create a sample database and api key before using this adapter.
