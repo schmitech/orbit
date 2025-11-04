@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { MessageList } from './MessageList';
 import { MessageInput } from './MessageInput';
 import { useChatStore } from '../stores/chatStore';
@@ -18,30 +18,27 @@ export function ChatInterface({ onOpenSettings }: ChatInterfaceProps) {
     isLoading,
     configureApiSettings,
     error,
-    clearError,
-    cleanupStreamingMessages
+    clearError
   } = useChatStore();
 
   // Configuration state for API settings
   const [showConfig, setShowConfig] = useState(false);
-  const [apiUrl, setApiUrl] = useState(() => localStorage.getItem('chat-api-url') || 'http://localhost:3000');
-  const [apiKey, setApiKey] = useState(() => localStorage.getItem('chat-api-key') || 'orbit-123456789');
+  // Always start with default values when opening the modal
+  const [apiUrl, setApiUrl] = useState('http://localhost:3000');
+  const [apiKey, setApiKey] = useState('default-key');
   const [showApiKey, setShowApiKey] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
 
   const currentConversation = conversations.find(c => c.id === currentConversationId);
 
-  // Clean up any orphaned streaming messages on mount
-  useEffect(() => {
-    cleanupStreamingMessages();
-  }, [cleanupStreamingMessages]);
+  // Clean up any orphaned streaming messages on mount (only once, not on every render)
+  // Removed automatic cleanup to preserve streaming state when switching conversations
+  // Streaming messages will be cleaned up when they complete naturally
 
-  // Save API settings to localStorage when they change
-  useEffect(() => {
-    localStorage.setItem('chat-api-url', apiUrl);
-    localStorage.setItem('chat-api-key', apiKey);
-  }, [apiUrl, apiKey]);
+  // Don't save API settings to localStorage when modal fields change
+  // Only save when explicitly configured via configureApiSettings
+  // This prevents default values from overwriting localStorage
 
   const handleSendMessage = (content: string, fileIds?: string[]) => {
     sendMessage(content, fileIds);
@@ -54,9 +51,14 @@ export function ChatInterface({ onOpenSettings }: ChatInterfaceProps) {
       
       try {
         await configureApiSettings(apiUrl, apiKey);
-        setShowConfig(false);
         // Clear any existing error after successful configuration
         clearError();
+        // Reset to default values after successful configuration
+        setApiUrl('http://localhost:3000');
+        setApiKey('default-key');
+        setValidationError(null);
+        setShowApiKey(false);
+        setShowConfig(false);
       } catch (error) {
         debugError('Failed to configure API:', error);
         // Set validation error for display in the modal
@@ -64,6 +66,7 @@ export function ChatInterface({ onOpenSettings }: ChatInterfaceProps) {
         setValidationError(errorMessage);
         // Also set error in the store for global error banner
         // (The store will handle this, but we can also show it in the modal)
+        // Don't reset fields on error - let user see what they entered
       } finally {
         setIsValidating(false);
       }
@@ -130,8 +133,12 @@ export function ChatInterface({ onOpenSettings }: ChatInterfaceProps) {
                   <div className="flex justify-end gap-3 pt-2">
                     <button
                       onClick={() => {
-                        setShowConfig(false);
+                        // Reset to default values when canceling
+                        setApiUrl('http://localhost:3000');
+                        setApiKey('default-key');
                         setValidationError(null);
+                        setShowApiKey(false);
+                        setShowConfig(false);
                       }}
                       className="rounded-md border border-transparent px-4 py-2 text-sm text-gray-600 hover:border-gray-300 hover:text-gray-900 dark:text-[#d1d5db] dark:hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
                       disabled={isValidating}
@@ -183,7 +190,16 @@ export function ChatInterface({ onOpenSettings }: ChatInterfaceProps) {
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <button
-                  onClick={() => setShowConfig(true)}
+                  onClick={() => {
+                    // Always reset to default values when opening the modal
+                    // This ensures a clean slate for API key configuration
+                    // The conversation's stored API key will remain unchanged until explicitly configured
+                    setApiUrl('http://localhost:3000');
+                    setApiKey('default-key');
+                    setValidationError(null);
+                    setShowApiKey(false);
+                    setShowConfig(true);
+                  }}
                   className="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:border-[#4a4b54] dark:text-[#ececf1] dark:hover:bg-[#3c3f4a]"
                 >
                   Configure API
@@ -209,8 +225,10 @@ export function ChatInterface({ onOpenSettings }: ChatInterfaceProps) {
           {/* Input */}
           <MessageInput
             onSend={handleSendMessage}
-            disabled={isLoading}
-            placeholder="Message ORBIT..."
+            disabled={isLoading || !currentConversation || !currentConversation.apiKey || currentConversation.apiKey === 'default-key'}
+            placeholder={!currentConversation || !currentConversation.apiKey || currentConversation.apiKey === 'default-key' 
+              ? "Configure API key to start chatting..." 
+              : "Message ORBIT..."}
           />
         </div>
       </div>

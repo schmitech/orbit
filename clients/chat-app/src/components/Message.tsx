@@ -65,7 +65,7 @@ export function Message({ message, onRegenerate }: MessageProps) {
         <div
           className={`rounded-lg border px-4 py-3 leading-relaxed ${
             isAssistant
-              ? 'border-gray-300 bg-gray-100 text-[#353740] dark:border-[#4a4b54] dark:bg-[#40414f] dark:text-[#ececf1]'
+              ? 'border-gray-300 bg-gray-100 text-[#353740] dark:border-[#4a4b54] dark:bg-[#202123] dark:text-[#ececf1]'
               : 'border-gray-300 bg-gray-100 text-[#353740] dark:bg-[#202123] dark:text-[#ececf1]'
           }`}
         >

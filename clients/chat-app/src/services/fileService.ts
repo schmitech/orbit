@@ -6,7 +6,7 @@
 
 import { getApi } from '../api/loader';
 import { FileAttachment } from '../types';
-import { debugLog, debugWarn, debugError, logError } from '../utils/debug';
+import { debugLog, debugWarn, logError } from '../utils/debug';
 
 export interface FileUploadProgress {
   filename: string;
@@ -22,12 +22,16 @@ export class FileUploadService {
    * 
    * @param file - The file to upload
    * @param onProgress - Optional progress callback
+   * @param apiKey - Optional API key (falls back to localStorage if not provided)
+   * @param apiUrl - Optional API URL (falls back to localStorage if not provided)
    * @returns Promise resolving to file attachment metadata
    * @throws Error if upload fails
    */
   static async uploadFile(
     file: File,
-    onProgress?: (progress: FileUploadProgress) => void
+    onProgress?: (progress: FileUploadProgress) => void,
+    apiKey?: string,
+    apiUrl?: string
   ): Promise<FileAttachment> {
     try {
       // Validate file size (50MB limit)
@@ -81,20 +85,22 @@ export class FileUploadService {
       }
 
       // Get API client
-      // Use the same API configuration as the chat store
+      // Use provided API key/URL if available, otherwise fall back to localStorage
       const api = await getApi();
-      const apiUrl = localStorage.getItem('chat-api-url') || 
+      const resolvedApiUrl = apiUrl || 
+                     localStorage.getItem('chat-api-url') || 
                      (import.meta.env as any).VITE_API_URL || 
                      (window as any).CHATBOT_API_URL ||
                      'http://localhost:3000';
-      const apiKey = localStorage.getItem('chat-api-key') || 
+      const resolvedApiKey = apiKey || 
+                     localStorage.getItem('chat-api-key') || 
                      (import.meta.env as any).VITE_API_KEY ||
                      (window as any).CHATBOT_API_KEY ||
                      'orbit-123456789';
       
       // Validate API key is configured
       // Note: API keys typically start with "orbit_" but some may be custom/simple keys
-      if (!apiKey || apiKey === 'your-api-key-here' || apiKey === 'orbit-123456789') {
+      if (!resolvedApiKey || resolvedApiKey === 'your-api-key-here' || resolvedApiKey === 'orbit-123456789') {
         throw new Error(
           'API key not configured or invalid. Please:\n' +
           '1. Open Settings (⚙️ icon) in the top-right corner\n' +
@@ -105,13 +111,13 @@ export class FileUploadService {
       }
       
       // Log masked API key for debugging (only first 8 and last 4 characters)
-      const maskedKey = apiKey.length > 12 
-        ? `${apiKey.substring(0, 8)}...${apiKey.substring(apiKey.length - 4)}`
-        : `${apiKey.substring(0, Math.min(4, apiKey.length))}...`;
+      const maskedKey = resolvedApiKey.length > 12 
+        ? `${resolvedApiKey.substring(0, 8)}...${resolvedApiKey.substring(resolvedApiKey.length - 4)}`
+        : `${resolvedApiKey.substring(0, Math.min(4, resolvedApiKey.length))}...`;
       
       debugLog(`🔑 Using API key: ${maskedKey} (masked for security)`);
       
-      const client = new api.ApiClient({ apiUrl, apiKey, sessionId: null });
+      const client = new api.ApiClient({ apiUrl: resolvedApiUrl, apiKey: resolvedApiKey, sessionId: null });
 
       // Check if uploadFile method exists (for npm package compatibility)
       if (!client.uploadFile) {
@@ -235,26 +241,30 @@ export class FileUploadService {
   /**
    * List all files for the current API key
    * 
+   * @param apiKey - Optional API key (falls back to localStorage if not provided)
+   * @param apiUrl - Optional API URL (falls back to localStorage if not provided)
    * @returns Promise resolving to array of file attachments
    * @throws Error if request fails
    */
-  static async listFiles(): Promise<FileAttachment[]> {
+  static async listFiles(apiKey?: string, apiUrl?: string): Promise<FileAttachment[]> {
     try {
       const api = await getApi();
-      const apiUrl = localStorage.getItem('chat-api-url') || 
+      const resolvedApiUrl = apiUrl || 
+                     localStorage.getItem('chat-api-url') || 
                      (import.meta.env as any).VITE_API_URL || 
                      (window as any).CHATBOT_API_URL ||
                      'http://localhost:3000';
-      const apiKey = localStorage.getItem('chat-api-key') || 
+      const resolvedApiKey = apiKey || 
+                     localStorage.getItem('chat-api-key') || 
                      (import.meta.env as any).VITE_API_KEY ||
                      (window as any).CHATBOT_API_KEY ||
                      'orbit-123456789';
       
-      if (!apiKey || apiKey === 'your-api-key-here' || apiKey === 'orbit-123456789') {
+      if (!resolvedApiKey || resolvedApiKey === 'your-api-key-here' || resolvedApiKey === 'orbit-123456789') {
         throw new Error('API key not configured');
       }
 
-      const client = new api.ApiClient({ apiUrl, apiKey, sessionId: null });
+      const client = new api.ApiClient({ apiUrl: resolvedApiUrl, apiKey: resolvedApiKey, sessionId: null });
 
       if (!client.listFiles) {
         throw new Error('File listing is not available. Please use the local API build or update the npm package.');
@@ -282,26 +292,30 @@ export class FileUploadService {
    * Get file information from the server
    * 
    * @param fileId - The file ID to get info for
+   * @param apiKey - Optional API key (falls back to localStorage if not provided)
+   * @param apiUrl - Optional API URL (falls back to localStorage if not provided)
    * @returns Promise resolving to file attachment metadata
    * @throws Error if request fails
    */
-  static async getFileInfo(fileId: string): Promise<FileAttachment> {
+  static async getFileInfo(fileId: string, apiKey?: string, apiUrl?: string): Promise<FileAttachment> {
     try {
       const api = await getApi();
-      const apiUrl = localStorage.getItem('chat-api-url') || 
+      const resolvedApiUrl = apiUrl || 
+                     localStorage.getItem('chat-api-url') || 
                      (import.meta.env as any).VITE_API_URL || 
                      (window as any).CHATBOT_API_URL ||
                      'http://localhost:3000';
-      const apiKey = localStorage.getItem('chat-api-key') || 
+      const resolvedApiKey = apiKey || 
+                     localStorage.getItem('chat-api-key') || 
                      (import.meta.env as any).VITE_API_KEY ||
                      (window as any).CHATBOT_API_KEY ||
                      'orbit-123456789';
       
-      if (!apiKey || apiKey === 'your-api-key-here' || apiKey === 'orbit-123456789') {
+      if (!resolvedApiKey || resolvedApiKey === 'your-api-key-here' || resolvedApiKey === 'orbit-123456789') {
         throw new Error('API key not configured');
       }
 
-      const client = new api.ApiClient({ apiUrl, apiKey, sessionId: null });
+      const client = new api.ApiClient({ apiUrl: resolvedApiUrl, apiKey: resolvedApiKey, sessionId: null });
 
       if (!client.getFileInfo) {
         throw new Error('File info retrieval is not available. Please use the local API build or update the npm package.');
@@ -399,26 +413,30 @@ export class FileUploadService {
    * Delete a file from the server
    * 
    * @param fileId - The file ID to delete
+   * @param apiKey - Optional API key (falls back to localStorage if not provided)
+   * @param apiUrl - Optional API URL (falls back to localStorage if not provided)
    * @returns Promise resolving to deletion result
    * @throws Error if deletion fails
    */
-  static async deleteFile(fileId: string): Promise<{ message: string; file_id: string }> {
+  static async deleteFile(fileId: string, apiKey?: string, apiUrl?: string): Promise<{ message: string; file_id: string }> {
     try {
       const api = await getApi();
-      const apiUrl = localStorage.getItem('chat-api-url') || 
+      const resolvedApiUrl = apiUrl || 
+                     localStorage.getItem('chat-api-url') || 
                      (import.meta.env as any).VITE_API_URL || 
                      (window as any).CHATBOT_API_URL ||
                      'http://localhost:3000';
-      const apiKey = localStorage.getItem('chat-api-key') || 
+      const resolvedApiKey = apiKey || 
+                     localStorage.getItem('chat-api-key') || 
                      (import.meta.env as any).VITE_API_KEY ||
                      (window as any).CHATBOT_API_KEY ||
                      'orbit-123456789';
       
-      if (!apiKey || apiKey === 'your-api-key-here' || apiKey === 'orbit-123456789') {
+      if (!resolvedApiKey || resolvedApiKey === 'your-api-key-here' || resolvedApiKey === 'orbit-123456789') {
         throw new Error('API key not configured');
       }
 
-      const client = new api.ApiClient({ apiUrl, apiKey, sessionId: null });
+      const client = new api.ApiClient({ apiUrl: resolvedApiUrl, apiKey: resolvedApiKey, sessionId: null });
 
       if (!client.deleteFile) {
         throw new Error('File deletion is not available. Please use the local API build or update the npm package.');

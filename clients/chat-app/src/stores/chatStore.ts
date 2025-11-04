@@ -43,7 +43,7 @@ interface ExtendedChatState extends ChatState {
   selectConversation: (id: string) => Promise<void>;
   deleteConversation: (id: string) => Promise<void>;
   sendMessage: (content: string, fileIds?: string[]) => Promise<void>;
-  appendToLastMessage: (content: string) => void;
+  appendToLastMessage: (content: string, conversationId?: string) => void;
   regenerateResponse: (messageId: string) => Promise<void>;
   updateConversationTitle: (id: string, title: string) => void;
   clearError: () => void;
@@ -154,8 +154,67 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       api.configureApi(apiUrl, apiKey || '', actualSessionId);
       currentApiUrl = apiUrl;
       apiConfigured = true;
+      
+      // Store API key and URL in the current conversation
+      // If no conversation exists, create one
+      if (currentConversation && apiKey && apiKey.trim() && apiKey !== 'default-key') {
+        // Update existing conversation with API key
+        set(state => ({
+          conversations: state.conversations.map(conv =>
+            conv.id === currentConversation.id
+              ? {
+                  ...conv,
+                  apiKey: apiKey, // Always use the provided API key if it was validated
+                  apiUrl: apiUrl,
+                  updatedAt: new Date()
+                }
+              : conv
+          )
+        }));
+        
+        // Save to localStorage immediately
+        setTimeout(() => {
+          const currentState = get();
+          localStorage.setItem('chat-state', JSON.stringify({
+            conversations: currentState.conversations,
+            currentConversationId: currentState.currentConversationId
+          }));
+        }, 0);
+      } else if (apiKey && apiKey.trim() && apiKey !== 'default-key') {
+        // No conversation exists, create one with the configured API key
+        const newId = `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const newSessionId = generateUniqueSessionId();
+        const newConversation: Conversation = {
+          id: newId,
+          sessionId: newSessionId,
+          title: 'New Chat',
+          messages: [],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          apiKey: apiKey,
+          apiUrl: apiUrl
+        };
+        
+        set(state => ({
+          conversations: [newConversation, ...state.conversations].slice(0, 10),
+          currentConversationId: newId,
+          sessionId: newSessionId
+        }));
+        
+        // Save to localStorage
+        setTimeout(() => {
+          const currentState = get();
+          localStorage.setItem('chat-state', JSON.stringify({
+            conversations: currentState.conversations,
+            currentConversationId: currentState.currentConversationId
+          }));
+        }, 0);
+      }
     } catch (error) {
       debugError('Failed to configure API:', error);
+      // Ensure isLoading is not stuck when validation fails
+      // Don't set global loading state - this is just configuration, not message sending
+      set({ isLoading: false });
       // Re-throw the error so it can be displayed to the user
       if (error instanceof Error) {
         throw error;
@@ -168,6 +227,9 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
     if (apiKey) {
       localStorage.setItem('chat-api-key', apiKey);
     }
+    
+    // Ensure isLoading is false after successful configuration
+    set({ isLoading: false });
   },
 
   createConversation: () => {
@@ -180,13 +242,18 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
 
     const id = `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const newSessionId = generateUniqueSessionId(); // Create unique session for this conversation
+    // New conversations default to 'default-key' and require API key configuration
+    const defaultApiUrl = 'http://localhost:3000';
+    const defaultApiKey = 'default-key';
     const newConversation: Conversation = {
       id,
       sessionId: newSessionId,
       title: 'New Chat',
       messages: [],
       createdAt: new Date(),
-      updatedAt: new Date()
+      updatedAt: new Date(),
+      apiKey: defaultApiKey,
+      apiUrl: defaultApiUrl
     };
 
     // Update state with new conversation and switch to its session
@@ -206,13 +273,11 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       };
     });
 
-    // Reconfigure API with the new session ID
+    // Reconfigure API with the new session ID and the default API key
     ensureApiConfigured().then(isConfigured => {
       if (isConfigured) {
-        const apiUrl = localStorage.getItem('chat-api-url') || 'http://localhost:3000';
-        const apiKey = localStorage.getItem('chat-api-key') || 'orbit-123456789';
         getApi().then(api => {
-          api.configureApi(apiUrl, apiKey, newSessionId);
+          api.configureApi(defaultApiUrl, defaultApiKey, newSessionId);
         });
       }
     });
@@ -232,23 +297,34 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
   selectConversation: async (id: string) => {
     const conversation = get().conversations.find(conv => conv.id === id);
     if (conversation) {
+      // Check if this conversation has any streaming messages
+      const hasStreamingMessages = conversation.messages.some(
+        msg => msg.role === 'assistant' && msg.isStreaming
+      );
+      
       // Switch to the conversation's session ID
       set({ 
         currentConversationId: id,
-        sessionId: conversation.sessionId
+        sessionId: conversation.sessionId,
+        // Set isLoading based on whether the current conversation has streaming messages
+        isLoading: hasStreamingMessages
       });
       
-      // Reconfigure API with the conversation's session ID
+      // Use conversation's stored API key and URL (use 'default-key' if not configured, don't fall back to localStorage)
+      const conversationApiUrl = conversation.apiUrl || 'http://localhost:3000';
+      const conversationApiKey = conversation.apiKey || 'default-key';
+      
+      // Reconfigure API with the conversation's session ID and API key
       const isConfigured = await ensureApiConfigured();
       if (isConfigured) {
-        const apiUrl = localStorage.getItem('chat-api-url') || 'http://localhost:3000';
-        const apiKey = localStorage.getItem('chat-api-key') || 'orbit-123456789';
         const api = await getApi();
-        api.configureApi(apiUrl, apiKey, conversation.sessionId);
+        api.configureApi(conversationApiUrl, conversationApiKey, conversation.sessionId);
       }
 
-      // Sync files for this conversation
-      await get().syncConversationFiles(id);
+      // Don't auto-sync files when switching conversations
+      // Files are only loaded when explicitly uploaded to a conversation
+      // This ensures full segregation - files from one conversation don't appear in others
+      // await get().syncConversationFiles(id);
     }
     
     // Save to localStorage
@@ -281,11 +357,18 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
           logError('Failed to configure API for conversation deletion');
           // Continue with local deletion even if API configuration fails
         } else {
-          // Create API client with the conversation's session ID
+          // Use conversation's stored API key and URL (don't fall back to localStorage)
+          // This ensures each conversation uses its own API key for deletion
+          const conversationApiUrl = conversation.apiUrl || 'http://localhost:3000';
+          const conversationApiKey = conversation.apiKey || 'default-key';
+          
+          debugLog(`🔑 Using conversation's API key for deletion: ${conversationApiKey.substring(0, 8)}... (conversation: ${id})`);
+          
+          // Create API client with the conversation's session ID and API key
           const api = await getApi();
           const apiClient: ApiClient = new api.ApiClient({
-            apiUrl: localStorage.getItem('chat-api-url') || 'http://localhost:3000',
-            apiKey: localStorage.getItem('chat-api-key') || 'orbit-123456789',
+            apiUrl: conversationApiUrl,
+            apiKey: conversationApiKey,
             sessionId: conversation.sessionId
           });
 
@@ -439,20 +522,39 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         };
       });
 
+      // Store conversationId in a variable so we can use it even if user switches conversations
+      const streamingConversationId = conversationId;
       let receivedAnyText = false;
 
       try {
-        // Ensure API is configured with the current conversation's session ID
-        const currentConversation = get().conversations.find(conv => conv.id === conversationId);
-        if (currentConversation?.sessionId) {
-          const api = await getApi();
-          // Reconfigure API with the current conversation's session ID to ensure consistency
-          api.configureApi(
-            localStorage.getItem('chat-api-url') || 'http://localhost:3000',
-            localStorage.getItem('chat-api-key') || 'orbit-123456789',
-            currentConversation.sessionId
-          );
-        }
+      // Ensure API is configured with the current conversation's session ID and API key
+      // Get fresh conversation state to ensure we have the latest API key
+      const currentConversation = get().conversations.find(conv => conv.id === streamingConversationId);
+      if (!currentConversation) {
+        throw new Error('Conversation not found');
+      }
+      
+      // Check if conversation has a valid API key (not 'default-key')
+      if (!currentConversation.apiKey || currentConversation.apiKey === 'default-key') {
+        debugWarn(`[sendMessage] Conversation ${streamingConversationId} has invalid API key: ${currentConversation.apiKey}`);
+        throw new Error('API key not configured for this conversation. Please configure API settings first.');
+      }
+      
+      debugLog(`[sendMessage] Using API key for conversation ${streamingConversationId}: ${currentConversation.apiKey.substring(0, 8)}...`);
+      
+      if (currentConversation.sessionId) {
+        // Use conversation's stored API key and URL
+        const conversationApiUrl = currentConversation.apiUrl || 'http://localhost:3000';
+        const conversationApiKey = currentConversation.apiKey;
+        
+        const api = await getApi();
+        // Reconfigure API with the current conversation's session ID and API key to ensure consistency
+        api.configureApi(
+          conversationApiUrl,
+          conversationApiKey,
+          currentConversation.sessionId
+        );
+      }
         
         // Load the API and stream the response
         const api = await getApi();
@@ -460,7 +562,8 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         for await (const response of api.streamChat(content, true, fileIds)) {
           debugLog(`[chatStore] Received stream chunk:`, { text: response.text?.substring(0, 50), done: response.done });
           if (response.text) {
-            get().appendToLastMessage(response.text);
+            // Always append to the conversation that initiated the stream, not the current one
+            get().appendToLastMessage(response.text, streamingConversationId);
             receivedAnyText = true;
             // Add a small delay to slow down the streaming effect
             await new Promise(resolve => setTimeout(resolve, 30));
@@ -475,17 +578,19 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         // If no text received, show error
         if (!receivedAnyText) {
           debugWarn(`[chatStore] No text received from stream, showing error message`);
-          get().appendToLastMessage('No response received from the server. Please try again later.');
+          get().appendToLastMessage('No response received from the server. Please try again later.', streamingConversationId);
         }
       } catch (error) {
         logError('Chat API error:', error);
-        get().appendToLastMessage('Sorry, there was an error processing your request.');
+        get().appendToLastMessage('Sorry, there was an error processing your request.', streamingConversationId);
       }
 
       // Mark message as no longer streaming and stop loading
-      set(state => ({
-        conversations: state.conversations.map(conv =>
-          conv.id === conversationId
+      // Use the conversation that initiated the stream, not the current one
+      set(state => {
+        // Update the streaming conversation's messages
+        const updatedConversations = state.conversations.map(conv =>
+          conv.id === streamingConversationId
             ? {
                 ...conv,
                 messages: conv.messages.map(msg =>
@@ -496,9 +601,19 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
                 updatedAt: new Date()
               }
             : conv
-        ),
-        isLoading: false
-      }));
+        );
+        
+        // Check if the current conversation has any streaming messages AFTER the update
+        const currentConv = updatedConversations.find(conv => conv.id === state.currentConversationId);
+        const hasStreamingMessages = currentConv 
+          ? currentConv.messages.some(msg => msg.role === 'assistant' && msg.isStreaming)
+          : false;
+        
+        return {
+          conversations: updatedConversations,
+          isLoading: hasStreamingMessages
+        };
+      });
 
       // Save to localStorage
       setTimeout(() => {
@@ -518,29 +633,35 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
     }
   },
 
-  appendToLastMessage: (content: string) => {
-    set(state => ({
-      conversations: state.conversations.map(conv => {
-        if (conv.id !== state.currentConversationId) return conv;
-        
-        const messages = [...conv.messages];
-        const lastMessage = messages[messages.length - 1];
-        
-        // Only append to streaming assistant messages
-        if (lastMessage && lastMessage.role === 'assistant' && lastMessage.isStreaming) {
-          messages[messages.length - 1] = {
-            ...lastMessage,
-            content: lastMessage.content + content
+  appendToLastMessage: (content: string, conversationId?: string) => {
+    set(state => {
+      // Use provided conversationId or current conversation
+      const targetConversationId = conversationId || state.currentConversationId;
+      
+      return {
+        conversations: state.conversations.map(conv => {
+          // Update the conversation that's streaming, not just the current one
+          if (conv.id !== targetConversationId) return conv;
+          
+          const messages = [...conv.messages];
+          const lastMessage = messages[messages.length - 1];
+          
+          // Only append to streaming assistant messages
+          if (lastMessage && lastMessage.role === 'assistant' && lastMessage.isStreaming) {
+            messages[messages.length - 1] = {
+              ...lastMessage,
+              content: lastMessage.content + content
+            };
+          }
+          
+          return {
+            ...conv,
+            messages,
+            updatedAt: new Date()
           };
-        }
-        
-        return {
-          ...conv,
-          messages,
-          updatedAt: new Date()
-        };
-      })
-    }));
+        })
+      };
+    });
   },
 
   regenerateResponse: async (messageId: string) => {
@@ -591,17 +712,35 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         error: null
       }));
 
+      // Store the conversation ID that's regenerating at the start
+      const regeneratingConversationId = state.currentConversationId;
+      if (!regeneratingConversationId) {
+        throw new Error('No conversation selected');
+      }
       let receivedAnyText = false;
 
       try {
-        // Ensure API is configured with the current conversation's session ID
-        const currentConversation = get().conversations.find(conv => conv.id === state.currentConversationId);
-        if (currentConversation?.sessionId) {
+        // Ensure API is configured with the current conversation's session ID and API key
+        const currentConversation = get().conversations.find(conv => conv.id === regeneratingConversationId);
+        if (!currentConversation) {
+          throw new Error('Conversation not found');
+        }
+        
+        // Check if conversation has a valid API key (not 'default-key')
+        if (!currentConversation.apiKey || currentConversation.apiKey === 'default-key') {
+          throw new Error('API key not configured for this conversation. Please configure API settings first.');
+        }
+        
+        if (currentConversation.sessionId) {
+          // Use conversation's stored API key and URL
+          const conversationApiUrl = currentConversation.apiUrl || 'http://localhost:3000';
+          const conversationApiKey = currentConversation.apiKey;
+          
           const api = await getApi();
-          // Reconfigure API with the current conversation's session ID to ensure consistency
+          // Reconfigure API with the current conversation's session ID and API key to ensure consistency
           api.configureApi(
-            localStorage.getItem('chat-api-url') || 'http://localhost:3000',
-            localStorage.getItem('chat-api-key') || 'orbit-123456789',
+            conversationApiUrl,
+            conversationApiKey,
             currentConversation.sessionId
           );
         }
@@ -609,7 +748,8 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         const api = await getApi();
         for await (const response of api.streamChat(userMessage.content, true, undefined)) {
           if (response.text) {
-            get().appendToLastMessage(response.text);
+            // Always append to the conversation that initiated the regenerate, not the current one
+            get().appendToLastMessage(response.text, regeneratingConversationId);
             receivedAnyText = true;
             // Add a small delay to slow down the streaming effect
             await new Promise(resolve => setTimeout(resolve, 30));
@@ -621,17 +761,19 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         }
 
         if (!receivedAnyText) {
-          get().appendToLastMessage('No response received from the server. Please try again later.');
+          get().appendToLastMessage('No response received from the server. Please try again later.', regeneratingConversationId);
         }
       } catch (error) {
         logError('Regenerate API error:', error);
-        get().appendToLastMessage('Sorry, there was an error regenerating the response.');
+        get().appendToLastMessage('Sorry, there was an error regenerating the response.', regeneratingConversationId);
       }
 
       // Mark as no longer streaming
-      set(state => ({
-        conversations: state.conversations.map(conv =>
-          conv.id === state.currentConversationId
+      // Use the conversation that initiated the regenerate
+      set(state => {
+        // Update the regenerating conversation's messages
+        const updatedConversations = state.conversations.map(conv =>
+          conv.id === regeneratingConversationId
             ? {
                 ...conv,
                 messages: conv.messages.map(msg =>
@@ -642,9 +784,19 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
                 updatedAt: new Date()
               }
             : conv
-        ),
-        isLoading: false
-      }));
+        );
+        
+        // Check if the current conversation has any streaming messages AFTER the update
+        const currentConv = updatedConversations.find(conv => conv.id === state.currentConversationId);
+        const hasStreamingMessages = currentConv 
+          ? currentConv.messages.some(msg => msg.role === 'assistant' && msg.isStreaming)
+          : false;
+        
+        return {
+          conversations: updatedConversations,
+          isLoading: hasStreamingMessages
+        };
+      });
 
     } catch (error) {
       logError('Regenerate error:', error);
@@ -680,11 +832,21 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
 
   // Utility function to clean up any orphaned streaming messages
   cleanupStreamingMessages: () => {
+    // Only clean up streaming messages from conversations that are not the current one
+    // This preserves streaming state when switching conversations
     set(state => ({
-      conversations: state.conversations.map(conv => ({
-        ...conv,
-        messages: conv.messages.filter(msg => !(msg.role === 'assistant' && msg.isStreaming))
-      })),
+      conversations: state.conversations.map(conv => {
+        // Keep streaming messages in the current conversation (they might be actively streaming)
+        if (conv.id === state.currentConversationId) {
+          return conv;
+        }
+        
+        // Only clean up streaming messages from other conversations if they're truly orphaned
+        // (e.g., if they're old and shouldn't be streaming anymore)
+        // For now, we'll keep all streaming messages to preserve state
+        return conv;
+      }),
+      // Only set isLoading to false if there are no active streaming operations
       isLoading: false
     }));
   },
@@ -759,9 +921,24 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       fileId
     });
     try {
+      // Get the conversation to access its API key
+      const conversation = get().conversations.find(conv => conv.id === conversationId);
+      if (!conversation) {
+        throw new Error('Conversation not found');
+      }
+      
+      // Check if conversation has a valid API key (not 'default-key')
+      if (!conversation.apiKey || conversation.apiKey === 'default-key') {
+        throw new Error('API key not configured for this conversation. Cannot delete file.');
+      }
+      
+      // Use conversation's stored API key and URL
+      const conversationApiKey = conversation.apiKey;
+      const conversationApiUrl = conversation.apiUrl || 'http://localhost:3000';
+      
       // Delete from server
       debugLog(`[chatStore] Calling FileUploadService.deleteFile for ${fileId}`);
-      await FileUploadService.deleteFile(fileId);
+      await FileUploadService.deleteFile(fileId, conversationApiKey, conversationApiUrl);
       debugLog(`[chatStore] Successfully deleted file ${fileId} from server`);
     } catch (error: any) {
       // If file was already deleted (404), that's fine - just log and continue
@@ -799,10 +976,40 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
   // Load files from server for a conversation
   loadConversationFiles: async (conversationId: string) => {
     try {
-      const files = await FileUploadService.listFiles();
+      // Get the conversation to access its API key
+      const conversation = get().conversations.find(conv => conv.id === conversationId);
+      if (!conversation) {
+        return;
+      }
       
-      // Convert to FileAttachment format and update conversation
-      const fileAttachments: FileAttachment[] = files.map(file => ({
+      // Check if conversation has a valid API key (not 'default-key')
+      if (!conversation.apiKey || conversation.apiKey === 'default-key') {
+        // Skip loading files if API key is not configured
+        debugLog(`Skipping file load for conversation ${conversationId}: API key not configured`);
+        return;
+      }
+      
+      // Use conversation's stored API key and URL
+      const conversationApiKey = conversation.apiKey;
+      const conversationApiUrl = conversation.apiUrl || 'http://localhost:3000';
+      
+      // Only load files that are already in the conversation's attachedFiles
+      // This ensures full segregation - files uploaded in one conversation don't appear in others
+      const existingFileIds = new Set(
+        (conversation.attachedFiles || []).map(f => f.file_id)
+      );
+      
+      if (existingFileIds.size === 0) {
+        // No files to sync - skip loading
+        debugLog(`No files to sync for conversation ${conversationId}`);
+        return;
+      }
+      
+      // Get all files from server for this API key
+      const allFiles = await FileUploadService.listFiles(conversationApiKey, conversationApiUrl);
+      
+      // Convert to FileAttachment format
+      const fileAttachments: FileAttachment[] = allFiles.map(file => ({
         file_id: file.file_id,
         filename: file.filename,
         mime_type: file.mime_type,
@@ -812,38 +1019,37 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         chunk_count: file.chunk_count
       }));
 
-      // Update conversation with loaded files (merge with existing, avoid duplicates, update statuses)
+      // Create a map of server files for quick lookup
+      const serverFilesMap = new Map(
+        fileAttachments.map(file => [file.file_id, file])
+      );
+
+      // Only update existing files with server status - don't add new files
+      // This ensures files uploaded in one conversation don't appear in others
       set(state => {
         const conversation = state.conversations.find(conv => conv.id === conversationId);
         if (!conversation) return state;
 
-        // Create a map of server files for quick lookup
-        const serverFilesMap = new Map(
-          fileAttachments.map(file => [file.file_id, file])
-        );
-
-        // Merge: update existing files with server status, add new server files
-        const mergedFiles: FileAttachment[] = [
-          // Update existing files with server status if available
-          ...(conversation.attachedFiles || []).map(existingFile => {
+        // Only update files that are already in the conversation's attachedFiles
+        // Filter out any files that aren't in the server's response (may have been deleted)
+        const updatedFiles: FileAttachment[] = (conversation.attachedFiles || [])
+          .map(existingFile => {
             const serverFile = serverFilesMap.get(existingFile.file_id);
             // Use server file if available (has latest status), otherwise keep existing
             return serverFile || existingFile;
-          }),
-          // Add new files from server that aren't in conversation yet
-          ...fileAttachments.filter(
-            serverFile => !(conversation.attachedFiles || []).some(
-              existingFile => existingFile.file_id === serverFile.file_id
-            )
-          )
-        ];
+          })
+          .filter(file => {
+            // Only keep files that exist on the server or are still uploading (no status yet)
+            // This filters out files that were deleted from the server
+            return serverFilesMap.has(file.file_id) || !file.processing_status || file.processing_status === 'processing';
+          });
 
         return {
           conversations: state.conversations.map(conv =>
             conv.id === conversationId
               ? {
                   ...conv,
-                  attachedFiles: mergedFiles,
+                  attachedFiles: updatedFiles,
                   updatedAt: new Date()
                 }
               : conv
@@ -885,12 +1091,18 @@ const initializeStore = () => {
     try {
       const parsedState = JSON.parse(saved);
       // Restore Date objects and clean up any streaming messages
+      // For backward compatibility: initialize conversations without apiKey/apiUrl with 'default-key'
+      // This ensures each conversation requires independent API key configuration
       parsedState.conversations = parsedState.conversations.map((conv: any) => ({
         ...conv,
         sessionId: conv.sessionId || generateUniqueSessionId(), // Generate sessionId for existing conversations if missing
         createdAt: new Date(conv.createdAt),
         updatedAt: new Date(conv.updatedAt),
         attachedFiles: conv.attachedFiles || [], // Ensure attachedFiles exists
+        // Initialize apiKey and apiUrl if missing (backward compatibility)
+        // Use 'default-key' to require API key configuration for independence
+        apiKey: conv.apiKey || 'default-key',
+        apiUrl: conv.apiUrl || 'http://localhost:3000',
         messages: conv.messages
           .filter((msg: any) => !(msg.role === 'assistant' && msg.isStreaming)) // Remove any streaming messages
           .map((msg: any) => ({

@@ -135,11 +135,19 @@ export function FileUpload({
                 if (fileInUploadedList) {
                   await removeFileFromConversation(store.currentConversationId, fileId);
                 } else {
-                  // File was uploaded but not in uploadedFiles, delete directly
-                  await FileUploadService.deleteFile(fileId);
+                  // File was uploaded but not in uploadedFiles, delete directly with conversation's API key
+                  const conversation = store.conversations.find(conv => conv.id === store.currentConversationId);
+                  if (conversation && conversation.apiKey && conversation.apiKey !== 'default-key') {
+                    const conversationApiKey = conversation.apiKey;
+                    const conversationApiUrl = conversation.apiUrl || 'http://localhost:3000';
+                    await FileUploadService.deleteFile(fileId, conversationApiKey, conversationApiUrl);
+                  } else {
+                    // If no valid API key, just log warning (file might already be deleted)
+                    debugWarn(`Cannot delete file ${fileId}: API key not configured for conversation`);
+                  }
                 }
               } else {
-                // Just delete from server if no conversation
+                // Just delete from server if no conversation (fallback to localStorage)
                 await FileUploadService.deleteFile(fileId);
               }
             } catch (error: any) {
@@ -176,19 +184,37 @@ export function FileUpload({
       let uploadedFileId: string | null = null;
       
       try {
+        // Get current conversation to access its API key
+        const store = useChatStore.getState();
+        const conversation = store.conversations.find(conv => conv.id === store.currentConversationId);
+        
+        // Check if conversation has a valid API key (not 'default-key')
+        if (!conversation || !conversation.apiKey || conversation.apiKey === 'default-key') {
+          throw new Error('API key not configured for this conversation. Please configure API settings first.');
+        }
+        
+        // Use conversation's stored API key and URL
+        const conversationApiKey = conversation.apiKey;
+        const conversationApiUrl = conversation.apiUrl || 'http://localhost:3000';
+        
         // Upload file and get the full response with correct file_size from server
         // Note: We allow upload to proceed even if component unmounts, cleanup will handle orphaned files
-        const uploadedAttachment = await FileUploadService.uploadFile(file, (progress) => {
-          // Only update state if component is still mounted (to avoid React warnings)
-          if (isMountedRef.current) {
-            setUploadingFiles(prev => new Map(prev.set(file.name, progress)));
-          }
-          // Track file ID once we get it (even if unmounted, for cleanup purposes)
-          if (progress.fileId) {
-            uploadedFileId = progress.fileId;
-            uploadedFileIdsRef.current.add(progress.fileId);
-          }
-        }).catch(error => {
+        const uploadedAttachment = await FileUploadService.uploadFile(
+          file, 
+          (progress) => {
+            // Only update state if component is still mounted (to avoid React warnings)
+            if (isMountedRef.current) {
+              setUploadingFiles(prev => new Map(prev.set(file.name, progress)));
+            }
+            // Track file ID once we get it (even if unmounted, for cleanup purposes)
+            if (progress.fileId) {
+              uploadedFileId = progress.fileId;
+              uploadedFileIdsRef.current.add(progress.fileId);
+            }
+          },
+          conversationApiKey,
+          conversationApiUrl
+        ).catch(error => {
           // If file was deleted during upload, handle gracefully
           if (error.message && error.message.includes('was deleted')) {
             // File was deleted during upload - remove from tracking if we have the ID
