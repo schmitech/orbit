@@ -27,6 +27,8 @@ export function ChatInterface({ onOpenSettings }: ChatInterfaceProps) {
   const [apiUrl, setApiUrl] = useState(() => localStorage.getItem('chat-api-url') || 'http://localhost:3000');
   const [apiKey, setApiKey] = useState(() => localStorage.getItem('chat-api-key') || 'orbit-123456789');
   const [showApiKey, setShowApiKey] = useState(false);
+  const [isValidating, setIsValidating] = useState(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   const currentConversation = conversations.find(c => c.id === currentConversationId);
 
@@ -47,6 +49,9 @@ export function ChatInterface({ onOpenSettings }: ChatInterfaceProps) {
 
   const handleConfigureApi = async () => {
     if (apiUrl && apiKey) {
+      setIsValidating(true);
+      setValidationError(null);
+      
       try {
         await configureApiSettings(apiUrl, apiKey);
         setShowConfig(false);
@@ -54,7 +59,13 @@ export function ChatInterface({ onOpenSettings }: ChatInterfaceProps) {
         clearError();
       } catch (error) {
         debugError('Failed to configure API:', error);
-        // Error will be handled by the store
+        // Set validation error for display in the modal
+        const errorMessage = error instanceof Error ? error.message : 'Failed to configure API settings';
+        setValidationError(errorMessage);
+        // Also set error in the store for global error banner
+        // (The store will handle this, but we can also show it in the modal)
+      } finally {
+        setIsValidating(false);
       }
     }
   };
@@ -92,33 +103,47 @@ export function ChatInterface({ onOpenSettings }: ChatInterfaceProps) {
                       <input
                         type={showApiKey ? 'text' : 'password'}
                         value={apiKey}
-                        onChange={(e) => setApiKey(e.target.value)}
+                        onChange={(e) => {
+                          setApiKey(e.target.value);
+                          setValidationError(null); // Clear validation error when user types
+                        }}
                         className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 pr-10 text-sm text-[#353740] focus:border-gray-400 focus:outline-none dark:border-[#4a4b54] dark:bg-[#343541] dark:text-[#ececf1]"
                         placeholder="your-api-key"
+                        disabled={isValidating}
                       />
                       <button
                         type="button"
                         onClick={() => setShowApiKey(!showApiKey)}
                         className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-gray-500 hover:text-gray-700 dark:text-[#d1d5db] dark:hover:text-white"
                         aria-label={showApiKey ? 'Hide API key' : 'Show API key'}
+                        disabled={isValidating}
                       >
                         {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
                     </div>
                   </div>
+                  {validationError && (
+                    <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-600/40 dark:bg-red-900/30 dark:text-red-200">
+                      {validationError}
+                    </div>
+                  )}
                   <div className="flex justify-end gap-3 pt-2">
                     <button
-                      onClick={() => setShowConfig(false)}
-                      className="rounded-md border border-transparent px-4 py-2 text-sm text-gray-600 hover:border-gray-300 hover:text-gray-900 dark:text-[#d1d5db] dark:hover:text-white"
+                      onClick={() => {
+                        setShowConfig(false);
+                        setValidationError(null);
+                      }}
+                      className="rounded-md border border-transparent px-4 py-2 text-sm text-gray-600 hover:border-gray-300 hover:text-gray-900 dark:text-[#d1d5db] dark:hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={isValidating}
                     >
                       Cancel
                     </button>
                     <button
                       onClick={handleConfigureApi}
-                      disabled={!apiUrl || !apiKey}
+                      disabled={!apiUrl || !apiKey || isValidating}
                       className="rounded-md bg-[#343541] px-4 py-2 text-sm font-medium text-white hover:bg-[#282b32] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-[#565869] dark:hover:bg-[#6b6f7a]"
                     >
-                      Configure
+                      {isValidating ? 'Validating...' : 'Configure'}
                     </button>
                   </div>
                 </div>

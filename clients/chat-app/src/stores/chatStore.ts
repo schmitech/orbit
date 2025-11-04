@@ -112,17 +112,58 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
     set({ sessionId: actualSessionId });
     
     try {
-      // Load the API and configure it
+      // Load the API
       const api = await getApi();
+      
+      // Validate API key if provided
+      if (apiKey && apiKey.trim()) {
+        try {
+          // Create a temporary client to validate the API key
+          const validationClient = new api.ApiClient({
+            apiUrl,
+            apiKey,
+            sessionId: null
+          });
+          
+          // Check if validateApiKey method exists (for backward compatibility)
+          if (typeof validationClient.validateApiKey === 'function') {
+            debugLog('Validating API key before configuration...');
+            const status = await validationClient.validateApiKey();
+            debugLog('API key validation successful:', {
+              exists: status.exists,
+              active: status.active,
+              adapter_name: status.adapter_name,
+              client_name: status.client_name
+            });
+          } else {
+            debugWarn('API key validation not available (validateApiKey method not found)');
+            // Continue without validation if method doesn't exist (backward compatibility)
+          }
+        } catch (validationError: any) {
+          // api.ts already throws user-friendly error messages, so we can just re-throw them
+          // This avoids duplicating error message logic and keeps the code DRY
+          if (validationError instanceof Error) {
+            throw validationError;
+          }
+          // Fallback for non-Error objects
+          throw new Error(`API key validation failed: ${validationError?.message || 'Unknown error'}`);
+        }
+      }
+      
+      // If validation passed (or no API key provided), proceed with configuration
       api.configureApi(apiUrl, apiKey || '', actualSessionId);
       currentApiUrl = apiUrl;
       apiConfigured = true;
     } catch (error) {
-      logError('Failed to configure API:', error);
+      debugError('Failed to configure API:', error);
+      // Re-throw the error so it can be displayed to the user
+      if (error instanceof Error) {
+        throw error;
+      }
       throw new Error('Failed to configure API settings');
     }
 
-    // Save settings to localStorage
+    // Save settings to localStorage only if configuration was successful
     localStorage.setItem('chat-api-url', apiUrl);
     if (apiKey) {
       localStorage.setItem('chat-api-key', apiKey);

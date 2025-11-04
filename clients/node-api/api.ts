@@ -86,6 +86,20 @@ export interface FileQueryResponse {
   }>;
 }
 
+// API key status interface
+export interface ApiKeyStatus {
+  exists: boolean;
+  active: boolean;
+  adapter_name?: string | null;
+  client_name?: string | null;
+  created_at?: string | number | null;
+  system_prompt?: {
+    id: string;
+    exists: boolean;
+  } | null;
+  message?: string;
+}
+
 export class ApiClient {
   private readonly apiUrl: string;
   private readonly apiKey: string | null;
@@ -116,6 +130,124 @@ export class ApiClient {
 
   public getSessionId(): string | null {
     return this.sessionId;
+  }
+
+  /**
+   * Validate that the API key exists and is active.
+   * 
+   * @returns Promise resolving to API key status information
+   * @throws Error if API key is not provided, invalid, inactive, or validation fails
+   */
+  public async validateApiKey(): Promise<ApiKeyStatus> {
+    if (!this.apiKey) {
+      throw new Error('API key is required for validation');
+    }
+
+    try {
+      const response = await fetch(`${this.apiUrl}/admin/api-keys/${this.apiKey}/status`, {
+        ...this.getFetchOptions({
+          method: 'GET'
+        })
+      }).catch((fetchError: any) => {
+        // Catch network errors before they bubble up
+        if (fetchError.name === 'TypeError' && fetchError.message.includes('Failed to fetch')) {
+          throw new Error('Could not connect to the server. Please check if the server is running.');
+        }
+        throw fetchError;
+      });
+
+      if (!response.ok) {
+        // Read error response body
+        let errorText = '';
+        try {
+          errorText = await response.text();
+        } catch {
+          // If we can't read the body, fall back to status code
+          errorText = `HTTP ${response.status}`;
+        }
+        
+        let errorDetail: string;
+        let friendlyMessage: string;
+        
+        try {
+          const errorJson = JSON.parse(errorText);
+          errorDetail = errorJson.detail || errorJson.message || errorText;
+        } catch {
+          // If parsing fails, use the error text or status code
+          errorDetail = errorText || `HTTP ${response.status}`;
+        }
+
+        // Generate user-friendly error messages based on HTTP status code
+        switch (response.status) {
+          case 401:
+            friendlyMessage = 'API key is invalid or expired';
+            break;
+          case 403:
+            friendlyMessage = 'Access denied: API key does not have required permissions';
+            break;
+          case 404:
+            friendlyMessage = 'API key not found';
+            break;
+          case 503:
+            friendlyMessage = 'API key management is not available in inference-only mode';
+            break;
+          default:
+            friendlyMessage = `Failed to validate API key: ${errorDetail}`;
+            break;
+        }
+        
+        // Throw error - will be logged in catch block to avoid duplicates
+        throw new Error(friendlyMessage);
+      }
+
+      const status: ApiKeyStatus = await response.json();
+      
+      // Check if the key exists
+      if (!status.exists) {
+        const friendlyMessage = 'API key does not exist';
+        // Throw error - will be logged in catch block to avoid duplicates
+        throw new Error(friendlyMessage);
+      }
+      
+      // Check if the key is active
+      if (!status.active) {
+        const friendlyMessage = 'API key is inactive';
+        // Throw error - will be logged in catch block to avoid duplicates
+        throw new Error(friendlyMessage);
+      }
+      
+      return status;
+    } catch (error: any) {
+      // Extract user-friendly error message
+      let friendlyMessage: string;
+      
+      if (error instanceof Error && error.message) {
+        // If it's already a user-friendly Error from above, use it directly
+        if (error.message.includes('API key') || 
+            error.message.includes('Access denied') || 
+            error.message.includes('invalid') || 
+            error.message.includes('expired') || 
+            error.message.includes('inactive') || 
+            error.message.includes('not found') ||
+            error.message.includes('Could not connect')) {
+          friendlyMessage = error.message;
+        } else {
+          friendlyMessage = `API key validation failed: ${error.message}`;
+        }
+      } else if (error.name === 'TypeError' && error.message?.includes('Failed to fetch')) {
+        friendlyMessage = 'Could not connect to the server. Please check if the server is running.';
+      } else {
+        friendlyMessage = 'API key validation failed. Please check your API key and try again.';
+      }
+      
+      // Only log warning if it's not a network error (those are already logged by browser)
+      // For validation errors, we log once with a friendly message
+      // Note: Browser will still log HTTP errors (401, 404, etc.) - this is unavoidable
+      console.warn(`[ApiClient] ${friendlyMessage}`);
+      
+      // Throw the friendly error message
+      throw new Error(friendlyMessage);
+    }
   }
 
   // Helper to get fetch options with connection pooling if available
@@ -263,8 +395,10 @@ export class ApiClient {
                 const data = JSON.parse(jsonText);
                 
                 if (data.error) {
-                  console.error(`[ApiClient] Server error:`, data.error);
-                  throw new Error(`Server Error: ${data.error.message}`);
+                  const errorMessage = data.error?.message || data.error || 'Unknown server error';
+                  const friendlyMessage = `Server error: ${errorMessage}`;
+                  console.warn(`[ApiClient] ${friendlyMessage}`);
+                  throw new Error(friendlyMessage);
                 }
                 
                 if (data.response) {
@@ -278,7 +412,8 @@ export class ApiClient {
                 }
                 
               } catch (parseError) {
-                console.warn('[ApiClient] Error parsing JSON chunk:', parseError, 'Chunk:', jsonText);
+                // Only log parse errors in debug scenarios, with friendly message
+                console.warn('[ApiClient] Unable to parse server response. This may be a temporary issue.');
               }
             } else if (line) {
                 // Handle raw text chunks that are not in SSE format
@@ -605,19 +740,34 @@ export class ApiClient {
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error(`[ApiClient] Delete failed: ${response.status}`, errorText);
-        throw new Error(`Failed to delete file: ${response.status} ${errorText}`);
+        let friendlyMessage: string;
+        try {
+          const errorJson = JSON.parse(errorText);
+          friendlyMessage = errorJson.detail || errorJson.message || `Failed to delete file (HTTP ${response.status})`;
+        } catch {
+          friendlyMessage = `Failed to delete file (HTTP ${response.status})`;
+        }
+        console.warn(`[ApiClient] ${friendlyMessage}`);
+        throw new Error(friendlyMessage);
       }
 
       const result = await response.json();
       return result;
     } catch (error: any) {
-      console.error(`[ApiClient] Delete error for file ${fileId}:`, error);
+      // Extract user-friendly error message
+      let friendlyMessage: string;
+      
       if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
-        throw new Error('Could not connect to the server. Please check if the server is running.');
+        friendlyMessage = 'Could not connect to the server. Please check if the server is running.';
+      } else if (error.message && !error.message.includes('Failed to delete file')) {
+        // Use existing message if it's already user-friendly
+        friendlyMessage = error.message;
       } else {
-        throw error;
+        friendlyMessage = `Failed to delete file. Please try again.`;
       }
+      
+      console.warn(`[ApiClient] ${friendlyMessage}`);
+      throw new Error(friendlyMessage);
     }
   }
 }

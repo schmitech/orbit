@@ -82,6 +82,18 @@ export interface ApiClient {
     }>;
   }>;
   deleteFile?(fileId: string): Promise<{ message: string; file_id: string }>;
+  validateApiKey?(): Promise<{
+    exists: boolean;
+    active: boolean;
+    adapter_name?: string | null;
+    client_name?: string | null;
+    created_at?: string | number | null;
+    system_prompt?: {
+      id: string;
+      exists: boolean;
+    } | null;
+    message?: string;
+  }>;
 }
 
 export interface ApiFunctions {
