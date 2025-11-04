@@ -3,7 +3,6 @@ import { Plus, Search, MessageSquare, Trash2, Edit2 } from 'lucide-react';
 import { useChatStore } from '../stores/chatStore';
 import { Conversation } from '../types';
 import { ConfirmationModal } from './ConfirmationModal';
-import { FileList } from './FileList';
 import { debugWarn, debugError } from '../utils/debug';
 
 interface SidebarProps {}
@@ -114,7 +113,7 @@ export function Sidebar({}: SidebarProps) {
 
   return (
     <>
-      <div className="flex h-full w-72 flex-col border-r border-gray-200 bg-gray-50 dark:border-[#4a4b54] dark:bg-[#202123]">
+      <div className="flex h-full w-72 flex-col border-r border-b border-gray-200 bg-gray-50 dark:border-[#4a4b54] dark:bg-[#202123]">
         <div className="border-b border-gray-200 p-4 dark:border-[#4a4b54]">
           <button
             onClick={handleNewChat}
@@ -240,11 +239,6 @@ export function Sidebar({}: SidebarProps) {
             </div>
           )}
         </div>
-
-        <div className="border-t border-gray-200 px-3 py-3 dark:border-[#4a4b54]">
-          <FileList />
-        </div>
-
       </div>
 
       {/* Delete Confirmation Modal */}

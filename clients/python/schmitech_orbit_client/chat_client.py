@@ -109,6 +109,53 @@ class OrbitChatClient:
         self.timeout = timeout
         self.verbose = verbose
 
+    def validate_api_key(self) -> Dict[str, Any]:
+        """
+        Validate that the API key exists and is active.
+        
+        Returns:
+            Dictionary containing the API key status information
+            
+        Raises:
+            ValueError: If API key is not provided
+            RuntimeError: If API key validation fails or key is inactive
+        """
+        if not self.api_key:
+            raise ValueError("API key is required for validation")
+
+        headers = {
+            "X-API-Key": self.api_key
+        }
+
+        url = f"{self.api_url}/admin/api-keys/{self.api_key}/status"
+
+        try:
+            response = requests.get(url, headers=headers, timeout=self.timeout)
+        except requests.exceptions.RequestException as exc:
+            raise RuntimeError(f"Network error while validating API key: {exc}") from exc
+
+        if response.status_code == 200:
+            try:
+                status: Dict[str, Any] = response.json()
+                # Check if the key is active
+                if not status.get('active', True):
+                    raise RuntimeError("API key is inactive")
+                return status
+            except ValueError as exc:
+                raise RuntimeError("Server returned an invalid JSON response") from exc
+        elif response.status_code == 401:
+            raise RuntimeError("API key is invalid or expired")
+        elif response.status_code == 403:
+            raise RuntimeError("Access denied: API key does not have required permissions")
+        elif response.status_code == 404:
+            raise RuntimeError("API key not found")
+        else:
+            try:
+                error_detail = response.json().get('detail')
+            except ValueError:
+                error_detail = response.text or f"HTTP {response.status_code}"
+            raise RuntimeError(f"Failed to validate API key: {error_detail}")
+
     def clear_conversation_history(self, session_id: Optional[str] = None) -> Dict[str, Any]:
         """Clear conversation history for a specific session via admin endpoint."""
         target_session_id = session_id or self.session_id
@@ -117,6 +164,11 @@ class OrbitChatClient:
 
         if not self.api_key:
             raise ValueError("API key is required for clearing conversation history")
+
+        # Note: We don't validate API key here because:
+        # 1. Validation might fail if the key doesn't have admin permissions
+        # 2. The clear endpoint will handle validation and return appropriate errors
+        # 3. This allows valid API keys to clear history even if they can't check their own status
 
         headers = {
             "Content-Type": "application/json",
@@ -317,6 +369,10 @@ def clean_response(text):
     # Date format with month names (Jan 15, 2025 or January 15, 2025)
     text = re.sub(r'\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2},?\s+\d{4}\b', protect_pattern, text, flags=re.IGNORECASE)
     text = re.sub(r'\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+\d{4}\b', protect_pattern, text, flags=re.IGNORECASE)
+    
+    # Protect decimal numbers with time units (e.g., 29.5s, 1.5ms, 0.5h, 2.3s)
+    # This must be done before general decimal protection to include the unit
+    text = re.sub(r'\b\d+\.\d+[a-zA-Z]+\b', protect_pattern, text)
     
     # Protect currency amounts (e.g., $12,144.32, $1,234.56, $123.45)
     text = re.sub(r'\$\d{1,3}(?:,\d{3})*(?:\.\d+)?', protect_pattern, text)
@@ -606,6 +662,28 @@ def main():
 
     # The API key is optional. If not provided, the server will decide whether to allow the request.
     # For a local server, this usually works fine. For a remote server, you will likely need an API key.
+    
+    # Validate API key if provided before starting the chat client
+    if args.api_key:
+        try:
+            client = OrbitChatClient(
+                api_url=args.url,
+                api_key=args.api_key,
+                timeout=30,
+                verbose=args.debug
+            )
+            client.validate_api_key()
+            if args.debug:
+                console.print(f"[green]✓[/green] API key validated successfully", style="green")
+        except ValueError as e:
+            console.print(f"❌ {e}", style=ERROR_STYLE)
+            sys.exit(1)
+        except RuntimeError as e:
+            console.print(f"❌ API key validation failed: {e}", style=ERROR_STYLE)
+            sys.exit(1)
+        except Exception as e:
+            console.print(f"❌ Error validating API key: {e}", style=ERROR_STYLE)
+            sys.exit(1)
 
     session_id = args.session_id if args.session_id else str(uuid.uuid4())
     session = PromptSession(
@@ -732,4 +810,12 @@ def clear_server_history(session_id: str, args) -> None:
             style="green"
         )
     except Exception as exc:
-        console.print(f"❌ Error clearing server history: {exc}", style=ERROR_STYLE)
+        error_msg = str(exc)
+        # Check if the error is due to adapter not supporting conversation history
+        if "Chat history management is only available" in error_msg:
+            # This is not an error - some adapters don't support history management
+            if args.debug:
+                console.print(f"ℹ️  Chat history not available for this adapter: {error_msg}", style="dim")
+        else:
+            # For other errors, show them as actual errors
+            console.print(f"❌ Error clearing server history: {exc}", style=ERROR_STYLE)
