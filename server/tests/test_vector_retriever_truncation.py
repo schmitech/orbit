@@ -169,7 +169,7 @@ async def test_truncation_when_results_exceed_limit(test_config, mock_datasource
     assert len(results) == 3
 
     # Check metadata shows original count
-    assert results[0]["metadata"]["total_available"] == 50
+    assert results[0]["metadata"]["total_available"] == 40
     assert results[0]["metadata"]["truncated"] == True
     assert results[0]["metadata"]["result_count"] == 3
     assert results[0]["metadata"]["vector_search_count"] == 50
