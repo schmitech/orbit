@@ -41,7 +41,8 @@
   }
   
   body {
-    @apply bg-slate-100 dark:bg-[#050b16] text-slate-900 dark:text-slate-100;
+    @apply bg-white dark:bg-[#212121] text-[#353740] dark:text-[#ececf1];
+    line-height: 1.75;
   }
   
   /* Remove all textarea borders and outlines */
@@ -68,15 +69,15 @@
   }
   
   .prose pre {
-    @apply bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-xl;
+    @apply bg-gray-100 dark:bg-[#202123] text-[#353740] dark:text-[#ececf1] rounded-lg;
   }
   
   .prose code {
-    @apply bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-md px-1.5 py-0.5;
+    @apply bg-gray-100 dark:bg-[#202123] text-[#353740] dark:text-[#ececf1] rounded px-1.5 py-0.5;
   }
   
   .prose blockquote {
-    @apply border-l-4 border-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-r-xl pl-6 py-4 my-4;
+    @apply border-l-4 border-gray-200 bg-gray-50 dark:bg-[#202123] rounded-r-lg pl-6 py-4 my-4 text-[#353740] dark:text-[#ececf1];
   }
 }
 
@@ -118,8 +119,8 @@
 
 /* Animation improvements */
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 @keyframes slideIn {
@@ -155,12 +156,7 @@
 button:focus-visible,
 input:focus-visible,
 textarea:focus-visible {
-  @apply outline-none ring-2 ring-blue-500/30 dark:ring-blue-400/30 ring-offset-2 ring-offset-white dark:ring-offset-slate-900;
-}
-
-/* Custom focus styles for buttons */
-button:focus-visible {
-  @apply transform scale-[1.02] transition-transform duration-200;
+  @apply outline-none ring-1 ring-gray-400/70 dark:ring-gray-500/70 ring-offset-0;
 }
 
 /* Mobile optimizations */
@@ -174,29 +170,4 @@ button:focus-visible {
   }
 }
 
-/* Glass effect utility */
-.glass-effect {
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-}
-
-/* Gradient text utility */
-.gradient-text {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-/* Modern shadow utilities */
-.shadow-modern {
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-}
-
-.shadow-modern-lg {
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-}
-
-.shadow-modern-xl {
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-}
+/* Minimal utility overrides intentionally left empty to avoid extra visual effects */

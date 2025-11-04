@@ -206,22 +206,21 @@ export function MessageInput({
   };
 
   return (
-    <div className={`px-6 sm:px-10 pt-3 relative z-10 bg-gradient-to-t from-white/40 via-transparent to-transparent dark:from-slate-950/30 dark:via-transparent dark:to-transparent backdrop-blur-sm transition-all duration-200 ${
-      showFileUpload ? 'pb-36' : 'pb-8'
-    }`}>
+    <div className="border-t border-gray-200 bg-white px-4 py-4 dark:border-[#4a4b54] dark:bg-[#212121]">
       {voiceError && (
-        <div className="mb-4 text-sm text-red-600 dark:text-red-400 bg-gradient-to-r from-red-50/80 to-rose-50/80 dark:from-red-900/40 dark:to-rose-900/40 p-3 rounded-xl shadow-sm backdrop-blur-sm">
+        <div className="mx-auto mb-3 w-full max-w-3xl rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-600/40 dark:bg-red-900/30 dark:text-red-200">
           {voiceError}
         </div>
       )}
-      
-      <form onSubmit={handleSubmit} className="relative w-full max-w-3xl mx-auto">
-        <div className={`relative flex items-center gap-3 rounded-2xl border px-4 py-3 transition-all duration-200 ${
-          isFocused
-            ? 'border-slate-300/80 dark:border-emerald-400/60 shadow-[0_20px_50px_rgba(71,85,105,0.15)] dark:shadow-[0_20px_50px_rgba(16,185,129,0.25)] bg-white dark:bg-slate-900'
-            : 'border-slate-200/70 dark:border-slate-700/60 bg-white/80 dark:bg-slate-900/70 shadow-[0_12px_40px_rgba(15,23,42,0.12)]'
-        }`}>
-          {/* Attachment button */}
+
+      <form onSubmit={handleSubmit} className="mx-auto flex w-full max-w-3xl flex-col gap-3">
+        <div
+          className={`flex items-end gap-3 rounded-lg border px-3 py-2 transition-colors ${
+            isFocused
+              ? 'border-gray-400 dark:border-[#6b6f7a]'
+              : 'border-gray-300 dark:border-[#4a4b54]'
+          } bg-white dark:bg-[#2d2f39]`}
+        >
           <button
             type="button"
             onClick={(e) => {
@@ -233,29 +232,28 @@ export function MessageInput({
             disabled={isInputDisabled}
             onMouseEnter={() => setIsHoveringUpload(true)}
             onMouseLeave={() => setIsHoveringUpload(false)}
-            className={`flex-shrink-0 p-2 transition-all duration-200 rounded-lg ${
+            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${
               showFileUpload || attachedFiles.length > 0
-                ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20'
+                ? 'bg-gray-100 text-[#353740] dark:bg-[#3c3f4a] dark:text-[#ececf1]'
                 : isInputDisabled
-                ? 'text-slate-300 dark:text-slate-600 cursor-not-allowed opacity-50'
-                : 'text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                ? 'cursor-not-allowed text-gray-300 dark:text-[#6b6f7a]'
+                : 'text-gray-500 hover:bg-gray-100 hover:text-[#353740] dark:text-[#bfc2cd] dark:hover:bg-[#3c3f4a]'
             }`}
             title={
-              isInputDisabled 
-                ? 'Files are uploading/processing. Please wait...' 
-                : attachedFiles.length > 0 
-                  ? `${attachedFiles.length} file(s) attached` 
-                  : 'Attach files'
+              isInputDisabled
+                ? 'Files are uploading/processing. Please wait...'
+                : attachedFiles.length > 0
+                ? `${attachedFiles.length} file(s) attached`
+                : 'Attach files'
             }
           >
             {isInputDisabled && isHoveringUpload ? (
-              <X className="w-5 h-5" />
+              <X className="h-4 w-4" />
             ) : (
-              <Paperclip className="w-5 h-5" />
+              <Paperclip className="h-4 w-4" />
             )}
           </button>
 
-          {/* Text input */}
           <textarea
             ref={textareaRef}
             value={message}
@@ -269,28 +267,26 @@ export function MessageInput({
             disabled={isInputDisabled}
             rows={1}
             maxLength={1000}
-            className="flex-1 bg-transparent border-none outline-none resize-none text-slate-900 dark:text-slate-100 placeholder-slate-500 dark:placeholder-slate-400 max-h-32 leading-relaxed font-medium focus:outline-none focus:ring-0 focus:border-none appearance-none"
+            className="flex-1 resize-none bg-transparent py-2 text-sm text-[#353740] placeholder-gray-500 focus:outline-none dark:text-[#ececf1] dark:placeholder-[#8e8fa1]"
             style={{ 
               minHeight: '24px', 
-              border: 'none !important', 
-              outline: 'none !important',
-              boxShadow: 'none !important',
+              border: 'none', 
+              outline: 'none',
+              boxShadow: 'none',
               WebkitAppearance: 'none',
               MozAppearance: 'none',
               appearance: 'none'
             }}
           />
 
-          {/* Character count */}
           {message.length > 0 && (
-            <div className="flex-shrink-0 text-xs text-slate-400 dark:text-slate-500 font-medium">
-              <span className={message.length >= 1000 ? 'text-red-500 font-bold' : ''}>
+            <div className="flex-shrink-0 text-xs text-gray-500 dark:text-[#bfc2cd]">
+              <span className={message.length >= 1000 ? 'text-red-600 font-semibold' : ''}>
                 {message.length}/1000
               </span>
             </div>
           )}
 
-          {/* Voice input button */}
           {voiceSupported && (
             <button
               type="button"
@@ -298,69 +294,66 @@ export function MessageInput({
               disabled={isInputDisabled}
               onMouseEnter={() => setIsHoveringMic(true)}
               onMouseLeave={() => setIsHoveringMic(false)}
-              className={`flex-shrink-0 p-2 transition-all duration-200 rounded-lg ${
+              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${
                 isListening
-                  ? 'text-red-500 bg-red-50 dark:text-red-400 dark:bg-red-900/20 shadow-sm transform scale-110'
+                  ? 'bg-red-50 text-red-600 dark:bg-red-900/40 dark:text-red-300'
                   : isInputDisabled
-                  ? 'text-slate-300 dark:text-slate-600 cursor-not-allowed opacity-50'
-                  : 'text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 hover:scale-110'
+                  ? 'cursor-not-allowed text-gray-300 dark:text-[#6b6f7a]'
+                  : 'text-gray-500 hover:bg-gray-100 hover:text-[#353740] dark:text-[#bfc2cd] dark:hover:bg-[#3c3f4a]'
               }`}
               title={
-                isInputDisabled 
+                isInputDisabled
                   ? 'Files are uploading/processing. Please wait...'
-                  : isListening 
-                    ? 'Stop recording' 
-                    : 'Start voice input'
+                  : isListening
+                  ? 'Stop recording'
+                  : 'Start voice input'
               }
             >
               {isListening || (isInputDisabled && isHoveringMic) ? (
-                <MicOff className="w-5 h-5" />
+                <MicOff className="h-4 w-4" />
               ) : (
-                <Mic className="w-5 h-5" />
+                <Mic className="h-4 w-4" />
               )}
             </button>
           )}
 
-          {/* Processing indicator (spinning icon) */}
           {(hasProcessingFiles || isUploading) && (
-            <div className="flex-shrink-0 flex items-center justify-center">
-              <Loader2 className="w-5 h-5 text-amber-500 dark:text-amber-400 animate-spin" />
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center">
+              <Loader2 className="h-4 w-4 animate-spin text-gray-500 dark:text-[#bfc2cd]" />
             </div>
           )}
 
-          {/* Send button */}
           <button
             type="submit"
             disabled={(!message.trim() && attachedFiles.length === 0) || isInputDisabled || isComposing}
-            className={`flex-shrink-0 px-4 py-2 rounded-xl transition-all duration-200 font-semibold ${
+            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${
               (message.trim() || attachedFiles.length > 0) && !isInputDisabled && !isComposing
-                ? 'bg-slate-800 dark:bg-emerald-500 text-white shadow-[0_14px_40px_rgba(15,23,42,0.25)] dark:shadow-[0_14px_40px_rgba(16,185,129,0.35)] hover:bg-slate-900 dark:hover:bg-emerald-600 hover:-translate-y-0.5 active:translate-y-0'
-                : 'bg-slate-200 dark:bg-slate-700 text-slate-400 dark:text-slate-500 cursor-not-allowed'
+                ? 'bg-[#343541] text-white hover:bg-[#2c2f36] dark:bg-[#565869] dark:hover:bg-[#6b6f7a]'
+                : 'bg-gray-200 text-gray-400 dark:bg-[#3c3f4a] dark:text-[#6b6f7a]'
             }`}
             title="Send message"
           >
-            <Send className="w-5 h-5" />
+            <Send className="h-4 w-4" />
           </button>
         </div>
 
-        {/* Attached files preview */}
         {attachedFiles.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2">
             {attachedFiles.map((file) => (
               <div
                 key={file.file_id}
-                className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700 rounded-lg"
+                className="flex items-center gap-2 rounded-md border border-gray-200 bg-white px-2 py-1 text-xs dark:border-[#4a4b54] dark:bg-[#2d2f39]"
               >
-                <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300 truncate max-w-[150px]">
+                <span className="truncate max-w-[150px] text-[#353740] dark:text-[#ececf1]">
                   {file.filename}
                 </span>
                 {!disabled && (
                   <button
                     onClick={() => handleRemoveFile(file.file_id)}
-                    className="p-0.5 text-emerald-600 dark:text-emerald-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                    className="text-gray-500 hover:text-red-600 dark:text-[#bfc2cd] dark:hover:text-red-300"
                     title="Remove file"
                   >
-                    <X className="w-3 h-3" />
+                    <X className="h-3 w-3" />
                   </button>
                 )}
               </div>
@@ -368,53 +361,42 @@ export function MessageInput({
           </div>
         )}
 
-        {/* File upload component - show when open OR when uploading (hide when files are uploaded) */}
         {(showFileUpload || isUploading) && (
-          <div className="mt-4 mb-2 w-full max-w-full overflow-visible p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg">
-            {/* Header - only show when upload widget is open (not just uploading) */}
+          <div className="rounded-md border border-gray-200 bg-white p-3 dark:border-[#4a4b54] dark:bg-[#2d2f39]">
             {showFileUpload && (
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300">
-                  Upload Files
-                </h3>
+              <div className="mb-2 flex items-center justify-between text-sm text-[#353740] dark:text-[#ececf1]">
+                <span>Upload files</span>
                 <button
                   onClick={() => setShowFileUpload(false)}
-                  className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
+                  className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-[#353740] dark:text-[#bfc2cd] dark:hover:bg-[#3c3f4a]"
                   title="Close"
                 >
-                  <X className="w-4 h-4" />
+                  <X className="h-4 w-4" />
                 </button>
               </div>
             )}
-            {/* Progress-only header when uploading and widget is closed */}
             {isUploading && !showFileUpload && (
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300">
-                  Uploading Files
-                </h3>
+              <div className="mb-2 text-sm text-[#353740] dark:text-[#ececf1]">
+                Uploading files…
               </div>
             )}
-            <div className="w-full overflow-visible pb-1">
-              <FileUpload
-                onFilesSelected={handleFilesSelected}
-                onUploadError={(error) => {
-                  debugError('File upload error:', error);
-                  // Could show toast notification here
-                }}
-                onUploadingChange={setIsUploading}
-                maxFiles={5}
-                disabled={isInputDisabled}
-              />
-            </div>
+            <FileUpload
+              onFilesSelected={handleFilesSelected}
+              onUploadError={(error) => {
+                debugError('File upload error:', error);
+              }}
+              onUploadingChange={setIsUploading}
+              maxFiles={5}
+              disabled={isInputDisabled}
+            />
           </div>
         )}
 
-        {/* Hints */}
-        <div className="h-4 mt-3 px-1">
+        <div className="h-4">
           {isListening && (
-            <span className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 font-medium">
-              <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
-              <span>Listening...</span>
+            <span className="flex items-center gap-2 text-xs text-gray-500 dark:text-[#bfc2cd]">
+              <span className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
+              Listening...
             </span>
           )}
         </div>

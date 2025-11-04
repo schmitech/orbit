@@ -114,20 +114,15 @@ export function Sidebar({}: SidebarProps) {
 
   return (
     <>
-      <div className="w-80 bg-transparent backdrop-blur-[24px] flex flex-col h-full relative">
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/60 via-white/50 to-white/40 dark:from-[#050b16]/60 dark:via-[#050b16]/50 dark:to-[#050b16]/40" />
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(37,99,235,0.06),_transparent_70%)] dark:bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.09),_transparent_75%)]" />
-        <div className="pointer-events-none absolute inset-y-0 right-0 w-32 bg-gradient-to-l from-transparent via-transparent to-transparent" />
-
-        {/* Header */}
-        <div className="p-6 pb-4 relative z-10">
+      <div className="flex h-full w-72 flex-col border-r border-gray-200 bg-gray-50 dark:border-[#4a4b54] dark:bg-[#202123]">
+        <div className="border-b border-gray-200 p-4 dark:border-[#4a4b54]">
           <button
             onClick={handleNewChat}
             disabled={!canStartNew}
-            className={`w-full group flex items-center justify-center gap-3 px-6 py-4 rounded-xl transition-all duration-200 font-medium text-sm border ${
+            className={`flex w-full items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium ${
               canStartNew
-                ? 'border-slate-200/70 dark:border-slate-700/70 bg-white/80 dark:bg-slate-900/60 text-slate-900 dark:text-white shadow-[0_18px_48px_rgba(15,23,42,0.12)] hover:-translate-y-0.5 hover:shadow-[0_26px_70px_rgba(37,99,235,0.22)]'
-                : 'border-slate-200/60 dark:border-slate-700/60 bg-transparent text-slate-400 dark:text-slate-500 cursor-not-allowed'
+                ? 'bg-[#343541] text-white hover:bg-[#2c2f36] dark:bg-[#565869] dark:hover:bg-[#6b6f7a]'
+                : 'cursor-not-allowed bg-gray-200 text-gray-500 dark:bg-[#3c3f4a] dark:text-[#6b6f7a]'
             }`}
             title={
               canStartNew
@@ -137,44 +132,36 @@ export function Sidebar({}: SidebarProps) {
                   : 'Current conversation is empty. Send a message first to create a new conversation.'
             }
           >
-            <Plus className={`w-5 h-5 transition-transform duration-200 ${
-              canStartNew ? 'group-hover:rotate-90' : ''
-            }`} />
+            <Plus className="h-4 w-4" />
             New Conversation
           </button>
           
-          {/* Conversation count indicator */}
           <div className="mt-3 text-center">
-            <span className="text-xs text-slate-500 dark:text-slate-400">
+            <span className="text-xs text-gray-500 dark:text-[#bfc2cd]">
               {getConversationCount()}/10 conversations
             </span>
           </div>
         </div>
 
-        {/* Search */}
-        <div className="px-6 pb-4 relative z-10">
-          <div className="relative">
-            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
+        <div className="border-b border-gray-200 px-4 py-3 dark:border-[#4a4b54]">
+          <div className="relative flex items-center">
+            <Search className="pointer-events-none absolute left-3 h-4 w-4 text-gray-400" />
             <input
               type="text"
-              placeholder="Search conversations..."
+              placeholder="Search conversations"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-12 pr-4 py-3 bg-white/80 dark:bg-slate-900/60 rounded-xl text-sm border border-slate-200/70 dark:border-slate-700/60 placeholder-slate-400 dark:placeholder-slate-500 shadow-[0_14px_40px_rgba(15,23,42,0.12)] focus:outline-none focus:ring-2 focus:ring-blue-500/40 dark:focus:ring-cyan-400/30"
+              className="w-full rounded-md border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm text-[#353740] placeholder-gray-400 focus:border-gray-400 focus:outline-none dark:border-[#4a4b54] dark:bg-[#343541] dark:text-[#ececf1]"
             />
           </div>
         </div>
 
-        {/* Conversations List */}
-        <div className="flex-1 overflow-y-auto px-4 pb-2 relative z-10 min-h-0">
+        <div className="flex-1 overflow-y-auto px-3 py-3">
           {filteredConversations.length === 0 ? (
-            <div className="p-8 text-center">
-              <MessageSquare className="w-12 h-12 mx-auto mb-4 text-slate-300 dark:text-slate-600" />
-              <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">
+            <div className="rounded-md border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500 dark:border-[#4a4b54] dark:text-[#bfc2cd]">
+              <MessageSquare className="mx-auto mb-3 h-6 w-6 text-gray-400 dark:text-[#6b6f7a]" />
+              <p>
                 {searchQuery ? 'No conversations found' : 'No conversations yet'}
-              </p>
-              <p className="text-slate-400 dark:text-slate-500 text-xs mt-2">
-                {searchQuery ? 'Try a different search term' : 'Start a new conversation to begin'}
               </p>
             </div>
           ) : (
@@ -183,18 +170,20 @@ export function Sidebar({}: SidebarProps) {
                 <div
                   key={conversation.id}
                   onClick={async () => await selectConversation(conversation.id)}
-                  className={`group flex items-center gap-3 p-4 rounded-xl cursor-pointer transition-all duration-200 border ${
+                  className={`group flex cursor-pointer items-center gap-3 rounded-md border px-3 py-3 text-left ${
                     currentConversationId === conversation.id
-                      ? 'border-blue-500/30 bg-blue-500/10 dark:bg-blue-500/10 shadow-[0_18px_48px_rgba(37,99,235,0.22)]'
-                      : 'border-transparent hover:border-slate-200/70 dark:hover:border-slate-700/60 hover:bg-white/80 dark:hover:bg-slate-800/50'
+                      ? 'border-[#343541] bg-white dark:border-[#6b6f7a] dark:bg-[#343541]'
+                      : 'border-transparent bg-gray-100 hover:border-gray-300 hover:bg-white dark:bg-[#2c2f36] dark:hover:border-[#4a4b54] dark:hover:bg-[#343541]'
                   }`}
                 >
-                  <div className={`p-2 rounded-lg ${
+                  <div
+                    className={`rounded-md p-2 ${
                     currentConversationId === conversation.id
-                      ? 'bg-blue-500/20 text-blue-700 dark:text-blue-300'
-                      : 'bg-slate-200/40 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-200'
-                  }`}>
-                    <MessageSquare className="w-4 h-4" />
+                      ? 'bg-[#f0f0f5] text-[#353740] dark:bg-[#3c3f4a] dark:text-[#ececf1]'
+                      : 'bg-white text-gray-500 dark:bg-[#3c3f4a] dark:text-[#bfc2cd]'
+                  }`}
+                  >
+                    <MessageSquare className="h-4 w-4" />
                   </div>
                   
                   {editingId === conversation.id ? (
@@ -207,19 +196,19 @@ export function Sidebar({}: SidebarProps) {
                         if (e.key === 'Escape') handleEditCancel();
                       }}
                       onBlur={() => handleEditSubmit(conversation.id)}
-                      className="flex-1 bg-transparent border-none outline-none text-sm font-medium text-slate-700 dark:text-slate-300"
+                      className="flex-1 border-none bg-transparent text-sm text-[#353740] focus:outline-none dark:text-[#ececf1]"
                       autoFocus
                     />
                   ) : (
                     <div className="flex-1 min-w-0">
-                      <h3 className={`text-sm font-medium truncate ${
+                      <h3 className={`truncate text-sm font-medium ${
                         currentConversationId === conversation.id
-                          ? 'text-slate-900 dark:text-slate-100'
-                          : 'text-slate-700 dark:text-slate-300'
+                          ? 'text-[#353740] dark:text-[#ececf1]'
+                          : 'text-gray-700 dark:text-[#ececf1]'
                       }`}>
                         {conversation.title}
                       </h3>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                      <p className="mt-1 truncate text-xs text-gray-500 dark:text-[#bfc2cd]">
                         {conversation.messages.length} messages
                         {conversation.attachedFiles && conversation.attachedFiles.length > 0 && (
                           <span className="ml-2">
@@ -230,20 +219,20 @@ export function Sidebar({}: SidebarProps) {
                     </div>
                   )}
 
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                  <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                     <button
                       onClick={(e) => handleEditStart(e, conversation)}
-                      className="p-2 hover:bg-slate-200/60 dark:hover:bg-slate-600/60 rounded-lg transition-colors duration-200 backdrop-blur-sm"
+                      className="rounded p-2 text-gray-500 hover:bg-gray-200 hover:text-[#353740] dark:text-[#bfc2cd] dark:hover:bg-[#3c3f4a]"
                       title="Edit title"
                     >
-                      <Edit2 className="w-4 h-4 text-slate-500 dark:text-slate-400" />
+                      <Edit2 className="h-4 w-4" />
                     </button>
                     <button
                       onClick={(e) => handleDeleteConversation(e, conversation)}
-                      className="p-2 hover:bg-red-50/60 dark:hover:bg-red-900/30 rounded-lg transition-colors duration-200 text-red-500 dark:text-red-400 backdrop-blur-sm"
+                      className="rounded p-2 text-red-500 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-900/30"
                       title="Delete conversation"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 className="h-4 w-4" />
                     </button>
                   </div>
                 </div>
@@ -252,8 +241,7 @@ export function Sidebar({}: SidebarProps) {
           )}
         </div>
 
-        {/* File List */}
-        <div className="flex-shrink-0 relative z-10">
+        <div className="border-t border-gray-200 px-3 py-3 dark:border-[#4a4b54]">
           <FileList />
         </div>
 

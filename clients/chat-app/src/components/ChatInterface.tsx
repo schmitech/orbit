@@ -60,140 +60,134 @@ export function ChatInterface({ onOpenSettings }: ChatInterfaceProps) {
   };
 
   return (
-    <div className="flex-1 flex flex-col relative overflow-hidden">
-      <div className="absolute inset-0 bg-white/60 dark:bg-slate-950/40 backdrop-blur-xl" />
-      <div className="absolute inset-0 bg-[linear-gradient(140deg,_rgba(15,118,110,0.04),_transparent_45%,_rgba(79,70,229,0.04))] dark:bg-[linear-gradient(160deg,_rgba(15,118,110,0.09),_transparent_50%,_rgba(76,29,149,0.11))]" />
-      <div className="relative z-10 flex flex-col h-full">
+    <div className="flex-1 flex flex-col">
+      <div className="flex h-full w-full flex-col px-4 sm:px-6">
+        <div className="mx-auto flex h-full w-full max-w-3xl flex-col">
 
-      {/* API Configuration Modal */}
-      {showConfig && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-slate-800 p-8 rounded-2xl max-w-md w-full mx-4 shadow-2xl">
-            <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100 mb-6">
-              Configure API Settings
-            </h2>
-            <div className="space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                  API URL
-                </label>
-                <input
-                  type="text"
-                  value={apiUrl}
-                  onChange={(e) => setApiUrl(e.target.value)}
-                  className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-400/30 text-slate-900 dark:text-slate-100 transition-all duration-200"
-                  placeholder="https://api.example.com"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                  API Key
-                </label>
-                <div className="relative">
-                  <input
-                    type={showApiKey ? "text" : "password"}
-                    value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
-                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-400/30 text-slate-900 dark:text-slate-100 pr-12 transition-all duration-200"
-                    placeholder="your-api-key"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowApiKey(!showApiKey)}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 transition-colors"
-                  >
-                    {showApiKey ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                  </button>
+          {/* API Configuration Modal */}
+          {showConfig && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+              <div className="w-full max-w-md rounded-lg border border-gray-200 bg-white p-6 shadow-lg dark:border-[#444654] dark:bg-[#202123]">
+                <h2 className="text-lg font-medium text-[#353740] dark:text-[#ececf1] mb-4">
+                  Configure API Settings
+                </h2>
+                <div className="space-y-5">
+                  <div>
+                    <label className="block text-sm font-medium text-[#353740] dark:text-[#d1d5db] mb-2">
+                      API URL
+                    </label>
+                    <input
+                      type="text"
+                      value={apiUrl}
+                      onChange={(e) => setApiUrl(e.target.value)}
+                      className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-[#353740] focus:border-gray-400 focus:outline-none dark:border-[#4a4b54] dark:bg-[#343541] dark:text-[#ececf1]"
+                      placeholder="https://api.example.com"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-[#353740] dark:text-[#d1d5db] mb-2">
+                      API Key
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showApiKey ? 'text' : 'password'}
+                        value={apiKey}
+                        onChange={(e) => setApiKey(e.target.value)}
+                        className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 pr-10 text-sm text-[#353740] focus:border-gray-400 focus:outline-none dark:border-[#4a4b54] dark:bg-[#343541] dark:text-[#ececf1]"
+                        placeholder="your-api-key"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowApiKey(!showApiKey)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-gray-500 hover:text-gray-700 dark:text-[#d1d5db] dark:hover:text-white"
+                        aria-label={showApiKey ? 'Hide API key' : 'Show API key'}
+                      >
+                        {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-3 pt-2">
+                    <button
+                      onClick={() => setShowConfig(false)}
+                      className="rounded-md border border-transparent px-4 py-2 text-sm text-gray-600 hover:border-gray-300 hover:text-gray-900 dark:text-[#d1d5db] dark:hover:text-white"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleConfigureApi}
+                      disabled={!apiUrl || !apiKey}
+                      className="rounded-md bg-[#343541] px-4 py-2 text-sm font-medium text-white hover:bg-[#282b32] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-[#565869] dark:hover:bg-[#6b6f7a]"
+                    >
+                      Configure
+                    </button>
+                  </div>
                 </div>
               </div>
-              <div className="flex justify-end space-x-3 pt-4">
+            </div>
+          )}
+
+          {/* Error Banner */}
+          {error && (
+            <div className="mt-6 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-600/40 dark:bg-red-900/30 dark:text-red-200">
+              <div className="flex items-start justify-between">
+                <p>{error}</p>
                 <button
-                  onClick={() => setShowConfig(false)}
-                  className="px-6 py-3 text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 font-medium transition-colors"
+                  onClick={clearError}
+                  className="ml-4 rounded p-1 text-red-500 hover:bg-red-100 hover:text-red-700 dark:text-red-200 dark:hover:bg-red-800/40"
+                  aria-label="Dismiss error"
                 >
-                  Cancel
+                  ×
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Chat Header */}
+          <div className="border-b border-gray-200 py-5 dark:border-[#4a4b54]">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <h1 className="text-lg font-medium text-[#353740] dark:text-[#ececf1]">
+                  {currentConversation?.title || 'New Chat'}
+                </h1>
+                {currentConversation && (
+                  <p className="mt-1 text-xs text-gray-500 dark:text-[#bfc2cd]">
+                    {currentConversation.messages.length} messages · Updated{' '}
+                    {currentConversation.updatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                )}
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <button
+                  onClick={() => setShowConfig(true)}
+                  className="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:border-[#4a4b54] dark:text-[#ececf1] dark:hover:bg-[#3c3f4a]"
+                >
+                  Configure API
                 </button>
                 <button
-                  onClick={handleConfigureApi}
-                  disabled={!apiUrl || !apiKey}
-                  className="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-all duration-200 shadow-lg hover:shadow-xl"
+                  onClick={onOpenSettings}
+                  className="rounded-md bg-[#343541] p-2 text-white hover:bg-[#282b32] dark:bg-[#565869] dark:hover:bg-[#6b6f7a]"
+                  title="Settings"
                 >
-                  Configure
+                  <Settings className="h-4 w-4" />
                 </button>
               </div>
             </div>
           </div>
+
+          {/* Messages */}
+          <MessageList
+            messages={currentConversation?.messages || []}
+            onRegenerate={regenerateResponse}
+            isLoading={isLoading}
+          />
+
+          {/* Input */}
+          <MessageInput
+            onSend={handleSendMessage}
+            disabled={isLoading}
+            placeholder="Message ORBIT..."
+          />
         </div>
-      )}
-
-      {/* Error Banner */}
-      {error && (
-        <div className="bg-gradient-to-r from-red-50 to-rose-50 dark:from-red-900/20 dark:to-rose-900/20 p-4 m-4 rounded-2xl shadow-sm relative z-10">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center">
-              <div className="w-2 h-2 bg-red-500 rounded-full mr-3"></div>
-              <p className="text-sm text-red-700 dark:text-red-400 font-medium">
-                {error}
-              </p>
-            </div>
-            <button
-              onClick={clearError}
-              className="text-red-400 hover:text-red-600 dark:hover:text-red-300 p-1 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/20 transition-colors"
-            >
-              <span className="text-lg">×</span>
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Chat Header */}
-      <div className="px-10 py-4 bg-gradient-to-b from-transparent via-transparent to-transparent backdrop-blur-sm relative z-10">
-        <div className="flex items-center justify-between gap-6">
-          <div className="min-w-0">
-            <p className="text-xs uppercase tracking-[0.28em] text-slate-500 dark:text-slate-400 font-semibold mb-1">
-              Conversation
-            </p>
-            <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100 truncate">
-              {currentConversation?.title || 'New Chat'}
-            </h1>
-            {currentConversation && (
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                {currentConversation.messages.length} messages · Updated {' '}
-                {currentConversation.updatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              </p>
-            )}
-          </div>
-          <div className="flex-shrink-0 flex items-center gap-2">
-            <button
-              onClick={() => setShowConfig(true)}
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-200/80 dark:border-slate-700/60 px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-500 hover:text-slate-900 dark:hover:text-white transition"
-            >
-              Configure API
-            </button>
-            <button
-              onClick={onOpenSettings}
-              className="p-2 rounded-xl bg-slate-900 text-slate-100 hover:bg-slate-800 dark:bg-slate-700 dark:hover:bg-slate-600 transition shadow-sm"
-              title="Settings"
-            >
-              <Settings className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Messages */}
-      <MessageList
-        messages={currentConversation?.messages || []}
-        onRegenerate={regenerateResponse}
-        isLoading={isLoading}
-      />
-
-      {/* Input */}
-      <MessageInput
-        onSend={handleSendMessage}
-        disabled={isLoading}
-        placeholder="Ask me anything..."
-      />
       </div>
     </div>
   );

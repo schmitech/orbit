@@ -9,20 +9,14 @@ function App() {
 
   return (
     <ThemeProvider>
-      <div className="h-screen flex bg-slate-100 dark:bg-[#0a0f1a] text-slate-900 dark:text-slate-100 relative overflow-hidden">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.06),_transparent_55%)] dark:bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.09),_transparent_60%)]" />
-        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(120deg,_rgba(15,23,42,0.02),_transparent_45%,_rgba(15,23,42,0.04))] dark:bg-[linear-gradient(130deg,_rgba(15,118,110,0.06),_transparent_45%,_rgba(31,41,55,0.16))]" />
-
-        {/* Sidebar */}
+      <div className="min-h-screen flex bg-white dark:bg-[#212121] text-slate-900 dark:text-slate-100">
         <Sidebar />
-
-        {/* Main Chat Interface */}
-        <ChatInterface onOpenSettings={() => setIsSettingsOpen(true)} />
-        
-        {/* Settings Modal */}
-        <Settings 
-          isOpen={isSettingsOpen} 
-          onClose={() => setIsSettingsOpen(false)} 
+        <div className="flex-1 flex justify-center">
+          <ChatInterface onOpenSettings={() => setIsSettingsOpen(true)} />
+        </div>
+        <Settings
+          isOpen={isSettingsOpen}
+          onClose={() => setIsSettingsOpen(false)}
         />
       </div>
     </ThemeProvider>
