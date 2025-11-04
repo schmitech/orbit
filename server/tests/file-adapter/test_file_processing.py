@@ -931,7 +931,321 @@ async def test_config_supported_types_from_global(tmp_path):
     assert 'text/plain' in service.supported_types
     assert 'application/custom' in service.supported_types
     assert 'image/png' in service.supported_types
-    
+
+    service.metadata_store.close()
+    import os
+    if os.path.exists(test_db_path):
+        os.remove(test_db_path)
+
+
+# ============================================================================
+# Retriever Cache Integration Tests
+# ============================================================================
+
+
+@pytest.mark.asyncio
+async def test_file_processing_uses_retriever_cache(tmp_path):
+    """Test that FileProcessingService uses retriever cache to avoid re-initialization"""
+    from services.retriever_cache import get_retriever_cache
+    from unittest.mock import patch, Mock, AsyncMock
+
+    test_db_path = str(tmp_path / "test_cache.db")
+
+    config = {
+        'embedding': {'provider': 'ollama', 'model': 'test'},
+        'files': {'default_vector_store': 'chroma'}
+    }
+
+    service = FileProcessingService(config)
+    service.metadata_store.close()
+    from services.file_metadata.metadata_store import FileMetadataStore
+    service.metadata_store = FileMetadataStore(db_path=test_db_path)
+
+    # Clear the cache before test
+    cache = get_retriever_cache()
+    cache.clear_cache()
+
+    # Mock FileVectorRetriever to track initialization calls
+    with patch('services.retriever_cache.FileVectorRetriever') as mock_retriever_class:
+        mock_retriever = Mock()
+        mock_retriever.initialized = False
+        mock_retriever.initialize = AsyncMock()
+        mock_retriever.embeddings = Mock()
+        mock_retriever.embeddings.get_dimensions = AsyncMock(return_value=768)
+        mock_retriever.index_file_chunks = AsyncMock(return_value=True)
+        mock_retriever_class.return_value = mock_retriever
+
+        # Create mock chunks
+        from services.file_processing.chunking import Chunk
+        chunks = [
+            Chunk(
+                file_id="file1",
+                text="Test chunk 1",
+                chunk_index=0,
+                chunk_id="chunk1",
+                metadata={}
+            )
+        ]
+
+        # Call _index_chunks_in_vector_store multiple times (simulating multiple file uploads)
+        await service._index_chunks_in_vector_store(
+            file_id="file1",
+            api_key="test_key",
+            chunks=chunks
+        )
+
+        # Second call should reuse cached retriever
+        mock_retriever.initialized = True  # Mark as initialized
+        await service._index_chunks_in_vector_store(
+            file_id="file2",
+            api_key="test_key",
+            chunks=chunks
+        )
+
+        # Third call should still reuse cached retriever
+        await service._index_chunks_in_vector_store(
+            file_id="file3",
+            api_key="test_key",
+            chunks=chunks
+        )
+
+        # FileVectorRetriever should only be instantiated once (cached for subsequent calls)
+        assert mock_retriever_class.call_count == 1
+
+        # But index_file_chunks should be called three times (once per file)
+        assert mock_retriever.index_file_chunks.call_count == 3
+
+    service.metadata_store.close()
+    import os
+    if os.path.exists(test_db_path):
+        os.remove(test_db_path)
+
+
+@pytest.mark.asyncio
+async def test_different_configs_create_separate_cached_retrievers(tmp_path):
+    """Test that different configurations create separate cached retriever instances"""
+    from services.retriever_cache import get_retriever_cache
+    from unittest.mock import patch, Mock, AsyncMock
+
+    test_db_path = str(tmp_path / "test_cache_multi.db")
+
+    # Clear the cache before test
+    cache = get_retriever_cache()
+    cache.clear_cache()
+
+    config1 = {
+        'embedding': {'provider': 'ollama', 'model': 'model1'},
+        'files': {'default_vector_store': 'chroma'}
+    }
+
+    config2 = {
+        'embedding': {'provider': 'openai', 'model': 'model2'},
+        'files': {'default_vector_store': 'chroma'}
+    }
+
+    service1 = FileProcessingService(config1)
+    service1.metadata_store.close()
+    from services.file_metadata.metadata_store import FileMetadataStore
+    service1.metadata_store = FileMetadataStore(db_path=test_db_path)
+
+    service2 = FileProcessingService(config2)
+    service2.metadata_store.close()
+    service2.metadata_store = FileMetadataStore(db_path=test_db_path)
+
+    # Mock FileVectorRetriever
+    with patch('services.retriever_cache.FileVectorRetriever') as mock_retriever_class:
+        # Create two different mock retrievers
+        mock_retriever1 = Mock()
+        mock_retriever1.initialized = False
+        mock_retriever1.initialize = AsyncMock()
+        mock_retriever1.embeddings = Mock()
+        mock_retriever1.embeddings.get_dimensions = AsyncMock(return_value=768)
+        mock_retriever1.index_file_chunks = AsyncMock(return_value=True)
+
+        mock_retriever2 = Mock()
+        mock_retriever2.initialized = False
+        mock_retriever2.initialize = AsyncMock()
+        mock_retriever2.embeddings = Mock()
+        mock_retriever2.embeddings.get_dimensions = AsyncMock(return_value=1536)
+        mock_retriever2.index_file_chunks = AsyncMock(return_value=True)
+
+        mock_retriever_class.side_effect = [mock_retriever1, mock_retriever2]
+
+        from services.file_processing.chunking import Chunk
+        chunks = [
+            Chunk(
+                file_id="test_file",
+                text="Test chunk",
+                chunk_index=0,
+                chunk_id="chunk1",
+                metadata={}
+            )
+        ]
+
+        # Use service1 (ollama config)
+        await service1._index_chunks_in_vector_store(
+            file_id="file1",
+            api_key="key1",
+            chunks=chunks
+        )
+
+        # Use service2 (openai config)
+        await service2._index_chunks_in_vector_store(
+            file_id="file2",
+            api_key="key2",
+            chunks=chunks
+        )
+
+        # Should have created TWO separate retriever instances (different configs)
+        assert mock_retriever_class.call_count == 2
+
+    service1.metadata_store.close()
+    service2.metadata_store.close()
+    import os
+    if os.path.exists(test_db_path):
+        os.remove(test_db_path)
+
+
+@pytest.mark.asyncio
+async def test_delete_file_uses_cached_retriever(tmp_path):
+    """Test that delete_file uses cached retriever"""
+    from services.retriever_cache import get_retriever_cache
+    from unittest.mock import patch, Mock, AsyncMock
+
+    test_db_path = str(tmp_path / "test_delete_cache.db")
+
+    config = {
+        'embedding': {'provider': 'ollama'},
+        'files': {'default_vector_store': 'chroma'}
+    }
+
+    service = FileProcessingService(config)
+    service.metadata_store.close()
+    from services.file_metadata.metadata_store import FileMetadataStore
+    service.metadata_store = FileMetadataStore(db_path=test_db_path)
+
+    # Clear cache
+    cache = get_retriever_cache()
+    cache.clear_cache()
+
+    # Create a mock file in metadata store
+    file_id = "test_file_123"
+    await service.metadata_store.record_file_upload(
+        file_id=file_id,
+        api_key="test_api_key",
+        filename="test.txt",
+        mime_type="text/plain",
+        file_size=100,
+        storage_key="test_key",
+        storage_type='vector'
+    )
+    # Update with collection name
+    await service.metadata_store.update_processing_status(
+        file_id=file_id,
+        status="completed",
+        collection_name="test_collection"
+    )
+
+    # Mock storage
+    service.storage = Mock()
+    service.storage.delete_file = AsyncMock(return_value=True)
+
+    with patch('services.retriever_cache.FileVectorRetriever') as mock_retriever_class:
+        mock_retriever = Mock()
+        mock_retriever.initialized = False
+        mock_retriever.initialize = AsyncMock()
+        mock_retriever.delete_file_chunks = AsyncMock(return_value=True)
+        mock_retriever_class.return_value = mock_retriever
+
+        # Delete file multiple times (should use cached retriever)
+        await service.delete_file(file_id, "test_api_key")
+
+        # Recreate file for second deletion
+        await service.metadata_store.record_file_upload(
+            file_id="test_file_456",
+            api_key="test_api_key",
+            filename="test2.txt",
+            mime_type="text/plain",
+            file_size=100,
+            storage_key="test_key2",
+            storage_type='vector'
+        )
+        await service.metadata_store.update_processing_status(
+            file_id="test_file_456",
+            status="completed",
+            collection_name="test_collection"
+        )
+
+        mock_retriever.initialized = True
+        await service.delete_file("test_file_456", "test_api_key")
+
+        # Should only create retriever once (cached)
+        assert mock_retriever_class.call_count == 1
+        assert mock_retriever.delete_file_chunks.call_count == 2
+
+    service.metadata_store.close()
+    import os
+    if os.path.exists(test_db_path):
+        os.remove(test_db_path)
+
+
+@pytest.mark.asyncio
+async def test_cache_stats_tracking(tmp_path):
+    """Test that cache properly tracks statistics"""
+    from services.retriever_cache import get_retriever_cache
+    from unittest.mock import patch, Mock, AsyncMock
+
+    test_db_path = str(tmp_path / "test_stats.db")
+
+    cache = get_retriever_cache()
+    cache.clear_cache()
+
+    # Initially empty
+    stats = cache.get_cache_stats()
+    assert stats['cached_retrievers'] == 0
+
+    config = {
+        'embedding': {'provider': 'ollama'},
+        'files': {'default_vector_store': 'chroma'}
+    }
+
+    service = FileProcessingService(config)
+    service.metadata_store.close()
+    from services.file_metadata.metadata_store import FileMetadataStore
+    service.metadata_store = FileMetadataStore(db_path=test_db_path)
+
+    with patch('services.retriever_cache.FileVectorRetriever') as mock_retriever_class:
+        mock_retriever = Mock()
+        mock_retriever.initialized = False
+        mock_retriever.initialize = AsyncMock()
+        mock_retriever.embeddings = Mock()
+        mock_retriever.embeddings.get_dimensions = AsyncMock(return_value=768)
+        mock_retriever.index_file_chunks = AsyncMock(return_value=True)
+        mock_retriever_class.return_value = mock_retriever
+
+        from services.file_processing.chunking import Chunk
+        chunks = [
+            Chunk(
+                file_id="file1",
+                text="Test",
+                chunk_index=0,
+                chunk_id="c1",
+                metadata={}
+            )
+        ]
+
+        # Use the cache
+        await service._index_chunks_in_vector_store(
+            file_id="file1",
+            api_key="key1",
+            chunks=chunks
+        )
+
+        # Check stats
+        stats = cache.get_cache_stats()
+        assert stats['cached_retrievers'] == 1
+        assert len(stats['cache_keys']) == 1
+
     service.metadata_store.close()
     import os
     if os.path.exists(test_db_path):

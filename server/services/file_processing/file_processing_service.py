@@ -630,14 +630,14 @@ class FileProcessingService:
             return None
 
         try:
-            from retrievers.implementations.file.file_retriever import FileVectorRetriever
+            from services.retriever_cache import get_retriever_cache
 
             # Get adapter-specific config for this API key (includes embedding provider override)
             adapter_aware_config = await self._get_adapter_config_for_api_key(api_key)
 
-            # Initialize file retriever with adapter-aware config
-            retriever = FileVectorRetriever(config=adapter_aware_config)
-            await retriever.initialize()
+            # Get or create cached file retriever with adapter-aware config
+            retriever_cache = get_retriever_cache()
+            retriever = await retriever_cache.get_retriever(adapter_aware_config)
 
             # Get embedding provider info for collection naming (now uses adapter-specific provider)
             embedding_provider = adapter_aware_config.get('embedding', {}).get('provider', 'ollama')
@@ -713,11 +713,11 @@ class FileProcessingService:
             # 1. Delete chunks from vector store and metadata store
             # Get adapter-specific config for this API key (includes embedding provider override)
             adapter_aware_config = await self._get_adapter_config_for_api_key(api_key)
-            
-            # Initialize file retriever with adapter-aware config to delete chunks from vector store
-            from retrievers.implementations.file.file_retriever import FileVectorRetriever
-            retriever = FileVectorRetriever(config=adapter_aware_config)
-            await retriever.initialize()
+
+            # Get or create cached file retriever with adapter-aware config to delete chunks from vector store
+            from services.retriever_cache import get_retriever_cache
+            retriever_cache = get_retriever_cache()
+            retriever = await retriever_cache.get_retriever(adapter_aware_config)
             
             # Delete chunks from both vector store and metadata store
             chunks_deleted = await retriever.delete_file_chunks(file_id)

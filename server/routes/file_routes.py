@@ -15,7 +15,6 @@ from datetime import datetime
 from services.file_processing.file_processing_service import FileProcessingService
 from services.file_storage.filesystem_storage import FilesystemStorage
 from services.file_metadata.metadata_store import FileMetadataStore
-from retrievers.implementations.file.file_retriever import FileVectorRetriever
 
 logger = logging.getLogger(__name__)
 
@@ -484,12 +483,14 @@ def create_file_router() -> APIRouter:
                 raise HTTPException(status_code=403, detail="Access denied")
             
             # Initialize retriever and query
-            from retrievers.implementations.file.file_retriever import FileVectorRetriever
+            from services.retriever_cache import get_retriever_cache
 
             # Get config from request
             config = getattr(request.app.state, 'config', {})
-            retriever = FileVectorRetriever(config=config)
-            await retriever.initialize()
+
+            # Get or create cached retriever
+            retriever_cache = get_retriever_cache()
+            retriever = await retriever_cache.get_retriever(config)
             
             # Get collection name from file info
             collection_name = file_info.get('collection_name')
