@@ -1,0 +1,1204 @@
+[
+  {
+    "timestamp": "2025-01-15T14:00:35.084Z",
+    "level": "INFO",
+    "service": "inventory-service",
+    "host": "app-1",
+    "env": "prod",
+    "correlation_id": "cd38ace8-0e48-45e1-bde2-697efb23d30b",
+    "trace_id": "9024c5a2-a542-4dbd-8385-739a02af3de0",
+    "span_id": "5f265103-93f0-42",
+    "request": {
+      "method": "POST",
+      "path": "/api/v1/orders",
+      "query": {},
+      "user_id": "u-0014",
+      "client_ip": "252.97.26.106",
+      "user_agent": "Mozilla/5.0"
+    },
+    "response": {
+      "status": 200,
+      "bytes": 20368,
+      "latency_ms": 89
+    },
+    "db_query_ms": 31,
+    "message": "request_completed"
+  },
+  {
+    "timestamp": "2025-01-15T14:01:01.567Z",
+    "level": "WARN",
+    "service": "notifications-service",
+    "host": "app-2",
+    "env": "prod",
+    "correlation_id": "49e93c41-edb4-481c-bd2e-40c2b3b134e7",
+    "trace_id": "db5580bf-c0ec-419e-ab25-f0b0524eb643",
+    "span_id": "72f82baa-4a32-42",
+    "request": {
+      "method": "GET",
+      "path": "/api/v1/orders",
+      "query": {
+        "page": 3
+      },
+      "user_id": "u-0002",
+      "client_ip": "153.29.140.51",
+      "user_agent": "curl/8.2.1"
+    },
+    "response": {
+      "status": 200,
+      "bytes": 4296,
+      "latency_ms": 150
+    },
+    "db_query_ms": 72,
+    "message": "request_completed"
+  },
+  {
+    "timestamp": "2025-01-15T14:02:15.620Z",
+    "level": "WARN",
+    "service": "auth-service",
+    "host": "app-3",
+    "env": "prod",
+    "correlation_id": "bebec171-4125-44ae-b3ce-99c71d7da3e4",
+    "trace_id": "a0a51469-a88d-48b9-82c0-3894e7b999fc",
+    "span_id": "51709472-323f-49",
+    "request": {
+      "method": "GET",
+      "path": "/api/v1/orders",
+      "query": {
+        "page": 2
+      },
+      "user_id": null,
+      "client_ip": "83.136.115.137",
+      "user_agent": "python-requests/2.31"
+    },
+    "response": {
+      "status": 500,
+      "bytes": 13378,
+      "latency_ms": 418
+    },
+    "db_query_ms": 211,
+    "message": "null_pointer_exception",
+    "error": {
+      "type": "NullPointerException",
+      "stack": "at handler(Request.java:87)\nat controller(Core.kt:142)\nat main(App.scala:33)"
+    }
+  },
+  {
+    "timestamp": "2025-01-15T14:03:36.441Z",
+    "level": "INFO",
+    "service": "notifications-service",
+    "host": "app-3",
+    "env": "prod",
+    "correlation_id": "6b692661-3aa6-470e-9606-3857ce83145c",
+    "trace_id": "11f8e1f7-a7e1-4180-9259-b401a1829828",
+    "span_id": "c5799bdb-0445-44",
+    "request": {
+      "method": "POST",
+      "path": "/api/v1/login",
+      "query": {},
+      "user_id": "u-0020",
+      "client_ip": "42.219.72.85",
+      "user_agent": "okhttp/4.9"
+    },
+    "response": {
+      "status": 200,
+      "bytes": 12130,
+      "latency_ms": 161
+    },
+    "db_query_ms": 47,
+    "message": "request_completed"
+  },
+  {
+    "timestamp": "2025-01-15T14:04:04.571Z",
+    "level": "INFO",
+    "service": "orders-service",
+    "host": "app-3",
+    "env": "prod",
+    "correlation_id": "9174705b-8384-43c6-a43e-052ba44db966",
+    "trace_id": "42fac9b6-6f81-4217-9e7a-1ce7f90f9ce2",
+    "span_id": "c4440d64-61d1-40",
+    "request": {
+      "method": "POST",
+      "path": "/api/v1/payments",
+      "query": {},
+      "user_id": null,
+      "client_ip": "139.142.147.40",
+      "user_agent": "python-requests/2.31"
+    },
+    "response": {
+      "status": 200,
+      "bytes": 27354,
+      "latency_ms": 121
+    },
+    "db_query_ms": 68,
+    "message": "request_completed"
+  },
+  {
+    "timestamp": "2025-01-15T14:05:21.526Z",
+    "level": "INFO",
+    "service": "orders-service",
+    "host": "app-1",
+    "env": "prod",
+    "correlation_id": "688ff520-2b74-45c6-968f-ff5103fe668d",
+    "trace_id": "a1f1253a-4895-4d4d-ab14-732fc6858445",
+    "span_id": "68f8fb93-cd0a-40",
+    "request": {
+      "method": "POST",
+      "path": "/api/v1/payments",
+      "query": {},
+      "user_id": "u-0014",
+      "client_ip": "37.162.114.219",
+      "user_agent": "curl/8.2.1"
+    },
+    "response": {
+      "status": 404,
+      "bytes": 8769,
+      "latency_ms": 349
+    },
+    "db_query_ms": 126,
+    "message": "request_completed"
+  },
+  {
+    "timestamp": "2025-01-15T14:06:32.011Z",
+    "level": "INFO",
+    "service": "auth-service",
+    "host": "app-3",
+    "env": "prod",
+    "correlation_id": "a42e5b83-f310-41f4-8f73-7281db1143b0",
+    "trace_id": "6be92e90-2a6c-4494-b109-71603bfe83d7",
+    "span_id": "0e79be6b-739f-49",
+    "request": {
+      "method": "GET",
+      "path": "/api/v1/stock/SKU-245",
+      "query": {
+        "page": 3
+      },
+      "user_id": "u-0010",
+      "client_ip": "102.243.226.59",
+      "user_agent": "python-requests/2.31"
+    },
+    "response": {
+      "status": 500,
+      "bytes": 26256,
+      "latency_ms": 377
+    },
+    "db_query_ms": 122,
+    "message": "db_timeout",
+    "error": {
+      "type": "NullPointerException",
+      "stack": "at handler(Request.java:87)\nat controller(Core.kt:142)\nat main(App.scala:33)"
+    }
+  },
+  {
+    "timestamp": "2025-01-15T14:07:09.246Z",
+    "level": "INFO",
+    "service": "inventory-service",
+    "host": "app-2",
+    "env": "prod",
+    "correlation_id": "c82bbd2c-344a-461f-84f0-205b22dadb35",
+    "trace_id": "28af958c-b284-4fdc-87e1-26d099be43e0",
+    "span_id": "fd3838a9-be7f-42",
+    "request": {
+      "method": "GET",
+      "path": "/api/v1/inventory",
+      "query": {
+        "page": 3
+      },
+      "user_id": "u-0021",
+      "client_ip": "67.245.18.254",
+      "user_agent": "curl/8.2.1"
+    },
+    "response": {
+      "status": 404,
+      "bytes": 10378,
+      "latency_ms": 315
+    },
+    "db_query_ms": 107,
+    "message": "request_completed"
+  },
+  {
+    "timestamp": "2025-01-15T14:08:46.519Z",
+    "level": "INFO",
+    "service": "inventory-service",
+    "host": "app-1",
+    "env": "prod",
+    "correlation_id": "049f1c82-ff05-4034-95a5-a68e7bd6bc72",
+    "trace_id": "0dd4380b-215c-43f3-b5e5-1d36a6f6fd92",
+    "span_id": "a68b088c-4583-48",
+    "request": {
+      "method": "GET",
+      "path": "/api/v1/stock/SKU-439",
+      "query": {
+        "page": 3
+      },
+      "user_id": null,
+      "client_ip": "86.60.190.38",
+      "user_agent": "python-requests/2.31"
+    },
+    "response": {
+      "status": 200,
+      "bytes": 21646,
+      "latency_ms": 147
+    },
+    "db_query_ms": 86,
+    "message": "request_completed"
+  },
+  {
+    "timestamp": "2025-01-15T14:09:11.715Z",
+    "level": "INFO",
+    "service": "notifications-service",
+    "host": "app-1",
+    "env": "prod",
+    "correlation_id": "25529b4c-de27-46f9-b0a4-f5131aa30cb7",
+    "trace_id": "d80baf41-49a9-48f4-a912-2d9ca6ea0b11",
+    "span_id": "b4f2ef13-7eb3-46",
+    "request": {
+      "method": "GET",
+      "path": "/api/v1/orders",
+      "query": {
+        "page": 1
+      },
+      "user_id": null,
+      "client_ip": "32.208.176.152",
+      "user_agent": "okhttp/4.9"
+    },
+    "response": {
+      "status": 200,
+      "bytes": 25123,
+      "latency_ms": 5
+    },
+    "db_query_ms": 2,
+    "message": "request_completed"
+  },
+  {
+    "timestamp": "2025-01-15T14:10:19.230Z",
+    "level": "INFO",
+    "service": "payments-service",
+    "host": "app-3",
+    "env": "prod",
+    "correlation_id": "d0499a76-4c70-4e2a-abb3-201fe7fca870",
+    "trace_id": "f576dda6-4d36-412c-baab-4334118eb106",
+    "span_id": "def2c9a4-4783-40",
+    "request": {
+      "method": "POST",
+      "path": "/api/v1/payments",
+      "query": {},
+      "user_id": "u-0021",
+      "client_ip": "51.231.71.118",
+      "user_agent": "Mozilla/5.0"
+    },
+    "response": {
+      "status": 200,
+      "bytes": 12016,
+      "latency_ms": 55
+    },
+    "db_query_ms": 26,
+    "message": "request_completed"
+  },
+  {
+    "timestamp": "2025-01-15T14:11:01.772Z",
+    "level": "WARN",
+    "service": "notifications-service",
+    "host": "app-2",
+    "env": "prod",
+    "correlation_id": "e6f656be-1a99-4291-8d93-a6b3ba370932",
+    "trace_id": "4328c4ec-457b-45ef-aea1-c88376c202f4",
+    "span_id": "7078bdb4-0a6a-45",
+    "request": {
+      "method": "POST",
+      "path": "/api/v1/notify",
+      "query": {},
+      "user_id": null,
+      "client_ip": "107.13.242.23",
+      "user_agent": "okhttp/4.9"
+    },
+    "response": {
+      "status": 404,
+      "bytes": 3192,
+      "latency_ms": 397
+    },
+    "db_query_ms": 179,
+    "message": "request_completed"
+  },
+  {
+    "timestamp": "2025-01-15T14:12:51.102Z",
+    "level": "INFO",
+    "service": "notifications-service",
+    "host": "app-1",
+    "env": "prod",
+    "correlation_id": "15f29a17-7688-4b37-be8b-94624f0a715b",
+    "trace_id": "3aaad084-9a5d-4aac-b33a-cbf2038272a5",
+    "span_id": "d473d6bc-6ecd-4a",
+    "request": {
+      "method": "GET",
+      "path": "/api/v1/stock/SKU-656",
+      "query": {
+        "page": 2
+      },
+      "user_id": "u-0030",
+      "client_ip": "235.79.29.89",
+      "user_agent": "okhttp/4.9"
+    },
+    "response": {
+      "status": 200,
+      "bytes": 8802,
+      "latency_ms": 144
+    },
+    "db_query_ms": 70,
+    "message": "request_completed"
+  },
+  {
+    "timestamp": "2025-01-15T14:13:07.690Z",
+    "level": "INFO",
+    "service": "inventory-service",
+    "host": "app-3",
+    "env": "prod",
+    "correlation_id": "780931d1-e6b8-466b-b631-ede6c2713257",
+    "trace_id": "d9e300b9-0bdc-414c-aa97-a063988738d0",
+    "span_id": "af113232-ab19-4f",
+    "request": {
+      "method": "POST",
+      "path": "/api/v1/login",
+      "query": {},
+      "user_id": "u-0043",
+      "client_ip": "112.10.44.219",
+      "user_agent": "okhttp/4.9"
+    },
+    "response": {
+      "status": 200,
+      "bytes": 29586,
+      "latency_ms": 136
+    },
+    "db_query_ms": 29,
+    "message": "request_completed"
+  },
+  {
+    "timestamp": "2025-01-15T14:14:34.338Z",
+    "level": "WARN",
+    "service": "notifications-service",
+    "host": "app-2",
+    "env": "prod",
+    "correlation_id": "77fe5dec-7438-43a9-b87e-6c24c680d4b0",
+    "trace_id": "379c27ce-1f14-4838-8a7a-817d59b6e44d",
+    "span_id": "04bf72b8-77d0-47",
+    "request": {
+      "method": "GET",
+      "path": "/api/v1/inventory",
+      "query": {
+        "page": 4
+      },
+      "user_id": null,
+      "client_ip": "52.61.157.203",
+      "user_agent": "Mozilla/5.0"
+    },
+    "response": {
+      "status": 200,
+      "bytes": 13899,
+      "latency_ms": 86
+    },
+    "db_query_ms": 18,
+    "message": "request_completed"
+  },
+  {
+    "timestamp": "2025-01-15T14:15:46.934Z",
+    "level": "INFO",
+    "service": "payments-service",
+    "host": "app-2",
+    "env": "prod",
+    "correlation_id": "3bb7e2b7-f4a5-4283-8f86-cdb96f740d1a",
+    "trace_id": "6dbb76f2-7668-45a9-82bf-be91ad507e1f",
+    "span_id": "5ccfbac1-7673-4e",
+    "request": {
+      "method": "POST",
+      "path": "/api/v1/orders",
+      "query": {},
+      "user_id": null,
+      "client_ip": "142.35.97.167",
+      "user_agent": "curl/8.2.1"
+    },
+    "response": {
+      "status": 200,
+      "bytes": 7134,
+      "latency_ms": 91
+    },
+    "db_query_ms": 28,
+    "message": "request_completed"
+  },
+  {
+    "timestamp": "2025-01-15T14:16:02.527Z",
+    "level": "INFO",
+    "service": "auth-service",
+    "host": "app-1",
+    "env": "prod",
+    "correlation_id": "9b865f34-0a5c-4d2f-a643-aecca198fb9b",
+    "trace_id": "df4dcb3c-936e-4b43-882f-52b074fe1bfa",
+    "span_id": "3f7e8455-9dc5-47",
+    "request": {
+      "method": "GET",
+      "path": "/api/v1/inventory",
+      "query": {
+        "page": 3
+      },
+      "user_id": "u-0041",
+      "client_ip": "4.33.249.19",
+      "user_agent": "curl/8.2.1"
+    },
+    "response": {
+      "status": 200,
+      "bytes": 22932,
+      "latency_ms": 168
+    },
+    "db_query_ms": 35,
+    "message": "request_completed"
+  },
+  {
+    "timestamp": "2025-01-15T14:17:00.142Z",
+    "level": "INFO",
+    "service": "orders-service",
+    "host": "app-1",
+    "env": "prod",
+    "correlation_id": "b7f272e4-bc12-4e99-afdc-eab2ad0368de",
+    "trace_id": "8f3a98ef-27b2-45f7-91ab-56b22d288e7b",
+    "span_id": "559d2e0a-8d32-47",
+    "request": {
+      "method": "POST",
+      "path": "/api/v1/orders",
+      "query": {},
+      "user_id": "u-0014",
+      "client_ip": "193.169.251.143",
+      "user_agent": "curl/8.2.1"
+    },
+    "response": {
+      "status": 404,
+      "bytes": 22349,
+      "latency_ms": 366
+    },
+    "db_query_ms": 158,
+    "message": "request_completed"
+  },
+  {
+    "timestamp": "2025-01-15T14:18:07.065Z",
+    "level": "INFO",
+    "service": "payments-service",
+    "host": "app-1",
+    "env": "prod",
+    "correlation_id": "426a86b2-71f6-4efc-bc1f-014ac034d1aa",
+    "trace_id": "c8c70353-484a-4b6e-ad25-e135cd8e4e49",
+    "span_id": "1c46c6ca-fbaa-43",
+    "request": {
+      "method": "GET",
+      "path": "/api/v1/orders/6984",
+      "query": {
+        "page": 5
+      },
+      "user_id": "u-0035",
+      "client_ip": "56.79.81.252",
+      "user_agent": "curl/8.2.1"
+    },
+    "response": {
+      "status": 200,
+      "bytes": 18866,
+      "latency_ms": 106
+    },
+    "db_query_ms": 28,
+    "message": "request_completed"
+  },
+  {
+    "timestamp": "2025-01-15T14:19:29.980Z",
+    "level": "INFO",
+    "service": "payments-service",
+    "host": "app-3",
+    "env": "prod",
+    "correlation_id": "901025cf-7d82-472a-81b9-da6adc587d09",
+    "trace_id": "02868ec2-4f03-48b1-838c-ee1e94ee17f9",
+    "span_id": "3623f324-08ee-4e",
+    "request": {
+      "method": "GET",
+      "path": "/api/v1/stock/SKU-748",
+      "query": {
+        "page": 2
+      },
+      "user_id": null,
+      "client_ip": "13.211.87.78",
+      "user_agent": "curl/8.2.1"
+    },
+    "response": {
+      "status": 200,
+      "bytes": 18801,
+      "latency_ms": 51
+    },
+    "db_query_ms": 12,
+    "message": "request_completed"
+  },
+  {
+    "timestamp": "2025-01-15T14:20:44.550Z",
+    "level": "INFO",
+    "service": "orders-service",
+    "host": "app-2",
+    "env": "prod",
+    "correlation_id": "dd989041-d681-42a4-a64c-8275fa8045f0",
+    "trace_id": "432f9507-21c8-4d6e-95d5-19c59d4ba9f0",
+    "span_id": "5d860a92-ad30-46",
+    "request": {
+      "method": "POST",
+      "path": "/api/v1/notify",
+      "query": {},
+      "user_id": "u-0008",
+      "client_ip": "90.45.234.204",
+      "user_agent": "Mozilla/5.0"
+    },
+    "response": {
+      "status": 200,
+      "bytes": 20869,
+      "latency_ms": 97
+    },
+    "db_query_ms": 49,
+    "message": "request_completed"
+  },
+  {
+    "timestamp": "2025-01-15T14:21:41.597Z",
+    "level": "INFO",
+    "service": "payments-service",
+    "host": "app-3",
+    "env": "prod",
+    "correlation_id": "dc026634-62c8-47df-80b3-7114f281b952",
+    "trace_id": "9a69217d-38c3-4b5c-8bca-b03681e68890",
+    "span_id": "b6b984f5-e615-4c",
+    "request": {
+      "method": "GET",
+      "path": "/api/v1/orders",
+      "query": {
+        "page": 3
+      },
+      "user_id": "u-0001",
+      "client_ip": "117.133.233.238",
+      "user_agent": "Mozilla/5.0"
+    },
+    "response": {
+      "status": 200,
+      "bytes": 24035,
+      "latency_ms": 100
+    },
+    "db_query_ms": 23,
+    "message": "request_completed"
+  },
+  {
+    "timestamp": "2025-01-15T14:22:36.216Z",
+    "level": "INFO",
+    "service": "notifications-service",
+    "host": "app-3",
+    "env": "prod",
+    "correlation_id": "97f8bad4-4820-431b-b54c-baf5ec22ef04",
+    "trace_id": "4684aa5d-9d14-47fd-815d-deaa56381c5f",
+    "span_id": "2953ce00-98e6-40",
+    "request": {
+      "method": "POST",
+      "path": "/api/v1/login",
+      "query": {},
+      "user_id": "u-0040",
+      "client_ip": "190.31.32.242",
+      "user_agent": "python-requests/2.31"
+    },
+    "response": {
+      "status": 200,
+      "bytes": 23529,
+      "latency_ms": 107
+    },
+    "db_query_ms": 49,
+    "message": "request_completed"
+  },
+  {
+    "timestamp": "2025-01-15T14:23:11.601Z",
+    "level": "INFO",
+    "service": "auth-service",
+    "host": "app-3",
+    "env": "prod",
+    "correlation_id": "049d98e6-42ac-46f3-bf4f-4dc773144bee",
+    "trace_id": "b29d462e-536b-4d82-88fd-d2f6479bcf85",
+    "span_id": "1795bff1-e307-46",
+    "request": {
+      "method": "POST",
+      "path": "/api/v1/payments",
+      "query": {},
+      "user_id": "u-0012",
+      "client_ip": "102.125.31.73",
+      "user_agent": "curl/8.2.1"
+    },
+    "response": {
+      "status": 200,
+      "bytes": 5763,
+      "latency_ms": 65
+    },
+    "db_query_ms": 18,
+    "message": "request_completed"
+  },
+  {
+    "timestamp": "2025-01-15T14:24:12.601Z",
+    "level": "WARN",
+    "service": "auth-service",
+    "host": "app-3",
+    "env": "prod",
+    "correlation_id": "078cb43f-b898-4563-b15f-e2241882132c",
+    "trace_id": "3d78e0e2-e95a-40dd-a4c0-0749124a89b9",
+    "span_id": "b7e5ae1f-1d21-4b",
+    "request": {
+      "method": "GET",
+      "path": "/api/v1/stock/SKU-830",
+      "query": {
+        "page": 4
+      },
+      "user_id": "u-0009",
+      "client_ip": "204.80.76.41",
+      "user_agent": "okhttp/4.9"
+    },
+    "response": {
+      "status": 200,
+      "bytes": 9079,
+      "latency_ms": 108
+    },
+    "db_query_ms": 39,
+    "message": "request_completed"
+  },
+  {
+    "timestamp": "2025-01-15T14:25:03.693Z",
+    "level": "INFO",
+    "service": "notifications-service",
+    "host": "app-3",
+    "env": "prod",
+    "correlation_id": "5b23a61d-88ce-42d8-bf5c-58f105f6476b",
+    "trace_id": "6cb0fadd-4fd7-4451-8549-2c617eee7c48",
+    "span_id": "2de5ff99-4ebc-40",
+    "request": {
+      "method": "GET",
+      "path": "/api/v1/orders",
+      "query": {
+        "page": 2
+      },
+      "user_id": null,
+      "client_ip": "215.114.204.233",
+      "user_agent": "curl/8.2.1"
+    },
+    "response": {
+      "status": 200,
+      "bytes": 22255,
+      "latency_ms": 147
+    },
+    "db_query_ms": 55,
+    "message": "request_completed"
+  },
+  {
+    "timestamp": "2025-01-15T14:26:12.694Z",
+    "level": "WARN",
+    "service": "orders-service",
+    "host": "app-1",
+    "env": "prod",
+    "correlation_id": "93177e23-5d51-478d-ae67-79501bb08dac",
+    "trace_id": "fd9d1de0-654f-4571-89d0-cdc8e60d76ad",
+    "span_id": "8a98e258-77ec-48",
+    "request": {
+      "method": "POST",
+      "path": "/api/v1/payments",
+      "query": {},
+      "user_id": "u-0007",
+      "client_ip": "69.209.78.220",
+      "user_agent": "okhttp/4.9"
+    },
+    "response": {
+      "status": 200,
+      "bytes": 11894,
+      "latency_ms": 115
+    },
+    "db_query_ms": 32,
+    "message": "request_completed"
+  },
+  {
+    "timestamp": "2025-01-15T14:27:28.112Z",
+    "level": "INFO",
+    "service": "inventory-service",
+    "host": "app-3",
+    "env": "prod",
+    "correlation_id": "b946f473-21d2-4483-ae29-49fca312f891",
+    "trace_id": "5ccc8857-fef2-4419-be47-1e020f07957c",
+    "span_id": "cef53ad2-00f5-4a",
+    "request": {
+      "method": "POST",
+      "path": "/api/v1/orders",
+      "query": {},
+      "user_id": "u-0008",
+      "client_ip": "173.75.241.106",
+      "user_agent": "okhttp/4.9"
+    },
+    "response": {
+      "status": 200,
+      "bytes": 6367,
+      "latency_ms": 227
+    },
+    "db_query_ms": 56,
+    "message": "request_completed"
+  },
+  {
+    "timestamp": "2025-01-15T14:28:23.868Z",
+    "level": "INFO",
+    "service": "inventory-service",
+    "host": "app-3",
+    "env": "prod",
+    "correlation_id": "b53188b8-1e85-45e5-acae-1c902271df52",
+    "trace_id": "731dd8e0-a93e-498b-9c50-6c6911b73184",
+    "span_id": "661fc65c-f811-43",
+    "request": {
+      "method": "GET",
+      "path": "/api/v1/orders/6718",
+      "query": {
+        "page": 1
+      },
+      "user_id": "u-0021",
+      "client_ip": "157.242.200.216",
+      "user_agent": "python-requests/2.31"
+    },
+    "response": {
+      "status": 500,
+      "bytes": 21657,
+      "latency_ms": 322
+    },
+    "db_query_ms": 117,
+    "message": "upstream_error"
+  },
+  {
+    "timestamp": "2025-01-15T14:29:28.505Z",
+    "level": "INFO",
+    "service": "notifications-service",
+    "host": "app-2",
+    "env": "prod",
+    "correlation_id": "04d36f09-c36f-4cac-a66d-0235e8b1ce8d",
+    "trace_id": "89712f2b-f2bc-4ac9-9457-0bf582512118",
+    "span_id": "6aeea326-5c21-41",
+    "request": {
+      "method": "GET",
+      "path": "/api/v1/orders/1713",
+      "query": {
+        "page": 5
+      },
+      "user_id": "u-0015",
+      "client_ip": "18.138.67.85",
+      "user_agent": "python-requests/2.31"
+    },
+    "response": {
+      "status": 200,
+      "bytes": 15842,
+      "latency_ms": 117
+    },
+    "db_query_ms": 47,
+    "message": "request_completed"
+  },
+  {
+    "timestamp": "2025-01-15T14:30:02.809Z",
+    "level": "INFO",
+    "service": "payments-service",
+    "host": "app-2",
+    "env": "prod",
+    "correlation_id": "f927cce3-ce5e-4f1e-80bc-da3b76ae8365",
+    "trace_id": "c006a4c8-9907-482c-930a-b5db68cff43c",
+    "span_id": "a553478e-b129-43",
+    "request": {
+      "method": "POST",
+      "path": "/api/v1/notify",
+      "query": {},
+      "user_id": null,
+      "client_ip": "102.189.137.252",
+      "user_agent": "curl/8.2.1"
+    },
+    "response": {
+      "status": 200,
+      "bytes": 12528,
+      "latency_ms": 8
+    },
+    "db_query_ms": 2,
+    "message": "request_completed"
+  },
+  {
+    "timestamp": "2025-01-15T14:31:37.505Z",
+    "level": "WARN",
+    "service": "inventory-service",
+    "host": "app-2",
+    "env": "prod",
+    "correlation_id": "fbd85277-7d50-43cc-9fd6-cc0addfa6e9f",
+    "trace_id": "42eebdc2-efe6-4e72-929a-cca696b70f80",
+    "span_id": "fae41294-44a8-40",
+    "request": {
+      "method": "POST",
+      "path": "/api/v1/payments",
+      "query": {},
+      "user_id": "u-0028",
+      "client_ip": "121.175.240.138",
+      "user_agent": "Mozilla/5.0"
+    },
+    "response": {
+      "status": 302,
+      "bytes": 13545,
+      "latency_ms": 428
+    },
+    "db_query_ms": 172,
+    "message": "request_completed"
+  },
+  {
+    "timestamp": "2025-01-15T14:32:43.190Z",
+    "level": "INFO",
+    "service": "auth-service",
+    "host": "app-1",
+    "env": "prod",
+    "correlation_id": "6905a971-d587-429b-8c5f-e8a216d55dbd",
+    "trace_id": "648cc6da-ba60-4e0d-aefd-a61aa559c6ed",
+    "span_id": "49ffa75c-d2e4-46",
+    "request": {
+      "method": "POST",
+      "path": "/api/v1/notify",
+      "query": {},
+      "user_id": "u-0003",
+      "client_ip": "46.233.150.79",
+      "user_agent": "curl/8.2.1"
+    },
+    "response": {
+      "status": 200,
+      "bytes": 17931,
+      "latency_ms": 232
+    },
+    "db_query_ms": 96,
+    "message": "request_completed"
+  },
+  {
+    "timestamp": "2025-01-15T14:33:19.342Z",
+    "level": "INFO",
+    "service": "inventory-service",
+    "host": "app-2",
+    "env": "prod",
+    "correlation_id": "c917c5eb-79c5-4625-a7a1-c2dd684172f3",
+    "trace_id": "4463cb4d-d5cd-4d1b-b269-3619b475c2aa",
+    "span_id": "0ee667de-4291-43",
+    "request": {
+      "method": "POST",
+      "path": "/api/v1/payments",
+      "query": {},
+      "user_id": "u-0041",
+      "client_ip": "248.88.152.77",
+      "user_agent": "curl/8.2.1"
+    },
+    "response": {
+      "status": 500,
+      "bytes": 30895,
+      "latency_ms": 351
+    },
+    "db_query_ms": 84,
+    "message": "upstream_error",
+    "error": {
+      "type": "UpstreamError",
+      "stack": "at handler(Request.java:87)\nat controller(Core.kt:142)\nat main(App.scala:33)"
+    }
+  },
+  {
+    "timestamp": "2025-01-15T14:34:15.508Z",
+    "level": "INFO",
+    "service": "payments-service",
+    "host": "app-2",
+    "env": "prod",
+    "correlation_id": "f142e267-0c5e-47b3-b8b1-4dc9e1a92a98",
+    "trace_id": "15855caf-2c9e-496f-8d66-9c1cf79e1b67",
+    "span_id": "6fd64d26-9b8f-42",
+    "request": {
+      "method": "POST",
+      "path": "/api/v1/notify",
+      "query": {},
+      "user_id": "u-0005",
+      "client_ip": "243.59.250.166",
+      "user_agent": "python-requests/2.31"
+    },
+    "response": {
+      "status": 200,
+      "bytes": 20197,
+      "latency_ms": 132
+    },
+    "db_query_ms": 69,
+    "message": "request_completed"
+  },
+  {
+    "timestamp": "2025-01-15T14:35:13.574Z",
+    "level": "INFO",
+    "service": "auth-service",
+    "host": "app-1",
+    "env": "prod",
+    "correlation_id": "198f5c3f-51a0-4ec2-b5eb-2cece557d7ef",
+    "trace_id": "a2cc949c-ee5d-456b-a46e-71d823bf2c33",
+    "span_id": "28f2de9d-dc03-4f",
+    "request": {
+      "method": "POST",
+      "path": "/api/v1/orders",
+      "query": {},
+      "user_id": "u-0011",
+      "client_ip": "28.150.54.98",
+      "user_agent": "python-requests/2.31"
+    },
+    "response": {
+      "status": 200,
+      "bytes": 6265,
+      "latency_ms": 86
+    },
+    "db_query_ms": 37,
+    "message": "request_completed"
+  },
+  {
+    "timestamp": "2025-01-15T14:36:27.219Z",
+    "level": "INFO",
+    "service": "auth-service",
+    "host": "app-1",
+    "env": "prod",
+    "correlation_id": "cdfb8f80-3171-4cf0-b45c-fdd6beff5ced",
+    "trace_id": "ad772b1e-d8f3-4e4e-8bf1-86e4b8626f9c",
+    "span_id": "3116fb4a-6e15-46",
+    "request": {
+      "method": "POST",
+      "path": "/api/v1/notify",
+      "query": {},
+      "user_id": "u-0042",
+      "client_ip": "27.210.237.87",
+      "user_agent": "curl/8.2.1"
+    },
+    "response": {
+      "status": 200,
+      "bytes": 30281,
+      "latency_ms": 112
+    },
+    "db_query_ms": 38,
+    "message": "request_completed"
+  },
+  {
+    "timestamp": "2025-01-15T14:37:51.619Z",
+    "level": "INFO",
+    "service": "payments-service",
+    "host": "app-1",
+    "env": "prod",
+    "correlation_id": "6982a5d1-0ffc-49a7-8723-7cde4bb0b136",
+    "trace_id": "8408327b-e668-4e78-ab8d-3a24c8e6d92b",
+    "span_id": "e46f62ea-4aab-44",
+    "request": {
+      "method": "GET",
+      "path": "/api/v1/inventory",
+      "query": {
+        "page": 3
+      },
+      "user_id": null,
+      "client_ip": "153.219.102.229",
+      "user_agent": "okhttp/4.9"
+    },
+    "response": {
+      "status": 404,
+      "bytes": 14121,
+      "latency_ms": 360
+    },
+    "db_query_ms": 210,
+    "message": "request_completed"
+  },
+  {
+    "timestamp": "2025-01-15T14:38:14.528Z",
+    "level": "INFO",
+    "service": "auth-service",
+    "host": "app-3",
+    "env": "prod",
+    "correlation_id": "b6b7a4f1-d145-43e5-9337-4d657b19674a",
+    "trace_id": "fe2fb5f9-140a-4d92-9da1-cce3813accb8",
+    "span_id": "9cc27e65-6218-4e",
+    "request": {
+      "method": "GET",
+      "path": "/api/v1/orders",
+      "query": {
+        "page": 4
+      },
+      "user_id": "u-0048",
+      "client_ip": "213.103.5.190",
+      "user_agent": "python-requests/2.31"
+    },
+    "response": {
+      "status": 200,
+      "bytes": 19640,
+      "latency_ms": 45
+    },
+    "db_query_ms": 15,
+    "message": "request_completed"
+  },
+  {
+    "timestamp": "2025-01-15T14:39:02.480Z",
+    "level": "INFO",
+    "service": "notifications-service",
+    "host": "app-2",
+    "env": "prod",
+    "correlation_id": "7996c691-1cde-4a44-90c1-61b8038b5c30",
+    "trace_id": "559fe101-ecfe-43ed-a58b-27f5f4ad32b4",
+    "span_id": "43059c53-2722-4e",
+    "request": {
+      "method": "GET",
+      "path": "/api/v1/orders",
+      "query": {
+        "page": 3
+      },
+      "user_id": null,
+      "client_ip": "245.19.33.142",
+      "user_agent": "curl/8.2.1"
+    },
+    "response": {
+      "status": 200,
+      "bytes": 4761,
+      "latency_ms": 173
+    },
+    "db_query_ms": 55,
+    "message": "request_completed"
+  },
+  {
+    "timestamp": "2025-01-15T14:40:22.491Z",
+    "level": "INFO",
+    "service": "auth-service",
+    "host": "app-2",
+    "env": "prod",
+    "correlation_id": "4b7fa791-3168-4ee1-91cb-41f5f17ffcfb",
+    "trace_id": "0992bd5c-e3d5-413e-9fca-6b644cb77ea7",
+    "span_id": "fac73f39-8bdf-40",
+    "request": {
+      "method": "POST",
+      "path": "/api/v1/notify",
+      "query": {},
+      "user_id": "u-0008",
+      "client_ip": "196.212.60.214",
+      "user_agent": "Mozilla/5.0"
+    },
+    "response": {
+      "status": 302,
+      "bytes": 12253,
+      "latency_ms": 373
+    },
+    "db_query_ms": 74,
+    "message": "request_completed"
+  },
+  {
+    "timestamp": "2025-01-15T14:41:26.745Z",
+    "level": "INFO",
+    "service": "payments-service",
+    "host": "app-2",
+    "env": "prod",
+    "correlation_id": "505f4094-7449-431f-b5fd-a37f59ee081f",
+    "trace_id": "297a4ad6-4074-4e54-9d4d-6eba64ebf99b",
+    "span_id": "d446b459-3053-44",
+    "request": {
+      "method": "POST",
+      "path": "/api/v1/login",
+      "query": {},
+      "user_id": "u-0043",
+      "client_ip": "35.250.3.51",
+      "user_agent": "python-requests/2.31"
+    },
+    "response": {
+      "status": 200,
+      "bytes": 24540,
+      "latency_ms": 10
+    },
+    "db_query_ms": 3,
+    "message": "request_completed"
+  },
+  {
+    "timestamp": "2025-01-15T14:42:25.498Z",
+    "level": "INFO",
+    "service": "notifications-service",
+    "host": "app-2",
+    "env": "prod",
+    "correlation_id": "fa6c5ad5-b02a-42d0-b3e0-41bdb0091e1a",
+    "trace_id": "02e6aebe-6cbc-4ad9-b4e8-b061492a7e12",
+    "span_id": "2db8fbcb-d2c5-4f",
+    "request": {
+      "method": "POST",
+      "path": "/api/v1/orders",
+      "query": {},
+      "user_id": null,
+      "client_ip": "1.100.17.103",
+      "user_agent": "Mozilla/5.0"
+    },
+    "response": {
+      "status": 200,
+      "bytes": 9929,
+      "latency_ms": 121
+    },
+    "db_query_ms": 34,
+    "message": "request_completed"
+  },
+  {
+    "timestamp": "2025-01-15T14:43:39.573Z",
+    "level": "INFO",
+    "service": "notifications-service",
+    "host": "app-2",
+    "env": "prod",
+    "correlation_id": "ddaf8be7-c6d6-4aea-9a84-3a6426d67d82",
+    "trace_id": "ef59c9b8-986e-4df2-9912-2694a2cdb38e",
+    "span_id": "e16ddb09-b1d6-47",
+    "request": {
+      "method": "POST",
+      "path": "/api/v1/orders",
+      "query": {},
+      "user_id": null,
+      "client_ip": "159.237.28.56",
+      "user_agent": "curl/8.2.1"
+    },
+    "response": {
+      "status": 200,
+      "bytes": 19843,
+      "latency_ms": 74
+    },
+    "db_query_ms": 43,
+    "message": "request_completed"
+  },
+  {
+    "timestamp": "2025-01-15T14:44:27.219Z",
+    "level": "INFO",
+    "service": "inventory-service",
+    "host": "app-3",
+    "env": "prod",
+    "correlation_id": "bd6b1800-cdbe-4a86-a679-077544cdb18b",
+    "trace_id": "35555fd8-4595-44b4-83f2-4ec658724ea7",
+    "span_id": "76ebfc70-fa7a-40",
+    "request": {
+      "method": "GET",
+      "path": "/api/v1/inventory",
+      "query": {
+        "page": 1
+      },
+      "user_id": "u-0017",
+      "client_ip": "35.42.161.201",
+      "user_agent": "python-requests/2.31"
+    },
+    "response": {
+      "status": 200,
+      "bytes": 15416,
+      "latency_ms": 93
+    },
+    "db_query_ms": 54,
+    "message": "request_completed"
+  },
+  {
+    "timestamp": "2025-01-15T14:45:28.331Z",
+    "level": "INFO",
+    "service": "orders-service",
+    "host": "app-2",
+    "env": "prod",
+    "correlation_id": "47181a0b-4463-41c0-8c66-9c50ffd69cd6",
+    "trace_id": "b9ac17a2-103a-46d7-afce-3c560ebeab12",
+    "span_id": "ab66b35d-adac-45",
+    "request": {
+      "method": "POST",
+      "path": "/api/v1/payments",
+      "query": {},
+      "user_id": "u-0019",
+      "client_ip": "225.21.73.27",
+      "user_agent": "curl/8.2.1"
+    },
+    "response": {
+      "status": 200,
+      "bytes": 18336,
+      "latency_ms": 222
+    },
+    "db_query_ms": 102,
+    "message": "request_completed"
+  }
+]
