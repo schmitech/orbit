@@ -49,9 +49,6 @@ class PipelineChatService:
         self.config = config
         self.verbose = is_true_value(config.get('general', {}).get('verbose', False))
 
-        # Check if running in inference_only mode
-        self.inference_only = is_true_value(config.get('general', {}).get('inference_only', False))
-
         # Chat history configuration
         self.chat_history_config = config.get('chat_history', {})
         # Base chat history enabled setting from config
@@ -119,10 +116,6 @@ class PipelineChatService:
         # If base chat history is disabled in config, always return False
         if not self._base_chat_history_enabled:
             return False
-
-        # Enable for inference_only mode
-        if self.inference_only:
-            return True
 
         # Check adapter type - enable only for passthrough adapters
         if adapter_name and hasattr(self, 'pipeline') and self.pipeline.container.has('adapter_manager'):

@@ -54,7 +54,6 @@ general:
     header_name: "X-Session-ID" # HTTP header name for session ID
     required: true              # Whether session ID is required
   inference_provider: "ollama"  # Default AI model provider
-  inference_only: false         # Run in inference-only mode
 ```
 
 ### Fault Tolerance Configuration

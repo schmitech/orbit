@@ -19,11 +19,10 @@ from ai_services.registry import register_all_services
 class ServiceFactory:
     """
     Factory class for managing service initialization and lifecycle.
-    
+
     This class is responsible for:
     - Service discovery and instantiation
     - Dependency injection between services
-    - Mode-aware initialization (inference-only vs full mode)
     - Service lifecycle management
     - Health checking and verification
     """
@@ -38,7 +37,6 @@ class ServiceFactory:
         """
         self.config = config
         self.logger = logger
-        self.inference_only = is_true_value(config.get('general', {}).get('inference_only', False))
         self.chat_history_enabled = is_true_value(config.get('chat_history', {}).get('enabled', False))
         self.verbose = is_true_value(config.get('general', {}).get('verbose', False))
 
@@ -50,26 +48,21 @@ class ServiceFactory:
 
         # Log the mode detection for debugging (only when verbose)
         if self.verbose:
-            self.logger.info(f"ServiceFactory initialized - inference_only={self.inference_only}, chat_history_enabled={self.chat_history_enabled}")
+            self.logger.info(f"ServiceFactory initialized - chat_history_enabled={self.chat_history_enabled}")
     
     async def initialize_all_services(self, app: FastAPI) -> None:
         """Initialize all services required by the application."""
         try:
             if self.verbose:
-                self.logger.info(f"Starting service initialization - inference_only={self.inference_only}, chat_history_enabled={self.chat_history_enabled}")
-            
-            # Initialize core services (MongoDB, Redis) based on mode
+                self.logger.info(f"Starting service initialization - chat_history_enabled={self.chat_history_enabled}")
+
+            # Initialize core services (MongoDB, Redis)
             await self._initialize_core_services(app)
-            
-            # Initialize mode-specific services
-            if self.inference_only:
-                if self.verbose:
-                    self.logger.info("Initializing inference-only mode services")
-                await self._initialize_inference_only_services(app)
-            else:
-                if self.verbose:
-                    self.logger.info("Initializing full RAG mode services")
-                await self._initialize_full_mode_services(app)
+
+            # Initialize full mode services
+            if self.verbose:
+                self.logger.info("Initializing full RAG mode services")
+            await self._initialize_full_mode_services(app)
             
             # Initialize shared services (Logger, LLM Guard, Reranker)
             await self._initialize_shared_services(app)
@@ -108,11 +101,10 @@ class ServiceFactory:
     async def _initialize_database_if_needed(self, app: FastAPI, auth_enabled: bool) -> None:
         """Initialize database service if required by current configuration."""
         # Database is required when:
-        # - inference_only is false (for retriever adapters)
+        # - Retriever adapters are present (full mode always initializes database)
         # - OR auth is enabled (for authentication)
         # - OR chat_history is enabled (for chat history storage)
         database_required = (
-            not self.inference_only or
             auth_enabled or
             self.chat_history_enabled
         )
@@ -121,9 +113,7 @@ class ServiceFactory:
             await self._initialize_database_service(app)
 
             # Log the specific reason(s) for database initialization
-            reasons = []
-            if not self.inference_only:
-                reasons.append("retriever adapters")
+            reasons = ["retriever adapters"]
             if auth_enabled:
                 reasons.append("authentication")
             if self.chat_history_enabled:
@@ -132,10 +122,6 @@ class ServiceFactory:
             # Get backend type for logging
             backend_type = self.config.get('internal_services', {}).get('backend', {}).get('type', 'mongodb')
             self.logger.info(f"Database ({backend_type}) initialized for: {', '.join(reasons)}")
-        else:
-            app.state.database_service = None
-            app.state.mongodb_service = None  # For backward compatibility
-            self.logger.info("Skipping database initialization - inference_only=true, auth disabled, and chat_history disabled")
     
     async def _initialize_auth_service_if_available(self, app: FastAPI, auth_enabled: bool) -> None:
         """Initialize authentication service if database is available and auth is enabled."""
@@ -174,35 +160,6 @@ class ServiceFactory:
             # Don't fail the entire startup if auth fails, but log it prominently
             app.state.auth_service = None
     
-    async def _initialize_inference_only_services(self, app: FastAPI) -> None:
-        """Initialize services specific to inference-only mode."""
-        self.logger.info("Inference-only mode enabled - skipping unnecessary service initialization")
-
-        # Set services to None for inference-only mode
-        app.state.retriever = None
-        app.state.adapter_manager = None
-        app.state.embedding_service = None
-        app.state.prompt_service = None
-        app.state.reranker_service = None
-
-        # Initialize API key service only if database is available and auth is disabled
-        # (API key service is used for admin operations when auth is disabled but database is available)
-        auth_enabled = is_true_value(self.config.get('auth', {}).get('enabled', False))
-        database_available = hasattr(app.state, 'database_service') and app.state.database_service is not None
-        if not auth_enabled and database_available:
-            self.logger.info("Authentication disabled but database available - initializing API key service for admin operations")
-            await self._initialize_api_key_service(app)
-        else:
-            app.state.api_key_service = None
-            if not auth_enabled:
-                self.logger.info("Authentication disabled and database not available - skipping API key service")
-            else:
-                self.logger.info("Authentication enabled - API key service not needed in inference-only mode")
-
-        await self._configure_chat_history_service(app)
-
-        self.logger.info("Inference-only mode service initialization complete")
-    
     async def _initialize_full_mode_services(self, app: FastAPI) -> None:
         """Initialize services specific to full RAG mode."""
         # Initialize API Key Service
@@ -239,9 +196,9 @@ class ServiceFactory:
         
         # Initialize File Processing Service (for file upload API)
         await self._initialize_file_processing_service(app)
-        
-        # Initialize Reranker Service if enabled and not in inference-only mode
-        if not self.inference_only and is_true_value(self.config.get('reranker', {}).get('enabled', False)):
+
+        # Initialize Reranker Service if enabled
+        if is_true_value(self.config.get('reranker', {}).get('enabled', False)):
             await self._initialize_reranker_service(app)
         else:
             app.state.reranker_service = None

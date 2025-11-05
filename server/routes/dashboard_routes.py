@@ -112,11 +112,8 @@ def create_dashboard_router() -> APIRouter:
                 if metrics_service:
                     data['metrics'] = metrics_service.get_dashboard_metrics()
                 
-                # Get adapter health status - only if not in inference_only mode
-                config = getattr(websocket.app.state, 'config', {})
-                inference_only = config.get('general', {}).get('inference_only', False)
-                
-                if not inference_only and adapter_manager:
+                # Get adapter health status
+                if adapter_manager:
                     try:
                         if hasattr(adapter_manager, 'get_health_status'):
                             health = adapter_manager.get_health_status()
@@ -143,7 +140,7 @@ def create_dashboard_router() -> APIRouter:
                         logger.debug(f"Error getting adapter status: {e}")
                         data['adapters'] = {}
                 else:
-                    # Explicitly set to empty if in inference_only mode or no adapter manager
+                    # Set to empty if no adapter manager
                     data['adapters'] = {}
                 
                 # Get thread pool statistics
@@ -193,7 +190,6 @@ def create_dashboard_router() -> APIRouter:
 
                 # Add server mode information for dashboard display
                 data['server_mode'] = {
-                    'inference_only': inference_only,
                     'adapters_available': bool(data.get('adapters'))
                 }
                 

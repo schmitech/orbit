@@ -267,11 +267,11 @@ class InferencePipelineBuilder:
         # Add all steps by default (pipeline config section removed)
         # Safety filter only if safety/llm_guard services are available
         steps.append(SafetyFilterStep(container))
-        
+
         # Language detection (if enabled)
         steps.append(LanguageDetectionStep(container))
 
-        # Context retrieval only if not in inference-only mode
+        # Context retrieval (adapters will handle routing)
         steps.append(ContextRetrievalStep(container))
 
         # Document reranking (if enabled and documents retrieved)
@@ -284,37 +284,7 @@ class InferencePipelineBuilder:
         steps.append(ResponseValidationStep(container))
         
         return InferencePipeline(steps, container)
-    
-    @staticmethod
-    def build_inference_only_pipeline(container: ServiceContainer) -> InferencePipeline:
-        """
-        Build an inference-only pipeline without RAG steps.
-        
-        Args:
-            container: Service container with registered services
-            
-        Returns:
-            Configured inference-only pipeline
-        """
-        config = container.get('config')
-        
-        steps = []
-        
-        # Add steps for inference-only mode (skip context_retrieval)
-        # Safety filter only if safety/llm_guard services are available
-        steps.append(SafetyFilterStep(container))
-        
-        # Language detection (if enabled)
-        steps.append(LanguageDetectionStep(container))
-        
-        # LLM inference is always needed
-        steps.append(LLMInferenceStep(container))
-        
-        # Response validation only if safety/llm_guard services are available
-        steps.append(ResponseValidationStep(container))
-        
-        return InferencePipeline(steps, container)
-    
+
     @staticmethod
     def build_custom_pipeline(container: ServiceContainer, step_classes: List[type]) -> InferencePipeline:
         """

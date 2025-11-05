@@ -195,17 +195,12 @@ class InferenceServer:
 
     def _initialize_retrievers(self):
         """
-        Initialize retrievers package and its dependencies only if not in inference_only mode.
+        Initialize retrievers package and its dependencies.
         """
-        inference_only = is_true_value(self.config.get('general', {}).get('inference_only', False))
-        
-        if not inference_only:
-            global RetrieverFactory, ADAPTER_REGISTRY
-            from retrievers.base.base_retriever import RetrieverFactory
-            from adapters.registry import ADAPTER_REGISTRY
-            self.logger.info("Initializing retrievers package for RAG mode")
-        else:
-            self.logger.info("Skipping retrievers initialization in inference-only mode")
+        global RetrieverFactory, ADAPTER_REGISTRY
+        from retrievers.base.base_retriever import RetrieverFactory
+        from adapters.registry import ADAPTER_REGISTRY
+        self.logger.info("Initializing retrievers package for RAG mode")
 
     def _initialize_datasource_client(self, provider: str) -> Any:
         """

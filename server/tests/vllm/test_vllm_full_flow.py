@@ -23,7 +23,6 @@ async def test_full_flow():
     config = {
         "general": {
             "inference_provider": "vllm",
-            "inference_only": True,
             "verbose": True
         },
         "inference": {

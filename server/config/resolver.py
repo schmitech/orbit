@@ -57,13 +57,7 @@ class ConfigResolver:
         - Model resolution
         - Backward compatibility mapping
         
-        Note:
-            In inference-only mode, only the inference provider is resolved.
-            Other providers are skipped to minimize resource usage.
         """
-        # Check if inference_only is enabled
-        inference_only = is_true_value(self.config.get('general', {}).get('inference_only', False))
-        
         # Get selected providers
         inference_provider = self.config['general'].get('inference_provider', 'ollama')
         safety_provider = self._resolve_component_provider('safety')
@@ -71,39 +65,35 @@ class ConfigResolver:
         if 'safety' in self.config:
                 self.config['safety']['resolved_provider'] = safety_provider
                 self.config['safety']['resolved_model'] = safety_model
-        
-        # Only resolve embedding and datasource providers if not in inference_only mode
-        if not inference_only:
-            datasource_provider = self.config['general'].get('datasource_provider', 'chroma')
-            embedding_provider = self.config['embedding'].get('provider', 'ollama')
-            
-            # Resolve providers for reranker component
-            reranker_provider = self._resolve_component_provider('reranker')
-            
-            # Resolve models for reranker
-            reranker_model = self._resolve_component_model('reranker', reranker_provider)
-            
-            # Update reranker configuration with resolved values
-            if 'reranker' in self.config:
-                self.config['reranker']['resolved_provider'] = reranker_provider
-                self.config['reranker']['resolved_model'] = reranker_model
-            
-            # Handle mongodb settings for backward compatibility
-            if 'internal_services' in self.config and 'mongodb' in self.config['internal_services']:
-                self.config['mongodb'] = self.config['internal_services']['mongodb']
-            
-            # Handle elasticsearch settings for backward compatibility
-            if 'internal_services' in self.config and 'elasticsearch' in self.config['internal_services']:
-                self.config['elasticsearch'] = self.config['internal_services']['elasticsearch']
-            
-            self.logger.info(f"Using datasource provider: {datasource_provider}")
-            self.logger.info(f"Using embedding provider: {embedding_provider}")
-            self.logger.info(f"Using safety provider: {safety_provider}")
-            self.logger.info(f"Using reranker provider: {reranker_provider}")
 
-        else:
-            # In inference_only mode, only log the inference provider
-            self.logger.info(f"Using inference provider: {inference_provider}")
+        # Always resolve all providers
+        datasource_provider = self.config['general'].get('datasource_provider', 'chroma')
+        embedding_provider = self.config['embedding'].get('provider', 'ollama')
+
+        # Resolve providers for reranker component
+        reranker_provider = self._resolve_component_provider('reranker')
+
+        # Resolve models for reranker
+        reranker_model = self._resolve_component_model('reranker', reranker_provider)
+
+        # Update reranker configuration with resolved values
+        if 'reranker' in self.config:
+            self.config['reranker']['resolved_provider'] = reranker_provider
+            self.config['reranker']['resolved_model'] = reranker_model
+
+        # Handle mongodb settings for backward compatibility
+        if 'internal_services' in self.config and 'mongodb' in self.config['internal_services']:
+            self.config['mongodb'] = self.config['internal_services']['mongodb']
+
+        # Handle elasticsearch settings for backward compatibility
+        if 'internal_services' in self.config and 'elasticsearch' in self.config['internal_services']:
+            self.config['elasticsearch'] = self.config['internal_services']['elasticsearch']
+
+        self.logger.info(f"Using inference provider: {inference_provider}")
+        self.logger.info(f"Using datasource provider: {datasource_provider}")
+        self.logger.info(f"Using embedding provider: {embedding_provider}")
+        self.logger.info(f"Using safety provider: {safety_provider}")
+        self.logger.info(f"Using reranker provider: {reranker_provider}")
     
     def _resolve_component_provider(self, component_name: str) -> str:
         """

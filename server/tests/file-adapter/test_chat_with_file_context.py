@@ -65,7 +65,6 @@ async def mock_config():
     return {
         'general': {
             'verbose': False,
-            'inference_only': False,
             'inference_provider': 'ollama'
         },
         'chat_history': {

@@ -210,12 +210,6 @@ _NOTE: You need an instance of MongoDB to enable adapters_
 
 Here's the [Sample Q/A datasets](examples/city-qa-pairs.json) for this example. The knowledge base corresponds to a municipal services assistant.
 
-Set inference_only mode to false in `config/config.yaml`:
-
-```yaml
-inference_only: false
-```
-
 Enable the adapter in `config/adapters.yaml`:
 
 ```yaml

@@ -210,7 +210,7 @@ Steps are automatically included in the pipeline based on the available services
 
 - **SafetyFilterStep**: Executes when `llm_guard_service` or `moderator_service` is available
 - **LanguageDetectionStep**: Executes when `language_detection` is enabled in general configuration
-- **ContextRetrievalStep**: Executes when not in `inference_only` mode and a retriever is available
+- **ContextRetrievalStep**: Executes when a retriever or adapter manager is available
 - **LLMInferenceStep**: Always executes when an LLM provider is available
 - **ResponseValidationStep**: Executes when safety services are available and a response exists
 
@@ -411,7 +411,7 @@ pipeline_step_executions_total{step="SafetyFilterStep"} 1000
 The pipeline architecture is now the default and only inference mode in ORBIT. There is no separate pipeline configuration section - the pipeline automatically configures itself based on:
 
 1. **Available Services**: Steps execute only when their required services are available
-2. **Mode Settings**: `inference_only` mode skips RAG-related steps
+2. **Adapter Configuration**: RAG steps execute based on adapter type (passthrough adapters skip retrieval)
 3. **Safety Settings**: Safety and validation steps are controlled by `safety` and `llm_guard` configuration sections
 
 ### Key Configuration Sections
@@ -420,7 +420,6 @@ The pipeline architecture is now the default and only inference mode in ORBIT. T
 # General settings control the mode
 general:
   inference_provider: "openai"  # Which LLM provider to use
-  inference_only: true          # Skip RAG steps if true
 
 # Safety settings control filtering and validation
 safety:
@@ -459,7 +458,6 @@ inference:
 # Select which provider to use
 general:
   inference_provider: "openai"  # Active provider
-  inference_only: true          # Skip RAG if true
 ```
 
 ## Error Handling

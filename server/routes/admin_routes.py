@@ -41,23 +41,6 @@ def get_prompt_service(request: Request):
     return request.app.state.prompt_service
 
 
-def check_inference_only_mode(request: Request, feature_name: str):
-    """Check if we're in inference-only mode and raise error if feature is not available"""
-    inference_only = is_true_value(request.app.state.config.get('general', {}).get('inference_only', False))
-    auth_enabled = is_true_value(request.app.state.config.get('auth', {}).get('enabled', False))
-    
-    # If we're in inference-only mode but auth is disabled, allow API key management
-    if inference_only and not auth_enabled and "API key" in feature_name:
-        logger.info(f"Allowing {feature_name} in inference-only mode because authentication is disabled")
-        return
-    
-    if inference_only:
-        raise HTTPException(
-            status_code=503, 
-            detail=f"{feature_name} is not available in inference-only mode"
-        )
-
-
 def check_service_availability(service, service_name: str):
     """Check if a service is available and raise error if not"""
     if service is None:
@@ -115,8 +98,6 @@ async def create_api_key(
     Raises:
         HTTPException: If API key creation fails or service is unavailable
     """
-    check_inference_only_mode(request, "API key management")
-    
     # Check if API key service is available
     api_key_service = getattr(request.app.state, 'api_key_service', None)
     check_service_availability(api_key_service, "API key service")
@@ -180,8 +161,6 @@ async def list_api_keys(
     Raises:
         HTTPException: If API key listing fails or service is unavailable
     """
-    check_inference_only_mode(request, "API key management")
-    
     # Check if API key service is available
     api_key_service = getattr(request.app.state, 'api_key_service', None)
     check_service_availability(api_key_service, "API key service")
@@ -293,8 +272,6 @@ async def get_api_key_status(
     Raises:
         HTTPException: If API key status check fails or service is unavailable
     """
-    check_inference_only_mode(request, "API key management")
-    
     # Check if API key service is available
     api_key_service = getattr(request.app.state, 'api_key_service', None)
     check_service_availability(api_key_service, "API key service")
@@ -338,8 +315,6 @@ async def rename_api_key(
     Raises:
         HTTPException: If old key doesn't exist, new key already exists, or rename fails
     """
-    check_inference_only_mode(request, "API key management")
-
     # Check if API key service is available
     api_key_service = getattr(request.app.state, 'api_key_service', None)
     check_service_availability(api_key_service, "API key service")
@@ -464,8 +439,6 @@ async def create_prompt(
     authorized: bool = Depends(admin_auth_check)
 ):
     """Create a new system prompt"""
-    check_inference_only_mode(request, "Prompt management")
-    
     # Check if prompt service is available
     prompt_service = getattr(request.app.state, 'prompt_service', None)
     check_service_availability(prompt_service, "Prompt service")
@@ -597,14 +570,6 @@ async def get_chat_history(
     limit: int = 50
 ):
     """Get chat history for a session"""
-    # Check if inference_only is enabled (this feature is only available in inference-only mode)
-    inference_only = is_true_value(request.app.state.config.get('general', {}).get('inference_only', False))
-    if not inference_only:
-        raise HTTPException(
-            status_code=503, 
-            detail="Chat history is only available in inference-only mode"
-        )
-    
     chat_history_service = getattr(request.app.state, 'chat_history_service', None)
     if not chat_history_service:
         raise HTTPException(status_code=503, detail="Chat history service is not available")
@@ -627,10 +592,9 @@ async def clear_chat_history(
 ):
     """Clear chat history for a specific session."""
     config = getattr(request.app.state, 'config', {})
-    inference_only = is_true_value(config.get('general', {}).get('inference_only', False))
     chat_history_service = getattr(request.app.state, 'chat_history_service', None)
 
-    # Determine if conversational adapters are active when not in inference-only mode
+    # Determine if conversational adapters are active
     adapters_config = config.get('adapters', [])
     conversational_adapter_enabled = any(
         isinstance(adapter, dict)
@@ -639,10 +603,10 @@ async def clear_chat_history(
         for adapter in adapters_config
     )
 
-    if not inference_only and not conversational_adapter_enabled:
+    if not conversational_adapter_enabled:
         raise HTTPException(
             status_code=503,
-            detail="Chat history management is only available with inference-only mode or an active conversational adapter"
+            detail="Chat history management is only available with an active conversational adapter"
         )
 
     if not chat_history_service:

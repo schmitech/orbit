@@ -497,10 +497,8 @@
                 const data = JSON.parse(event.data);
                 updateMetrics(data.metrics);
 
-                if (data.server_mode && data.server_mode.inference_only) {
-                    document.getElementById('adapter-status-container').classList.add('hidden');
-                    document.getElementById('charts-grid').className = 'grid grid-cols-1 gap-6 xl:grid-cols-3';
-                } else if (data.adapters) {
+                // Always show adapter status
+                if (data.adapters) {
                     updateAdapterStatus({ adapters: data.adapters });
                 } else {
                     updateAdapterStatus({ adapters: {} });

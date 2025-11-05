@@ -145,32 +145,22 @@ class PipelineFactory:
     def create_pipeline(
         self,
         container: ServiceContainer,
-        pipeline_type: str = "auto"
+        pipeline_type: str = "standard"
     ) -> InferencePipeline:
         """
         Create an inference pipeline.
-        
+
         Args:
             container: The service container
-            pipeline_type: Type of pipeline to create ("auto", "standard", "inference_only")
-            
+            pipeline_type: Type of pipeline to create (default: "standard")
+
         Returns:
             Configured inference pipeline
         """
-        if pipeline_type == "auto":
-            # Determine pipeline type based on configuration
-            inference_only = self.config.get('general', {}).get('inference_only', False)
-            pipeline_type = "inference_only" if inference_only else "standard"
-        
-        if pipeline_type == "standard":
-            pipeline = InferencePipelineBuilder.build_standard_pipeline(container)
-            self.logger.info("Created standard pipeline with RAG support")
-        elif pipeline_type == "inference_only":
-            pipeline = InferencePipelineBuilder.build_inference_only_pipeline(container)
-            self.logger.info("Created inference-only pipeline")
-        else:
-            raise ValueError(f"Unknown pipeline type: {pipeline_type}")
-        
+        # Always create standard pipeline (inference-only mode has been removed)
+        pipeline = InferencePipelineBuilder.build_standard_pipeline(container)
+        self.logger.info("Created standard pipeline with RAG support")
+
         return pipeline
     
     def create_pipeline_with_services(
@@ -184,14 +174,14 @@ class PipelineFactory:
         logger_service=None,
         adapter_manager=None,
         clock_service=None,
-        pipeline_type: str = "auto"
+        pipeline_type: str = "standard"
     ) -> InferencePipeline:
         """
         Create a complete pipeline with services.
-        
+
         This is a convenience method that creates both the service container
         and pipeline in one call.
-        
+
         Args:
             retriever: Optional retriever service
             reranker_service: Optional reranker service
@@ -202,8 +192,8 @@ class PipelineFactory:
             logger_service: Optional logger service
             adapter_manager: Optional dynamic adapter manager
             clock_service: Optional clock service
-            pipeline_type: Type of pipeline to create
-            
+            pipeline_type: Type of pipeline to create (default: "standard")
+
         Returns:
             Configured inference pipeline
         """
@@ -218,5 +208,5 @@ class PipelineFactory:
             adapter_manager=adapter_manager,
             clock_service=clock_service
         )
-        
+
         return self.create_pipeline(container, pipeline_type) 

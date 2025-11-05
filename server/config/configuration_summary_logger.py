@@ -109,8 +109,7 @@ class ConfigurationSummaryLogger:
     def _log_server_mode(self) -> None:
         """Log server mode and operational settings."""
         try:
-            inference_only = is_true_value(self.config.get('general', {}).get('inference_only', False))
-            self._log_message(f"Mode: {'INFERENCE-ONLY' if inference_only else 'FULL'} (RAG {'disabled' if inference_only else 'enabled'})")
+            self._log_message("Mode: FULL (RAG enabled)")
             self._log_message("-" * 50)
         except Exception as e:
             self._log_message(f"Error logging server mode: {str(e)}", level='error')
@@ -174,23 +173,20 @@ class ConfigurationSummaryLogger:
             # Get selected providers
             inference_provider = self.config.get('general', {}).get('inference_provider', 'ollama')
             self._log_message(f"Inference provider: {inference_provider}")
-            
-            # Only log embedding info if not in inference_only mode
-            inference_only = is_true_value(self.config.get('general', {}).get('inference_only', False))
-            if not inference_only:
-                # Get embedding configuration
-                embedding_config = self.config.get('embedding', {})
-                embedding_enabled = is_true_value(embedding_config.get('enabled', True))
-                embedding_provider = embedding_config.get('provider', 'ollama')
-                
-                self._log_message(f"Embedding: {'enabled' if embedding_enabled else 'disabled'}")
-                
-                if embedding_enabled:
-                    self._log_message(f"Embedding provider: {embedding_provider}")
-                    
-                    if embedding_provider in self.config.get('embeddings', {}):
-                        embed_model = self.config['embeddings'][embedding_provider].get('model', 'unknown')
-                        self._log_message(f"Embedding model: {embed_model}")
+
+            # Get embedding configuration
+            embedding_config = self.config.get('embedding', {})
+            embedding_enabled = is_true_value(embedding_config.get('enabled', True))
+            embedding_provider = embedding_config.get('provider', 'ollama')
+
+            self._log_message(f"Embedding: {'enabled' if embedding_enabled else 'disabled'}")
+
+            if embedding_enabled:
+                self._log_message(f"Embedding provider: {embedding_provider}")
+
+                if embedding_provider in self.config.get('embeddings', {}):
+                    embed_model = self.config['embeddings'][embedding_provider].get('model', 'unknown')
+                    self._log_message(f"Embedding model: {embed_model}")
         except Exception as e:
             self._log_message(f"Error logging provider configurations: {str(e)}", level='error')
     
@@ -199,12 +195,10 @@ class ConfigurationSummaryLogger:
         try:
             # Log backend configuration
             self._log_backend_configuration()
-            
-            # Log chat history information if in inference_only mode
-            inference_only = is_true_value(self.config.get('general', {}).get('inference_only', False))
-            if inference_only:
-                self._log_chat_history_configuration()
-            
+
+            # Log chat history configuration
+            self._log_chat_history_configuration()
+
             # Log fault tolerance configuration
             self._log_fault_tolerance_configuration()
         except Exception as e:
@@ -327,9 +321,8 @@ class ConfigurationSummaryLogger:
     def _log_runtime_information(self, app: FastAPI) -> None:
         """Log runtime-specific information when available."""
         try:
-            # Log retriever information only if not in inference_only mode and retriever exists
-            inference_only = is_true_value(self.config.get('general', {}).get('inference_only', False))
-            if not inference_only and hasattr(app.state, 'retriever') and app.state.retriever is not None:
+            # Log retriever information if retriever exists
+            if hasattr(app.state, 'retriever') and app.state.retriever is not None:
                 try:
                     self._log_message(f"Confidence threshold: {app.state.retriever.confidence_threshold}")
                 except AttributeError:
@@ -436,12 +429,9 @@ class ConfigurationSummaryLogger:
             A dictionary containing structured configuration information
         """
         try:
-            inference_only = is_true_value(self.config.get('general', {}).get('inference_only', False))
-            
             report = {
                 'server_mode': {
-                    'inference_only': inference_only,
-                    'rag_enabled': not inference_only
+                    'rag_enabled': True
                 },
                 'providers': {
                     'inference': self.config.get('general', {}).get('inference_provider', 'ollama')
@@ -470,30 +460,28 @@ class ConfigurationSummaryLogger:
                     'language_detection': is_true_value(self.config.get('language_detection', {}).get('enabled', False))
                 }
             }
-            
-            # Add embedding info if not in inference_only mode
-            if not inference_only:
-                embedding_config = self.config.get('embedding', {})
-                report['providers']['embedding'] = {
-                    'enabled': is_true_value(embedding_config.get('enabled', True)),
-                    'provider': embedding_config.get('provider', 'ollama')
-                }
-            
-            # Add chat history info if in inference_only mode
-            if inference_only:
-                chat_history_config = self.config.get('chat_history', {})
-                report['services']['chat_history'] = {
-                    'enabled': is_true_value(chat_history_config.get('enabled', True)),
-                    'default_limit': chat_history_config.get('default_limit', 50),
-                    'retention_days': chat_history_config.get('retention_days', 90)
-                }
-            
+
+            # Add embedding info
+            embedding_config = self.config.get('embedding', {})
+            report['providers']['embedding'] = {
+                'enabled': is_true_value(embedding_config.get('enabled', True)),
+                'provider': embedding_config.get('provider', 'ollama')
+            }
+
+            # Add chat history info
+            chat_history_config = self.config.get('chat_history', {})
+            report['services']['chat_history'] = {
+                'enabled': is_true_value(chat_history_config.get('enabled', True)),
+                'default_limit': chat_history_config.get('default_limit', 50),
+                'retention_days': chat_history_config.get('retention_days', 90)
+            }
+
             return report
         except Exception as e:
             self._log_message(f"Error generating configuration report: {str(e)}", level='error')
             return {
                 'error': f"Failed to generate configuration report: {str(e)}",
-                'server_mode': {'inference_only': False, 'rag_enabled': True}
+                'server_mode': {'rag_enabled': True}
             }
     
     def _get_llm_guard_enabled_status(self) -> bool:

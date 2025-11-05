@@ -19,17 +19,11 @@ class ContextRetrievalStep(PipelineStep):
     def should_execute(self, context: ProcessingContext) -> bool:
         """
         Determine if this step should execute.
-        
-        Returns:
-            True if adapter manager is available, not in inference-only mode, and not blocked
-        """
-        config = self.container.get_or_none('config') or {}
-        inference_only = config.get('general', {}).get('inference_only', False)
-        
-        if context.is_blocked:
-            return False
 
-        if inference_only:
+        Returns:
+            True if adapter manager is available and not blocked
+        """
+        if context.is_blocked:
             return False
 
         if not (self.container.has('adapter_manager') or self.container.has('retriever')):

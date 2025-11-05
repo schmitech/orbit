@@ -233,13 +233,6 @@ class RouteConfigurator:
             Returns:
                 Tuple of (adapter_name, system_prompt_id) associated with the API key
             """
-            # Check if inference_only is enabled
-            inference_only = is_true_value(request.app.state.config.get('general', {}).get('inference_only', False))
-            
-            if inference_only:
-                # In inference_only mode, return default values without validation
-                return "default", None
-            
             # Get API key from header
             header_name = request.app.state.config.get('api_keys', {}).get('header_name', 'X-API-Key')
             api_key = request.headers.get(header_name)
