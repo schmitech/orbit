@@ -100,6 +100,13 @@ export interface ApiKeyStatus {
   message?: string;
 }
 
+// Adapter information interface
+export interface AdapterInfo {
+  client_name: string;
+  adapter_name: string;
+  model: string | null;
+}
+
 export class ApiClient {
   private readonly apiUrl: string;
   private readonly apiKey: string | null;
@@ -134,7 +141,7 @@ export class ApiClient {
 
   /**
    * Validate that the API key exists and is active.
-   * 
+   *
    * @returns Promise resolving to API key status information
    * @throws Error if API key is not provided, invalid, inactive, or validation fails
    */
@@ -165,10 +172,10 @@ export class ApiClient {
           // If we can't read the body, fall back to status code
           errorText = `HTTP ${response.status}`;
         }
-        
+
         let errorDetail: string;
         let friendlyMessage: string;
-        
+
         try {
           const errorJson = JSON.parse(errorText);
           errorDetail = errorJson.detail || errorJson.message || errorText;
@@ -195,39 +202,39 @@ export class ApiClient {
             friendlyMessage = `Failed to validate API key: ${errorDetail}`;
             break;
         }
-        
+
         // Throw error - will be logged in catch block to avoid duplicates
         throw new Error(friendlyMessage);
       }
 
       const status: ApiKeyStatus = await response.json();
-      
+
       // Check if the key exists
       if (!status.exists) {
         const friendlyMessage = 'API key does not exist';
         // Throw error - will be logged in catch block to avoid duplicates
         throw new Error(friendlyMessage);
       }
-      
+
       // Check if the key is active
       if (!status.active) {
         const friendlyMessage = 'API key is inactive';
         // Throw error - will be logged in catch block to avoid duplicates
         throw new Error(friendlyMessage);
       }
-      
+
       return status;
     } catch (error: any) {
       // Extract user-friendly error message
       let friendlyMessage: string;
-      
+
       if (error instanceof Error && error.message) {
         // If it's already a user-friendly Error from above, use it directly
-        if (error.message.includes('API key') || 
-            error.message.includes('Access denied') || 
-            error.message.includes('invalid') || 
-            error.message.includes('expired') || 
-            error.message.includes('inactive') || 
+        if (error.message.includes('API key') ||
+            error.message.includes('Access denied') ||
+            error.message.includes('invalid') ||
+            error.message.includes('expired') ||
+            error.message.includes('inactive') ||
             error.message.includes('not found') ||
             error.message.includes('Could not connect')) {
           friendlyMessage = error.message;
@@ -239,12 +246,111 @@ export class ApiClient {
       } else {
         friendlyMessage = 'API key validation failed. Please check your API key and try again.';
       }
-      
+
       // Only log warning if it's not a network error (those are already logged by browser)
       // For validation errors, we log once with a friendly message
       // Note: Browser will still log HTTP errors (401, 404, etc.) - this is unavoidable
       console.warn(`[ApiClient] ${friendlyMessage}`);
-      
+
+      // Throw the friendly error message
+      throw new Error(friendlyMessage);
+    }
+  }
+
+  /**
+   * Get adapter information for the current API key.
+   *
+   * Returns information about the adapter and model being used by the API key.
+   * This is useful for displaying configuration details to users.
+   *
+   * @returns Promise resolving to adapter information
+   * @throws Error if API key is not provided, invalid, disabled, or request fails
+   */
+  public async getAdapterInfo(): Promise<AdapterInfo> {
+    if (!this.apiKey) {
+      throw new Error('API key is required to get adapter information');
+    }
+
+    try {
+      const response = await fetch(`${this.apiUrl}/admin/api-keys/info`, {
+        ...this.getFetchOptions({
+          method: 'GET'
+        })
+      }).catch((fetchError: any) => {
+        // Catch network errors before they bubble up
+        if (fetchError.name === 'TypeError' && fetchError.message.includes('Failed to fetch')) {
+          throw new Error('Could not connect to the server. Please check if the server is running.');
+        }
+        throw fetchError;
+      });
+
+      if (!response.ok) {
+        // Read error response body
+        let errorText = '';
+        try {
+          errorText = await response.text();
+        } catch {
+          // If we can't read the body, fall back to status code
+          errorText = `HTTP ${response.status}`;
+        }
+
+        let errorDetail: string;
+        let friendlyMessage: string;
+
+        try {
+          const errorJson = JSON.parse(errorText);
+          errorDetail = errorJson.detail || errorJson.message || errorText;
+        } catch {
+          // If parsing fails, use the error text or status code
+          errorDetail = errorText || `HTTP ${response.status}`;
+        }
+
+        // Generate user-friendly error messages based on HTTP status code
+        switch (response.status) {
+          case 401:
+            friendlyMessage = 'API key is invalid, disabled, or has no associated adapter';
+            break;
+          case 404:
+            friendlyMessage = 'Adapter configuration not found';
+            break;
+          case 503:
+            friendlyMessage = 'Service is not available';
+            break;
+          default:
+            friendlyMessage = `Failed to get adapter info: ${errorDetail}`;
+            break;
+        }
+
+        // Throw error - will be logged in catch block to avoid duplicates
+        throw new Error(friendlyMessage);
+      }
+
+      const adapterInfo: AdapterInfo = await response.json();
+      return adapterInfo;
+    } catch (error: any) {
+      // Extract user-friendly error message
+      let friendlyMessage: string;
+
+      if (error instanceof Error && error.message) {
+        // If it's already a user-friendly Error from above, use it directly
+        if (error.message.includes('API key') ||
+            error.message.includes('Adapter') ||
+            error.message.includes('invalid') ||
+            error.message.includes('disabled') ||
+            error.message.includes('not found') ||
+            error.message.includes('Could not connect')) {
+          friendlyMessage = error.message;
+        } else {
+          friendlyMessage = `Failed to get adapter info: ${error.message}`;
+        }
+      } else if (error.name === 'TypeError' && error.message?.includes('Failed to fetch')) {
+        friendlyMessage = 'Could not connect to the server. Please check if the server is running.';
+      } else {
+        friendlyMessage = 'Failed to get adapter information. Please try again.';
+      }
+
+      console.warn(`[ApiClient] ${friendlyMessage}`);
+
       // Throw the friendly error message
       throw new Error(friendlyMessage);
     }

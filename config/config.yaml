@@ -20,11 +20,11 @@ general:
   session_id:
     header_name: "X-Session-ID"
     required: true
-  inference_provider: "llama_cpp"
-  inference_only: true
+  inference_provider: "ollama_cloud"
+  inference_only: false
 
 language_detection:
-  enabled: false
+  enabled: true
   backends:
     - "langdetect"
     - "langid"
@@ -69,7 +69,7 @@ messages:
   collection_not_found: "I couldn't find the requested collection. Please make sure the collection exists before querying it."
 
 auth:
-  enabled: false
+  enabled: true
   session_duration_hours: 12
   default_admin_username: admin
   default_admin_password: ${ORBIT_DEFAULT_ADMIN_PASSWORD}
@@ -106,6 +106,7 @@ logging:
   capture_warnings: true
   propagate: false
   loggers:
+    # Suppress all Python warnings (ResourceWarnings, DeprecationWarnings, etc.)
     py.warnings:
       level: "ERROR"
       propagate: false
@@ -124,9 +125,24 @@ logging:
       level: "WARNING"
     httpcore:
       level: "WARNING"
+    # Suppress docling library verbose output (document processing)
+    docling:
+      level: "WARNING"
+    docling.datamodel.document:
+      level: "WARNING"
+    docling.document_converter:
+      level: "WARNING"
+    docling.pipeline.base_pipeline:
+      level: "WARNING"
+    docling.backend.msexcel_backend:
+      level: "WARNING"
+    docling.backend.pypdfium2_backend:
+      level: "WARNING"
+    docling.backend.docling_parse_backend:
+      level: "WARNING"
 
 clock_service:
-  enabled: false
+  enabled: true
   default_timezone: "America/Toronto"
   format: "%A, %B %d, %Y at %I:%M:%S %p %Z"
 
@@ -134,7 +150,7 @@ internal_services:
   # Backend database configuration
   # Choose between 'sqlite' (no installation required) or 'mongodb' (requires MongoDB server)
   backend:
-    type: "sqlite"  # mongodb or sqlite
+    type: "sqlite" # sqlite or mongodb
     sqlite:
       database_path: "orbit.db"  # Path to SQLite database file (relative to project root)
   
@@ -157,7 +173,7 @@ internal_services:
     prompts_collection: system_prompts
 
   redis:
-    enabled: true
+    enabled: false
     host: ${INTERNAL_SERVICES_REDIS_HOST}
     port: ${INTERNAL_SERVICES_REDIS_PORT}
     db: 0
@@ -167,7 +183,7 @@ internal_services:
     ttl: 3600  # 1 hour, matching temp_key_expiry
 
 chat_history:
-  enabled: false
+  enabled: true
   collection_name: "chat_history"
   store_metadata: true
   retention_days: 90
@@ -203,7 +219,7 @@ reranker:
   enabled: false
 
 monitoring:
-  enabled: false                    # Enable/disable monitoring dashboard
+  enabled: true                    # Enable/disable monitoring dashboard
   metrics:
     collection_interval: 5         # Seconds between metric collections
     time_window: 300              # Seconds of historical data to keep (5 minutes)

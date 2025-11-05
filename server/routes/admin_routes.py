@@ -407,6 +407,39 @@ async def delete_api_key(
     return {"status": "success", "message": "API key deleted"}
 
 
+@admin_router.get("/api-keys/info")
+async def get_adapter_info(
+    request: Request,
+    x_api_key: str = Header(..., alias="X-API-Key")
+):
+    """
+    Get adapter information for the current API key.
+
+    This endpoint returns information about the adapter and model being used
+    by the provided API key. This is useful for clients to display configuration
+    details to users.
+
+    The API key is read from the X-API-Key header (same as other endpoints).
+
+    Returns:
+        Dictionary containing:
+            - client_name: Name of the client associated with this API key
+            - adapter_name: Name of the adapter being used
+            - model: Model name (from adapter config or global default)
+
+    Raises:
+        HTTPException: If API key is invalid, disabled, or adapter not found
+    """
+    # Get API key service
+    api_key_service = getattr(request.app.state, 'api_key_service', None)
+    check_service_availability(api_key_service, "API key service")
+
+    # Get adapter info
+    adapter_info = await api_key_service.get_adapter_info(x_api_key)
+
+    return adapter_info
+
+
 @admin_router.post("/api-keys/{api_key}/prompt")
 async def associate_prompt_with_api_key(
     api_key: str,

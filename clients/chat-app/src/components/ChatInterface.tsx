@@ -175,17 +175,36 @@ export function ChatInterface({ onOpenSettings }: ChatInterfaceProps) {
           )}
 
           {/* Chat Header */}
-          <div className="border-b border-gray-200 py-5 dark:border-[#4a4b54]">
+          <div className="py-5">
             <div className="flex items-start justify-between gap-4">
-              <div className="min-w-0">
-                <h1 className="text-lg font-medium text-[#353740] dark:text-[#ececf1]">
-                  {currentConversation?.title || 'New Chat'}
-                </h1>
-                {currentConversation && (
-                  <p className="mt-1 text-xs text-gray-500 dark:text-[#bfc2cd]">
-                    {currentConversation.messages.length} messages · Updated{' '}
-                    {currentConversation.updatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </p>
+              <div className="min-w-0 flex-1">
+                {/* Adapter Info - show first when available */}
+                {currentConversation?.adapterInfo && (
+                  <div className="mt-1 flex items-center gap-3 text-sm text-gray-500 dark:text-[#bfc2cd]">
+                    <span className="font-medium">Agent:</span>
+                    <span>{currentConversation.adapterInfo.client_name}</span>
+                    {currentConversation.adapterInfo.model && (
+                      <>
+                        <span className="text-gray-400 dark:text-[#6b6f7a]">•</span>
+                        <span className="font-medium">Model:</span>
+                        <span>{currentConversation.adapterInfo.model}</span>
+                      </>
+                    )}
+                  </div>
+                )}
+                {/* Only show title and messages count after adapter info is loaded */}
+                {currentConversation?.adapterInfo && (
+                  <>
+                    <h1 className="mt-3 mb-4 text-lg font-medium text-[#353740] dark:text-[#ececf1]">
+                      {currentConversation?.title || 'New Chat'}
+                    </h1>
+                    {currentConversation && (
+                      <p className="mt-2 text-xs text-gray-500 dark:text-[#bfc2cd]">
+                        {currentConversation.messages.length} messages · Updated{' '}
+                        {currentConversation.updatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    )}
+                  </>
                 )}
               </div>
               <div className="flex shrink-0 items-center gap-2">

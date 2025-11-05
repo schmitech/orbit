@@ -557,7 +557,54 @@ class AdminTester:
         except Exception as e:
             logger.error(f"✗ Prompt-API key association error: {str(e)}")
             return False
-    
+
+    async def test_get_adapter_info(self) -> bool:
+        """Test getting adapter information for an API key"""
+        logger.info("\n=== Testing Get Adapter Info ===")
+
+        if not self.created_api_keys:
+            logger.info("✓ No API keys to test (expected in inference-only mode)")
+            return True
+
+        api_key = self.created_api_keys[0]
+
+        try:
+            async with self.session.get(
+                f"{self.base_url}/admin/api-keys/info",
+                headers={"X-API-Key": api_key, "Content-Type": "application/json"},
+                timeout=10
+            ) as response:
+                if response.status == 200:
+                    result = await response.json()
+                    logger.info(f"✓ Retrieved adapter info: {result}")
+
+                    # Verify response format
+                    if not all(field in result for field in ["client_name", "adapter_name", "model"]):
+                        logger.error("✗ Adapter info response missing required fields")
+                        return False
+
+                    # Verify the values
+                    if result["client_name"] != "Test Client":
+                        logger.warning(f"Client name mismatch: expected 'Test Client', got '{result['client_name']}'")
+
+                    logger.info(f"✓ Adapter info format is correct: client={result['client_name']}, adapter={result['adapter_name']}, model={result['model']}")
+                    return True
+                elif response.status == 401:
+                    error = await response.text()
+                    logger.error(f"✗ API key authentication failed: {error}")
+                    return False
+                elif response.status == 503:
+                    error = await response.text()
+                    logger.info(f"✓ Expected response in inference-only mode: {error}")
+                    return True
+                else:
+                    error = await response.text()
+                    logger.error(f"✗ Get adapter info failed: {response.status} - {error}")
+                    return False
+        except Exception as e:
+            logger.error(f"✗ Get adapter info error: {str(e)}")
+            return False
+
     async def test_unauthorized_access(self) -> bool:
         """Test admin endpoint access behavior with/without authentication"""
         logger.info("\n=== Testing Unauthorized Access ===")
@@ -636,6 +683,15 @@ async def test_prompt_api_key_association():
 
 
 @pytest.mark.asyncio
+async def test_get_adapter_info():
+    """Test getting adapter information"""
+    async with AdminTester(SERVER_URL) as tester:
+        assert await tester.authenticate(), "Admin authentication failed"
+        assert await tester.test_create_api_key(), "API key creation failed"
+        assert await tester.test_get_adapter_info(), "Get adapter info failed"
+
+
+@pytest.mark.asyncio
 async def test_admin_security():
     """Test admin endpoint security"""
     async with AdminTester(SERVER_URL) as tester:
@@ -653,7 +709,8 @@ async def test_complete_admin_flow():
         assert await tester.test_create_api_key(), "API key creation failed"
         assert await tester.test_list_api_keys(), "API key listing failed"
         assert await tester.test_api_key_status(), "API key status check failed"
-        
+        assert await tester.test_get_adapter_info(), "Get adapter info failed"
+
         # Test system prompt management
         assert await tester.test_create_system_prompt(), "System prompt creation failed"
         assert await tester.test_list_system_prompts(), "System prompt listing failed"
@@ -683,6 +740,7 @@ async def main():
             ("API Key Creation", tester.test_create_api_key),
             ("API Key Listing", tester.test_list_api_keys),
             ("API Key Status", tester.test_api_key_status),
+            ("Get Adapter Info", tester.test_get_adapter_info),
             ("System Prompt Creation", tester.test_create_system_prompt),
             ("System Prompt Listing", tester.test_list_system_prompts),
             ("System Prompt Retrieval", tester.test_get_system_prompt),

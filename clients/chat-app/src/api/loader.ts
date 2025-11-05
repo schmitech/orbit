@@ -94,6 +94,11 @@ export interface ApiClient {
     } | null;
     message?: string;
   }>;
+  getAdapterInfo?(): Promise<{
+    client_name: string;
+    adapter_name: string;
+    model: string | null;
+  }>;
 }
 
 export interface ApiFunctions {

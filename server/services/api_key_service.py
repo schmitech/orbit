@@ -329,18 +329,18 @@ class ApiKeyService:
     async def get_adapter_for_api_key(self, api_key: str) -> Tuple[str, Optional[ObjectId]]:
         """
         Get the adapter name and system prompt ID for a given API key
-        
+
         Args:
             api_key: The API key to look up
-            
+
         Returns:
             Tuple of (adapter_name, system_prompt_id)
-            
+
         Raises:
             HTTPException: If the API key is invalid or has no associated adapter
         """
         is_valid, adapter_name, system_prompt_id = await self.validate_api_key(api_key)
-        
+
         if not is_valid:
             # Check if this is an empty API key and defaults are allowed
             if not api_key and self.config.get('api_keys', {}).get('allow_default', False):
@@ -349,11 +349,79 @@ class ApiKeyService:
                 default_adapter = enabled_adapters[0].get('name', 'qa-vector-chroma') if enabled_adapters else 'qa-vector-chroma'
                 return default_adapter, None
             raise HTTPException(status_code=401, detail="Invalid or missing API key")
-        
+
         if not adapter_name:
             raise HTTPException(status_code=401, detail="No adapter associated with API key")
-            
+
         return adapter_name, system_prompt_id
+
+    async def get_adapter_info(self, api_key: str) -> Dict[str, Any]:
+        """
+        Get adapter information for a given API key.
+
+        Returns the client name, adapter name, and model being used.
+        This is useful for clients to display which configuration is active.
+
+        Args:
+            api_key: The API key to look up
+
+        Returns:
+            Dictionary containing:
+                - client_name: Client name associated with the API key
+                - adapter_name: Name of the adapter
+                - model: The model name (from adapter config or global default)
+
+        Raises:
+            HTTPException: If the API key is invalid or adapter not found
+        """
+        # Get API key document from database
+        key_doc = await self.database.find_one(self.collection_name, {"api_key": api_key})
+
+        if not key_doc:
+            raise HTTPException(status_code=401, detail="Invalid or missing API key")
+
+        # Check if the key is active
+        if key_doc.get("active") is False:
+            raise HTTPException(status_code=401, detail="API key is disabled")
+
+        # Get client_name and adapter_name from the API key record
+        client_name = key_doc.get("client_name")
+        adapter_name = key_doc.get("adapter_name")
+
+        if not adapter_name:
+            raise HTTPException(status_code=401, detail="No adapter associated with API key")
+
+        # Get adapter configuration
+        adapter_config = self._get_adapter_config(adapter_name)
+
+        if not adapter_config:
+            raise HTTPException(status_code=404, detail=f"Adapter '{adapter_name}' not found or disabled")
+
+        # Build response
+        adapter_info = {
+            "client_name": client_name,
+            "adapter_name": adapter_name
+        }
+
+        # Get model - check adapter config first, then fall back to global inference config
+        model = adapter_config.get('model')
+
+        if not model:
+            # Get the inference provider for this adapter (or default)
+            general_config = self.config.get('general', {})
+            inference_provider = adapter_config.get('inference_provider', general_config.get('inference_provider', 'ollama'))
+
+            # Try to get model from global inference config
+            inference_config = self.config.get('inference', {}).get(inference_provider, {})
+            model = inference_config.get('model')
+
+        adapter_info['model'] = model
+
+        if self.verbose:
+            masked_key = mask_api_key(api_key)
+            logger.info(f"Retrieved adapter info for API key {masked_key}: client={client_name}, adapter={adapter_name}, model={model}")
+
+        return adapter_info
     
     async def create_api_key(
         self, 

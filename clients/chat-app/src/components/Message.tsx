@@ -45,13 +45,14 @@ export function Message({ message, onRegenerate }: MessageProps) {
   return (
     <div className="group flex items-start gap-3 animate-fadeIn">
       <div
-        className={`mt-1 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full ${
+        className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full self-start ${
           isAssistant
             ? 'bg-gray-100 text-gray-700 dark:bg-[#4a4b54] dark:text-white'
-            : 'bg-gray-100 text-gray-700 dark:bg-[#202123] dark:text-[#ececf1]'
+            : 'bg-gray-100 text-gray-700 dark:bg-[#4a4b54] dark:text-white'
         }`}
+        style={{ marginTop: '-10px', marginLeft: '8px' }}
       >
-        {isAssistant ? <Bot className="h-4 w-4" /> : <User2 className="h-4 w-4" />}
+        {isAssistant ? <Bot className="h-5 w-5" /> : <User2 className="h-5 w-5" />}
       </div>
 
       <div className="flex-1 space-y-2">

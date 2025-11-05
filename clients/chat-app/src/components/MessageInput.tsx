@@ -215,11 +215,11 @@ export function MessageInput({
 
       <form onSubmit={handleSubmit} className="mx-auto flex w-full max-w-3xl flex-col gap-3">
         <div
-          className={`flex items-end gap-3 rounded-lg border px-3 py-2 transition-colors ${
+          className={`flex items-center gap-2 rounded-full border px-4 py-3 shadow-sm transition-all ${
             isFocused
-              ? 'border-gray-400 dark:border-[#6b6f7a]'
-              : 'border-gray-300 dark:border-[#4a4b54]'
-          } bg-white dark:bg-[#2d2f39]`}
+              ? 'border-gray-300 shadow-md dark:border-[#565869] dark:shadow-lg'
+              : 'border-gray-200 dark:border-[#40414f]'
+          } bg-white dark:bg-[#40414f]`}
         >
           <button
             type="button"
@@ -232,12 +232,12 @@ export function MessageInput({
             disabled={isInputDisabled}
             onMouseEnter={() => setIsHoveringUpload(true)}
             onMouseLeave={() => setIsHoveringUpload(false)}
-            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${
+            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors ${
               showFileUpload || attachedFiles.length > 0
-                ? 'bg-gray-100 text-[#353740] dark:bg-[#3c3f4a] dark:text-[#ececf1]'
+                ? 'bg-gray-100 text-[#353740] dark:bg-[#565869] dark:text-[#ececf1]'
                 : isInputDisabled
                 ? 'cursor-not-allowed text-gray-300 dark:text-[#6b6f7a]'
-                : 'text-gray-500 hover:bg-gray-100 hover:text-[#353740] dark:text-[#bfc2cd] dark:hover:bg-[#3c3f4a]'
+                : 'text-gray-500 hover:bg-gray-100 hover:text-[#353740] dark:text-[#bfc2cd] dark:hover:bg-[#565869]'
             }`}
             title={
               isInputDisabled
@@ -267,7 +267,7 @@ export function MessageInput({
             disabled={isInputDisabled}
             rows={1}
             maxLength={1000}
-            className="flex-1 resize-none bg-transparent py-2 text-sm text-[#353740] placeholder-gray-500 focus:outline-none dark:text-[#ececf1] dark:placeholder-[#8e8fa1]"
+            className="flex-1 resize-none bg-transparent py-1 text-sm text-[#353740] placeholder-gray-400 focus:outline-none dark:text-[#ececf1] dark:placeholder-[#8e8fa1]"
             style={{ 
               minHeight: '24px', 
               border: 'none', 
@@ -275,7 +275,8 @@ export function MessageInput({
               boxShadow: 'none',
               WebkitAppearance: 'none',
               MozAppearance: 'none',
-              appearance: 'none'
+              appearance: 'none',
+              caretColor: (message.trim() || isFocused) ? 'inherit' : 'transparent'
             }}
           />
 
@@ -294,12 +295,12 @@ export function MessageInput({
               disabled={isInputDisabled}
               onMouseEnter={() => setIsHoveringMic(true)}
               onMouseLeave={() => setIsHoveringMic(false)}
-              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${
+              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors ${
                 isListening
                   ? 'bg-red-50 text-red-600 dark:bg-red-900/40 dark:text-red-300'
                   : isInputDisabled
                   ? 'cursor-not-allowed text-gray-300 dark:text-[#6b6f7a]'
-                  : 'text-gray-500 hover:bg-gray-100 hover:text-[#353740] dark:text-[#bfc2cd] dark:hover:bg-[#3c3f4a]'
+                  : 'text-gray-500 hover:bg-gray-100 hover:text-[#353740] dark:text-[#bfc2cd] dark:hover:bg-[#565869]'
               }`}
               title={
                 isInputDisabled
@@ -310,15 +311,15 @@ export function MessageInput({
               }
             >
               {isListening || (isInputDisabled && isHoveringMic) ? (
-                <MicOff className="h-4 w-4" />
+                <MicOff className="h-5 w-5" />
               ) : (
-                <Mic className="h-4 w-4" />
+                <Mic className="h-5 w-5" />
               )}
             </button>
           )}
 
           {(hasProcessingFiles || isUploading) && (
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center">
               <Loader2 className="h-4 w-4 animate-spin text-gray-500 dark:text-[#bfc2cd]" />
             </div>
           )}
@@ -326,14 +327,14 @@ export function MessageInput({
           <button
             type="submit"
             disabled={(!message.trim() && attachedFiles.length === 0) || isInputDisabled || isComposing}
-            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${
+            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors ${
               (message.trim() || attachedFiles.length > 0) && !isInputDisabled && !isComposing
-                ? 'bg-[#343541] text-white hover:bg-[#2c2f36] dark:bg-[#565869] dark:hover:bg-[#6b6f7a]'
-                : 'bg-gray-200 text-gray-400 dark:bg-[#3c3f4a] dark:text-[#6b6f7a]'
+                ? 'bg-black text-white hover:bg-gray-800 dark:bg-white dark:text-black dark:hover:bg-gray-200'
+                : 'bg-gray-200 text-gray-400 dark:bg-[#565869] dark:text-[#6b6f7a]'
             }`}
             title="Send message"
           >
-            <Send className="h-4 w-4" />
+            <Send className="h-4 w-4" style={{ transform: 'translate(-1px, 0.5px)' }} />
           </button>
         </div>
 

@@ -17,6 +17,12 @@ export interface Message {
   attachments?: FileAttachment[];
 }
 
+export interface AdapterInfo {
+  client_name: string;
+  adapter_name: string;
+  model: string | null;
+}
+
 export interface Conversation {
   id: string;
   sessionId: string; // Unique session ID for MongoDB storage - each conversation gets its own session
@@ -27,6 +33,7 @@ export interface Conversation {
   attachedFiles?: FileAttachment[];  // Files attached to this conversation
   apiKey?: string; // API key associated with this conversation
   apiUrl?: string; // API URL associated with this conversation
+  adapterInfo?: AdapterInfo; // Adapter information (client_name, model)
 }
 
 export interface ChatState {

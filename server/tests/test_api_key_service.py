@@ -891,3 +891,120 @@ async def test_rename_deactivated_api_key(api_key_service):
     assert new_status is not None
     assert new_status.get("exists") is True
     assert new_status.get("active") is False
+
+
+# ========================
+# ADAPTER INFO TESTS
+# ========================
+
+@pytest.mark.asyncio
+async def test_get_adapter_info_basic(api_key_service):
+    """Test getting basic adapter information"""
+    # Create an API key
+    result = await api_key_service.create_api_key(
+        client_name="Test Client Info",
+        adapter_name="qa-sql",
+        notes="Test for adapter info"
+    )
+
+    api_key = result["api_key"]
+
+    # Get adapter info
+    adapter_info = await api_key_service.get_adapter_info(api_key)
+
+    assert adapter_info is not None
+    assert adapter_info["client_name"] == "Test Client Info"
+    assert adapter_info["adapter_name"] == "qa-sql"
+    assert "model" in adapter_info
+
+
+@pytest.mark.asyncio
+async def test_get_adapter_info_with_adapter_model(api_key_service):
+    """Test getting adapter info when adapter has specific model configured"""
+    # Temporarily add a model to the qa-sql adapter config
+    original_adapters = api_key_service.config['adapters']
+    for adapter in api_key_service.config['adapters']:
+        if adapter['name'] == 'qa-sql':
+            adapter['model'] = 'test-model-123'
+            break
+
+    # Create an API key
+    result = await api_key_service.create_api_key(
+        client_name="Model Test Client",
+        adapter_name="qa-sql"
+    )
+
+    api_key = result["api_key"]
+
+    # Get adapter info
+    adapter_info = await api_key_service.get_adapter_info(api_key)
+
+    assert adapter_info is not None
+    assert adapter_info["model"] == "test-model-123"
+
+    # Restore original config
+    api_key_service.config['adapters'] = original_adapters
+
+
+@pytest.mark.asyncio
+async def test_get_adapter_info_with_global_model_fallback(api_key_service):
+    """Test getting adapter info falls back to global model when adapter doesn't specify"""
+    # Ensure qa-sql adapter doesn't have a model configured
+    for adapter in api_key_service.config['adapters']:
+        if adapter['name'] == 'qa-sql' and 'model' in adapter:
+            del adapter['model']
+
+    # Set up inference config with a model
+    if 'inference' not in api_key_service.config:
+        api_key_service.config['inference'] = {}
+    if 'ollama' not in api_key_service.config['inference']:
+        api_key_service.config['inference']['ollama'] = {}
+    api_key_service.config['inference']['ollama']['model'] = 'global-fallback-model'
+
+    # Create an API key
+    result = await api_key_service.create_api_key(
+        client_name="Fallback Test Client",
+        adapter_name="qa-sql"
+    )
+
+    api_key = result["api_key"]
+
+    # Get adapter info
+    adapter_info = await api_key_service.get_adapter_info(api_key)
+
+    assert adapter_info is not None
+    assert adapter_info["model"] == "global-fallback-model"
+
+
+@pytest.mark.asyncio
+async def test_get_adapter_info_invalid_api_key(api_key_service):
+    """Test getting adapter info with invalid API key raises error"""
+    from fastapi import HTTPException
+
+    with pytest.raises(HTTPException) as exc_info:
+        await api_key_service.get_adapter_info("invalid_key_123")
+
+    assert exc_info.value.status_code == 401
+    assert "Invalid or missing" in str(exc_info.value.detail)
+
+
+@pytest.mark.asyncio
+async def test_get_adapter_info_disabled_key(api_key_service):
+    """Test getting adapter info with disabled API key raises error"""
+    from fastapi import HTTPException
+
+    # Create and disable an API key
+    result = await api_key_service.create_api_key(
+        client_name="Disabled Test Client",
+        adapter_name="qa-sql"
+    )
+
+    api_key = result["api_key"]
+    await api_key_service.deactivate_api_key(api_key)
+
+    # Try to get adapter info
+    with pytest.raises(HTTPException) as exc_info:
+        await api_key_service.get_adapter_info(api_key)
+
+    assert exc_info.value.status_code == 401
+    assert "disabled" in str(exc_info.value.detail).lower()

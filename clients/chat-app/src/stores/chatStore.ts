@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { getApi, ApiClient } from '../api/loader';
-import { Message, Conversation, ChatState, FileAttachment } from '../types';
+import { Message, Conversation, ChatState, FileAttachment, AdapterInfo } from '../types';
 import { FileUploadService } from '../services/fileService';
 import { debugLog, debugWarn, debugError, logError } from '../utils/debug';
 
@@ -115,7 +115,8 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       // Load the API
       const api = await getApi();
       
-      // Validate API key if provided
+      // Validate API key and fetch adapter info if provided
+      let adapterInfo: AdapterInfo | undefined;
       if (apiKey && apiKey.trim()) {
         try {
           // Create a temporary client to validate the API key
@@ -139,6 +140,17 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
             debugWarn('API key validation not available (validateApiKey method not found)');
             // Continue without validation if method doesn't exist (backward compatibility)
           }
+          
+          // Fetch adapter info right after validation using the same client
+          if (apiKey !== 'default-key' && typeof validationClient.getAdapterInfo === 'function') {
+            try {
+              adapterInfo = await validationClient.getAdapterInfo();
+              debugLog('Adapter info loaded:', adapterInfo);
+            } catch (error) {
+              debugWarn('Failed to load adapter info:', error);
+              // Don't fail configuration if adapter info fails to load
+            }
+          }
         } catch (validationError: any) {
           // api.ts already throws user-friendly error messages, so we can just re-throw them
           // This avoids duplicating error message logic and keeps the code DRY
@@ -158,7 +170,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       // Store API key and URL in the current conversation
       // If no conversation exists, create one
       if (currentConversation && apiKey && apiKey.trim() && apiKey !== 'default-key') {
-        // Update existing conversation with API key
+        // Update existing conversation with API key and adapter info
         set(state => ({
           conversations: state.conversations.map(conv =>
             conv.id === currentConversation.id
@@ -166,6 +178,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
                   ...conv,
                   apiKey: apiKey, // Always use the provided API key if it was validated
                   apiUrl: apiUrl,
+                  adapterInfo: adapterInfo,
                   updatedAt: new Date()
                 }
               : conv
@@ -192,7 +205,8 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
           createdAt: new Date(),
           updatedAt: new Date(),
           apiKey: apiKey,
-          apiUrl: apiUrl
+          apiUrl: apiUrl,
+          adapterInfo: adapterInfo
         };
         
         set(state => ({
@@ -319,6 +333,43 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       if (isConfigured) {
         const api = await getApi();
         api.configureApi(conversationApiUrl, conversationApiKey, conversation.sessionId);
+        
+        // Load adapter info if not already loaded and API key is valid
+        if (conversationApiKey !== 'default-key' && !conversation.adapterInfo) {
+          try {
+            const adapterClient = new api.ApiClient({
+              apiUrl: conversationApiUrl,
+              apiKey: conversationApiKey,
+              sessionId: null
+            });
+            
+            if (typeof adapterClient.getAdapterInfo === 'function') {
+              const adapterInfo = await adapterClient.getAdapterInfo();
+              debugLog('Adapter info loaded for conversation:', adapterInfo);
+              
+              // Update conversation with adapter info
+              set(state => ({
+                conversations: state.conversations.map(conv =>
+                  conv.id === id
+                    ? { ...conv, adapterInfo: adapterInfo, updatedAt: new Date() }
+                    : conv
+                )
+              }));
+              
+              // Save to localStorage
+              setTimeout(() => {
+                const currentState = get();
+                localStorage.setItem('chat-state', JSON.stringify({
+                  conversations: currentState.conversations,
+                  currentConversationId: currentState.currentConversationId
+                }));
+              }, 0);
+            }
+          } catch (error) {
+            debugWarn('Failed to load adapter info for conversation:', error);
+            // Don't fail conversation selection if adapter info fails to load
+          }
+        }
       }
 
       // Don't auto-sync files when switching conversations
@@ -1103,6 +1154,8 @@ const initializeStore = () => {
         // Use 'default-key' to require API key configuration for independence
         apiKey: conv.apiKey || 'default-key',
         apiUrl: conv.apiUrl || 'http://localhost:3000',
+        // Preserve adapterInfo if it exists
+        adapterInfo: conv.adapterInfo || undefined,
         messages: conv.messages
           .filter((msg: any) => !(msg.role === 'assistant' && msg.isStreaming)) // Remove any streaming messages
           .map((msg: any) => ({
