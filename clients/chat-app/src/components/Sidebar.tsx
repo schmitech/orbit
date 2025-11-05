@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Search, MessageSquare, Trash2, Edit2 } from 'lucide-react';
+import { Plus, Search, MessageSquare, Trash2, Edit2, Trash } from 'lucide-react';
 import { useChatStore } from '../stores/chatStore';
 import { Conversation } from '../types';
 import { ConfirmationModal } from './ConfirmationModal';
@@ -15,6 +15,7 @@ export function Sidebar({}: SidebarProps) {
     createConversation,
     selectConversation,
     deleteConversation,
+    deleteAllConversations,
     updateConversationTitle,
     canCreateNewConversation,
     getConversationCount
@@ -32,6 +33,14 @@ export function Sidebar({}: SidebarProps) {
     isOpen: false,
     conversationId: '',
     conversationTitle: '',
+    isDeleting: false
+  });
+
+  const [clearAllConfirmation, setClearAllConfirmation] = useState<{
+    isOpen: boolean;
+    isDeleting: boolean;
+  }>({
+    isOpen: false,
     isDeleting: false
   });
 
@@ -118,6 +127,37 @@ export function Sidebar({}: SidebarProps) {
     setEditTitle('');
   };
 
+  const handleClearAll = () => {
+    setClearAllConfirmation({
+      isOpen: true,
+      isDeleting: false
+    });
+  };
+
+  const confirmClearAll = async () => {
+    setClearAllConfirmation(prev => ({ ...prev, isDeleting: true }));
+    try {
+      await deleteAllConversations();
+      setClearAllConfirmation({
+        isOpen: false,
+        isDeleting: false
+      });
+    } catch (error) {
+      debugError('Failed to clear all conversations:', error);
+      setClearAllConfirmation({
+        isOpen: false,
+        isDeleting: false
+      });
+    }
+  };
+
+  const cancelClearAll = () => {
+    setClearAllConfirmation({
+      isOpen: false,
+      isDeleting: false
+    });
+  };
+
   return (
     <>
       <div className="flex h-full w-72 flex-col border-r border-b border-gray-200 bg-gray-50 dark:border-[#4a4b54] dark:bg-[#202123]">
@@ -142,10 +182,22 @@ export function Sidebar({}: SidebarProps) {
             New Conversation
           </button>
           
-          <div className="mt-3 text-center">
-            <span className="text-xs text-gray-500 dark:text-[#bfc2cd]">
-              {getConversationCount()}/10 conversations
-            </span>
+          <div className="mt-3 space-y-2">
+            <div className="text-center">
+              <span className="text-xs text-gray-500 dark:text-[#bfc2cd]">
+                {getConversationCount()}/10 conversations
+              </span>
+            </div>
+            {conversations.length > 0 && (
+              <button
+                onClick={handleClearAll}
+                className="flex w-full items-center justify-center gap-2 rounded-md border border-red-300 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 hover:border-red-400 dark:border-red-600/40 dark:text-red-400 dark:hover:bg-red-900/20 dark:hover:border-red-500/60 transition-colors"
+                title="Delete all conversations"
+              >
+                <Trash className="h-4 w-4" />
+                Clear All
+              </button>
+            )}
           </div>
         </div>
 
@@ -309,6 +361,19 @@ export function Sidebar({}: SidebarProps) {
         cancelText="Cancel"
         type="danger"
         isLoading={deleteConfirmation.isDeleting}
+      />
+
+      {/* Clear All Conversations Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={clearAllConfirmation.isOpen}
+        onClose={cancelClearAll}
+        onConfirm={confirmClearAll}
+        title="Clear All Conversations"
+        message={`Are you sure you want to delete all ${getConversationCount()} conversation${getConversationCount() !== 1 ? 's' : ''}? This will clear all conversation history from both the server and your local storage. This action cannot be undone.`}
+        confirmText="Clear All"
+        cancelText="Cancel"
+        type="danger"
+        isLoading={clearAllConfirmation.isDeleting}
       />
     </>
   );

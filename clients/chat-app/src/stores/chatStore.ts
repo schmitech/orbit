@@ -45,6 +45,7 @@ interface ExtendedChatState extends ChatState {
   createConversation: () => string;
   selectConversation: (id: string) => Promise<void>;
   deleteConversation: (id: string) => Promise<void>;
+  deleteAllConversations: () => Promise<void>;
   sendMessage: (content: string, fileIds?: string[]) => Promise<void>;
   appendToLastMessage: (content: string, conversationId?: string) => void;
   regenerateResponse: (messageId: string) => Promise<void>;
@@ -550,6 +551,119 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         currentConversationId: newCurrentId
       };
     });
+  },
+
+  deleteAllConversations: async () => {
+    const state = get();
+    const conversationsToDelete = [...state.conversations];
+
+    debugLog(`🗑️ Deleting all conversations (${conversationsToDelete.length} total)`);
+
+    // Delete all conversations from server
+    for (const conversation of conversationsToDelete) {
+      if (conversation?.sessionId) {
+        try {
+          const isConfigured = await ensureApiConfigured();
+          if (!isConfigured) {
+            logError('Failed to configure API for conversation deletion');
+            continue;
+          }
+
+          const conversationApiUrl = conversation.apiUrl || 'http://localhost:3000';
+          const conversationApiKey = conversation.apiKey || DEFAULT_API_KEY;
+          
+          const api = await getApi();
+          const apiClient: ApiClient = new api.ApiClient({
+            apiUrl: conversationApiUrl,
+            apiKey: conversationApiKey,
+            sessionId: conversation.sessionId
+          });
+
+          const fileIds = conversation?.attachedFiles?.map(f => f.file_id) || [];
+
+          if (apiClient.deleteConversationWithFiles) {
+            await apiClient.deleteConversationWithFiles(conversation.sessionId, fileIds);
+            debugLog(`✅ Deleted conversation ${conversation.id} and files`);
+          }
+        } catch (error) {
+          logError(`Failed to delete conversation ${conversation.id} from server:`, error);
+          // Continue with other conversations even if one fails
+        }
+      }
+    }
+
+    // Create a new default conversation after deleting all
+    const defaultConversationId = `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const defaultSessionId = generateUniqueSessionId();
+    const defaultConversation: Conversation = {
+      id: defaultConversationId,
+      sessionId: defaultSessionId,
+      title: 'New Chat',
+      messages: [],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      apiKey: DEFAULT_API_KEY,
+      apiUrl: 'http://localhost:3000'
+    };
+
+    // Configure API with default key and validate it
+    ensureApiConfigured().then(isConfigured => {
+      if (isConfigured) {
+        getApi().then(api => {
+          api.configureApi('http://localhost:3000', DEFAULT_API_KEY, defaultSessionId);
+          
+          // Validate and load adapter info for default key
+          try {
+            const validationClient = new api.ApiClient({
+              apiUrl: 'http://localhost:3000',
+              apiKey: DEFAULT_API_KEY,
+              sessionId: null
+            });
+            
+            if (typeof validationClient.validateApiKey === 'function') {
+              validationClient.validateApiKey().then(() => {
+                debugLog('✅ Default API key validated after clearing all conversations');
+              }).catch(() => {
+                debugWarn('Failed to validate default API key');
+              });
+            }
+            
+            if (typeof validationClient.getAdapterInfo === 'function') {
+              validationClient.getAdapterInfo().then(adapterInfo => {
+                debugLog('✅ Adapter info loaded for default key:', adapterInfo);
+                const currentState = useChatStore.getState();
+                useChatStore.setState({
+                  conversations: currentState.conversations.map(conv =>
+                    conv.id === defaultConversationId
+                      ? { ...conv, adapterInfo: adapterInfo, updatedAt: new Date() }
+                      : conv
+                  )
+                });
+              }).catch(() => {
+                debugWarn('Failed to load adapter info for default key');
+              });
+            }
+          } catch (error) {
+            debugWarn('Failed to validate default API key:', error);
+          }
+        });
+      }
+    });
+
+    // Update state with empty conversations array and new default conversation
+    set({
+      conversations: [defaultConversation],
+      currentConversationId: defaultConversationId,
+      sessionId: defaultSessionId
+    });
+
+    // Save to localStorage
+    setTimeout(() => {
+      localStorage.setItem('chat-state', JSON.stringify({
+        conversations: [defaultConversation],
+        currentConversationId: defaultConversationId
+      }));
+    }, 0);
   },
 
   sendMessage: async (content: string, fileIds?: string[]) => {
