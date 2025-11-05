@@ -11,7 +11,7 @@ Create a `.env.local` file in the root directory:
 
 ```bash
 VITE_API_URL=https://your-api-endpoint.com
-VITE_API_KEY=your-api-key-here
+VITE_DEFAULT_KEY=default-key      # Default API key used when no key is configured
 VITE_USE_LOCAL_API=true          # Set to 'true' to use local API build
 VITE_LOCAL_API_PATH=/api.mjs      # Path to local API (defaults to /api.mjs from public directory)
 VITE_CONSOLE_DEBUG=false          # Enable debug logging

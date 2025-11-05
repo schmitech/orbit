@@ -8,6 +8,9 @@ import { getApi } from '../api/loader';
 import { FileAttachment } from '../types';
 import { debugLog, debugWarn, logError } from '../utils/debug';
 
+// Default API key from environment variable
+const DEFAULT_API_KEY = import.meta.env.VITE_DEFAULT_KEY || 'default-key';
+
 export interface FileUploadProgress {
   filename: string;
   progress: number;  // 0-100
@@ -94,13 +97,12 @@ export class FileUploadService {
                      'http://localhost:3000';
       const resolvedApiKey = apiKey || 
                      localStorage.getItem('chat-api-key') || 
-                     (import.meta.env as any).VITE_API_KEY ||
                      (window as any).CHATBOT_API_KEY ||
-                     'orbit-123456789';
+                     DEFAULT_API_KEY;
       
       // Validate API key is configured
       // Note: API keys typically start with "orbit_" but some may be custom/simple keys
-      if (!resolvedApiKey || resolvedApiKey === 'your-api-key-here' || resolvedApiKey === 'orbit-123456789') {
+      if (!resolvedApiKey || resolvedApiKey === 'your-api-key-here') {
         throw new Error(
           'API key not configured or invalid. Please:\n' +
           '1. Open Settings (⚙️ icon) in the top-right corner\n' +
@@ -256,9 +258,8 @@ export class FileUploadService {
                      'http://localhost:3000';
       const resolvedApiKey = apiKey || 
                      localStorage.getItem('chat-api-key') || 
-                     (import.meta.env as any).VITE_API_KEY ||
                      (window as any).CHATBOT_API_KEY ||
-                     'orbit-123456789';
+                     DEFAULT_API_KEY;
       
       if (!resolvedApiKey || resolvedApiKey === 'your-api-key-here' || resolvedApiKey === 'orbit-123456789') {
         throw new Error('API key not configured');
@@ -307,9 +308,8 @@ export class FileUploadService {
                      'http://localhost:3000';
       const resolvedApiKey = apiKey || 
                      localStorage.getItem('chat-api-key') || 
-                     (import.meta.env as any).VITE_API_KEY ||
                      (window as any).CHATBOT_API_KEY ||
-                     'orbit-123456789';
+                     DEFAULT_API_KEY;
       
       if (!resolvedApiKey || resolvedApiKey === 'your-api-key-here' || resolvedApiKey === 'orbit-123456789') {
         throw new Error('API key not configured');
@@ -428,9 +428,8 @@ export class FileUploadService {
                      'http://localhost:3000';
       const resolvedApiKey = apiKey || 
                      localStorage.getItem('chat-api-key') || 
-                     (import.meta.env as any).VITE_API_KEY ||
                      (window as any).CHATBOT_API_KEY ||
-                     'orbit-123456789';
+                     DEFAULT_API_KEY;
       
       if (!resolvedApiKey || resolvedApiKey === 'your-api-key-here' || resolvedApiKey === 'orbit-123456789') {
         throw new Error('API key not configured');

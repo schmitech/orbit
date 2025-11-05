@@ -47,9 +47,9 @@ export function MessageList({ messages, onRegenerate, isLoading }: MessageListPr
   if (messages.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <div className="text-center text-base text-gray-500 dark:text-[#bfc2cd] px-6">
-          <p>Your messages will appear here.</p>
-          <p className="mt-2">Start the conversation by sending a prompt below.</p>
+        <div className="text-center text-lg text-gray-500 dark:text-[#bfc2cd] px-6">
+          <p className="text-xl">Your messages will appear here.</p>
+          <p className="mt-1 text-lg">Start the conversation by sending a prompt below.</p>
         </div>
       </div>
     );

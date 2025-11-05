@@ -28,7 +28,7 @@ export function MessageInput({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const processedFilesRef = useRef<Set<string>>(new Set());
 
-  const { createConversation, currentConversationId, removeFileFromConversation, conversations } = useChatStore();
+  const { createConversation, currentConversationId, removeFileFromConversation, conversations, isLoading } = useChatStore();
 
   const {
     isListening,
@@ -84,6 +84,21 @@ export function MessageInput({
       textareaRef.current.focus();
     }
   }, [isInputDisabled]);
+
+  // Focus input field when assistant response finishes (isLoading becomes false)
+  const prevIsLoadingRef = useRef(isLoading);
+  useEffect(() => {
+    // If loading just finished (transitioned from true to false), focus the input
+    if (prevIsLoadingRef.current && !isLoading && !isInputDisabled && textareaRef.current) {
+      // Small delay to ensure the UI has updated
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.focus();
+        }
+      }, 100);
+    }
+    prevIsLoadingRef.current = isLoading;
+  }, [isLoading, isInputDisabled]);
 
   // Close upload area when upload starts (hide upload widget, show only progress)
   useEffect(() => {
@@ -208,12 +223,12 @@ export function MessageInput({
   return (
     <div className="bg-white px-4 py-4 dark:bg-[#212121]">
       {voiceError && (
-        <div className="mx-auto mb-3 w-full max-w-3xl rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-600/40 dark:bg-red-900/30 dark:text-red-200">
+        <div className="mx-auto mb-3 w-full max-w-5xl rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-600/40 dark:bg-red-900/30 dark:text-red-200">
           {voiceError}
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="mx-auto flex w-full max-w-3xl flex-col gap-3">
+      <form onSubmit={handleSubmit} className="mx-auto flex w-full max-w-5xl flex-col gap-3">
         <div
           className={`flex items-center gap-2 rounded-full border px-4 py-3 shadow-sm transition-all ${
             isFocused
@@ -267,7 +282,7 @@ export function MessageInput({
             disabled={isInputDisabled}
             rows={1}
             maxLength={1000}
-            className="flex-1 resize-none bg-transparent py-1 text-sm text-[#353740] placeholder-gray-400 focus:outline-none dark:text-[#ececf1] dark:placeholder-[#8e8fa1]"
+            className="flex-1 resize-none bg-transparent py-1 text-sm text-[#353740] placeholder-gray-400 focus:outline-none dark:text-[#ececf1] dark:placeholder-[#bfc2cd]"
             style={{ 
               minHeight: '24px', 
               border: 'none', 

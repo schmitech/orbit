@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Bot, Copy, RotateCcw, ThumbsDown, ThumbsUp, User2, File } from 'lucide-react';
 import { Message as MessageType } from '../types';
 import { MarkdownRenderer } from '@schmitech/markdown-renderer';
@@ -25,7 +25,7 @@ export function Message({ message, onRegenerate }: MessageProps) {
   }, [message.timestamp]);
 
   const contentClass = isAssistant
-    ? 'markdown-content prose prose-slate dark:prose-invert max-w-none'
+    ? 'markdown-content prose prose-slate dark:prose-invert max-w-none overflow-x-auto'
     : 'markdown-content prose prose-invert max-w-none';
 
   const copyToClipboard = async () => {
@@ -43,7 +43,7 @@ export function Message({ message, onRegenerate }: MessageProps) {
   };
 
   return (
-    <div className="group flex items-start gap-3 animate-fadeIn">
+    <div className="group flex items-start gap-3 animate-fadeIn min-w-0">
       <div
         className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full self-start ${
           isAssistant
@@ -55,7 +55,7 @@ export function Message({ message, onRegenerate }: MessageProps) {
         {isAssistant ? <Bot className="h-5 w-5" /> : <User2 className="h-5 w-5" />}
       </div>
 
-      <div className="flex-1 space-y-2">
+      <div className="flex-1 min-w-0 space-y-2">
         <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-[#bfc2cd]">
           <span className="font-medium uppercase tracking-wide">
             {isAssistant ? 'Assistant' : 'You'}
@@ -66,7 +66,7 @@ export function Message({ message, onRegenerate }: MessageProps) {
         <div
           className={`rounded-lg border px-4 py-3 leading-relaxed ${
             isAssistant
-              ? 'border-gray-300 bg-gray-100 text-[#353740] dark:border-[#4a4b54] dark:bg-[#202123] dark:text-[#ececf1]'
+              ? 'border-gray-300 bg-gray-100 text-[#353740] dark:border-[#4a4b54] dark:bg-[#202123] dark:text-[#ececf1] overflow-x-auto min-w-0'
               : 'border-gray-300 bg-gray-100 text-[#353740] dark:bg-[#202123] dark:text-[#ececf1]'
           }`}
         >

@@ -4,6 +4,9 @@ import { Message, Conversation, ChatState, FileAttachment, AdapterInfo } from '.
 import { FileUploadService } from '../services/fileService';
 import { debugLog, debugWarn, debugError, logError } from '../utils/debug';
 
+// Default API key from environment variable
+const DEFAULT_API_KEY = import.meta.env.VITE_DEFAULT_KEY || 'default-key';
+
 // Session management utilities
 const getOrCreateSessionId = (): string => {
   const stored = localStorage.getItem('chatbot-session-id');
@@ -78,7 +81,7 @@ async function ensureApiConfigured(): Promise<boolean> {
                   (window as any).CHATBOT_API_URL ||
                   'http://localhost:3000';
 
-    const apiKey = localStorage.getItem('chat-api-key') || 'orbit-123456789';
+    const apiKey = localStorage.getItem('chat-api-key') || DEFAULT_API_KEY;
     const sessionId = getOrCreateSessionId();
     api.configureApi(apiUrl, apiKey, sessionId);
     currentApiUrl = apiUrl;
@@ -142,7 +145,8 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
           }
           
           // Fetch adapter info right after validation using the same client
-          if (apiKey !== 'default-key' && typeof validationClient.getAdapterInfo === 'function') {
+          // Include 'default-key' since it's a valid key in the backend
+          if (typeof validationClient.getAdapterInfo === 'function') {
             try {
               adapterInfo = await validationClient.getAdapterInfo();
               debugLog('Adapter info loaded:', adapterInfo);
@@ -169,7 +173,8 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       
       // Store API key and URL in the current conversation
       // If no conversation exists, create one
-      if (currentConversation && apiKey && apiKey.trim() && apiKey !== 'default-key') {
+      // Include 'default-key' since it's a valid key
+      if (currentConversation && apiKey && apiKey.trim()) {
         // Update existing conversation with API key and adapter info
         set(state => ({
           conversations: state.conversations.map(conv =>
@@ -193,7 +198,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
             currentConversationId: currentState.currentConversationId
           }));
         }, 0);
-      } else if (apiKey && apiKey.trim() && apiKey !== 'default-key') {
+      } else if (apiKey && apiKey.trim()) {
         // No conversation exists, create one with the configured API key
         const newId = `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         const newSessionId = generateUniqueSessionId();
@@ -256,9 +261,9 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
 
     const id = `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const newSessionId = generateUniqueSessionId(); // Create unique session for this conversation
-    // New conversations default to 'default-key' and require API key configuration
+    // New conversations default to the configured default key
     const defaultApiUrl = 'http://localhost:3000';
-    const defaultApiKey = 'default-key';
+    const defaultApiKey = DEFAULT_API_KEY;
     const newConversation: Conversation = {
       id,
       sessionId: newSessionId,
@@ -324,9 +329,9 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         isLoading: hasStreamingMessages
       });
       
-      // Use conversation's stored API key and URL (use 'default-key' if not configured, don't fall back to localStorage)
+      // Use conversation's stored API key and URL (use default key if not configured, don't fall back to localStorage)
       const conversationApiUrl = conversation.apiUrl || 'http://localhost:3000';
-      const conversationApiKey = conversation.apiKey || 'default-key';
+      const conversationApiKey = conversation.apiKey || DEFAULT_API_KEY;
       
       // Reconfigure API with the conversation's session ID and API key
       const isConfigured = await ensureApiConfigured();
@@ -334,8 +339,9 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         const api = await getApi();
         api.configureApi(conversationApiUrl, conversationApiKey, conversation.sessionId);
         
-        // Load adapter info if not already loaded and API key is valid
-        if (conversationApiKey !== 'default-key' && !conversation.adapterInfo) {
+        // Load adapter info if not already loaded
+        // Include 'default-key' since it's a valid key
+        if (!conversation.adapterInfo) {
           try {
             const adapterClient = new api.ApiClient({
               apiUrl: conversationApiUrl,
@@ -411,7 +417,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
           // Use conversation's stored API key and URL (don't fall back to localStorage)
           // This ensures each conversation uses its own API key for deletion
           const conversationApiUrl = conversation.apiUrl || 'http://localhost:3000';
-          const conversationApiKey = conversation.apiKey || 'default-key';
+          const conversationApiKey = conversation.apiKey || DEFAULT_API_KEY;
           
           debugLog(`🔑 Using conversation's API key for deletion: ${conversationApiKey.substring(0, 8)}... (conversation: ${id})`);
           
@@ -452,9 +458,84 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
 
     set((state: ExtendedChatState) => {
       const filtered = state.conversations.filter((c: Conversation) => c.id !== id);
-      const newCurrentId = state.currentConversationId === id 
+      let newCurrentId = state.currentConversationId === id 
         ? (filtered[0]?.id || null) 
         : state.currentConversationId;
+
+      // If all conversations are deleted, create a new default conversation
+      if (filtered.length === 0) {
+        const defaultConversationId = `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const defaultSessionId = generateUniqueSessionId();
+        const defaultConversation: Conversation = {
+          id: defaultConversationId,
+          sessionId: defaultSessionId,
+          title: 'New Chat',
+          messages: [],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          apiKey: DEFAULT_API_KEY,
+          apiUrl: 'http://localhost:3000'
+        };
+
+        // Configure API with default key and validate it
+        ensureApiConfigured().then(isConfigured => {
+          if (isConfigured) {
+            getApi().then(api => {
+              api.configureApi('http://localhost:3000', DEFAULT_API_KEY, defaultSessionId);
+              
+              // Validate and load adapter info for default key
+              try {
+                const validationClient = new api.ApiClient({
+                  apiUrl: 'http://localhost:3000',
+                  apiKey: DEFAULT_API_KEY,
+                  sessionId: null
+                });
+                
+                if (typeof validationClient.validateApiKey === 'function') {
+                  validationClient.validateApiKey().then(() => {
+                    debugLog('✅ Default API key validated after creating new conversation');
+                  }).catch(() => {
+                    debugWarn('Failed to validate default API key');
+                  });
+                }
+                
+                if (typeof validationClient.getAdapterInfo === 'function') {
+                  validationClient.getAdapterInfo().then(adapterInfo => {
+                    debugLog('✅ Adapter info loaded for default key:', adapterInfo);
+                    // Update the conversation with adapter info
+                    const currentState = useChatStore.getState();
+                    useChatStore.setState({
+                      conversations: currentState.conversations.map(conv =>
+                        conv.id === defaultConversationId
+                          ? { ...conv, adapterInfo: adapterInfo, updatedAt: new Date() }
+                          : conv
+                      )
+                    });
+                  }).catch(() => {
+                    debugWarn('Failed to load adapter info for default key');
+                  });
+                }
+              } catch (error) {
+                debugWarn('Failed to validate default API key:', error);
+              }
+            });
+          }
+        });
+
+        // Save to localStorage
+        setTimeout(() => {
+          localStorage.setItem('chat-state', JSON.stringify({
+            conversations: [defaultConversation],
+            currentConversationId: defaultConversationId
+          }));
+        }, 0);
+
+        return {
+          conversations: [defaultConversation],
+          currentConversationId: defaultConversationId,
+          sessionId: defaultSessionId
+        };
+      }
 
       // Save to localStorage
       setTimeout(() => {
@@ -585,9 +666,9 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         throw new Error('Conversation not found');
       }
       
-      // Check if conversation has a valid API key (not 'default-key')
-      if (!currentConversation.apiKey || currentConversation.apiKey === 'default-key') {
-        debugWarn(`[sendMessage] Conversation ${streamingConversationId} has invalid API key: ${currentConversation.apiKey}`);
+      // Check if conversation has an API key configured
+      if (!currentConversation.apiKey) {
+        debugWarn(`[sendMessage] Conversation ${streamingConversationId} has no API key`);
         throw new Error('API key not configured for this conversation. Please configure API settings first.');
       }
       
@@ -777,8 +858,8 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
           throw new Error('Conversation not found');
         }
         
-        // Check if conversation has a valid API key (not 'default-key')
-        if (!currentConversation.apiKey || currentConversation.apiKey === 'default-key') {
+        // Check if conversation has an API key configured
+        if (!currentConversation.apiKey) {
           throw new Error('API key not configured for this conversation. Please configure API settings first.');
         }
         
@@ -978,8 +1059,8 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         throw new Error('Conversation not found');
       }
       
-      // Check if conversation has a valid API key (not 'default-key')
-      if (!conversation.apiKey || conversation.apiKey === 'default-key') {
+      // Check if conversation has an API key configured
+      if (!conversation.apiKey) {
         throw new Error('API key not configured for this conversation. Cannot delete file.');
       }
       
@@ -1033,8 +1114,8 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         return;
       }
       
-      // Check if conversation has a valid API key (not 'default-key')
-      if (!conversation.apiKey || conversation.apiKey === 'default-key') {
+      // Check if conversation has an API key configured
+      if (!conversation.apiKey) {
         // Skip loading files if API key is not configured
         debugLog(`Skipping file load for conversation ${conversationId}: API key not configured`);
         return;
@@ -1129,10 +1210,11 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
 }));
 
 // Initialize store from localStorage
-const initializeStore = () => {
+const initializeStore = async () => {
   // Initialize API configuration first
+  // Use the configured default key from environment variable
   const savedApiUrl = localStorage.getItem('chat-api-url') || 'http://localhost:3000';
-  const savedApiKey = localStorage.getItem('chat-api-key') || 'orbit-123456789';
+  const savedApiKey = localStorage.getItem('chat-api-key') || DEFAULT_API_KEY;
   
   // Then initialize the rest of the store
   const saved = localStorage.getItem('chat-state');
@@ -1143,7 +1225,6 @@ const initializeStore = () => {
       const parsedState = JSON.parse(saved);
       // Restore Date objects and clean up any streaming messages
       // For backward compatibility: initialize conversations without apiKey/apiUrl with 'default-key'
-      // This ensures each conversation requires independent API key configuration
       parsedState.conversations = parsedState.conversations.map((conv: any) => ({
         ...conv,
         sessionId: conv.sessionId || generateUniqueSessionId(), // Generate sessionId for existing conversations if missing
@@ -1151,8 +1232,8 @@ const initializeStore = () => {
         updatedAt: new Date(conv.updatedAt),
         attachedFiles: conv.attachedFiles || [], // Ensure attachedFiles exists
         // Initialize apiKey and apiUrl if missing (backward compatibility)
-        // Use 'default-key' to require API key configuration for independence
-        apiKey: conv.apiKey || 'default-key',
+        // Use the configured default key
+        apiKey: conv.apiKey || DEFAULT_API_KEY,
         apiUrl: conv.apiUrl || 'http://localhost:3000',
         // Preserve adapterInfo if it exists
         adapterInfo: conv.adapterInfo || undefined,
@@ -1175,14 +1256,48 @@ const initializeStore = () => {
         }
       }
       
-      useChatStore.setState({
-        conversations: parsedState.conversations || [],
-        currentConversationId: parsedState.currentConversationId || null,
-        sessionId: sessionId
-      });
+      // If conversations array is empty, create a default conversation
+      if (!parsedState.conversations || parsedState.conversations.length === 0) {
+        const defaultConversationId = `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const defaultSessionId = generateUniqueSessionId();
+        const defaultConversation: Conversation = {
+          id: defaultConversationId,
+          sessionId: defaultSessionId,
+          title: 'New Chat',
+          messages: [],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          apiKey: DEFAULT_API_KEY,
+          apiUrl: 'http://localhost:3000'
+        };
+        
+        useChatStore.setState({
+          conversations: [defaultConversation],
+          currentConversationId: defaultConversationId,
+          sessionId: defaultSessionId
+        });
+        
+        sessionId = defaultSessionId;
+      } else {
+        useChatStore.setState({
+          conversations: parsedState.conversations || [],
+          currentConversationId: parsedState.currentConversationId || parsedState.conversations[0]?.id || null,
+          sessionId: sessionId
+        });
+        
+        // If no current conversation is set, use the first one
+        if (!parsedState.currentConversationId && parsedState.conversations.length > 0) {
+          useChatStore.setState({
+            currentConversationId: parsedState.conversations[0].id,
+            sessionId: parsedState.conversations[0].sessionId || sessionId
+          });
+          sessionId = parsedState.conversations[0].sessionId || sessionId;
+        }
+      }
       
       // Debug: Log loaded conversations and their session IDs
-      debugLog('📋 Loaded conversations:', parsedState.conversations.map((conv: any) => ({
+      const loadedConversations = useChatStore.getState().conversations;
+      debugLog('📋 Loaded conversations:', loadedConversations.map((conv: any) => ({
         id: conv.id,
         title: conv.title,
         sessionId: conv.sessionId,
@@ -1195,17 +1310,99 @@ const initializeStore = () => {
       }, 100);
     } catch (error) {
       logError('Failed to load chat state:', error);
+      // If loading fails, create a default conversation
+      const defaultConversationId = `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const defaultSessionId = generateUniqueSessionId();
+      const defaultConversation: Conversation = {
+        id: defaultConversationId,
+        sessionId: defaultSessionId,
+        title: 'New Chat',
+        messages: [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        apiKey: DEFAULT_API_KEY,
+        apiUrl: 'http://localhost:3000'
+      };
+      
+      useChatStore.setState({
+        conversations: [defaultConversation],
+        currentConversationId: defaultConversationId,
+        sessionId: defaultSessionId
+      });
+      
+      sessionId = defaultSessionId;
     }
+  } else {
+    // No saved state - create a default conversation with the configured default key
+    const defaultConversationId = `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const defaultSessionId = generateUniqueSessionId();
+    const defaultConversation: Conversation = {
+      id: defaultConversationId,
+      sessionId: defaultSessionId,
+      title: 'New Chat',
+      messages: [],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      apiKey: DEFAULT_API_KEY,
+      apiUrl: 'http://localhost:3000'
+    };
+    
+    useChatStore.setState({
+      conversations: [defaultConversation],
+      currentConversationId: defaultConversationId,
+      sessionId: defaultSessionId
+    });
+    
+    sessionId = defaultSessionId;
   }
   
-  // Configure API with saved or default values and the appropriate session ID
-  getApi().then(api => {
+  // Auto-configure API with 'default-key' if no key is saved, and validate it
+  try {
+    const api = await getApi();
     api.configureApi(savedApiUrl, savedApiKey, sessionId);
     currentApiUrl = savedApiUrl;
     apiConfigured = true;
-  }).catch(error => {
+    
+    // Validate and load adapter info for the default key on startup
+    if (savedApiKey === DEFAULT_API_KEY || !localStorage.getItem('chat-api-key')) {
+      try {
+        const validationClient = new api.ApiClient({
+          apiUrl: savedApiUrl,
+          apiKey: savedApiKey,
+          sessionId: null
+        });
+        
+        // Validate the API key
+        if (typeof validationClient.validateApiKey === 'function') {
+          await validationClient.validateApiKey();
+          debugLog('✅ Default API key validated on startup');
+        }
+        
+        // Load adapter info
+        if (typeof validationClient.getAdapterInfo === 'function') {
+          const adapterInfo = await validationClient.getAdapterInfo();
+          debugLog('✅ Adapter info loaded for default key:', adapterInfo);
+          
+          // Update the current conversation with adapter info
+          const currentState = useChatStore.getState();
+          if (currentState.currentConversationId) {
+            useChatStore.setState({
+              conversations: currentState.conversations.map(conv =>
+                conv.id === currentState.currentConversationId
+                  ? { ...conv, adapterInfo: adapterInfo, updatedAt: new Date() }
+                  : conv
+              )
+            });
+          }
+        }
+      } catch (error) {
+        debugWarn('Failed to validate default API key on startup:', error);
+        // Don't fail initialization if validation fails
+      }
+    }
+  } catch (error) {
     logError('Failed to initialize API:', error);
-  });
+  }
 };
 
 // Initialize store on import

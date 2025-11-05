@@ -5,6 +5,9 @@ import { FileUploadService, FileUploadProgress } from '../services/fileService';
 import { useChatStore } from '../stores/chatStore';
 import { debugLog, debugWarn, debugError } from '../utils/debug';
 
+// Default API key from environment variable
+const DEFAULT_API_KEY = import.meta.env.VITE_DEFAULT_KEY || 'default-key';
+
 interface FileUploadProps {
   onFilesSelected: (files: FileAttachment[]) => void;
   onUploadError?: (error: string) => void;
@@ -137,7 +140,7 @@ export function FileUpload({
                 } else {
                   // File was uploaded but not in uploadedFiles, delete directly with conversation's API key
                   const conversation = store.conversations.find(conv => conv.id === store.currentConversationId);
-                  if (conversation && conversation.apiKey && conversation.apiKey !== 'default-key') {
+                  if (conversation && conversation.apiKey && conversation.apiKey !== DEFAULT_API_KEY) {
                     const conversationApiKey = conversation.apiKey;
                     const conversationApiUrl = conversation.apiUrl || 'http://localhost:3000';
                     await FileUploadService.deleteFile(fileId, conversationApiKey, conversationApiUrl);
@@ -188,8 +191,8 @@ export function FileUpload({
         const store = useChatStore.getState();
         const conversation = store.conversations.find(conv => conv.id === store.currentConversationId);
         
-        // Check if conversation has a valid API key (not 'default-key')
-        if (!conversation || !conversation.apiKey || conversation.apiKey === 'default-key') {
+        // Check if conversation has a valid API key (not the default key)
+        if (!conversation || !conversation.apiKey || conversation.apiKey === DEFAULT_API_KEY) {
           throw new Error('API key not configured for this conversation. Please configure API settings first.');
         }
         
