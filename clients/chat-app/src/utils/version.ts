@@ -4,7 +4,7 @@
 
 // Package version from package.json (this will be replaced at build time)
 export const PACKAGE_VERSION = '1.0.0';
-export const API_PACKAGE_VERSION = '^0.5.3';
+export const API_PACKAGE_VERSION = '^1.0.0';
 
 /**
  * Get the current API package version being used
