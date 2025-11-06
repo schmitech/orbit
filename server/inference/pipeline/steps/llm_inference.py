@@ -241,6 +241,11 @@ class LLMInferenceStep(PipelineStep):
         if language_instruction:
             parts.append(language_instruction)
 
+        # Add chart instruction
+        chart_instruction = self._build_chart_instruction()
+        if chart_instruction:
+            parts.append(chart_instruction)
+
         # Add file/document content for file-based adapters (CRITICAL FIX)
         # For message format, the file content MUST be in the system message
         if context.formatted_context:
@@ -298,6 +303,11 @@ class LLMInferenceStep(PipelineStep):
         language_instruction = self._build_language_instruction(context)
         if language_instruction:
             parts.append(language_instruction)
+
+        # Add chart instruction
+        chart_instruction = self._build_chart_instruction()
+        if chart_instruction:
+            parts.append(chart_instruction)
 
         if context_section:
             parts.append(context_section)
@@ -483,4 +493,100 @@ class LLMInferenceStep(PipelineStep):
         if config.get('general', {}).get('verbose', False):
             self.logger.info(f"DEBUG: Using language instruction for {language_name} ({detected_language})")
         
-        return instruction 
+        return instruction
+    
+    """
+    Chart formatting instruction for LLM prompts.
+    This function can be integrated into your LLM system prompt or instructions.
+    """
+    def _build_chart_instruction(self) -> str:
+        """
+        Build chart formatting instruction for LLM.
+
+        Returns:
+            Chart instruction string that teaches the LLM how to format charts
+            for the markdown renderer with recharts support.
+        """
+        return (
+            "<CHART_FORMATTING>\n"
+            "When the user requests a chart, graph, or data visualization, use chart code blocks that will be automatically rendered as interactive charts.\n"
+            "\n"
+            "## Format Options:\n"
+            "\n"
+            "### 1. Simple Format (for basic charts):\n"
+            "```chart\n"
+            "type: bar\n"
+            "title: Sales by Quarter\n"
+            "data: [45000, 52000, 48000, 60000]\n"
+            "labels: [Q1, Q2, Q3, Q4]\n"
+            "colors: [#3b82f6, #8b5cf6, #ec4899, #f59e0b]\n"
+            "```\n"
+            "\n"
+            "### 2. Table Format (recommended for multi-series data):\n"
+            "```chart\n"
+            "type: line\n"
+            "title: Revenue vs Expenses\n"
+            "| Month | Revenue | Expenses |\n"
+            "|-------|---------|----------|\n"
+            "| Jan   | 100000  | 80000    |\n"
+            "| Feb   | 150000  | 90000    |\n"
+            "| Mar   | 200000  | 110000   |\n"
+            "```\n"
+            "\n"
+            "## Supported Chart Types:\n"
+            "- **bar**: For comparing values across categories\n"
+            "- **line**: For showing trends over time\n"
+            "- **pie**: For showing proportions/percentages\n"
+            "- **area**: For showing cumulative trends\n"
+            "- **scatter**: For showing relationships between variables\n"
+            "\n"
+            "## Guidelines:\n"
+            "- Use table format for multiple data series (easier to read)\n"
+            "- Include descriptive titles\n"
+            "- Labels can contain spaces (e.g., \"Product A\", \"Direct Sales\")\n"
+            "- Colors support hex codes (e.g., #3b82f6, #10b981)\n"
+            "- Always specify the chart type\n"
+            "- Use appropriate chart types for the data context\n"
+            "\n"
+            "## Example Usage:\n"
+            "When user asks: \"Show me quarterly sales\"\n"
+            "Output:\n"
+            "```chart\n"
+            "type: bar\n"
+            "title: Quarterly Sales Performance\n"
+            "data: [45000, 52000, 48000, 60000]\n"
+            "labels: [Q1, Q2, Q3, Q4]\n"
+            "```\n"
+            "</CHART_FORMATTING>\n"
+        )
+
+    # Alternative shorter version (if token budget is tight)
+    def _build_chart_instruction_compact(self) -> str:
+        """
+        Compact version of chart instruction for token-constrained scenarios.
+
+        Returns:
+            Shorter chart instruction string
+        """
+        return (
+            "<CHARTS>\n"
+            "Create interactive charts using chart code blocks:\n"
+            "\n"
+            "```chart\n"
+            "type: bar | line | pie | area | scatter\n"
+            "title: Chart Title Here\n"
+            "data: [10, 20, 30]\n"
+            "labels: [Label A, Label B, Label C]\n"
+            "colors: [#3b82f6, #8b5cf6, #ec4899]\n"
+            "```\n"
+            "\n"
+            "OR use table format (better for multi-series):\n"
+            "```chart\n"
+            "type: line\n"
+            "| X-axis | Series1 | Series2 |\n"
+            "|--------|---------|---------|\n"
+            "| Jan    | 100     | 80      |\n"
+            "| Feb    | 150     | 90      |\n"
+            "```\n"
+            "</CHARTS>\n"
+        )
