@@ -16,7 +16,7 @@
   },
   "dependencies": {
     "@schmitech/chatbot-api": "^1.0.0",
-    "@schmitech/markdown-renderer": "^0.2.0",
+    "@schmitech/markdown-renderer": "^0.3.3",
     "@types/markdown-it": "^14.1.2",
     "lucide-react": "^0.344.0",
     "path": "^0.12.7",
