@@ -2,9 +2,6 @@
 
 ## Quick Links
 
-### New in v1.6.0+
-- **[Reranker Architecture](reranker-architecture.md)** - NEW: Improve retrieval accuracy with reranking
-
 Welcome to the ORBIT (Open Retrieval-Based Inference Toolkit) documentation. This directory contains comprehensive guides for deploying, configuring, and extending ORBIT.
 
 ## Quick Start

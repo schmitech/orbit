@@ -27,10 +27,10 @@ adapters:
     adapter: "multimodal"
     implementation: "implementations.passthrough.multimodal.MultimodalImplementation"
     # Provider overrides (optional - use when you want different providers than global defaults)
-    inference_provider: "ollama_cloud"    # Override default inference provider
-    model: "minimax-m2:cloud"            # Specific model for this adapter
-    embedding_provider: "openai"          # Embeddings for file chunk retrieval (matches uploaded files)
-    vision_provider: "gemini"             # Vision provider for image files: openai, gemini, anthropic (see vision.yaml)
+    inference_provider: "ollama"    # Override default inference provider
+    model: "gpt-oss:120b"            # Specific model for this adapter
+    embedding_provider: "ollama"          # Embeddings for file chunk retrieval (matches uploaded files)
+    vision_provider: "ollama"             # Vision provider for image files: openai, gemini, anthropic (see vision.yaml)
     
     config:
       # File adapter configuration (similar to file-document-qa)

@@ -1,5 +1,70 @@
 # Changelog
 
+## [2.2.0] - 2025-11-05
+
+### Core System Updates
+- SQLite Backend: Added support for SQLite backend in addition to MongoDB for easier setup and simplicity
+- Refactor Backend Services: Refactored core backend services to be more db-agnostic, fixed unit tests, added backend selection in config summary logger
+- Added DuckDB: New DuckDB store & datasource, updated roadmap documentation
+- Vision Services: New vision AI services in addition to embeddings, inference and rerankers, fix logging configurator, remove warning suppression
+- Remove inference_only mode: Removed the inference_only configuration option and all related code paths; system now exclusively uses adapters from adapters.yaml for routing
+- Update Inference.yaml: Update ollama_cloud settings for RAG purposes, enabled other providers previously marked as disabled
+- Config Updates: Update adapters and inference yaml config files to match latest features, optimized Ollama settings for large context
+- Update stores.yaml: Disable pinecone and qdrant by default
+
+### New Adapters & Features
+- New Files Adapter: Introduced new file adapter to perform AI reasoning tasks on files
+- New Multimodal Adapter: Added new multimodal adapter to chat with files in addition to regular inference
+- New DuckDB Adapter: Added new DuckDB retriever adapter for querying CSV/Parquet sources using SQL
+- New Adapter Info API: Added new endpoint to pull details about the agent associated with api key, including adapter name and AI model being used
+- File Adapter Integration: Implement file adapter integration with api.ts and chat-client for multimodal support, further updates to file adapter pipeline, more unit tests
+- File Retriever Updates: Further completion of new file retriever adapter, fix unit tests, update roadmap, added file conversation plan
+- Retrievers Adapter Updates: Further improvements of the new file retriever adapter, improve base retriever vector chunking handler for SQL and other intent-based retrievers
+- Firecrawler Chunking: Implemented vector chunking for HTTP firecrawler adapter when returning large content from web site
+
+### API & Client Updates
+- Node API 1.0.0: Update chat-app to use NPM Node API v 1.0.0, published new version to NPM
+- Python chat client: Fix formatting issues for numeric values, dates and emails, published v1.1.3, added adapter planning prompts for future use
+- Py Chat CLI 1.1.2: New Release of Python chat CLI to 1.1.2
+- Rename API Key: Added new api endpoint to rename api keys
+- Add API key validation: Add validateApiKey() method to ApiClient and integrate validation in chat-app when configuring API settings, replace console.error with console.warn for user-friendly messages
+- Add caching to prevent repeated initialization: Caches FileVectorRetriever instances to avoid redundant ChromaDB connections and embedding initialization on every request, includes comprehensive test coverage (19 new tests)
+
+### Chat-app & UI Improvements
+- Chat-app Updates: Multiple improvements to chat-app files upload functionality, associate conversations with their own api keys / session ids, further improvements
+- Chat Widget Theming Fixes: Renamed background to questionsBackground to match the parameter in chat widget
+- Clear All Conversations: Added clear all conversations button
+- Multimodal Adapter CleanUp: Clean up debug lines after multimodal adapter, only log when verbose / debug is enabled, added file vacuum script
+
+### Bug Fixes & Technical Improvements
+- Fix streaming issues: Fix streaming issues, update logging verbosity from intent modules, update chat_client and test_mcp clients
+- Fix SQL and HTTP Intent Issues: Fix issues preventing SQL and HTTP based intent retrievers from being returned by the inference pipeline
+- OpenAI Streaming Issues: Address issues from OpenAI inference provider, added more unit tests, updated openai version
+- Fix text_vector_retriever_truncation: Fix unit test
+- Fix Unit Tests: Fix remaining of tests causing errors
+- Update intent_http_base.py: Added dump query results when verbose is true
+- Update llm_inference.py: Added chart instructions when asking to generate charts in the prompt
+
+### File & Retrieval System
+- Files Adapter Updates: Further refinement of new file adapter towards new release, more test coverage for file adapter, updated vector stores to better handle file chunking, enable sentence transformer library in minimal installation profile
+- File Adapter Updates: Further improve new file adapter, added more unit tests
+- Update with MarkdownRenderer 0.2.0: Import MarkdownRenderer 0.2.0
+- Update package.json: Update MarkdownRenderer to v0.3.3
+
+### Testing & Quality Assurance
+- Create Unit Test: New unit test for file adapter
+- Create File Unit Test: Add additional file adapter unit test
+- Ollama Embedding Test: Added new test for ollama embedding
+
+### Documentation & Examples
+- Create secure LLM RAG Diagram: New diagram describing on-prem LLM architecture
+- Update legal document example: Updated document
+- Remove adapter comparison: Removed unused document
+- Data Correlation Examples: Added sample files to test data correlation when analyzing multiple files
+- More Files Examples: Additional files examples to test multimodal capabilities
+- Roadmap Updates: Update roadmap plans, add reranking new design, add roadmap item (SQLite)
+- Update logs_templates.yaml: Refine DSL queries
+
 ## [1.6.0] - 2025-10-25
 
 ### Core System Updates

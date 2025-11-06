@@ -2,7 +2,7 @@
 
 ## Overview
 
-The reranker service enhances retrieval accuracy by reordering retrieved documents based on their relevance to the user's query. This document explains the new unified reranker architecture implemented in ORBIT v1.6.0+.
+The reranker service enhances retrieval accuracy by reordering retrieved documents based on their relevance to the user's query. This document explains the new unified reranker architecture.
 
 ## Architecture
 
