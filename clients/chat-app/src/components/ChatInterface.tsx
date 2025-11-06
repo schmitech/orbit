@@ -7,6 +7,8 @@ import { debugError } from '../utils/debug';
 
 // Default API key from environment variable
 const DEFAULT_API_KEY = import.meta.env.VITE_DEFAULT_KEY || 'default-key';
+// Default API URL from environment variable
+const DEFAULT_API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 interface ChatInterfaceProps {
   onOpenSettings: () => void;
@@ -27,7 +29,7 @@ export function ChatInterface({ onOpenSettings }: ChatInterfaceProps) {
   // Configuration state for API settings
   const [showConfig, setShowConfig] = useState(false);
   // Always start with default values when opening the modal
-  const [apiUrl, setApiUrl] = useState('http://localhost:3000');
+  const [apiUrl, setApiUrl] = useState(DEFAULT_API_URL);
   const [apiKey, setApiKey] = useState(DEFAULT_API_KEY);
   const [showApiKey, setShowApiKey] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
@@ -61,7 +63,7 @@ export function ChatInterface({ onOpenSettings }: ChatInterfaceProps) {
         // Clear any existing error after successful configuration
         clearError();
         // Reset to default values after successful configuration
-        setApiUrl('http://localhost:3000');
+        setApiUrl(DEFAULT_API_URL);
         setApiKey(DEFAULT_API_KEY);
         setValidationError(null);
         setShowApiKey(false);
@@ -141,7 +143,7 @@ export function ChatInterface({ onOpenSettings }: ChatInterfaceProps) {
                     <button
                       onClick={() => {
                         // Reset to default values when canceling
-                        setApiUrl('http://localhost:3000');
+                        setApiUrl(DEFAULT_API_URL);
                         setApiKey(DEFAULT_API_KEY);
                         setValidationError(null);
                         setShowApiKey(false);
@@ -224,7 +226,7 @@ export function ChatInterface({ onOpenSettings }: ChatInterfaceProps) {
                     // Always reset to default values when opening the modal
                     // This ensures a clean slate for API key configuration
                     // The conversation's stored API key will remain unchanged until explicitly configured
-                    setApiUrl('http://localhost:3000');
+                    setApiUrl(DEFAULT_API_URL);
                     setApiKey(DEFAULT_API_KEY);
                     setValidationError(null);
                     setShowApiKey(false);
