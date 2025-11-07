@@ -312,10 +312,6 @@ class QASSQLRetriever(SQLiteRetriever):
             if collection_name:
                 # Explicit collection name provided
                 await self.set_collection(collection_name)
-            elif api_key:
-                # Try to resolve from API key (legacy behavior)
-                collection = await self._resolve_collection(api_key)
-                await self.set_collection(collection)
             elif self.collection:
                 # Use table from adapter config (new adapter system)
                 if self.verbose:
