@@ -944,16 +944,36 @@ class DynamicAdapterManager:
         except Exception as e:
             self.logger.warning(f"Error releasing datasource for adapter {adapter_name}: {str(e)}")
 
+        # Unregister capabilities to ensure fresh inference on reload
+        try:
+            from adapters.capabilities import get_capability_registry
+            capability_registry = get_capability_registry()
+            capability_registry.unregister(adapter_name)
+            if self.verbose:
+                self.logger.debug(f"Unregistered capabilities for adapter: {adapter_name}")
+        except Exception as e:
+            self.logger.warning(f"Error unregistering capabilities for adapter {adapter_name}: {str(e)}")
+
         self.logger.info(f"Removed adapter from cache: {adapter_name}")
         return True
-    
+
     async def clear_cache(self) -> None:
         """Clear all cached adapters and clean up resources."""
         adapter_names = list(self._adapter_cache.keys())
-        
+
         for adapter_name in adapter_names:
             await self.remove_adapter(adapter_name)
-        
+
+        # Clear all capabilities from registry
+        try:
+            from adapters.capabilities import get_capability_registry
+            capability_registry = get_capability_registry()
+            capability_registry.clear()
+            if self.verbose:
+                self.logger.debug("Cleared all capabilities from registry")
+        except Exception as e:
+            self.logger.warning(f"Error clearing capability registry: {str(e)}")
+
         self.logger.info("Cleared all adapters from cache")
     
     async def health_check(self) -> Dict[str, Any]:

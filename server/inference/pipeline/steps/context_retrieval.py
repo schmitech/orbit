@@ -2,26 +2,149 @@
 Context Retrieval Step
 
 This step retrieves relevant context documents for RAG processing.
+Refactored to use capability-based architecture instead of hardcoded adapter checks.
 """
 
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from ..base import PipelineStep, ProcessingContext
+from adapters.capabilities import (
+    AdapterCapabilities,
+    get_capability_registry,
+    FormattingStyle,
+    RetrievalBehavior
+)
 
 class ContextRetrievalStep(PipelineStep):
     """
     Retrieve relevant context documents.
-    
+
     This step performs RAG (Retrieval-Augmented Generation) by
     searching for relevant documents based on the user's query.
+
+    Uses capability-based architecture to determine adapter behavior
+    without hardcoded type checks.
     """
-    
+
+    def __init__(self, container: 'ServiceContainer'):
+        """Initialize the step and load adapter capabilities."""
+        super().__init__(container)
+        self._capability_registry = get_capability_registry()
+        self._initialize_capabilities()
+
+    def _initialize_capabilities(self) -> None:
+        """
+        Initialize adapter capabilities from configuration.
+
+        This runs once at startup to register all adapter capabilities
+        from the configuration, avoiding repeated config parsing.
+        """
+        if not self.container.has('adapter_manager'):
+            self.logger.debug(
+                "Adapter manager not available, skipping capability initialization. "
+                "Capabilities will be inferred on-demand."
+            )
+            return
+
+        adapter_manager = self.container.get('adapter_manager')
+
+        # Get all adapter configurations
+        adapter_configs = adapter_manager._adapter_configs if hasattr(
+            adapter_manager, '_adapter_configs'
+        ) else {}
+
+        for adapter_name, adapter_config in adapter_configs.items():
+            # Check if capabilities are explicitly defined in config
+            if 'capabilities' in adapter_config:
+                # Load from config
+                self._capability_registry.register_from_config(
+                    adapter_name, adapter_config
+                )
+            else:
+                # Infer capabilities from adapter type and config
+                capabilities = self._infer_capabilities(adapter_config)
+                self._capability_registry.register(adapter_name, capabilities)
+
+        self.logger.info(
+            f"Initialized capabilities for {len(adapter_configs)} adapters"
+        )
+
+    def _infer_capabilities(self, adapter_config: Dict[str, Any]) -> AdapterCapabilities:
+        """
+        Infer adapter capabilities from configuration.
+
+        This provides backward compatibility for adapters that don't
+        explicitly declare capabilities in their config.
+
+        Args:
+            adapter_config: Adapter configuration dictionary
+
+        Returns:
+            Inferred AdapterCapabilities
+        """
+        adapter_type = adapter_config.get('type', 'retriever')
+        adapter_impl = adapter_config.get('adapter', '')
+
+        # Passthrough adapters
+        if adapter_type == 'passthrough':
+            if adapter_impl == 'multimodal':
+                return AdapterCapabilities.for_passthrough(supports_file_retrieval=True)
+            else:
+                return AdapterCapabilities.for_passthrough(supports_file_retrieval=False)
+
+        # File adapters
+        if adapter_impl == 'file' or 'file' in adapter_config.get('name', '').lower():
+            return AdapterCapabilities.for_file_adapter()
+
+        # Standard retriever adapters (QA, Intent, etc.)
+        return AdapterCapabilities.for_standard_retriever()
+
+    def _get_capabilities(self, adapter_name: str) -> Optional[AdapterCapabilities]:
+        """
+        Get capabilities for an adapter.
+
+        Args:
+            adapter_name: Name of the adapter
+
+        Returns:
+            AdapterCapabilities or None if not found
+        """
+        capabilities = self._capability_registry.get(adapter_name)
+
+        if not capabilities:
+            # Try to get from adapter manager if not in registry
+            if self.container.has('adapter_manager'):
+                adapter_manager = self.container.get('adapter_manager')
+                adapter_config = adapter_manager.get_adapter_config(adapter_name)
+
+                if adapter_config:
+                    try:
+                        capabilities = self._infer_capabilities(adapter_config)
+                        self._capability_registry.register(adapter_name, capabilities)
+                        self.logger.debug(
+                            f"Inferred and registered capabilities for adapter: {adapter_name}"
+                        )
+                    except Exception as e:
+                        self.logger.warning(
+                            f"Failed to infer capabilities for adapter '{adapter_name}': {e}. "
+                            "Using default behavior."
+                        )
+                else:
+                    self.logger.warning(
+                        f"Adapter configuration not found for '{adapter_name}'. "
+                        "Capabilities cannot be inferred."
+                    )
+
+        return capabilities
+
     def should_execute(self, context: ProcessingContext) -> bool:
         """
         Determine if this step should execute.
 
+        Uses capability-based decision making instead of hardcoded checks.
+
         Returns:
-            True if adapter manager is available and not blocked
+            True if adapter manager is available and retrieval should occur
         """
         if context.is_blocked:
             return False
@@ -32,119 +155,187 @@ class ContextRetrievalStep(PipelineStep):
         if not context.adapter_name:
             return False
 
-        # Skip retrieval for passthrough adapters that explicitly opt out of context fetching
-        # Exception: multimodal adapter needs to retrieve file chunks
-        if self.container.has('adapter_manager'):
-            adapter_manager = self.container.get('adapter_manager')
-            adapter_config = adapter_manager.get_adapter_config(context.adapter_name) or {}
-            if adapter_config.get('type') == 'passthrough':
-                # Allow multimodal adapter to execute (it needs file retrieval)
-                # Check adapter config's 'adapter' field instead of hardcoding adapter name
-                if adapter_config.get('adapter') != 'multimodal':
-                    return False
+        # Get adapter capabilities
+        capabilities = self._get_capabilities(context.adapter_name)
 
-        return True
-    
+        if not capabilities:
+            # No capabilities found - assume standard retrieval for backward compatibility
+            self.logger.warning(
+                f"No capabilities found for adapter '{context.adapter_name}'. "
+                "This may indicate: "
+                "1) Adapter not registered in capability registry, "
+                "2) Adapter configuration missing, or "
+                "3) Capability inference failed. "
+                "Assuming standard retrieval behavior (ALWAYS, STANDARD formatting)."
+            )
+            return True
+
+        # Use capabilities to determine if retrieval should execute
+        return capabilities.should_retrieve(context)
+
     async def process(self, context: ProcessingContext) -> ProcessingContext:
         """
         Process the context and retrieve relevant documents.
-        
+
         Args:
             context: The processing context
-            
+
         Returns:
             The modified context with retrieved documents
         """
         if context.is_blocked:
             return context
-        
+
         self.logger.debug(f"Retrieving context for adapter: {context.adapter_name}")
-        
+
+        # Get adapter capabilities
+        capabilities = self._get_capabilities(context.adapter_name)
+
         try:
-            # Try to get adapter from adapter manager first (dynamic loading)
-            if self.container.has('adapter_manager'):
-                adapter_manager = self.container.get('adapter_manager')
-                retriever = await adapter_manager.get_adapter(context.adapter_name)
-                self.logger.debug(f"Using dynamic adapter: {context.adapter_name}")
-            else:
-                # Fall back to static retriever
-                retriever = self.container.get('retriever')
-                self.logger.debug(f"Using static retriever with adapter_name: {context.adapter_name}")
-            
+            # Get retriever instance
+            retriever = await self._get_retriever(context)
+
+            if not retriever:
+                context.set_error("Retriever not available")
+                return context
+
+            # Build retriever kwargs based on capabilities
+            retriever_kwargs = self._build_retriever_kwargs(context, capabilities)
+
             # Get relevant documents
-            # Pass file_ids and session_id if present (for file adapter and multimodal adapter)
-            retriever_kwargs = {}
-            
-            # Check if this is a multimodal adapter by checking adapter config
-            is_multimodal_adapter = False
-            if self.container.has('adapter_manager'):
-                adapter_manager = self.container.get('adapter_manager')
-                adapter_config = adapter_manager.get_adapter_config(context.adapter_name) or {}
-                is_multimodal_adapter = adapter_config.get('adapter') == 'multimodal'
-            
-            if context.file_ids:
-                # For file adapter and multimodal adapter, pass file_ids to filter by specific files
-                # Check adapter config or check if retriever supports file_ids
-                if (context.adapter_name == 'file-document-qa' or 
-                    is_multimodal_adapter or 
-                    hasattr(retriever, 'get_relevant_context')):
-                    # FileVectorRetriever and MultimodalImplementation accept file_ids parameter
-                    # If multiple file_ids, we'll pass all of them and let retriever handle it
-                    retriever_kwargs['file_ids'] = context.file_ids
-                    # Also pass api_key for file ownership validation
-                    if context.api_key:
-                        retriever_kwargs['api_key'] = context.api_key
-            
-            # Pass session_id for multimodal adapter (for logging and tracking purposes)
-            if is_multimodal_adapter and context.session_id:
-                retriever_kwargs['session_id'] = context.session_id
-            
-            # Prepare get_relevant_context call
-            # Don't pass api_key twice if it's already in retriever_kwargs
-            get_context_kwargs = retriever_kwargs.copy()
-            if context.api_key and 'api_key' not in get_context_kwargs:
-                get_context_kwargs['api_key'] = context.api_key
-            
             docs = await retriever.get_relevant_context(
                 query=context.message,
                 collection_name=None,
-                **get_context_kwargs
+                **retriever_kwargs
             )
-            
+
             context.retrieved_docs = docs
 
             # Check if results were truncated
-            truncation_info = None
-            if docs and len(docs) > 0:
-                # Check first document for truncation metadata
-                first_doc_metadata = docs[0].get('metadata', {})
-                if first_doc_metadata.get('truncated', False):
-                    truncation_info = {
-                        'shown': first_doc_metadata.get('result_count', len(docs)),
-                        'total': first_doc_metadata.get('total_available', len(docs))
-                    }
-                    self.logger.info(f"Retrieved {len(docs)} documents (truncated from {truncation_info['total']} total)")
-                else:
-                    self.logger.debug(f"Retrieved {len(docs)} documents")
+            truncation_info = self._get_truncation_info(docs)
+
+            if truncation_info:
+                shown = truncation_info['shown']
+                total = truncation_info['total']
+                self.logger.info(
+                    f"Retrieved {len(docs)} documents "
+                    f"(truncated from {total} total)"
+                )
             else:
                 self.logger.debug(f"Retrieved {len(docs)} documents")
 
-            # Format context for LLM (pass adapter_name and truncation info for formatting decision)
-            context.formatted_context = self._format_context(docs, context.adapter_name, truncation_info)
-            
+            # Format context for LLM using capabilities
+            context.formatted_context = self._format_context(
+                docs,
+                capabilities,
+                truncation_info
+            )
+
         except Exception as e:
             self.logger.error(f"Error during context retrieval: {str(e)}")
             context.set_error(f"Failed to retrieve context: {str(e)}")
-        
+
         return context
-    
-    def _format_context(self, documents: list, adapter_name: str = None, truncation_info: dict = None) -> str:
+
+    async def _get_retriever(self, context: ProcessingContext) -> Any:
+        """
+        Get retriever instance for the adapter.
+
+        Args:
+            context: Processing context
+
+        Returns:
+            Retriever instance or None
+        """
+        # Try to get adapter from adapter manager first (dynamic loading)
+        if self.container.has('adapter_manager'):
+            adapter_manager = self.container.get('adapter_manager')
+            retriever = await adapter_manager.get_adapter(context.adapter_name)
+            self.logger.debug(f"Using dynamic adapter: {context.adapter_name}")
+            return retriever
+        else:
+            # Fall back to static retriever
+            retriever = self.container.get('retriever')
+            self.logger.debug(
+                f"Using static retriever with adapter_name: {context.adapter_name}"
+            )
+            return retriever
+
+    def _build_retriever_kwargs(
+        self,
+        context: ProcessingContext,
+        capabilities: Optional[AdapterCapabilities]
+    ) -> Dict[str, Any]:
+        """
+        Build kwargs for get_relevant_context() based on capabilities.
+
+        Args:
+            context: Processing context
+            capabilities: Adapter capabilities
+
+        Returns:
+            Dictionary of kwargs
+        """
+        if capabilities:
+            # Use capabilities to build kwargs
+            return capabilities.build_retriever_kwargs(context)
+
+        # Fallback: build kwargs manually for backward compatibility
+        kwargs = {}
+
+        # Always include api_key if present
+        if context.api_key:
+            kwargs['api_key'] = context.api_key
+
+        # Include file_ids if present (for backward compatibility)
+        if context.file_ids:
+            kwargs['file_ids'] = context.file_ids
+
+        # Include session_id if present
+        if context.session_id:
+            kwargs['session_id'] = context.session_id
+
+        return kwargs
+
+    def _get_truncation_info(self, docs: list) -> Optional[Dict[str, int]]:
+        """
+        Extract truncation information from retrieved documents.
+
+        Args:
+            docs: List of retrieved documents
+
+        Returns:
+            Dictionary with 'shown' and 'total' keys, or None
+        """
+        if not docs or len(docs) == 0:
+            return None
+
+        # Check first document for truncation metadata
+        first_doc_metadata = docs[0].get('metadata', {})
+
+        if first_doc_metadata.get('truncated', False):
+            return {
+                'shown': first_doc_metadata.get('result_count', len(docs)),
+                'total': first_doc_metadata.get('total_available', len(docs))
+            }
+
+        return None
+
+    def _format_context(
+        self,
+        documents: list,
+        capabilities: Optional[AdapterCapabilities],
+        truncation_info: Optional[Dict[str, int]] = None
+    ) -> str:
         """
         Format retrieved documents into a context string.
 
+        Uses capabilities to determine formatting style instead of
+        hardcoded adapter name checks.
+
         Args:
             documents: List of retrieved documents
-            adapter_name: Name of the adapter (used to determine formatting style)
+            capabilities: Adapter capabilities
             truncation_info: Dict with 'shown' and 'total' keys if results were truncated
 
         Returns:
@@ -153,10 +344,42 @@ class ContextRetrievalStep(PipelineStep):
         if not documents:
             return "No relevant information found."
 
-        # For file adapter and multimodal adapter, use clean formatting without citations to prevent
-        # LLMs (especially Gemini) from adding citation markers like 【Document 1】
-        is_file_adapter = adapter_name and ('file' in adapter_name.lower() or 'multimodal' in adapter_name.lower())
+        # Determine formatting style from capabilities
+        if capabilities and capabilities.custom_format_context:
+            # Use custom formatting if provided
+            return capabilities.custom_format_context(
+                documents, truncation_info
+            )
 
+        formatting_style = (
+            capabilities.formatting_style
+            if capabilities
+            else FormattingStyle.STANDARD
+        )
+
+        if formatting_style == FormattingStyle.CLEAN:
+            return self._format_clean(documents, truncation_info)
+        else:
+            return self._format_standard(documents, truncation_info)
+
+    def _format_clean(
+        self,
+        documents: list,
+        truncation_info: Optional[Dict[str, int]] = None
+    ) -> str:
+        """
+        Format documents in clean style (no citations).
+
+        Used for file and multimodal adapters to prevent LLMs from
+        adding citation markers like 【Document 1】.
+
+        Args:
+            documents: List of documents
+            truncation_info: Truncation information
+
+        Returns:
+            Formatted context string
+        """
         context = ""
 
         # Add truncation notice at the beginning if applicable
@@ -164,22 +387,60 @@ class ContextRetrievalStep(PipelineStep):
             shown = truncation_info.get('shown', len(documents))
             total = truncation_info.get('total', len(documents))
             if shown < total:
-                context += f"NOTE: Showing {shown} of {total} total results from database. Results have been truncated.\n\n"
+                context += (
+                    f"NOTE: Showing {shown} of {total} total results from database. "
+                    "Results have been truncated.\n\n"
+                )
 
         for i, doc in enumerate(documents):
             content = doc.get('content', '')
 
-            if is_file_adapter:
-                # Clean format without source labels or confidence scores
-                # Add context label for first chunk to help LLM understand this is document content
-                if i == 0:
-                    context += "## Content extracted from uploaded file(s):\n\n"
-                context += f"{content}\n\n"
-            else:
-                # Standard format with document references for other adapters
-                metadata = doc.get('metadata', {})
-                source = metadata.get('source', f"Document {i+1}")
-                confidence = doc.get('confidence', doc.get('relevance', 0.0))
-                context += f"[{i+1}] {source} (confidence: {confidence:.2f})\n{content}\n\n"
+            # Add context label for first chunk to help LLM understand this is document content
+            if i == 0:
+                context += "## Content extracted from uploaded file(s):\n\n"
 
-        return context.strip() 
+            context += f"{content}\n\n"
+
+        return context.strip()
+
+    def _format_standard(
+        self,
+        documents: list,
+        truncation_info: Optional[Dict[str, int]] = None
+    ) -> str:
+        """
+        Format documents in standard style (with citations).
+
+        Used for standard retriever adapters (QA, Intent, etc.).
+
+        Args:
+            documents: List of documents
+            truncation_info: Truncation information
+
+        Returns:
+            Formatted context string
+        """
+        context = ""
+
+        # Add truncation notice at the beginning if applicable
+        if truncation_info:
+            shown = truncation_info.get('shown', len(documents))
+            total = truncation_info.get('total', len(documents))
+            if shown < total:
+                context += (
+                    f"NOTE: Showing {shown} of {total} total results from database. "
+                    "Results have been truncated.\n\n"
+                )
+
+        for i, doc in enumerate(documents):
+            content = doc.get('content', '')
+            metadata = doc.get('metadata', {})
+            source = metadata.get('source', f"Document {i+1}")
+            confidence = doc.get('confidence', doc.get('relevance', 0.0))
+
+            context += (
+                f"[{i+1}] {source} (confidence: {confidence:.2f})\n"
+                f"{content}\n\n"
+            )
+
+        return context.strip()
