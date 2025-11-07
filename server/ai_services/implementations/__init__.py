@@ -126,8 +126,8 @@ _implementations = [
 ]
 
 # Map service classes to their required SDK packages for commercial/cloud providers
-# Services not in this map don't require validation (they use packages in minimal profile)
-# Note: openai SDK is in minimal profile for local OpenAI-compatible servers (vLLM, Ollama Cloud, NVIDIA NIM)
+# Services not in this map don't require validation (they use packages in default dependencies)
+# Note: openai SDK is in default dependencies for local OpenAI-compatible servers (vLLM, Ollama Cloud, NVIDIA NIM)
 _required_packages = {
     # Commercial OpenAI services (require API keys)
     'OpenAIEmbeddingService': 'anthropic',  # Dummy check - we want to disable commercial OpenAI
@@ -160,8 +160,8 @@ _required_packages = {
     'XAIInferenceService': 'anthropic',  # Dummy check - commercial service
 
     # Note: VLLMInferenceService, OllamaCloudInferenceService, NVIDIAInferenceService are NOT in this list
-    # They use openai SDK (in minimal profile) to connect to local/self-hosted servers
-    # Ollama, Llama.cpp, Jina also don't need validation - they use packages in minimal profile
+    # They use openai SDK (in default dependencies) to connect to local/self-hosted servers
+    # Ollama, Llama.cpp, Jina also don't need validation - they use packages in default dependencies
     
     # Vision services
     'OpenAIVisionService': 'openai',

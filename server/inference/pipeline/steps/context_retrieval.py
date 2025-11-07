@@ -33,13 +33,14 @@ class ContextRetrievalStep(PipelineStep):
             return False
 
         # Skip retrieval for passthrough adapters that explicitly opt out of context fetching
-        # Exception: multimodal adapter (conversational-multimodal) needs to retrieve file chunks
+        # Exception: multimodal adapter needs to retrieve file chunks
         if self.container.has('adapter_manager'):
             adapter_manager = self.container.get('adapter_manager')
             adapter_config = adapter_manager.get_adapter_config(context.adapter_name) or {}
             if adapter_config.get('type') == 'passthrough':
                 # Allow multimodal adapter to execute (it needs file retrieval)
-                if context.adapter_name != 'conversational-multimodal':
+                # Check adapter config's 'adapter' field instead of hardcoding adapter name
+                if adapter_config.get('adapter') != 'multimodal':
                     return False
 
         return True
@@ -73,9 +74,20 @@ class ContextRetrievalStep(PipelineStep):
             # Get relevant documents
             # Pass file_ids and session_id if present (for file adapter and multimodal adapter)
             retriever_kwargs = {}
+            
+            # Check if this is a multimodal adapter by checking adapter config
+            is_multimodal_adapter = False
+            if self.container.has('adapter_manager'):
+                adapter_manager = self.container.get('adapter_manager')
+                adapter_config = adapter_manager.get_adapter_config(context.adapter_name) or {}
+                is_multimodal_adapter = adapter_config.get('adapter') == 'multimodal'
+            
             if context.file_ids:
                 # For file adapter and multimodal adapter, pass file_ids to filter by specific files
-                if context.adapter_name in ['file-document-qa', 'conversational-multimodal'] or hasattr(retriever, 'get_relevant_context'):
+                # Check adapter config or check if retriever supports file_ids
+                if (context.adapter_name == 'file-document-qa' or 
+                    is_multimodal_adapter or 
+                    hasattr(retriever, 'get_relevant_context')):
                     # FileVectorRetriever and MultimodalImplementation accept file_ids parameter
                     # If multiple file_ids, we'll pass all of them and let retriever handle it
                     retriever_kwargs['file_ids'] = context.file_ids
@@ -84,7 +96,7 @@ class ContextRetrievalStep(PipelineStep):
                         retriever_kwargs['api_key'] = context.api_key
             
             # Pass session_id for multimodal adapter (for logging and tracking purposes)
-            if context.adapter_name == 'conversational-multimodal' and context.session_id:
+            if is_multimodal_adapter and context.session_id:
                 retriever_kwargs['session_id'] = context.session_id
             
             # Prepare get_relevant_context call
