@@ -9,17 +9,17 @@ Orbit uses a TOML file (`dependencies.toml`) to manage different dependency prof
 ```
 
 This shows all available dependency profiles defined in `dependencies.toml`:
-- `minimal`: Core dependencies only (default)
+- (none): Core dependencies only (default)
 - `torch`: Adds PyTorch and transformer model support (GPU/CUDA optimized)
-- `commercial`: Adds commercial cloud providers (OpenAI, Anthropic, Google, etc.)
-- `all`: Includes everything (minimal + torch + commercial)
+- `cloud`: Adds commercial cloud providers (OpenAI, Anthropic, Google, etc.)
+- `all`: Includes everything (default + torch + cloud)
 - `development`: Adds development and testing tools
 - `custom_example`: Example custom profile (for reference)
 
 ### 2. Install Specific Profile
 
 ```bash
-# Install minimal dependencies (default)
+# Install default dependencies (no profile needed)
 ./setup.sh
 
 # Install PyTorch support (GPU/CUDA optimized)
@@ -42,7 +42,7 @@ This shows all available dependency profiles defined in `dependencies.toml`:
 ### 4. Download GGUF Model
 
 ```bash
-# Install minimal + download default GGUF model (gemma3-1b.gguf)
+# Install default dependencies + download default GGUF model (gemma3-1b.gguf)
 ./setup.sh --download-gguf
 
 # Install everything + download specific GGUF model
@@ -62,7 +62,7 @@ You can add custom profiles to `dependencies.toml`:
 ```toml
 [profiles.my_custom]
 description = "My custom profile for specific use case"
-extends = "minimal"  # Can be a string or array: ["minimal", "commercial"]
+extends = []  # Can be a string or array: ["torch", "cloud"] - empty means default dependencies only
 dependencies = [
     "openai==1.76",
     "streamlit==1.40.0",
@@ -82,7 +82,7 @@ Profiles can extend other profiles:
 ```toml
 [profiles.data_science]
 description = "Data science tools"
-extends = ["minimal", "torch"]
+extends = ["torch"]  # Extends torch profile (which includes default dependencies)
 dependencies = [
     "pandas>=2.0.0",
     "numpy>=1.24.0",
@@ -218,7 +218,8 @@ For containerized deployments, create a Dockerfile with support for different de
 FROM python:3.12-slim
 
 # Build arguments for dependency profiles
-ARG DEPENDENCY_PROFILE=minimal
+# Empty means default dependencies only, specify profile (e.g., torch, cloud) to add additional dependencies
+ARG DEPENDENCY_PROFILE=
 ARG INSTALL_EXTRA_DEPS=false
 
 WORKDIR /app
@@ -236,7 +237,7 @@ COPY dependencies.toml .
 
 # Install Python dependencies based on profile
 RUN pip install --no-cache-dir \
-    # Core dependencies (minimal profile)
+    # Core dependencies (default profile)
     fastapi>=0.115.9 \
     uvicorn==0.34.2 \
     python-dotenv==1.0.1 \
@@ -342,8 +343,8 @@ CMD ["server"]
 Build and distribute as a Docker image with different profiles:
 
 ```bash
-# Build with minimal dependencies
-docker build --build-arg DEPENDENCY_PROFILE=minimal -t orbit-server:0.1.0 .
+# Build with default dependencies only
+docker build -t orbit-server:0.1.0 .
 
 # Build with PyTorch support
 docker build --build-arg DEPENDENCY_PROFILE=torch -t orbit-server:0.1.0 .
@@ -367,7 +368,7 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        - DEPENDENCY_PROFILE=all  # Options: minimal, torch, commercial, all
+        - DEPENDENCY_PROFILE=all  # Options: (empty for default), torch, cloud, all
         - INSTALL_EXTRA_DEPS=false
 ```
 
@@ -456,7 +457,7 @@ The installation script (`install.sh`) supports different dependency profiles to
 # Show help and available options
 ./install.sh --help
 
-# Install with minimal profile (default)
+# Install with default dependencies (no profile needed)
 ./install.sh
 
 # Install with specific profile
@@ -467,17 +468,17 @@ The installation script (`install.sh`) supports different dependency profiles to
 
 ### Available Profiles
 
-- `minimal`: Core dependencies only (default)
+- (none): Core dependencies only (default)
 - `torch`: Adds PyTorch and transformer model support (GPU/CUDA optimized)
-- `commercial`: Adds commercial cloud providers (OpenAI, Anthropic, Google, etc.)
-- `all`: Includes everything (minimal + torch + commercial)
+- `cloud`: Adds commercial cloud providers (OpenAI, Anthropic, Google, etc.)
+- `all`: Includes everything (default + torch + cloud)
 - `development`: Adds development and testing tools
 - `custom_example`: Example custom profile (for reference)
 
 ### Examples
 
 ```bash
-# Install minimal dependencies (default)
+# Install default dependencies (no profile needed)
 ./install.sh
 
 # Install PyTorch support (GPU/CUDA optimized)

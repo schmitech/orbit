@@ -18,7 +18,7 @@ podman compose --help  # or podman-compose --version
 ```bash
 cd orbit/podman
 chmod +x podman-init.sh orbit-podman.sh
-./podman-init.sh --build --profile minimal
+./podman-init.sh --build
 ```
 
 The init script mirrors the Docker behaviour: it prepares config/env files, optionally downloads GGUF models, builds the image, starts the services, and runs a health check.

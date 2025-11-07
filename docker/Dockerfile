@@ -1,7 +1,8 @@
 FROM python:3.12-slim
 
 # Build arguments for dependency profiles
-ARG DEPENDENCY_PROFILE=minimal
+# Empty means default dependencies only, specify profile (e.g., torch, cloud) to add additional dependencies
+ARG DEPENDENCY_PROFILE=
 
 WORKDIR /app
 
@@ -35,8 +36,13 @@ RUN pip install --no-cache-dir --upgrade pip setuptools wheel
 RUN pip install --no-cache-dir tomli
 
 # Generate requirements file from TOML and install dependencies
+# If DEPENDENCY_PROFILE is empty, use default dependencies only
 RUN cd /app/install && \
-    python3 generate_requirements.py ${DEPENDENCY_PROFILE} /tmp/requirements.txt && \
+    if [ -z "${DEPENDENCY_PROFILE}" ]; then \
+        python3 generate_requirements.py --output /tmp/requirements.txt; \
+    else \
+        python3 generate_requirements.py "${DEPENDENCY_PROFILE}" --output /tmp/requirements.txt; \
+    fi && \
     pip install --no-cache-dir -r /tmp/requirements.txt && \
     rm /tmp/requirements.txt
 

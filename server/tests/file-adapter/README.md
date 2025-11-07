@@ -183,7 +183,7 @@ pytest tests/file-adapter/test_integration.py -v
 
 ### Dependencies
 
-All test dependencies are included in the `minimal` profile:
+All test dependencies are included in the default dependencies:
 - `pytest>=8.3.5`
 - `pytest-asyncio>=1.1.0` (for async tests)
 

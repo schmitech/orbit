@@ -12,7 +12,7 @@ NC='\033[0m'
 BUILD=false
 REBUILD=false
 VERBOSE=false
-PROFILE="minimal"
+PROFILE=""
 DOWNLOAD_GGUF=false
 PULL_MODEL=true
 CREATE_DEFAULT_CONFIG=true
@@ -64,7 +64,7 @@ print_help() {
     echo "Options:"
     echo "  --build                   Build containers before starting"
     echo "  --rebuild                 Force rebuild of Podman images"
-    echo "  --profile <name>          Dependency profile (minimal, torch, commercial, all)"
+    echo "  --profile <name>          Dependency profile (torch, cloud, all) - omit for default dependencies only"
     echo "  --config <file>           Use specific config file"
     echo "  --no-default-config       Skip copying default config directory"
     echo "  --download-gguf [model]   Download GGUF model(s)"
@@ -74,7 +74,7 @@ print_help() {
     echo "  --help                    Show this help message"
     echo ""
     echo "Examples:"
-    echo "  ./podman-init.sh --build --profile minimal"
+    echo "  ./podman-init.sh --build"
     echo "  ./podman-init.sh --download-gguf gemma3-1b.gguf"
     echo "  ./podman-init.sh --config ../config/config.yaml"
     exit 0
@@ -213,7 +213,7 @@ if [ "$DOWNLOAD_GGUF" = true ]; then
     done
 fi
 
-export DEPENDENCY_PROFILE=$PROFILE
+export DEPENDENCY_PROFILE=${PROFILE:-}
 
 echo -e "${YELLOW}🛑 Stopping existing containers...${NC}"
 $PODMAN_COMPOSE down || true

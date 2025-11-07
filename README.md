@@ -24,16 +24,13 @@ ORBIT (Open Retrieval-Based Inference Toolkit) is a middleware platform that pro
 
 ORBIT gives you a single, consistent API to run LLMs (local or cloud) against your private data sources with portability, performance, high-availability, and security at the core.
 
-
 > ⭐️ If ORBIT helps you ship faster, please consider starring the repo to support the roadmap.
 
 ## Table of Contents
 
 - [✨ Highlights](#highlights)
-- [🚀 Quick Start](#quick-start)
 - [🛠️ Why ORBIT](#why-orbit)
-- [🏗️ Architecture Overview](#architecture-overview)
-- [✨ What Can You Build with ORBIT?](#what-can-you-build-with-orbit)
+- [🚀 Quick Start](#quick-start)
 - [⭐ Support the Project](#support-the-project)
 - [📖 Documentation](#documentation)
 - [🤝 Community & Support](#community--support)
@@ -43,10 +40,31 @@ ORBIT gives you a single, consistent API to run LLMs (local or cloud) against yo
 
 ## Highlights
 
-- **Unified AI gateway** that normalizes requests across local models, cloud APIs, and hybrid deployments.
-- **Bring-your-own data** with production-grade RAG adapters for SQL, vector stores, and custom datasources.
+- **Unified AI gateway** supporting 20+ LLM providers (OpenAI, Anthropic, Gemini, Cohere, Mistral, Ollama, Groq, DeepSeek, xAI, OpenRouter, and more) plus local models via Ollama, llama.cpp, and vLLM.
+- **Comprehensive data integration** with RAG adapters for SQL databases (PostgreSQL, MySQL, SQLite, DuckDB, Oracle, SQL Server, Cassandra), vector stores (Chroma, Qdrant, Pinecone, Milvus, Elasticsearch, Redis), MongoDB, HTTP APIs, and file uploads with multimodal support.
+- **Intelligent query processing** with intent-based adapters that translate natural language to SQL, Elasticsearch queries, MongoDB queries, and HTTP API calls.
+- **Vision capabilities** with support for OpenAI, Gemini, and Anthropic vision models for image analysis and OCR.
 - **Secure by default** with token-based auth, role-aware API keys, and pluggable content moderation.
-- **Ready for teams** thanks to batteries-included clients (CLI, React widget, Node/Python SDKs) and automation scripts.
+- **Ready for teams** thanks to batteries-included clients (CLI, React widget, Node/Python SDKs).
+
+---
+
+## Why ORBIT
+
+- **Run securely with your data** thanks to support for on-prem hardware, air-gapped installs, and strict authentication defaults.
+- **Mix and match 20+ LLM providers** (OpenAI, Anthropic, Gemini, Cohere, Mistral, Ollama, Groq, DeepSeek, xAI, OpenRouter, and more) plus local models through a single unified API without rewriting downstream apps.
+- **Connect to any data source** with production-ready RAG adapters for SQL databases (PostgreSQL, MySQL, SQLite, DuckDB, Oracle, SQL Server, Cassandra), vector stores (Chroma, Qdrant, Pinecone, Milvus, Elasticsearch, Redis), MongoDB, HTTP APIs, and file uploads.
+- **Intelligent query translation** with intent-based adapters that automatically convert natural language to SQL, Elasticsearch queries, MongoDB queries, and HTTP API calls.
+- **Multimodal capabilities** with vision support for image analysis, OCR, and document understanding across multiple providers.
+
+### Built for
+
+- **Platform & infra teams** who need a stable control plane for LLM workloads across multiple providers and data sources.
+- **Product teams** shipping AI copilots that depend on reliable retrieval, intent-based querying, and guardrails.
+- **Data teams** building RAG applications that need to query SQL databases, vector stores, and APIs through natural language.
+- **Researchers & tinkerers** exploring local-first stacks, evaluating different foundation models, or building multimodal AI applications.
+
+Have a story or feature request? [Open an issue](https://github.com/schmitech/orbit/issues) or add it to the [Roadmap](docs/roadmap/README.md).
 
 ---
 
@@ -55,9 +73,10 @@ ORBIT gives you a single, consistent API to run LLMs (local or cloud) against yo
 ### Prerequisites
 
 - Python 3.12+ (for running the server or CLI locally)
-- Docker Engine 24+ (if you prefer containers)
-- MongoDB (Atlas or local) to unlock authentication, RAG, and history persistence
-- Optional: Redis cache plus your choice of vector DB (Chroma, Qdrant, Pinecone, Milvus)
+- Node.js 18+ and npm (for the React chat app)
+- Docker 20.10+ and Docker Compose 2.0+ (if you prefer containers)
+- Optional: MongoDB (only needed if using MongoDB backend instead of default SQLite)
+- Optional: Redis cache and vector DB (Chroma, Qdrant, Pinecone, Milvus, etc.)
 
 ### Docker
 
@@ -66,7 +85,7 @@ Refer to the [Docker Setup Guide](docker/README.md) or run the bundled scripts f
 ```bash
 cd docker
 chmod +x docker-init.sh orbit-docker.sh
-./docker-init.sh --build --profile minimal
+./docker-init.sh --build
 ```
 
 ### Local install
@@ -79,7 +98,7 @@ cd orbit-2.0.0
 
 # Bootstrap dependencies and download a small model
 cp env.example .env
-./install/setup.sh --profile minimal --download-gguf granite4-micro
+./install/setup.sh --download-gguf granite4-micro
 
 # Start the ORBIT server
 source venv/bin/activate
@@ -98,15 +117,48 @@ Browse to `http://localhost:3000/dashboard` to monitor the ORBIT server:
 
 ### Talk to ORBIT from the CLI
 
+First, install the `orbit-chat` CLI tool from PyPI:
+
 ```bash
 pip install schmitech-orbit-client
+```
 
-# Point to a running ORBIT instance (defaults to http://localhost:3000)
-orbit-chat
+Then follow these steps:
+
+```bash
+# Step 1: Login to ORBIT with default admin credentials (admin / admin123):
+./bin/orbit.sh login --username admin --password admin123
+
+# Or login interactively (will prompt for credentials):
+# ./bin/orbit.sh login
+
+# Step 2: Generate an API key (copy the key that's output)
+# For basic chat, use simple-chat adapter:
+./bin/orbit.sh key create \
+  --adapter simple-chat \
+  --name "Conversational Chatbot" \
+  --prompt-file ./examples/prompts/examples/default-conversational-adapter-prompt.txt \
+  --prompt-name "Conversational Prompt"
+
+# For file upload and multimodal support, use conversational-multimodal adapter instead:
+# ./bin/orbit.sh key create \
+#   --adapter simple-chat-with-files \
+#   --name "Multimodal Chatbot" \
+#   --prompt-file ./examples/prompts/examples/default-conversational-adapter-prompt.txt \
+#   --prompt-name "Conversational Prompt"
+
+# This will output something like: orbit_0sXJhNsK7FT9HCGEUS7GpkhtXvVOEMX6
+
+# Step 3 (Optional): Rename the API key for easier reference
+# Replace YOUR_ACTUAL_KEY with the key from Step 1
+./bin/orbit.sh key rename --old-key YOUR_ACTUAL_KEY --new-key default-key
+
+# Step 3: Start chatting (replace YOUR_ACTUAL_KEY with the key from Step 1)
+orbit-chat --url "http://localhost:3000" --api-key YOUR_ACTUAL_KEY
 ```
 
 <div align="center">
-  <video src="https://github.com/user-attachments/assets/b3cf6a86-b173-4c0b-9dd8-061df848dba4" controls>
+  <video src="https://github.com/user-attachments/assets/6ea2ba0c-eb59-43be-9bbd-0ff0dd90b587" controls>
     Your browser does not support the video tag.
   </video>
   <br/>
@@ -116,13 +168,29 @@ orbit-chat
 ### Spin up the React Chat app
 
 ```bash
+# Step 1: Navigate to the chat app directory
 cd clients/chat-app
+
+# Step 2: Copy the environment example file and configure it
+cp env.example .env.local
+
+# Step 3: Edit .env.local and adjust the settings:
+# - Set VITE_API_URL to your ORBIT server URL (default: http://localhost:3000)
+# - Set VITE_DEFAULT_KEY to your API key (or leave as default-key if you renamed your key)
+# - Adjust other settings as needed (see env.example for all options)
+# 
+# Note: File upload functionality only works with the conversational-multimodal adapter.
+# Make sure your API key is created with --adapter conversational-multimodal (not simple-chat).
+
+# Step 4: Install dependencies
 npm install
+
+# Step 5: Start the development server
 npm run dev
 ```
 
 <div align="center">
-  <video src="https://github.com/user-attachments/assets/1a591929-c536-4de5-a3a2-0493b16edbad" controls>
+  <video src="https://github.com/user-attachments/assets/9b61911e-f0c3-464e-a3a5-79c4645415c2" controls>
     Your browser does not support the video tag.
   </video>
   <br/>
@@ -131,406 +199,9 @@ npm run dev
 
 #### Next steps
 
-- Create an API key tied to the adapter you want to expose (`./bin/orbit.py key create`).
+- Create an API key tied to the adapter you want to expose (`./bin/orbit.sh key create`).
 - Enable or customize adapters in `config/adapters.yaml` and redeploy to connect new datasources.
 - Skim the [docs](#documentation) for deep dives on auth, configuration, and deployment patterns.
-
----
-
-## Why ORBIT
-
-- **Run securely with your data** thanks to first-class support for on-prem hardware, air-gapped installs, and strict authentication defaults.
-- **Mix and match models** (local, hosted, or API) through a single contract without rewriting downstream apps.
-- **Production-ready RAG** with adapters for SQL, vector databases, and pipelines that keep context fresh.
-- **Dev-friendly tooling** including a CLI, SDKs, React widget, and language clients maintained in this repo.
-
-### Built for
-
-- **Platform & infra teams** who need a stable control plane for LLM workloads.
-- **Product teams** shipping AI copilots that depend on reliable retrieval and guardrails.
-- **Researchers & tinkerers** exploring local-first stacks or evaluating different foundation models.
-
-Have a story or feature request? [Open an issue](https://github.com/schmitech/orbit/issues) or add it to the [Roadmap](docs/roadmap/README.md).
-
----
-
-## Architecture Overview
-
-<div align="center">
-  <img src="docs/images/orbit-architecture.png" width="700" alt="ORBIT Architecture" />
-</div>
-
-<details>
-<summary><b>Click to learn more about the Core Components</b></summary>
-
-### Core Components
-
-**ORBIT Server** (`/server/`): FastAPI-based inference middleware
-- **Inference Layer**: Supports multiple LLM providers (OpenAI, Anthropic, Cohere, Ollama, etc.) via unified interface
-- **RAG System**: Retrieval-Augmented Generation with SQL and Vector DB adapters (file-based / multimodal retrieval underway, it will be available in release 2.0.0)
-- **Authentication**: PBKDF2-SHA256 with bearer tokens, MongoDB-backed sessions
-- **Fault Tolerance**: Circuit breaker pattern with exponential backoff for provider failures
-- **Content Moderation**: Multi-layered safety with LLM Guard and configurable moderators
-
-**Configuration** (`/config/`): YAML-based modular configuration
-- Main config in `config.yaml` with environment variable support
-- Separate configs for adapters, datasources, embeddings, inference, moderators, and rerankers
-- Dynamic loading with validation and resolver system
-
-**Client Libraries**:
-- React-based chat application with Zustand state management
-- Embeddable chat widget with theming support
-- Node.js and Python API client libraries
-
-
-### Dependencies
-
-- **MongoDB** (Required): Authentication, RAG storage, conversation history
-- **Redis** (Optional): Caching layer
-- **Vector DBs** (Optional): Chroma, Qdrant, Pinecone, Milvus for semantic search
-- **SQL DBs** (Optional): PostgreSQL, MySQL, SQLite for structured data retrieval
-</details>
-
----
-
-## What Can You Build with ORBIT?
-
-ORBIT uses a flexible [adapter architecture](docs/adapters.md) to connect your data to AI models. An API key is tied to a specific adapter, effectively creating a specialized "agent" for a certain task. Here are a few examples:
-
-### Scenario 1: Knowledge Base Q&A
-Provide instant, semantically-aware answers from a knowledge base. Perfect for customer support or internal documentation.
-
-**Sample Questions:**
-- "What are the summer camp programs for kids?"
-- "How do I register for the contemporary dance class?"
-
-_NOTE: You need an instance of MongoDB to enable adapters_
-
-### Setup the sample SQLite Database with Q/A records about a municipality.
-
-Here's the [Sample Q/A datasets](examples/city-qa-pairs.json) for this example. The knowledge base corresponds to a municipal services assistant.
-
-Enable the adapter in `config/adapters.yaml`:
-
-```yaml
-- name: "qa-sql"
-  enabled: true
-  type: "retriever"
-  datasource: "sqlite"
-  adapter: "qa"
-  implementation: "retrievers.implementations.qa.QASSQLRetriever"
-```
-
-Restart ORBIT:
-
-```bash
-./bin/orbit.sh start --delete-logs
-```
-
-Generate sample data and API Key (Default SQLite DB in `examples/sqlite/sqlite_db`):
-
-```bash
-#Login as admin first. Default password is admin123. You should change after installing ORBIT.
-./bin/orbit.sh login
-
-# Set up SQLite database with Q&A data.
-./examples/sample-db-setup.sh sqlite
-```
-
-Start chatting with your new key:
-
-```bash
-orbit-chat --url http://localhost:3000 --api-key YOUR_API_KEY
-```
-
-<div align="center">
-  <video src="https://github.com/user-attachments/assets/0ffc5160-d8f9-4006-8e76-b58d89b42aa8" controls>
-    Your browser does not support the video tag.
-  </video>
-  <br/>
-  <i>Setting up the sample SQLite Q/A dataset</i>
-</div>
-
-### Scenario 2: Chat with Your SQL Database
-Ask questions about your data in natural language and get answers without writing SQL.
-
-**Sample Questions:**
-- "Show me all users from Toronto"
-- "What are the top 10 users by age?"
-- "Find users created in the last month"
-
-### Scenario 3: Analyze Application Logs with Elasticsearch
-Transform your application logs into actionable insights using natural language queries. Perfect for DevOps teams, SREs, and developers who need to quickly understand system behavior and troubleshoot issues.
-
-**Sample Questions:**
-- "Show me recent errors from the payment service"
-- "Which services have the most errors in the last hour?"
-- "Find slow API requests taking more than 2 seconds"
-- "What's the error trend over the last 24 hours?"
-- "Show me all timeout errors with their stack traces"
-
-#### Quick Start with Elasticsearch Log Analysis
-
-Set up Elasticsearch and generate sample log data:
-
-```bash
-# Ensure Elasticsearch is running (Docker example)
-docker run -d --name elasticsearch \
-  -p 9200:9200 -p 9300:9300 \
-  -e "discovery.type=single-node" \
-  -e "xpack.security.enabled=false" \
-  elasticsearch:8.11.0
-
-# Generate sample application logs
-python ./utils/elasticsearch-intent-template/examples/application-logs/generate_sample_data.py \
-  --count 1000 \
-  --use-ai \
-  --provider ollama \
-  --ai-usage-rate 30
-```
-
-Enable the Elasticsearch log analysis adapter in `config/adapters.yaml`:
-
-```yaml
-- name: "intent-elasticsearch-app-logs"
-  enabled: true
-  type: "retriever"
-  datasource: "elasticsearch"
-  adapter: "intent"
-  implementation: "retrievers.implementations.intent.IntentElasticsearchRetriever"
-  inference_provider: "ollama"
-  embedding_provider: "ollama"
-```
-
-Start ORBIT and create an API key:
-
-```bash
-./bin/orbit.sh start --delete-logs
-
-# Login and create API key
-./bin/orbit.sh login
-./bin/orbit.py key create \
-  --intent-elasticsearch-app-logs \
-  --name "Log Analysis Assistant" \
-  --notes "Elasticsearch log analysis with AI insights" \
-  --prompt-file examples/prompts/elasticsearch-log-assistant-prompt.txt
-
-# Start analyzing your logs
-orbit-chat --url http://localhost:3000 --api-key YOUR_API_KEY
-```
-
-### Scenario 4: Web-Based Knowledge Retrieval
-Access authoritative web sources (Wikipedia, official documentation) as a structured knowledge database. Perfect for research assistants, educational tools, and information lookup systems that need reliable, curated content.
-
-**Sample Questions:**
-- "Tell me about web scraping"
-- "What is machine learning?"
-- "I need Python documentation"
-- "Explain quantum computing"
-- "What is blockchain technology?"
-
-#### How It Works
-
-The Firecrawl adapter treats web sources like a database, mapping natural language questions about topics to authoritative URLs. Unlike generic web scrapers, this approach:
-- **Quality Control**: Only accesses curated, trusted sources
-- **Structured Access**: Predefined topic-to-URL mappings ensure relevant content
-- **Fresh Content**: Always retrieves the latest information from sources
-- **Consistent Format**: Returns formatted markdown content with metadata
-
-#### Quick Start with Web Knowledge Retrieval
-
-Set up your Firecrawl API key:
-
-```bash
-# Get your API key from https://firecrawl.dev
-export FIRECRAWL_API_KEY="your-api-key-here"
-```
-
-Enable the Firecrawl knowledge retrieval adapter in `config/adapters.yaml`:
-
-```yaml
-- name: "intent-firecrawl-webscrape"
-  enabled: true
-  type: "retriever"
-  datasource: "http"
-  adapter: "intent"
-  implementation: "retrievers.implementations.intent.IntentFirecrawlRetriever"
-  inference_provider: "ollama"
-  embedding_provider: "openai"
-  config:
-    domain_config_path: "utils/firecrawl-intent-template/examples/web-scraping/templates/firecrawl_domain.yaml"
-    template_library_path:
-      - "utils/firecrawl-intent-template/examples/web-scraping/templates/firecrawl_templates.yaml"
-    base_url: "https://api.firecrawl.dev/v1"
-    auth:
-      type: "bearer_token"
-      token_env: "FIRECRAWL_API_KEY"
-```
-
-Start ORBIT and create an API key:
-
-```bash
-./bin/orbit.sh start --delete-logs
-
-# Login and create API key
-./bin/orbit.sh login
-./bin/orbit.py key create \
-  --intent-firecrawl-webscrape \
-  --name "Knowledge Assistant" \
-  --notes "Web-based knowledge retrieval from authoritative sources" \
-  --prompt-file examples/prompts/firecrawl-knowledge-assistant-prompt.txt
-
-# Start asking questions about any topic
-orbit-chat --url http://localhost:3000 --api-key YOUR_API_KEY
-```
-
-### Scenario 5: Movie Database Analytics with MongoDB
-Analyze movies, ratings, comments, and user engagement using natural language queries against MongoDB's sample_mflix database. Perfect for building recommendation engines, content analytics dashboards, and understanding audience preferences through multi-collection analysis.
-
-**Sample Questions:**
-- "Show me action movies from 2010s with rating above 7"
-- "Find award-winning movies with the most user engagement"
-- "What are the most commented movies this year?"
-- "Analyze genre performance trends over time"
-- "Find underrated movies with high ratings but low comments"
-
-#### How It Works
-
-The MongoDB intent adapter maps natural language questions to MongoDB queries (both simple find operations and complex aggregation pipelines). This approach enables:
-- **Multi-Collection Joins**: Combine data from movies, comments, users, theaters, and sessions collections using `$lookup`
-- **Advanced Analytics**: Perform BI-style analytics with aggregation pipelines (`$group`, `$unwind`, statistical operations)
-- **Flexible Filtering**: Dynamic query construction based on natural language intent
-- **Performance Optimized**: Templates include proper indexing hints and result limiting
-
-#### Quick Start with MongoDB Movie Analytics
-
-Set up your MongoDB connection (MongoDB Atlas recommended for sample_mflix):
-
-```bash
-# Get a free MongoDB Atlas cluster at https://www.mongodb.com/cloud/atlas
-# Load the sample_mflix database from Atlas sample datasets
-# Add your connection details to .env:
-export DATASOURCE_MONGODB_URI="mongodb+srv://username:password@cluster.mongodb.net/sample_mflix?retryWrites=true&w=majority"
-export DATASOURCE_MONGODB_DATABASE="sample_mflix"
-```
-
-Enable the MongoDB movie analytics adapter in `config/adapters.yaml`:
-
-```yaml
-- name: "intent-mongodb-mflix"
-  enabled: true
-  type: "retriever"
-  datasource: "mongodb"
-  adapter: "intent"
-  implementation: "retrievers.implementations.intent.IntentMongoDBRetriever"
-  inference_provider: "ollama"
-  embedding_provider: "ollama"
-  config:
-    domain_config_path: "utils/mongodb-intent-template/examples/sample_mflix/templates/mflix_domain.yaml"
-    template_library_path:
-      - "utils/mongodb-intent-template/examples/sample_mflix/templates/mflix_templates.yaml"
-      - "utils/mongodb-intent-template/examples/sample_mflix/templates/mflix_advanced_templates.yaml"
-    database: "sample_mflix"
-    default_collection: "movies"
-```
-
-Start ORBIT and create an API key:
-
-```bash
-./bin/orbit.sh start --delete-logs
-
-# Login and create API key
-./bin/orbit.sh login
-./bin/orbit.py key create \
-  --intent-mongodb-mflix \
-  --name "Movie Analytics Assistant" \
-  --notes "MongoDB movie database analytics with multi-collection support" \
-  --prompt-file examples/prompts/mongodb-mflix-assistant-prompt.txt
-
-# Start analyzing movies
-orbit-chat --url http://localhost:3000 --api-key YOUR_API_KEY
-```
-
-#### Advanced Analytics Examples
-
-The MongoDB adapter includes both simple queries and advanced BI analytics:
-
-**Simple Queries:**
-- Search movies by title, genre, year, or rating
-- Find users by name or email
-- Get recent comments with filtering
-
-**Advanced Analytics:**
-- Most commented movies with ratings (multi-collection join)
-- Genre performance analysis with aggregation
-- Award-winning movies with engagement metrics
-- Underrated gems analysis (high quality, low engagement)
-- Cast collaboration network patterns
-- Temporal trends and decade analysis
-
-#### Quick Start with Contact Example
-
-Install Ollama and pull the `nomic-embed-text:latest` embedding model. Also pull a model of choice for inference purposes.
-```bash
-ollama pull nomic-embed-text:latest
-ollama pull gemma3:12b
-```
-
-Enable the contact domain sample adapter in `/config/adapters.yaml`:
-
-```yaml
-- name: "intent-sql-sqlite-contact"
-  enabled: true
-  type: "retriever"
-  datasource: "sqlite"
-  adapter: "intent"
-  implementation: "retrievers.implementations.intent.IntentSQLiteRetriever"
-  inference_provider: "ollama"
-  model: "gemma3:12b"
-  embedding_provider: "ollama"
-```
-
-Start ORBIT:
-
-```bash
-./bin/orbit.sh start --delete-logs
-```
-
-Create an API Key for this adapter:
-
-```bash
-# Login admin credentials
-./bin/orbit.sh login
-
-# Create an API key for the SQL intent adapter
-./bin/orbit.py key create \
-  --intent-sql-sqlite-contact \
-  --name "Contact Adapter Demo" \
-  --notes "Demo using SQLite" \
-  --prompt-file examples/prompts/contact-assistant-prompt.txt
-
-# Generate sample data
-python ./utils/sql-intent-template/examples/sqlite/contact/generate_contact_data.py \
-  --records 500 \
-  --output ./examples/sqlite/sqlite_db \
-  --clean
-
-# Test data exists
-sqlite3 examples/sqlite/sqlite_db 'SELECT * FROM users LIMIT 5;'
-
-# Start chatting with your new key
-orbit-chat --url http://localhost:3000 --api-key YOUR_API_KEY
-```
-
-<div align="center">
-  <video src="https://github.com/user-attachments/assets/0c327964-eefe-4593-8dd0-129af904b434" controls>
-    Your browser does not support the video tag.
-  </video>
-  <br/>
-  <i>Testing the SQL Intent Adapter using the ORBIT CLI tool</i>
-</div>
-
-> Looking for more samples? Browse the [`examples/`](examples) directory for data loaders, prompts, and client integrations you can adapt.
 
 ---
 
@@ -541,18 +212,6 @@ Your support keeps ORBIT independent and focused on open-source innovation.
 - ⭐ Star the repo to signal that ORBIT matters to you.
 - 📣 Share a demo, blog, or tweet so other builders discover it.
 - 🐛 Open issues and PRs—your feedback directly shapes the roadmap.
-
-<a href="https://github.com/schmitech/orbit" target="_blank">
-  <img src="https://img.shields.io/github/stars/schmitech/orbit?style=for-the-badge&logo=github&label=Star%20Us" alt="GitHub stars">
-</a>
-
-<a href="https://star-history.com/#schmitech/orbit&Date">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=schmitech/orbit&type=Date&theme=dark" />
-    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=schmitech/orbit&type=Date" />
-    <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=schmitech/orbit&type=Date" />
-  </picture>
-</a>
 
 ---
 

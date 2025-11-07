@@ -13,7 +13,7 @@ NC='\033[0m' # No Color
 BUILD=false
 REBUILD=false
 VERBOSE=false
-PROFILE="minimal"
+PROFILE=""
 DOWNLOAD_GGUF=false
 PULL_MODEL=true
 CREATE_DEFAULT_CONFIG=true
@@ -58,7 +58,7 @@ print_help() {
     echo "Options:"
     echo "  --build                   Build containers before starting"
     echo "  --rebuild                 Force rebuild of Docker images"
-    echo "  --profile <name>          Dependency profile (minimal, torch, commercial, all)"
+    echo "  --profile <name>          Dependency profile (torch, cloud, all) - omit for default dependencies only"
     echo "  --config <file>           Use specific config file (overrides config directory)"
     echo "  --no-default-config       Don't create default config directory if none exists"
     echo "  --download-gguf [model]   Download GGUF model(s) by name (can be used multiple times)"
@@ -78,7 +78,7 @@ print_help() {
     echo "}"
     echo ""
     echo "Examples:"
-    echo "  ./docker-init.sh --build --profile minimal"
+    echo "  ./docker-init.sh --build"
     echo "  ./docker-init.sh --rebuild --profile all --download-gguf gemma3-1b.gguf"
     echo "  ./docker-init.sh --download-gguf tinyllama-1b.gguf --gguf-models-config ../my-gguf-list.json"
     echo "  ./docker-init.sh --download-gguf gemma3-1b.gguf --download-gguf mistral-7b.gguf"
@@ -195,12 +195,7 @@ if [ ! -f ".env" ]; then
     if [ -f "../env.example" ]; then
         cp ../env.example .env
         
-        # Substitute Docker service hostnames for containerized environment
-        echo -e "${YELLOW}🔧 Configuring .env for Docker environment...${NC}"
-        sed -i 's/INTERNAL_SERVICES_MONGODB_HOST=.*/INTERNAL_SERVICES_MONGODB_HOST=mongodb/' .env
-        sed -i 's/INTERNAL_SERVICES_REDIS_HOST=.*/INTERNAL_SERVICES_REDIS_HOST=redis/' .env
-        
-        echo -e "${GREEN}✅ Created .env with Docker-specific configuration${NC}"
+        echo -e "${GREEN}✅ Created .env file${NC}"
         echo -e "${BLUE}ℹ️  You may want to review and customize other environment variables in .env${NC}"
     else
         echo -e "${RED}❌ env.example not found${NC}"
@@ -257,8 +252,8 @@ if [ "$DOWNLOAD_GGUF" = true ]; then
     done
 fi
 
-# Set environment variable for dependency profile
-export DEPENDENCY_PROFILE=$PROFILE
+# Set environment variable for dependency profile (empty means default dependencies only)
+export DEPENDENCY_PROFILE=${PROFILE:-}
 
 # Always stop and remove old containers before building or starting new ones
 echo -e "${YELLOW}🛑 Stopping existing containers...${NC}"

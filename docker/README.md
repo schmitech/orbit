@@ -57,16 +57,14 @@ nano .env
 vim .env
 ```
 
-**Required for Docker - Add these lines to your `.env` file:**
+**Optional - Add API keys to your `.env` file if using commercial providers:**
 ```bash
-# Docker networking configuration (REQUIRED)
-INTERNAL_SERVICES_MONGODB_HOST=mongodb
-INTERNAL_SERVICES_REDIS_HOST=redis
-
 # API keys (only if using commercial providers)
 OPENAI_API_KEY=sk-...
 ANTHROPIC_API_KEY=sk-ant-...
 ```
+
+**Note:** ORBIT uses SQLite as the default backend. MongoDB and Redis are optional and only needed if you configure them in your config file.
 
 ### 4. Choose Your Setup Profile
 
@@ -74,16 +72,16 @@ ORBIT supports different dependency profiles:
 
 | Profile | Description | Use Case |
 |---------|-------------|----------|
-| `minimal` | Core dependencies only | Basic server setup |
+| (none) | Core dependencies only (default) | Basic server setup |
 | `torch` | Includes PyTorch dependencies | GPU-accelerated inference |
-| `commercial` | Commercial provider SDKs | OpenAI, Anthropic, etc. |
+| `cloud` | Commercial provider SDKs | OpenAI, Anthropic, etc. |
 | `all` | Everything included | Maximum flexibility |
 
 ### 5. Initialize ORBIT
 
-Basic setup with minimal profile:
+Basic setup with default dependencies:
 ```bash
-./docker-init.sh --build --profile minimal
+./docker-init.sh --build
 ```
 
 Setup with all features:
@@ -93,7 +91,7 @@ Setup with all features:
 
 Setup with GGUF model download:
 ```bash
-./docker-init.sh --build --profile minimal --download-gguf gemma3-1b
+./docker-init.sh --build --download-gguf gemma3-1b
 ```
 
 ## Configuration
@@ -110,50 +108,13 @@ ORBIT uses YAML configuration files to control its behavior. The main sections a
 
 ### Important Docker Config Settings
 
-When using Docker, ensure your config uses Docker service names instead of `localhost`:
+ORBIT uses SQLite as the default backend, so no additional services are required. If you want to use MongoDB or Redis (optional), you would need to:
 
-```yaml
-# Correct for Docker
-internal_services:
-  mongodb:
-    host: "mongodb"  # NOT localhost
-    port: 27017
-  redis:
-    host: "redis"  # NOT localhost
-    port: 6379
+1. Add MongoDB/Redis services to your `docker-compose.yml`
+2. Configure them in your config file
+3. Set environment variables if needed
 
-# External services (if using external providers)
-inference:
-  openai:
-    base_url: "https://api.openai.com/v1"
-    
-datasources:
-  # Configure external vector databases here
-  # Example for external Chroma or other providers
-```
-
-### Environment Variable Override (Required for Docker)
-
-**Important:** When using Docker, you must override the default localhost MongoDB host. Add this to your `.env` file:
-
-```bash
-# Required for Docker networking - replaces default localhost
-INTERNAL_SERVICES_MONGODB_HOST=mongodb
-
-# Optional: Override Redis host if needed
-INTERNAL_SERVICES_REDIS_HOST=redis
-```
-
-**Why this is needed:**
-- The default configuration uses `localhost` for internal services
-- In Docker, containers cannot reach each other via `localhost`
-- Container services must use Docker service names (`mongodb`, `redis`)
-- Environment variables override the default config values
-
-**Without this setting, you will see connection errors like:**
-- "Connection refused to localhost:27017"
-- "MongoDB connection failed"
-- ORBIT server failing to start
+**Note:** The default SQLite backend works out of the box without any additional configuration.
 
 ## Running ORBIT
 
@@ -203,8 +164,8 @@ curl -X POST http://localhost:3000/v1/chat -H "Content-Type: application/json" -
 ### Other sanity checks
 ```bash
 docker exec orbit-server ls -la /app/models/
-docker exec orbit-mongodb mongosh --eval "db.adminCommand('ping')"
-docker exec orbit-redis redis-cli ping
+# Check SQLite database (default backend)
+docker exec orbit-server ls -la /app/data/
 ```
 
 ### Viewing Logs
@@ -219,8 +180,8 @@ docker exec orbit-redis redis-cli ping
 # Using docker-compose directly
 docker compose logs -f orbit-server
 
-# MongoDB internal logs:
-docker exec orbit-mongodb cat /var/log/mongodb/mongod.log
+# Check application logs:
+docker exec orbit-server cat /app/logs/orbit.log
 ```
 
 ### Stopping ORBIT
@@ -391,21 +352,26 @@ Create different configs for different scenarios:
 
 ### Persistent Data
 
-ORBIT stores data in Docker volumes:
-- `mongodb-data`: API keys and metadata
-- `mongodb-logs`: MongoDB log files
-- `redis-data`: Redis cache data
+ORBIT stores data in mounted volumes:
+- `../logs`: Application logs
+- `../models`: Downloaded models
+- `./config`: Configuration files
+
+The default SQLite database is stored in the container's `/app/data/` directory. To persist it, you can add a volume mount:
+
+```yaml
+volumes:
+  - ./data:/app/data  # Add this to persist SQLite database
+```
 
 To backup data:
 ```bash
-# Backup MongoDB data
-docker run --rm -v orbit_mongodb-data:/data -v $(pwd):/backup alpine tar czf /backup/mongodb-backup.tar.gz -C /data .
+# Backup SQLite database (if using default backend)
+docker exec orbit-server tar czf /tmp/orbit-backup.tar.gz -C /app/data .
+docker cp orbit-server:/tmp/orbit-backup.tar.gz ./orbit-backup.tar.gz
 
-# Backup MongoDB logs (optional)
-docker run --rm -v orbit_mongodb-logs:/logs -v $(pwd):/backup alpine tar czf /backup/mongodb-logs-backup.tar.gz -C /logs .
-
-# Backup Redis data
-docker run --rm -v orbit_redis-data:/data -v $(pwd):/backup alpine tar czf /backup/redis-backup.tar.gz -C /data .
+# Backup logs
+tar czf logs-backup.tar.gz -C ../logs .
 ```
 
 ### Using Commercial Providers
@@ -490,10 +456,8 @@ curl -X POST http://localhost:3000/v1/chat \
 
 #### 1. Services Won't Start
 
-Check logs for specific service:
+Check logs for the server:
 ```bash
-docker compose logs mongodb
-docker compose logs redis
 docker compose logs orbit-server
 ```
 
@@ -535,77 +499,44 @@ docker compose down
 docker compose up -d
 ```
 
-#### 6. Database Service Issues (MongoDB/Redis)
+#### 6. Database Issues
 
-If ORBIT server won't start and gets stuck waiting for dependencies:
+If ORBIT server won't start, check the logs:
 
 **Check service status:**
 ```bash
-# Check which services are running vs created
+# Check which services are running
 docker compose ps -a
-
-# Look for services with "Created" status instead of "Running (healthy)"
 ```
 
-**Check database logs:**
+**Check application logs:**
 ```bash
-# Check MongoDB logs
-docker compose logs mongodb
-
-# Check Redis logs  
-docker compose logs redis
+# Check ORBIT server logs
+docker compose logs orbit-server
 
 # Follow logs in real-time
-docker compose logs -f redis mongodb
+docker compose logs -f orbit-server
+```
+
+**Check SQLite database (default backend):**
+```bash
+# Check if database file exists
+docker exec orbit-server ls -la /app/data/
+
+# Check database permissions
+docker exec orbit-server ls -l /app/data/
 ```
 
 **Identify port conflicts:**
 ```bash
-# Check if Redis port is in use
-sudo lsof -i :6379
-
-# Check if MongoDB port is in use  
-sudo lsof -i :27017
-
-# Check ORBIT port
+# Check if ORBIT port is in use
 sudo lsof -i :3000
 ```
 
 **Resolve port conflicts:**
 ```bash
-# Stop system Redis service (if conflicting)
-sudo systemctl stop redis-server
-sudo systemctl disable redis-server
-
-# Stop system MongoDB service (if conflicting)
-sudo systemctl stop mongod
-sudo systemctl disable mongod
-
-# Verify ports are free
-sudo lsof -i :6379
-sudo lsof -i :27017
-```
-
-**Manual service startup for debugging:**
-```bash
-# Try starting Redis manually to see errors
-docker compose up redis
-
-# Try starting MongoDB manually
-docker compose up mongodb
-
-# Check container networking
-docker network ls
-docker network inspect orbit_orbit-network
-```
-
-**Test database connectivity:**
-```bash
-# Test Redis connection
-docker exec -it orbit-redis redis-cli ping
-
-# Test MongoDB connection  
-docker exec -it orbit-mongodb mongosh --eval "db.adminCommand('ping')"
+# Change the port in .env file
+ORBIT_PORT=3001
 ```
 
 ### Debug Mode
@@ -635,9 +566,8 @@ docker compose ps
 # Test ORBIT API
 curl http://localhost:3000/health
 
-# Test individual services
-docker exec orbit-redis redis-cli ping  # Redis
-docker exec orbit-mongodb mongosh --eval "db.adminCommand('ping')"  # MongoDB
+# Check SQLite database (default backend)
+docker exec orbit-server ls -la /app/data/
 ```
 
 ### Resetting Everything
@@ -647,7 +577,7 @@ To start completely fresh and test the full initialization process:
 #### Complete Reset (Recommended)
 ```bash
 # Stop the containers
-docker rm -f orbit-server orbit-mongodb orbit-redis
+docker rm -f orbit-server
 
 # Stop and remove all containers
 docker compose down
@@ -659,13 +589,13 @@ docker system prune -f
 docker volume prune -f
 
 # Remove the ORBIT server image to force rebuild
-docker rmi orbit-server:latest mongo:8.0 redis:7.2
+docker rmi orbit-server:latest
 
 # Verify clean state (should show no containers)
 docker ps -a
 
 # Now rebuild from scratch
-./docker-init.sh --build --profile minimal --download-gguf gguf-model.gguf
+./docker-init.sh --build --download-gguf gguf-model.gguf
 ```
 
 #### Quick Reset (Keeps Images)
@@ -674,7 +604,7 @@ docker ps -a
 docker compose down -v
 
 # Restart fresh
-./docker-init.sh --build --profile minimal
+./docker-init.sh --build
 ```
 
 #### Nuclear Option (Complete Docker Reset)
@@ -690,7 +620,7 @@ sudo rm -rf /var/lib/docker
 sudo systemctl start docker
 
 # Rebuild everything
-./docker-init.sh --build --profile minimal
+./docker-init.sh --build
 ```
 
 #### Verify Clean Environment
@@ -698,12 +628,9 @@ Before running docker-init.sh, ensure no port conflicts:
 ```bash
 # Check for existing services on required ports
 sudo lsof -i :3000   # ORBIT
-sudo lsof -i :6379   # Redis
-sudo lsof -i :27017  # MongoDB
 
-# Stop any conflicting services
-sudo systemctl stop redis-server
-sudo systemctl stop mongod
+# Stop any conflicting services (if needed)
+# sudo systemctl stop <service-name>
 ```
 
 ### 6. Docker overlay2 Storage Error
@@ -738,7 +665,7 @@ sudo systemctl start docker
 Then rebuild your images:
 
 ```bash
-./docker-init.sh --build --profile minimal --download-gguf
+./docker-init.sh --build --download-gguf
 ```
 
 **Warning:** The destructive solution will remove all Docker data. Back up any important data before proceeding.

@@ -13,7 +13,7 @@ ORIGINAL_DIR="$(pwd)"
 cd "$SCRIPT_DIR"
 
 CONFIG_FILE=""
-PROFILE="minimal"
+PROFILE=""
 DETACHED=true
 COMMAND=""
 ENV_FILE="../.env"
@@ -95,7 +95,7 @@ while [[ "$#" -gt 0 ]]; do
 done
 
 export ORBIT_PORT=$PORT
-export DEPENDENCY_PROFILE=$PROFILE
+export DEPENDENCY_PROFILE=${PROFILE:-}
 
 if [ -n "$CONFIG_FILE" ]; then
     if [[ "$CONFIG_FILE" != /* ]]; then

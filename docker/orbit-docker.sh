@@ -22,7 +22,7 @@ cd "$SCRIPT_DIR"
 
 # Default values
 CONFIG_FILE=""
-PROFILE="minimal"
+PROFILE=""
 DETACHED=true
 COMMAND=""
 ENV_FILE="../.env"
@@ -64,7 +64,7 @@ print_help() {
     echo ""
     echo "Options:"
     echo "  --config <file>   Path to config file (overrides config directory)"
-    echo "  --profile <name>  Dependency profile (minimal, torch, commercial, all)"
+    echo "  --profile <name>  Dependency profile (torch, cloud, all) - omit for default dependencies only"
     echo "  --port <port>     Port to expose (default: 3000)"
     echo "  --env <file>      Path to .env file (default: .env)"
     echo "  --attach          Run in foreground (default: detached)"
@@ -143,7 +143,7 @@ done
 
 # Export environment variables for docker-compose
 export ORBIT_PORT=$PORT
-export DEPENDENCY_PROFILE=$PROFILE
+export DEPENDENCY_PROFILE=${PROFILE:-}
 
 # Handle config file
 if [ -n "$CONFIG_FILE" ]; then

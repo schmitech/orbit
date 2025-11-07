@@ -48,21 +48,35 @@ def resolve_profile(config, profile_name, resolved=None):
 
 def main():
     parser = argparse.ArgumentParser(description='Generate requirements.txt from dependencies.toml')
-    parser.add_argument('profile', help='Profile name to generate requirements for')
+    parser.add_argument('profile', nargs='?', default='', 
+                       help='Profile name to generate requirements for (empty for default dependencies only)')
     parser.add_argument('output', nargs='?', default='/tmp/requirements.txt', 
                        help='Output file path (default: /tmp/requirements.txt)')
+    parser.add_argument('--output', dest='output_file', 
+                       help='Output file path (alternative to positional argument)')
     parser.add_argument('--toml-file', default='dependencies.toml',
                        help='Path to dependencies.toml file')
     
     args = parser.parse_args()
+    
+    # Use --output if provided, otherwise use positional output argument
+    output_file = args.output_file if args.output_file else args.output
     
     try:
         # Read TOML file
         with open(args.toml_file, 'rb') as f:
             config = tomllib.load(f)
         
-        # Resolve dependencies for the specified profile
-        dependencies = resolve_profile(config, args.profile)
+        # If no profile specified, use default dependencies only
+        profile = args.profile.strip() if args.profile else ''
+        if not profile:
+            if 'default' not in config:
+                print('Error: No profile specified and no default section found', file=sys.stderr)
+                sys.exit(1)
+            dependencies = config['default'].get('dependencies', [])
+        else:
+            # Resolve dependencies for the specified profile
+            dependencies = resolve_profile(config, args.profile)
         
         # Remove duplicates while preserving order
         seen = set()
@@ -73,13 +87,14 @@ def main():
                 unique_deps.append(dep)
         
         # Write to requirements file
-        with open(args.output, 'w') as f:
+        with open(output_file, 'w') as f:
             for dep in unique_deps:
                 f.write(dep + '\n')
         
-        print(f'Generated requirements for profile: {args.profile}')
+        profile_name = profile if profile else 'default'
+        print(f'Generated requirements for profile: {profile_name}')
         print(f'Total dependencies: {len(unique_deps)}')
-        print(f'Output file: {args.output}')
+        print(f'Output file: {output_file}')
         
     except FileNotFoundError as e:
         print(f'Error: File not found - {e}', file=sys.stderr)
