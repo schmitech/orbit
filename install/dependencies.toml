@@ -1,8 +1,9 @@
 # Orbit Server Dependencies Configuration
 # This file defines dependency profiles for different use cases
+# Default dependencies are always installed, profiles add additional dependencies
 
-[profiles.minimal]
-description = "Core dependencies"
+[default]
+description = "Core dependencies (always installed)"
 dependencies = [
     "numpy<2.0.0",  # Pin to NumPy 1.x for compatibility with PyTorch and transformers
     "setuptools>=77.0.3,<80",
@@ -85,7 +86,6 @@ dependencies = [
 
 [profiles.torch]
 description = "Torch-related dependencies. Best suited for GPU with CUDA support."
-extends = "minimal"
 dependencies = [
     "torch==2.7.0",
     "vllm>=0.9.1",
@@ -97,7 +97,6 @@ dependencies = [
 
 [profiles.bitnet]
 description = "BitNet 1.58-bit LLM inference framework. Requires building from source."
-extends = "minimal"
 dependencies = [
     # BitNet requires building from source - see docs/bitnet-setup.md for installation
     # The following are build dependencies for BitNet
@@ -111,7 +110,6 @@ dependencies = [
 
 [profiles.cloud]
 description = "Dependencies for commercial/cloud inference providers"
-extends = "minimal"
 dependencies = [
     "boto3==1.40.55",
     "azure-ai-inference==1.0.0b9",
@@ -121,12 +119,11 @@ dependencies = [
 
 [profiles.all]
 description = "All available dependencies"
-extends = ["minimal", "torch", "commercial", "bitnet"]
+extends = ["torch", "cloud", "bitnet"]
 dependencies = []
 
 [profiles.development]
 description = "Development and testing dependencies"
-extends = "minimal"
 dependencies = [
     "pytest>=8.4.1",
     "pytest-asyncio>=1.1.0",
@@ -145,7 +142,6 @@ dependencies = [
 # Custom profile example - users can add their own
 [profiles.custom_example]
 description = "Example custom profile with specific providers"
-extends = "minimal"
 dependencies = [
     "openai==1.76",
     "anthropic==0.50.0",
