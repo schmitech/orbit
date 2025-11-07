@@ -255,7 +255,9 @@ class RouteConfigurator:
             
             # Validate API key and get adapter name and system prompt ID
             try:
-                adapter_name, system_prompt_id = await request.app.state.api_key_service.get_adapter_for_api_key(api_key)
+                # Get adapter manager from app state to check live configs (respects hot-reload)
+                adapter_manager = getattr(request.app.state, 'adapter_manager', None)
+                adapter_name, system_prompt_id = await request.app.state.api_key_service.get_adapter_for_api_key(api_key, adapter_manager)
                 return adapter_name, system_prompt_id
             except HTTPException as e:
                 # Allow health check without API key if configured

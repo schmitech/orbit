@@ -348,6 +348,52 @@ def _process_env_vars(config: Dict[str, Any]) -> Dict[str, Any]:
     return process_dict(config)
 
 
+def reload_adapters_config(config_path: str) -> Dict[str, Any]:
+    """
+    Reload only the adapters configuration from adapters.yaml.
+
+    This function is used by the adapter hot-reload functionality to get
+    fresh adapter configurations without affecting the cached main config.
+    It only loads adapters.yaml to avoid unnecessary logging of other imports.
+
+    Args:
+        config_path: Path to the main config.yaml file
+
+    Returns:
+        The reloaded configuration dictionary containing adapter configs
+
+    Raises:
+        FileNotFoundError: If config file not found
+        Exception: If there are errors loading or processing the config
+    """
+    # Get the directory of the config file
+    config_dir = os.path.dirname(config_path)
+
+    # Directly load adapters.yaml instead of processing all imports
+    adapters_path = os.path.join(config_dir, 'adapters.yaml')
+
+    try:
+        with open(adapters_path, 'r') as file:
+            adapters_config = yaml.safe_load(file)
+
+        # Process environment variables in the adapters config
+        adapters_config = _process_env_vars(adapters_config)
+
+        # Create a config dict with just the adapters
+        config = {'adapters': adapters_config.get('adapters', [])}
+
+        logger.info(f"Reloaded adapter configurations from {os.path.abspath(adapters_path)}")
+
+        return config
+
+    except FileNotFoundError:
+        logger.error(f"Adapters configuration file not found: {os.path.abspath(adapters_path)}")
+        raise
+    except Exception as e:
+        logger.error(f"Error loading adapters configuration: {str(e)}")
+        raise
+
+
 def _normalize_llm_guard_config(config: Dict[str, Any]) -> Dict[str, Any]:
     """Validate and normalize llm_guard configuration with safe defaults.
 

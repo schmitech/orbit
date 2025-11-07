@@ -16,10 +16,11 @@ from bson import ObjectId
 
 from utils import is_true_value
 from models.schema import (
-    ApiKeyCreate, ApiKeyResponse, ApiKeyDeactivate, 
-    SystemPromptCreate, SystemPromptUpdate, SystemPromptResponse, 
-    ApiKeyPromptAssociate, ChatHistoryClearResponse
+    ApiKeyCreate, ApiKeyResponse, ApiKeyDeactivate,
+    SystemPromptCreate, SystemPromptUpdate, SystemPromptResponse,
+    ApiKeyPromptAssociate, ChatHistoryClearResponse, AdapterReloadResponse
 )
+from config.config_manager import reload_adapters_config
 
 # Import auth dependencies
 from routes.auth_dependencies import check_admin_or_api_key
@@ -657,6 +658,105 @@ async def clear_chat_history(
         deleted_count=result['deleted_count'],
         timestamp=result['timestamp']
     )
+
+
+# Adapter Hot Reload
+@admin_router.post("/reload-adapters", response_model=AdapterReloadResponse)
+async def reload_adapters(
+    request: Request,
+    adapter_name: Optional[str] = Query(None, description="Optional name of specific adapter to reload"),
+    authorized: bool = Depends(admin_auth_check)
+):
+    """
+    Reload adapter configurations from adapters.yaml without server restart.
+
+    This endpoint performs hot-swap of adapters:
+    - If adapter_name is None: reloads all adapters
+    - If adapter_name is provided: reloads only that specific adapter
+
+    For all adapters:
+    - Adds new adapters
+    - Removes disabled adapters
+    - Updates changed adapter configurations
+    - Preserves in-flight requests on old adapters
+
+    For specific adapter:
+    - Updates only the named adapter configuration
+    - Returns error if adapter not found in config
+
+    Requires admin authentication.
+
+    Query Parameters:
+        adapter_name: Optional name of specific adapter to reload
+
+    Returns:
+        AdapterReloadResponse with reload summary
+
+    Raises:
+        HTTPException: If adapter manager is unavailable, config loading fails,
+                      or specific adapter is not found
+    """
+    # Get adapter manager from app state
+    adapter_manager = getattr(request.app.state, 'adapter_manager', None)
+    if not adapter_manager:
+        raise HTTPException(
+            status_code=503,
+            detail="Adapter manager is not available"
+        )
+
+    # Get config path from app state
+    config_path = getattr(request.app.state, 'config_path', None)
+    if not config_path:
+        raise HTTPException(
+            status_code=500,
+            detail="Config path is not available in app state"
+        )
+
+    try:
+        # Reload the configuration from disk
+        new_config = reload_adapters_config(config_path)
+
+        # Reload adapters using the adapter manager
+        summary = await adapter_manager.reload_adapters(new_config, adapter_name)
+
+        # Generate appropriate message
+        if adapter_name:
+            action = summary.get('action', 'reloaded')
+            message = f"Adapter '{adapter_name}' {action} successfully"
+        else:
+            added = summary.get('added', 0)
+            removed = summary.get('removed', 0)
+            updated = summary.get('updated', 0)
+            total = summary.get('total', 0)
+            message = f"Adapters reloaded: {added} added, {removed} removed, {updated} updated, {total} total"
+
+        logger.info(f"Adapter reload completed: {message}")
+
+        return AdapterReloadResponse(
+            status="success",
+            message=message,
+            summary=summary,
+            timestamp=datetime.utcnow().isoformat() + "Z"
+        )
+
+    except FileNotFoundError as e:
+        logger.error(f"Config file not found: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Config file not found: {str(e)}"
+        )
+    except ValueError as e:
+        logger.error(f"Adapter reload error: {str(e)}")
+        raise HTTPException(
+            status_code=404,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error during adapter reload: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to reload adapters: {str(e)}"
+        )
 
 
 @admin_router.delete("/conversations/{session_id}")

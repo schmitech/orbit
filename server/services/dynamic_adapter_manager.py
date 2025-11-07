@@ -102,20 +102,26 @@ class DynamicAdapterManager:
     async def get_adapter(self, adapter_name: str) -> Any:
         """
         Get an adapter instance by name, loading it if necessary.
-        
+
         Args:
             adapter_name: Name of the adapter to retrieve
-            
+
         Returns:
             The initialized adapter instance
-            
+
         Raises:
-            ValueError: If adapter configuration is not found
+            ValueError: If adapter configuration is not found or disabled
             Exception: If adapter initialization fails
         """
         if not adapter_name:
             raise ValueError("Adapter name cannot be empty")
-        
+
+        # IMPORTANT: Check if adapter is in active configs first, even if cached
+        # This prevents disabled adapters from being used after hot-reload
+        if adapter_name not in self._adapter_configs:
+            self.logger.warning(f"Attempted to access disabled or removed adapter: {adapter_name}")
+            raise ValueError(f"Adapter '{adapter_name}' is not available (may be disabled or removed)")
+
         # Check if adapter is already cached
         if adapter_name in self._adapter_cache:
             if self.verbose:
@@ -979,6 +985,124 @@ class DynamicAdapterManager:
             "datasource_pool": datasource_stats
         }
     
+    async def reload_adapter_configs(self, config: Dict[str, Any], adapter_name: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Reload adapter configurations from new config and perform hot-swap.
+
+        Args:
+            config: The new configuration dictionary containing adapter configs
+            adapter_name: Optional name of specific adapter to reload. If None, reloads all adapters.
+
+        Returns:
+            Summary dict with counts of added/removed/updated adapters
+        """
+        # Extract new adapter configs
+        new_adapter_configs_list = config.get('adapters', [])
+        new_adapter_configs = {}
+
+        for adapter_config in new_adapter_configs_list:
+            name = adapter_config.get('name')
+            if name and adapter_config.get('enabled', True):
+                new_adapter_configs[name] = adapter_config
+
+        # If specific adapter requested, only reload that one
+        if adapter_name:
+            # First, look for the adapter in the full config list (including disabled ones)
+            adapter_config_full = None
+            for adapter_config in new_adapter_configs_list:
+                if adapter_config.get('name') == adapter_name:
+                    adapter_config_full = adapter_config
+                    break
+
+            if adapter_config_full is None:
+                raise ValueError(f"Adapter '{adapter_name}' not found in configuration file")
+
+            # Get old config
+            old_config = self._adapter_configs.get(adapter_name)
+            is_enabled = adapter_config_full.get('enabled', True)
+
+            # Remove from cache if it exists
+            if adapter_name in self._adapter_cache:
+                await self.remove_adapter(adapter_name)
+
+            # Handle based on enabled status
+            if is_enabled:
+                # Add or update the adapter
+                self._adapter_configs[adapter_name] = adapter_config_full
+                action = "enabled" if old_config and not old_config.get('enabled', True) else ("updated" if old_config else "added")
+                self.logger.info(f"Reloaded adapter '{adapter_name}' ({action})")
+
+                return {
+                    "adapter_name": adapter_name,
+                    "action": action,
+                    "previous_config": old_config,
+                    "new_config": adapter_config_full
+                }
+            else:
+                # Disable/remove the adapter
+                if adapter_name in self._adapter_configs:
+                    del self._adapter_configs[adapter_name]
+                action = "disabled"
+                self.logger.info(f"Disabled adapter '{adapter_name}'")
+
+                return {
+                    "adapter_name": adapter_name,
+                    "action": action,
+                    "previous_config": old_config,
+                    "new_config": None
+                }
+
+        # Otherwise reload all adapters
+        # Compare with existing configs
+        added = []
+        removed = []
+        updated = []
+        unchanged = []
+
+        # Find added and updated adapters
+        for name, new_config in new_adapter_configs.items():
+            if name not in self._adapter_configs:
+                added.append(name)
+                self._adapter_configs[name] = new_config
+            else:
+                # Check if config actually changed
+                if self._adapter_configs[name] != new_config:
+                    updated.append(name)
+                    # Remove from cache so it gets reloaded with new config
+                    if name in self._adapter_cache:
+                        await self.remove_adapter(name)
+                    self._adapter_configs[name] = new_config
+                else:
+                    unchanged.append(name)
+
+        # Find removed adapters
+        for name in list(self._adapter_configs.keys()):
+            if name not in new_adapter_configs:
+                removed.append(name)
+                # Remove from cache
+                if name in self._adapter_cache:
+                    await self.remove_adapter(name)
+                # Remove from configs
+                del self._adapter_configs[name]
+
+        total = len(self._adapter_configs)
+
+        self.logger.info(
+            f"Adapter reload complete: {len(added)} added, {len(removed)} removed, "
+            f"{len(updated)} updated, {len(unchanged)} unchanged, {total} total"
+        )
+
+        return {
+            "added": len(added),
+            "removed": len(removed),
+            "updated": len(updated),
+            "unchanged": len(unchanged),
+            "total": total,
+            "added_names": added,
+            "removed_names": removed,
+            "updated_names": updated
+        }
+
     async def close(self) -> None:
         """Clean up all resources."""
         # Close all cached providers

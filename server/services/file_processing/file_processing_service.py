@@ -146,8 +146,8 @@ class FileProcessingService:
                 if hasattr(self.app_state, 'api_key_service'):
                     api_key_service = self.app_state.api_key_service
 
-                    # Get adapter name for this API key
-                    adapter_name, _ = await api_key_service.get_adapter_for_api_key(api_key)
+                    # Get adapter name for this API key (pass adapter_manager to check live configs)
+                    adapter_name, _ = await api_key_service.get_adapter_for_api_key(api_key, adapter_manager)
 
                     if adapter_name:
                         # Get adapter config from adapter manager
@@ -576,8 +576,8 @@ class FileProcessingService:
                 if hasattr(self.app_state, 'api_key_service'):
                     api_key_service = self.app_state.api_key_service
 
-                    # Get adapter name for this API key
-                    adapter_name, _ = await api_key_service.get_adapter_for_api_key(api_key)
+                    # Get adapter name for this API key (pass adapter_manager to check live configs)
+                    adapter_name, _ = await api_key_service.get_adapter_for_api_key(api_key, adapter_manager)
 
                     if adapter_name:
                         # Get adapter config from adapter manager

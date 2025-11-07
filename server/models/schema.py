@@ -87,6 +87,14 @@ class ChatHistoryClearResponse(BaseModel):
     timestamp: str
 
 
+class AdapterReloadResponse(BaseModel):
+    """Response model for adapter reload operation"""
+    status: str
+    message: str
+    summary: Dict[str, Any]
+    timestamp: str
+
+
 class MCPMessage(BaseModel):
     """MCP protocol message model"""
     id: str = Field(description="Unique identifier for the message")

@@ -1,3 +1,4 @@
+import os
 import ssl
 import asyncio
 import atexit
@@ -74,7 +75,7 @@ class InferenceServer:
     def __init__(self, config_path: Optional[str] = None):
         """
         Initialize the InferenceServer with optional custom configuration path.
-        
+
         This method sets up the basic server infrastructure, including:
         - Basic logging configuration
         - Configuration loading
@@ -82,23 +83,26 @@ class InferenceServer:
         - FastAPI application initialization
         - Middleware and route configuration
         - aiohttp session tracking for proper cleanup
-        
+
         Args:
             config_path: Optional path to a custom configuration file.
                         If not provided, uses default configuration.
-        
+
         Raises:
             FileNotFoundError: If the specified config file doesn't exist
             ValueError: If the configuration is invalid
         """
         # Initialize basic logging until proper configuration is loaded
         self.logger = LoggingConfigurator.setup_initial_logging()
-        
+
         # Set up aiohttp session tracking for proper cleanup
         setup_aiohttp_session_tracking()
-        
+
+        # Store config path for hot-reload functionality
+        self.config_path = config_path or self._find_default_config_path()
+
         # Load configuration
-        self.config = load_config(config_path)
+        self.config = load_config(self.config_path)
         
         # Configure proper logging with loaded configuration
         self.logger = LoggingConfigurator.setup_full_logging(self.config)
@@ -144,6 +148,29 @@ class InferenceServer:
         self.mcp_server.mount_http(mount_path="/mcp")
         
         self.logger.info("InferenceServer initialized")
+
+    def _find_default_config_path(self) -> str:
+        """
+        Find the default config.yaml path by checking common locations.
+
+        Returns:
+            Path to the config file
+
+        Raises:
+            FileNotFoundError: If no config file found
+        """
+        config_paths = [
+            '../config/config.yaml',
+            '../../config/config.yaml',
+            'config.yaml',
+            'config/config.yaml'
+        ]
+
+        for path in config_paths:
+            if os.path.exists(path):
+                return os.path.abspath(path)
+
+        raise FileNotFoundError("Could not find config.yaml in any of the default locations")
 
     def _create_lifespan_manager(self):
         """
@@ -248,8 +275,9 @@ class InferenceServer:
         Raises:
             Exception: If any service fails to initialize
         """
-        # Store config in app state
+        # Store config and config path in app state
         app.state.config = self.config
+        app.state.config_path = self.config_path
         
         # Resolve provider configurations
         self.config_resolver.resolve_all_providers()

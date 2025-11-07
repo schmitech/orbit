@@ -192,19 +192,35 @@ class ApiKeyService:
         prefix = self.config.get('api_keys', {}).get('prefix', 'api_')
         return f"{prefix}{api_key}"
     
-    def _get_adapter_config(self, adapter_name: str) -> Optional[Dict[str, Any]]:
+    def _get_adapter_config(self, adapter_name: str, adapter_manager=None) -> Optional[Dict[str, Any]]:
         """
         Get adapter configuration by name (only if enabled)
-        
+
+        IMPORTANT: This now checks the dynamic adapter manager's active configs
+        to respect hot-reload changes. Falls back to static config if adapter_manager
+        is not provided.
+
         Args:
             adapter_name: Name of the adapter to find
-            
+            adapter_manager: Optional adapter manager instance to check live configs
+
         Returns:
             Adapter configuration dict or None if not found or disabled
         """
+        # Try to use adapter manager first (respects hot-reload)
+        if adapter_manager:
+            adapter_config = adapter_manager.get_adapter_config(adapter_name)
+            if adapter_config:
+                # Adapter exists in active configs (is enabled)
+                return adapter_config
+            else:
+                # Adapter not in active configs (disabled or removed)
+                return None
+
+        # Fall back to static config (used during initialization)
         adapters = self.config.get('adapters', [])
         adapter = next((cfg for cfg in adapters if cfg.get('name') == adapter_name), None)
-        
+
         # Check if adapter exists and is enabled
         if adapter and adapter.get('enabled', True):
             return adapter
@@ -256,13 +272,14 @@ class ApiKeyService:
             logger.error(f"Error getting API key status: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Error checking API key status: {str(e)}")
     
-    async def validate_api_key(self, api_key: str) -> Tuple[bool, Optional[str], Optional[ObjectId]]:
+    async def validate_api_key(self, api_key: str, adapter_manager=None) -> Tuple[bool, Optional[str], Optional[ObjectId]]:
         """
         Validate the API key and return the associated adapter name and system prompt ID
-        
+
         Args:
             api_key: The API key to validate
-            
+            adapter_manager: Optional adapter manager to check live configs (respects hot-reload)
+
         Returns:
             Tuple of (is_valid, adapter_name, system_prompt_id)
         """
@@ -303,9 +320,10 @@ class ApiKeyService:
             adapter_name = key_doc.get("adapter_name")
             if adapter_name:
                 # Validate that the adapter exists in configuration
-                adapter_config = self._get_adapter_config(adapter_name)
+                # Pass adapter_manager to check live configs (respects hot-reload)
+                adapter_config = self._get_adapter_config(adapter_name, adapter_manager)
                 if not adapter_config:
-                    logger.warning(f"API key {masked_key} references non-existent adapter: {adapter_name}")
+                    logger.warning(f"API key {masked_key} references non-existent or disabled adapter: {adapter_name}")
                     return False, None, None
                 
                 # Get the system prompt ID if it exists
@@ -326,12 +344,13 @@ class ApiKeyService:
             logger.error(f"Error validating API key: {str(e)}")
             return False, None, None
     
-    async def get_adapter_for_api_key(self, api_key: str) -> Tuple[str, Optional[ObjectId]]:
+    async def get_adapter_for_api_key(self, api_key: str, adapter_manager=None) -> Tuple[str, Optional[ObjectId]]:
         """
         Get the adapter name and system prompt ID for a given API key
 
         Args:
             api_key: The API key to look up
+            adapter_manager: Optional adapter manager to check live configs (respects hot-reload)
 
         Returns:
             Tuple of (adapter_name, system_prompt_id)
@@ -339,7 +358,7 @@ class ApiKeyService:
         Raises:
             HTTPException: If the API key is invalid or has no associated adapter
         """
-        is_valid, adapter_name, system_prompt_id = await self.validate_api_key(api_key)
+        is_valid, adapter_name, system_prompt_id = await self.validate_api_key(api_key, adapter_manager)
 
         if not is_valid:
             # Check if this is an empty API key and defaults are allowed

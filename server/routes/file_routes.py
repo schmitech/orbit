@@ -120,7 +120,9 @@ def create_file_router() -> APIRouter:
             api_key_service = getattr(request.app.state, 'api_key_service', None)
             if api_key_service:
                 try:
-                    is_valid, _, _ = await api_key_service.validate_api_key(x_api_key)
+                    # Get adapter manager to check live configs (respects hot-reload)
+                    adapter_manager = getattr(request.app.state, 'adapter_manager', None)
+                    is_valid, _, _ = await api_key_service.validate_api_key(x_api_key, adapter_manager)
                     if not is_valid:
                         logger.warning(f"Invalid API key attempted for file upload: {x_api_key[:8]}...")
                         raise HTTPException(status_code=401, detail="Invalid API key")

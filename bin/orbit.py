@@ -62,6 +62,9 @@ Configuration Management Commands:
     orbit config set KEY VALUE                       # Set CLI configuration value
     orbit config reset [--force]                     # Reset CLI configuration to defaults
 
+Admin Operations Commands:
+    orbit admin reload-adapters [--adapter ADAPTER]  # Reload adapter configurations without server restart
+
 Examples:
     # Authentication
     orbit login --username admin --password secret123  # Or just 'orbit login' to be prompted
@@ -128,6 +131,16 @@ Examples:
     orbit config set server.timeout 60                  # Set CLI configuration value
     orbit config reset                                  # Reset CLI config to defaults
     orbit config reset --force                          # Reset without confirmation
+
+    # Admin Operations
+    orbit admin reload-adapters                         # Reload all adapter configurations
+    orbit admin reload-adapters --adapter qa-sql        # Reload a specific adapter
+    orbit admin reload-adapters --verbose               # Reload with detailed output
+    # Use cases:
+    # - After modifying config/adapters.yaml to add/update/remove adapters
+    # - To apply configuration changes without restarting the server
+    # - To hot-swap adapter settings (model, provider, parameters)
+    # - Preserves in-flight requests on old adapters during reload
 
     # Output Formatting
     orbit key list --output json                        # Output as JSON
@@ -2564,6 +2577,37 @@ class ApiManager:
         except Exception as e:
             raise OrbitError(f"Error associating prompt with API key: {str(e)}")
 
+    @handle_api_errors(
+        operation_name="Reload adapters",
+        custom_errors={
+            404: "Adapter not found or is disabled in configuration",
+            503: "Adapter manager is not available"
+        }
+    )
+    def reload_adapters(self, adapter_name: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Reload adapter configurations from adapters.yaml without server restart
+
+        Args:
+            adapter_name: Optional name of specific adapter to reload. If None, reloads all adapters.
+
+        Returns:
+            Dictionary containing reload summary with counts and details
+        """
+        self._ensure_authenticated()
+
+        url = f"{self.server_url}/admin/reload-adapters"
+        if adapter_name:
+            url = f"{url}?adapter_name={adapter_name}"
+
+        headers = {
+            "Authorization": f"Bearer {self.admin_token}"
+        }
+
+        response = self._make_request("POST", url, headers=headers)
+        response.raise_for_status()
+        return response.json()
+
 
 # Main CLI class that ties everything together
 class OrbitCLI:
@@ -2626,10 +2670,13 @@ Report issues at: https://github.com/schmitech/orbit/issues
         
         # User management commands
         self._add_user_commands(subparsers)
-        
+
         # Configuration commands
         self._add_config_commands(subparsers)
-        
+
+        # Admin management commands
+        self._add_admin_commands(subparsers)
+
         return parser
     
     def _add_server_commands(self, subparsers):
@@ -3022,7 +3069,56 @@ Report issues at: https://github.com/schmitech/orbit/issues
         )
         reset_parser.add_argument('--force', action='store_true', help='Skip confirmation prompt')
         reset_parser.set_defaults(func=self.handle_config_reset_command)
-    
+
+    def _add_admin_commands(self, subparsers):
+        """Add admin management commands to the subparsers."""
+        admin_parser = subparsers.add_parser(
+            'admin',
+            help='Admin operations',
+            description='Administrative operations for ORBIT server'
+        )
+        admin_subparsers = admin_parser.add_subparsers(dest='admin_command', help='Admin operations')
+
+        # Reload adapters command
+        reload_parser = admin_subparsers.add_parser(
+            'reload-adapters',
+            help='Reload adapter configurations without server restart',
+            description='''
+Reload adapter configurations from adapters.yaml without restarting the server.
+
+This command performs hot-swap of adapters by:
+- Reading the latest configuration from config/adapters.yaml
+- Comparing with currently loaded adapters
+- Adding new adapters, removing disabled ones, and updating changed ones
+- Preserving in-flight requests on old adapters during the swap
+
+Use Cases:
+- After modifying adapter settings (model, provider, parameters)
+- Adding or removing adapters from your configuration
+- Testing adapter changes without downtime
+- Applying configuration updates in production
+
+Examples:
+    orbit admin reload-adapters                    # Reload all adapters
+    orbit admin reload-adapters --adapter qa-sql   # Reload only qa-sql adapter
+    orbit admin reload-adapters --verbose          # Show detailed reload information
+
+The command will display a summary showing:
+- Number of adapters added, removed, updated, and unchanged
+- Names of affected adapters (in verbose mode)
+- Total number of active adapters after reload
+
+Requires admin authentication if auth is enabled.
+            '''
+        )
+        reload_parser.add_argument(
+            '--adapter',
+            type=str,
+            metavar='ADAPTER_NAME',
+            help='Optional name of specific adapter to reload. If not specified, reloads all adapters.'
+        )
+        reload_parser.set_defaults(func=self.handle_admin_reload_adapters_command)
+
     # Command Handler Methods
     
     def handle_start_command(self, args):
@@ -3719,7 +3815,79 @@ Report issues at: https://github.com/schmitech/orbit/issues
         self.config_manager.save_config(default_config)
         self.formatter.success("Configuration reset to defaults")
         return 0
-    
+
+    def handle_admin_reload_adapters_command(self, args):
+        """Handler for the 'admin reload-adapters' command."""
+        api_manager = self.get_api_manager(args.server_url)
+
+        try:
+            # Call the reload endpoint through the API manager
+            result = api_manager.reload_adapters(adapter_name=args.adapter)
+
+            summary = result.get('summary', {})
+
+            if self.formatter.format == 'json':
+                self.formatter.format_json(result)
+            else:
+                self.formatter.success(result.get('message', 'Adapters reloaded successfully'))
+
+                # Display detailed summary if available
+                if args.adapter:
+                    # Single adapter reload
+                    action = summary.get('action', 'reloaded')
+                    console = Console()
+                    console.print(f"\n[bold]Adapter:[/bold] {summary.get('adapter_name', args.adapter)}")
+
+                    # Color code the action
+                    if action == 'disabled':
+                        console.print(f"[bold]Action:[/bold] [red]{action}[/red] (adapter removed from active pool)")
+                    elif action == 'enabled':
+                        console.print(f"[bold]Action:[/bold] [green]{action}[/green] (adapter added to active pool)")
+                    elif action == 'added':
+                        console.print(f"[bold]Action:[/bold] [green]{action}[/green]")
+                    elif action == 'updated':
+                        console.print(f"[bold]Action:[/bold] [yellow]{action}[/yellow]")
+                    else:
+                        console.print(f"[bold]Action:[/bold] {action}")
+                else:
+                    # Multiple adapters reload
+                    console = Console()
+                    table = Table(title="Adapter Reload Summary")
+                    table.add_column("Metric", style="cyan")
+                    table.add_column("Count", style="green")
+
+                    table.add_row("Added", str(summary.get('added', 0)))
+                    table.add_row("Removed", str(summary.get('removed', 0)))
+                    table.add_row("Updated", str(summary.get('updated', 0)))
+                    table.add_row("Unchanged", str(summary.get('unchanged', 0)))
+                    table.add_row("Total", str(summary.get('total', 0)))
+
+                    console.print(table)
+
+                    # Show details if verbose
+                    if args.verbose:
+                        if summary.get('added_names'):
+                            console.print(f"\n[green]Added:[/green] {', '.join(summary['added_names'])}")
+                        if summary.get('removed_names'):
+                            console.print(f"[red]Removed:[/red] {', '.join(summary['removed_names'])}")
+                        if summary.get('updated_names'):
+                            console.print(f"[yellow]Updated:[/yellow] {', '.join(summary['updated_names'])}")
+
+            return 0
+
+        except AuthenticationError as e:
+            self.formatter.error(str(e))
+            return 1
+        except OrbitError as e:
+            self.formatter.error(str(e))
+            return 1
+        except NetworkError as e:
+            self.formatter.error(str(e))
+            return 1
+        except Exception as e:
+            self.formatter.error(f"Unexpected error: {str(e)}")
+            return 1
+
     def execute(self, args):
         """Execute the parsed command."""
         try:

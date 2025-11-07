@@ -232,7 +232,9 @@ async def check_admin_or_api_key(
     # Otherwise, check API key using existing service
     if hasattr(request.app.state, 'api_key_service') and x_api_key:
         api_key_service = request.app.state.api_key_service
-        is_valid, _, _ = await api_key_service.validate_api_key(x_api_key)
+        # Get adapter manager to check live configs (respects hot-reload)
+        adapter_manager = getattr(request.app.state, 'adapter_manager', None)
+        is_valid, _, _ = await api_key_service.validate_api_key(x_api_key, adapter_manager)
         if is_valid:
             return True
     

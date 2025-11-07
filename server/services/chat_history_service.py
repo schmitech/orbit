@@ -740,7 +740,12 @@ class ChatHistoryService:
 
         try:
             if hasattr(self, "api_key_service") and self.api_key_service:
-                is_valid, adapter_name, _ = await self.api_key_service.validate_api_key(api_key)
+                # Get adapter manager to check live configs (respects hot-reload)
+                adapter_manager = None
+                if hasattr(self, 'database_service') and hasattr(self.database_service, 'app_state'):
+                    adapter_manager = getattr(self.database_service.app_state, 'adapter_manager', None)
+
+                is_valid, adapter_name, _ = await self.api_key_service.validate_api_key(api_key, adapter_manager)
                 if not is_valid:
                     return {
                         "success": False,

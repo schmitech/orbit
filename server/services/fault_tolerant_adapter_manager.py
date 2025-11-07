@@ -55,7 +55,11 @@ class FaultTolerantAdapterManager:
     def get_available_adapters(self) -> List[str]:
         """Get list of available adapters"""
         return self.base_adapter_manager.get_available_adapters()
-    
+
+    def get_adapter_config(self, adapter_name: str) -> Optional[Dict[str, Any]]:
+        """Get adapter configuration - delegates to base adapter manager"""
+        return self.base_adapter_manager.get_adapter_config(adapter_name)
+
     async def get_relevant_context(self, query: str, adapter_names: List[str] = None,
                                  adapter_name: str = None, api_key: Optional[str] = None,
                                  **kwargs) -> List[Dict[str, Any]]:
@@ -137,11 +141,24 @@ class FaultTolerantAdapterManager:
         """Preload all adapters"""
         return await self.base_adapter_manager.preload_all_adapters(timeout_per_adapter)
     
+    async def reload_adapters(self, config: Dict[str, Any], adapter_name: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Reload adapters via base adapter manager.
+
+        Args:
+            config: The new configuration dictionary containing adapter configs
+            adapter_name: Optional name of specific adapter to reload. If None, reloads all adapters.
+
+        Returns:
+            Summary dict with reload results
+        """
+        return await self.base_adapter_manager.reload_adapter_configs(config, adapter_name)
+
     async def cleanup(self):
         """Cleanup resources"""
         if self.parallel_executor:
             await self.parallel_executor.cleanup()
-        
+
         # Cleanup base adapter manager
         await self.base_adapter_manager.close()
 
