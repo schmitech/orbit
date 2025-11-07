@@ -9,7 +9,7 @@
 #   - model: Override specific model within a provider
 
 adapters:
-  - name: "conversational-passthrough"
+  - name: "simple-chat"
     enabled: true
     type: "passthrough"  # New adapter type for non-retrieval adapters
     datasource: "none"  # No actual datasource needed
@@ -20,15 +20,15 @@ adapters:
     # embedding_provider: "ollama"    # Not used for passthrough adapters
     # model: "gpt-oss:20b"            # Specific model for this adapter
     
-  - name: "conversational-multimodal"
-    enabled: false
+  - name: "simple-chat-with-files"
+    enabled: true
     type: "passthrough"  # Passthrough adapter with file retrieval capabilities
     datasource: "none"  # No actual datasource needed (files managed separately)
     adapter: "multimodal"
     implementation: "implementations.passthrough.multimodal.MultimodalImplementation"
     # Provider overrides (optional - use when you want different providers than global defaults)
     inference_provider: "ollama"    # Override default inference provider
-    model: "gpt-oss:120b"            # Specific model for this adapter
+    model: "gpt-oss:20b"            # Specific model for this adapter
     embedding_provider: "ollama"          # Embeddings for file chunk retrieval (matches uploaded files)
     vision_provider: "ollama"             # Vision provider for image files: openai, gemini, anthropic (see vision.yaml)
     
