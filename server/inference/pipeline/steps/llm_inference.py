@@ -502,16 +502,34 @@ class LLMInferenceStep(PipelineStep):
     def _build_chart_instruction(self) -> str:
         """
         Build chart formatting instruction for LLM.
-
+        
         Returns:
             Chart instruction string that teaches the LLM how to format charts
-            for the markdown renderer with recharts support.
+            for the markdown renderer with recharts support, while clearly
+            distinguishing tables from charts.
         """
         return (
             "<CHART_FORMATTING>\n"
-            "When the user requests a chart, graph, or data visualization, use chart code blocks that will be automatically rendered as interactive charts.\n"
+            "## IMPORTANT: Tables vs Charts\n"
             "\n"
-            "## Format Options:\n"
+            "**TABLES**: When the user requests a 'table', 'data table', 'formatted table', or 'markdown table', "
+            "ALWAYS use standard markdown table syntax. DO NOT use chart code blocks for tables.\n"
+            "\n"
+            "Example for table request:\n"
+            "```\n"
+            "| Column 1 | Column 2 | Column 3 |\n"
+            "|----------|----------|----------|\n"
+            "| Value 1  | Value 2  | Value 3  |\n"
+            "| Value 4  | Value 5  | Value 6  |\n"
+            "```\n"
+            "\n"
+            "**CHARTS**: Only use chart code blocks when the user explicitly requests:\n"
+            "- A 'chart', 'graph', 'bar chart', 'line chart', 'pie chart', etc.\n"
+            "- A 'visualization' or 'data visualization'\n"
+            "- A 'plot' or 'diagram'\n"
+            "- NOT when they ask for a 'table'\n"
+            "\n"
+            "## Chart Format Options:\n"
             "\n"
             "### 1. Simple Format (for basic charts):\n"
             "```chart\n"
@@ -541,7 +559,9 @@ class LLMInferenceStep(PipelineStep):
             "- **scatter**: For showing relationships between variables\n"
             "\n"
             "## Guidelines:\n"
-            "- Use table format for multiple data series (easier to read)\n"
+            "- **Use markdown tables** when user asks for a 'table' or 'data table'\n"
+            "- **Use chart code blocks** only when user explicitly asks for a chart/graph/visualization\n"
+            "- Use table format for multiple data series in charts (easier to read)\n"
             "- Include descriptive titles\n"
             "- Labels can contain spaces (e.g., \"Product A\", \"Direct Sales\")\n"
             "- Colors support hex codes (e.g., #3b82f6, #10b981)\n"
@@ -549,7 +569,19 @@ class LLMInferenceStep(PipelineStep):
             "- Use appropriate chart types for the data context\n"
             "\n"
             "## Example Usage:\n"
-            "When user asks: \"Show me quarterly sales\"\n"
+            "\n"
+            "**When user asks: \"Show me a table of quarterly sales\"**\n"
+            "Output:\n"
+            "```\n"
+            "| Quarter | Sales |\n"
+            "|---------|-------|\n"
+            "| Q1      | 45000 |\n"
+            "| Q2      | 52000 |\n"
+            "| Q3      | 48000 |\n"
+            "| Q4      | 60000 |\n"
+            "```\n"
+            "\n"
+            "**When user asks: \"Show me a chart of quarterly sales\"**\n"
             "Output:\n"
             "```chart\n"
             "type: bar\n"
@@ -558,35 +590,4 @@ class LLMInferenceStep(PipelineStep):
             "labels: [Q1, Q2, Q3, Q4]\n"
             "```\n"
             "</CHART_FORMATTING>\n"
-        )
-
-    # Alternative shorter version (if token budget is tight)
-    def _build_chart_instruction_compact(self) -> str:
-        """
-        Compact version of chart instruction for token-constrained scenarios.
-
-        Returns:
-            Shorter chart instruction string
-        """
-        return (
-            "<CHARTS>\n"
-            "Create interactive charts using chart code blocks:\n"
-            "\n"
-            "```chart\n"
-            "type: bar | line | pie | area | scatter\n"
-            "title: Chart Title Here\n"
-            "data: [10, 20, 30]\n"
-            "labels: [Label A, Label B, Label C]\n"
-            "colors: [#3b82f6, #8b5cf6, #ec4899]\n"
-            "```\n"
-            "\n"
-            "OR use table format (better for multi-series):\n"
-            "```chart\n"
-            "type: line\n"
-            "| X-axis | Series1 | Series2 |\n"
-            "|--------|---------|---------|\n"
-            "| Jan    | 100     | 80      |\n"
-            "| Feb    | 150     | 90      |\n"
-            "```\n"
-            "</CHARTS>\n"
         )
