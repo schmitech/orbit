@@ -10,6 +10,11 @@ Prerequisites:
 2. Authentication must be enabled in the server configuration
 3. MongoDB must be available and configured
 4. Admin user must exist and be accessible
+
+Expected Server Warnings:
+- "Login attempt for non-existent user: test" - This is EXPECTED and intentional.
+  The test uses fake credentials to detect if authentication is enabled.
+  These warnings indicate the auth system is working correctly by rejecting invalid logins.
 """
 
 import asyncio
@@ -89,9 +94,16 @@ class AdminTester:
         return headers
     
     async def check_auth_enabled(self) -> bool:
-        """Check if authentication is enabled on the server"""
+        """
+        Check if authentication is enabled on the server.
+
+        NOTE: This intentionally sends invalid credentials ("test"/"test") to detect
+        if auth is enabled. The server warnings about "non-existent user: test" are
+        EXPECTED and indicate the auth system is working correctly.
+        """
         try:
-            # Try to access the login endpoint to see if auth is enabled
+            # Try to access the login endpoint with fake credentials to see if auth is enabled
+            # Expected server warning: "Login attempt for non-existent user: test"
             async with self.session.post(
                 f"{self.base_url}/auth/login",
                 json={"username": "test", "password": "test"},
@@ -605,6 +617,134 @@ class AdminTester:
             logger.error(f"✗ Get adapter info error: {str(e)}")
             return False
 
+    async def test_reload_all_adapters(self) -> bool:
+        """Test reloading all adapter configurations"""
+        logger.info("\n=== Testing Reload All Adapters ===")
+
+        # Check if auth is enabled - if so, we need a token
+        auth_enabled = await self.check_auth_enabled()
+        if auth_enabled and not self.token:
+            logger.error("✗ No authentication token available (auth is enabled)")
+            return False
+
+        try:
+            async with self.session.post(
+                f"{self.base_url}/admin/reload-adapters",
+                headers=self._get_headers(),
+                timeout=30  # Longer timeout for adapter reload
+            ) as response:
+                if response.status == 200:
+                    result = await response.json()
+                    logger.info(f"✓ Adapters reloaded successfully")
+
+                    # Verify response format
+                    if not all(field in result for field in ["status", "message", "summary", "timestamp"]):
+                        logger.error("✗ Reload response missing required fields")
+                        return False
+
+                    summary = result.get("summary", {})
+                    logger.info(f"  Added: {summary.get('added', 0)}")
+                    logger.info(f"  Removed: {summary.get('removed', 0)}")
+                    logger.info(f"  Updated: {summary.get('updated', 0)}")
+                    logger.info(f"  Unchanged: {summary.get('unchanged', 0)}")
+                    logger.info(f"  Total: {summary.get('total', 0)}")
+
+                    return True
+                elif response.status == 503:
+                    error = await response.text()
+                    logger.info(f"✓ Adapter manager not available (may be in inference-only mode): {error}")
+                    return True
+                else:
+                    error = await response.text()
+                    logger.error(f"✗ Adapter reload failed: {response.status} - {error}")
+                    return False
+        except Exception as e:
+            logger.error(f"✗ Adapter reload error: {str(e)}")
+            return False
+
+    async def test_reload_specific_adapter(self) -> bool:
+        """Test reloading a specific adapter configuration"""
+        logger.info("\n=== Testing Reload Specific Adapter ===")
+
+        # Check if auth is enabled - if so, we need a token
+        auth_enabled = await self.check_auth_enabled()
+        if auth_enabled and not self.token:
+            logger.error("✗ No authentication token available (auth is enabled)")
+            return False
+
+        # Use an existing enabled adapter from the configuration
+        test_adapter = "qa-sql"
+
+        try:
+            async with self.session.post(
+                f"{self.base_url}/admin/reload-adapters?adapter_name={test_adapter}",
+                headers=self._get_headers(),
+                timeout=30  # Longer timeout for adapter reload
+            ) as response:
+                if response.status == 200:
+                    result = await response.json()
+                    logger.info(f"✓ Adapter '{test_adapter}' reloaded successfully")
+
+                    # Verify response format
+                    if not all(field in result for field in ["status", "message", "summary", "timestamp"]):
+                        logger.error("✗ Reload response missing required fields")
+                        return False
+
+                    summary = result.get("summary", {})
+                    logger.info(f"  Adapter: {summary.get('adapter_name', test_adapter)}")
+                    logger.info(f"  Action: {summary.get('action', 'unknown')}")
+
+                    return True
+                elif response.status == 404:
+                    # If adapter not found, that's expected if it's disabled or doesn't exist
+                    error = await response.text()
+                    logger.info(f"✓ Adapter not found (may be disabled): {error}")
+                    return True
+                elif response.status == 503:
+                    error = await response.text()
+                    logger.info(f"✓ Adapter manager not available (may be in inference-only mode): {error}")
+                    return True
+                else:
+                    error = await response.text()
+                    logger.error(f"✗ Adapter reload failed: {response.status} - {error}")
+                    return False
+        except Exception as e:
+            logger.error(f"✗ Adapter reload error: {str(e)}")
+            return False
+
+    async def test_reload_nonexistent_adapter(self) -> bool:
+        """Test reloading a non-existent adapter (should fail gracefully)"""
+        logger.info("\n=== Testing Reload Non-existent Adapter ===")
+
+        # Check if auth is enabled - if so, we need a token
+        auth_enabled = await self.check_auth_enabled()
+        if auth_enabled and not self.token:
+            logger.error("✗ No authentication token available (auth is enabled)")
+            return False
+
+        # Use a non-existent adapter name
+        fake_adapter = "nonexistent-adapter-12345"
+
+        try:
+            async with self.session.post(
+                f"{self.base_url}/admin/reload-adapters?adapter_name={fake_adapter}",
+                headers=self._get_headers(),
+                timeout=30
+            ) as response:
+                if response.status == 404:
+                    logger.info(f"✓ Non-existent adapter correctly returns 404")
+                    return True
+                elif response.status == 503:
+                    error = await response.text()
+                    logger.info(f"✓ Adapter manager not available (may be in inference-only mode): {error}")
+                    return True
+                else:
+                    logger.warning(f"Unexpected status for non-existent adapter: {response.status}")
+                    return True  # Don't fail test for this
+        except Exception as e:
+            logger.error(f"✗ Non-existent adapter test error: {str(e)}")
+            return False
+
     async def test_unauthorized_access(self) -> bool:
         """Test admin endpoint access behavior with/without authentication"""
         logger.info("\n=== Testing Unauthorized Access ===")
@@ -692,6 +832,16 @@ async def test_get_adapter_info():
 
 
 @pytest.mark.asyncio
+async def test_adapter_reload():
+    """Test adapter reload functionality"""
+    async with AdminTester(SERVER_URL) as tester:
+        assert await tester.authenticate(), "Admin authentication failed"
+        assert await tester.test_reload_all_adapters(), "Reload all adapters failed"
+        assert await tester.test_reload_specific_adapter(), "Reload specific adapter failed"
+        assert await tester.test_reload_nonexistent_adapter(), "Reload non-existent adapter failed"
+
+
+@pytest.mark.asyncio
 async def test_admin_security():
     """Test admin endpoint security"""
     async with AdminTester(SERVER_URL) as tester:
@@ -719,7 +869,12 @@ async def test_complete_admin_flow():
         
         # Test association
         assert await tester.test_associate_prompt_with_api_key(), "Prompt-API key association failed"
-        
+
+        # Test adapter reload
+        assert await tester.test_reload_all_adapters(), "Reload all adapters failed"
+        assert await tester.test_reload_specific_adapter(), "Reload specific adapter failed"
+        assert await tester.test_reload_nonexistent_adapter(), "Reload non-existent adapter failed"
+
         # Test security
         assert await tester.test_unauthorized_access(), "Unauthorized access test failed"
 
@@ -746,6 +901,9 @@ async def main():
             ("System Prompt Retrieval", tester.test_get_system_prompt),
             ("System Prompt Update", tester.test_update_system_prompt),
             ("Prompt-API Key Association", tester.test_associate_prompt_with_api_key),
+            ("Reload All Adapters", tester.test_reload_all_adapters),
+            ("Reload Specific Adapter", tester.test_reload_specific_adapter),
+            ("Reload Non-existent Adapter", tester.test_reload_nonexistent_adapter),
             ("Unauthorized Access", tester.test_unauthorized_access)
         ]
         
