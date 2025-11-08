@@ -205,9 +205,41 @@ files:
   storage_root: "./uploads"  # Default root directory for storing uploaded files
   
   # Default processing settings (can be overridden per adapter)
-  default_chunking_strategy: "fixed"  # Default: "fixed" or "semantic"
-  default_chunk_size: 1000  # Default chunk size for fixed chunking (characters)
-  default_chunk_overlap: 200  # Default overlap for fixed chunking (characters)
+  default_chunking_strategy: "recursive"  # Options: "fixed", "semantic", "token", "recursive"
+  # Recommended: "recursive" - works best for all file types (PDF, DOCX, CSV, TXT, HTML, JSON, images, audio)
+  # Respects document structure (paragraphs → sentences → words) while handling structured data
+  default_chunk_size: 2048  # Default chunk size (characters for fixed/semantic, tokens for token/recursive)
+  default_chunk_overlap: 200  # Default overlap (characters for fixed/semantic, tokens for token/recursive)
+  
+  # Tokenizer configuration (optional)
+  # If not specified, uses character-based tokenization
+  # Options: "character" (default), "gpt2", "tiktoken", or custom tokenizer identifier
+  # Requires chonkie library for advanced tokenizers
+  tokenizer: null  # e.g., "gpt2", "tiktoken", or null for character-based
+  
+  # Token-based chunking option for fixed strategy
+  # If true, uses token-based chunking instead of character-based
+  use_tokens: false
+  
+  # Strategy-specific chunking options
+  chunking_options:
+    # Semantic chunking options
+    model_name: null  # Optional sentence-transformer model name (e.g., "all-MiniLM-L6-v2")
+    use_advanced: false  # Enable advanced semantic chunking with similarity calculations (requires sentence-transformers)
+    chunk_size_tokens: null  # Optional token-based chunk size limit for semantic chunks
+    
+    # Recursive chunking options
+    min_characters_per_chunk: 24  # Minimum characters per chunk for recursive chunking
+    
+    # Advanced semantic chunking options (when use_advanced: true)
+    threshold: 0.8  # Similarity threshold (0-1) for semantic boundary detection
+    similarity_window: 3  # Number of sentences to consider for similarity calculation
+    min_sentences_per_chunk: 1  # Minimum sentences per chunk
+    min_characters_per_sentence: 24  # Minimum characters per sentence
+    skip_window: 0  # Number of groups to skip when merging (0=disabled)
+    filter_window: 5  # Window length for Savitzky-Golay filter (requires scipy)
+    filter_polyorder: 3  # Polynomial order for Savitzky-Golay filter
+    filter_tolerance: 0.2  # Tolerance for Savitzky-Golay filter
   
   # Default vector store settings (can be overridden per adapter)
   default_vector_store: "chroma"  # Default vector store to use
