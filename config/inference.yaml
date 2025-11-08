@@ -154,7 +154,7 @@ inference:
     access_key: ${AWS_BEDROCK_ACCESS_KEY}
     secret_access_key: ${AWS_SECRET_ACCESS_KEY}
     region: "ca-central-1"
-    model: "anthropic.claude-3-sonnet-20240229-v1:0"
+    model: "claude-sonnet-4-5-20250929"
     content_type: "application/json"
     accept: "application/json"
     max_tokens: 1024

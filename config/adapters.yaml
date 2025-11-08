@@ -75,10 +75,10 @@ adapters:
     adapter: "multimodal"
     implementation: "implementations.passthrough.multimodal.MultimodalImplementation"
     # Provider overrides (optional - use when you want different providers than global defaults)
-    inference_provider: "ollama"    # Override default inference provider
+    inference_provider: "ollama_cloud"    # Override default inference provider
     model: "gpt-oss:120b"            # Specific model for this adapter
-    embedding_provider: "ollama"          # Embeddings for file chunk retrieval (matches uploaded files)
-    vision_provider: "ollama"             # Vision provider for image files: openai, gemini, anthropic (see vision.yaml)
+    embedding_provider: "openai"          # Embedding provider for file chunk retrieval (matches uploaded files)
+    vision_provider: "gemini"             # Vision provider for image files: openai, gemini, anthropic (see vision.yaml)
 
     # Capabilities: Multimodal - conditional file retrieval
     capabilities:
@@ -101,14 +101,11 @@ adapters:
       max_file_size: 52428800  # 50MB
       
       # Processing configuration
-      chunking_strategy: "chonkie_semantic"  # Options: "fixed", "semantic", "chonkie_recursive", "chonkie_semantic"
-      chunk_size: 1000
-      chunk_overlap: 200
-      # Chonkie configuration (optional, used when strategy is chonkie_recursive or chonkie_semantic)
-      # chonkie:
-      #   tokenizer: "character"  # Options: "character", "word", "tiktoken", "transformers", "tokenizers"
-      #   tokenizer_model: null  # Optional: Model name for tiktoken/transformers tokenizers
-      #   embedding_model: null  # Optional: Embedding model for semantic chunking
+      # Chunking strategy options: "fixed", "semantic", "token", "recursive"
+      # These settings override global defaults in config.yaml
+      chunking_strategy: "recursive"  # Options: "fixed", "semantic", "token", "recursive"
+      chunk_size: 1000  # Characters for fixed/semantic, tokens for token/recursive
+      chunk_overlap: 200  # Characters for fixed/semantic, tokens for token/recursive
       
       # Vector store integration
       vector_store: "chroma"  # References stores.yaml
@@ -131,7 +128,7 @@ adapters:
 
     # Provider overrides (optional - use when you want different providers than global defaults)
     inference_provider: "ollama"    # Override default inference provider
-    model: "gpt-oss:20b-cloud"            # Specific model for this adapter
+    model: "gpt-oss:20b"            # Specific model for this adapter
     # reranker_provider: "ollama"     # Override default reranker provider (improves accuracy)
 
     # Capabilities: Standard QA retriever
@@ -196,7 +193,7 @@ adapters:
     implementation: "retrievers.implementations.qa.QAChromaRetriever"
 
     # Provider overrides - this example shows using different providers
-    inference_provider: "ollama_cloud"
+    inference_provider: "ollama"
     embedding_provider: "ollama"
     
     config:
@@ -216,9 +213,9 @@ adapters:
     implementation: "retrievers.implementations.qa.QAQdrantRetriever"
 
     # Provider overrides
-    inference_provider: "ollama_cloud"      # Use Ollama for inference
+    inference_provider: "ollama"      # Use Ollama for inference
     embedding_provider: "openai"      # Use Ollama for embeddings
-    # reranker_provider: "ollama"       # Use Ollama for reranking
+    reranker_provider: "ollama"       # Use Ollama for reranking
 
     config:
       collection: "demo"
@@ -226,7 +223,7 @@ adapters:
       score_scaling_factor: 1.0
       max_results: 5         # Retrieve 5 documents from Qdrant
       return_results: 3      # Return top 3 to LLM
-      # reranker_top_n: 3    # Optional: rerank top 3 for best quality
+      reranker_top_n: 3    # Optional: rerank top 3 for best quality
       timezone: "America/Toronto"
 
   - name: "intent-sql-sqlite-contact"
@@ -328,9 +325,9 @@ adapters:
     adapter: "intent"
     implementation: "retrievers.implementations.intent.IntentDuckDBRetriever"
     database: "utils/duckdb-intent-template/examples/analytics/analytics.duckdb"
-    inference_provider: "ollama_cloud"
-    model: "gpt-oss:120b-cloud"
-    embedding_provider: "openai"
+    inference_provider: "ollama"
+    model: "gpt-oss:12b-cloud"
+    embedding_provider: "ollama"
     config:
       # Path to the domain definition file
       domain_config_path: "utils/duckdb-intent-template/examples/analytics/analytics_domain.yaml"
@@ -371,9 +368,9 @@ adapters:
     datasource: "postgres"
     adapter: "intent"
     implementation: "retrievers.implementations.intent.IntentPostgreSQLRetriever"
-    inference_provider: "ollama_cloud"
-    model: "minimax-m2:cloud"
-    embedding_provider: "openai"
+    inference_provider: "anthropic"
+    model: "claude-sonnet-4-5-20250929"
+    embedding_provider: "cohere"
     # reranker_provider: "ollama"
 
     # Capabilities: Standard intent retriever
@@ -478,8 +475,8 @@ adapters:
     datasource: "http"  # Uses HTTP datasource placeholder
     adapter: "intent"
     implementation: "retrievers.implementations.intent.IntentHTTPJSONRetriever"
-    inference_provider: "ollama_cloud"
-    model: "gpt-oss:20b-cloud"
+    inference_provider: "ollama"
+    model: "gpt-oss:20b"
     embedding_provider: "openai"
     config:
       # Domain and template configuration
@@ -528,9 +525,9 @@ adapters:
     datasource: "http"  # Reuse HTTP placeholder
     adapter: "intent"
     implementation: "retrievers.implementations.intent.IntentFirecrawlRetriever"
-    inference_provider: "ollama_cloud"
-    model: "gpt-oss:20b-cloud"
-    embedding_provider: "openai"  # Used for chunk ranking
+    inference_provider: "ollama"
+    model: "gpt-oss:20b"
+    embedding_provider: "ollama"  # Used for chunk ranking
     config:
       # TESTING: Using minimal templates for validation
       # Switch to firecrawl_domain.yaml and firecrawl_templates.yaml for full Wikipedia templates
@@ -616,9 +613,9 @@ adapters:
     datasource: "mongodb"
     adapter: "intent"
     implementation: "retrievers.implementations.intent.intent_mongodb_retriever.IntentMongoDBRetriever"
-    inference_provider: "ollama_cloud"
-    model: "minimax-m2:cloud"
-    embedding_provider: "cohere"
+    inference_provider: "groq"
+    # model: "minimax-m2:cloud"
+    embedding_provider: "ollama"
     # reranker_provider: "ollama"
     config:
       # reranker_top_n: 3
@@ -705,14 +702,21 @@ adapters:
       max_file_size: 52428800  # 50MB
       
       # Processing configuration
-      chunking_strategy: "semantic"  # Options: "fixed", "semantic", "chonkie_recursive", "chonkie_semantic"
-      chunk_size: 1000
-      chunk_overlap: 200
-      # Chonkie configuration (optional, used when strategy is chonkie_recursive or chonkie_semantic)
-      # chonkie:
-      #   tokenizer: "character"  # Options: "character", "word", "tiktoken", "transformers", "tokenizers"
-      #   tokenizer_model: null  # Optional: Model name for tiktoken/transformers tokenizers
-      #   embedding_model: null  # Optional: Embedding model for semantic chunking
+      # Chunking strategy options: "fixed", "semantic", "token", "recursive"
+      # These settings override global defaults in config.yaml
+      chunking_strategy: "semantic"  # Options: "fixed", "semantic", "token", "recursive"
+      chunk_size: 1000  # Characters for fixed/semantic, tokens for token/recursive
+      chunk_overlap: 200  # Characters for fixed/semantic, tokens for token/recursive
+      
+      # Optional: Tokenizer configuration (inherits from global config if not specified)
+      # tokenizer: "gpt2"  # Options: "character" (default), "gpt2", "tiktoken", etc.
+      # use_tokens: false  # For fixed strategy: use token-based instead of character-based
+      
+      # Optional: Strategy-specific chunking options (inherits from global config if not specified)
+      # chunking_options:
+      #   model_name: "all-MiniLM-L6-v2"  # For semantic chunking
+      #   use_advanced: false  # Enable advanced semantic chunking
+      #   min_characters_per_chunk: 24  # For recursive chunking
       
       # Vector store integration
       vector_store: "chroma"  # References stores.yaml
