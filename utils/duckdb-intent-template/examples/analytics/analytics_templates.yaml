@@ -2,7 +2,7 @@ status: completed
 generated_at: '2025-01-27T12:00:00.000000'
 last_updated: '2025-01-27T12:00:00.000000'
 generator_version: 1.0.0
-total_templates: 15
+total_templates: 30
 templates:
 - id: find_all_sales
   description: Retrieve all sales with optional pagination
@@ -456,4 +456,515 @@ templates:
   - calculate
   - sales
   - average
+- id: product_profitability
+  description: Calculate profit margin and profitability for each product by joining sales with product costs
+  sql: SELECT s.product_name, s.category, SUM(s.sales_amount) AS total_revenue, SUM(s.quantity * COALESCE(p.cost, 0)) AS total_cost, SUM(s.sales_amount) - SUM(s.quantity * COALESCE(p.cost, 0)) AS total_profit, CASE WHEN SUM(s.sales_amount) > 0 THEN ((SUM(s.sales_amount) - SUM(s.quantity * COALESCE(p.cost, 0))) / SUM(s.sales_amount)) * 100 ELSE 0 END AS profit_margin_pct FROM sales s LEFT JOIN products p ON s.product_id = p.id GROUP BY s.product_name, s.category ORDER BY total_profit DESC
+  parameters: []
+  nl_examples:
+  - Show me product profitability
+  - Which products are most profitable?
+  - Calculate profit margins for all products
+  - Display product profit analysis
+  - Show me products ranked by profitability
+  - What's the profit margin for each product?
+  - Find most profitable products
+  - Get product profit breakdown
+  result_format: table
+  version: 1.0.0
+  approved: false
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: calculate
+    primary_entity: products
+    secondary_entity: sales
+    qualifiers: []
+  tags:
+  - calculate
+  - products
+  - profit
+  - margin
+- id: top_customers_by_revenue
+  description: Find top N customers by total revenue generated
+  sql: SELECT c.customer_name, c.email, c.region, c.segment, SUM(s.sales_amount) AS total_revenue, COUNT(DISTINCT s.id) AS purchase_count, AVG(s.sales_amount) AS avg_order_value FROM sales s JOIN customers c ON s.customer_id = c.id GROUP BY c.id, c.customer_name, c.email, c.region, c.segment ORDER BY total_revenue DESC LIMIT :limit
+  parameters:
+  - name: limit
+    type: integer
+    description: Number of top customers to return
+    required: false
+    default: 10
+  nl_examples:
+  - Show me top 10 customers by revenue
+  - Who are our best customers?
+  - List highest value customers
+  - Get top customers by sales
+  - Find our most valuable customers
+  - Display top customers ranked by revenue
+  result_format: table
+  version: 1.0.0
+  approved: false
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: find
+    primary_entity: customers
+    secondary_entity: sales
+    qualifiers: []
+  tags:
+  - find
+  - customers
+  - revenue
+  - top
+- id: monthly_sales_trends
+  description: Calculate monthly sales trends with year-over-year comparison
+  sql: SELECT EXTRACT(YEAR FROM sale_date) AS year, EXTRACT(MONTH FROM sale_date) AS month, SUM(sales_amount) AS total_sales, COUNT(*) AS transaction_count, AVG(sales_amount) AS avg_transaction_value FROM sales WHERE (:start_date IS NULL OR sale_date >= :start_date) AND (:end_date IS NULL OR sale_date <= :end_date) GROUP BY EXTRACT(YEAR FROM sale_date), EXTRACT(MONTH FROM sale_date) ORDER BY year DESC, month DESC
+  parameters:
+  - name: start_date
+    type: date
+    description: Optional start date filter
+    required: false
+    default: null
+  - name: end_date
+    type: date
+    description: Optional end date filter
+    required: false
+    default: null
+  nl_examples:
+  - Show me monthly sales trends
+  - Display sales by month
+  - Get monthly revenue breakdown
+  - Find sales trends over time
+  - Show me monthly sales performance
+  - What are our monthly sales numbers?
+  result_format: table
+  version: 1.0.0
+  approved: false
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: calculate
+    primary_entity: sales
+    secondary_entity: null
+    qualifiers:
+    - date
+  tags:
+  - calculate
+  - sales
+  - trends
+  - monthly
+- id: customer_lifetime_value
+  description: Calculate customer lifetime value (total revenue per customer)
+  sql: SELECT c.customer_name, c.email, c.region, c.segment, SUM(s.sales_amount) AS lifetime_value, COUNT(DISTINCT s.id) AS total_orders, MIN(s.sale_date) AS first_purchase_date, MAX(s.sale_date) AS last_purchase_date, MAX(s.sale_date) - MIN(s.sale_date) AS customer_days FROM sales s JOIN customers c ON s.customer_id = c.id GROUP BY c.id, c.customer_name, c.email, c.region, c.segment ORDER BY lifetime_value DESC
+  parameters: []
+  nl_examples:
+  - Show me customer lifetime value
+  - Calculate CLV for all customers
+  - What's the lifetime value of each customer?
+  - Display customer value analysis
+  - Get customer lifetime revenue
+  - Show me customer value rankings
+  result_format: table
+  version: 1.0.0
+  approved: false
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: calculate
+    primary_entity: customers
+    secondary_entity: sales
+    qualifiers: []
+  tags:
+  - calculate
+  - customers
+  - lifetime
+  - value
+- id: sales_by_customer_segment
+  description: Analyze sales performance by customer segment
+  sql: SELECT c.segment, SUM(s.sales_amount) AS total_sales, COUNT(DISTINCT s.id) AS transaction_count, COUNT(DISTINCT c.id) AS customer_count, AVG(s.sales_amount) AS avg_transaction_value, SUM(s.sales_amount) / COUNT(DISTINCT c.id) AS revenue_per_customer FROM sales s JOIN customers c ON s.customer_id = c.id WHERE c.segment IS NOT NULL GROUP BY c.segment ORDER BY total_sales DESC
+  parameters: []
+  nl_examples:
+  - Show me sales by customer segment
+  - Which customer segment generates the most revenue?
+  - Analyze sales performance by segment
+  - Display segment revenue breakdown
+  - Get sales statistics by customer segment
+  - What's the revenue per segment?
+  result_format: table
+  version: 1.0.0
+  approved: false
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: calculate
+    primary_entity: sales
+    secondary_entity: customers
+    qualifiers:
+    - segment
+  tags:
+  - calculate
+  - sales
+  - customers
+  - segment
+- id: regional_performance_comparison
+  description: Compare sales performance across regions with key metrics
+  sql: SELECT region, SUM(sales_amount) AS total_revenue, COUNT(*) AS transaction_count, COUNT(DISTINCT customer_id) AS unique_customers, AVG(sales_amount) AS avg_transaction_value, SUM(quantity) AS total_units_sold, SUM(sales_amount) / COUNT(DISTINCT customer_id) AS revenue_per_customer FROM sales GROUP BY region ORDER BY total_revenue DESC
+  parameters: []
+  nl_examples:
+  - Compare regional performance
+  - Which region performs best?
+  - Show me regional sales comparison
+  - Analyze performance by region
+  - Display regional revenue metrics
+  - Get regional performance breakdown
+  result_format: table
+  version: 1.0.0
+  approved: false
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: compare
+    primary_entity: sales
+    secondary_entity: null
+    qualifiers:
+    - region
+  tags:
+  - compare
+  - sales
+  - region
+  - performance
+- id: category_profitability
+  description: Calculate profitability metrics grouped by product category
+  sql: SELECT s.category, SUM(s.sales_amount) AS total_revenue, SUM(s.quantity * COALESCE(p.cost, 0)) AS total_cost, SUM(s.sales_amount) - SUM(s.quantity * COALESCE(p.cost, 0)) AS total_profit, CASE WHEN SUM(s.sales_amount) > 0 THEN ((SUM(s.sales_amount) - SUM(s.quantity * COALESCE(p.cost, 0))) / SUM(s.sales_amount)) * 100 ELSE 0 END AS profit_margin_pct, COUNT(DISTINCT s.product_id) AS product_count FROM sales s LEFT JOIN products p ON s.product_id = p.id WHERE s.category IS NOT NULL GROUP BY s.category ORDER BY total_profit DESC
+  parameters: []
+  nl_examples:
+  - Show me category profitability
+  - Which category is most profitable?
+  - Calculate profit margins by category
+  - Display category profit analysis
+  - Get profitability breakdown by category
+  - What's the profit margin for each category?
+  result_format: table
+  version: 1.0.0
+  approved: false
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: calculate
+    primary_entity: products
+    secondary_entity: sales
+    qualifiers:
+    - category
+  tags:
+  - calculate
+  - products
+  - category
+  - profit
+- id: sales_growth_rate
+  description: Calculate month-over-month and year-over-year sales growth rates
+  sql: WITH monthly_sales AS (SELECT EXTRACT(YEAR FROM sale_date) AS year, EXTRACT(MONTH FROM sale_date) AS month, SUM(sales_amount) AS total_sales FROM sales GROUP BY EXTRACT(YEAR FROM sale_date), EXTRACT(MONTH FROM sale_date)), growth_calc AS (SELECT year, month, total_sales, LAG(total_sales) OVER (ORDER BY year, month) AS prev_month_sales, LAG(total_sales, 12) OVER (ORDER BY year, month) AS prev_year_sales FROM monthly_sales) SELECT year, month, total_sales, prev_month_sales, CASE WHEN prev_month_sales > 0 THEN ((total_sales - prev_month_sales) / prev_month_sales) * 100 ELSE NULL END AS mom_growth_pct, prev_year_sales, CASE WHEN prev_year_sales > 0 THEN ((total_sales - prev_year_sales) / prev_year_sales) * 100 ELSE NULL END AS yoy_growth_pct FROM growth_calc ORDER BY year DESC, month DESC
+  parameters: []
+  nl_examples:
+  - Show me sales growth rates
+  - Calculate month-over-month growth
+  - What's the year-over-year growth?
+  - Display sales growth trends
+  - Get growth rate analysis
+  - Show me sales growth percentages
+  result_format: table
+  version: 1.0.0
+  approved: false
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: calculate
+    primary_entity: sales
+    secondary_entity: null
+    qualifiers:
+    - date
+  tags:
+  - calculate
+  - sales
+  - growth
+  - trends
+- id: customer_purchase_history
+  description: Get detailed purchase history for a specific customer
+  sql: SELECT s.id, s.sale_date, s.product_name, s.category, s.region, s.sales_amount, s.quantity, c.customer_name, c.segment FROM sales s JOIN customers c ON s.customer_id = c.id WHERE c.id = :customer_id ORDER BY s.sale_date DESC LIMIT :limit
+  parameters:
+  - name: customer_id
+    type: integer
+    description: Customer ID to retrieve purchase history for
+    required: true
+  - name: limit
+    type: integer
+    description: Maximum number of records to return
+    required: false
+    default: 100
+  nl_examples:
+  - Show me purchase history for customer 123
+  - What has customer 456 bought?
+  - Get all purchases for customer 789
+  - Display customer order history
+  - Find transactions for a specific customer
+  result_format: table
+  version: 1.0.0
+  approved: false
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: find
+    primary_entity: customers
+    secondary_entity: sales
+    qualifiers: []
+  tags:
+  - find
+  - customers
+  - sales
+  - history
+- id: products_by_profit_margin
+  description: Find products with highest and lowest profit margins
+  sql: SELECT s.product_name, s.category, SUM(s.sales_amount) AS total_revenue, SUM(s.quantity * COALESCE(p.cost, 0)) AS total_cost, SUM(s.sales_amount) - SUM(s.quantity * COALESCE(p.cost, 0)) AS total_profit, CASE WHEN SUM(s.sales_amount) > 0 THEN ((SUM(s.sales_amount) - SUM(s.quantity * COALESCE(p.cost, 0))) / SUM(s.sales_amount)) * 100 ELSE 0 END AS profit_margin_pct FROM sales s LEFT JOIN products p ON s.product_id = p.id GROUP BY s.product_name, s.category HAVING COUNT(*) > 0 ORDER BY profit_margin_pct DESC LIMIT :limit
+  parameters:
+  - name: limit
+    type: integer
+    description: Number of products to return
+    required: false
+    default: 20
+  nl_examples:
+  - Show me products with highest profit margins
+  - Which products have the best margins?
+  - Find products ranked by profit margin
+  - Display products by margin percentage
+  - Get top margin products
+  - Show me best margin products
+  result_format: table
+  version: 1.0.0
+  approved: false
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: find
+    primary_entity: products
+    secondary_entity: sales
+    qualifiers: []
+  tags:
+  - find
+  - products
+  - profit
+  - margin
+- id: quarterly_sales_summary
+  description: Calculate quarterly sales summary with comparisons
+  sql: SELECT EXTRACT(YEAR FROM sale_date) AS year, CASE WHEN EXTRACT(MONTH FROM sale_date) IN (1, 2, 3) THEN 'Q1' WHEN EXTRACT(MONTH FROM sale_date) IN (4, 5, 6) THEN 'Q2' WHEN EXTRACT(MONTH FROM sale_date) IN (7, 8, 9) THEN 'Q3' ELSE 'Q4' END AS quarter, SUM(sales_amount) AS total_sales, COUNT(*) AS transaction_count, COUNT(DISTINCT customer_id) AS unique_customers, AVG(sales_amount) AS avg_transaction_value FROM sales GROUP BY EXTRACT(YEAR FROM sale_date), CASE WHEN EXTRACT(MONTH FROM sale_date) IN (1, 2, 3) THEN 'Q1' WHEN EXTRACT(MONTH FROM sale_date) IN (4, 5, 6) THEN 'Q2' WHEN EXTRACT(MONTH FROM sale_date) IN (7, 8, 9) THEN 'Q3' ELSE 'Q4' END ORDER BY year DESC, quarter DESC
+  parameters: []
+  nl_examples:
+  - Show me quarterly sales summary
+  - Display quarterly performance
+  - Get quarterly sales breakdown
+  - Show me sales by quarter
+  - What are our quarterly sales numbers?
+  - Display quarterly revenue summary
+  result_format: table
+  version: 1.0.0
+  approved: false
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: calculate
+    primary_entity: sales
+    secondary_entity: null
+    qualifiers:
+    - date
+  tags:
+  - calculate
+  - sales
+  - quarterly
+  - summary
+- id: sales_velocity
+  description: Calculate sales velocity metrics (sales per day, transactions per day)
+  sql: SELECT DATE_TRUNC('day', sale_date) AS sale_day, COUNT(*) AS transactions, SUM(sales_amount) AS daily_revenue, SUM(quantity) AS daily_units, AVG(sales_amount) AS avg_transaction_value FROM sales WHERE (:start_date IS NULL OR sale_date >= :start_date) AND (:end_date IS NULL OR sale_date <= :end_date) GROUP BY DATE_TRUNC('day', sale_date) ORDER BY sale_day DESC
+  parameters:
+  - name: start_date
+    type: date
+    description: Optional start date filter
+    required: false
+    default: null
+  - name: end_date
+    type: date
+    description: Optional end date filter
+    required: false
+    default: null
+  nl_examples:
+  - Show me daily sales velocity
+  - What's our sales per day?
+  - Display daily transaction volume
+  - Get sales velocity metrics
+  - Show me daily sales performance
+  - Calculate sales per day
+  result_format: table
+  version: 1.0.0
+  approved: false
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: calculate
+    primary_entity: sales
+    secondary_entity: null
+    qualifiers:
+    - date
+  tags:
+  - calculate
+  - sales
+  - velocity
+  - daily
+- id: underperforming_products
+  description: Identify products with low sales or poor performance
+  sql: SELECT s.product_name, s.category, SUM(s.sales_amount) AS total_revenue, COUNT(*) AS sale_count, SUM(s.quantity) AS total_quantity, AVG(s.sales_amount) AS avg_sale_amount, MAX(s.sale_date) - MIN(s.sale_date) AS days_active FROM sales s GROUP BY s.product_name, s.category HAVING SUM(s.sales_amount) < :revenue_threshold OR COUNT(*) < :transaction_threshold ORDER BY total_revenue ASC LIMIT :limit
+  parameters:
+  - name: revenue_threshold
+    type: decimal
+    description: Revenue threshold below which products are considered underperforming
+    required: false
+    default: 10000.00
+  - name: transaction_threshold
+    type: integer
+    description: Transaction count threshold below which products are considered underperforming
+    required: false
+    default: 10
+  - name: limit
+    type: integer
+    description: Maximum number of products to return
+    required: false
+    default: 20
+  nl_examples:
+  - Show me underperforming products
+  - Which products are selling poorly?
+  - Find products with low sales
+  - Display worst performing products
+  - Get products below sales threshold
+  - Show me products that need attention
+  result_format: table
+  version: 1.0.0
+  approved: false
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: find
+    primary_entity: products
+    secondary_entity: sales
+    qualifiers: []
+  tags:
+  - find
+  - products
+  - performance
+  - underperforming
+- id: customer_acquisition_analysis
+  description: Analyze new customer acquisition over time
+  sql: SELECT DATE_TRUNC('month', c.created_at) AS acquisition_month, COUNT(DISTINCT c.id) AS new_customers, SUM(s.sales_amount) AS revenue_from_new_customers, COUNT(DISTINCT s.id) AS transactions_from_new_customers FROM customers c LEFT JOIN sales s ON c.id = s.customer_id AND DATE_TRUNC('month', s.sale_date) = DATE_TRUNC('month', c.created_at) GROUP BY DATE_TRUNC('month', c.created_at) ORDER BY acquisition_month DESC
+  parameters: []
+  nl_examples:
+  - Show me customer acquisition by month
+  - How many new customers did we acquire each month?
+  - Display customer acquisition trends
+  - Get new customer analysis
+  - Show me monthly customer acquisition
+  - Analyze customer growth
+  result_format: table
+  version: 1.0.0
+  approved: false
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: calculate
+    primary_entity: customers
+    secondary_entity: sales
+    qualifiers:
+    - date
+  tags:
+  - calculate
+  - customers
+  - acquisition
+  - growth
+- id: product_sales_rankings
+  description: Comprehensive product sales rankings with multiple metrics
+  sql: SELECT s.product_name, s.category, SUM(s.sales_amount) AS total_revenue, SUM(s.quantity) AS total_units_sold, COUNT(*) AS transaction_count, AVG(s.sales_amount) AS avg_transaction_value, COUNT(DISTINCT s.customer_id) AS unique_customers, MIN(s.sale_date) AS first_sale_date, MAX(s.sale_date) AS last_sale_date FROM sales s GROUP BY s.product_name, s.category ORDER BY total_revenue DESC LIMIT :limit
+  parameters:
+  - name: limit
+    type: integer
+    description: Number of products to return
+    required: false
+    default: 20
+  nl_examples:
+  - Show me product sales rankings
+  - Rank products by sales performance
+  - Display comprehensive product rankings
+  - Get product performance metrics
+  - Show me top products with all metrics
+  - Find best performing products
+  result_format: table
+  version: 1.0.0
+  approved: false
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: find
+    primary_entity: products
+    secondary_entity: sales
+    qualifiers: []
+  tags:
+  - find
+  - products
+  - sales
+  - rankings
+- id: repeat_customer_rate
+  description: Calculate repeat customer rate and customer retention metrics
+  sql: WITH customer_purchase_counts AS (SELECT customer_id, COUNT(DISTINCT DATE_TRUNC('month', sale_date)) AS months_with_purchases, COUNT(*) AS total_purchases, SUM(sales_amount) AS total_revenue FROM sales WHERE customer_id IS NOT NULL GROUP BY customer_id) SELECT COUNT(*) AS total_customers, COUNT(CASE WHEN total_purchases > 1 THEN 1 END) AS repeat_customers, COUNT(CASE WHEN total_purchases = 1 THEN 1 END) AS one_time_customers, CASE WHEN COUNT(*) > 0 THEN (COUNT(CASE WHEN total_purchases > 1 THEN 1 END)::DECIMAL / COUNT(*)) * 100 ELSE 0 END AS repeat_customer_rate_pct, AVG(total_purchases) AS avg_purchases_per_customer, AVG(total_revenue) AS avg_revenue_per_customer FROM customer_purchase_counts
+  parameters: []
+  nl_examples:
+  - What's our repeat customer rate?
+  - Calculate customer retention rate
+  - Show me repeat customer metrics
+  - How many customers come back?
+  - Display customer loyalty statistics
+  - Get repeat purchase analysis
+  result_format: summary
+  version: 1.0.0
+  approved: false
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: calculate
+    primary_entity: customers
+    secondary_entity: sales
+    qualifiers: []
+  tags:
+  - calculate
+  - customers
+  - retention
+  - loyalty
+- id: seasonal_sales_patterns
+  description: Analyze seasonal sales patterns by month and day of week
+  sql: SELECT EXTRACT(MONTH FROM sale_date) AS month, STRFTIME('%B', sale_date) AS month_name, EXTRACT(DOW FROM sale_date) AS day_of_week, STRFTIME('%A', sale_date) AS day_name, SUM(sales_amount) AS total_sales, COUNT(*) AS transaction_count, AVG(sales_amount) AS avg_transaction_value FROM sales GROUP BY EXTRACT(MONTH FROM sale_date), STRFTIME('%B', sale_date), EXTRACT(DOW FROM sale_date), STRFTIME('%A', sale_date) ORDER BY month, day_of_week
+  parameters: []
+  nl_examples:
+  - Show me seasonal sales patterns
+  - What months have the highest sales?
+  - Analyze sales by day of week
+  - Display seasonal trends
+  - Get sales patterns by month and day
+  - Show me when we sell the most
+  result_format: table
+  version: 1.0.0
+  approved: false
+  created_at: '2025-01-27T12:00:00.000000'
+  created_by: template_generator
+  semantic_tags:
+    action: calculate
+    primary_entity: sales
+    secondary_entity: null
+    qualifiers:
+    - date
+  tags:
+  - calculate
+  - sales
+  - seasonal
+  - patterns
 
