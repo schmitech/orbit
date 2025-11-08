@@ -228,56 +228,10 @@ For more detailed information, please refer to the official documentation.
 - [Development Roadmap](docs/roadmap/README.md)
 - [Contributing Guide](CONTRIBUTING.md)
 
-<details>
-<summary><b>Full API Reference</b></summary>
-
-ORBIT provides a RESTful API for programmatic access. The full API reference with examples is available at `/docs` (Swagger UI) when the server is running.
-
-### Core Chat & Inference
-- `POST /v1/chat` - MCP protocol chat endpoint (JSON-RPC 2.0 format)
-- `GET /health` - Overall system health
-
-### Authentication
-- `POST /auth/login` - User authentication  
-- `POST /auth/logout` - End session
-- `GET /auth/me` - Get current user info
-- `POST /auth/register` - Register new user
-- `POST /auth/change-password` - Change user password
-
-### API Key Management (Admin)
-- `GET /admin/api-keys` - List API keys
-- `POST /admin/api-keys` - Create new API key
-- `DELETE /admin/api-keys/{api_key}` - Delete API key
-- `POST /admin/api-keys/deactivate` - Deactivate API key
-- `GET /admin/api-keys/{api_key}/status` - Get API key status
-
-### System Prompts (Admin)
-- `GET /admin/prompts` - List system prompts
-- `POST /admin/prompts` - Create system prompt
-- `PUT /admin/prompts/{prompt_id}` - Update system prompt
-- `DELETE /admin/prompts/{prompt_id}` - Delete system prompt
-
-### Health & Monitoring
-- `GET /health` - System health overview
-- `GET /health/adapters` - Adapter health status
-- `GET /health/embedding-services` - Embedding service status
-- `GET /health/mongodb-services` - MongoDB connection status
-- `GET /health/ready` - Readiness check
-- `GET /health/system` - System resource usage
-
-### File Management (Experimental)
-- `POST /upload` - Single file upload
-- `POST /upload/batch` - Batch file upload
-- `GET /info/{file_id}` - File information
-- `DELETE /{file_id}` - Delete file
-- `GET /status` - File system status
-</details>
-
 ## Community & Support
 
 - **Questions?** Open an [issue](https://github.com/schmitech/orbit/issues)
 - **Updates:** Check the [changelog](CHANGELOG.md)
-- **Commercial Support:** Contact [schmitech.ai](https://schmitech.ai/)
 - **Maintained by:** [Remsy Schmilinsky](https://www.linkedin.com/in/remsy/)
 
 ## License
