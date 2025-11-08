@@ -51,11 +51,10 @@ ORBIT gives you a single, consistent API to run LLMs (local or cloud) against yo
 
 ## Why ORBIT
 
-- **Run securely with your data** thanks to support for on-prem hardware, air-gapped installs, and strict authentication defaults.
-- **Mix and match 20+ LLM providers** (OpenAI, Anthropic, Gemini, Cohere, Mistral, Ollama, Groq, DeepSeek, xAI, OpenRouter, and more) plus local models through a single unified API without rewriting downstream apps.
-- **Connect to any data source** with production-ready RAG adapters for SQL databases (PostgreSQL, MySQL, SQLite, DuckDB, Oracle, SQL Server, Cassandra), vector stores (Chroma, Qdrant, Pinecone, Milvus, Elasticsearch, Redis), MongoDB, HTTP APIs, and file uploads.
-- **Intelligent query translation** with intent-based adapters that automatically convert natural language to SQL, Elasticsearch queries, MongoDB queries, and HTTP API calls.
-- **Multimodal capabilities** with vision support for image analysis, OCR, and document understanding across multiple providers.
+- **Avoid vendor lock-in** by switching between LLM providers without rewriting your application code—change providers in configuration, not code.
+- **Keep your data private** with support for on-prem deployments, air-gapped installs, and local models that never leave your infrastructure.
+- **Ship faster** with production-ready adapters that handle authentication, connection pooling, error handling, and query optimization out of the box.
+- **Query your data naturally** in any language instead of writing SQL, Elasticsearch queries, or API calls—intent-based adapters handle the translation automatically.
 
 ### Built for
 
