@@ -70,11 +70,16 @@ export function MessageInput({
   // Disable input if files are uploading, processing, or if already disabled
   const isInputDisabled = disabled || hasProcessingFiles || isUploading;
 
-  // Auto-resize textarea
+  // Auto-resize textarea with maximum height limit
   useEffect(() => {
     if (textareaRef.current) {
+      const maxHeight = 120; // Maximum height in pixels (about 4-5 lines)
       textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+      const scrollHeight = textareaRef.current.scrollHeight;
+      // Set height to scrollHeight, but cap it at maxHeight
+      textareaRef.current.style.height = `${Math.min(scrollHeight, maxHeight)}px`;
+      // Enable overflow-y when content exceeds max height
+      textareaRef.current.style.overflowY = scrollHeight > maxHeight ? 'auto' : 'hidden';
     }
   }, [message]);
 
@@ -131,6 +136,7 @@ export function MessageInput({
       setShowFileUpload(false);
       if (textareaRef.current) {
         textareaRef.current.style.height = 'auto';
+        textareaRef.current.style.overflowY = 'hidden';
       }
     }
   };
@@ -230,11 +236,11 @@ export function MessageInput({
 
       <form onSubmit={handleSubmit} className="mx-auto flex w-full max-w-5xl flex-col gap-3">
         <div
-          className={`flex items-center gap-2 rounded-full border px-4 py-3 shadow-sm transition-all ${
+          className={`flex items-center gap-2 rounded-lg border px-4 py-3 shadow-sm transition-all ${
             isFocused
               ? 'border-gray-300 shadow-md dark:border-[#565869] dark:shadow-lg'
               : 'border-gray-200 dark:border-[#40414f]'
-          } bg-white dark:bg-[#40414f]`}
+          } bg-gray-50 dark:bg-[#343541]`}
         >
           <button
             type="button"
@@ -284,7 +290,8 @@ export function MessageInput({
             maxLength={1000}
             className="flex-1 resize-none bg-transparent py-1 text-sm text-[#353740] placeholder-gray-400 focus:outline-none dark:text-[#ececf1] dark:placeholder-[#bfc2cd]"
             style={{ 
-              minHeight: '24px', 
+              minHeight: '24px',
+              maxHeight: '120px',
               border: 'none', 
               outline: 'none',
               boxShadow: 'none',
