@@ -146,7 +146,7 @@ mkdir -p dist/build/${PACKAGE_NAME}
 
 # Create directory structure
 echo "Creating directory structure..."
-mkdir -p dist/build/${PACKAGE_NAME}/{bin,server,install,logs,docker,config,utils}
+mkdir -p dist/build/${PACKAGE_NAME}/{bin,server,install,logs,docker,config,utils,prompts}
 
 # Copy core server files (excluding tests directory)
 echo "Copying server files..."
@@ -176,8 +176,15 @@ find bin -type f -not -path "*/\.*" -not -path "*/__pycache__/*" -not -name "*.p
     cp "$file" "dist/build/${PACKAGE_NAME}/$file"
 done
 
-# Note: Examples directory is excluded from the tarball
-echo "Skipping examples directory (excluded from distribution)..."
+# Copy default-conversational-adapter-prompt.txt to prompts (needed for creating API keys)
+echo "Copying default-conversational-adapter-prompt.txt to prompts directory..."
+if [ -f "examples/prompts/examples/default-conversational-adapter-prompt.txt" ]; then
+    mkdir -p "dist/build/${PACKAGE_NAME}/prompts"
+    cp "examples/prompts/examples/default-conversational-adapter-prompt.txt" "dist/build/${PACKAGE_NAME}/prompts/default-conversational-adapter-prompt.txt"
+    echo "✅ default-conversational-adapter-prompt.txt copied to prompts successfully"
+else
+    echo "⚠️ Warning: examples/prompts/examples/default-conversational-adapter-prompt.txt not found"
+fi
 
 # Copy config files
 echo "Copying configuration files..."

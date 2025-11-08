@@ -11,6 +11,8 @@
 - Update Inference.yaml: Update ollama_cloud settings for RAG purposes, enabled other providers previously marked as disabled
 - Config Updates: Update adapters and inference yaml config files to match latest features, optimized Ollama settings for large context
 - Update stores.yaml: Disable pinecone and qdrant by default
+- Adapter Capabilities System: Replaced hardcoded adapter type checks with declarative capability system using AdapterCapabilities with retrieval_behavior and formatting_style enums, integrated with adapter reload system, includes 25 unit tests and extensive documentation
+- Update Adapters Configuration: Updated adapters.yaml to reflect capabilities settings and default adapter names, added more DuckDB analytics templates
 
 ### New Adapters & Features
 - New Files Adapter: Introduced new file adapter to perform AI reasoning tasks on files
@@ -35,6 +37,8 @@
 - Chat Widget Theming Fixes: Renamed background to questionsBackground to match the parameter in chat widget
 - Clear All Conversations: Added clear all conversations button
 - Multimodal Adapter CleanUp: Clean up debug lines after multimodal adapter, only log when verbose / debug is enabled, added file vacuum script
+- MessageList Scrolling Fixes: Fixed scrolling down issues in MessageList component
+- MessageInput Improvements: Fixed scrolling down, improved input box, fixed unbounded text in input field plus other UX minor improvements
 
 ### Bug Fixes & Technical Improvements
 - Fix streaming issues: Fix streaming issues, update logging verbosity from intent modules, update chat_client and test_mcp clients
@@ -43,13 +47,14 @@
 - Fix text_vector_retriever_truncation: Fix unit test
 - Fix Unit Tests: Fix remaining of tests causing errors
 - Update intent_http_base.py: Added dump query results when verbose is true
-- Update llm_inference.py: Added chart instructions when asking to generate charts in the prompt
+- Update llm_inference.py: Added chart instructions when asking to generate charts in the prompt, adjusted chart instructions prompt, removed unused build_chat_instruction_compact
+- Multimodal Adapter Loading Fix: Fixed issues with Multimodal Adapter not being loaded properly after introducing adapter reloading functionality
 
 ### File & Retrieval System
 - Files Adapter Updates: Further refinement of new file adapter towards new release, more test coverage for file adapter, updated vector stores to better handle file chunking, enable sentence transformer library in minimal installation profile
 - File Adapter Updates: Further improve new file adapter, added more unit tests
 - Update with MarkdownRenderer 0.2.0: Import MarkdownRenderer 0.2.0
-- Update package.json: Update MarkdownRenderer to v0.3.3
+- Update package.json: Update MarkdownRenderer to v0.3.3, updated packages, removed deprecation warnings, updated to latest version of MarkdownRenderer (no more nesting warnings)
 
 ### Testing & Quality Assurance
 - Create Unit Test: New unit test for file adapter
@@ -64,6 +69,8 @@
 - More Files Examples: Additional files examples to test multimodal capabilities
 - Roadmap Updates: Update roadmap plans, add reranking new design, add roadmap item (SQLite)
 - Update logs_templates.yaml: Refine DSL queries
+- Documentation Cleanup: Reorganized documentation structure
+- Documentation and Scripts Updates: Updated scripts and docs to reflect latest release v2.0.0
 
 ## [1.6.0] - 2025-10-25
 

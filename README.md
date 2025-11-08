@@ -96,8 +96,14 @@ curl -L https://github.com/schmitech/orbit/releases/download/v2.0.0/orbit-2.0.0.
 tar -xzf orbit-2.0.0.tar.gz
 cd orbit-2.0.0
 
-# Bootstrap dependencies and download a small model
+# Add API keys if using proprietary services like OpenAI, Cohere, Anthropic, etc
 cp env.example .env
+
+# Install packages
+./install/setup.sh
+
+# Optional: Download a GGUF model to work with llama_cpp provider
+# Skip if using a different provider, see available providers in /config/inference.yaml
 ./install/setup.sh --download-gguf granite4-micro
 
 # Start the ORBIT server
@@ -117,14 +123,6 @@ Browse to `http://localhost:3000/dashboard` to monitor the ORBIT server:
 
 ### Talk to ORBIT from the CLI
 
-First, install the `orbit-chat` CLI tool from PyPI:
-
-```bash
-pip install schmitech-orbit-client
-```
-
-Then follow these steps:
-
 ```bash
 # Step 1: Login to ORBIT with default admin credentials (admin / admin123):
 ./bin/orbit.sh login --username admin --password admin123
@@ -137,14 +135,15 @@ Then follow these steps:
 ./bin/orbit.sh key create \
   --adapter simple-chat \
   --name "Conversational Chatbot" \
-  --prompt-file ./examples/prompts/examples/default-conversational-adapter-prompt.txt \
+  --prompt-file ./prompts/default-conversational-adapter-prompt.txt \
   --prompt-name "Conversational Prompt"
 
 # For file upload and multimodal support, use conversational-multimodal adapter instead:
+# Note: This adapter must be enabled in config/adapters.yaml first (set enabled: true for "simple-chat-with-files")
 # ./bin/orbit.sh key create \
 #   --adapter simple-chat-with-files \
 #   --name "Multimodal Chatbot" \
-#   --prompt-file ./examples/prompts/examples/default-conversational-adapter-prompt.txt \
+#   --prompt-file ./prompts/default-conversational-adapter-prompt.txt \
 #   --prompt-name "Conversational Prompt"
 
 # This will output something like: orbit_0sXJhNsK7FT9HCGEUS7GpkhtXvVOEMX6
@@ -199,7 +198,7 @@ npm run dev
 
 #### Next steps
 
-- Create an API key tied to the adapter you want to expose (`./bin/orbit.sh key create`).
+- Create an API key tied to the adapter you want to expose (`./bin/orbit.sh key create`). A default prompt file is available at `./prompts/default-conversational-adapter-prompt.txt`.
 - Enable or customize adapters in `config/adapters.yaml` and redeploy to connect new datasources.
 - Skim the [docs](#documentation) for deep dives on auth, configuration, and deployment patterns.
 
