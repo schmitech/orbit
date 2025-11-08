@@ -68,7 +68,7 @@ Have a story or feature request? [Open an issue](https://github.com/schmitech/or
 
 ---
 
-## Quick Start
+## How to Use
 
 ### Prerequisites
 
@@ -78,17 +78,7 @@ Have a story or feature request? [Open an issue](https://github.com/schmitech/or
 - Optional: MongoDB (only needed if using MongoDB backend instead of default SQLite)
 - Optional: Redis cache and vector DB (Chroma, Qdrant, Pinecone, Milvus, etc.)
 
-### Docker
-
-Refer to the [Docker Setup Guide](docker/README.md) or run the bundled scripts from the `docker/` directory:
-
-```bash
-cd docker
-chmod +x docker-init.sh orbit-docker.sh
-./docker-init.sh --build
-```
-
-### Local install
+### Installation Instructions
 
 ```bash
 # Download the latest release archive
@@ -105,8 +95,21 @@ cp env.example .env
 # Activate Python environment
 source venv/bin/activate
 
-# Get a local model (you may choose other providers/models. See /config/adapters.yaml)
+# Get a local GGUF model (models are downloaded from Hugging Face)
+# You can select a different model from the list below
+# Available GGUF models: gemma3-270m, gemma3-1b, tinyllama-1b, phi-2, mistral-7b, granite4-micro, embeddinggemma-300m
+# You can add your own models by editing install/gguf-models.json
 ./install/setup.sh --download-gguf granite4-micro
+
+# (Optional) Choose a different AI provider and model
+# You can override the default provider/model by editing config/adapters.yaml
+# Find the "simple-chat" adapter and modify the inference_provider and model fields
+# Available providers from config/inference.yaml: ollama, ollama_cloud, llama_cpp, gemini, groq, 
+#   deepseek, openai, mistral, anthropic, cohere, xai, openrouter, together, and more
+# Example: To use OpenAI instead of llama_cpp, set:
+#   inference_provider: "openai"
+#   model: "gpt-5"
+# Note: Make sure the provider is enabled in config/inference.yaml and you have the required API keys in .env
 
 # Start the ORBIT server
 ./bin/orbit.sh start 
