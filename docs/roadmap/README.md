@@ -7,11 +7,13 @@ This roadmap outlines the strategic direction and planned enhancements for ORBIT
 ## Feature Roadmaps
 
 ### 1. [Prompt Service Enhancement](prompt-service.md)
-Transforming prompt management into a comprehensive orchestration platform:
+Enhancing the existing prompt management system with advanced orchestration capabilities:
 - LangChain integration
 - RAG context management
 - Template versioning
 - Example-based management
+
+**Note**: Basic prompt service is implemented (create, retrieve, update prompts, associate with API keys). See the [Server Documentation](../server.md#system-prompts) for current functionality.
 
 ### 2. [Workflow Adapter System](workflow-adapter-architecture.md)
 Building a flexible workflow orchestration system:
@@ -30,7 +32,7 @@ Scaling ORBIT to handle thousands of concurrent requests:
 
 **Implementation Status**: The LLM Guard service has been fully integrated into Orbit. See the [LLM Guard Service Documentation](../llm-guard-service.md) for configuration and usage details.
 
-### 5. [Asynchronous Messaging & Multi-Modal Processing](async-messaging-integration.md)
+### 4. [Asynchronous Messaging & Multi-Modal Processing](async-messaging-integration.md)
 Scalable async processing with message queue protocols:
 - Multi-platform message queue support (RabbitMQ, Kafka, Pub/Sub)
 - Multi-modal content processing (text, image, audio, video, documents)
@@ -38,7 +40,7 @@ Scalable async processing with message queue protocols:
 - Event-driven workflow orchestration
 - Dynamic worker scaling and resource optimization
 
-### 6. [Notification Service Integration](notification-service-integration.md)
+### 5. [Notification Service Integration](notification-service-integration.md)
 Comprehensive multi-channel communication system:
 - Email, webhook, SMS, push notification support
 - Team collaboration integration (Slack, Teams, Discord)
@@ -46,33 +48,27 @@ Comprehensive multi-channel communication system:
 - User preference management and quiet hours
 - Enterprise compliance and audit trails
 
-### 7. [Security & Access Control](security-access.md)
+### 6. [Security & Access Control](security-access.md)
 Implementing enterprise-grade security:
 - Role-Based Access Control (RBAC)
 - OAuth2.0 and SSO integration
 - API key management
 - Audit logging and compliance
 
-### 8. [HTTP Adapter System](http-adapter-system.md)
-Comprehensive HTTP integration framework:
-- REST API adapter with template system
-- Webhook integration for real-time data
-- Web scraping capabilities
-- GraphQL and SOAP support
-- Enterprise security and performance features
-
-### 9. [File Adapter System](file-adapter-system.md)
-Advanced file processing with MinIO integration:
-- Universal file format support (PDF, DOC, CSV, etc.)
-- Intelligent chunking strategies (semantic, structure-aware, AI-powered)
-- High-performance concurrent processing with MinIO
-- Enterprise security and compliance features
-- AI-powered content analysis and classification
-
-### 10. [Enterprise Features](enterprise-features.md)
+### 7. [Enterprise Features](enterprise-features.md)
 Adding enterprise capabilities:
 - Analytics and monitoring
 - A/B testing framework
 - Compliance tracking
 - Performance optimization
+
+## Implemented Features
+
+The following features have been fully implemented and are available for use:
+
+### ✅ HTTP Adapter System
+Comprehensive HTTP integration framework with REST API adapter, template system, web scraping capabilities (including Firecrawl integration), and HTTP intent retrievers. See the [HTTP Intent Template Documentation](../../utils/http-intent-template/README.md) and [adapters.yaml](../../config/adapters.yaml) for configuration examples.
+
+### ✅ File Adapter System
+Advanced file processing with universal file format support (PDF, DOCX, CSV, TXT, HTML, JSON, images, audio), intelligent chunking strategies (fixed, semantic, token, recursive), vector store integration, and DuckDB support for structured data. See the [File Adapter Guide](../file-adapter-guide.md) for documentation.
 

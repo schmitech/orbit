@@ -119,7 +119,7 @@ cat ./logs/orbit.log
 ```
 
 Browse to `http://localhost:3000/dashboard` to monitor the ORBIT server:
-<div align="center">
+<div align="left">
   <img src="/docs/images/orbit-dashboard.png" alt="ORBIT Dashboard" width="800"/>
   <br/>
   <i>ORBIT Dashboard: Monitor, search, and configure your environment.</i>
@@ -197,6 +197,53 @@ npm run dev
   </video>
   <br/>
   <i>Chatting with ORBIT using the React client.</i>
+</div>
+
+### Chatting with a DB
+
+#### Setting up the PostgreSQL Example
+
+```bash
+# Step 1: Navigate to the postgres example directory
+cd examples/postgres
+
+# Step 2: Set up your PostgreSQL connection
+# Copy the environment example file and configure it
+cp env.example .env
+
+# Step 4: Set up the database schema
+# This creates the customers and orders tables
+python setup_schema.py
+
+# Step 5: Generate test data
+# Insert 100 customers and 500 orders with realistic addresses
+python customer-order.py --action insert --customers 100 --orders 500
+
+# Step 6: Verify the adapter is enabled in config/adapters.yaml
+# The adapter "intent-sql-postgres" should have enabled: true
+# Templates are already configured at:
+# - utils/sql-intent-template/examples/postgres/customer-orders/
+
+# Step 7: Restart the ORBIT server to load the templates
+cd ../..
+./bin/orbit.sh restart
+
+# Step 9: Generate an API key for the postgres adapter
+./bin/orbit.sh key create \
+  --adapter intent-sql-postgres \
+  --name "PostgreSQL Customer Orders" \
+  --prompt-file ./prompts/default-conversational-adapter-prompt.txt \
+  --prompt-name "Conversational Prompt"
+```
+
+#### Test with the React application:
+
+<div align="center">
+  <video src="https://github.com/user-attachments/assets/abc7cbd5-bc81-493a-b0fc-2fa1a3cb22ef" controls>
+    Your browser does not support the video tag.
+  </video>
+  <br/>
+  <i>Chatting with a PostgreSQL database using the React client.</i>
 </div>
 
 #### Next steps
