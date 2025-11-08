@@ -225,7 +225,8 @@ class IntentDuckDBRetriever(IntentSQLRetriever):
                 # No parameters
                 result = self.connection.execute(query)
 
-            if query.strip().upper().startswith("SELECT"):
+            query_upper = query.strip().upper()
+            if query_upper.startswith("SELECT") or query_upper.startswith("WITH"):
                 # Fetch all results and convert to list of dicts
                 rows = result.fetchall()
                 
