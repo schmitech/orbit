@@ -12,6 +12,7 @@ export function MessageList({ messages, onRegenerate, isLoading }: MessageListPr
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const prevMessageCountRef = useRef(messages.length);
+  const prevLastMessageContentRef = useRef<string>('');
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
 
   // Check if user has scrolled up manually
@@ -19,30 +20,56 @@ export function MessageList({ messages, onRegenerate, isLoading }: MessageListPr
     if (!containerRef.current) return;
     
     const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
-    const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
+    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+    // Only disable auto-scroll if user has scrolled significantly up (more than 200px)
+    const isNearBottom = distanceFromBottom < 200;
     setShouldAutoScroll(isNearBottom);
   };
 
-  // Keep messages anchored to the latest content while the user stays near the bottom
+  // Scroll to bottom helper function
+  const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior });
+    }
+  };
+
+  // Auto-scroll when messages change (new message added or content updated)
   useEffect(() => {
     const messageCount = messages.length;
     const hadMessages = prevMessageCountRef.current;
     const hasNewMessage = messageCount > hadMessages;
     const lastMessage = messages[messages.length - 1];
+    const lastMessageContent = lastMessage?.content || '';
+    const contentChanged = lastMessageContent !== prevLastMessageContentRef.current;
 
-    if ((hasNewMessage || lastMessage?.isStreaming) && shouldAutoScroll) {
-      messagesEndRef.current?.scrollIntoView({ behavior: hasNewMessage ? 'smooth' : 'auto' });
+    // Always scroll when:
+    // 1. A new message is added (user sends message or assistant response starts)
+    // 2. The last message is streaming (response is being received)
+    // 3. The content of the last message changed (streaming update)
+    if (hasNewMessage || lastMessage?.isStreaming || (contentChanged && lastMessage?.role === 'assistant')) {
+      // Force scroll for new messages or when streaming, regardless of shouldAutoScroll
+      // This ensures we always scroll when user sends a message or receives a response
+      scrollToBottom(hasNewMessage ? 'smooth' : 'auto');
+      // Reset shouldAutoScroll to true when new content arrives
+      setShouldAutoScroll(true);
+    } else if (shouldAutoScroll && contentChanged) {
+      // If user is near bottom and content changed, scroll smoothly
+      scrollToBottom('smooth');
     }
 
     prevMessageCountRef.current = messageCount;
+    prevLastMessageContentRef.current = lastMessageContent;
   }, [messages, shouldAutoScroll]);
 
-  // Scroll to bottom when loading starts (new assistant message)
+  // Scroll to bottom when loading starts (new assistant message being prepared)
   useEffect(() => {
-    if (isLoading && shouldAutoScroll) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (isLoading) {
+      // Always scroll when loading starts, regardless of scroll position
+      // This ensures we scroll when user sends a message and response is being prepared
+      scrollToBottom('smooth');
+      setShouldAutoScroll(true);
     }
-  }, [isLoading, shouldAutoScroll]);
+  }, [isLoading]);
 
   if (messages.length === 0) {
     return (
