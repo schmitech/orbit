@@ -102,12 +102,13 @@ cp env.example .env
 # Install packages
 ./install/setup.sh
 
-# Optional: Download a GGUF model to work with llama_cpp provider
-# Skip if using a different provider, see available providers in /config/inference.yaml
+# Activate Python environment
+source venv/bin/activate
+
+# Get a local model (you may choose other providers/models. See /config/adapters.yaml)
 ./install/setup.sh --download-gguf granite4-micro
 
 # Start the ORBIT server
-source venv/bin/activate
 ./bin/orbit.sh start 
 
 # Check the logs
@@ -125,10 +126,7 @@ Browse to `http://localhost:3000/dashboard` to monitor the ORBIT server:
 
 ```bash
 # Step 1: Login to ORBIT with default admin credentials (admin / admin123):
-./bin/orbit.sh login --username admin --password admin123
-
-# Or login interactively (will prompt for credentials):
-# ./bin/orbit.sh login
+./bin/orbit.sh login
 
 # Step 2: Generate an API key (copy the key that's output)
 # For basic chat, use simple-chat adapter:
@@ -149,10 +147,12 @@ Browse to `http://localhost:3000/dashboard` to monitor the ORBIT server:
 # This will output something like: orbit_0sXJhNsK7FT9HCGEUS7GpkhtXvVOEMX6
 
 # Step 3 (Optional): Rename the API key for easier reference
-# Replace YOUR_ACTUAL_KEY with the key from Step 1
+# Replace YOUR_ACTUAL_KEY with the key from Step 2
 ./bin/orbit.sh key rename --old-key YOUR_ACTUAL_KEY --new-key default-key
 
-# Step 3: Start chatting (replace YOUR_ACTUAL_KEY with the key from Step 1)
+# Step 4: Start chatting
+# Replace YOUR_ACTUAL_KEY below with the API key you copied from Step 2
+# Note: On first run, you will see a prompt asking to create a config file. Type 'y' to proceed.
 orbit-chat --url "http://localhost:3000" --api-key YOUR_ACTUAL_KEY
 ```
 
