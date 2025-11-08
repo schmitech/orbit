@@ -7,7 +7,9 @@ Abstract base class for text chunking strategies.
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional, Union
+
+from .utils import get_tokenizer, TokenizerProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -47,9 +49,48 @@ class TextChunker(ABC):
     - Structure-aware chunking
     """
     
-    def __init__(self):
-        """Initialize chunker."""
+    def __init__(self, tokenizer: Optional[Union[str, TokenizerProtocol]] = None):
+        """
+        Initialize chunker.
+        
+        Args:
+            tokenizer: Optional tokenizer for token-aware chunking.
+                Can be a string identifier (e.g., "gpt2", "character") or
+                a TokenizerProtocol instance. If None, uses character-based tokenization.
+        """
         self.logger = logging.getLogger(self.__class__.__name__)
+        self._tokenizer = get_tokenizer(tokenizer)
+    
+    @property
+    def tokenizer(self) -> TokenizerProtocol:
+        """Get the tokenizer instance."""
+        return self._tokenizer
+    
+    def count_tokens(self, text: str) -> int:
+        """
+        Count tokens in text.
+        
+        Args:
+            text: Text to count tokens for
+            
+        Returns:
+            Number of tokens
+        """
+        return self._tokenizer.count_tokens(text)
+    
+    def count_tokens_batch(self, texts: List[str]) -> List[int]:
+        """
+        Count tokens for multiple texts.
+        
+        Args:
+            texts: List of texts to count tokens for
+            
+        Returns:
+            List of token counts
+        """
+        if hasattr(self._tokenizer, 'count_tokens_batch'):
+            return self._tokenizer.count_tokens_batch(texts)
+        return [self.count_tokens(text) for text in texts]
     
     @abstractmethod
     def chunk_text(self, text: str, file_id: str, metadata: Dict[str, Any]) -> List[Chunk]:

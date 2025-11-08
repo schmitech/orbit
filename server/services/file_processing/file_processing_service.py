@@ -11,7 +11,9 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime, UTC
 
 from services.file_processing.processor_registry import FileProcessorRegistry
-from services.file_processing.chunking import FixedSizeChunker, SemanticChunker, Chunk
+from services.file_processing.chunking import (
+    FixedSizeChunker, SemanticChunker, TokenChunker, RecursiveChunker, Chunk
+)
 from services.file_storage.filesystem_storage import FilesystemStorage
 from services.file_metadata.metadata_store import FileMetadataStore
 
@@ -120,10 +122,91 @@ class FileProcessingService:
         overlap = self.config.get('chunk_overlap') or \
                  files_config.get('default_chunk_overlap', 200)
         
-        if strategy == 'semantic':
-            return SemanticChunker(chunk_size=chunk_size, overlap=overlap)
+        # Get optional tokenizer configuration
+        tokenizer = self.config.get('tokenizer') or files_config.get('tokenizer')
+        use_tokens = self.config.get('use_tokens', False) or files_config.get('use_tokens', False)
+        
+        # Get strategy-specific options
+        chunking_options = self.config.get('chunking_options', {}) or files_config.get('chunking_options', {})
+        
+        # Log chunking strategy initialization
+        if self.verbose:
+            self.logger.info(f"Initializing chunking strategy: '{strategy}' (chunk_size={chunk_size}, overlap={overlap})")
+            if tokenizer:
+                self.logger.info(f"  Tokenizer: {tokenizer}")
+            if use_tokens:
+                self.logger.info(f"  Using token-based chunking: {use_tokens}")
+            if chunking_options:
+                self.logger.debug(f"  Chunking options: {chunking_options}")
         else:
-            return FixedSizeChunker(chunk_size=chunk_size, overlap=overlap)
+            self.logger.debug(f"Initializing chunking strategy: '{strategy}' (chunk_size={chunk_size}, overlap={overlap})")
+        
+        if strategy == 'semantic':
+            # Semantic chunking options
+            model_name = chunking_options.get('model_name')
+            use_advanced = chunking_options.get('use_advanced', False)
+            chunk_size_tokens = chunking_options.get('chunk_size_tokens')
+            threshold = chunking_options.get('threshold', 0.8)
+            similarity_window = chunking_options.get('similarity_window', 3)
+            min_sentences_per_chunk = chunking_options.get('min_sentences_per_chunk', 1)
+            min_characters_per_sentence = chunking_options.get('min_characters_per_sentence', 24)
+            skip_window = chunking_options.get('skip_window', 0)
+            filter_window = chunking_options.get('filter_window', 5)
+            filter_polyorder = chunking_options.get('filter_polyorder', 3)
+            filter_tolerance = chunking_options.get('filter_tolerance', 0.2)
+            
+            chunker = SemanticChunker(
+                chunk_size=chunk_size,
+                overlap=overlap,
+                model_name=model_name,
+                use_advanced=use_advanced,
+                threshold=threshold,
+                similarity_window=similarity_window,
+                min_sentences_per_chunk=min_sentences_per_chunk,
+                min_characters_per_sentence=min_characters_per_sentence,
+                skip_window=skip_window,
+                filter_window=filter_window,
+                filter_polyorder=filter_polyorder,
+                filter_tolerance=filter_tolerance,
+                tokenizer=tokenizer,
+                chunk_size_tokens=chunk_size_tokens
+            )
+            if self.verbose:
+                self.logger.info(f"  Semantic chunker configured: use_advanced={use_advanced}, model={model_name or 'none'}")
+            return chunker
+        elif strategy == 'token':
+            # Token-based chunking
+            chunker = TokenChunker(
+                chunk_size=chunk_size,
+                overlap=overlap,
+                tokenizer=tokenizer or 'character'
+            )
+            if self.verbose:
+                self.logger.info(f"  Token chunker configured: tokenizer={tokenizer or 'character'}")
+            return chunker
+        elif strategy == 'recursive':
+            # Recursive chunking
+            min_characters = chunking_options.get('min_characters_per_chunk', 24)
+            chunker = RecursiveChunker(
+                chunk_size=chunk_size,
+                min_characters_per_chunk=min_characters,
+                tokenizer=tokenizer
+            )
+            if self.verbose:
+                self.logger.info(f"  Recursive chunker configured: min_characters_per_chunk={min_characters}")
+            return chunker
+        else:
+            # Fixed-size chunking (default)
+            chunker = FixedSizeChunker(
+                chunk_size=chunk_size,
+                overlap=overlap,
+                use_tokens=use_tokens,
+                tokenizer=tokenizer
+            )
+            if self.verbose:
+                mode = "token-based" if use_tokens else "character-based"
+                self.logger.info(f"  Fixed-size chunker configured: mode={mode}")
+            return chunker
 
     async def _get_vision_provider_for_api_key(self, api_key: str) -> str:
         """
@@ -552,8 +635,31 @@ class FileProcessingService:
             raise
     
     async def _chunk_content(self, text: str, file_id: str, metadata: Dict[str, Any]) -> List[Chunk]:
-        """Chunk text content."""
-        return self.chunker.chunk_text(text, file_id, metadata)
+        """
+        Chunk text content using the configured chunking strategy.
+        
+        Args:
+            text: Text to chunk
+            file_id: File identifier
+            metadata: File metadata
+            
+        Returns:
+            List of Chunk objects
+        """
+        if self.verbose:
+            strategy_name = self.chunker.__class__.__name__
+            self.logger.info(f"Chunking content for file {file_id} using strategy: {strategy_name}")
+            self.logger.debug(f"  Text length: {len(text)} characters")
+        
+        chunks = self.chunker.chunk_text(text, file_id, metadata)
+        
+        if self.verbose:
+            self.logger.info(f"  Created {len(chunks)} chunks from file {file_id}")
+            if chunks:
+                avg_chunk_size = sum(len(c.text) for c in chunks) / len(chunks)
+                self.logger.debug(f"  Average chunk size: {avg_chunk_size:.0f} characters")
+        
+        return chunks
     
     async def _get_adapter_config_for_api_key(self, api_key: str) -> Dict[str, Any]:
         """
