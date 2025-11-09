@@ -903,23 +903,34 @@ class DynamicAdapterManager:
         
         return preload_results
     
-    async def remove_adapter(self, adapter_name: str) -> bool:
+    async def remove_adapter(self, adapter_name: str, clear_dependencies: bool = False) -> bool:
         """
         Remove an adapter from cache and clean up resources.
-        
+
+        Note: When called from reload_adapter_configs, dependency caches are cleared
+        separately before calling this method. Set clear_dependencies=True if calling
+        this method directly and you want to ensure all related caches are cleared.
+
         Args:
             adapter_name: Name of the adapter to remove
-            
+            clear_dependencies: If True, clear provider/embedding/reranker caches before removal
+
         Returns:
             True if adapter was removed, False if not found
         """
+        # Clear dependency caches first if requested
+        if clear_dependencies:
+            old_config = self._adapter_configs.get(adapter_name)
+            if old_config:
+                await self._clear_adapter_dependency_caches(adapter_name, old_config)
+
         with self._cache_lock:
             if adapter_name not in self._adapter_cache:
                 return False
-            
+
             adapter = self._adapter_cache.pop(adapter_name)
             self._adapter_locks.pop(adapter_name, None)
-        
+
         # Try to close the adapter if it has a close method
         try:
             if hasattr(adapter, 'close'):
@@ -1004,7 +1015,217 @@ class DynamicAdapterManager:
             "cached_embedding_service_keys": list(self._embedding_cache.keys()),
             "datasource_pool": datasource_stats
         }
-    
+
+    def _configs_differ(self, old_config: Dict[str, Any], new_config: Dict[str, Any]) -> bool:
+        """
+        Compare configs reliably using JSON serialization.
+
+        This ensures we catch all nested changes including deep dictionary differences.
+
+        Args:
+            old_config: The old configuration dictionary
+            new_config: The new configuration dictionary
+
+        Returns:
+            True if configs differ, False if they are the same
+        """
+        import json
+        try:
+            old_json = json.dumps(old_config, sort_keys=True)
+            new_json = json.dumps(new_config, sort_keys=True)
+            return old_json != new_json
+        except (TypeError, ValueError) as e:
+            # Fallback to simple comparison if JSON serialization fails
+            self.logger.warning(f"Failed to serialize configs for comparison: {e}")
+            return old_config != new_config
+
+    def _detect_config_changes(self, old_config: Dict[str, Any], new_config: Dict[str, Any]) -> list[str]:
+        """
+        Detect what specific configuration values changed between old and new config.
+
+        Args:
+            old_config: The old configuration dictionary
+            new_config: The new configuration dictionary
+
+        Returns:
+            List of change descriptions (e.g., ["inference_provider: ollama -> anthropic", "model: llama3 -> claude-3"])
+        """
+        changes = []
+
+        # Check key fields that affect caching
+        key_fields = [
+            'inference_provider',
+            'model',
+            'embedding_provider',
+            'reranker_provider',
+            'database',
+            'enabled',
+            'adapter',
+            'datasource'
+        ]
+
+        for field in key_fields:
+            old_val = old_config.get(field)
+            new_val = new_config.get(field)
+
+            if old_val != new_val:
+                # Format the change message
+                old_str = str(old_val) if old_val is not None else "None"
+                new_str = str(new_val) if new_val is not None else "None"
+                changes.append(f"{field}: {old_str} -> {new_str}")
+
+        # Check nested config section
+        old_nested_config = old_config.get('config', {})
+        new_nested_config = new_config.get('config', {})
+
+        if old_nested_config != new_nested_config:
+            # Try to identify specific nested changes
+            nested_changes = []
+            all_keys = set(old_nested_config.keys()) | set(new_nested_config.keys())
+
+            for key in all_keys:
+                old_nested_val = old_nested_config.get(key)
+                new_nested_val = new_nested_config.get(key)
+
+                if old_nested_val != new_nested_val:
+                    old_str = str(old_nested_val) if old_nested_val is not None else "None"
+                    new_str = str(new_nested_val) if new_nested_val is not None else "None"
+                    nested_changes.append(f"config.{key}: {old_str} -> {new_str}")
+
+            if nested_changes:
+                changes.extend(nested_changes[:3])  # Limit to first 3 nested changes to avoid log spam
+                if len(nested_changes) > 3:
+                    changes.append(f"... and {len(nested_changes) - 3} more nested config changes")
+
+        return changes
+
+    async def _clear_adapter_dependency_caches(self, adapter_name: str, old_config: Optional[Dict[str, Any]] = None) -> None:
+        """
+        Clear all provider/embedding/reranker caches for an adapter.
+
+        This ensures that when an adapter configuration changes, any cached providers,
+        embeddings, or rerankers associated with the old configuration are cleared.
+
+        Edge case handling: If multiple adapters share the same provider (e.g., both use
+        "cohere:command-r"), clearing the cache when one adapter is reloaded will affect
+        the other. However, this is acceptable because:
+        1. Providers are lazily re-created on next access via get_overridden_provider()
+        2. Hot-reload scenarios prioritize correctness over avoiding re-initialization
+        3. The performance impact is minimal (providers initialize quickly)
+        4. This approach is simpler and safer than reference counting shared providers
+
+        Args:
+            adapter_name: Name of the adapter whose dependencies should be cleared
+            old_config: Optional old configuration. If not provided, uses current config from _adapter_configs
+        """
+        # Get old config if not provided
+        if old_config is None:
+            old_config = self._adapter_configs.get(adapter_name)
+
+        if not old_config:
+            if self.verbose:
+                self.logger.debug(f"No config found for adapter '{adapter_name}', skipping dependency cache clearing")
+            return
+
+        cleared_caches = []
+
+        # Clear inference provider cache
+        old_provider = old_config.get('inference_provider')
+        old_model = old_config.get('model')
+
+        if old_provider:
+            # Build cache key the same way as in get_overridden_provider
+            cache_key = f"{old_provider}:{old_model}" if old_model else old_provider
+
+            with self._provider_cache_lock:
+                if cache_key in self._provider_cache:
+                    provider = self._provider_cache.pop(cache_key)
+                    cleared_caches.append(f"provider:{cache_key}")
+
+                    # Try to close provider if it has close method
+                    try:
+                        if hasattr(provider, 'close') and callable(getattr(provider, 'close', None)):
+                            if asyncio.iscoroutinefunction(provider.close):
+                                await provider.close()
+                            else:
+                                provider.close()
+                    except (AttributeError, TypeError) as e:
+                        # Some providers (like Cohere) have a close attribute that isn't callable
+                        if self.verbose:
+                            self.logger.debug(f"Provider {cache_key} close method not available: {str(e)}")
+                    except Exception as e:
+                        self.logger.warning(f"Error closing provider {cache_key}: {str(e)}")
+
+                    # Remove from initializing set if present
+                    self._provider_initializing.discard(cache_key)
+
+        # Clear embedding cache
+        old_embedding_provider = old_config.get('embedding_provider')
+
+        if old_embedding_provider:
+            # Build cache key the same way as in get_overridden_embedding
+            embedding_config = self.config.get('embeddings', {}).get(old_embedding_provider, {})
+            embedding_model = embedding_config.get('model', '')
+            cache_key = f"{old_embedding_provider}:{embedding_model}" if embedding_model else old_embedding_provider
+
+            with self._embedding_cache_lock:
+                if cache_key in self._embedding_cache:
+                    embedding_service = self._embedding_cache.pop(cache_key)
+                    cleared_caches.append(f"embedding:{cache_key}")
+
+                    # Try to close embedding service if it has close method
+                    try:
+                        if hasattr(embedding_service, 'close') and callable(getattr(embedding_service, 'close', None)):
+                            if asyncio.iscoroutinefunction(embedding_service.close):
+                                await embedding_service.close()
+                            else:
+                                embedding_service.close()
+                    except (AttributeError, TypeError) as e:
+                        # Some services have a close attribute that isn't callable
+                        if self.verbose:
+                            self.logger.debug(f"Embedding service {cache_key} close method not available: {str(e)}")
+                    except Exception as e:
+                        self.logger.warning(f"Error closing embedding service {cache_key}: {str(e)}")
+
+                    # Remove from initializing set if present
+                    self._embedding_initializing.discard(cache_key)
+
+        # Clear reranker cache
+        old_reranker_provider = old_config.get('reranker_provider')
+
+        if old_reranker_provider:
+            # Build cache key the same way as in get_overridden_reranker
+            reranker_config = self.config.get('rerankers', {}).get(old_reranker_provider, {})
+            reranker_model = reranker_config.get('model', '')
+            cache_key = f"{old_reranker_provider}:{reranker_model}" if reranker_model else old_reranker_provider
+
+            with self._reranker_cache_lock:
+                if cache_key in self._reranker_cache:
+                    reranker_service = self._reranker_cache.pop(cache_key)
+                    cleared_caches.append(f"reranker:{cache_key}")
+
+                    # Try to close reranker service if it has close method
+                    try:
+                        if hasattr(reranker_service, 'close') and callable(getattr(reranker_service, 'close', None)):
+                            if asyncio.iscoroutinefunction(reranker_service.close):
+                                await reranker_service.close()
+                            else:
+                                reranker_service.close()
+                    except (AttributeError, TypeError) as e:
+                        # Some services have a close attribute that isn't callable
+                        if self.verbose:
+                            self.logger.debug(f"Reranker service {cache_key} close method not available: {str(e)}")
+                    except Exception as e:
+                        self.logger.warning(f"Error closing reranker service {cache_key}: {str(e)}")
+
+                    # Remove from initializing set if present
+                    self._reranker_initializing.discard(cache_key)
+
+        if cleared_caches:
+            self.logger.info(f"Cleared dependency caches for adapter '{adapter_name}': {', '.join(cleared_caches)}")
+        elif self.verbose:
+            self.logger.debug(f"No dependency caches to clear for adapter '{adapter_name}'")
+
     async def reload_adapter_configs(self, config: Dict[str, Any], adapter_name: Optional[str] = None) -> Dict[str, Any]:
         """
         Reload adapter configurations from new config and perform hot-swap.
@@ -1041,15 +1262,26 @@ class DynamicAdapterManager:
             old_config = self._adapter_configs.get(adapter_name)
             is_enabled = adapter_config_full.get('enabled', True)
 
-            # Remove from cache if it exists
+            # Clear dependency caches before removing adapter
+            if old_config:
+                await self._clear_adapter_dependency_caches(adapter_name, old_config)
+
+            # Remove from cache if it exists (dependencies already cleared above)
             if adapter_name in self._adapter_cache:
-                await self.remove_adapter(adapter_name)
+                await self.remove_adapter(adapter_name, clear_dependencies=False)
 
             # Handle based on enabled status
             if is_enabled:
                 # Add or update the adapter
                 self._adapter_configs[adapter_name] = adapter_config_full
                 action = "enabled" if old_config and not old_config.get('enabled', True) else ("updated" if old_config else "added")
+
+                # Log what changed if this is an update
+                if old_config and action == "updated":
+                    changes = self._detect_config_changes(old_config, adapter_config_full)
+                    if changes:
+                        self.logger.info(f"Adapter '{adapter_name}' config changes: {', '.join(changes)}")
+
                 self.logger.info(f"Reloaded adapter '{adapter_name}' ({action})")
 
                 return {
@@ -1085,12 +1317,23 @@ class DynamicAdapterManager:
                 added.append(name)
                 self._adapter_configs[name] = new_config
             else:
-                # Check if config actually changed
-                if self._adapter_configs[name] != new_config:
+                # Check if config actually changed using reliable comparison
+                if self._configs_differ(self._adapter_configs[name], new_config):
                     updated.append(name)
-                    # Remove from cache so it gets reloaded with new config
+
+                    # Log what changed
+                    old_config = self._adapter_configs[name]
+                    changes = self._detect_config_changes(old_config, new_config)
+                    if changes:
+                        self.logger.info(f"Adapter '{name}' config changes: {', '.join(changes)}")
+
+                    # Clear dependency caches before removing adapter
+                    await self._clear_adapter_dependency_caches(name, old_config)
+
+                    # Remove from cache so it gets reloaded with new config (dependencies already cleared above)
                     if name in self._adapter_cache:
-                        await self.remove_adapter(name)
+                        await self.remove_adapter(name, clear_dependencies=False)
+
                     self._adapter_configs[name] = new_config
                 else:
                     unchanged.append(name)
@@ -1099,9 +1342,16 @@ class DynamicAdapterManager:
         for name in list(self._adapter_configs.keys()):
             if name not in new_adapter_configs:
                 removed.append(name)
-                # Remove from cache
+
+                # Clear dependency caches before removing adapter
+                old_config = self._adapter_configs.get(name)
+                if old_config:
+                    await self._clear_adapter_dependency_caches(name, old_config)
+
+                # Remove from cache (dependencies already cleared above)
                 if name in self._adapter_cache:
-                    await self.remove_adapter(name)
+                    await self.remove_adapter(name, clear_dependencies=False)
+
                 # Remove from configs
                 del self._adapter_configs[name]
 
