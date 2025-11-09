@@ -5,6 +5,7 @@ import { FileUpload } from './FileUpload';
 import { FileAttachment } from '../types';
 import { useChatStore } from '../stores/chatStore';
 import { debugLog, debugError } from '../utils/debug';
+import { AppConfig } from '../utils/config';
 
 interface MessageInputProps {
   onSend: (message: string, fileIds?: string[]) => void;
@@ -37,7 +38,7 @@ export function MessageInput({
     stopListening,
     error: voiceError
   } = useVoice((text) => {
-    setMessage(prev => (prev + text).slice(0, 1000));
+    setMessage(prev => (prev + text).slice(0, AppConfig.maxMessageLength));
   });
 
   // Check if any files are currently uploading or processing
@@ -287,7 +288,7 @@ export function MessageInput({
             placeholder={(hasProcessingFiles || isUploading) ? 'Files are uploading/processing, please wait...' : placeholder}
             disabled={isInputDisabled}
             rows={1}
-            maxLength={1000}
+            maxLength={AppConfig.maxMessageLength}
             className="flex-1 resize-none bg-transparent py-1 text-sm text-[#353740] placeholder-gray-400 focus:outline-none dark:text-[#ececf1] dark:placeholder-[#bfc2cd]"
             style={{ 
               minHeight: '24px',
@@ -304,8 +305,8 @@ export function MessageInput({
 
           {message.length > 0 && (
             <div className="flex-shrink-0 text-xs text-gray-500 dark:text-[#bfc2cd]">
-              <span className={message.length >= 1000 ? 'text-red-600 font-semibold' : ''}>
-                {message.length}/1000
+              <span className={message.length >= AppConfig.maxMessageLength ? 'text-red-600 font-semibold' : ''}>
+                {message.length}/{AppConfig.maxMessageLength}
               </span>
             </div>
           )}
@@ -409,7 +410,7 @@ export function MessageInput({
                 debugError('File upload error:', error);
               }}
               onUploadingChange={setIsUploading}
-              maxFiles={5}
+              maxFiles={AppConfig.maxFilesPerConversation}
               disabled={isInputDisabled}
             />
           </div>

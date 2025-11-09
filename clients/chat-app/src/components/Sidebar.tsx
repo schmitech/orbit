@@ -5,6 +5,7 @@ import { Conversation } from '../types';
 import { ConfirmationModal } from './ConfirmationModal';
 import { debugWarn, debugError } from '../utils/debug';
 import { useGitHubStats } from '../hooks/useGitHubStats';
+import { AppConfig } from '../utils/config';
 
 interface SidebarProps {}
 
@@ -21,6 +22,7 @@ export function Sidebar({}: SidebarProps) {
     getConversationCount
   } = useChatStore();
   
+  const currentConversation = conversations.find(conv => conv.id === currentConversationId);
   const [searchQuery, setSearchQuery] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
@@ -52,6 +54,20 @@ export function Sidebar({}: SidebarProps) {
   );
 
   const canStartNew = canCreateNewConversation();
+  const totalConversations = getConversationCount();
+  const maxConversationsLimit = AppConfig.maxConversations;
+  const atConversationLimit = maxConversationsLimit !== null && totalConversations >= maxConversationsLimit;
+  const currentConversationEmpty = currentConversation ? currentConversation.messages.length === 0 : false;
+  const conversationCountLabel = maxConversationsLimit !== null
+    ? `${totalConversations}/${maxConversationsLimit} conversations`
+    : `${totalConversations} conversation${totalConversations === 1 ? '' : 's'}`;
+  const newChatTooltip = canStartNew
+    ? 'Start a new conversation'
+    : atConversationLimit
+      ? `Maximum ${maxConversationsLimit} conversations reached. Delete a conversation to create a new one.`
+      : currentConversationEmpty
+        ? 'Current conversation is empty. Send a message first to create a new conversation.'
+        : 'Finish your current conversation before starting a new one.';
 
   // GitHub stats for ORBIT project info
   const githubStats = useGitHubStats(
@@ -170,13 +186,7 @@ export function Sidebar({}: SidebarProps) {
                 ? 'bg-[#343541] text-white hover:bg-[#2c2f36] dark:bg-[#565869] dark:hover:bg-[#6b6f7a]'
                 : 'cursor-not-allowed bg-gray-200 text-gray-500 dark:bg-[#3c3f4a] dark:text-[#6b6f7a]'
             }`}
-            title={
-              canStartNew
-                ? 'Start a new conversation'
-                : getConversationCount() >= 10
-                  ? 'Maximum 10 conversations reached. Delete a conversation to create a new one.'
-                  : 'Current conversation is empty. Send a message first to create a new conversation.'
-            }
+            title={newChatTooltip}
           >
             <Plus className="h-4 w-4" />
             New Conversation
@@ -185,7 +195,7 @@ export function Sidebar({}: SidebarProps) {
           <div className="mt-3 space-y-2">
             <div className="text-center">
               <span className="text-xs text-gray-500 dark:text-[#bfc2cd]">
-                {getConversationCount()}/10 conversations
+                {conversationCountLabel}
               </span>
             </div>
             {conversations.length > 0 && (
@@ -369,7 +379,7 @@ export function Sidebar({}: SidebarProps) {
         onClose={cancelClearAll}
         onConfirm={confirmClearAll}
         title="Clear All Conversations"
-        message={`Are you sure you want to delete all ${getConversationCount()} conversation${getConversationCount() !== 1 ? 's' : ''}? This will clear all conversation history from both the server and your local storage. This action cannot be undone.`}
+        message={`Are you sure you want to delete all ${totalConversations} conversation${totalConversations !== 1 ? 's' : ''}? This will clear all conversation history from both the server and your local storage. This action cannot be undone.`}
         confirmText="Clear All"
         cancelText="Cancel"
         type="danger"

@@ -7,6 +7,7 @@
 import { getApi } from '../api/loader';
 import { FileAttachment } from '../types';
 import { debugLog, debugWarn, logError } from '../utils/debug';
+import { AppConfig } from '../utils/config';
 
 // Default API key from environment variable
 const DEFAULT_API_KEY = import.meta.env.VITE_DEFAULT_KEY || 'default-key';
@@ -37,10 +38,10 @@ export class FileUploadService {
     apiUrl?: string
   ): Promise<FileAttachment> {
     try {
-      // Validate file size (50MB limit)
-      const maxSize = 50 * 1024 * 1024; // 50MB
+      // Validate file size using configurable limit
+      const maxSize = AppConfig.maxFileSizeMB * 1024 * 1024; // Convert MB to bytes
       if (file.size > maxSize) {
-        throw new Error(`File size exceeds maximum limit of ${maxSize / 1024 / 1024}MB`);
+        throw new Error(`File size exceeds maximum limit of ${AppConfig.maxFileSizeMB}MB`);
       }
 
       // Validate file type (basic check - server will do full validation)

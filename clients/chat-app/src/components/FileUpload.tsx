@@ -4,6 +4,7 @@ import { FileAttachment } from '../types';
 import { FileUploadService, FileUploadProgress } from '../services/fileService';
 import { useChatStore } from '../stores/chatStore';
 import { debugLog, debugWarn, debugError } from '../utils/debug';
+import { AppConfig } from '../utils/config';
 
 // Default API key from environment variable
 const DEFAULT_API_KEY = import.meta.env.VITE_DEFAULT_KEY || 'default-key';
@@ -22,7 +23,7 @@ export function FileUpload({
   onUploadError,
   onClose,
   onUploadingChange,
-  maxFiles = 5,
+  maxFiles = AppConfig.maxFilesPerConversation,
   disabled = false 
 }: FileUploadProps) {
   const [isDragging, setIsDragging] = useState(false);
@@ -170,11 +171,28 @@ export function FileUpload({
 
     const fileArray = Array.from(files);
     
-    // Limit number of files
+    // Check per-conversation file limit
     if (uploadedFiles.length + fileArray.length > maxFiles) {
-      const error = `Maximum ${maxFiles} files allowed. Please remove some files first.`;
+      const error = `Maximum ${maxFiles} files allowed per conversation. Please remove some files first.`;
       onUploadError?.(error);
       return;
+    }
+
+    // Check total files limit across all conversations
+    if (AppConfig.maxTotalFiles !== null) {
+      const store = useChatStore.getState();
+      const totalFilesAcrossConversations = store.conversations.reduce(
+        (total, conv) => total + (conv.attachedFiles?.length || 0),
+        0
+      );
+      const filesToAdd = fileArray.length;
+      const projectedTotal = totalFilesAcrossConversations + filesToAdd;
+      
+      if (projectedTotal > AppConfig.maxTotalFiles) {
+        const error = `Maximum ${AppConfig.maxTotalFiles} total files allowed across all conversations. Please remove some files from other conversations first.`;
+        onUploadError?.(error);
+        return;
+      }
     }
 
     // Process each file
@@ -483,4 +501,3 @@ export function FileUpload({
     </div>
   );
 }
-
