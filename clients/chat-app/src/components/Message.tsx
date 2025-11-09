@@ -64,10 +64,10 @@ export function Message({ message, onRegenerate }: MessageProps) {
         </div>
 
         <div
-          className={`rounded-lg border px-4 py-3 leading-relaxed ${
+          className={`leading-relaxed ${
             isAssistant
-              ? 'border-gray-300 bg-gray-100 text-[#353740] dark:border-[#4a4b54] dark:bg-[#202123] dark:text-[#ececf1] overflow-x-auto min-w-0'
-              : 'border-gray-300 bg-gray-100 text-[#353740] dark:bg-[#202123] dark:text-[#ececf1]'
+              ? 'rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-[#353740] dark:border-[#4a4b54] dark:bg-[#202123] dark:text-[#ececf1] overflow-x-auto min-w-0'
+              : 'text-[#353740] dark:text-[#ececf1]'
           }`}
         >
           <div className={contentClass}>
