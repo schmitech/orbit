@@ -57,3 +57,14 @@ embeddings:
     api_base: "https://api.mistral.ai/v1"
     model: "mistral-embed"
     dimensions: 1024
+  sentence_transformers:
+    mode: "local"  # "local" for model inference, "remote" for HF API
+    model: "BAAI/bge-m3"
+    device: "auto"  # auto-detect GPU, or "cuda"/"mps"/"cpu"
+    cache_folder: null  # Use default ~/.cache/huggingface
+    normalize_embeddings: true
+    dimensions: 1024  # bge-m3 uses 1024
+    batch_size: 32
+    # For remote mode only:
+    api_key: ${HUGGINGFACE_API_KEY}
+    base_url: "https://api-inference.huggingface.co/models"

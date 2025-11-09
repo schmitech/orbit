@@ -78,6 +78,7 @@ _implementations = [
     ('mistral_embedding_service', 'MistralEmbeddingService'),
     ('jina_embedding_service', 'JinaEmbeddingService'),
     ('llama_cpp_embedding_service', 'LlamaCppEmbeddingService'),
+    ('sentence_transformers_embedding_service', 'SentenceTransformersEmbeddingService'),
 
     # Inference Services
     ('openai_inference_service', 'OpenAIInferenceService'),

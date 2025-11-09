@@ -172,7 +172,8 @@ class EmbeddingServiceFactory:
             'cohere': 'CohereEmbeddingService',
             'mistral': 'MistralEmbeddingService',
             'jina': 'JinaEmbeddingService',
-            'llama_cpp': 'LlamaCppEmbeddingService'
+            'llama_cpp': 'LlamaCppEmbeddingService',
+            'sentence_transformers': 'SentenceTransformersEmbeddingService'
         }
 
         if provider_name not in class_name_map:

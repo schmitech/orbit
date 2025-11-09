@@ -33,6 +33,7 @@ _providers = [
     ('llama_cpp_base', 'LlamaCppBaseService'),
     ('huggingface_base', 'HuggingFaceBaseService'),
     ('zai_base', 'ZaiBaseService'),
+    ('sentence_transformers_base', 'SentenceTransformersBaseService'),
 ]
 
 for module_name, class_name in _providers:
