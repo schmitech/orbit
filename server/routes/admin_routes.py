@@ -410,8 +410,11 @@ async def get_adapter_info(
     api_key_service = getattr(request.app.state, 'api_key_service', None)
     check_service_availability(api_key_service, "API key service")
 
-    # Get adapter info
-    adapter_info = await api_key_service.get_adapter_info(x_api_key)
+    # Get adapter manager to ensure we read live config (respects hot-reload)
+    adapter_manager = getattr(request.app.state, 'adapter_manager', None)
+
+    # Get adapter info - pass adapter_manager to get live config
+    adapter_info = await api_key_service.get_adapter_info(x_api_key, adapter_manager)
 
     return adapter_info
 

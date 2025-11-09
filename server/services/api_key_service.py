@@ -374,7 +374,7 @@ class ApiKeyService:
 
         return adapter_name, system_prompt_id
 
-    async def get_adapter_info(self, api_key: str) -> Dict[str, Any]:
+    async def get_adapter_info(self, api_key: str, adapter_manager=None) -> Dict[str, Any]:
         """
         Get adapter information for a given API key.
 
@@ -383,6 +383,7 @@ class ApiKeyService:
 
         Args:
             api_key: The API key to look up
+            adapter_manager: Optional adapter manager to check live configs (respects hot-reload)
 
         Returns:
             Dictionary containing:
@@ -410,8 +411,8 @@ class ApiKeyService:
         if not adapter_name:
             raise HTTPException(status_code=401, detail="No adapter associated with API key")
 
-        # Get adapter configuration
-        adapter_config = self._get_adapter_config(adapter_name)
+        # Get adapter configuration - pass adapter_manager to get live config (respects hot-reload)
+        adapter_config = self._get_adapter_config(adapter_name, adapter_manager)
 
         if not adapter_config:
             raise HTTPException(status_code=404, detail=f"Adapter '{adapter_name}' not found or disabled")
@@ -425,14 +426,25 @@ class ApiKeyService:
         # Get model - check adapter config first, then fall back to global inference config
         model = adapter_config.get('model')
 
+        if self.verbose:
+            masked_key = mask_api_key(api_key)
+            logger.debug(f"get_adapter_info for {masked_key}: adapter_config.get('model') = {model}")
+            logger.debug(f"get_adapter_info for {masked_key}: adapter_config.get('inference_provider') = {adapter_config.get('inference_provider')}")
+
         if not model:
             # Get the inference provider for this adapter (or default)
             general_config = self.config.get('general', {})
             inference_provider = adapter_config.get('inference_provider', general_config.get('inference_provider', 'ollama'))
 
+            if self.verbose:
+                logger.debug(f"get_adapter_info for {masked_key}: inference_provider = {inference_provider}")
+
             # Try to get model from global inference config
             inference_config = self.config.get('inference', {}).get(inference_provider, {})
             model = inference_config.get('model')
+
+            if self.verbose:
+                logger.debug(f"get_adapter_info for {masked_key}: model from inference config = {model}")
 
         adapter_info['model'] = model
 
