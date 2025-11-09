@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { MessageList } from './MessageList';
 import { MessageInput } from './MessageInput';
 import { useChatStore } from '../stores/chatStore';
-import { Eye, EyeOff, Settings } from 'lucide-react';
-import { debugError } from '../utils/debug';
+import { Eye, EyeOff, Settings, RefreshCw } from 'lucide-react';
+import { debugError, debugLog, debugWarn } from '../utils/debug';
+import { getApi } from '../api/loader';
 
 // Default API key from environment variable
 const DEFAULT_API_KEY = import.meta.env.VITE_DEFAULT_KEY || 'default-key';
@@ -34,6 +35,7 @@ export function ChatInterface({ onOpenSettings }: ChatInterfaceProps) {
   const [showApiKey, setShowApiKey] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [isRefreshingAdapterInfo, setIsRefreshingAdapterInfo] = useState(false);
 
   const currentConversation = conversations.find(c => c.id === currentConversationId);
 
@@ -51,6 +53,54 @@ export function ChatInterface({ onOpenSettings }: ChatInterfaceProps) {
 
   const handleSendMessage = (content: string, fileIds?: string[]) => {
     sendMessage(content, fileIds);
+  };
+
+  const handleRefreshAdapterInfo = async () => {
+    if (!currentConversation || !currentConversation.apiKey) {
+      debugWarn('Cannot refresh adapter info: no conversation or API key');
+      return;
+    }
+
+    setIsRefreshingAdapterInfo(true);
+    try {
+      const api = await getApi();
+      const conversationApiUrl = currentConversation.apiUrl || DEFAULT_API_URL;
+      const conversationApiKey = currentConversation.apiKey;
+
+      const adapterClient = new api.ApiClient({
+        apiUrl: conversationApiUrl,
+        apiKey: conversationApiKey,
+        sessionId: null
+      });
+
+      if (typeof adapterClient.getAdapterInfo === 'function') {
+        const adapterInfo = await adapterClient.getAdapterInfo();
+        debugLog('Adapter info refreshed:', adapterInfo);
+
+        // Update the conversation's adapter info in the store
+        useChatStore.setState((state) => ({
+          conversations: state.conversations.map(conv =>
+            conv.id === currentConversationId
+              ? { ...conv, adapterInfo: adapterInfo, updatedAt: new Date() }
+              : conv
+          )
+        }));
+
+        // Save to localStorage
+        setTimeout(() => {
+          const currentState = useChatStore.getState();
+          localStorage.setItem('chat-state', JSON.stringify({
+            conversations: currentState.conversations,
+            currentConversationId: currentState.currentConversationId
+          }));
+        }, 0);
+      }
+    } catch (error) {
+      debugError('Failed to refresh adapter info:', error);
+      // Optionally show an error message to the user
+    } finally {
+      setIsRefreshingAdapterInfo(false);
+    }
   };
 
   const handleConfigureApi = async () => {
@@ -205,6 +255,15 @@ export function ChatInterface({ onOpenSettings }: ChatInterfaceProps) {
                           </span>
                         </div>
                       )}
+                      <button
+                        onClick={handleRefreshAdapterInfo}
+                        disabled={isRefreshingAdapterInfo || !currentConversation?.apiKey}
+                        className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-200 dark:text-[#bfc2cd] dark:hover:text-white dark:hover:bg-[#4a4b54] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Refresh adapter info"
+                      >
+                        <RefreshCw className={`h-3.5 w-3.5 ${isRefreshingAdapterInfo ? 'animate-spin' : ''}`} />
+                        <span>Refresh</span>
+                      </button>
                     </div>
                     {/* Title and metadata */}
                     <h1 className="text-2xl font-semibold text-[#353740] dark:text-[#ececf1] mb-2">
