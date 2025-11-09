@@ -64,14 +64,23 @@ class AnthropicInferenceService(InferenceService, AnthropicBaseService):
                 messages = [{"role": "user", "content": prompt}]
 
             # Build parameters using configured values
+            # Note: Anthropic API doesn't allow both temperature and top_p
+            # Prefer temperature if both are provided
+            temperature = kwargs.pop('temperature', self.temperature)
+            top_p = kwargs.pop('top_p', self.top_p)
+            
             params = {
                 "model": self.model,
                 "messages": messages,
-                "temperature": kwargs.pop('temperature', self.temperature),
                 "max_tokens": kwargs.pop('max_tokens', self.max_tokens),
-                "top_p": kwargs.pop('top_p', self.top_p),
                 **kwargs  # Any other parameters
             }
+            
+            # Only include temperature or top_p, not both
+            if temperature is not None:
+                params["temperature"] = temperature
+            elif top_p is not None:
+                params["top_p"] = top_p
 
             response = await self.client.messages.create(**params)
 
@@ -104,14 +113,23 @@ class AnthropicInferenceService(InferenceService, AnthropicBaseService):
                 messages = [{"role": "user", "content": prompt}]
 
             # Build parameters using configured values
+            # Note: Anthropic API doesn't allow both temperature and top_p
+            # Prefer temperature if both are provided
+            temperature = kwargs.pop('temperature', self.temperature)
+            top_p = kwargs.pop('top_p', self.top_p)
+            
             params = {
                 "model": self.model,
                 "messages": messages,
-                "temperature": kwargs.pop('temperature', self.temperature),
                 "max_tokens": kwargs.pop('max_tokens', self.max_tokens),
-                "top_p": kwargs.pop('top_p', self.top_p),
                 **kwargs  # Any other parameters
             }
+            
+            # Only include temperature or top_p, not both
+            if temperature is not None:
+                params["temperature"] = temperature
+            elif top_p is not None:
+                params["top_p"] = top_p
 
             async with self.client.messages.stream(**params) as stream:
                 async for text in stream.text_stream:
