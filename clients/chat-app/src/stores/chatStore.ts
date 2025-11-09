@@ -323,6 +323,33 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       if (isConfigured) {
         getApi().then(api => {
           api.configureApi(defaultApiUrl, defaultApiKey, newSessionId);
+          
+          // Load adapter info for the default key when creating a new conversation
+          try {
+            const validationClient = new api.ApiClient({
+              apiUrl: defaultApiUrl,
+              apiKey: defaultApiKey,
+              sessionId: null
+            });
+            
+            if (typeof validationClient.getAdapterInfo === 'function') {
+              validationClient.getAdapterInfo().then(adapterInfo => {
+                debugLog('✅ Adapter info loaded for default key in new conversation:', adapterInfo);
+                const currentState = useChatStore.getState();
+                useChatStore.setState({
+                  conversations: currentState.conversations.map(conv =>
+                    conv.id === id
+                      ? { ...conv, adapterInfo: adapterInfo, updatedAt: new Date() }
+                      : conv
+                  )
+                });
+              }).catch((error) => {
+                debugWarn('Failed to load adapter info for default key in new conversation:', error);
+              });
+            }
+          } catch (error) {
+            debugWarn('Failed to load adapter info for default key:', error);
+          }
         });
       }
     });
