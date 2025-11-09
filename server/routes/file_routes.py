@@ -15,6 +15,7 @@ from datetime import datetime
 from services.file_processing.file_processing_service import FileProcessingService
 from services.file_storage.filesystem_storage import FilesystemStorage
 from services.file_metadata.metadata_store import FileMetadataStore
+from utils import is_true_value
 
 logger = logging.getLogger(__name__)
 
@@ -208,7 +209,10 @@ def create_file_router() -> APIRouter:
                     api_key=x_api_key
                 )
                 
-                logger.info(f"File uploaded successfully: {result['file_id']}")
+                # Log only when verbose is enabled
+                verbose = is_true_value(request.app.state.config.get('general', {}).get('verbose', False))
+                if verbose:
+                    logger.info(f"File uploaded successfully: {result['file_id']}")
                 
                 return UploadResponse(
                     file_id=result['file_id'],
