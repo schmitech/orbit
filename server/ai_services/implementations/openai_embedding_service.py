@@ -63,6 +63,13 @@ class OpenAIEmbeddingService(EmbeddingService, OpenAIBaseService):
                 raise ValueError("Failed to initialize OpenAI embedding service")
 
         try:
+            # Debug logging
+            self.logger.info(f"OpenAIEmbeddingService.embed_query called")
+            self.logger.info(f"  self.client = {self.client}")
+            self.logger.info(f"  self.client is None: {self.client is None}")
+            if self.client:
+                self.logger.info(f"  hasattr(self.client, 'embeddings'): {hasattr(self.client, 'embeddings')}")
+
             # Use the AsyncOpenAI client provided by OpenAIBaseService
             response = await self.client.embeddings.create(
                 model=self.model,
@@ -73,6 +80,7 @@ class OpenAIEmbeddingService(EmbeddingService, OpenAIBaseService):
             return response.data[0].embedding
 
         except Exception as e:
+            self.logger.error(f"Unexpected error during embedding query: {e}")
             self._handle_openai_error(e, "embedding query")
             raise
 

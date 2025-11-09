@@ -64,6 +64,11 @@ class MultimodalImplementation(BaseRetriever):
                     'files': files_config  # Include files config
                 }
 
+                if self.verbose:
+                    self.logger.info(f"MultimodalImplementation: Creating FileVectorRetriever")
+                    self.logger.info(f"  self.config.get('embedding') = {self.config.get('embedding', {})}")
+                    self.logger.info(f"  file_retriever_config.get('embedding') = {file_retriever_config.get('embedding', {})}")
+
                 self._file_retriever = FileVectorRetriever(
                     config=file_retriever_config,
                     domain_adapter=self.domain_adapter
