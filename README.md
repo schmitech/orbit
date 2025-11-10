@@ -169,26 +169,28 @@ orbit-chat --url "http://localhost:3000" --api-key YOUR_ACTUAL_KEY
 ### Spin up the React Chat app
 
 ```bash
-# Step 1: Navigate to the chat app directory
-cd clients/chat-app
+# Step 1: Install the ORBIT chat app globally
+npm install -g orbitchat
 
-# Step 2: Copy the environment example file and configure it
-cp env.example .env.local
+# Step 2: Run the chat app
+# The app will start at http://localhost:5173 by default
+orbitchat
 
-# Step 3: Edit .env.local and adjust the settings:
-# - Set VITE_API_URL to your ORBIT server URL (default: http://localhost:3000)
-# - Set VITE_DEFAULT_KEY to your API key (or leave as default-key if you renamed your key)
-# - Adjust other settings as needed (see env.example for all options)
-# 
-# Note: File upload functionality only works with the conversational-multimodal adapter.
-# Make sure your API key is created with --adapter conversational-multimodal (not simple-chat).
+# Step 3 (Optional): Configure with CLI options
+# Replace YOUR_ACTUAL_KEY with your API key from earlier
+orbitchat --api-url http://localhost:3000 --api-key YOUR_ACTUAL_KEY --open
 
-# Step 4: Install dependencies
-npm install
-
-# Step 5: Start the development server
-npm run dev
+# Note: File upload functionality only works with the 'simple-chat-with-files' adapter.
+# Make sure your API key is created with --adapter 'simple-chat-with-files' (not simple-chat).
 ```
+
+**Available CLI options:**
+- `--api-url URL` - ORBIT server URL (default: http://localhost:3000)
+- `--api-key KEY` - Default API key to use
+- `--port PORT` - Server port (default: 5173)
+- `--open` - Open browser automatically
+- `--enable-upload-button` - Enable file upload button
+- `--help` - Show all available options
 
 <div align="center">
   <video src="https://github.com/user-attachments/assets/9b61911e-f0c3-464e-a3a5-79c4645415c2" controls>
