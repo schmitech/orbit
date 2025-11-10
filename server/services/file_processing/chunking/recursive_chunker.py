@@ -316,6 +316,6 @@ class RecursiveChunker(TextChunker):
             chunk.chunk_index = i
             chunk.metadata.update(metadata)
         
-        logger.info(f"Created {len(chunks)} chunks using recursive chunking")
+        logger.debug(f"Created {len(chunks)} chunks using recursive chunking")
         return chunks
 

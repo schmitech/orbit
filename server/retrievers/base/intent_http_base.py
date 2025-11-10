@@ -8,6 +8,7 @@ data sources, following the same architecture as IntentSQLRetriever but for HTTP
 import logging
 import traceback
 import json
+import asyncio
 import httpx
 from typing import Dict, Any, List, Optional, Tuple
 from abc import abstractmethod
@@ -842,18 +843,77 @@ JSON:"""
 
     async def close(self) -> None:
         """Close all connections and services."""
-        try:
-            # Close HTTP client
-            if self.http_client:
-                await self.http_client.aclose()
+        errors = []
+        
+        # Close HTTP client
+        if self.http_client:
+            try:
+                if hasattr(self.http_client, 'aclose'):
+                    await self.http_client.aclose()
+                elif hasattr(self.http_client, 'close'):
+                    if asyncio.iscoroutinefunction(self.http_client.close):
+                        await self.http_client.close()
+                    else:
+                        self.http_client.close()
+            except Exception as e:
+                errors.append(f"http_client: {e}")
+                logger.warning(f"Error closing HTTP client in {self.__class__.__name__}: {e}")
 
-            # Close embedding client
-            if self.embedding_client:
-                await self.embedding_client.close()
+        # Close embedding client
+        if self.embedding_client:
+            try:
+                # Try aclose() first (httpx AsyncClient uses aclose)
+                aclose_method = getattr(self.embedding_client, 'aclose', None)
+                if aclose_method and callable(aclose_method):
+                    await aclose_method()
+                else:
+                    # Try close() method
+                    close_method = getattr(self.embedding_client, 'close', None)
+                    if close_method and callable(close_method):
+                        if asyncio.iscoroutinefunction(close_method):
+                            await close_method()
+                        else:
+                            close_method()
+            except AttributeError as e:
+                # Client doesn't have close method - this is okay, just log it
+                logger.debug(f"Embedding client {type(self.embedding_client).__name__} doesn't have close/aclose method: {e}")
+            except Exception as e:
+                errors.append(f"embedding: {e}")
+                logger.warning(f"Error closing embedding client in {self.__class__.__name__}: {e}")
 
-            # Close inference client
-            if self.inference_client:
-                await self.inference_client.close()
+        # Close inference client
+        if self.inference_client:
+            try:
+                # Try aclose() first (httpx AsyncClient uses aclose)
+                aclose_method = getattr(self.inference_client, 'aclose', None)
+                if aclose_method and callable(aclose_method):
+                    await aclose_method()
+                else:
+                    # Try close() method
+                    close_method = getattr(self.inference_client, 'close', None)
+                    if close_method and callable(close_method):
+                        if asyncio.iscoroutinefunction(close_method):
+                            await close_method()
+                        else:
+                            close_method()
+            except AttributeError as e:
+                # Client doesn't have close method - this is okay, just log it
+                logger.debug(f"Inference client {type(self.inference_client).__name__} doesn't have close/aclose method: {e}")
+            except Exception as e:
+                errors.append(f"inference: {e}")
+                logger.warning(f"Error closing inference client in {self.__class__.__name__}: {e}")
 
-        except Exception as e:
-            logger.error(f"Error closing {self.__class__.__name__}: {e}")
+        # Close template store if it exists
+        if hasattr(self, 'template_store') and self.template_store:
+            try:
+                if hasattr(self.template_store, 'close'):
+                    if asyncio.iscoroutinefunction(self.template_store.close):
+                        await self.template_store.close()
+                    else:
+                        self.template_store.close()
+            except Exception as e:
+                errors.append(f"template_store: {e}")
+                logger.warning(f"Error closing template store in {self.__class__.__name__}: {e}")
+
+        if errors:
+            logger.error(f"Errors closing {self.__class__.__name__}: {'; '.join(errors)}")
