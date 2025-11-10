@@ -62,6 +62,15 @@ Adding enterprise capabilities:
 - Compliance tracking
 - Performance optimization
 
+### 8. [Chat App Stop Button Implementation](chat-app-stop-button-implementation.md)
+Add a stop button to the chat application's message input component to allow users to cancel an in-progress assistant response:
+- UI: Stop button appears during streaming, enabling cancellation
+- State management: Store `AbortController` instance for active stream
+- API: Client accepts external `AbortSignal` for request cancellation
+- Enables prompt, user-driven cancellations for better UX
+
+**Related**: See [Server-Side Stop Streaming Implementation](chatbot-widget-stop-button-implementation.md) for server-side cancellation support.
+
 ## Implemented Features
 
 The following features have been fully implemented and are available for use:
