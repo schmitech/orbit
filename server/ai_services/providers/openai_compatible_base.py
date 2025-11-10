@@ -225,6 +225,13 @@ class OpenAICompatibleBaseService(ProviderAIService):
             True if the connection is working, False otherwise
         """
         try:
+            # Check if client is initialized
+            if not self.client:
+                self.logger.error(
+                    f"{self.provider_name.title()} client is not initialized. Cannot verify connection."
+                )
+                return False
+            
             # Try to list models (some providers support this)
             try:
                 await self.client.models.list()

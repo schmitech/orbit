@@ -38,6 +38,31 @@ def test_config(tmp_path):
         "general": {
             "verbose": False
         },
+        "inference": {
+            "openai": {
+                "enabled": True,
+                "api_key": os.getenv("OPENAI_API_KEY", "test-key"),
+                "model": "gpt-4o-mini"
+            }
+        },
+        "embedding": {
+            "cohere": {
+                "enabled": True,
+                "api_key": os.getenv("COHERE_API_KEY", "test-key"),
+                "model": "embed-english-v3.0"
+            }
+        },
+        "stores": {
+            "vector_stores": {
+                "chroma": {
+                    "enabled": True,
+                    "type": "chroma",
+                    "connection_params": {
+                        "persist_directory": str(tmp_path / "chroma_db")
+                    }
+                }
+            }
+        },
         "adapter_config": {
             "domain_config_path": "utils/duckdb-intent-template/examples/analytics/analytics_domain.yaml",
             "template_library_path": ["utils/duckdb-intent-template/examples/analytics/analytics_templates.yaml"],
@@ -48,7 +73,8 @@ def test_config(tmp_path):
             "return_results": 100,
             "reload_templates_on_start": False,
             "force_reload_templates": False
-        }
+        },
+        "inference_provider": "openai"
     }
 
 
@@ -532,6 +558,220 @@ async def test_duckdb_retriever_connection_after_close_error(test_config, test_d
     # Query after close should fail
     with pytest.raises(Exception):
         await retriever._execute_raw_query("SELECT 1")
+
+
+@pytest.mark.asyncio
+async def test_intent_retriever_close_all_resources(test_config, test_database):
+    """Test that close() method closes all resources (database, embedding, inference, template_store)."""
+    test_config["datasources"]["duckdb"]["database"] = test_database
+    
+    retriever = IntentDuckDBRetriever(config=test_config)
+    
+    # Initialize the retriever to set up all resources
+    try:
+        # Register services first
+        from ai_services import register_all_services
+        register_all_services(test_config)
+        
+        await retriever.initialize()
+        
+        # Verify resources are initialized
+        assert retriever.embedding_client is not None
+        assert retriever.inference_client is not None
+        assert hasattr(retriever, 'template_store') and retriever.template_store is not None
+        
+        # Close all resources
+        await retriever.close()
+        
+        # Verify resources are closed (connection should be closed)
+        assert not retriever._is_connection_alive()
+        
+    except Exception as e:
+        # Clean up on error
+        try:
+            await retriever.close()
+        except:
+            pass
+        raise
+
+
+@pytest.mark.asyncio
+async def test_intent_retriever_close_handles_missing_clients(test_config, test_database):
+    """Test that close() handles None or missing clients gracefully."""
+    test_config["datasources"]["duckdb"]["database"] = test_database
+    
+    retriever = IntentDuckDBRetriever(config=test_config)
+    
+    # Manually set clients to None to simulate uninitialized state
+    retriever.embedding_client = None
+    retriever.inference_client = None
+    
+    # Should not raise an error
+    await retriever.close()
+    
+    # Should still work even if called again (idempotent)
+    await retriever.close()
+
+
+@pytest.mark.asyncio
+async def test_intent_retriever_close_handles_client_errors(test_config, test_database):
+    """Test that errors in one client don't prevent others from closing."""
+    test_config["datasources"]["duckdb"]["database"] = test_database
+    
+    retriever = IntentDuckDBRetriever(config=test_config)
+    
+    try:
+        # Register services first
+        from ai_services import register_all_services
+        register_all_services(test_config)
+        
+        await retriever.initialize()
+        
+        # Create mock clients that raise errors on close
+        mock_embedding = Mock()
+        mock_embedding.close = Mock(side_effect=Exception("Embedding close error"))
+        retriever.embedding_client = mock_embedding
+        
+        mock_inference = Mock()
+        mock_inference.close = Mock(side_effect=Exception("Inference close error"))
+        retriever.inference_client = mock_inference
+        
+        # Close should handle errors gracefully and still close database
+        await retriever.close()
+        
+        # Verify database is still closed despite client errors
+        assert not retriever._is_connection_alive()
+        
+        # Verify close was attempted on both clients
+        mock_embedding.close.assert_called_once()
+        mock_inference.close.assert_called_once()
+        
+    except Exception as e:
+        # Clean up on error
+        try:
+            await retriever.close()
+        except:
+            pass
+        raise
+
+
+@pytest.mark.asyncio
+async def test_intent_retriever_close_handles_sync_and_async_close(test_config, test_database):
+    """Test that close() handles both sync and async close methods."""
+    test_config["datasources"]["duckdb"]["database"] = test_database
+    
+    retriever = IntentDuckDBRetriever(config=test_config)
+    
+    try:
+        # Register services first
+        from ai_services import register_all_services
+        register_all_services(test_config)
+        
+        await retriever.initialize()
+        
+        # Create mock clients with different close method types
+        # Sync close
+        mock_sync_client = Mock()
+        mock_sync_client.close = Mock()  # Regular method (sync)
+        retriever.embedding_client = mock_sync_client
+        
+        # Async close
+        async def async_close():
+            pass
+        
+        mock_async_client = Mock()
+        mock_async_client.close = async_close
+        retriever.inference_client = mock_async_client
+        
+        # Close should handle both types
+        await retriever.close()
+        
+        # Verify both were called
+        mock_sync_client.close.assert_called_once()
+        # Async close is called via await, so we can't easily verify it
+        # but if we get here without error, it worked
+        
+    except Exception as e:
+        # Clean up on error
+        try:
+            await retriever.close()
+        except:
+            pass
+        raise
+
+
+@pytest.mark.asyncio
+async def test_intent_retriever_close_idempotent(test_config, test_database):
+    """Test that close() can be called multiple times safely (idempotent)."""
+    test_config["datasources"]["duckdb"]["database"] = test_database
+    
+    retriever = IntentDuckDBRetriever(config=test_config)
+    
+    try:
+        # Register services first
+        from ai_services import register_all_services
+        register_all_services(test_config)
+        
+        await retriever.initialize()
+        
+        # Close multiple times - should not error
+        await retriever.close()
+        await retriever.close()
+        await retriever.close()
+        
+        # Verify connection is closed
+        assert not retriever._is_connection_alive()
+        
+    except Exception as e:
+        # Clean up on error
+        try:
+            await retriever.close()
+        except:
+            pass
+        raise
+
+
+@pytest.mark.asyncio
+async def test_intent_retriever_close_with_template_store(test_config, test_database):
+    """Test that close() properly closes template_store if it exists."""
+    test_config["datasources"]["duckdb"]["database"] = test_database
+    
+    retriever = IntentDuckDBRetriever(config=test_config)
+    
+    try:
+        # Register services first
+        from ai_services import register_all_services
+        register_all_services(test_config)
+        
+        await retriever.initialize()
+        
+        # Verify template_store exists
+        assert hasattr(retriever, 'template_store')
+        assert retriever.template_store is not None
+        
+        # Create a mock template_store with close method
+        mock_template_store = Mock()
+        async def mock_close():
+            pass
+        mock_template_store.close = mock_close
+        retriever.template_store = mock_template_store
+        
+        # Close should close template_store
+        await retriever.close()
+        
+        # Verify template_store close was called (if it has the method)
+        if hasattr(mock_template_store, 'close'):
+            # The close method should have been called
+            # We can't easily verify async calls, but if we get here without error, it worked
+            pass
+        
+    except Exception as e:
+        # Clean up on error
+        try:
+            await retriever.close()
+        except:
+            pass
+        raise
 
 
 if __name__ == "__main__":

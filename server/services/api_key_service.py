@@ -417,6 +417,10 @@ class ApiKeyService:
         if not adapter_config:
             raise HTTPException(status_code=404, detail=f"Adapter '{adapter_name}' not found or disabled")
 
+        # CRITICAL FIX: Use adapter_manager's config if available (respects hot-reload)
+        # This ensures we get the latest inference provider and model settings after reload
+        active_config = adapter_manager.config if adapter_manager else self.config
+
         # Build response
         adapter_info = {
             "client_name": client_name,
@@ -430,17 +434,20 @@ class ApiKeyService:
             masked_key = mask_api_key(api_key)
             logger.debug(f"get_adapter_info for {masked_key}: adapter_config.get('model') = {model}")
             logger.debug(f"get_adapter_info for {masked_key}: adapter_config.get('inference_provider') = {adapter_config.get('inference_provider')}")
+            logger.debug(f"get_adapter_info for {masked_key}: using {'adapter_manager.config' if adapter_manager else 'self.config'}")
 
         if not model:
             # Get the inference provider for this adapter (or default)
-            general_config = self.config.get('general', {})
+            # Use active_config which comes from adapter_manager if available (respects hot-reload)
+            general_config = active_config.get('general', {})
             inference_provider = adapter_config.get('inference_provider', general_config.get('inference_provider', 'ollama'))
 
             if self.verbose:
                 logger.debug(f"get_adapter_info for {masked_key}: inference_provider = {inference_provider}")
 
             # Try to get model from global inference config
-            inference_config = self.config.get('inference', {}).get(inference_provider, {})
+            # Use active_config which comes from adapter_manager if available (respects hot-reload)
+            inference_config = active_config.get('inference', {}).get(inference_provider, {})
             model = inference_config.get('model')
 
             if self.verbose:

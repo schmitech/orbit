@@ -1058,6 +1058,7 @@ class DynamicAdapterManager:
             'model',
             'embedding_provider',
             'reranker_provider',
+            'vision_provider',
             'database',
             'enabled',
             'adapter',
@@ -1130,14 +1131,18 @@ class DynamicAdapterManager:
         cleared_caches = []
 
         # Clear inference provider cache
+        # Match the exact cache key construction logic from get_overridden_provider
         old_provider = old_config.get('inference_provider')
         old_model = old_config.get('model')
 
         if old_provider:
-            # Build cache key the same way as in get_overridden_provider
+            # Build cache key exactly as in get_overridden_provider:
+            # - If model exists, use "provider:model"
+            # - Otherwise, use just "provider"
             cache_key = f"{old_provider}:{old_model}" if old_model else old_provider
 
             with self._provider_cache_lock:
+                # Try exact match first
                 if cache_key in self._provider_cache:
                     provider = self._provider_cache.pop(cache_key)
                     cleared_caches.append(f"provider:{cache_key}")
@@ -1158,6 +1163,33 @@ class DynamicAdapterManager:
 
                     # Remove from initializing set if present
                     self._provider_initializing.discard(cache_key)
+                else:
+                    # Fallback: clear all variants of this provider if exact match fails
+                    # This handles edge cases where cache key might have been constructed differently
+                    provider_keys_to_remove = []
+                    for key in list(self._provider_cache.keys()):
+                        if key == old_provider or key.startswith(f"{old_provider}:"):
+                            provider_keys_to_remove.append(key)
+                    
+                    for key in provider_keys_to_remove:
+                        provider = self._provider_cache.pop(key)
+                        cleared_caches.append(f"provider:{key}")
+                        
+                        try:
+                            if hasattr(provider, 'close') and callable(getattr(provider, 'close', None)):
+                                if asyncio.iscoroutinefunction(provider.close):
+                                    await provider.close()
+                                else:
+                                    provider.close()
+                        except (AttributeError, TypeError):
+                            pass
+                        except Exception as e:
+                            self.logger.warning(f"Error closing provider {key}: {str(e)}")
+                        
+                        self._provider_initializing.discard(key)
+                    
+                    if provider_keys_to_remove and self.verbose:
+                        self.logger.debug(f"Cleared provider cache variants for '{old_provider}': {provider_keys_to_remove}")
 
         # Clear embedding cache
         old_embedding_provider = old_config.get('embedding_provider')
@@ -1225,6 +1257,14 @@ class DynamicAdapterManager:
             self.logger.info(f"Cleared dependency caches for adapter '{adapter_name}': {', '.join(cleared_caches)}")
         elif self.verbose:
             self.logger.debug(f"No dependency caches to clear for adapter '{adapter_name}'")
+        
+        # Log summary of what was cleared for better debugging
+        if self.verbose and cleared_caches:
+            provider_count = sum(1 for c in cleared_caches if c.startswith("provider:"))
+            embedding_count = sum(1 for c in cleared_caches if c.startswith("embedding:"))
+            reranker_count = sum(1 for c in cleared_caches if c.startswith("reranker:"))
+            self.logger.debug(f"Cache clearing summary for '{adapter_name}': "
+                            f"{provider_count} provider(s), {embedding_count} embedding(s), {reranker_count} reranker(s)")
 
     async def reload_adapter_configs(self, config: Dict[str, Any], adapter_name: Optional[str] = None) -> Dict[str, Any]:
         """
@@ -1237,6 +1277,13 @@ class DynamicAdapterManager:
         Returns:
             Summary dict with counts of added/removed/updated adapters
         """
+        # CRITICAL FIX: Update global config so providers/embeddings/rerankers use latest config
+        # This ensures get_overridden_provider(), get_overridden_embedding(), and get_overridden_reranker()
+        # use the new config values when creating services. Without this, they would use stale config.
+        self.config = config
+        if self.verbose:
+            self.logger.debug("Updated global config for adapter reload")
+
         # Extract new adapter configs
         new_adapter_configs_list = config.get('adapters', [])
         new_adapter_configs = {}
@@ -1258,13 +1305,40 @@ class DynamicAdapterManager:
             if adapter_config_full is None:
                 raise ValueError(f"Adapter '{adapter_name}' not found in configuration file")
 
-            # Get old config
+            # Get old config from _adapter_configs (this should exist if adapter was previously enabled)
             old_config = self._adapter_configs.get(adapter_name)
             is_enabled = adapter_config_full.get('enabled', True)
-
+            
+            # Check if adapter was previously cached (indicates it was enabled before)
+            was_cached = adapter_name in self._adapter_cache
+            
+            # If adapter was cached but not in configs, it means it was disabled
+            # We need to get the old config from the cached adapter to clear dependencies
+            if not old_config and was_cached:
+                # Adapter was disabled (removed from _adapter_configs) but still in cache
+                # Get the old config from the cached adapter's metadata if available
+                cached_adapter = self._adapter_cache.get(adapter_name)
+                if cached_adapter and hasattr(cached_adapter, '_adapter_config'):
+                    # Some adapters might store their config
+                    old_config = getattr(cached_adapter, '_adapter_config', None)
+                # If we can't get old config, we'll still clear caches based on new config after removal
+            
+            # Ensure we have old_config for comparison if adapter exists in configs
+            # This is critical for change detection to work properly
+            if not old_config and adapter_name in self._adapter_configs:
+                # Adapter exists in configs but old_config wasn't retrieved (shouldn't happen, but be safe)
+                old_config = self._adapter_configs[adapter_name]
+            
             # Clear dependency caches before removing adapter
+            # We need old_config to properly clear caches
             if old_config:
+                # Clear caches using old config (most accurate)
                 await self._clear_adapter_dependency_caches(adapter_name, old_config)
+            elif was_cached:
+                # Adapter was cached but we don't have old_config from _adapter_configs
+                # This means it was disabled and removed from _adapter_configs
+                # Clear caches based on new config (best we can do)
+                await self._clear_adapter_dependency_caches(adapter_name, adapter_config_full)
 
             # Remove from cache if it exists (dependencies already cleared above)
             if adapter_name in self._adapter_cache:
@@ -1274,13 +1348,53 @@ class DynamicAdapterManager:
             if is_enabled:
                 # Add or update the adapter
                 self._adapter_configs[adapter_name] = adapter_config_full
-                action = "enabled" if old_config and not old_config.get('enabled', True) else ("updated" if old_config else "added")
+                # Determine action: "enabled" if re-enabling after disable, "updated" if config changed, "added" if new
+                # Note: was_cached indicates adapter was previously enabled (even if not in _adapter_configs due to disable)
+                # Priority: enabled > updated > added
+                if was_cached and not old_config:
+                    # Adapter was cached but not in configs = it was disabled, now re-enabling
+                    action = "enabled"
+                elif old_config and not old_config.get('enabled', True):
+                    # Old config exists but was disabled
+                    action = "enabled"
+                elif old_config:
+                    # Old config exists in _adapter_configs = update (regardless of whether it was cached)
+                    action = "updated"
+                else:
+                    # No old config and not cached = truly new adapter
+                    action = "added"
 
-                # Log what changed if this is an update
-                if old_config and action == "updated":
+                # Log what changed if this is an update or enabled (re-enabling after disable)
+                # Always log changes when old_config exists, regardless of action
+                # This ensures change detection works even if adapter wasn't previously cached
+                if old_config and action in ["updated", "enabled"]:
                     changes = self._detect_config_changes(old_config, adapter_config_full)
                     if changes:
                         self.logger.info(f"Adapter '{adapter_name}' config changes: {', '.join(changes)}")
+                    elif self.verbose:
+                        # Log when no changes detected (for debugging)
+                        self.logger.debug(f"Adapter '{adapter_name}' reloaded but no config changes detected")
+
+                # Force reload adapter after config change to ensure new config is applied
+                # This is critical for provider/model changes to take effect immediately
+                # Note: "added" action can occur when re-enabling a previously disabled adapter
+                # (since disabled adapters are removed from _adapter_configs), so we preload for all actions
+                try:
+                    if action in ["updated", "enabled", "added"]:
+                        # Preload the adapter to ensure fresh initialization with new config
+                        self.logger.info(f"Preloading adapter '{adapter_name}' to apply new configuration...")
+                        await self.preload_adapter(adapter_name)
+                        self.logger.info(f"Successfully preloaded adapter '{adapter_name}' with new configuration")
+                except ValueError as e:
+                    # ValueError typically means adapter config is invalid or provider is disabled
+                    error_msg = str(e)
+                    self.logger.error(f"Failed to preload adapter '{adapter_name}' after reload: {error_msg}")
+                    # Don't fail the reload - adapter will be loaded lazily on next access
+                    # This allows reload to succeed even if provider is temporarily unavailable
+                except Exception as e:
+                    # Log error but don't fail the reload - adapter will be loaded lazily on next access
+                    self.logger.warning(f"Failed to preload adapter '{adapter_name}' after reload: {str(e)}. "
+                                      f"Adapter will be loaded lazily on next access. Error type: {type(e).__name__}")
 
                 self.logger.info(f"Reloaded adapter '{adapter_name}' ({action})")
 
@@ -1316,6 +1430,20 @@ class DynamicAdapterManager:
             if name not in self._adapter_configs:
                 added.append(name)
                 self._adapter_configs[name] = new_config
+                # Preload newly added adapters
+                try:
+                    if self.verbose:
+                        self.logger.info(f"Preloading newly added adapter '{name}'...")
+                    await self.preload_adapter(name)
+                    if self.verbose:
+                        self.logger.info(f"Successfully preloaded newly added adapter '{name}'")
+                except ValueError as e:
+                    # ValueError typically means adapter config is invalid or provider is disabled
+                    error_msg = str(e)
+                    self.logger.error(f"Failed to preload newly added adapter '{name}': {error_msg}")
+                except Exception as e:
+                    self.logger.warning(f"Failed to preload newly added adapter '{name}': {str(e)}. "
+                                      f"Adapter will be loaded lazily on next access. Error type: {type(e).__name__}")
             else:
                 # Check if config actually changed using reliable comparison
                 if self._configs_differ(self._adapter_configs[name], new_config):
@@ -1335,6 +1463,23 @@ class DynamicAdapterManager:
                         await self.remove_adapter(name, clear_dependencies=False)
 
                     self._adapter_configs[name] = new_config
+                    
+                    # Force reload adapter after config change to ensure new config is applied
+                    try:
+                        if self.verbose:
+                            self.logger.info(f"Preloading updated adapter '{name}' to apply new configuration...")
+                        await self.preload_adapter(name)
+                        if self.verbose:
+                            self.logger.info(f"Successfully preloaded updated adapter '{name}' with new configuration")
+                    except ValueError as e:
+                        # ValueError typically means adapter config is invalid or provider is disabled
+                        error_msg = str(e)
+                        self.logger.error(f"Failed to preload updated adapter '{name}': {error_msg}")
+                        # Don't fail the reload - adapter will be loaded lazily on next access
+                    except Exception as e:
+                        # Log error but don't fail the reload - adapter will be loaded lazily on next access
+                        self.logger.warning(f"Failed to preload updated adapter '{name}': {str(e)}. "
+                                          f"Adapter will be loaded lazily on next access. Error type: {type(e).__name__}")
                 else:
                     unchanged.append(name)
 
