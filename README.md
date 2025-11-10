@@ -238,11 +238,11 @@ cd ../..
 #### Test with the React application:
 
 <div align="center">
-  <video src="https://github.com/user-attachments/assets/abc7cbd5-bc81-493a-b0fc-2fa1a3cb22ef" controls>
+  <video src="https://github.com/user-attachments/assets/bf63078f-a913-47d6-ac88-9879243586ce" controls>
     Your browser does not support the video tag.
   </video>
   <br/>
-  <i>Chatting with a PostgreSQL database using the React client.</i>
+  <i>Chatting with a database using the React client.</i>
 </div>
 
 #### Next steps
