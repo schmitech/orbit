@@ -75,22 +75,6 @@ Then install it:
 ./setup.sh --profile my_custom
 ```
 
-## Profile Inheritance
-
-Profiles can extend other profiles:
-
-```toml
-[profiles.data_science]
-description = "Data science tools"
-extends = ["torch"]  # Extends torch profile (which includes default dependencies)
-dependencies = [
-    "pandas>=2.0.0",
-    "numpy>=1.24.0",
-    "scikit-learn>=1.3.0",
-    "jupyter>=1.0.0",
-]
-```
-
 ## Model Configuration
 
 GGUF models are configured in the `gguf-models.json` file:

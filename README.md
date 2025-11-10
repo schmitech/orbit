@@ -81,9 +81,9 @@ Have a story or feature request? [Open an issue](https://github.com/schmitech/or
 
 ```bash
 # Download the latest release archive
-curl -L https://github.com/schmitech/orbit/releases/download/v2.0.0/orbit-2.0.0.tar.gz -o orbit-2.0.0.tar.gz
-tar -xzf orbit-2.0.0.tar.gz
-cd orbit-2.0.0
+curl -L https://github.com/schmitech/orbit/releases/download/v2.0.1/orbit-2.0.1.tar.gz -o orbit-2.0.1.tar.gz
+tar -xzf orbit-2.0.1.tar.gz
+cd orbit-2.0.1
 
 # Add API keys if using proprietary services like OpenAI, Cohere, Anthropic, etc
 cp env.example .env

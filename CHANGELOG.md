@@ -1,6 +1,42 @@
 # Changelog
 
-## [2.2.0] - 2025-11-05
+## [2.0.1] - 2025-11-10
+
+### Core System Updates
+- Sentence Transformers Embedding: Added new embedding service using the sentence transformer package with Hugging Face
+- Chunking Strategy Settings: Added new chunking strategy settings for files in config.yaml
+- Config Updates: Updated adapters.yaml to reflect new chunking settings for file-based adapters, changed default Anthropic model in inference.yaml
+- Remove Intent Caching Plan: Removed intent caching plan from codebase
+
+### Bug Fixes & Technical Improvements
+- Fix Anthropic Provider: Fixed Anthropic provider issue where top_p parameter is no longer accepted by API
+- Adapter Reloading Fixes: Applied multiple fixes to adapter hot reloading logic, fixed adapter disable issues when reloading
+- Load Adapter Config Settings: Fixed adapter config loading to use real adapter config settings instead of config files
+- Verbose Logging Improvements: Added more log output for tracing issues when verbose is enabled, applied verbose check on logging in file_routes.py
+- Recursive Chunker: Changed log line to debug level in recursive_chunker.py
+
+### Chat-app & UI Improvements
+- Chat-app Updates: Load adapter information for default-key, toggle GitHub visibility on/off based on env variable
+- Enable Chat-app Limits: Added limits for max files, conversations, and other settings
+- Message UI Improvements: Removed rectangle from message bubble for cleaner appearance
+- Adapter Info Refresh: Refresh adapter info section on top when adapter is reloaded on the backend
+- UI Refinements: Removed "Refresh" text from top, using refresh icon only for better UX
+- Chat-app Maintenance: Added tar exclusion in gitignore, renamed API testing instructions
+
+### API & Client Updates
+- New orbitchat NPM Package: Published new orbitchat NPM package (v1.0.0) for easy installation of ORBIT UI chat interface
+
+### Retrieval System
+- DuckDB Retriever Updates: Further improvements to DuckDB retriever and templates
+
+### Documentation & Examples
+- Documentation Updates: Updated and better organized documentation structure
+- README Improvements: Improved intro sections, replaced DB chat video example with one showcasing inline charts
+- Roadmap Updates: Updated roadmap and cleaned up documentation
+- NPM Installation Instructions: Added new orbitchat npm install instructions to README
+- Docker Configuration: Added config files to gitignore for Docker deployment
+
+## [2.0.0] - 2025-11-05
 
 ### Core System Updates
 - SQLite Backend: Added support for SQLite backend in addition to MongoDB for easier setup and simplicity
@@ -70,7 +106,7 @@
 - Roadmap Updates: Update roadmap plans, add reranking new design, add roadmap item (SQLite)
 - Update logs_templates.yaml: Refine DSL queries
 - Documentation Cleanup: Reorganized documentation structure
-- Documentation and Scripts Updates: Updated scripts and docs to reflect latest release v2.0.0
+- Documentation and Scripts Updates: Updated scripts and docs to reflect latest release v2.0.1
 
 ## [1.6.0] - 2025-10-25
 
@@ -707,4 +743,4 @@
 
 ## Guidelines
 
-All notable changes to the ORBIT project will be documented in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+All notable changes to the ORBIT project will be documented in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.1.html).
