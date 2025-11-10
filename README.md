@@ -100,15 +100,24 @@ source venv/bin/activate
 # You can add your own models by editing install/gguf-models.json
 ./install/setup.sh --download-gguf granite4-micro
 
-# (Optional) Choose a different AI provider and model
-# You can override the default provider/model by editing config/adapters.yaml
-# Find the "simple-chat" adapter and modify the inference_provider and model fields
-# Available providers from config/inference.yaml: ollama, ollama_cloud, llama_cpp, gemini, groq, 
-#   deepseek, openai, mistral, anthropic, cohere, xai, openrouter, together, and more
-# Example: To use OpenAI instead of llama_cpp, set:
-#   inference_provider: "openai"
-#   model: "gpt-5"
-# Note: Make sure the provider is enabled in config/inference.yaml and you have the required API keys in .env
+# Alternative: Use Ollama if llama.cpp fails due to native library issues
+# If you encounter errors with llama.cpp (e.g., missing native libraries, compilation issues), 
+# you can use Ollama instead:
+# 
+# Step 1: Install Ollama (if not already installed)
+#   macOS/Linux: curl -fsSL https://ollama.com/install.sh | sh
+#   Windows: Download from https://ollama.com/download
+#
+# Step 2: Pull the granite4 model
+#   ollama pull granite4:micro
+#
+# Step 3: Update config/adapters.yaml to use Ollama
+#   Find the "simple-chat" adapter and change:
+#     inference_provider: "ollama"  # Change from "llama_cpp" to "ollama"
+#     model: "granite4:micro"              # Change to the Ollama model name
+#
+# Step 4: Make sure Ollama is enabled in config/inference.yaml
+#   Verify that the "ollama" provider has enabled: true
 
 # Start the ORBIT server
 ./bin/orbit.sh start 
