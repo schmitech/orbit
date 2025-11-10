@@ -8,9 +8,10 @@ import { getApi } from '../api/loader';
 import { FileAttachment } from '../types';
 import { debugLog, debugWarn, logError } from '../utils/debug';
 import { AppConfig } from '../utils/config';
+import { getDefaultKey, getApiUrl } from '../utils/runtimeConfig';
 
-// Default API key from environment variable
-const DEFAULT_API_KEY = import.meta.env.VITE_DEFAULT_KEY || 'default-key';
+// Default API key from runtime configuration
+const DEFAULT_API_KEY = getDefaultKey();
 
 export interface FileUploadProgress {
   filename: string;
@@ -93,7 +94,7 @@ export class FileUploadService {
       const api = await getApi();
       const resolvedApiUrl = apiUrl || 
                      localStorage.getItem('chat-api-url') || 
-                     (import.meta.env as any).VITE_API_URL || 
+                     getApiUrl() || 
                      (window as any).CHATBOT_API_URL ||
                      'http://localhost:3000';
       const resolvedApiKey = apiKey || 

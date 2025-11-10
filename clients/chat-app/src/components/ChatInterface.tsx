@@ -5,11 +5,12 @@ import { useChatStore } from '../stores/chatStore';
 import { Eye, EyeOff, Settings, RefreshCw } from 'lucide-react';
 import { debugError, debugLog, debugWarn } from '../utils/debug';
 import { getApi } from '../api/loader';
+import { getDefaultKey, getApiUrl } from '../utils/runtimeConfig';
 
-// Default API key from environment variable
-const DEFAULT_API_KEY = import.meta.env.VITE_DEFAULT_KEY || 'default-key';
-// Default API URL from environment variable
-const DEFAULT_API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+// Default API key from runtime configuration
+const DEFAULT_API_KEY = getDefaultKey();
+// Default API URL from runtime configuration
+const DEFAULT_API_URL = getApiUrl();
 
 interface ChatInterfaceProps {
   onOpenSettings: () => void;
@@ -112,9 +113,9 @@ export function ChatInterface({ onOpenSettings }: ChatInterfaceProps) {
         await configureApiSettings(apiUrl, apiKey);
         // Clear any existing error after successful configuration
         clearError();
-        // Reset to default values after successful configuration
-        setApiUrl(DEFAULT_API_URL);
-        setApiKey(DEFAULT_API_KEY);
+        // After successful configuration, the conversation now has the new API key
+        // So we keep the configured values (they'll be loaded next time the modal opens)
+        // But we still close the modal
         setValidationError(null);
         setShowApiKey(false);
         setShowConfig(false);
@@ -192,9 +193,11 @@ export function ChatInterface({ onOpenSettings }: ChatInterfaceProps) {
                   <div className="flex justify-end gap-3 pt-2">
                     <button
                       onClick={() => {
-                        // Reset to default values when canceling
-                        setApiUrl(DEFAULT_API_URL);
-                        setApiKey(DEFAULT_API_KEY);
+                        // Reset to current conversation's values when canceling (or defaults if none)
+                        const currentApiUrl = currentConversation?.apiUrl || DEFAULT_API_URL;
+                        const currentApiKey = currentConversation?.apiKey || DEFAULT_API_KEY;
+                        setApiUrl(currentApiUrl);
+                        setApiKey(currentApiKey);
                         setValidationError(null);
                         setShowApiKey(false);
                         setShowConfig(false);
@@ -281,11 +284,12 @@ export function ChatInterface({ onOpenSettings }: ChatInterfaceProps) {
               <div className="flex shrink-0 items-center gap-2">
                 <button
                   onClick={() => {
-                    // Always reset to default values when opening the modal
-                    // This ensures a clean slate for API key configuration
-                    // The conversation's stored API key will remain unchanged until explicitly configured
-                    setApiUrl(DEFAULT_API_URL);
-                    setApiKey(DEFAULT_API_KEY);
+                    // Load current conversation's API settings if available, otherwise use defaults
+                    // This allows users to see and modify their previously configured API key
+                    const currentApiUrl = currentConversation?.apiUrl || DEFAULT_API_URL;
+                    const currentApiKey = currentConversation?.apiKey || DEFAULT_API_KEY;
+                    setApiUrl(currentApiUrl);
+                    setApiKey(currentApiKey);
                     setValidationError(null);
                     setShowApiKey(false);
                     setShowConfig(true);

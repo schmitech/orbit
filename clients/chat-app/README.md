@@ -1,6 +1,126 @@
-# Chatbot API Integration
+# ORBIT Chat App
 
-This chat application integrates with the `@schmitech/chatbot-api` package for real-time streaming chat responses and file upload capabilities.
+A standalone chat application for ORBIT that can be installed as an npm package and run as a CLI tool. Integrates with the `@schmitech/chatbot-api` package for real-time streaming chat responses and file upload capabilities.
+
+## Installation
+
+### As an npm Package (CLI Tool)
+
+Install globally:
+```bash
+npm install -g orbitchat
+```
+
+Or install locally:
+```bash
+npm install orbitchat
+```
+
+## Usage
+
+### CLI Tool
+
+After installing globally, run:
+```bash
+orbitchat
+```
+
+The app will start a server at `http://localhost:5173` by default.
+
+#### CLI Options
+
+```bash
+orbitchat [options]
+
+Options:
+  --api-url URL                    API URL (default: http://localhost:3000)
+  --api-key KEY                    Default API key (default: default-key)
+  --use-local-api BOOLEAN          Use local API build (default: false)
+  --local-api-path PATH            Path to local API
+  --console-debug BOOLEAN          Enable console debug (default: false)
+  --enable-upload-button BOOLEAN   Enable upload button (default: false)
+  --enable-feedback-buttons BOOLEAN Enable feedback buttons (default: false)
+  --max-files-per-conversation N   Max files per conversation (default: 5)
+  --max-file-size-mb N             Max file size in MB (default: 50)
+  --max-total-files N              Max total files (default: 100, 0 = unlimited)
+  --max-conversations N            Max conversations (default: 10, 0 = unlimited)
+  --max-messages-per-conversation N Max messages per conversation (default: 1000, 0 = unlimited)
+  --max-total-messages N           Max total messages (default: 10000, 0 = unlimited)
+  --max-message-length N           Max message length (default: 1000)
+  --port PORT                      Server port (default: 5173)
+  --host HOST                      Server host (default: localhost)
+  --open                           Open browser automatically
+  --config PATH                    Path to config file (default: ~/.orbit-chat-app/config.json)
+  --help, -h                       Show help message
+```
+
+#### Examples
+
+```bash
+# Start with custom API URL and port
+orbitchat --api-url http://localhost:3000 --port 8080
+
+# Start with API key and open browser
+orbitchat --api-key my-key --open
+
+# Start with custom config file
+orbitchat --config /path/to/config.json
+```
+
+### Configuration File
+
+Create a config file at `~/.orbit-chat-app/config.json`:
+
+```json
+{
+  "apiUrl": "http://localhost:3000",
+  "defaultKey": "default-key",
+  "port": 5173,
+  "host": "localhost",
+  "enableUploadButton": false,
+  "enableFeedbackButtons": false,
+  "maxFilesPerConversation": 5,
+  "maxFileSizeMB": 50,
+  "maxTotalFiles": 100,
+  "maxConversations": 10,
+  "maxMessagesPerConversation": 1000,
+  "maxTotalMessages": 10000,
+  "maxMessageLength": 1000
+}
+```
+
+### Configuration Priority
+
+Configuration is loaded in the following priority order:
+1. CLI arguments (highest priority)
+2. Config file (`~/.orbit-chat-app/config.json`)
+3. Environment variables (`VITE_*`)
+4. Default values (lowest priority)
+
+**Note:** GitHub stats and GitHub owner/repo are always shown and default to "schmitech/orbit". These are only configurable via build-time environment variables (`VITE_SHOW_GITHUB_STATS`, `VITE_GITHUB_OWNER`, `VITE_GITHUB_REPO`) for developers who fork the repository and build their own version.
+
+### Environment Variables
+
+You can also set configuration via environment variables (for development):
+
+```bash
+VITE_API_URL=http://localhost:3000
+VITE_DEFAULT_KEY=default-key
+VITE_ENABLE_UPLOAD_BUTTON=false
+VITE_CONSOLE_DEBUG=false
+# ... etc
+```
+
+## Development
+
+### Local Development Setup
+
+For local development, clone the repository and install dependencies:
+
+```bash
+npm install
+npm run dev
+```
 
 ## Configuration
 

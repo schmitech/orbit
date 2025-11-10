@@ -6,6 +6,7 @@ import { ConfirmationModal } from './ConfirmationModal';
 import { debugWarn, debugError } from '../utils/debug';
 import { useGitHubStats } from '../hooks/useGitHubStats';
 import { AppConfig } from '../utils/config';
+import { getShowGitHubStats, getGitHubOwner, getGitHubRepo } from '../utils/runtimeConfig';
 
 interface SidebarProps {}
 
@@ -70,10 +71,10 @@ export function Sidebar({}: SidebarProps) {
         : 'Finish your current conversation before starting a new one.';
 
   // GitHub stats for ORBIT project info
-  const showGitHubStats = import.meta.env.VITE_SHOW_GITHUB_STATS === 'true';
+  const showGitHubStats = getShowGitHubStats();
   const githubStats = useGitHubStats(
-    import.meta.env.VITE_GITHUB_OWNER || 'schmitech',
-    import.meta.env.VITE_GITHUB_REPO || 'orbit'
+    getGitHubOwner(),
+    getGitHubRepo()
   );
 
   const handleNewChat = () => {
@@ -348,7 +349,7 @@ export function Sidebar({}: SidebarProps) {
               )}
               
               <a 
-                href={`https://github.com/${import.meta.env.VITE_GITHUB_OWNER || 'schmitech'}/${import.meta.env.VITE_GITHUB_REPO || 'orbit'}`}
+                href={`https://github.com/${getGitHubOwner()}/${getGitHubRepo()}`}
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"

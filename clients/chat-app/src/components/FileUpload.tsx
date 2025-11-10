@@ -5,9 +5,10 @@ import { FileUploadService, FileUploadProgress } from '../services/fileService';
 import { useChatStore } from '../stores/chatStore';
 import { debugLog, debugWarn, debugError } from '../utils/debug';
 import { AppConfig } from '../utils/config';
+import { getDefaultKey } from '../utils/runtimeConfig';
 
-// Default API key from environment variable
-const DEFAULT_API_KEY = import.meta.env.VITE_DEFAULT_KEY || 'default-key';
+// Default API key from runtime configuration
+const DEFAULT_API_KEY = getDefaultKey();
 
 interface FileUploadProps {
   onFilesSelected: (files: FileAttachment[]) => void;

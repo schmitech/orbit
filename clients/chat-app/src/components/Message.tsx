@@ -3,6 +3,7 @@ import { Bot, Copy, RotateCcw, ThumbsDown, ThumbsUp, User2, File } from 'lucide-
 import { Message as MessageType } from '../types';
 import { MarkdownRenderer } from '@schmitech/markdown-renderer';
 import { debugError } from '../utils/debug';
+import { getEnableFeedbackButtons } from '../utils/runtimeConfig';
 
 interface MessageProps {
   message: MessageType;
@@ -138,7 +139,7 @@ export function Message({ message, onRegenerate }: MessageProps) {
               </button>
             )}
 
-            {import.meta.env.VITE_ENABLE_FEEDBACK_BUTTONS !== 'false' && (
+            {getEnableFeedbackButtons() && (
               <div className="flex items-center gap-1">
                 <button
                   onClick={() => handleFeedback('up')}

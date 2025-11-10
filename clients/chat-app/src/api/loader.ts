@@ -1,18 +1,11 @@
 /**
  * Dynamic API loader that can load either the npm package or local dist build
- * based on environment variables for testing before publishing
+ * based on runtime configuration for testing before publishing
  */
 
 import { getApiPackageVersion } from '../utils/version';
 import { debugLog, debugError } from '../utils/debug';
-
-// Check if we should use local API
-const useLocalApi = (import.meta.env as any).VITE_USE_LOCAL_API === 'true';
-// Vite serves files from public/ directory at root path
-// So /api.mjs maps to public/api.mjs
-// If VITE_LOCAL_API_PATH is not set, use /api.mjs (public directory)
-// If VITE_LOCAL_API_PATH is set, use it as-is (must be a path Vite can serve)
-const localApiPath = (import.meta.env as any).VITE_LOCAL_API_PATH;
+import { getUseLocalApi, getLocalApiPath } from '../utils/runtimeConfig';
 
 // Type definitions for the API
 export interface StreamResponse {
@@ -119,10 +112,13 @@ export async function loadApi(): Promise<ApiFunctions> {
   }
 
   try {
+    const useLocalApi = getUseLocalApi();
+    const localApiPath = getLocalApiPath();
+    
     if (useLocalApi) {
       // Determine the correct path for loading
       // Files should be in src/api/local/ directory (not public/) to be importable by Vite
-      // If VITE_LOCAL_API_PATH is set, use it; otherwise default to local directory
+      // If localApiPath is set, use it; otherwise default to local directory
       let apiPath: string;
       if (localApiPath) {
         // If a custom path is provided, use it (must be a relative path that Vite can resolve)

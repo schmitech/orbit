@@ -1,8 +1,17 @@
 {
-  "name": "ai-chat-app",
-  "private": true,
+  "name": "orbitchat",
+  "private": false,
   "version": "1.0.0",
   "type": "module",
+  "bin": {
+    "orbitchat": "./bin/orbitchat.js"
+  },
+  "files": [
+    "bin",
+    "dist",
+    "README.md",
+    "package.json"
+  ],
   "scripts": {
     "dev": "vite",
     "dev:local": "VITE_USE_LOCAL_API=true vite",
@@ -12,7 +21,8 @@
     "dev:with-api": "npm run build:api && npm run dev:local",
     "lint": "eslint . --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
-    "preview:local": "VITE_USE_LOCAL_API=true vite preview"
+    "preview:local": "VITE_USE_LOCAL_API=true vite preview",
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
     "@schmitech/chatbot-api": "^1.0.0",
