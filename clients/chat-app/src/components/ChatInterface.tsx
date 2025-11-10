@@ -261,8 +261,7 @@ export function ChatInterface({ onOpenSettings }: ChatInterfaceProps) {
                         className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-200 dark:text-[#bfc2cd] dark:hover:text-white dark:hover:bg-[#4a4b54] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         title="Refresh adapter info"
                       >
-                        <RefreshCw className={`h-3.5 w-3.5 ${isRefreshingAdapterInfo ? 'animate-spin' : ''}`} />
-                        <span>Refresh</span>
+                        <RefreshCw className={`h-4 w-4 ${isRefreshingAdapterInfo ? 'animate-spin' : ''}`} />
                       </button>
                     </div>
                     {/* Title and metadata */}
