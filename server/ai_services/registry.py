@@ -231,6 +231,7 @@ def register_vision_services(config: Dict[str, Any] = None) -> None:
         ("openai", "OpenAIVisionService", "OpenAI"),
         ("gemini", "GeminiVisionService", "Gemini"),
         ("anthropic", "AnthropicVisionService", "Anthropic"),
+        ("ollama", "OllamaVisionService", "Ollama"),
     ]
 
     # Get vision config if available

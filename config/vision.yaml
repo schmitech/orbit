@@ -1,6 +1,6 @@
 # Global vision configuration
 vision:
-  provider: "gemini"  # Default vision provider: openai, gemini, anthropic
+  provider: "ollama"  # Default vision provider: openai, gemini, anthropic
   enabled: true       # Whether vision processing is enabled globally
 
 # Provider-specific configurations
@@ -59,6 +59,26 @@ visions:
     timeout:
       connect: 15000   # 15 seconds (increased for slow networks)
       total: 90000     # 90 seconds (increased to handle concurrent API calls + retries)
+    # Retry configuration
+    retry:
+      enabled: true
+      max_retries: 3
+      initial_wait_ms: 1000
+      max_wait_ms: 30000
+      exponential_base: 2
+
+  ollama:
+    enabled: true
+    base_url: "http://localhost:11434"
+    model: "qwen3-vl:8b"
+    temperature: 0.0
+    max_tokens: 1000
+    stream: false
+    # Timeout configuration
+    timeout:
+      connect: 15000   # 15 seconds (increased for slow networks)
+      total: 90000     # 90 seconds (increased to handle concurrent API calls + retries)
+      warmup: 60000    # 1 minute for initial warmup
     # Retry configuration
     retry:
       enabled: true

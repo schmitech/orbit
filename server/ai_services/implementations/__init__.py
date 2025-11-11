@@ -58,6 +58,7 @@ Available Vision Services:
     - OpenAIVisionService: OpenAI vision (GPT-4o, multimodal)
     - GeminiVisionService: Gemini vision (multimodal, OCR)
     - AnthropicVisionService: Anthropic Claude vision (multimodal analysis)
+    - OllamaVisionService: Ollama vision (qwen3-vl, local multimodal)
 
 More implementations will be added as migration progresses.
 """
@@ -124,6 +125,7 @@ _implementations = [
     ('openai_vision_service', 'OpenAIVisionService'),
     ('gemini_vision_service', 'GeminiVisionService'),
     ('anthropic_vision_service', 'AnthropicVisionService'),
+    ('ollama_vision_service', 'OllamaVisionService'),
 ]
 
 # Map service classes to their required SDK packages for commercial/cloud providers
