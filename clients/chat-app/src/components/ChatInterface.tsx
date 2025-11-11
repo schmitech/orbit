@@ -6,6 +6,7 @@ import { Eye, EyeOff, Settings, RefreshCw } from 'lucide-react';
 import { debugError, debugLog, debugWarn } from '../utils/debug';
 import { getApi } from '../api/loader';
 import { getDefaultKey, getApiUrl } from '../utils/runtimeConfig';
+import { PACKAGE_VERSION } from '../utils/version';
 
 // Default API key from runtime configuration
 const DEFAULT_API_KEY = getDefaultKey();
@@ -281,7 +282,10 @@ export function ChatInterface({ onOpenSettings }: ChatInterfaceProps) {
                   </div>
                 )}
               </div>
-              <div className="flex shrink-0 items-center gap-2">
+              <div className="flex shrink-0 items-center gap-3">
+                <span className="text-sm text-gray-500 dark:text-[#bfc2cd]">
+                  v{PACKAGE_VERSION}
+                </span>
                 <button
                   onClick={() => {
                     // Load current conversation's API settings if available, otherwise use defaults

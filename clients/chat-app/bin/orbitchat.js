@@ -112,6 +112,10 @@ function parseArgs() {
       case '-h':
         // Handled in main() function
         break;
+      case '--version':
+      case '-v':
+        // Handled in main() function
+        break;
       default:
         if (arg.startsWith('--')) {
           console.error(`Unknown option: ${arg}`);
@@ -328,6 +332,27 @@ function openBrowser(url) {
 }
 
 /**
+ * Get version from package.json
+ */
+function getVersion() {
+  try {
+    const packagePath = path.join(__dirname, '..', 'package.json');
+    const packageContent = fs.readFileSync(packagePath, 'utf8');
+    const packageJson = JSON.parse(packageContent);
+    return packageJson.version || 'unknown';
+  } catch (error) {
+    return 'unknown';
+  }
+}
+
+/**
+ * Print version
+ */
+function printVersion() {
+  console.log(getVersion());
+}
+
+/**
  * Print help message
  */
 function printHelp() {
@@ -356,6 +381,7 @@ Options:
   --open                           Open browser automatically
   --config PATH                    Path to config file (default: ~/.orbit-chat-app/config.json)
   --help, -h                       Show this help message
+  --version, -v                    Show version number
 
 Configuration Priority:
   1. CLI arguments
@@ -374,7 +400,13 @@ Examples:
  * Main function
  */
 function main() {
-  // Check for help flag first
+  // Check for version flag first
+  if (process.argv.includes('--version') || process.argv.includes('-v')) {
+    printVersion();
+    return;
+  }
+  
+  // Check for help flag
   if (process.argv.includes('--help') || process.argv.includes('-h')) {
     printHelp();
     return;
