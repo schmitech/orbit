@@ -22,6 +22,7 @@ export function Message({ message, onRegenerate }: MessageProps) {
     
     const locale = (import.meta.env as any).VITE_LOCALE || 'en-US';
     
+    const dayOfWeek = value.toLocaleDateString(locale, { weekday: 'short' });
     const month = value.toLocaleDateString(locale, { month: 'short' });
     const day = value.getDate().toString().padStart(2, '0');
     const year = value.getFullYear();
@@ -31,7 +32,7 @@ export function Message({ message, onRegenerate }: MessageProps) {
       hour12: true
     });
     
-    return `${month} ${day}, ${year} ${time}`;
+    return `${dayOfWeek}, ${month} ${day}, ${year} ${time}`;
   }, [message.timestamp]);
 
   const contentClass = isAssistant
@@ -66,11 +67,13 @@ export function Message({ message, onRegenerate }: MessageProps) {
       </div>
 
       <div className="flex-1 min-w-0 space-y-2">
-        <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-[#bfc2cd]">
-          <span className="font-medium uppercase tracking-wide">
+        <div className="flex flex-col gap-1.5 mb-1">
+          <span className="text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-[#ececf1]">
             {isAssistant ? 'Assistant' : 'You'}
           </span>
-          <span>{timestamp}</span>
+          <span className="text-xs text-gray-500 dark:text-[#bfc2cd]">
+            {timestamp}
+          </span>
         </div>
 
         <div

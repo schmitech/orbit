@@ -245,9 +245,9 @@ export function MessageInput({
         <div
           className={`flex items-center gap-2 rounded-lg border px-4 py-3 shadow-sm transition-all ${
             isFocused
-              ? 'border-gray-300 shadow-md dark:border-[#565869] dark:shadow-lg'
-              : 'border-gray-200 dark:border-[#40414f]'
-          } bg-gray-50 dark:bg-[#343541]`}
+              ? 'border-gray-400 shadow-md dark:border-[#565869] dark:shadow-lg'
+              : 'border-gray-300 dark:border-[#40414f]'
+          } bg-gray-50 dark:bg-[#2d2f39]`}
         >
           <button
             type="button"
@@ -297,7 +297,7 @@ export function MessageInput({
             disabled={isInputDisabled}
             rows={1}
             maxLength={AppConfig.maxMessageLength}
-            className="flex-1 resize-none bg-transparent py-1 text-sm text-[#353740] placeholder-gray-400 focus:outline-none dark:text-[#ececf1] dark:placeholder-[#bfc2cd]"
+            className="flex-1 resize-none bg-transparent py-1 text-sm text-[#353740] placeholder-gray-600 focus:outline-none dark:text-[#ececf1] dark:placeholder-[#bfc2cd]"
             style={{ 
               minHeight: '24px',
               maxHeight: '120px',
