@@ -6,6 +6,7 @@
 - Adapter File Support Flag: Added flag to indicate whether an adapter supports file uploads, enabling/disabling upload functionality in chat-app accordingly
 - Adapter Info UI: Added new adapter info fields in chat-app UI showing support status and file capabilities
 - orbitchat 1.0.2: Published new version to npm with latest UI and adapter info features
+- Ollama Vision Service: Added new vision service for ollama vision models
 
 ## [2.0.1] - 2025-11-10
 
