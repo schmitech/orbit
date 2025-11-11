@@ -42,6 +42,7 @@ class OllamaVisionService(VisionService, OllamaBaseService):
         self.temperature = provider_config.get('temperature', 0.0)
         self.max_tokens = provider_config.get('max_tokens', 1000)
         self.stream = provider_config.get('stream', False)
+        self.think = provider_config.get('think', False)  # Enable/disable think mode
 
     async def analyze_image(
         self,
@@ -81,6 +82,7 @@ class OllamaVisionService(VisionService, OllamaBaseService):
                     }
                 ],
                 "stream": False,
+                "think": self.think,
                 "options": {
                     "temperature": self.temperature,
                 }
@@ -209,6 +211,7 @@ class OllamaVisionService(VisionService, OllamaBaseService):
                     }
                 ],
                 "stream": kwargs.get('stream', False),
+                "think": kwargs.get('think', self.think),
                 "options": {
                     "temperature": kwargs.get('temperature', self.temperature),
                 }

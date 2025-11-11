@@ -74,6 +74,7 @@ visions:
     temperature: 0.0
     max_tokens: 1000
     stream: false
+    think: false
     # Timeout configuration
     timeout:
       connect: 15000   # 15 seconds (increased for slow networks)

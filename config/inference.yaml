@@ -2,8 +2,9 @@ inference:
   ollama:
     enabled: true
     base_url: "http://localhost:11434"
-    model: "granite4:micro"
+    model: "ranite4:micro"
     stream: true
+    think: false  # Enable/disable think mode (shows reasoning in <think> tags)
     # Generation parameters - Optimized for large SQL result sets
     temperature: 0.3  # Lower for more factual, deterministic outputs
     top_p: 0.8  # More focused outputs for data analysis
@@ -54,8 +55,9 @@ inference:
   ollama_cloud:
     enabled: true
     api_key: ${OLLAMA_CLOUD_API_KEY}
-    model: "gpt-oss:120b-cloud"
+    model: "gpt-oss:120b-cloud" # Supported models: https://docs.ollama.com/cloud
     stream: true
+    think: false  # Enable/disable think mode (shows reasoning in <think> tags)
     # Generation parameters - Optimized for large SQL result sets
     temperature: 0.3  # Lower for more factual, deterministic outputs
     top_p: 0.8  # More focused outputs for data analysis

@@ -44,6 +44,7 @@ class OllamaInferenceService(InferenceService, OllamaBaseService):
         # Ollama doesn't have max_tokens, uses num_predict instead
         provider_config = self._extract_provider_config()
         self.num_predict = provider_config.get('num_predict', -1)  # -1 means no limit
+        self.think = provider_config.get('think', False)  # Enable/disable think mode
 
     async def generate(self, prompt: str, **kwargs) -> str:
         """
@@ -73,6 +74,7 @@ class OllamaInferenceService(InferenceService, OllamaBaseService):
                     "model": self.model,
                     "messages": messages,
                     "stream": False,
+                    "think": kwargs.pop('think', self.think),
                     "options": {
                         "temperature": kwargs.pop('temperature', self.temperature),
                         "top_p": kwargs.pop('top_p', self.top_p),
@@ -85,6 +87,7 @@ class OllamaInferenceService(InferenceService, OllamaBaseService):
                     "model": self.model,
                     "prompt": prompt,
                     "stream": False,
+                    "think": kwargs.pop('think', self.think),
                     "options": {
                         "temperature": kwargs.pop('temperature', self.temperature),
                         "top_p": kwargs.pop('top_p', self.top_p),
@@ -139,6 +142,7 @@ class OllamaInferenceService(InferenceService, OllamaBaseService):
                     "model": self.model,
                     "messages": messages,
                     "stream": True,
+                    "think": kwargs.pop('think', self.think),
                     "options": {
                         "temperature": kwargs.pop('temperature', self.temperature),
                         "top_p": kwargs.pop('top_p', self.top_p),
@@ -151,6 +155,7 @@ class OllamaInferenceService(InferenceService, OllamaBaseService):
                     "model": self.model,
                     "prompt": prompt,
                     "stream": True,
+                    "think": kwargs.pop('think', self.think),
                     "options": {
                         "temperature": kwargs.pop('temperature', self.temperature),
                         "top_p": kwargs.pop('top_p', self.top_p),
