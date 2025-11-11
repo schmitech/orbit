@@ -45,6 +45,9 @@ export function MessageInput({
   const currentConversation = conversations.find(conv => conv.id === currentConversationId);
   const conversationFiles = currentConversation?.attachedFiles || [];
   
+  // Check if adapter supports file processing
+  const isFileSupported = currentConversation?.adapterInfo?.isFileSupported ?? false;
+  
   // Don't sync attachedFiles with conversationFiles - attachedFiles should only show files attached to current message
   // Files in conversation will be included when sending the message via conversationFiles
   
@@ -70,6 +73,9 @@ export function MessageInput({
 
   // Disable input if files are uploading, processing, or if already disabled
   const isInputDisabled = disabled || hasProcessingFiles || isUploading;
+  
+  // Disable file upload button if adapter doesn't support files or input is disabled
+  const isFileUploadDisabled = !isFileSupported || isInputDisabled;
 
   // Auto-resize textarea with maximum height limit
   useEffect(() => {
@@ -247,29 +253,31 @@ export function MessageInput({
             type="button"
             onClick={(e) => {
               e.preventDefault();
-              if (!isInputDisabled) {
+              if (!isFileUploadDisabled) {
                 setShowFileUpload(!showFileUpload);
               }
             }}
-            disabled={isInputDisabled}
+            disabled={isFileUploadDisabled}
             onMouseEnter={() => setIsHoveringUpload(true)}
             onMouseLeave={() => setIsHoveringUpload(false)}
             className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors ${
               showFileUpload || attachedFiles.length > 0
                 ? 'bg-gray-100 text-[#353740] dark:bg-[#565869] dark:text-[#ececf1]'
-                : isInputDisabled
+                : isFileUploadDisabled
                 ? 'cursor-not-allowed text-gray-300 dark:text-[#6b6f7a]'
                 : 'text-gray-500 hover:bg-gray-100 hover:text-[#353740] dark:text-[#bfc2cd] dark:hover:bg-[#565869]'
             }`}
             title={
-              isInputDisabled
+              !isFileSupported
+                ? 'File upload not supported by this adapter'
+                : isInputDisabled
                 ? 'Files are uploading/processing. Please wait...'
                 : attachedFiles.length > 0
                 ? `${attachedFiles.length} file(s) attached`
                 : 'Attach files'
             }
           >
-            {isInputDisabled && isHoveringUpload ? (
+            {isFileUploadDisabled && isHoveringUpload ? (
               <X className="h-4 w-4" />
             ) : (
               <Paperclip className="h-4 w-4" />
@@ -385,7 +393,7 @@ export function MessageInput({
           </div>
         )}
 
-        {(showFileUpload || isUploading) && (
+        {isFileSupported && (showFileUpload || isUploading) && (
           <div className="rounded-md border border-gray-200 bg-white p-3 dark:border-[#4a4b54] dark:bg-[#2d2f39]">
             {showFileUpload && (
               <div className="mb-2 flex items-center justify-between text-sm text-[#353740] dark:text-[#ececf1]">
@@ -411,7 +419,7 @@ export function MessageInput({
               }}
               onUploadingChange={setIsUploading}
               maxFiles={AppConfig.maxFilesPerConversation}
-              disabled={isInputDisabled}
+              disabled={isFileUploadDisabled}
             />
           </div>
         )}

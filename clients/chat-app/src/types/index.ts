@@ -21,6 +21,7 @@ export interface AdapterInfo {
   client_name: string;
   adapter_name: string;
   model: string | null;
+  isFileSupported?: boolean;
 }
 
 export interface Conversation {

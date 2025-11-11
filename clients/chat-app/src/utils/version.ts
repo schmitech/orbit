@@ -2,9 +2,11 @@
  * Version utilities for displaying package information
  */
 
-// Package version from package.json (this will be replaced at build time)
-export const PACKAGE_VERSION = '1.0.0';
-export const API_PACKAGE_VERSION = '^1.0.0';
+import packageJson from '../../package.json';
+
+// Package version from package.json
+export const PACKAGE_VERSION = packageJson.version;
+export const API_PACKAGE_VERSION = packageJson.dependencies['@schmitech/chatbot-api'] || '^1.0.1';
 
 /**
  * Get the current API package version being used

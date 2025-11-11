@@ -19,10 +19,19 @@ export function Message({ message, onRegenerate }: MessageProps) {
     const value = message.timestamp instanceof Date
       ? message.timestamp
       : new Date(message.timestamp);
-    return value.toLocaleTimeString([], {
+    
+    const locale = (import.meta.env as any).VITE_LOCALE || 'en-US';
+    
+    const month = value.toLocaleDateString(locale, { month: 'short' });
+    const day = value.getDate().toString().padStart(2, '0');
+    const year = value.getFullYear();
+    const time = value.toLocaleTimeString(locale, {
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
+      hour12: true
     });
+    
+    return `${month} ${day}, ${year} ${time}`;
   }, [message.timestamp]);
 
   const contentClass = isAssistant

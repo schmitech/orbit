@@ -390,6 +390,7 @@ class ApiKeyService:
                 - client_name: Client name associated with the API key
                 - adapter_name: Name of the adapter
                 - model: The model name (from adapter config or global default)
+                - isFileSupported: Boolean indicating if adapter supports file processing
 
         Raises:
             HTTPException: If the API key is invalid or adapter not found
@@ -455,9 +456,15 @@ class ApiKeyService:
 
         adapter_info['model'] = model
 
+        # Extract file support capability from adapter config
+        # Check capabilities.supports_file_ids to determine if adapter supports file processing
+        capabilities = adapter_config.get('capabilities', {})
+        supports_file_ids = capabilities.get('supports_file_ids', False)
+        adapter_info['isFileSupported'] = bool(supports_file_ids)
+
         if self.verbose:
             masked_key = mask_api_key(api_key)
-            logger.info(f"Retrieved adapter info for API key {masked_key}: client={client_name}, adapter={adapter_name}, model={model}")
+            logger.info(f"Retrieved adapter info for API key {masked_key}: client={client_name}, adapter={adapter_name}, model={model}, isFileSupported={adapter_info['isFileSupported']}")
 
         return adapter_info
     

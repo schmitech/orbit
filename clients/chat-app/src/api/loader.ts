@@ -91,6 +91,7 @@ export interface ApiClient {
     client_name: string;
     adapter_name: string;
     model: string | null;
+    isFileSupported?: boolean;
   }>;
 }
 
@@ -100,8 +101,25 @@ export interface ApiFunctions {
   ApiClient: new (config: { apiUrl: string; apiKey?: string | null; sessionId?: string | null }) => ApiClient;
 }
 
+type LocalApiModule = {
+  configureApi: ApiFunctions['configureApi'];
+  streamChat: ApiFunctions['streamChat'];
+  ApiClient: ApiFunctions['ApiClient'];
+};
+
 // Cache for loaded API
 let apiCache: ApiFunctions | null = null;
+
+/**
+ * Ensure Vite can resolve aliases by avoiding @vite-ignore when we use them.
+ */
+async function importLocalApiModule(apiPath: string): Promise<LocalApiModule> {
+  if (apiPath === '@local-node-api/api.mjs') {
+    // @ts-ignore - resolved at build time via Vite alias
+    return import('@local-node-api/api.mjs');
+  }
+  return import(/* @vite-ignore */ apiPath);
+}
 
 /**
  * Dynamically loads the API based on environment configuration
@@ -111,41 +129,38 @@ export async function loadApi(): Promise<ApiFunctions> {
     return apiCache;
   }
 
+  // Get configuration outside try block so it's accessible in catch block
+  const useLocalApi = getUseLocalApi();
+  const localApiPath = getLocalApiPath();
+
   try {
-    const useLocalApi = getUseLocalApi();
-    const localApiPath = getLocalApiPath();
-    
     if (useLocalApi) {
       // Determine the correct path for loading
-      // Files should be in src/api/local/ directory (not public/) to be importable by Vite
-      // If localApiPath is set, use it; otherwise default to local directory
+      // Default to using Vite alias @local-node-api
       let apiPath: string;
       if (localApiPath) {
         // If a custom path is provided, use it (must be a relative path that Vite can resolve)
         if (localApiPath.startsWith('/')) {
           // Absolute path - convert to relative from src
-          apiPath = localApiPath.startsWith('/src/') 
+          apiPath = localApiPath.startsWith('/src/')
             ? `.${localApiPath.substring(4)}${localApiPath.endsWith('.mjs') ? '' : '/api.mjs'}`
-            : `./local/api.mjs`;
+            : '@local-node-api/api.mjs';
         } else if (localApiPath.startsWith('../') || localApiPath.startsWith('./')) {
-          // Relative path - if it's ../node-api/dist, use local directory instead
-          if (localApiPath.includes('node-api/dist')) {
-            apiPath = './local/api.mjs';
-          } else {
-            apiPath = localApiPath.endsWith('.mjs') ? localApiPath : `${localApiPath}/api.mjs`;
-          }
+          // Relative path - use as-is, appending /api.mjs if needed
+          apiPath = localApiPath.endsWith('.mjs') ? localApiPath : `${localApiPath}/api.mjs`;
         } else {
           // Treat as path relative to current file
           apiPath = `./${localApiPath}${localApiPath.endsWith('.mjs') ? '' : '/api.mjs'}`;
         }
       } else {
-        // Default: use local directory (src/api/local/api.mjs)
-        apiPath = './local/api.mjs';
+        // Default: use Vite alias @local-node-api (configured in vite.config.ts)
+        // This resolves to clients/node-api/dist
+        apiPath = '@local-node-api/api.mjs';
       }
       
       debugLog(`🔧 Loading local API from: ${apiPath}`);
       // Load from src directory (can be imported by Vite)
-      const localApi = await import(/* @vite-ignore */ apiPath);
+      const localApi = await importLocalApiModule(apiPath);
       apiCache = {
         configureApi: localApi.configureApi,
         streamChat: localApi.streamChat,
