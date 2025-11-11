@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.2] - 2025-11-11
+
+### Chat-app & Adapter API Updates
+- Adapter File Support Flag: Added flag to indicate whether an adapter supports file uploads, enabling/disabling upload functionality in chat-app accordingly
+- Adapter Info UI: Added new adapter info fields in chat-app UI showing support status and file capabilities
+- orbitchat 1.0.2: Published new version to npm with latest UI and adapter info features
+
 ## [2.0.1] - 2025-11-10
 
 ### Core System Updates
@@ -106,7 +113,7 @@
 - Roadmap Updates: Update roadmap plans, add reranking new design, add roadmap item (SQLite)
 - Update logs_templates.yaml: Refine DSL queries
 - Documentation Cleanup: Reorganized documentation structure
-- Documentation and Scripts Updates: Updated scripts and docs to reflect latest release v2.0.1
+- Documentation and Scripts Updates: Updated scripts and docs to reflect latest release v2.0.2
 
 ## [1.6.0] - 2025-10-25
 
@@ -743,4 +750,4 @@
 
 ## Guidelines
 
-All notable changes to the ORBIT project will be documented in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.1.html).
+All notable changes to the ORBIT project will be documented in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.2.html).
