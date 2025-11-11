@@ -8,10 +8,8 @@ import { getApi } from '../api/loader';
 import { getDefaultKey, getApiUrl } from '../utils/runtimeConfig';
 import { PACKAGE_VERSION } from '../utils/version';
 
-// Default API key from runtime configuration
-const DEFAULT_API_KEY = getDefaultKey();
-// Default API URL from runtime configuration
-const DEFAULT_API_URL = getApiUrl();
+// Note: We use getApiUrl() and getDefaultKey() directly when needed
+// to ensure we always read the latest runtime config (including CLI args)
 
 interface ChatInterfaceProps {
   onOpenSettings: () => void;
@@ -31,9 +29,9 @@ export function ChatInterface({ onOpenSettings }: ChatInterfaceProps) {
 
   // Configuration state for API settings
   const [showConfig, setShowConfig] = useState(false);
-  // Always start with default values when opening the modal
-  const [apiUrl, setApiUrl] = useState(DEFAULT_API_URL);
-  const [apiKey, setApiKey] = useState(DEFAULT_API_KEY);
+  // Initialize with runtime config defaults (will be updated when modal opens)
+  const [apiUrl, setApiUrl] = useState(() => getApiUrl());
+  const [apiKey, setApiKey] = useState(() => getDefaultKey());
   const [showApiKey, setShowApiKey] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -66,7 +64,7 @@ export function ChatInterface({ onOpenSettings }: ChatInterfaceProps) {
     setIsRefreshingAdapterInfo(true);
     try {
       const api = await getApi();
-      const conversationApiUrl = currentConversation.apiUrl || DEFAULT_API_URL;
+      const conversationApiUrl = currentConversation.apiUrl || getApiUrl();
       const conversationApiKey = currentConversation.apiKey;
 
       const adapterClient = new api.ApiClient({
@@ -195,8 +193,9 @@ export function ChatInterface({ onOpenSettings }: ChatInterfaceProps) {
                     <button
                       onClick={() => {
                         // Reset to current conversation's values when canceling (or defaults if none)
-                        const currentApiUrl = currentConversation?.apiUrl || DEFAULT_API_URL;
-                        const currentApiKey = currentConversation?.apiKey || DEFAULT_API_KEY;
+                        // Read dynamically to ensure we get the latest runtime config
+                        const currentApiUrl = currentConversation?.apiUrl || getApiUrl();
+                        const currentApiKey = currentConversation?.apiKey || getDefaultKey();
                         setApiUrl(currentApiUrl);
                         setApiKey(currentApiKey);
                         setValidationError(null);
@@ -290,8 +289,16 @@ export function ChatInterface({ onOpenSettings }: ChatInterfaceProps) {
                   onClick={() => {
                     // Load current conversation's API settings if available, otherwise use defaults
                     // This allows users to see and modify their previously configured API key
-                    const currentApiUrl = currentConversation?.apiUrl || DEFAULT_API_URL;
-                    const currentApiKey = currentConversation?.apiKey || DEFAULT_API_KEY;
+                    // Always use runtime config defaults (from CLI args) when no conversation exists
+                    // Read dynamically to ensure we get the latest runtime config
+                    const runtimeApiUrl = getApiUrl();
+                    // If conversation has localhost (default) but runtime config has a different value,
+                    // prefer the runtime config (from CLI args or env vars)
+                    const conversationApiUrl = currentConversation?.apiUrl;
+                    const currentApiUrl = (conversationApiUrl && conversationApiUrl !== 'http://localhost:3000') 
+                      ? conversationApiUrl 
+                      : runtimeApiUrl;
+                    const currentApiKey = currentConversation?.apiKey || getDefaultKey();
                     setApiUrl(currentApiUrl);
                     setApiKey(currentApiKey);
                     setValidationError(null);

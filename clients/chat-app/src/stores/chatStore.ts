@@ -82,7 +82,7 @@ async function ensureApiConfigured(): Promise<boolean> {
     const apiUrl = localStorage.getItem('chat-api-url') || 
                   getApiUrl() || 
                   (window as any).CHATBOT_API_URL ||
-                  'http://localhost:3000';
+                  getApiUrl(); // Use runtime config as final fallback
 
     const apiKey = localStorage.getItem('chat-api-key') || DEFAULT_API_KEY;
     const sessionId = getOrCreateSessionId();
@@ -287,8 +287,8 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
 
     const id = `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const newSessionId = generateUniqueSessionId(); // Create unique session for this conversation
-    // New conversations default to the configured default key
-    const defaultApiUrl = 'http://localhost:3000';
+    // New conversations default to the configured default key and API URL from runtime config
+    const defaultApiUrl = getApiUrl(); // Use runtime config (from CLI args or env vars)
     const defaultApiKey = DEFAULT_API_KEY;
     const newConversation: Conversation = {
       id,
@@ -384,7 +384,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       });
       
       // Use conversation's stored API key and URL (use default key if not configured, don't fall back to localStorage)
-      const conversationApiUrl = conversation.apiUrl || 'http://localhost:3000';
+      const conversationApiUrl = conversation.apiUrl || getApiUrl();
       const conversationApiKey = conversation.apiKey || DEFAULT_API_KEY;
       
       // Reconfigure API with the conversation's session ID and API key
@@ -470,7 +470,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         } else {
           // Use conversation's stored API key and URL (don't fall back to localStorage)
           // This ensures each conversation uses its own API key for deletion
-          const conversationApiUrl = conversation.apiUrl || 'http://localhost:3000';
+          const conversationApiUrl = conversation.apiUrl || getApiUrl();
           const conversationApiKey = conversation.apiKey || DEFAULT_API_KEY;
           
           debugLog(`🔑 Using conversation's API key for deletion: ${conversationApiKey.substring(0, 8)}... (conversation: ${id})`);
@@ -622,7 +622,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
             continue;
           }
 
-          const conversationApiUrl = conversation.apiUrl || 'http://localhost:3000';
+          const conversationApiUrl = conversation.apiUrl || getApiUrl();
           const conversationApiKey = conversation.apiKey || DEFAULT_API_KEY;
           
           const api = await getApi();
@@ -1531,7 +1531,7 @@ const initializeStore = async () => {
           createdAt: new Date(),
           updatedAt: new Date(),
           apiKey: DEFAULT_API_KEY, // Always use default-key when no conversations exist
-          apiUrl: 'http://localhost:3000'
+          apiUrl: getApiUrl() // Use runtime config (from CLI args or env vars)
         };
         
         useChatStore.setState({

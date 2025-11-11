@@ -221,13 +221,17 @@ export const runtimeConfig: RuntimeConfig = {
 
 /**
  * Helper functions to get specific config values
+ * These read dynamically to ensure they always get the latest runtime config
  */
 export function getApiUrl(): string {
-  return runtimeConfig.apiUrl;
+  // Read dynamically to ensure we get the latest window.ORBIT_CHAT_CONFIG
+  const value = getConfigValue('apiUrl', 'http://localhost:3000', 'string');  
+  return value;
 }
 
 export function getDefaultKey(): string {
-  return runtimeConfig.defaultKey;
+  // Read dynamically to ensure we get the latest window.ORBIT_CHAT_CONFIG
+  return getConfigValue('defaultKey', 'default-key', 'string');
 }
 
 export function getUseLocalApi(): boolean {
