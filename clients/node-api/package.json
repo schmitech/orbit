@@ -1,7 +1,7 @@
 {
     "name": "@schmitech/chatbot-api",
     "private": false,
-    "version": "1.0.0",
+    "version": "1.0.1",
     "description": "API client for the ORBIT MCP server",
     "type": "module",
     "main": "./dist/api.cjs",

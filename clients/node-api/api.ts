@@ -6,7 +6,9 @@ let httpsAgent: any = null;
 if (typeof window === 'undefined') {
   // Lazy load to avoid including 'http' in browser bundles
   Promise.all([
+    // @ts-expect-error - Dynamic import of Node.js built-in module (only available in Node.js runtime)
     import('http').catch(() => null),
+    // @ts-expect-error - Dynamic import of Node.js built-in module (only available in Node.js runtime)
     import('https').catch(() => null)
   ]).then(([http, https]) => {
     if (http?.default?.Agent) {
@@ -105,6 +107,7 @@ export interface AdapterInfo {
   client_name: string;
   adapter_name: string;
   model: string | null;
+  isFileSupported?: boolean;
 }
 
 export class ApiClient {
