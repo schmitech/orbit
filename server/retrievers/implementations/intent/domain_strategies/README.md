@@ -84,12 +84,14 @@ Then register it in the registry:
 
 ```python
 # domain_strategies/registry.py
+# Example: If you need custom domain-specific logic beyond YAML configuration
 from .healthcare import HealthcareStrategy
 
 class DomainStrategyRegistry:
     _builtin_strategies = [
-        CustomerOrderStrategy,
-        HealthcareStrategy,  # Add new strategy here
+        # All domains now use GenericDomainStrategy with YAML config by default
+        # Only add custom strategies here if you need logic that cannot be expressed in YAML
+        HealthcareStrategy,  # Add custom strategy here if needed
     ]
 ```
 

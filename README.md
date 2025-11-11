@@ -211,40 +211,39 @@ orbitchat --api-url http://localhost:3000 --api-key YOUR_ACTUAL_KEY --open
 
 ### Chatting with a DB
 
-#### Setting up the PostgreSQL Example
+#### Quick Setup (PostgreSQL Example)
 
 ```bash
-# Step 1: Navigate to the postgres example directory
+# 1. Set up the database and test data
 cd examples/postgres
-
-# Step 2: Set up your PostgreSQL connection
-# Copy the environment example file and configure it
 cp env.example .env
-
-# Step 4: Set up the database schema
-# This creates the customers and orders tables
 python setup_schema.py
-
-# Step 5: Generate test data
-# Insert 100 customers and 500 orders with realistic addresses
 python customer-order.py --action insert --customers 100 --orders 500
-
-# Step 6: Verify the adapter is enabled in config/adapters.yaml
-# The adapter "intent-sql-postgres" should have enabled: true
-# Templates are already configured at:
-# - utils/sql-intent-template/examples/postgres/customer-orders/
-
-# Step 7: Restart the ORBIT server to load the templates
 cd ../..
+
+# 2. Restart ORBIT to load pre-generated templates
 ./bin/orbit.sh restart
 
-# Step 9: Generate an API key for the postgres adapter
+# 3. Create an API key for the postgres adapter
 ./bin/orbit.sh key create \
   --adapter intent-sql-postgres \
   --name "PostgreSQL Customer Orders" \
   --prompt-file ./prompts/default-conversational-adapter-prompt.txt \
   --prompt-name "Conversational Prompt"
 ```
+
+**Note:** SQL templates are pre-generated for the customer-orders example. If you need templates for your own database, see the template generator section below.
+
+#### Generating SQL Templates for Your Own Database
+
+```bash
+cd utils/sql-intent-template
+./run_customer_order_example.sh --generate
+```
+
+This script generates templates from your schema and queries, then copies them to the config directory. For custom databases, edit the script to point to your schema and queries files.
+
+For more details, see: `utils/sql-intent-template/README.md`
 
 #### Test with the React application:
 

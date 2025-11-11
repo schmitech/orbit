@@ -58,8 +58,8 @@ The system follows a layered architecture with clear separation of concerns, bui
                               │
 ┌─────────────────────────────────────────────────────────────┐
 │                 Domain Strategy Layer                       │
-│  DomainStrategyRegistry, CustomerOrderStrategy,            │
-│  GenericDomainStrategy, Custom Strategies                  │
+│  DomainStrategyRegistry, GenericDomainStrategy,            │
+│  Custom Strategies                                         │
 └─────────────────────────────────────────────────────────────┘
                               │
 ┌─────────────────────────────────────────────────────────────┐
@@ -269,8 +269,7 @@ The system uses a domain strategy architecture for specialized template rerankin
 - Supports dynamic strategy registration
 
 **Built-in Strategies:**
-- **CustomerOrderStrategy**: E-commerce and customer order domains
-- **GenericDomainStrategy**: Fallback for all other domains
+- **GenericDomainStrategy**: Configuration-driven strategy for all domains (automatically used as fallback)
 
 **Custom Strategy Support:**
 - Register custom strategies for specialized domains
@@ -849,7 +848,7 @@ class TemplateReranker:
 #### DomainStrategyRegistry
 ```python
 class DomainStrategyRegistry:
-    _builtin_strategies = [CustomerOrderStrategy]
+    _builtin_strategies = []  # All domains now use GenericDomainStrategy with YAML config
     _custom_strategies: Dict[str, Type[DomainStrategy]] = {}
     
     @classmethod

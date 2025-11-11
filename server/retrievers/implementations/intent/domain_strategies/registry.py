@@ -4,7 +4,6 @@ import logging
 from typing import Any, Dict, Optional, Type
 
 from .base import DomainStrategy
-from .customer_order import CustomerOrderStrategy
 from .generic import GenericDomainStrategy
 
 logger = logging.getLogger(__name__)
@@ -13,7 +12,7 @@ logger = logging.getLogger(__name__)
 class DomainStrategyRegistry:
     """Registry for domain-specific strategies."""
 
-    _builtin_strategies = [CustomerOrderStrategy]
+    _builtin_strategies = []  # All domains now use GenericDomainStrategy with YAML config
     _custom_strategies: Dict[str, Type[DomainStrategy]] = {}
 
     @classmethod
