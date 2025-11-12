@@ -88,3 +88,63 @@ visions:
       max_wait_ms: 30000
       exponential_base: 2
 
+  vllm:
+    enabled: false
+    host: "localhost"
+    port: 8000
+    model: "llava-hf/llava-1.5-7b-hf"  # Or other multimodal model
+    temperature: 0.0
+    max_tokens: 1000
+    stream: false
+    # Timeout configuration
+    timeout:
+      connect: 15000   # 15 seconds
+      total: 90000     # 90 seconds
+    # Retry configuration
+    retry:
+      enabled: true
+      max_retries: 3
+      initial_wait_ms: 1000
+      max_wait_ms: 30000
+      exponential_base: 2
+
+  llama_cpp:
+    enabled: false
+    # Mode: "direct" (load model locally with Python bindings) or "api" (connect to llama.cpp server)
+    mode: "direct"
+
+    # Direct mode configuration
+    model_path: "models/llava-v1.5-7b-Q4_K_M.gguf"  # Or other multimodal GGUF model
+    chat_format: "llava-1-5"  # Chat format for vision model
+
+    # API mode configuration
+    base_url: "http://localhost:8080"  # llama.cpp server URL (OpenAI-compatible API)
+    model: "llava"  # Model name to request from the server (for API mode)
+    api_key: null  # Optional API key for secured servers
+
+    # Generation parameters
+    temperature: 0.0
+    max_tokens: 1000
+    stream: false
+
+    # Context and threading (direct mode only)
+    n_ctx: 4096
+    n_threads: 8
+
+    # GPU settings (direct mode only)
+    n_gpu_layers: 0  # For GPU/Metal support
+    main_gpu: 0
+    tensor_split: null
+
+    # Timeout configuration
+    timeout:
+      connect: 15000   # 15 seconds
+      total: 90000     # 90 seconds
+    # Retry configuration
+    retry:
+      enabled: true
+      max_retries: 3
+      initial_wait_ms: 1000
+      max_wait_ms: 30000
+      exponential_base: 2
+

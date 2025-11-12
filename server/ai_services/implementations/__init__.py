@@ -59,6 +59,8 @@ Available Vision Services:
     - GeminiVisionService: Gemini vision (multimodal, OCR)
     - AnthropicVisionService: Anthropic Claude vision (multimodal analysis)
     - OllamaVisionService: Ollama vision (qwen3-vl, local multimodal)
+    - VLLMVisionService: vLLM vision (LLaVA, local multimodal)
+    - LlamaCppVisionService: Llama.cpp vision (LLaVA GGUF, local multimodal)
 
 More implementations will be added as migration progresses.
 """
@@ -126,6 +128,8 @@ _implementations = [
     ('gemini_vision_service', 'GeminiVisionService'),
     ('anthropic_vision_service', 'AnthropicVisionService'),
     ('ollama_vision_service', 'OllamaVisionService'),
+    ('vllm_vision_service', 'VLLMVisionService'),
+    ('llama_cpp_vision_service', 'LlamaCppVisionService'),
 ]
 
 # Map service classes to their required SDK packages for commercial/cloud providers

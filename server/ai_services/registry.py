@@ -232,6 +232,8 @@ def register_vision_services(config: Dict[str, Any] = None) -> None:
         ("gemini", "GeminiVisionService", "Gemini"),
         ("anthropic", "AnthropicVisionService", "Anthropic"),
         ("ollama", "OllamaVisionService", "Ollama"),
+        ("vllm", "VLLMVisionService", "vLLM"),
+        ("llama_cpp", "LlamaCppVisionService", "Llama.cpp"),
     ]
 
     # Get vision config if available

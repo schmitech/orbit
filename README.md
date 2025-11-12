@@ -289,7 +289,6 @@ For more detailed information, please refer to the official documentation.
 - **Questions?** Open an [issue](https://github.com/schmitech/orbit/issues)
 - **Updates:** Check the [changelog](CHANGELOG.md)
 - **Maintained by:** [Remsy Schmilinsky](https://www.linkedin.com/in/remsy/)
-- **Commercial Support** [Schmitech Inc.](https://schmitech.ai/)
 
 ## License
 

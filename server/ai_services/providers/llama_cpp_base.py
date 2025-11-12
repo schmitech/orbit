@@ -41,12 +41,17 @@ class LlamaCppBaseService(ProviderAIService):
         llama_config = self._extract_provider_config()
 
         # Determine mode: API or Direct
-        self.mode = llama_config.get("mode", "api")  # Default to API mode
+        # Default to "direct" for backward compatibility (previous version only supported direct mode)
+        self.mode = llama_config.get("mode", "direct")
         self.model_path = llama_config.get("model_path")
 
-        if self.mode == "direct" or self.model_path:
-            # Direct mode: Load GGUF model directly
+        # If model_path is specified, force direct mode (backward compatibility)
+        if self.model_path and self.mode != "direct":
+            self.logger.warning("model_path specified but mode is not 'direct'. Forcing direct mode.")
             self.mode = "direct"
+
+        if self.mode == "direct":
+            # Direct mode: Load GGUF model directly
             self._setup_direct_mode(llama_config)
         else:
             # API mode: Use OpenAI-compatible server
