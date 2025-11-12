@@ -18,6 +18,7 @@ OPTIONAL ARGUMENTS:
     --config    Path to main config file (default: config/config.yaml)
     --provider  Inference provider to use (default: ollama)
                 Available: ollama, openai, anthropic, gemini, groq, etc.
+    --reference-templates  One or more template YAML files to use as guidance examples
     --limit     Limit number of queries to process (useful for testing)
 
 EXAMPLES:
@@ -95,7 +96,10 @@ print("✅ Basic imports complete", flush=True)
 from dotenv import load_dotenv
 
 # Add parent directory to path for imports
-sys.path.append(str(Path(__file__).parent.parent.parent))
+project_root = Path(__file__).parent.parent.parent
+sys.path.append(str(project_root))
+# Add server directory to path so that adapters can be imported
+sys.path.append(str(project_root / "server"))
 
 print("✅ Path configured", flush=True)
 
@@ -251,7 +255,13 @@ SQL_DIALECTS = {
 class TemplateGenerator:
     """Generates SQL templates from natural language queries using AI"""
     
-    def __init__(self, config_path: str = "../../config/config.yaml", provider: str = None, output_path: str = None):
+    def __init__(
+        self,
+        config_path: str = "../../config/config.yaml",
+        provider: str = None,
+        output_path: str = None,
+        reference_templates: Optional[List[str]] = None
+    ):
         """Initialize the template generator
 
         Args:
@@ -259,6 +269,7 @@ class TemplateGenerator:
             provider: Inference provider to use (e.g., 'ollama', 'openai', 'anthropic')
                      If None, will be read from config.yaml
             output_path: Path to output file for incremental saving
+            reference_templates: Optional list of template YAML files to use as few-shot guidance
         """
         self.config = self._load_config(config_path)
         self.provider = provider or self.config.get('general', {}).get('inference_provider', 'ollama')
@@ -266,6 +277,16 @@ class TemplateGenerator:
         self.schema = {}
         self.domain_config = {}
         self.output_path = output_path
+        self.domain_summary = ""
+        self.sql_dialect = SQL_DIALECTS['postgres']
+        self.sql_dialect_type = 'postgres'
+
+        # Load few-shot reference templates (if provided)
+        self.reference_template_paths = reference_templates or []
+        self.reference_templates = self._load_reference_templates(self.reference_template_paths)
+        if self.reference_templates:
+            logger.info(f"📚 Loaded {len(self.reference_templates)} reference template(s) for prompt guidance")
+        self.reference_examples_prompt = self._build_reference_examples_prompt(self.reference_templates)
         
     def _load_config(self, config_path: str) -> Dict[str, Any]:
         """Load configuration from YAML file"""
@@ -365,6 +386,92 @@ class TemplateGenerator:
             return result
 
         return process_dict(config)
+
+    def _load_reference_templates(self, template_paths: List[str], max_examples: int = 5) -> List[Dict[str, Any]]:
+        """Load reference templates from YAML files for prompt few-shot guidance"""
+        examples: List[Dict[str, Any]] = []
+
+        for path in template_paths:
+            file_path = Path(path)
+            if not file_path.exists():
+                logger.warning(f"Reference template file not found: {path}")
+                continue
+
+            try:
+                with open(file_path, 'r') as f:
+                    data = yaml.safe_load(f)
+            except Exception as exc:
+                logger.warning(f"Failed to load reference templates from {path}: {exc}")
+                continue
+
+            templates_data: List[Any] = []
+            if isinstance(data, dict) and 'templates' in data:
+                templates_data = data['templates'] or []
+            elif isinstance(data, list):
+                templates_data = data
+            else:
+                logger.warning(f"No templates found in reference file: {path}")
+                continue
+
+            for template in templates_data:
+                if not isinstance(template, dict):
+                    continue
+                template_sql = template.get('sql') or template.get('sql_template') or ""
+                examples.append({
+                    'id': template.get('id', 'unknown_template'),
+                    'description': template.get('description', ''),
+                    'sql': template_sql,
+                    'result_format': template.get('result_format', 'table'),
+                    'tags': template.get('tags', []),
+                    'nl_examples': template.get('nl_examples', []),
+                    'source': str(file_path)
+                })
+                if len(examples) >= max_examples:
+                    return examples
+
+        return examples
+
+    def _build_reference_examples_prompt(self, templates: List[Dict[str, Any]]) -> str:
+        """Format reference templates into a concise prompt snippet"""
+        if not templates:
+            return ""
+
+        lines = [
+            "You already know how to produce high-quality SQL patterns like these examples.",
+            "Match their level of analytical depth, parameter discipline, and commentary style.",
+            ""
+        ]
+
+        for template in templates:
+            sql_snippet = template.get('sql', '').strip()
+            if sql_snippet:
+                snippet_lines = sql_snippet.splitlines()
+                if len(snippet_lines) > 20:
+                    snippet_lines = snippet_lines[:20] + ["-- truncated for brevity --"]
+                sql_snippet = "\n".join(snippet_lines)
+
+            nl_examples = template.get('nl_examples') or []
+            example_preview = ", ".join(nl_examples[:3])
+
+            lines.extend([
+                f"Template ID: {template.get('id')}",
+                f"Description: {template.get('description', '')}",
+                f"Sample NL intents: {example_preview}",
+                f"SQL Pattern:\n{sql_snippet}",
+                ""
+            ])
+
+        return "\n".join(lines).strip()
+    
+    def _serialize_analysis_cache(self, analyses_cache: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Convert cached analyses dict to list structure for saving"""
+        if not analyses_cache:
+            return []
+        return [
+            {'query': query, 'analysis': analysis}
+            for query, analysis in analyses_cache.items()
+            if query and analysis
+        ]
 
     async def initialize(self):
         """Initialize the inference client"""
@@ -478,11 +585,79 @@ class TemplateGenerator:
                 self.sql_dialect = SQL_DIALECTS['postgres']
                 self.sql_dialect_type = 'postgres'
                 sys.stdout.flush()
+
+            # Build a reusable domain summary for prompting
+            self.domain_summary = self._create_domain_context()
         else:
             logger.warning(f"Domain config not found at: {domain_config_path}")
             self.sql_dialect = SQL_DIALECTS['postgres']
             self.sql_dialect_type = 'postgres'
+            self.domain_summary = ""
             sys.stdout.flush()
+    
+    def _create_domain_context(
+        self,
+        max_entities: int = 5,
+        max_relationships: int = 5,
+        max_patterns: int = 5
+    ) -> str:
+        """Summarize domain configuration for LLM prompting"""
+        if not self.domain_config:
+            return ""
+
+        lines = []
+        domain_name = self.domain_config.get('domain_name', 'Unknown Domain')
+        domain_type = self.domain_config.get('domain_type', 'general')
+        description = self.domain_config.get('description')
+
+        lines.append(f"Domain: {domain_name} (type: {domain_type})")
+        if description:
+            lines.append(f"Business context: {description}")
+
+        semantic_types = self.domain_config.get('semantic_types', {})
+        if semantic_types:
+            sample_semantics = ", ".join(list(semantic_types.keys())[:6])
+            lines.append(f"Semantic cues available: {sample_semantics}")
+
+        entities = self.domain_config.get('entities', {})
+        if entities:
+            lines.append("Key entities and their intent:")
+            for entity_name, entity_info in list(entities.items())[:max_entities]:
+                entity_desc = entity_info.get('description', '').strip()
+                common_filters = entity_info.get('common_filters') or []
+                default_sort = entity_info.get('default_sort_field')
+
+                lines.append(f"- {entity_name}: {entity_desc or 'No description'}")
+                details = []
+                if common_filters:
+                    details.append(f"common filters {', '.join(common_filters[:5])}")
+                if default_sort:
+                    details.append(f"default sort {default_sort}")
+                if details:
+                    lines.append(f"  ({'; '.join(details)})")
+
+        relationships = self.domain_config.get('relationships', [])
+        if relationships:
+            lines.append("Important relationships:")
+            for rel in relationships[:max_relationships]:
+                rel_desc = rel.get('description') or ''
+                rel_summary = f"{rel.get('from_entity')} -> {rel.get('to_entity')} ({rel.get('relation_type', '')})"
+                if rel_desc:
+                    rel_summary += f": {rel_desc}"
+                lines.append(f"- {rel_summary}")
+
+        query_patterns = self.domain_config.get('query_patterns', [])
+        if query_patterns:
+            lines.append("Common analytics / BI patterns to support:")
+            for pattern in query_patterns[:max_patterns]:
+                if isinstance(pattern, dict):
+                    pattern_name = pattern.get('name') or pattern.get('id') or 'pattern'
+                    pattern_desc = pattern.get('description', '')
+                    lines.append(f"- {pattern_name}: {pattern_desc}")
+                else:
+                    lines.append(f"- {pattern}")
+
+        return "\n".join(lines)
     
     def parse_test_queries(self, test_file_path: str) -> List[str]:
         """Parse test queries from markdown file
@@ -671,6 +846,22 @@ JSON Response:"""
 
         placeholder = dialect_config['placeholder']
         dialect_instructions = dialect_config['instructions']
+        domain_context = getattr(self, 'domain_summary', '')
+        reference_examples = getattr(self, 'reference_examples_prompt', '')
+        domain_context_section = ""
+        reference_examples_section = ""
+
+        if domain_context:
+            domain_context_section = f"""
+Domain Knowledge:
+{domain_context}
+"""
+
+        if reference_examples:
+            reference_examples_section = f"""
+Reference Template Patterns:
+{reference_examples}
+"""
 
         # Add SQLite-specific examples if using SQLite
         sqlite_examples = ""
@@ -701,6 +892,8 @@ INCORRECT examples (DO NOT GENERATE):
 
 Database Schema:
 {schema_summary}
+{domain_context_section}
+{reference_examples_section}
 
 Original Query: "{query}"
 
@@ -1096,6 +1289,7 @@ JSON Response:"""
                     'analyzed': 0,
                     'templates_generated': 0
                 },
+                'analyses': [],
                 'templates': []
             }
             with open(output_path, 'w') as f:
@@ -1136,6 +1330,7 @@ JSON Response:"""
 
             if analysis:
                 successful_analyses += 1
+                cached_analyses[query] = analysis
                 query_time = time.time() - query_start
                 logger.info(f"   ✅ Complete ({query_time:.1f}s) - {successful_analyses}/{i+1} successful")
             else:
@@ -1145,11 +1340,6 @@ JSON Response:"""
             # Save progress after each analysis (every 5 queries to reduce I/O)
             if output_path and (i + 1) % 5 == 0:
                 # Save analyses with their corresponding queries for resume capability
-                analysis_data = []
-                for q, a in zip(remaining_queries[:i+1], analyses):
-                    if a:  # Only save successful analyses
-                        analysis_data.append({'query': q, 'analysis': a})
-
                 progress_output = {
                     'status': 'in_progress',
                     'phase': 'analyzing_queries',
@@ -1164,7 +1354,7 @@ JSON Response:"""
                         'successful_analyses': successful_analyses,
                         'templates_generated': len(templates)
                     },
-                    'analyses': analysis_data,  # Save the analyses!
+                    'analyses': self._serialize_analysis_cache(cached_analyses),
                     'templates': templates
                 }
                 try:
@@ -1218,6 +1408,7 @@ JSON Response:"""
                     'template_groups': len(grouped),
                     'templates_generated': len(templates)
                 },
+                'analyses': self._serialize_analysis_cache(cached_analyses),
                 'templates': templates
             }
             try:
@@ -1249,7 +1440,7 @@ JSON Response:"""
 
                 # Save incrementally after each template
                 if output_path:
-                    self.save_template_incremental(template, output_path, templates)
+                    self.save_template_incremental(template, output_path, templates, cached_analyses)
 
             else:
                 group_gen_time = time.time() - group_gen_start
@@ -1297,12 +1488,12 @@ JSON Response:"""
 
             # Load saved analyses to avoid re-analyzing
             analyses_dict = {}
-            if 'analyses' in data:
-                for item in data['analyses']:
-                    query = item.get('query')
-                    analysis = item.get('analysis')
-                    if query and analysis:
-                        analyses_dict[query] = analysis
+            analysis_items = data.get('analyses') or []
+            for item in analysis_items:
+                query = item.get('query')
+                analysis = item.get('analysis')
+                if query and analysis:
+                    analyses_dict[query] = analysis
 
             logger.info(f"📂 Loaded {len(templates)} existing templates from {output_path}")
             if analyses_dict:
@@ -1319,13 +1510,20 @@ JSON Response:"""
             logger.warning(f"Could not load existing templates: {e}")
             return {'templates': [], 'processed_queries': set(), 'analyses': {}}
 
-    def save_template_incremental(self, template: Dict[str, Any], output_path: str, all_templates: List[Dict[str, Any]]):
+    def save_template_incremental(
+        self,
+        template: Dict[str, Any],
+        output_path: str,
+        all_templates: List[Dict[str, Any]],
+        analyses_cache: Optional[Dict[str, Any]] = None
+    ):
         """Save template incrementally to output file
 
         Args:
             template: New template to add
             output_path: Path to output file
             all_templates: Current list of all templates (including new one)
+            analyses_cache: Cached analyses for resume support
         """
         try:
             # Deduplicate IDs before saving
@@ -1338,6 +1536,7 @@ JSON Response:"""
                 'last_updated': datetime.now().isoformat(),
                 'generator_version': '1.0.0',
                 'total_templates': len(all_templates),
+                'analyses': self._serialize_analysis_cache(analyses_cache or {}),
                 'templates': all_templates
             }
 
@@ -1742,6 +1941,7 @@ async def main():
     parser.add_argument('--domain-output', help='Path to output domain configuration file (default: <schema>_domain.yaml)')
     parser.add_argument('--domain-name', help='Name for the domain (default: inferred from schema)')
     parser.add_argument('--domain-type', default='general', help='Type of domain (general, ecommerce, security, etc.)')
+    parser.add_argument('--reference-templates', nargs='+', help='Template YAML files to use as reference patterns for SQL generation')
 
     args = parser.parse_args()
 
@@ -1753,7 +1953,12 @@ async def main():
     logger.info("⚙️  Initializing template generator...")
     sys.stdout.flush()
     init_start = time.time()
-    generator = TemplateGenerator(args.config, args.provider, args.output)
+    generator = TemplateGenerator(
+        config_path=args.config,
+        provider=args.provider,
+        output_path=args.output,
+        reference_templates=args.reference_templates
+    )
     await generator.initialize()
     init_time = time.time() - init_start
     logger.info(f"✅ Generator initialized ({init_time:.1f}s)")

@@ -20,6 +20,7 @@
 # OPTIONS:
 #     (none)      Use seed templates (instant, production-ready) - DEFAULT
 #     --generate  Generate from enriched queries (slower, for demonstration)
+#                 Use this flag if seed templates are missing or unavailable
 #
 # WHAT IT DOES (Default Mode - Seed Templates):
 #     1. Copies 24 production-ready templates from seed file
@@ -42,11 +43,16 @@
 #     - Python virtual environment activated (../../venv)
 #     - Required Python packages installed (pyyaml)
 #     - Seed templates file: examples/contact_seed_templates.yaml
+#     - If seed templates are missing, use --generate flag instead
 #
 # REQUIREMENTS (Generate Mode):
-#     - All seed mode requirements plus:
-#     - Environment variables in ../../.env (OLLAMA_CLOUD_API_KEY, etc.)
+#     - Python virtual environment activated (../../venv)
 #     - Required Python packages installed (pyyaml, anthropic/openai)
+#     - Ollama running locally (or other inference provider configured)
+#     - Model configured in ../../config/inference.yaml (default: ollama provider)
+#     - For local Ollama: No API keys needed, just ensure Ollama is running
+#     - For Ollama Cloud: Set OLLAMA_CLOUD_API_KEY in ../../.env
+#     - No seed templates required - generates from queries instead
 #
 # WHAT YOU'LL SEE (Seed Mode):
 #     ✅ Template installation (24 production templates)
@@ -104,11 +110,24 @@
 #     If you see "Python is required":
 #     → source ../../venv/bin/activate
 #
-#     If you see "API key is missing":
+#     If you see "Seed templates not found":
+#     → Run with --generate flag: ./run_contact_example.sh --generate
+#     → This will generate templates from queries instead of using seed templates
+#     → For local Ollama: Ensure Ollama is running (ollama serve)
+#     → For Ollama Cloud: Set OLLAMA_CLOUD_API_KEY in ../../.env
+#
+#     If you see "API key is missing" (Ollama Cloud only):
 #     → Set OLLAMA_CLOUD_API_KEY in ../../.env
+#     → Note: Local Ollama doesn't require API keys
+#
+#     To use a specific model (e.g., a-kore/Arctic-Text2SQL-R1-7B:latest):
+#     → Configure in ../../config/inference.yaml under inference.ollama.model
+#     → Or set OLLAMA_INFERENCE_MODEL environment variable
 #
 #     If generation fails:
-#     → Check ../../config/config.yaml has valid inference_provider
+#     → Check ../../config/config.yaml has valid inference_provider (default: ollama)
+#     → Verify Ollama is running: ollama list (should show your models)
+#     → Check model is configured in ../../config/inference.yaml
 #     → Try: ./generate_templates.sh --help for manual control
 #
 # TIME TO COMPLETE:
