@@ -28,9 +28,17 @@ export function MessageList({ messages, onRegenerate, isLoading }: MessageListPr
 
   // Scroll to bottom helper function
   const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior });
-    }
+    // Use double requestAnimationFrame to ensure DOM has fully updated
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (messagesEndRef.current) {
+          messagesEndRef.current.scrollIntoView({ behavior });
+        } else if (containerRef.current) {
+          // Fallback: scroll container directly
+          containerRef.current.scrollTop = containerRef.current.scrollHeight;
+        }
+      });
+    });
   };
 
   // Auto-scroll when messages change (new message added or content updated)
@@ -49,7 +57,8 @@ export function MessageList({ messages, onRegenerate, isLoading }: MessageListPr
     if (hasNewMessage || lastMessage?.isStreaming || (contentChanged && lastMessage?.role === 'assistant')) {
       // Force scroll for new messages or when streaming, regardless of shouldAutoScroll
       // This ensures we always scroll when user sends a message or receives a response
-      scrollToBottom(hasNewMessage ? 'smooth' : 'auto');
+      // Use 'auto' for immediate scroll on new messages, 'smooth' for streaming updates
+      scrollToBottom(hasNewMessage ? 'auto' : 'smooth');
       // Reset shouldAutoScroll to true when new content arrives
       setShouldAutoScroll(true);
     } else if (shouldAutoScroll && contentChanged) {
@@ -66,7 +75,7 @@ export function MessageList({ messages, onRegenerate, isLoading }: MessageListPr
     if (isLoading) {
       // Always scroll when loading starts, regardless of scroll position
       // This ensures we scroll when user sends a message and response is being prepared
-      scrollToBottom('smooth');
+      scrollToBottom('auto');
       setShouldAutoScroll(true);
     }
   }, [isLoading]);

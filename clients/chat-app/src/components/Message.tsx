@@ -36,7 +36,7 @@ export function Message({ message, onRegenerate }: MessageProps) {
   }, [message.timestamp]);
 
   const contentClass = isAssistant
-    ? 'markdown-content prose prose-slate dark:prose-invert max-w-none overflow-x-auto'
+    ? 'markdown-content prose prose-slate dark:prose-invert max-w-none'
     : 'markdown-content prose prose-invert max-w-none';
 
   const copyToClipboard = async () => {
@@ -79,7 +79,7 @@ export function Message({ message, onRegenerate }: MessageProps) {
         <div
           className={`leading-relaxed ${
             isAssistant
-              ? 'rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-[#353740] dark:border-[#4a4b54] dark:bg-[#202123] dark:text-[#ececf1] overflow-x-auto min-w-0'
+              ? 'rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-[#353740] dark:border-[#4a4b54] dark:bg-[#202123] dark:text-[#ececf1] min-w-0'
               : 'text-[#353740] dark:text-[#ececf1]'
           }`}
         >
