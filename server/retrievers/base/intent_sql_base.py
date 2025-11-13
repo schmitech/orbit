@@ -6,6 +6,7 @@ with database-specific implementations to reduce duplication.
 import logging
 import traceback
 import asyncio
+import re
 from typing import Dict, Any, List, Optional, Tuple
 from abc import abstractmethod
 
@@ -796,15 +797,33 @@ JSON:"""
             if self.verbose:
                 logger.info(f"Executing SQL: {sql_query}")
 
-            # For SQLite with ? placeholders, build a tuple in the correct order
-            # based on the template's parameter list (which may have duplicates)
+            # Check for different parameter formats
+            has_named_params = bool(re.search(r'%\((\w+)\)s', sql_query))
+            has_positional_params = '?' in sql_query
+            
             param_list = template.get('parameters', [])
-            if '?' in sql_query and param_list:
+            
+            if has_named_params:
+                # PostgreSQL-style named parameters: %(name)s
+                # Ensure all referenced parameters are in the dict (even if None)
+                param_names_in_sql = re.findall(r'%\((\w+)\)s', sql_query)
+                for param_name in param_names_in_sql:
+                    if param_name not in formatted_parameters:
+                        # Try to get from template defaults
+                        param_def = next((p for p in param_list if p.get('name') == param_name), None)
+                        if param_def and 'default' in param_def:
+                            formatted_parameters[param_name] = param_def['default']
+                        else:
+                            formatted_parameters[param_name] = None
+                # Use dict for named parameters
+                results = await self.execute_query(sql_query, formatted_parameters)
+            elif has_positional_params and param_list:
+                # SQLite-style positional parameters: ?
                 # Build tuple in order of template parameters (preserving duplicates)
                 param_tuple = tuple(formatted_parameters.get(p['name'], p.get('default')) for p in param_list)
                 results = await self.execute_query(sql_query, param_tuple)
             else:
-                # For named parameters or no parameters, use the dict
+                # No parameters or unknown format, use the dict
                 results = await self.execute_query(sql_query, formatted_parameters)
 
             return results, None
@@ -826,8 +845,6 @@ JSON:"""
                 if '{{' in rendered or '{%' in rendered:
                     logger.debug("Rendered SQL still contains unresolved delimiters: %s", rendered)
                 return rendered
-
-            import re
 
             def replace_if_block(match):
                 param_name = match.group(1).strip()
