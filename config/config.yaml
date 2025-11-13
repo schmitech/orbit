@@ -68,7 +68,6 @@ messages:
   collection_not_found: "I couldn't find the requested collection. Please make sure the collection exists before querying it."
 
 auth:
-  enabled: true
   session_duration_hours: 12
   default_admin_username: admin
   default_admin_password: ${ORBIT_DEFAULT_ADMIN_PASSWORD}
