@@ -407,23 +407,6 @@ export function FileUpload({
     }
   }, [disabled]);
 
-  const getFileIcon = (mimeType: string) => {
-    if (mimeType.startsWith('image/')) return '🖼️';
-    if (mimeType.startsWith('audio/')) return '🎵';
-    if (mimeType.includes('pdf')) return '📄';
-    if (mimeType.includes('word') || mimeType.includes('document')) return '📝';
-    if (mimeType.includes('spreadsheet') || mimeType.includes('excel')) return '📊';
-    return '📎';
-  };
-
-  const formatFileSize = (bytes: number): string => {
-    if (bytes === 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
-  };
-
   // Hide upload area when files are uploading OR when files have been uploaded
   const isUploading = uploadingFiles.size > 0;
   const hasUploadedFiles = uploadedFiles.length > 0;
@@ -454,7 +437,7 @@ export function FileUpload({
             onChange={handleFileInputChange}
             className="hidden"
             disabled={disabled}
-            accept=".pdf,.doc,.docx,.txt,.md,.csv,.json,.html,.pptx,.xlsx,.png,.jpg,.jpeg,.tiff,.wav,.mp3,.vtt"
+            accept=".pdf,.doc,.docx,.txt,.md,.csv,.json,.html,.pptx,.xlsx,.py,.java,.sql,.js,.mjs,.ts,.tsx,.cpp,.cxx,.cc,.c,.h,.hpp,.go,.rs,.rb,.php,.sh,.bash,.zsh,.yaml,.yml,.xml,.css,.scss,.sass,.less,.png,.jpg,.jpeg,.tiff,.wav,.mp3,.vtt"
           />
           
           <div className="flex flex-col items-center justify-center gap-2 text-center">
@@ -464,7 +447,7 @@ export function FileUpload({
                 {disabled ? 'File upload disabled' : isDragging ? 'Drop files here' : 'Click or drag files to upload'}
               </p>
               <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-0.5 px-1">
-                PDF, DOCX, TXT, CSV, JSON, HTML, images, audio (max {maxFiles} files)
+                PDF, DOCX, TXT, CSV, JSON, HTML, code files (.py, .js, .ts, .java, .sql, etc.), images, audio (max {maxFiles} files)
               </p>
             </div>
           </div>

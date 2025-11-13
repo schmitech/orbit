@@ -84,6 +84,20 @@ export function FileList({}: FileListProps) {
     if (mimeType.includes('pdf')) return '📄';
     if (mimeType.includes('word') || mimeType.includes('document')) return '📝';
     if (mimeType.includes('spreadsheet') || mimeType.includes('excel')) return '📊';
+    // Code file icons
+    if (mimeType.includes('python') || mimeType.includes('x-python')) return '🐍';
+    if (mimeType.includes('javascript') || mimeType.includes('typescript')) return '📜';
+    if (mimeType.includes('java')) return '☕';
+    if (mimeType.includes('sql')) return '🗄️';
+    if (mimeType.includes('c++') || mimeType.includes('csrc') || mimeType.includes('x-c')) return '⚙️';
+    if (mimeType.includes('go')) return '🐹';
+    if (mimeType.includes('rust')) return '🦀';
+    if (mimeType.includes('ruby')) return '💎';
+    if (mimeType.includes('php')) return '🐘';
+    if (mimeType.includes('shellscript') || mimeType.includes('x-sh')) return '💻';
+    if (mimeType.includes('yaml') || mimeType.includes('yml')) return '📋';
+    if (mimeType.includes('xml')) return '📐';
+    if (mimeType.includes('css') || mimeType.includes('scss') || mimeType.includes('sass') || mimeType.includes('less')) return '🎨';
     return '📎';
   };
 

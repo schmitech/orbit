@@ -13,9 +13,11 @@ logger = logging.getLogger(__name__)
 
 class TextProcessor(FileProcessor):
     """
-    Processor for plain text files.
+    Processor for plain text files and code files.
     
-    Supports: text/plain, text/markdown, text/csv
+    Supports: text/plain, text/markdown, text/csv, and various code file types
+    (Python, Java, SQL, JavaScript, TypeScript, C/C++, Go, Rust, Ruby, PHP, 
+    shell scripts, YAML, XML, CSS, SCSS, SASS, LESS, etc.)
     """
     
     def supports_mime_type(self, mime_type: str) -> bool:
@@ -24,6 +26,33 @@ class TextProcessor(FileProcessor):
             'text/plain',
             'text/markdown',
             'text/csv',  # Fallback if CSVProcessor not available
+            # Code file MIME types
+            'text/x-python',
+            'text/x-python-script',  # Alternative MIME type for Python files
+            'text/x-java-source',
+            'text/x-java',
+            'text/x-sql',
+            'text/javascript',
+            'application/javascript',
+            'text/typescript',
+            'application/typescript',
+            'text/x-c++src',
+            'text/x-csrc',
+            'text/x-c',
+            'text/x-go',
+            'text/x-rust',
+            'text/x-ruby',
+            'text/x-php',
+            'text/x-shellscript',
+            'text/x-sh',
+            'text/yaml',
+            'text/x-yaml',
+            'text/xml',
+            'application/xml',
+            'text/css',
+            'text/x-scss',
+            'text/x-sass',
+            'text/x-less',
         ]
         return mime_type.lower() in text_types
     

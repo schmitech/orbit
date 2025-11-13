@@ -71,6 +71,33 @@ class FileProcessingService:
             'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
             'application/vnd.openxmlformats-officedocument.presentationml.presentation',  # PPTX
             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',  # XLSX
+            # Code file types
+            'text/x-python',
+            'text/x-python-script',  # Alternative MIME type for Python files
+            'text/x-java-source',
+            'text/x-java',
+            'text/x-sql',
+            'text/javascript',
+            'application/javascript',
+            'text/typescript',
+            'application/typescript',
+            'text/x-c++src',
+            'text/x-csrc',
+            'text/x-c',
+            'text/x-go',
+            'text/x-rust',
+            'text/x-ruby',
+            'text/x-php',
+            'text/x-shellscript',
+            'text/x-sh',
+            'text/yaml',
+            'text/x-yaml',
+            'text/xml',
+            'application/xml',
+            'text/css',
+            'text/x-scss',
+            'text/x-sass',
+            'text/x-less',
             # Image types
             'image/png',
             'image/jpeg',
