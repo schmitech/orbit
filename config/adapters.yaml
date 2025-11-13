@@ -69,16 +69,16 @@ adapters:
       requires_api_key_validation: false # No API key validation needed
 
   - name: "simple-chat-with-files"
-    enabled: false
+    enabled: true
     type: "passthrough"  # Passthrough adapter with file retrieval capabilities
     datasource: "none"  # No actual datasource needed (files managed separately)
     adapter: "multimodal"
     implementation: "implementations.passthrough.multimodal.MultimodalImplementation"
     # Provider overrides (optional - use when you want different providers than global defaults)
-    inference_provider: "ollama_cloud"    # Override default inference provider
+    inference_provider: "ollama"    # Override default inference provider
     model: "gpt-oss:120b"            # Specific model for this adapter
-    embedding_provider: "openai"          # Embedding provider for file chunk retrieval (matches uploaded files)
-    vision_provider: "gemini"             # Vision provider for image files: openai, gemini, anthropic (see vision.yaml)
+    embedding_provider: "ollama"          # Embedding provider for file chunk retrieval (matches uploaded files)
+    vision_provider: "ollama"             # Vision provider for image files: openai, gemini, anthropic (see vision.yaml)
 
     # Capabilities: Multimodal - conditional file retrieval
     capabilities:
@@ -679,10 +679,10 @@ adapters:
     implementation: "retrievers.implementations.file.file_retriever.FileVectorRetriever"
 
     # Provider overrides
-    inference_provider: "ollama_cloud"
-    model: "minimax-m2:cloud"
+    inference_provider: "ollama"
+    model: "gpt-oss:120b"
     embedding_provider: "ollama"
-    vision_provider: "gemini"  # Vision provider for image files: openai, gemini, anthropic (see vision.yaml)
+    vision_provider: "ollama"  # Vision provider for image files: openai, gemini, anthropic (see vision.yaml)
 
     # Capabilities: File retriever with clean formatting
     capabilities:
@@ -733,6 +733,33 @@ adapters:
         - "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         - "application/vnd.openxmlformats-officedocument.presentationml.presentation"  # PPTX (via Docling)
         - "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"  # XLSX (via Docling)
+        # Code file types
+        - "text/x-python"
+        - "text/x-python-script"  # Alternative MIME type for Python files
+        - "text/x-java-source"
+        - "text/x-java"
+        - "text/x-sql"
+        - "text/javascript"
+        - "application/javascript"
+        - "text/typescript"
+        - "application/typescript"
+        - "text/x-c++src"
+        - "text/x-csrc"
+        - "text/x-c"
+        - "text/x-go"
+        - "text/x-rust"
+        - "text/x-ruby"
+        - "text/x-php"
+        - "text/x-shellscript"
+        - "text/x-sh"
+        - "text/yaml"
+        - "text/x-yaml"
+        - "text/xml"
+        - "application/xml"
+        - "text/css"
+        - "text/x-scss"
+        - "text/x-sass"
+        - "text/x-less"
         - "image/png"
         - "image/jpeg"
         - "image/tiff"
