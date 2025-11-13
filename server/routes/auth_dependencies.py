@@ -20,13 +20,7 @@ bearer_scheme = HTTPBearer(auto_error=False)
 
 async def get_auth_service(request: Request):
     """Get the authentication service from app state"""
-    # Check if authentication is disabled in configuration
-    auth_enabled = is_true_value(request.app.state.config.get('auth', {}).get('enabled', False))
-    
-    if not auth_enabled:
-        logger.info("Authentication service disabled in configuration")
-        return None
-    
+    # Authentication is always required - no option to disable
     if not hasattr(request.app.state, 'auth_service') or request.app.state.auth_service is None:
         raise HTTPException(status_code=503, detail="Authentication service not available")
     return request.app.state.auth_service
@@ -39,25 +33,21 @@ async def get_current_user(
 ) -> Optional[Dict[str, Any]]:
     """
     Get the current authenticated user from bearer token.
-    
+
     This dependency extracts the bearer token from the Authorization header
     and validates it using the authentication service.
-    
+
     Args:
         request: The FastAPI request object
         credentials: The bearer token credentials
-        auth_service: The authentication service (None if auth is disabled)
-        
+        auth_service: The authentication service
+
     Returns:
         User info dict if authenticated, None otherwise
-        
+
     Raises:
         HTTPException: If token is invalid or expired
     """
-    # If auth service is None (auth disabled), return None
-    if auth_service is None:
-        return None
-    
     if not credentials or not credentials.credentials:
         return None
     
@@ -84,25 +74,21 @@ async def get_current_user_with_token(
 ) -> tuple[Optional[Dict[str, Any]], Optional[str]]:
     """
     Get the current authenticated user and their token.
-    
+
     This dependency is useful for operations that need both user info and token
     (like logout).
-    
+
     Args:
         request: The FastAPI request object
         credentials: The bearer token credentials
-        auth_service: The authentication service (None if auth is disabled)
-        
+        auth_service: The authentication service
+
     Returns:
         Tuple of (user_info, token) if authenticated, (None, None) otherwise
-        
+
     Raises:
         HTTPException: If token is invalid or expired
     """
-    # If auth service is None (auth disabled), return None, None
-    if auth_service is None:
-        return None, None
-    
     if not credentials or not credentials.credentials:
         return None, None
     
@@ -163,22 +149,18 @@ async def get_optional_user(
 ) -> Optional[Dict[str, Any]]:
     """
     Get the current user if authenticated, but don't require it.
-    
+
     This dependency is useful for endpoints that have different behavior
     for authenticated vs anonymous users.
-    
+
     Args:
         request: The FastAPI request object
         credentials: The bearer token credentials
-        auth_service: The authentication service (None if auth is disabled)
-        
+        auth_service: The authentication service
+
     Returns:
         User info dict if authenticated, None otherwise
     """
-    # If auth service is None (auth disabled), return None
-    if auth_service is None:
-        return None
-    
     if not credentials or not credentials.credentials:
         return None
     
@@ -199,36 +181,27 @@ async def check_admin_or_api_key(
 ) -> bool:
     """
     Check if the request has either admin authentication or a valid API key.
-    
+
     This allows existing API key functionality to continue working
     while also supporting the new admin authentication.
-    
-    IMPORTANT: When authentication is disabled in configuration, this function
-    allows access without any authentication requirements.
-    
+
+    Authentication is always required - there is no option to disable it.
+
     Args:
         request: The FastAPI request object
         current_user: The current user if authenticated
         x_api_key: The API key from header
-        
+
     Returns:
         True if authorized, raises exception otherwise
-        
+
     Raises:
-        HTTPException: If neither admin auth nor valid API key (only when auth is enabled)
+        HTTPException: If neither admin auth nor valid API key
     """
-    # Check if authentication is disabled in configuration
-    auth_enabled = is_true_value(request.app.state.config.get('auth', {}).get('enabled', False))
-    
-    # If authentication is disabled, allow access without any requirements
-    if not auth_enabled:
-        logger.info("Authentication disabled - allowing admin access without authentication")
-        return True
-    
     # If we have an admin user, allow access
     if current_user and current_user.get('role') == 'admin':
         return True
-    
+
     # Otherwise, check API key using existing service
     if hasattr(request.app.state, 'api_key_service') and x_api_key:
         api_key_service = request.app.state.api_key_service
@@ -237,7 +210,7 @@ async def check_admin_or_api_key(
         is_valid, _, _ = await api_key_service.validate_api_key(x_api_key, adapter_manager)
         if is_valid:
             return True
-    
+
     # Neither admin auth nor valid API key
     raise HTTPException(
         status_code=401,

@@ -119,16 +119,13 @@ class ConfigurationSummaryLogger:
         try:
             # Authentication Configuration
             auth_config = self.config.get('auth', {})
-            auth_enabled = is_true_value(auth_config.get('enabled', False))
-            self._log_message(f"🔐 Authentication Service: {'ENABLED' if auth_enabled else 'DISABLED'}")
-            
-            if auth_enabled:
-                self._log_message(f"Session duration: {auth_config.get('session_duration_hours', 12)} hours", indent=2)
-                self._log_message(f"Default admin username: {auth_config.get('default_admin_username', 'admin')}", indent=2)
-                self._log_message(f"Password hashing iterations: {auth_config.get('pbkdf2_iterations', 600000)}", indent=2)
-                self._log_message(f"Credential storage: {auth_config.get('credential_storage', 'keyring')}", indent=2)
-            else:
-                self._log_message("⚠️  WARNING: Authentication is DISABLED!", level='warning', indent=2)
+            # Authentication is always enabled - no option to disable
+            self._log_message(f"🔐 Authentication Service: ENABLED (always required)")
+
+            self._log_message(f"Session duration: {auth_config.get('session_duration_hours', 12)} hours", indent=2)
+            self._log_message(f"Default admin username: {auth_config.get('default_admin_username', 'admin')}", indent=2)
+            self._log_message(f"Password hashing iterations: {auth_config.get('pbkdf2_iterations', 600000)}", indent=2)
+            self._log_message(f"Credential storage: {auth_config.get('credential_storage', 'keyring')}", indent=2)
             
             # LLM Guard Configuration
             llm_guard_config = self.config.get('llm_guard', {})
@@ -438,7 +435,7 @@ class ConfigurationSummaryLogger:
                 },
                 'services': {
                     'auth': {
-                        'enabled': is_true_value(self.config.get('auth', {}).get('enabled', False)),
+                        'enabled': True,  # Authentication is always enabled - no option to disable
                         'session_duration_hours': self.config.get('auth', {}).get('session_duration_hours', 12),
                         'default_admin_username': self.config.get('auth', {}).get('default_admin_username', 'admin'),
                         'pbkdf2_iterations': self.config.get('auth', {}).get('pbkdf2_iterations', 600000),

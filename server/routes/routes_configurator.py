@@ -362,15 +362,11 @@ class RouteConfigurator:
         
         # Include existing routers
         app.include_router(admin_router)
-        
-        # Include auth router if auth is enabled
-        auth_enabled = is_true_value(self.config.get('auth', {}).get('enabled', False))
-        if auth_enabled:
-            app.include_router(auth_router)
-            self.logger.info("Authentication routes registered")
-        else:
-            self.logger.info("Authentication routes skipped (auth disabled)")
-        
+
+        # Authentication is always enabled - include auth router
+        app.include_router(auth_router)
+        self.logger.info("Authentication routes registered")
+
         # Include health routes (always enabled as core functionality)
         from routes.health_routes import create_health_router
         health_router = create_health_router()

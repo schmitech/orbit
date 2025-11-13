@@ -86,8 +86,8 @@ class ServiceFactory:
     
     async def _initialize_core_services(self, app: FastAPI) -> None:
         """Initialize core services that are always needed."""
-        # Check if authentication is enabled
-        auth_enabled = is_true_value(self.config.get('auth', {}).get('enabled', False))
+        # Authentication is always enabled (no option to disable)
+        auth_enabled = True
 
         # Initialize database service if needed
         await self._initialize_database_if_needed(app, auth_enabled)
@@ -102,7 +102,7 @@ class ServiceFactory:
         """Initialize database service if required by current configuration."""
         # Database is required when:
         # - Retriever adapters are present (full mode always initializes database)
-        # - OR auth is enabled (for authentication)
+        # - OR auth is enabled (for authentication) - auth is always enabled
         # - OR chat_history is enabled (for chat history storage)
         database_required = (
             auth_enabled or
@@ -113,7 +113,7 @@ class ServiceFactory:
             await self._initialize_database_service(app)
 
             # Log the specific reason(s) for database initialization
-            reasons = ["retriever adapters"]
+            reasons = []
             if auth_enabled:
                 reasons.append("authentication")
             if self.chat_history_enabled:
@@ -124,25 +124,17 @@ class ServiceFactory:
             self.logger.info(f"Database ({backend_type}) initialized for: {', '.join(reasons)}")
     
     async def _initialize_auth_service_if_available(self, app: FastAPI, auth_enabled: bool) -> None:
-        """Initialize authentication service if database is available and auth is enabled."""
+        """Initialize authentication service if database is available. Auth is always enabled."""
         if hasattr(app.state, 'database_service') and app.state.database_service is not None:
             await self._initialize_auth_service(app)
         else:
-            # Only log warning if auth is actually enabled but database is not available
-            if auth_enabled:
-                self.logger.warning("Auth is enabled but database service not available - auth service will be disabled")
-            else:
+            # Auth is always enabled - log error if database is not available
+            self.logger.error("Authentication is required but database service not available - server will not function properly")
+            if False:  # Keep old else branch for reference but never execute
                 self.logger.info("Auth service disabled in configuration")
     
     async def _initialize_auth_service(self, app: FastAPI) -> None:
-        """Initialize the authentication service"""
-        auth_enabled = is_true_value(self.config.get('auth', {}).get('enabled', False))
-
-        if not auth_enabled:
-            self.logger.info("Authentication service disabled in configuration")
-            app.state.auth_service = None
-            return
-
+        """Initialize the authentication service. Authentication is always enabled."""
         try:
             # Use the shared database service if available
             database_service = getattr(app.state, 'database_service', None)
