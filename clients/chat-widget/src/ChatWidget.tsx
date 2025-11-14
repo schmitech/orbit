@@ -178,7 +178,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
     }
   };
 
-  const copyToClipboard = async (text: string, messageId: string) => {
+  const copyToClipboard = useCallback(async (text: string, messageId: string) => {
     try {
       await navigator.clipboard.writeText(text);
       setCopiedMessageId(messageId);
@@ -188,12 +188,12 @@ export const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
     } catch (err) {
       console.error('Failed to copy text: ', err);
     }
-  };
+  }, []);
 
   // Format timestamp (note: uses a relative offset since messages lack explicit timestamps)
-  const formatTime = (date: Date): string => {
+  const formatTime = useCallback((date: Date): string => {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  };
+  }, []);
 
   // Scroll to bottom when messages change or loading state changes
   useEffect(() => {

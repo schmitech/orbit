@@ -4,7 +4,7 @@ import type { WidgetConfig, CustomColors } from '../types/widget.types';
 import { WIDGET_CONFIG } from '../utils/widget-config';
 
 export const useApiConfig = () => {
-  const [apiKey, setApiKey] = useState('demo-key');
+  const [apiKey, setApiKey] = useState('default-key');
   const [apiEndpoint, setApiEndpoint] = useState(WIDGET_CONFIG.defaultApiEndpoint);
 
   // Generate implementation code
@@ -21,7 +21,7 @@ export const useApiConfig = () => {
 
   // Validate API key (basic validation)
   const isValidApiKey = (key: string) => {
-    return key && key.length > 0 && key !== 'demo-key';
+    return key && key.length > 0 && key !== 'default-key';
   };
 
   // Validate API endpoint (basic validation)

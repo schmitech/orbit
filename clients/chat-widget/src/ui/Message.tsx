@@ -1,8 +1,7 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Copy, Check } from 'lucide-react';
 import clsx from 'clsx';
 import { Message as MessageType } from '../store/chatStore';
-import { TypingEffect } from './TypingEffect';
 import { MarkdownRenderer } from '@schmitech/markdown-renderer';
 
 export interface MessageProps {
@@ -29,7 +28,7 @@ export interface MessageProps {
  * Message component handles individual message rendering
  * Supports both user and assistant messages with different styling
  */
-export const Message: React.FC<MessageProps> = ({
+const MessageComponent: React.FC<MessageProps> = ({
   message,
   index,
   isLatestAssistantMessage,
@@ -51,6 +50,82 @@ export const Message: React.FC<MessageProps> = ({
   // Generate timestamp (using relative offset since messages lack explicit timestamps)
   const timestamp = new Date();
   timestamp.setMinutes(timestamp.getMinutes() - (messagesLength - index));
+
+  // Ref for the markdown wrapper to check overflow
+  const markdownWrapperRef = useRef<HTMLDivElement>(null);
+
+  // Mark message as animated when streaming completes (isLoading becomes false and message has content)
+  useEffect(() => {
+    if (
+      isLatestAssistantMessage &&
+      !hasBeenAnimated(message.id) &&
+      message.content &&
+      !showTypingAnimation
+    ) {
+      // Mark as animated when streaming is done (showTypingAnimation is false means isLoading is false)
+      onMarkMessageAnimated(message.id, messagesLength, scrollToBottom);
+    }
+  }, [isLatestAssistantMessage, message.id, message.content, showTypingAnimation, onMarkMessageAnimated, messagesLength, scrollToBottom, hasBeenAnimated]);
+
+  // Force scrollbar to be visible when content overflows (workaround for macOS hiding scrollbars)
+  useEffect(() => {
+    const wrapper = markdownWrapperRef.current;
+    if (!wrapper || message.role !== 'assistant' || !message.content) return;
+
+    const checkOverflow = () => {
+      const hasHorizontalOverflow = wrapper.scrollWidth > wrapper.clientWidth;
+      if (hasHorizontalOverflow) {
+        // Add class to ensure visibility
+        wrapper.classList.add('has-horizontal-scroll');
+        
+        // Force scrollbar to appear on macOS by programmatically scrolling
+        // This triggers the system to show the scrollbar
+        const currentScroll = wrapper.scrollLeft;
+        // Temporarily scroll slightly to trigger scrollbar visibility
+        wrapper.scrollLeft = currentScroll + 1;
+        // Use requestAnimationFrame to ensure the scroll happens
+        requestAnimationFrame(() => {
+          wrapper.scrollLeft = currentScroll;
+          // Trigger another small scroll to keep scrollbar visible
+          setTimeout(() => {
+            wrapper.scrollLeft = currentScroll + 0.5;
+            requestAnimationFrame(() => {
+              wrapper.scrollLeft = currentScroll;
+            });
+          }, 50);
+        });
+      } else {
+        wrapper.classList.remove('has-horizontal-scroll');
+      }
+    };
+
+    // Check immediately and after delays (to account for markdown rendering)
+    checkOverflow();
+    const timeoutId = setTimeout(checkOverflow, 100);
+    const timeoutId2 = setTimeout(checkOverflow, 500);
+    const timeoutId3 = setTimeout(checkOverflow, 1000);
+
+    // Also check on resize and when content changes
+    const resizeObserver = new ResizeObserver(checkOverflow);
+    resizeObserver.observe(wrapper);
+
+    // Also check when mouse enters the wrapper (to show scrollbar on hover)
+    const handleMouseEnter = () => {
+      if (wrapper.scrollWidth > wrapper.clientWidth) {
+        checkOverflow();
+      }
+    };
+
+    wrapper.addEventListener('mouseenter', handleMouseEnter);
+
+    return () => {
+      clearTimeout(timeoutId);
+      clearTimeout(timeoutId2);
+      clearTimeout(timeoutId3);
+      resizeObserver.disconnect();
+      wrapper.removeEventListener('mouseenter', handleMouseEnter);
+    };
+  }, [message.content, message.role]);
 
   return (
     <div 
@@ -85,21 +160,23 @@ export const Message: React.FC<MessageProps> = ({
                 <div className="typing-dot"></div>
               </div>
             </div>
-          ) : !hasBeenAnimated(message.id) && isLatestAssistantMessage ? (
-            <TypingEffect
-              content={message.content}
-              onComplete={() => onMarkMessageAnimated(message.id, messagesLength, scrollToBottom)}
-              messageId={message.id}
-              inputRef={inputRef}
-              hasBeenAnimated={hasBeenAnimated}
-              typingProgressRef={typingProgressRef}
-              isTypingRef={isTypingRef}
-              setIsAnimating={setIsAnimating}
-              scrollToBottom={scrollToBottom}
-              isStreaming={showTypingAnimation}
-            />
           ) : (
-            <MarkdownRenderer content={message.content} />
+            <div 
+              ref={markdownWrapperRef}
+              className="markdown-content-wrapper"
+              style={{
+                overflowX: 'scroll', // Use 'scroll' instead of 'auto' to always show scrollbar when content overflows
+                overflowY: 'visible',
+                width: '100%',
+                maxWidth: '100%',
+                minWidth: 0,
+                // Ensure scrollbar is always visible when content overflows
+                scrollbarWidth: 'thin',
+                scrollbarColor: 'rgba(0, 0, 0, 0.4) rgba(0, 0, 0, 0.15)',
+              }}
+            >
+              <MarkdownRenderer content={message.content} />
+            </div>
           )
         ) : (
           <p className="text-base" style={{ 
@@ -170,3 +247,19 @@ export const Message: React.FC<MessageProps> = ({
     </div>
   );
 };
+
+// Memoize Message component to prevent re-renders when other messages or input changes
+export const Message = React.memo(MessageComponent, (prevProps, nextProps) => {
+  // Only re-render if this specific message's data changes
+  return (
+    prevProps.message.id === nextProps.message.id &&
+    prevProps.message.content === nextProps.message.content &&
+    prevProps.message.role === nextProps.message.role &&
+    prevProps.index === nextProps.index &&
+    prevProps.isLatestAssistantMessage === nextProps.isLatestAssistantMessage &&
+    prevProps.showTypingAnimation === nextProps.showTypingAnimation &&
+    prevProps.copiedMessageId === nextProps.copiedMessageId &&
+    prevProps.messagesLength === nextProps.messagesLength &&
+    prevProps.theme === nextProps.theme
+  );
+});

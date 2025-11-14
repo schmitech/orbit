@@ -27,8 +27,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@schmitech/chatbot-api": "^0.5.3",
-    "@schmitech/markdown-renderer": "^0.2.0",
+    "@schmitech/chatbot-api": "^1.0.1",
+    "@schmitech/markdown-renderer": "^0.4.0",
     "clsx": "^2.1.0",
     "lucide-react": "^0.344.0",
     "react": "^18.3.1",

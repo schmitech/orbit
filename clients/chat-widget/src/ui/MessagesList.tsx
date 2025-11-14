@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { ChevronUp, ChevronDown } from 'lucide-react';
 import { Message as MessageType } from '../store/chatStore';
 import { Message } from './Message';
@@ -38,7 +38,7 @@ export interface MessagesListProps {
  * MessagesList component handles the messages container area
  * Includes empty state, scroll buttons, loading states, and message rendering
  */
-export const MessagesList: React.FC<MessagesListProps> = ({
+const MessagesListComponent: React.FC<MessagesListProps> = ({
   messages,
   isLoading,
   theme,
@@ -79,6 +79,52 @@ export const MessagesList: React.FC<MessagesListProps> = ({
   };
 
   const opaqueBackground = getOpaqueBackground();
+
+  // Memoize the messages list to prevent re-rendering when input changes
+  const messagesList = useMemo(() => {
+    return messages.map((msg: MessageType, index: number) => {
+      const isLatestAssistantMessage = msg.role === 'assistant' && index === messages.length - 1;
+      const showTypingAnimation = isLatestAssistantMessage && isLoading;
+      
+      return (
+        <Message
+          key={msg.id}
+          message={msg}
+          index={index}
+          isLatestAssistantMessage={isLatestAssistantMessage}
+          showTypingAnimation={showTypingAnimation}
+          theme={theme}
+          copiedMessageId={copiedMessageId}
+          onCopyToClipboard={onCopyToClipboard}
+          onMarkMessageAnimated={onMarkMessageAnimated}
+          messagesLength={messages.length}
+          scrollToBottom={scrollToBottom}
+          inputRef={inputRef}
+          hasBeenAnimated={hasBeenAnimated}
+          typingProgressRef={typingProgressRef}
+          isTypingRef={isTypingRef}
+          setIsAnimating={setIsAnimating}
+          formatTime={formatTime}
+          lastMessageRef={lastMessageRef}
+        />
+      );
+    });
+  }, [
+    messages,
+    isLoading,
+    theme,
+    copiedMessageId,
+    onCopyToClipboard,
+    onMarkMessageAnimated,
+    scrollToBottom,
+    inputRef,
+    hasBeenAnimated,
+    typingProgressRef,
+    isTypingRef,
+    setIsAnimating,
+    formatTime,
+    lastMessageRef,
+  ]);
 
   return (
     <div 
@@ -253,33 +299,7 @@ export const MessagesList: React.FC<MessagesListProps> = ({
       ) : (
         /* Messages List */
         <div className="space-y-3">
-          {messages.map((msg: MessageType, index: number) => {
-            const isLatestAssistantMessage = msg.role === 'assistant' && index === messages.length - 1;
-            const showTypingAnimation = isLatestAssistantMessage && isLoading;
-            
-            return (
-              <Message
-                key={msg.id}
-                message={msg}
-                index={index}
-                isLatestAssistantMessage={isLatestAssistantMessage}
-                showTypingAnimation={showTypingAnimation}
-                theme={theme}
-                copiedMessageId={copiedMessageId}
-                onCopyToClipboard={onCopyToClipboard}
-                onMarkMessageAnimated={onMarkMessageAnimated}
-                messagesLength={messages.length}
-                scrollToBottom={scrollToBottom}
-                inputRef={inputRef}
-                hasBeenAnimated={hasBeenAnimated}
-                typingProgressRef={typingProgressRef}
-                isTypingRef={isTypingRef}
-                setIsAnimating={setIsAnimating}
-                formatTime={formatTime}
-                lastMessageRef={lastMessageRef}
-              />
-            );
-          })}
+          {messagesList}
           
           {/* Loading State when no messages */}
           {isLoading && messages.length === 0 && (
@@ -305,3 +325,20 @@ export const MessagesList: React.FC<MessagesListProps> = ({
     </div>
   );
 };
+
+// Memoize MessagesList to prevent re-renders when input message changes
+export const MessagesList = React.memo(MessagesListComponent, (prevProps, nextProps) => {
+  // Only re-render if these props change
+  return (
+    prevProps.messages === nextProps.messages &&
+    prevProps.isLoading === nextProps.isLoading &&
+    prevProps.showScrollTop === nextProps.showScrollTop &&
+    prevProps.showScrollBottom === nextProps.showScrollBottom &&
+    prevProps.isAnimating === nextProps.isAnimating &&
+    prevProps.copiedMessageId === nextProps.copiedMessageId &&
+    prevProps.theme === nextProps.theme &&
+    prevProps.currentConfig === nextProps.currentConfig &&
+    prevProps.maxSuggestedQuestionLength === nextProps.maxSuggestedQuestionLength &&
+    prevProps.maxSuggestedQuestionQueryLength === nextProps.maxSuggestedQuestionQueryLength
+  );
+});

@@ -1564,27 +1564,43 @@ JSON Response:"""
         """
         errors = []
         
-        # Check required fields
-        required_fields = ['id', 'description', 'sql', 'parameters', 'nl_examples']
+        # Check required fields - accept both 'sql' and 'sql_template'
+        required_fields = ['id', 'description', 'parameters', 'nl_examples']
         for field in required_fields:
             if field not in template:
                 errors.append(f"Missing required field: {field}")
         
+        # Check for SQL field (either 'sql' or 'sql_template')
+        sql_field = template.get('sql') or template.get('sql_template')
+        if not sql_field:
+            errors.append("Missing required field: sql or sql_template")
+        
         # Validate SQL
-        if 'sql' in template:
-            sql = template['sql']
+        if sql_field:
+            sql = sql_field
             if not sql.strip():
                 errors.append("SQL template is empty")
-            elif sql.count('%(') != sql.count(')s'):
-                errors.append("Mismatched parameter placeholders in SQL")
+            else:
+                # Check for PostgreSQL-style placeholders %(name)s
+                pg_placeholders = sql.count('%(')
+                pg_closings = sql.count(')s')
+                if pg_placeholders > 0 and pg_placeholders != pg_closings:
+                    errors.append("Mismatched PostgreSQL parameter placeholders in SQL")
+                
+                # For SQLite ? placeholders, count them and verify parameter count matches
+                sqlite_placeholders = sql.count('?')
+                if sqlite_placeholders > 0 and 'parameters' in template:
+                    param_count = len(template['parameters'])
+                    if sqlite_placeholders != param_count:
+                        errors.append(f"SQLite placeholder count ({sqlite_placeholders}) doesn't match parameter count ({param_count})")
         
         # Validate parameters
         if 'parameters' in template:
             param_names = {p['name'] for p in template['parameters'] if 'name' in p}
             
-            # Check if all SQL parameters are defined
-            if 'sql' in template:
-                sql_params = re.findall(r'%\((\w+)\)s', template['sql'])
+            # Check if all PostgreSQL-style SQL parameters are defined
+            if sql_field:
+                sql_params = re.findall(r'%\((\w+)\)s', sql_field)
                 for sql_param in sql_params:
                     if sql_param not in param_names:
                         errors.append(f"SQL parameter '{sql_param}' not defined in parameters list")

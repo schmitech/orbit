@@ -262,6 +262,90 @@ export let CHAT_CONSTANTS = {
     background: rgba(0, 0, 0, 0.3);
   }
 
+  /* Horizontal scrollbar for markdown content (tables, code blocks, etc.) */
+  .markdown-content-wrapper {
+    overflow-x: scroll !important; /* Use 'scroll' to always show scrollbar when content overflows */
+    overflow-y: visible !important;
+    -webkit-overflow-scrolling: touch;
+    /* Force scrollbar to always be visible when content overflows */
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 0, 0, 0.4) rgba(0, 0, 0, 0.15);
+  }
+
+  /* WebKit scrollbar - always visible when overflow */
+  .markdown-content-wrapper::-webkit-scrollbar {
+    height: 12px;
+    width: 12px;
+    /* Force scrollbar to always display */
+    display: block;
+    -webkit-appearance: none;
+  }
+
+  .markdown-content-wrapper::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: 6px;
+    margin: 4px;
+    /* Make track always visible */
+    -webkit-box-shadow: inset 0 0 2px rgba(0, 0, 0, 0.1);
+  }
+
+  .markdown-content-wrapper::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.4);
+    border-radius: 6px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+    transition: background 0.2s ease;
+    /* Ensure thumb is always visible */
+    min-height: 20px;
+  }
+
+  .markdown-content-wrapper::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.6);
+    background-clip: padding-box;
+  }
+
+  .markdown-content-wrapper::-webkit-scrollbar-thumb:active {
+    background: rgba(0, 0, 0, 0.7);
+  }
+
+  .markdown-content-wrapper::-webkit-scrollbar-corner {
+    background: rgba(0, 0, 0, 0.1);
+  }
+
+  /* Ensure scrollbar styling is consistent across browsers */
+  @supports (-webkit-appearance: none) {
+    .markdown-content-wrapper::-webkit-scrollbar {
+      -webkit-appearance: none;
+    }
+  }
+
+  /* Force scrollbar to always be visible when content overflows (macOS workaround) */
+  .markdown-content-wrapper.has-horizontal-scroll {
+    /* Reserve space for scrollbar */
+    scrollbar-gutter: stable;
+  }
+
+  .markdown-content-wrapper.has-horizontal-scroll::-webkit-scrollbar {
+    /* Force scrollbar to always be visible */
+    display: block !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+  }
+
+  .markdown-content-wrapper.has-horizontal-scroll::-webkit-scrollbar-track {
+    /* Make track more visible */
+    background: rgba(0, 0, 0, 0.2) !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+  }
+
+  .markdown-content-wrapper.has-horizontal-scroll::-webkit-scrollbar-thumb {
+    /* Make thumb more visible */
+    background: rgba(0, 0, 0, 0.5) !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+  }
+
   /* Enhanced shadows */
   .shadow-elegant {
     box-shadow: 
