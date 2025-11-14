@@ -24,20 +24,22 @@
 #
 # WHAT IT DOES (Default Mode - Seed Templates):
 #     1. Copies 24 production-ready templates from seed file
-#     2. Parses examples/contact.sql schema (CREATE TABLE users...)
+#     2. Parses examples/sqlite/contact/contact.sql schema (CREATE TABLE users...)
 #     3. Auto-generates domain configuration from schema
-#     4. Outputs two YAML files ready for deployment
+#     4. Checks for existing templates
+#     5. Outputs two YAML files ready for deployment
 #
 # WHAT IT DOES (Generate Mode - with --generate flag):
-#     1. Parses examples/contact.sql schema
-#     2. Analyzes examples/contact_test_queries.md (categorized queries)
-#     3. Generates 20-25 parameterized SQL templates with AI
+#     1. Parses examples/sqlite/contact/contact.sql schema
+#     2. Analyzes examples/sqlite/contact/contact_test_queries.md (categorized queries)
+#     3. Generates parameterized SQL templates with AI
 #     4. Auto-generates domain configuration from schema
-#     5. Outputs two YAML files ready for validation
+#     5. Uses reference templates for few-shot guidance (if available)
+#     6. Outputs two YAML files ready for validation
 #
 # OUTPUT FILES:
-#     contact-example-output.yaml    - 24 SQL templates with parameters and examples
-#     contact-example-domain.yaml    - Domain configuration with entities/fields
+#     examples/sqlite/contact/contact-templates.yaml    - SQL templates with parameters and examples
+#     examples/sqlite/contact/contact-domain.yaml       - Domain configuration with entities/fields
 #
 # REQUIREMENTS (Seed Mode):
 #     - Python virtual environment activated (../../venv)
@@ -128,18 +130,17 @@
 #     → Check ../../config/config.yaml has valid inference_provider (default: ollama)
 #     → Verify Ollama is running: ollama list (should show your models)
 #     → Check model is configured in ../../config/inference.yaml
-#     → Try: ./generate_templates.sh --help for manual control
+#     → Try: python template_generator.py --help for manual control
 #
 # TIME TO COMPLETE:
 #     Seed Mode: <5 seconds (instant)
 #     Generate Mode: 30-60 seconds depending on LLM speed
 #
 # SEE ALSO:
-#     - generate_templates.sh        Full generator with all options
-#     - examples/contact.sql         Example schema file
-#     - examples/contact_test_queries.md  Example queries
-#     - configs/contact-config.yaml  Configuration used
-#     - VALIDATION_TOOLS.md          How to validate output
+#     - template_generator.py        Full generator with all options
+#     - examples/sqlite/contact/contact.sql         Schema file
+#     - examples/sqlite/contact/contact_test_queries.md  Test queries
+#     - examples/sqlite/contact/contact-domain.yaml  Domain config
 #     - README.md                    Complete documentation
 #
 # AUTHOR:
@@ -163,10 +164,51 @@ if [ "$1" == "--generate" ]; then
   MODE="generate"
 fi
 
+# Set paths
+EXAMPLE_DIR="./examples/sqlite/contact"
+SCHEMA_FILE="${EXAMPLE_DIR}/contact.sql"
+QUERIES_FILE="${EXAMPLE_DIR}/contact_test_queries.md"
+OUTPUT_FILE="${EXAMPLE_DIR}/contact-templates.yaml"
+DOMAIN_OUTPUT="${EXAMPLE_DIR}/contact-domain.yaml"
+REFERENCE_TEMPLATES=(
+  "${EXAMPLE_DIR}/advanced_analytics_templates.yaml"
+  "${EXAMPLE_DIR}/business_intelligence_templates.yaml"
+  "${EXAMPLE_DIR}/comparative_analysis_templates.yaml"
+)
+
+# Collect existing reference templates for few-shot guidance
+REFERENCE_TEMPLATE_PATHS=()
+for template_path in "${REFERENCE_TEMPLATES[@]}"; do
+  if [ -f "${template_path}" ]; then
+    REFERENCE_TEMPLATE_PATHS+=("${template_path}")
+  else
+    echo -e "${YELLOW}Warning: Reference template not found (skipping): ${template_path}${NC}"
+  fi
+done
+
+REFERENCE_ARGS=()
+if [ ${#REFERENCE_TEMPLATE_PATHS[@]} -gt 0 ]; then
+  REFERENCE_ARGS=(--reference-templates "${REFERENCE_TEMPLATE_PATHS[@]}")
+fi
+
 echo -e "${BLUE}========================================${NC}"
 echo -e "${BLUE}  SQL Template Generator - Quick Start${NC}"
 echo -e "${BLUE}========================================${NC}"
 echo ""
+
+# Check if schema and queries files exist
+if [ ! -f "${SCHEMA_FILE}" ]; then
+  echo -e "${RED}Error: Schema file not found at ${SCHEMA_FILE}${NC}"
+  exit 1
+fi
+
+if [ ! -f "${QUERIES_FILE}" ]; then
+  echo -e "${RED}Error: Queries file not found at ${QUERIES_FILE}${NC}"
+  exit 1
+fi
+
+# Create example directory if it doesn't exist
+mkdir -p "${EXAMPLE_DIR}"
 
 if [ "$MODE" == "seed" ]; then
   echo -e "${GREEN}Running Contact Example (Seed Mode)...${NC}"
@@ -174,14 +216,16 @@ if [ "$MODE" == "seed" ]; then
   echo "This will:"
   echo "  • Install 24 production-ready templates"
   echo "  • Parse the contact database schema (users table)"
-  echo "  • Create a domain configuration file"
-  echo "  • Output: contact-example-output.yaml"
+  echo "  • Generate domain configuration from schema"
+  echo "  • Check for existing templates"
+  echo "  • Output: ${OUTPUT_FILE}"
   echo "  • Time: <5 seconds"
   echo ""
 
   # Check if seed templates exist
-  if [ ! -f "./examples/contact_seed_templates.yaml" ]; then
-    echo -e "${RED}Error: Seed templates not found at ./examples/contact_seed_templates.yaml${NC}"
+  SEED_TEMPLATES_FILE="./examples/sqlite/contact/contact_seed_templates.yaml"
+  if [ ! -f "${SEED_TEMPLATES_FILE}" ]; then
+    echo -e "${RED}Error: Seed templates not found at ${SEED_TEMPLATES_FILE}${NC}"
     exit 1
   fi
 
@@ -189,17 +233,17 @@ if [ "$MODE" == "seed" ]; then
   echo -e "${BLUE}Installing seed templates...${NC}"
 
   # Count templates in seed file
-  SEED_COUNT=$(grep -c "^  - id:" ./examples/contact_seed_templates.yaml 2>/dev/null || echo "24")
+  SEED_COUNT=$(grep -c "^  - id:" "${SEED_TEMPLATES_FILE}" 2>/dev/null || echo "24")
 
   # Wrap seed templates in proper output format
-  cat > contact-example-output.yaml << EOF
+  cat > "${OUTPUT_FILE}" << EOF
 generated_at: '$(date -u +"%Y-%m-%dT%H:%M:%S")'
 generator_version: 1.0.0
 total_templates: ${SEED_COUNT}
 EOF
 
   # Append the templates from seed file
-  cat ./examples/contact_seed_templates.yaml >> contact-example-output.yaml
+  cat "${SEED_TEMPLATES_FILE}" >> "${OUTPUT_FILE}"
 
   echo -e "${GREEN}✓ Installed ${SEED_COUNT} production-ready templates${NC}"
   echo ""
@@ -207,38 +251,59 @@ EOF
   # Generate domain config
   echo -e "${BLUE}Generating domain configuration...${NC}"
   python -u template_generator.py \
-    --schema ./examples/sqlite/contact/contact.sql \
-    --queries ./examples/sqlite/contact/contact_test_queries.md \
+    --schema "${SCHEMA_FILE}" \
+    --queries "${QUERIES_FILE}" \
     --output /tmp/dummy-output.yaml \
     --generate-domain \
     --domain-name "Contact Management" \
     --domain-type general \
-    --domain-output ./examples/sqlite/contact/contact-domain.yaml \
+    --domain-output "${DOMAIN_OUTPUT}" \
     2>/dev/null || echo -e "${YELLOW}Note: Domain config generation requires schema parsing only${NC}"
 
   echo -e "${GREEN}✓ Domain configuration created${NC}"
+  
+  if [ -f "${OUTPUT_FILE}" ]; then
+    TEMPLATE_COUNT=$(grep -c "^- id:" "${OUTPUT_FILE}" 2>/dev/null || echo "0")
+    if [ $TEMPLATE_COUNT -gt 0 ]; then
+      echo -e "${GREEN}✓ Found existing templates: ${TEMPLATE_COUNT} templates${NC}"
+    fi
+  else
+    echo -e "${YELLOW}Note: No existing templates found. Use --generate to create templates.${NC}"
+  fi
 
 else
   echo -e "${GREEN}Running Contact Example (Generate Mode)...${NC}"
   echo ""
   echo "This will:"
   echo "  • Parse the contact database schema (users table)"
-  echo "  • Generate SQL templates from enriched queries"
+  echo "  • Analyze test queries from contact_test_queries.md"
+  echo "  • Generate SQL templates from queries using AI"
   echo "  • Create a domain configuration file"
-  echo "  • Output: contact-example-output.yaml"
-  echo "  • Time: 30-60 seconds"
+  if [ ${#REFERENCE_TEMPLATE_PATHS[@]} -gt 0 ]; then
+    echo "  • Reuse ${#REFERENCE_TEMPLATE_PATHS[@]} stored template files as few-shot guidance"
+  fi
+  echo "  • Output: ${OUTPUT_FILE}"
+  echo "  • Time: 30-60 seconds (depending on LLM speed)"
   echo ""
 
-  # Run the generator with contact example
-  ./generate_templates.sh \
-    --schema ./examples/sqlite/contact/contact.sql \
-    --queries ./examples/sqlite/contact/contact_test_queries.md \
-    --output ./examples/sqlite/contact/contact-templates.yaml \
-    --domain configs/contact-config.yaml \
+  # Count queries
+  QUERY_COUNT=$(grep -c '^[0-9]\+\.' "${QUERIES_FILE}" 2>/dev/null || echo "0")
+  echo -e "${BLUE}Found ${QUERY_COUNT} test queries${NC}"
+  echo ""
+
+  # Run the generator
+  echo -e "${BLUE}Generating templates from queries...${NC}"
+  python -u template_generator.py \
+    --schema "${SCHEMA_FILE}" \
+    --queries "${QUERIES_FILE}" \
+    --output "${OUTPUT_FILE}" \
     --generate-domain \
     --domain-name "Contact Management" \
     --domain-type general \
-    --domain-output ./examples/sqlite/contact/contact-domain.yaml
+    --domain-output "${DOMAIN_OUTPUT}" \
+    "${REFERENCE_ARGS[@]}"
+
+  echo -e "${GREEN}✓ Template generation complete${NC}"
 fi
 
 echo ""
@@ -247,40 +312,47 @@ echo -e "${GREEN}  ✓ Example Complete!${NC}"
 echo -e "${GREEN}========================================${NC}"
 echo ""
 echo "Generated files:"
-echo "  📄 contact-example-output.yaml    - SQL templates"
-echo "  📄 contact-example-domain.yaml    - Domain configuration"
+echo "  📄 ${OUTPUT_FILE}    - SQL templates"
+echo "  📄 ${DOMAIN_OUTPUT}    - Domain configuration"
 echo ""
 
 # Count actual templates
-if [ -f "contact-example-output.yaml" ]; then
-  TEMPLATE_COUNT=$(grep -c "^  - id:" contact-example-output.yaml 2>/dev/null || echo "0")
-  echo -e "${GREEN}✓ Total templates installed: ${TEMPLATE_COUNT}${NC}"
+if [ -f "${OUTPUT_FILE}" ]; then
+  TEMPLATE_COUNT=$(grep -c "^- id:" "${OUTPUT_FILE}" 2>/dev/null || echo "0")
+  # Ensure TEMPLATE_COUNT is numeric
+  TEMPLATE_COUNT=${TEMPLATE_COUNT:-0}
+  echo -e "${GREEN}✓ Total templates: ${TEMPLATE_COUNT}${NC}"
 
   # Show first few template IDs as preview
-  echo ""
-  echo -e "${BLUE}Template preview (first 10):${NC}"
-  grep "^  - id:" contact-example-output.yaml | head -10 | sed 's/  - id: /  ✓ /'
-  if [ $TEMPLATE_COUNT -gt 10 ]; then
-    echo "  ... and $((TEMPLATE_COUNT - 10)) more templates"
+  if [ "${TEMPLATE_COUNT}" -gt 0 ] 2>/dev/null; then
+    echo ""
+    echo -e "${BLUE}Template preview (first 10):${NC}"
+    grep "^- id:" "${OUTPUT_FILE}" | head -10 | sed 's/^- id: /  ✓ /'
+    if [ "${TEMPLATE_COUNT}" -gt 10 ] 2>/dev/null; then
+      echo "  ... and $((TEMPLATE_COUNT - 10)) more templates"
+    fi
+    echo ""
   fi
-  echo ""
 fi
 
 echo -e "${YELLOW}Next steps:${NC}"
 echo "  1. Review the templates:"
-echo "     cat contact-example-output.yaml"
+echo "     cat ${OUTPUT_FILE}"
 echo ""
-echo "  2. Copy to Orbit config:"
-echo "     cp contact-example-output.yaml ../../config/sql_intent_templates/examples/contact/"
-echo "     cp contact-example-domain.yaml ../../config/sql_intent_templates/examples/contact/"
+echo "  2. Review the domain configuration:"
+echo "     cat ${DOMAIN_OUTPUT}"
 echo ""
-echo "  3. Configure your Intent adapter to use these templates"
+echo "  3. Copy to Orbit config (if needed):"
+echo "     cp ${OUTPUT_FILE} ../../config/sql_intent_templates/"
+echo "     cp ${DOMAIN_OUTPUT} ../../config/sql_intent_templates/"
+echo ""
+echo "  4. Configure your Intent adapter to use these templates"
 echo ""
 echo -e "${BLUE}To try with your own database:${NC}"
-echo "  ./generate_templates.sh --help"
+echo "  python template_generator.py --help"
 echo ""
 if [ "$MODE" == "seed" ]; then
-  echo -e "${YELLOW}Want to try AI generation instead?${NC}"
+  echo -e "${YELLOW}Want to generate templates from queries?${NC}"
   echo "  ./run_contact_example.sh --generate"
   echo ""
 fi
