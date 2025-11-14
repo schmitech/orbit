@@ -202,7 +202,7 @@ orbitchat --api-url http://localhost:3000 --api-key YOUR_ACTUAL_KEY --open
 - `--help` - Show all available options
 
 <div align="center">
-  <video src="https://github.com/user-attachments/assets/9b61911e-f0c3-464e-a3a5-79c4645415c2" controls>
+  <video src="https://github.com/user-attachments/assets/68190983-d996-458f-8024-c9c15272d1c3" controls>
     Your browser does not support the video tag.
   </video>
   <br/>
@@ -211,39 +211,41 @@ orbitchat --api-url http://localhost:3000 --api-key YOUR_ACTUAL_KEY --open
 
 ### Chatting with a DB
 
-#### Quick Setup (PostgreSQL Example)
+#### Quick Setup (SQLite Example)
 
 ```bash
 # 1. Set up the database and test data
-cd examples/postgres
-cp env.example .env
-python setup_schema.py
-python customer-order.py --action insert --customers 100 --orders 500
-cd ../..
+python utils/sql-intent-template/examples/sqlite/contact/generate_contact_data.py \
+  --records 100 \
+  --output utils/sql-intent-template/examples/sqlite/contact/contact.db
 
 # 2. Restart ORBIT to load pre-generated templates
 ./bin/orbit.sh restart
 
 # 3. Create an API key for the postgres adapter
 ./bin/orbit.sh key create \
-  --adapter intent-sql-postgres \
-  --name "PostgreSQL Customer Orders" \
-  --prompt-file ./prompts/default-conversational-adapter-prompt.txt \
-  --prompt-name "Conversational Prompt"
+  --adapter intent-sql-sqlite-contact \
+  --name "Contacts Chatbot" \
+  --prompt-file ./examples/prompts/contact-assistant-prompt.txt \
+  --prompt-name "Contacts Chatbot"
+
+# 4. Rename API Key (Optional, just for convenience when testing)
+./bin/orbit.sh key rename --old-key YOUR_ACTUAL_KEY --new-key contact
 ```
 
-**Note:** SQL templates are pre-generated for the customer-orders example. If you need templates for your own database, see the template generator section below.
-
-#### Generating SQL Templates for Your Own Database
+**Note:** SQL templates are pre-generated for this contacts example. You can use this script as example:
 
 ```bash
 cd utils/sql-intent-template
-./run_customer_order_example.sh --generate
+
+# This script uses utils/sql-intent-template/template_generator.py to automatically generate
+# a semantic SQL intent template. See documentation for template_generator.py for usage and options.
+./run_contact_example.sh --generate
 ```
 
-This script generates templates from your schema and queries, then copies them to the config directory. For custom databases, edit the script to point to your schema and queries files.
+This script generates the templates from your schema and queries. For custom databases, edit the script to point to your schema and queries files.
 
-For more details, see: `utils/sql-intent-template/README.md`
+For more details, see: [`README.md`](utils/sql-intent-template/README.md) and [`tutorial.md`](utils/sql-intent-template/docs/tutorial.md)
 
 #### Test with the React application:
 
