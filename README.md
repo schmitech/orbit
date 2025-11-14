@@ -202,7 +202,7 @@ orbitchat --api-url http://localhost:3000 --api-key YOUR_ACTUAL_KEY --open
 - `--help` - Show all available options
 
 <div align="center">
-  <video src="https://github.com/user-attachments/assets/68190983-d996-458f-8024-c9c15272d1c3" controls>
+  <video src="https://github.com/user-attachments/assets/9b61911e-f0c3-464e-a3a5-79c4645415c2" controls>
     Your browser does not support the video tag.
   </video>
   <br/>
@@ -250,7 +250,7 @@ For more details, see: [`README.md`](utils/sql-intent-template/README.md) and [`
 #### Test with the React application:
 
 <div align="center">
-  <video src="https://github.com/user-attachments/assets/bf63078f-a913-47d6-ac88-9879243586ce" controls>
+  <video src="https://github.com/user-attachments/assets/68190983-d996-458f-8024-c9c15272d1c3" controls>
     Your browser does not support the video tag.
   </video>
   <br/>
