@@ -62,6 +62,14 @@ Available Vision Services:
     - VLLMVisionService: vLLM vision (LLaVA, local multimodal)
     - LlamaCppVisionService: Llama.cpp vision (LLaVA GGUF, local multimodal)
 
+Available Audio Services:
+    - OpenAIAudioService: OpenAI audio (Whisper STT, TTS-1)
+    - GoogleAudioService: Google Cloud audio (Speech-to-Text, Text-to-Speech)
+    - AnthropicAudioService: Anthropic audio (placeholder - not yet supported)
+    - OllamaAudioService: Ollama audio (local audio models)
+    - CohereAudioService: Cohere audio (placeholder - not yet supported)
+    - ElevenLabsAudioService: ElevenLabs audio (high-quality TTS)
+
 More implementations will be added as migration progresses.
 """
 
@@ -130,6 +138,14 @@ _implementations = [
     ('ollama_vision_service', 'OllamaVisionService'),
     ('vllm_vision_service', 'VLLMVisionService'),
     ('llama_cpp_vision_service', 'LlamaCppVisionService'),
+    
+    # Audio Services
+    ('openai_audio_service', 'OpenAIAudioService'),
+    ('google_audio_service', 'GoogleAudioService'),
+    ('anthropic_audio_service', 'AnthropicAudioService'),
+    ('ollama_audio_service', 'OllamaAudioService'),
+    ('cohere_audio_service', 'CohereAudioService'),
+    ('elevenlabs_audio_service', 'ElevenLabsAudioService'),
 ]
 
 # Map service classes to their required SDK packages for commercial/cloud providers
@@ -174,6 +190,13 @@ _required_packages = {
     'OpenAIVisionService': 'openai',
     'GeminiVisionService': 'google.generativeai',
     'AnthropicVisionService': 'anthropic',
+    
+    # Audio services
+    'OpenAIAudioService': 'openai',
+    'GoogleAudioService': 'google.cloud.speech',  # Requires google-cloud-speech and google-cloud-texttospeech
+    'AnthropicAudioService': 'anthropic',  # Placeholder - not yet supported
+    'CohereAudioService': 'cohere',  # Placeholder - not yet supported
+    'ElevenLabsAudioService': 'elevenlabs',  # Requires elevenlabs package
 }
 
 # Try importing each implementation

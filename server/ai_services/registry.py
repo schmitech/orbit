@@ -265,6 +265,57 @@ def register_vision_services(config: Dict[str, Any] = None) -> None:
             )
 
 
+def register_audio_services(config: Dict[str, Any] = None) -> None:
+    """
+    Register all audio service implementations with the factory.
+
+    This makes them available for creation via AIServiceFactory.create_service()
+    Services with missing dependencies are skipped with a warning.
+    Services that are disabled in config are not registered.
+
+    Args:
+        config: Optional configuration dictionary. If provided, only enabled providers
+                will be registered based on config['sound'][provider]['enabled']
+    """
+    # Define services to register with their import paths
+    services = [
+        ("openai", "OpenAIAudioService", "OpenAI"),
+        ("google", "GoogleAudioService", "Google"),
+        ("anthropic", "AnthropicAudioService", "Anthropic"),
+        ("ollama", "OllamaAudioService", "Ollama"),
+        ("cohere", "CohereAudioService", "Cohere"),
+        ("elevenlabs", "ElevenLabsAudioService", "ElevenLabs"),
+    ]
+
+    # Get sounds config if available (plural form, like 'visions')
+    sounds_config = config.get('sounds', {}) if config else {}
+
+    for provider_key, class_name, display_name in services:
+        # Check if provider is enabled in config
+        if config:
+            provider_config = sounds_config.get(provider_key, {})
+            enabled = provider_config.get('enabled', True)
+            if enabled is False or (isinstance(enabled, str) and enabled.lower() == 'false'):
+                logger.debug(f"Skipping {display_name} audio service - disabled in config")
+                continue
+        
+        try:
+            # Lazy import - only import what we can
+            module = __import__('ai_services.implementations', fromlist=[class_name])
+            service_class = getattr(module, class_name)
+
+            AIServiceFactory.register_service(
+                ServiceType.AUDIO,
+                provider_key,
+                service_class
+            )
+            logger.info(f"Registered {display_name} audio service")
+        except (ImportError, AttributeError) as e:
+            logger.debug(
+                f"Skipping {display_name} audio service - missing dependencies: {e}"
+            )
+
+
 def register_all_services(config: Dict[str, Any] = None) -> None:
     """
     Register all available service implementations.
@@ -303,6 +354,7 @@ def register_all_services(config: Dict[str, Any] = None) -> None:
         register_moderation_services()
         register_reranking_services(config)
         register_vision_services(config)
+        register_audio_services(config)
 
         _services_registered = True
 

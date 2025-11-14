@@ -1,0 +1,143 @@
+# Global sound configuration
+sound:
+  provider: "openai"  # Default sound provider: openai, google, anthropic, ollama, cohere
+  enabled: true       # Whether sound processing is enabled globally
+
+# Provider-specific configurations
+sounds:
+  openai:
+    enabled: true
+    api_key: ${OPENAI_API_KEY}
+    api_base: "https://api.openai.com/v1"
+    # STT (Speech-to-Text) configuration
+    stt_model: "whisper-1"  # OpenAI Whisper model for transcription
+    # TTS (Text-to-Speech) configuration
+    tts_model: "tts-1"  # OpenAI TTS model (tts-1 or tts-1-hd)
+    tts_voice: "alloy"  # Voice options: alloy, echo, fable, onyx, nova, shimmer
+    tts_format: "mp3"  # Output format: mp3, opus, aac, flac
+    # Timeout configuration
+    timeout:
+      connect: 15000   # 15 seconds (increased for slow networks)
+      total: 90000     # 90 seconds (increased to handle concurrent API calls + retries)
+    # Retry configuration
+    retry:
+      enabled: true
+      max_retries: 3
+      initial_wait_ms: 1000
+      max_wait_ms: 30000
+      exponential_base: 2
+
+  google:
+    enabled: true
+    api_key: ${GOOGLE_API_KEY}
+    # STT (Speech-to-Text) configuration
+    stt_model: "latest_long"  # Google Speech-to-Text model
+    stt_language_code: "en-US"  # Default language code
+    stt_sample_rate: 16000  # Audio sample rate in Hz
+    stt_encoding: "LINEAR16"  # Audio encoding: LINEAR16, FLAC, MULAW, AMR, AMR_WB, OGG_OPUS, SPEEX_WITH_HEADER_BYTE
+    # TTS (Text-to-Speech) configuration
+    tts_model: "neural2"  # Google TTS model: standard, neural2, news, studio
+    tts_voice: "en-US-Neural2-A"  # Voice name
+    tts_language_code: "en-US"  # Language code
+    tts_audio_encoding: "MP3"  # Output format: MP3, LINEAR16, OGG_OPUS
+    tts_speaking_rate: 1.0  # Speaking rate (0.25 to 4.0)
+    tts_pitch: 0.0  # Pitch adjustment (-20.0 to 20.0)
+    # Timeout configuration
+    timeout:
+      connect: 15000   # 15 seconds (increased for slow networks)
+      total: 90000     # 90 seconds (increased to handle concurrent API calls + retries)
+    # Retry configuration
+    retry:
+      enabled: true
+      max_retries: 3
+      initial_wait_ms: 1000
+      max_wait_ms: 30000
+      exponential_base: 2
+
+  anthropic:
+    enabled: false  # Placeholder - Anthropic doesn't have native audio APIs yet
+    api_key: ${ANTHROPIC_API_KEY}
+    api_base: "https://api.anthropic.com/v1"
+    # Placeholder configuration for future audio support
+    stt_model: null
+    tts_model: null
+    # Timeout configuration
+    timeout:
+      connect: 15000   # 15 seconds
+      total: 90000     # 90 seconds
+    # Retry configuration
+    retry:
+      enabled: true
+      max_retries: 3
+      initial_wait_ms: 1000
+      max_wait_ms: 30000
+      exponential_base: 2
+
+  ollama:
+    enabled: true
+    base_url: "http://localhost:11434"
+    # STT (Speech-to-Text) configuration
+    stt_model: "whisper"  # Ollama model for STT (e.g., whisper, faster-whisper)
+    # TTS (Text-to-Speech) configuration
+    tts_model: "piper"  # Ollama model for TTS (e.g., piper, kokoro)
+    tts_voice: "en_US-lessac-medium"  # Voice name for TTS
+    tts_format: "wav"  # Output format: wav, mp3
+    stream: false
+    # Timeout configuration
+    timeout:
+      connect: 15000   # 15 seconds (increased for slow networks)
+      total: 90000     # 90 seconds (increased to handle concurrent API calls + retries)
+      warmup: 60000    # 1 minute for initial warmup
+    # Retry configuration
+    retry:
+      enabled: true
+      max_retries: 3
+      initial_wait_ms: 1000
+      max_wait_ms: 30000
+      exponential_base: 2
+
+  cohere:
+    enabled: false  # Placeholder - Cohere doesn't have native audio APIs yet
+    api_key: ${COHERE_API_KEY}
+    api_base: "https://api.cohere.ai/v2"
+    # Placeholder configuration for future audio support
+    stt_model: null
+    tts_model: null
+    # Timeout configuration
+    timeout:
+      connect: 15000   # 15 seconds
+      total: 90000     # 90 seconds
+    # Retry configuration
+    retry:
+      enabled: true
+      max_retries: 3
+      initial_wait_ms: 1000
+      max_wait_ms: 30000
+      exponential_base: 2
+
+  elevenlabs:
+    enabled: true
+    api_key: ${ELEVENLABS_API_KEY}
+    api_base: "https://api.elevenlabs.io/v1"
+    # TTS (Text-to-Speech) configuration
+    tts_model: "eleven_multilingual_v2"  # Models: eleven_monolingual_v1, eleven_multilingual_v1, eleven_multilingual_v2, eleven_turbo_v2
+    tts_voice: "EXAVITQu4vr4xnSDxMaL"  # Default voice ID (Sarah) - can be replaced with any voice ID
+    tts_format: "mp3_44100_128"  # Output format: mp3_44100_128, mp3_44100_192, pcm_16000, pcm_22050, pcm_24000, pcm_44100, ulaw_8000
+    tts_stability: 0.5  # Voice stability (0.0 - 1.0)
+    tts_similarity_boost: 0.75  # Clarity + similarity enhancement (0.0 - 1.0)
+    tts_style: 0.0  # Style exaggeration (0.0 - 1.0) - only for v2 models
+    tts_use_speaker_boost: true  # Enable speaker boost for enhanced quality
+    # Note: ElevenLabs is primarily a TTS service, STT not supported
+    stt_model: null
+    # Timeout configuration
+    timeout:
+      connect: 15000   # 15 seconds
+      total: 90000     # 90 seconds
+    # Retry configuration
+    retry:
+      enabled: true
+      max_retries: 3
+      initial_wait_ms: 1000
+      max_wait_ms: 30000
+      exponential_base: 2
+
