@@ -32,12 +32,18 @@ if (typeof window === 'undefined') {
 export interface StreamResponse {
   text: string;
   done: boolean;
+  audio?: string;  // Optional base64-encoded audio data (TTS response) - full audio
+  audioFormat?: string;  // Audio format (mp3, wav, etc.)
+  audio_chunk?: string;  // Optional streaming audio chunk (base64-encoded)
+  chunk_index?: number;  // Index of the audio chunk for ordering
 }
 
 // The server now returns this directly for non-streaming chat
 export interface ChatResponse {
   response: string;
   sources?: any[];
+  audio?: string;  // Optional base64-encoded audio data (TTS response)
+  audio_format?: string;  // Audio format (mp3, wav, etc.)
 }
 
 // The request body for the /v1/chat endpoint
@@ -45,6 +51,13 @@ interface ChatRequest {
   messages: Array<{ role: string; content: string; }>;
   stream: boolean;
   file_ids?: string[];  // Optional list of file IDs for file context
+  audio_input?: string;  // Optional base64-encoded audio data for STT
+  audio_format?: string;  // Optional audio format (mp3, wav, etc.)
+  language?: string;  // Optional language code for STT (e.g., "en-US")
+  return_audio?: boolean;  // Whether to return audio response (TTS)
+  tts_voice?: string;  // Voice for TTS (e.g., "alloy", "echo" for OpenAI)
+  source_language?: string;  // Source language for translation
+  target_language?: string;  // Target language for translation
 }
 
 // File-related interfaces
@@ -413,7 +426,18 @@ export class ApiClient {
   }
 
   // Create Chat request
-  private createChatRequest(message: string, stream: boolean = true, fileIds?: string[]): ChatRequest {
+  private createChatRequest(
+    message: string, 
+    stream: boolean = true, 
+    fileIds?: string[],
+    audioInput?: string,
+    audioFormat?: string,
+    language?: string,
+    returnAudio?: boolean,
+    ttsVoice?: string,
+    sourceLanguage?: string,
+    targetLanguage?: string
+  ): ChatRequest {
     const request: ChatRequest = {
       messages: [
         { role: "user", content: message }
@@ -423,13 +447,41 @@ export class ApiClient {
     if (fileIds && fileIds.length > 0) {
       request.file_ids = fileIds;
     }
+    if (audioInput) {
+      request.audio_input = audioInput;
+    }
+    if (audioFormat) {
+      request.audio_format = audioFormat;
+    }
+    if (language) {
+      request.language = language;
+    }
+    if (returnAudio !== undefined) {
+      request.return_audio = returnAudio;
+    }
+    if (ttsVoice) {
+      request.tts_voice = ttsVoice;
+    }
+    if (sourceLanguage) {
+      request.source_language = sourceLanguage;
+    }
+    if (targetLanguage) {
+      request.target_language = targetLanguage;
+    }
     return request;
   }
 
   public async *streamChat(
     message: string,
     stream: boolean = true,
-    fileIds?: string[]
+    fileIds?: string[],
+    audioInput?: string,
+    audioFormat?: string,
+    language?: string,
+    returnAudio?: boolean,
+    ttsVoice?: string,
+    sourceLanguage?: string,
+    targetLanguage?: string
   ): AsyncGenerator<StreamResponse> {
     try {
       // Add timeout to the fetch request
@@ -443,7 +495,18 @@ export class ApiClient {
             'Content-Type': 'application/json',
             'Accept': stream ? 'text/event-stream' : 'application/json'
           },
-          body: JSON.stringify(this.createChatRequest(message, stream, fileIds)),
+          body: JSON.stringify(this.createChatRequest(
+            message, 
+            stream, 
+            fileIds,
+            audioInput,
+            audioFormat,
+            language,
+            returnAudio,
+            ttsVoice,
+            sourceLanguage,
+            targetLanguage
+          )),
         }),
         signal: controller.signal
       });
@@ -461,8 +524,10 @@ export class ApiClient {
         if (data.response) {
           yield {
             text: data.response,
-            done: true
-          };
+            done: true,
+            audio: data.audio,
+            audioFormat: data.audio_format
+          } as StreamResponse & { audio?: string; audioFormat?: string };
         }
         return;
       }
@@ -502,24 +567,49 @@ export class ApiClient {
 
               try {
                 const data = JSON.parse(jsonText);
-                
+
                 if (data.error) {
                   const errorMessage = data.error?.message || data.error || 'Unknown server error';
                   const friendlyMessage = `Server error: ${errorMessage}`;
                   console.warn(`[ApiClient] ${friendlyMessage}`);
                   throw new Error(friendlyMessage);
                 }
-                
-                if (data.response) {
+
+                // Note: Base64 audio filtering is handled by chatStore's sanitizeMessageContent
+                // We keep response text as-is here and let the application layer decide
+                const responseText = data.response || '';
+
+                // Handle streaming audio chunks
+                if (data.audio_chunk !== undefined) {
+                  yield {
+                    text: '',
+                    done: false,
+                    audio_chunk: data.audio_chunk,
+                    audioFormat: data.audioFormat || data.audio_format || 'opus',
+                    chunk_index: data.chunk_index ?? 0
+                  };
+                }
+
+                if (responseText || data.audio) {
                   hasReceivedContent = true;
-                  yield { text: data.response, done: data.done || false };
+                  yield {
+                    text: responseText,
+                    done: data.done || false,
+                    audio: data.audio,
+                    audioFormat: data.audio_format || data.audioFormat
+                  };
                 }
 
                 if (data.done) {
-                    yield { text: '', done: true };
+                    yield {
+                      text: '',
+                      done: true,
+                      audio: data.audio,
+                      audioFormat: data.audio_format || data.audioFormat
+                    };
                     return;
                 }
-                
+
               } catch (parseError) {
                 // Only log parse errors in debug scenarios, with friendly message
                 console.warn('[ApiClient] Unable to parse server response. This may be a temporary issue.');
@@ -532,9 +622,9 @@ export class ApiClient {
           }
           
           buffer = buffer.slice(lineStartIndex);
-          
+
           if (buffer.length > 1000000) { // 1MB limit
-            console.warn('Buffer too large, truncating...');
+            console.warn('[ApiClient] Buffer too large, truncating...');
             buffer = buffer.slice(-500000); // Keep last 500KB
           }
         }
@@ -895,12 +985,30 @@ export const configureApi = (apiUrl: string, apiKey: string | null = null, sessi
 export async function* streamChat(
   message: string,
   stream: boolean = true,
-  fileIds?: string[]
+  fileIds?: string[],
+  audioInput?: string,
+  audioFormat?: string,
+  language?: string,
+  returnAudio?: boolean,
+  ttsVoice?: string,
+  sourceLanguage?: string,
+  targetLanguage?: string
 ): AsyncGenerator<StreamResponse> {
   if (!defaultClient) {
     throw new Error('API not configured. Please call configureApi() with your server URL before using any API functions.');
   }
   
-  yield* defaultClient.streamChat(message, stream, fileIds);
+  yield* defaultClient.streamChat(
+    message, 
+    stream, 
+    fileIds,
+    audioInput,
+    audioFormat,
+    language,
+    returnAudio,
+    ttsVoice,
+    sourceLanguage,
+    targetLanguage
+  );
 }
 

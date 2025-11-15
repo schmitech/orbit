@@ -5,6 +5,7 @@ import { FileUploadService } from '../services/fileService';
 import { debugLog, debugWarn, debugError, logError } from '../utils/debug';
 import { AppConfig } from '../utils/config';
 import { getDefaultKey, getApiUrl } from '../utils/runtimeConfig';
+import { sanitizeMessageContent, truncateLongContent } from '../utils/contentValidation';
 
 // Default API key from runtime configuration
 const DEFAULT_API_KEY = getDefaultKey();
@@ -953,14 +954,147 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         // Load the API and stream the response
         const api = await getApi();
         debugLog(`[chatStore] Starting streamChat with fileIds:`, fileIds);
-        for await (const response of api.streamChat(content, true, fileIds)) {
-          debugLog(`[chatStore] Received stream chunk:`, { text: response.text?.substring(0, 50), done: response.done });
+
+        // Extract audio parameters from conversation or use defaults
+        const conversation = get().conversations.find(conv => conv.id === streamingConversationId);
+
+        // Determine if audio should be returned based on adapter name or explicit settings
+        const isVoiceAdapter = conversation?.adapterInfo?.adapter_name?.includes('voice') ||
+                               conversation?.adapterInfo?.adapter_name?.includes('audio') ||
+                               conversation?.adapterInfo?.adapter_name?.includes('multilingual');
+
+        // Get global voice setting from localStorage
+        const getGlobalVoiceEnabled = (): boolean => {
+          try {
+            const saved = localStorage.getItem('chat-settings');
+            if (saved) {
+              const settings = JSON.parse(saved);
+              return settings.voiceEnabled === true;
+            }
+          } catch (error) {
+            debugWarn('Failed to read global voice setting:', error);
+          }
+          return false;
+        };
+
+        // Get audio settings with fallbacks: conversation-specific > global setting > adapter detection
+        const audioSettings = conversation?.audioSettings;
+        const globalVoiceEnabled = getGlobalVoiceEnabled();
+        const returnAudio = audioSettings?.enabled ?? globalVoiceEnabled ?? isVoiceAdapter;
+        const ttsVoice = audioSettings?.ttsVoice || 'alloy';
+        const language = audioSettings?.language || 'en-US';
+        const audioFormat = audioSettings?.audioFormat;
+
+        debugLog(`[chatStore] Audio settings:`, {
+          returnAudio,
+          ttsVoice,
+          language,
+          audioFormat,
+          isVoiceAdapter,
+          adapterName: conversation?.adapterInfo?.adapter_name
+        });
+
+        for await (const response of api.streamChat(
+          content,
+          true,
+          fileIds,
+          undefined, // audioInput - for STT (to be implemented)
+          undefined, // audioFormat for input
+          language,
+          returnAudio,
+          ttsVoice
+        )) {
+          debugLog(`[chatStore] Received stream chunk:`, {
+            text: response.text?.substring(0, 50),
+            done: response.done,
+            hasAudio: !!response.audio,
+            hasAudioChunk: !!response.audio_chunk,
+            audioFormat: response.audioFormat,
+            audioLength: response.audio?.length,
+            chunkIndex: response.chunk_index
+          });
+          
+          // Handle streaming audio chunks
+          if (response.audio_chunk) {
+            set(state => ({
+              conversations: state.conversations.map(conv => {
+                if (conv.id !== streamingConversationId) return conv;
+                
+                const messages = [...conv.messages];
+                const lastMessage = messages[messages.length - 1];
+                
+                // Update the last assistant message with streaming audio chunks
+                if (lastMessage && lastMessage.role === 'assistant') {
+                  // Initialize streaming audio chunks array if needed
+                  const streamingAudioChunks = lastMessage.streamingAudioChunks || [];
+                  
+                  // Add new chunk (maintain order by chunk_index)
+                  const newChunks = [...streamingAudioChunks];
+                  const chunkIndex = response.chunk_index ?? streamingAudioChunks.length;
+                  
+                  // Insert chunk at correct position
+                  newChunks[chunkIndex] = {
+                    audio: response.audio_chunk,
+                    audioFormat: response.audioFormat || 'opus',
+                    chunkIndex: chunkIndex
+                  };
+                  
+                  messages[messages.length - 1] = {
+                    ...lastMessage,
+                    streamingAudioChunks: newChunks,
+                    streamingAudioFormat: response.audioFormat || 'opus'
+                  };
+                }
+                
+                return {
+                  ...conv,
+                  messages,
+                  updatedAt: new Date()
+                };
+              })
+            }));
+          }
+          
           if (response.text) {
-            // Always append to the conversation that initiated the stream, not the current one
-            get().appendToLastMessage(response.text, streamingConversationId);
-            receivedAnyText = true;
-            // Add a small delay to slow down the streaming effect
-            await new Promise(resolve => setTimeout(resolve, 30));
+            // Sanitize text to remove any base64 audio data that might have leaked into content
+            const sanitizedText = sanitizeMessageContent(response.text);
+            if (sanitizedText) {
+              // Always append to the conversation that initiated the stream, not the current one
+              get().appendToLastMessage(sanitizedText, streamingConversationId);
+              receivedAnyText = true;
+              // Add a small delay to slow down the streaming effect
+              await new Promise(resolve => setTimeout(resolve, 30));
+            } else if (response.text.length > 100) {
+              // If text was filtered out but was long, log a warning
+              debugWarn('[chatStore] Filtered out potential base64 audio data from message content');
+            }
+          }
+          
+          // Handle final audio response if present (fallback for non-streaming audio)
+          if (response.audio && response.done) {
+            set(state => ({
+              conversations: state.conversations.map(conv => {
+                if (conv.id !== streamingConversationId) return conv;
+                
+                const messages = [...conv.messages];
+                const lastMessage = messages[messages.length - 1];
+                
+                // Update the last assistant message with audio data
+                if (lastMessage && lastMessage.role === 'assistant') {
+                  messages[messages.length - 1] = {
+                    ...lastMessage,
+                    audio: response.audio,
+                    audioFormat: response.audioFormat || 'mp3'
+                  };
+                }
+                
+                return {
+                  ...conv,
+                  messages,
+                  updatedAt: new Date()
+                };
+              })
+            }));
           }
           
           if (response.done) {
@@ -1028,6 +1162,17 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
   },
 
   appendToLastMessage: (content: string, conversationId?: string) => {
+    // Sanitize content to prevent base64 audio data from being displayed
+    const sanitizedContent = sanitizeMessageContent(content);
+    if (!sanitizedContent && content) {
+      // Content was filtered out - log warning but don't append
+      debugWarn('[chatStore] Filtered out base64 audio data from message content');
+      return;
+    }
+    
+    // Truncate extremely long content to prevent UI issues
+    const finalContent = truncateLongContent(sanitizedContent);
+    
     set(state => {
       // Use provided conversationId or current conversation
       const targetConversationId = conversationId || state.currentConversationId;
@@ -1044,7 +1189,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
           if (lastMessage && lastMessage.role === 'assistant' && lastMessage.isStreaming) {
             messages[messages.length - 1] = {
               ...lastMessage,
-              content: lastMessage.content + content
+              content: lastMessage.content + finalContent
             };
           }
           
@@ -1140,15 +1285,85 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         }
         
         const api = await getApi();
-        for await (const response of api.streamChat(userMessage.content, true, undefined)) {
-          if (response.text) {
-            // Always append to the conversation that initiated the regenerate, not the current one
-            get().appendToLastMessage(response.text, regeneratingConversationId);
-            receivedAnyText = true;
-            // Add a small delay to slow down the streaming effect
-            await new Promise(resolve => setTimeout(resolve, 30));
+
+        // Extract audio parameters for regeneration (same as sendMessage)
+        const regeneratingConv = get().conversations.find(conv => conv.id === regeneratingConversationId);
+        const isVoiceAdapter = regeneratingConv?.adapterInfo?.adapter_name?.includes('voice') ||
+                               regeneratingConv?.adapterInfo?.adapter_name?.includes('audio') ||
+                               regeneratingConv?.adapterInfo?.adapter_name?.includes('multilingual');
+        
+        // Get global voice setting from localStorage
+        const getGlobalVoiceEnabled = (): boolean => {
+          try {
+            const saved = localStorage.getItem('chat-settings');
+            if (saved) {
+              const settings = JSON.parse(saved);
+              return settings.voiceEnabled === true;
+            }
+          } catch (error) {
+            debugWarn('Failed to read global voice setting:', error);
           }
-          
+          return false;
+        };
+        
+        const audioSettings = regeneratingConv?.audioSettings;
+        const globalVoiceEnabled = getGlobalVoiceEnabled();
+        const returnAudio = audioSettings?.enabled ?? globalVoiceEnabled ?? isVoiceAdapter;
+        const ttsVoice = audioSettings?.ttsVoice || 'alloy';
+        const language = audioSettings?.language || 'en-US';
+
+        for await (const response of api.streamChat(
+          userMessage.content,
+          true,
+          undefined, // fileIds
+          undefined, // audioInput
+          undefined, // audioFormat for input
+          language,
+          returnAudio,
+          ttsVoice
+        )) {
+          if (response.text) {
+            // Sanitize text to remove any base64 audio data that might have leaked into content
+            const sanitizedText = sanitizeMessageContent(response.text);
+            if (sanitizedText) {
+              // Always append to the conversation that initiated the regenerate, not the current one
+              get().appendToLastMessage(sanitizedText, regeneratingConversationId);
+              receivedAnyText = true;
+              // Add a small delay to slow down the streaming effect
+              await new Promise(resolve => setTimeout(resolve, 30));
+            } else if (response.text.length > 100) {
+              // If text was filtered out but was long, log a warning
+              debugWarn('[chatStore] Filtered out potential base64 audio data from regenerated message content');
+            }
+          }
+
+          // Handle audio response if present
+          if (response.audio && response.done) {
+            set(state => ({
+              conversations: state.conversations.map(conv => {
+                if (conv.id !== regeneratingConversationId) return conv;
+
+                const messages = [...conv.messages];
+                const lastMessage = messages[messages.length - 1];
+
+                // Update the last assistant message with audio data
+                if (lastMessage && lastMessage.role === 'assistant') {
+                  messages[messages.length - 1] = {
+                    ...lastMessage,
+                    audio: response.audio,
+                    audioFormat: response.audioFormat || 'mp3'
+                  };
+                }
+
+                return {
+                  ...conv,
+                  messages,
+                  updatedAt: new Date()
+                };
+              })
+            }));
+          }
+
           if (response.done) {
             break;
           }

@@ -11,10 +11,25 @@ import { getUseLocalApi, getLocalApiPath } from '../utils/runtimeConfig';
 export interface StreamResponse {
   text: string;
   done: boolean;
+  audio?: string;  // Optional base64-encoded audio data (TTS response) - full audio
+  audioFormat?: string;  // Audio format (mp3, wav, etc.)
+  audio_chunk?: string;  // Optional streaming audio chunk (base64-encoded)
+  chunk_index?: number;  // Index of the audio chunk for ordering
 }
 
 export interface ApiClient {
-  streamChat(message: string, stream?: boolean, fileIds?: string[]): AsyncGenerator<StreamResponse>;
+  streamChat(
+    message: string, 
+    stream?: boolean, 
+    fileIds?: string[],
+    audioInput?: string,
+    audioFormat?: string,
+    language?: string,
+    returnAudio?: boolean,
+    ttsVoice?: string,
+    sourceLanguage?: string,
+    targetLanguage?: string
+  ): AsyncGenerator<StreamResponse>;
   clearConversationHistory?(sessionId?: string): Promise<{
     status: string;
     message: string;
@@ -97,7 +112,18 @@ export interface ApiClient {
 
 export interface ApiFunctions {
   configureApi: (apiUrl: string, apiKey?: string | null, sessionId?: string | null) => void;
-  streamChat: (message: string, stream?: boolean, fileIds?: string[]) => AsyncGenerator<StreamResponse>;
+  streamChat: (
+    message: string, 
+    stream?: boolean, 
+    fileIds?: string[],
+    audioInput?: string,
+    audioFormat?: string,
+    language?: string,
+    returnAudio?: boolean,
+    ttsVoice?: string,
+    sourceLanguage?: string,
+    targetLanguage?: string
+  ) => AsyncGenerator<StreamResponse>;
   ApiClient: new (config: { apiUrl: string; apiKey?: string | null; sessionId?: string | null }) => ApiClient;
 }
 

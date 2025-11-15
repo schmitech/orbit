@@ -8,6 +8,12 @@ export interface FileAttachment {
   chunk_count?: number;
 }
 
+export interface StreamingAudioChunk {
+  audio: string;  // Base64-encoded audio chunk
+  audioFormat: string;  // Audio format (mp3, wav, opus, etc.)
+  chunkIndex: number;  // Index of the chunk for ordering
+}
+
 export interface Message {
   id: string;
   content: string;
@@ -15,6 +21,10 @@ export interface Message {
   timestamp: Date;
   isStreaming?: boolean;
   attachments?: FileAttachment[];
+  audio?: string;  // Optional base64-encoded audio data (TTS response) - full audio
+  audioFormat?: string;  // Audio format (mp3, wav, etc.)
+  streamingAudioChunks?: StreamingAudioChunk[];  // Streaming audio chunks for incremental playback
+  streamingAudioFormat?: string;  // Format for streaming audio chunks
 }
 
 export interface AdapterInfo {
@@ -22,6 +32,14 @@ export interface AdapterInfo {
   adapter_name: string;
   model: string | null;
   isFileSupported?: boolean;
+}
+
+export interface AudioSettings {
+  enabled: boolean;
+  ttsVoice?: string;  // Voice for TTS: 'alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer' (OpenAI)
+  language?: string;  // Language code: 'en-US', 'es-ES', 'fr-FR', etc.
+  audioFormat?: string;  // Audio format: 'mp3', 'wav', 'opus', etc.
+  autoPlay?: boolean;  // Auto-play TTS responses
 }
 
 export interface Conversation {
@@ -35,6 +53,7 @@ export interface Conversation {
   apiKey?: string; // API key associated with this conversation
   apiUrl?: string; // API URL associated with this conversation
   adapterInfo?: AdapterInfo; // Adapter information (client_name, model)
+  audioSettings?: AudioSettings; // Audio configuration for this conversation
 }
 
 export interface ChatState {

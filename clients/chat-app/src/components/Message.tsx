@@ -4,6 +4,9 @@ import { Message as MessageType } from '../types';
 import { MarkdownRenderer } from '@schmitech/markdown-renderer';
 import { debugError } from '../utils/debug';
 import { getEnableFeedbackButtons } from '../utils/runtimeConfig';
+import { AudioPlayer } from './AudioPlayer';
+import { StreamingAudioPlayer } from './StreamingAudioPlayer';
+import { sanitizeMessageContent, truncateLongContent } from '../utils/contentValidation';
 
 interface MessageProps {
   message: MessageType;
@@ -91,7 +94,7 @@ export function Message({ message, onRegenerate }: MessageProps) {
                 <span className="inline-block h-2.5 w-2.5 animate-bounce rounded-full bg-gray-400 dark:bg-[#bfc2cd]" style={{ animationDelay: '300ms' }} />
               </div>
             ) : (
-              <MarkdownRenderer content={message.content || ''} />
+              <MarkdownRenderer content={truncateLongContent(sanitizeMessageContent(message.content || ''))} />
             )}
           </div>
 
@@ -118,6 +121,24 @@ export function Message({ message, onRegenerate }: MessageProps) {
                 </div>
               ))}
             </div>
+          )}
+
+          {/* Streaming audio player for incremental TTS chunks */}
+          {message.streamingAudioChunks && message.streamingAudioChunks.length > 0 && isAssistant && (
+            <StreamingAudioPlayer
+              audioChunks={message.streamingAudioChunks}
+              audioFormat={message.streamingAudioFormat || 'opus'}
+              autoPlay={false}
+            />
+          )}
+
+          {/* Audio player for full TTS responses (fallback) */}
+          {message.audio && !message.streamingAudioChunks && isAssistant && !message.isStreaming && (
+            <AudioPlayer
+              audio={message.audio}
+              audioFormat={message.audioFormat}
+              autoPlay={false}
+            />
           )}
 
           {message.isStreaming && message.content && message.content !== '…' && (
