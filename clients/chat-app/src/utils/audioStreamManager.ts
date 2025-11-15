@@ -24,34 +24,16 @@ class AudioStreamManager {
   private onChunkPlayed: ((chunkIndex: number) => void) | null = null;
   private blobUrls: string[] = [];
 
-  constructor() {
-    // Check if audio autoplay is likely to work
-    this.checkAutoplaySupport();
-  }
-
-  private async checkAutoplaySupport(): Promise<void> {
-    try {
-      // Create a silent audio context to test autoplay
-      if (typeof AudioContext !== 'undefined') {
-        this.audioContext = new AudioContext();
-        if (this.audioContext.state === 'suspended') {
-          debugLog('[AudioStreamManager] AudioContext suspended - waiting for user interaction');
-        } else {
-          this.isEnabled = true;
-          debugLog('[AudioStreamManager] AudioContext active - autoplay should work');
-        }
-      }
-    } catch (err) {
-      debugError('[AudioStreamManager] Failed to create AudioContext:', err);
-    }
-  }
-
   /**
    * Enable audio playback after user interaction (required by browsers)
    * Call this after a user gesture like clicking a button
    */
   public async enableAudio(): Promise<boolean> {
     try {
+      if (!this.audioContext && typeof AudioContext !== 'undefined') {
+        this.audioContext = new AudioContext();
+      }
+
       if (this.audioContext && this.audioContext.state === 'suspended') {
         await this.audioContext.resume();
       }

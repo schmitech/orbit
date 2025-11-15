@@ -20,6 +20,7 @@ export function useVoice(onResult: (text: string) => void): UseVoiceReturn {
   const [isListening, setIsListening] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const pendingTranscriptRef = useRef<string>('');
 
   const isSupported = typeof window !== 'undefined' && 
     ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window);
@@ -51,20 +52,32 @@ export function useVoice(onResult: (text: string) => void): UseVoiceReturn {
 
       recognition.onresult = (event) => {
         let finalTranscript = '';
+        let interimTranscript = '';
         
         for (let i = event.resultIndex; i < event.results.length; i++) {
           const transcript = event.results[i][0].transcript;
           if (event.results[i].isFinal) {
             finalTranscript += transcript;
+          } else {
+            interimTranscript += transcript;
           }
         }
         
+        if (interimTranscript) {
+          pendingTranscriptRef.current = interimTranscript;
+        }
+        
         if (finalTranscript) {
+          pendingTranscriptRef.current = '';
           onResult(' ' + finalTranscript);
         }
       };
 
       recognition.onend = () => {
+        if (pendingTranscriptRef.current) {
+          onResult(' ' + pendingTranscriptRef.current);
+          pendingTranscriptRef.current = '';
+        }
         setIsListening(false);
         recognitionRef.current = null;
         debugLog('Speech recognition ended');
@@ -74,6 +87,7 @@ export function useVoice(onResult: (text: string) => void): UseVoiceReturn {
         debugError('Speech recognition error:', event.error);
         setIsListening(false);
         recognitionRef.current = null;
+        pendingTranscriptRef.current = '';
         
         switch (event.error) {
           case 'no-speech':
@@ -107,6 +121,7 @@ export function useVoice(onResult: (text: string) => void): UseVoiceReturn {
       recognitionRef.current.stop();
       recognitionRef.current = null;
     }
+    pendingTranscriptRef.current = '';
     setIsListening(false);
     setError(null);
   }, []);

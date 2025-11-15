@@ -131,13 +131,6 @@ export function Message({ message, onRegenerate }: MessageProps) {
             />
           )}
 
-          {message.isStreaming && message.content && message.content !== '…' && (
-            <div className="mt-3 flex items-center gap-1.5">
-              <span className="inline-block h-2.5 w-2.5 animate-bounce rounded-full bg-gray-400 dark:bg-[#bfc2cd]" style={{ animationDelay: '0ms' }} />
-              <span className="inline-block h-2.5 w-2.5 animate-bounce rounded-full bg-gray-400 dark:bg-[#bfc2cd]" style={{ animationDelay: '150ms' }} />
-              <span className="inline-block h-2.5 w-2.5 animate-bounce rounded-full bg-gray-400 dark:bg-[#bfc2cd]" style={{ animationDelay: '300ms' }} />
-            </div>
-          )}
         </div>
 
         {isAssistant && !message.isStreaming && (
