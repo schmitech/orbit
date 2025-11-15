@@ -280,6 +280,15 @@ class RouteConfigurator:
             messages: List[Dict[str, str]]
             stream: bool = False
             file_ids: Optional[List[str]] = None  # Optional list of file IDs for file context
+            # Audio input parameters (for STT)
+            audio_input: Optional[str] = None  # Base64-encoded audio data for STT
+            audio_format: Optional[str] = None  # Audio format (mp3, wav, etc.)
+            language: Optional[str] = None  # Language code for STT (e.g., "en-US")
+            # Audio output parameters (for TTS)
+            return_audio: Optional[bool] = None  # Whether to return audio response (TTS)
+            tts_voice: Optional[str] = None  # Voice for TTS (e.g., "alloy", "echo" for OpenAI)
+            source_language: Optional[str] = None  # Source language for translation
+            target_language: Optional[str] = None  # Target language for translation
 
         @app.post("/v1/chat", operation_id="chat")
         async def chat_endpoint(
@@ -308,6 +317,15 @@ class RouteConfigurator:
             
             # Extract file_ids from request (for file context in conversations)
             file_ids = chat_request.file_ids or []
+            
+            # Extract audio parameters
+            audio_input = chat_request.audio_input
+            audio_format = chat_request.audio_format
+            language = chat_request.language
+            return_audio = chat_request.return_audio
+            tts_voice = chat_request.tts_voice
+            source_language = chat_request.source_language
+            target_language = chat_request.target_language
 
             if chat_request.stream:
                 async def stream_generator():
@@ -319,7 +337,14 @@ class RouteConfigurator:
                         api_key=api_key,
                         session_id=session_id,
                         user_id=user_id,
-                        file_ids=file_ids
+                        file_ids=file_ids,
+                        audio_input=audio_input,
+                        audio_format=audio_format,
+                        language=language,
+                        return_audio=return_audio,
+                        tts_voice=tts_voice,
+                        source_language=source_language,
+                        target_language=target_language
                     ):
                         yield chunk
 
@@ -341,7 +366,14 @@ class RouteConfigurator:
                     api_key=api_key,
                     session_id=session_id,
                     user_id=user_id,
-                    file_ids=file_ids
+                    file_ids=file_ids,
+                    audio_input=audio_input,
+                    audio_format=audio_format,
+                    language=language,
+                    return_audio=return_audio,
+                    tts_voice=tts_voice,
+                    source_language=source_language,
+                    target_language=target_language
                 )
                 return result
     

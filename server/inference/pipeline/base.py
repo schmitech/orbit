@@ -54,6 +54,21 @@ class ProcessingContext:
     # File context
     file_ids: List[str] = field(default_factory=list)  # Optional list of file IDs for file context
     
+    # Audio input parameters (for STT)
+    audio_input: Optional[str] = None  # Base64-encoded audio data for STT
+    audio_format: Optional[str] = None  # Audio format (mp3, wav, etc.)
+    language: Optional[str] = None  # Language code for STT (e.g., "en-US")
+    
+    # Audio output parameters (for TTS)
+    return_audio: Optional[bool] = None  # Whether to return audio response (TTS)
+    tts_voice: Optional[str] = None  # Voice for TTS (e.g., "alloy", "echo" for OpenAI)
+    source_language: Optional[str] = None  # Source language for translation
+    target_language: Optional[str] = None  # Target language for translation
+    
+    # Audio output data
+    audio_response: Optional[bytes] = None  # Generated audio data (TTS)
+    audio_response_format: Optional[str] = None  # Format of generated audio
+    
     def has_error(self) -> bool:
         """Check if the context has an error."""
         return self.is_blocked or self.error is not None

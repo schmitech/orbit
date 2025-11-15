@@ -69,6 +69,7 @@ Available Audio Services:
     - OllamaAudioService: Ollama audio (local audio models)
     - CohereAudioService: Cohere audio (placeholder - not yet supported)
     - ElevenLabsAudioService: ElevenLabs audio (high-quality TTS)
+    - WhisperAudioService: Direct Whisper integration (local, offline STT)
 
 More implementations will be added as migration progresses.
 """
@@ -146,6 +147,7 @@ _implementations = [
     ('ollama_audio_service', 'OllamaAudioService'),
     ('cohere_audio_service', 'CohereAudioService'),
     ('elevenlabs_audio_service', 'ElevenLabsAudioService'),
+    ('whisper_audio_service', 'WhisperAudioService'),
 ]
 
 # Map service classes to their required SDK packages for commercial/cloud providers

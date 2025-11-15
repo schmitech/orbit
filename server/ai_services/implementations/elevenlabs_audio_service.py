@@ -34,9 +34,13 @@ class ElevenLabsAudioService(AudioService, ProviderAIService):
         # Get audio-specific configuration
         provider_config = self._extract_provider_config()
 
-        # API configuration - check environment variable if not in config
-        import os
-        self.api_key = provider_config.get('api_key') or os.getenv('ELEVENLABS_API_KEY', '')
+        # API configuration - use base class method for API key resolution
+        self.api_key = self._resolve_api_key("ELEVENLABS_API_KEY", "api_key")
+        if not self.api_key:
+            raise ValueError(
+                "ElevenLabs API key is required. Set ELEVENLABS_API_KEY environment "
+                "variable or provide in configuration."
+            )
         self.api_base = provider_config.get('api_base', 'https://api.elevenlabs.io/v1')
 
         # TTS configuration
@@ -62,7 +66,7 @@ class ElevenLabsAudioService(AudioService, ProviderAIService):
             if self.initialized:
                 return True
 
-            # Validate API key
+            # API key should already be validated in __init__, but double-check
             if not self.api_key:
                 raise ValueError(
                     "ElevenLabs API key is required. "

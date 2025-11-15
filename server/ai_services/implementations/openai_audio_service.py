@@ -67,10 +67,20 @@ class OpenAIAudioService(AudioService, OpenAIBaseService):
                 **kwargs
             )
 
-            # Read audio data
-            audio_data = b""
-            async for chunk in response:
-                audio_data += chunk
+            # Read audio data from HttpxBinaryResponseContent
+            # The response object has a .read() method or .content attribute
+            if hasattr(response, 'read'):
+                # Async read method
+                audio_data = await response.aread() if hasattr(response, 'aread') else response.read()
+            elif hasattr(response, 'content'):
+                # Direct content access
+                audio_data = response.content
+            elif hasattr(response, 'iter_bytes'):
+                # Sync iterator
+                audio_data = b"".join(response.iter_bytes())
+            else:
+                # Fallback: try to convert to bytes
+                audio_data = bytes(response)
 
             return audio_data
 

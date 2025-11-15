@@ -1,6 +1,6 @@
 # Global sound configuration
 sound:
-  provider: "openai"  # Default sound provider: openai, google, anthropic, ollama, cohere
+  provider: "openai"  # Default sound provider: openai, google, anthropic, ollama, cohere, elevenlabs
   enabled: true       # Whether sound processing is enabled globally
 
 # Provider-specific configurations
@@ -139,5 +139,54 @@ sounds:
       max_retries: 3
       initial_wait_ms: 1000
       max_wait_ms: 30000
+      exponential_base: 2
+
+  whisper:
+    # Direct integration with OpenAI's open-source Whisper (https://github.com/openai/whisper)
+    # This runs Whisper locally on your machine - no API costs, completely free!
+    # Requires: pip install openai-whisper
+    enabled: true
+    # Model size selection (trade-off between speed and accuracy)
+    # tiny: ~39M params, ~32x faster, ~1GB VRAM - Fast but less accurate
+    # base: ~74M params, ~16x faster, ~1GB VRAM - Good for quick transcription
+    # small: ~244M params, ~6x faster, ~2GB VRAM - **RECOMMENDED** - Best balance
+    # medium: ~769M params, ~2x faster, ~5GB VRAM - High quality
+    # large-v3: ~1550M params, 1x speed, ~10GB VRAM - Best accuracy
+    model_size: "base"  # Options: tiny, base, small, medium, large-v3
+
+    # Device selection
+    device: "auto"  # Options: auto, cpu, cuda
+    # - auto: Automatically use GPU if available, otherwise CPU
+    # - cpu: Force CPU usage (slower but works on any machine)
+    # - cuda: Force GPU usage (requires NVIDIA GPU + CUDA)
+
+    # Compute type (affects speed/memory)
+    compute_type: "default"  # Options: default, int8, float16
+    # - default: Standard precision
+    # - int8: 8-bit quantization (faster, less VRAM, slight quality loss)
+    # - float16: Half precision (faster on GPU, less VRAM)
+
+    # Default language (null = auto-detect)
+    language: null  # Options: null (auto), "en", "es", "fr", "de", etc. (99 languages supported)
+
+    # Default task
+    task: "transcribe"  # Options: transcribe, translate
+    # - transcribe: Convert speech to text in original language
+    # - translate: Convert speech to English text (Whisper can only translate TO English)
+
+    # Note: Whisper is STT-only. For TTS, use OpenAI API, Google, or ElevenLabs
+    tts_model: null  # Whisper does not support TTS
+
+    # Timeout configuration (local processing, so timeouts are less critical)
+    timeout:
+      connect: 5000    # 5 seconds (local connection)
+      total: 300000    # 5 minutes (for very long audio files)
+
+    # Retry configuration
+    retry:
+      enabled: false   # Usually not needed for local processing
+      max_retries: 1
+      initial_wait_ms: 1000
+      max_wait_ms: 5000
       exponential_base: 2
 
