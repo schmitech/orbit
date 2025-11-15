@@ -106,6 +106,16 @@ class FileProcessingService:
             'image/bmp',
             'image/tiff',
             'image/webp',
+            # Audio types
+            'audio/wav',
+            'audio/mpeg',
+            'audio/mp3',
+            'audio/mp4',
+            'audio/ogg',
+            'audio/flac',
+            'audio/webm',
+            'audio/x-m4a',
+            'audio/aac',
         ])
 
         # Vision service configuration - follows same pattern as embeddings/inference
@@ -130,6 +140,29 @@ class FileProcessingService:
             model = provider_config.get('model', 'default')
             self.logger.info(f"Default vision service configured: provider={self.default_vision_provider}, model={model}")
             self.logger.info("Vision provider can be overridden per-upload based on API key's adapter configuration")
+
+        # Audio service configuration - follows same pattern as vision/embeddings/inference
+        # Priority: adapter config > global sound config > default
+        # NOTE: Default audio provider is set here, but can be overridden per-file based on API key's adapter
+        sound_config = config.get('sound', {})
+
+        # Enable/disable audio processing
+        # Priority: adapter config > global sound config > default True
+        self.enable_audio = config.get('enable_audio', sound_config.get('enabled', True))
+
+        # Get DEFAULT audio provider (can be overridden per-upload based on adapter)
+        # Priority: adapter config > global sound config > default
+        self.default_audio_provider = config.get('audio_provider', sound_config.get('provider', 'openai'))
+
+        # Get provider-specific configs from 'sounds' section (plural, like 'embeddings', 'inferences')
+        self.audio_config = config.get('sounds', {})
+
+        # Log default audio configuration
+        if self.enable_audio:
+            provider_config = self.audio_config.get(self.default_audio_provider, {})
+            model = provider_config.get('stt_model', 'default')
+            self.logger.info(f"Default audio service configured: provider={self.default_audio_provider}, model={model}")
+            self.logger.info("Audio provider can be overridden per-upload based on API key's adapter configuration")
     
     def _init_storage(self) -> FilesystemStorage:
         """Initialize storage backend."""
@@ -278,6 +311,49 @@ class FileProcessingService:
         self.logger.debug(f"Using default vision provider '{self.default_vision_provider}' for api_key: {api_key[:8]}...")
         return self.default_vision_provider
 
+    async def _get_audio_provider_for_api_key(self, api_key: str) -> str:
+        """
+        Get the audio provider for a given API key by looking up its adapter configuration.
+
+        This enables adapter-specific audio provider overrides (e.g., adapter A uses OpenAI, adapter B uses Google).
+
+        Args:
+            api_key: The API key to lookup
+
+        Returns:
+            Audio provider name (e.g., 'openai', 'google', 'ollama')
+        """
+        try:
+            # Try to get adapter manager from app state
+            if self.app_state and hasattr(self.app_state, 'dynamic_adapter_manager'):
+                adapter_manager = self.app_state.dynamic_adapter_manager
+
+                # Get API key service to lookup which adapter this API key uses
+                if hasattr(self.app_state, 'api_key_service'):
+                    api_key_service = self.app_state.api_key_service
+
+                    # Get adapter name for this API key (pass adapter_manager to check live configs)
+                    adapter_name, _ = await api_key_service.get_adapter_for_api_key(api_key, adapter_manager)
+
+                    if adapter_name:
+                        # Get adapter config from adapter manager
+                        adapter_config = adapter_manager.get_adapter_config(adapter_name)
+
+                        if adapter_config:
+                            # Check if adapter has audio_provider override
+                            audio_provider = adapter_config.get('audio_provider')
+
+                            if audio_provider:
+                                self.logger.info(f"Using adapter-specific audio provider '{audio_provider}' for adapter '{adapter_name}' (api_key: {api_key[:8]}...)")
+                                return audio_provider
+
+        except Exception as e:
+            self.logger.warning(f"Could not lookup adapter-specific audio provider for API key: {e}")
+
+        # Fall back to default audio provider
+        self.logger.debug(f"Using default audio provider '{self.default_audio_provider}' for api_key: {api_key[:8]}...")
+        return self.default_audio_provider
+
     async def quick_upload(
         self,
         file_data: bytes,
@@ -424,6 +500,75 @@ class FileProcessingService:
 
             # Don't raise - let background task complete gracefully
             # The file is now marked as "failed" so users can see the error
+
+    async def _extract_audio_content(
+        self,
+        file_data: bytes,
+        filename: str,
+        mime_type: str,
+        api_key: str,
+        transcription_language: Optional[str] = None
+    ) -> tuple[str, Dict[str, Any]]:
+        """Extract content from audio file using audio services for transcription."""
+        import asyncio
+        from ai_services import AIServiceFactory, ServiceType
+
+        try:
+            # Get adapter-specific audio provider (or fallback to default)
+            audio_provider = await self._get_audio_provider_for_api_key(api_key)
+
+            # Get audio service
+            audio_service = AIServiceFactory.create_service(
+                ServiceType.AUDIO,
+                audio_provider,
+                {'sound': self.audio_config}
+            )
+
+            # Initialize if needed
+            if not audio_service.initialized:
+                await audio_service.initialize()
+
+            self.logger.info(f"Starting audio transcription for {filename} (provider: {audio_provider})")
+
+            # Transcribe audio to text
+            try:
+                transcribed_text = await audio_service.transcribe(
+                    audio=file_data,
+                    language=transcription_language
+                )
+            except asyncio.TimeoutError as e:
+                self.logger.error(f"Audio transcription API timeout for {filename}: {e}")
+                raise Exception(f"Audio transcription API request timed out. The audio file may be too large or the API is experiencing latency. Please try again or contact support if the issue persists.")
+            except Exception as e:
+                self.logger.error(f"Audio transcription API error for {filename}: {e}")
+                raise Exception(f"Audio transcription failed: {str(e)}")
+
+            self.logger.info(f"Audio transcription completed for {filename}")
+
+            metadata = {
+                'filename': filename,
+                'mime_type': mime_type,
+                'file_size': len(file_data),
+                'extraction_method': 'audio_transcription',
+                'audio_provider': audio_provider,
+                'transcribed_text': transcribed_text,
+            }
+
+            # Use transcribed text as the content
+            text = transcribed_text
+
+            # Validate that we got meaningful content
+            if not text.strip():
+                self.logger.warning(f"Audio service returned empty transcription for {filename}")
+                raise Exception("Audio service did not transcribe any content from the audio file")
+
+            return text, metadata
+
+        except Exception as e:
+            # Don't swallow exceptions - let them bubble up
+            # This ensures files are marked as "failed" instead of "completed with 0 chunks"
+            self.logger.error(f"Failed to process audio file {filename}: {e}")
+            raise
     
     async def process_file(
         self,
@@ -552,7 +697,11 @@ class FileProcessingService:
         if mime_type not in self.supported_types:
             return False
         
-        # Check if processor exists
+        # Special handling for image and audio files (handled by vision/audio services, not processors)
+        if mime_type.startswith('image/') or mime_type.startswith('audio/'):
+            return True
+        
+        # Check if processor exists for other file types
         processor = self.processor_registry.get_processor(mime_type)
         return processor is not None
     
@@ -569,6 +718,12 @@ class FileProcessingService:
         if self.enable_vision and mime_type.startswith('image/'):
             return await self._extract_image_content(
                 file_data, filename, mime_type, api_key=api_key, vision_prompt=vision_prompt
+            )
+
+        # Check if this is an audio file
+        if self.enable_audio and mime_type.startswith('audio/'):
+            return await self._extract_audio_content(
+                file_data, filename, mime_type, api_key=api_key
             )
 
         processor = self.processor_registry.get_processor(mime_type)

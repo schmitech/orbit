@@ -187,6 +187,14 @@ def create_file_router() -> APIRouter:
                             'scss': 'text/x-scss',
                             'sass': 'text/x-sass',
                             'less': 'text/x-less',
+                            # Audio file extensions
+                            'wav': 'audio/wav',
+                            'mp3': 'audio/mpeg',
+                            'm4a': 'audio/x-m4a',
+                            'ogg': 'audio/ogg',
+                            'flac': 'audio/flac',
+                            'webm': 'audio/webm',
+                            'aac': 'audio/aac',
                         }
                         mime_type = extension_map.get(ext, 'application/octet-stream')
                 else:
@@ -196,8 +204,9 @@ def create_file_router() -> APIRouter:
             if mime_type == 'application/octet-stream':
                 logger.warning(f"Could not determine MIME type for file: {file.filename}")
             
-            # For images, store file and process in background to avoid blocking
-            if mime_type and mime_type.startswith('image/'):
+            # For images and audio files, store file and process in background to avoid blocking
+            # (API calls can take time for vision transcription and audio transcription)
+            if mime_type and (mime_type.startswith('image/') or mime_type.startswith('audio/')):
                 # Quick upload: store file and return immediately
                 file_id = await processing_service.quick_upload(
                     file_data=file_data,
@@ -206,7 +215,7 @@ def create_file_router() -> APIRouter:
                     api_key=x_api_key
                 )
                 
-                # Process image content in background (vision API calls)
+                # Process content in background (vision API calls for images, audio transcription for audio)
                 background_tasks.add_task(
                     processing_service.process_file_content,
                     file_id=file_id,
@@ -214,7 +223,7 @@ def create_file_router() -> APIRouter:
                     filename=file.filename,
                     mime_type=mime_type,
                     api_key=x_api_key,
-                    vision_prompt=prompt
+                    vision_prompt=prompt if mime_type.startswith('image/') else None
                 )
                 
                 logger.info(f"File uploaded (processing in background): {file_id}")

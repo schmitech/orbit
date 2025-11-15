@@ -1,0 +1,1 @@
+# Chat handlers test package
