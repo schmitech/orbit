@@ -7,6 +7,7 @@ import { debugError, debugLog, debugWarn } from '../utils/debug';
 import { getApi } from '../api/loader';
 import { getDefaultKey, getApiUrl } from '../utils/runtimeConfig';
 import { PACKAGE_VERSION } from '../utils/version';
+import { AudioEnableButton } from './AudioEnableButton';
 
 // Note: We use getApiUrl() and getDefaultKey() directly when needed
 // to ensure we always read the latest runtime config (including CLI args)
@@ -285,6 +286,7 @@ export function ChatInterface({ onOpenSettings }: ChatInterfaceProps) {
                 <span className="text-sm text-gray-500 dark:text-[#bfc2cd]">
                   v{PACKAGE_VERSION}
                 </span>
+                <AudioEnableButton />
                 <button
                   onClick={() => {
                     // Load current conversation's API settings if available, otherwise use defaults
@@ -295,8 +297,8 @@ export function ChatInterface({ onOpenSettings }: ChatInterfaceProps) {
                     // If conversation has localhost (default) but runtime config has a different value,
                     // prefer the runtime config (from CLI args or env vars)
                     const conversationApiUrl = currentConversation?.apiUrl;
-                    const currentApiUrl = (conversationApiUrl && conversationApiUrl !== 'http://localhost:3000') 
-                      ? conversationApiUrl 
+                    const currentApiUrl = (conversationApiUrl && conversationApiUrl !== 'http://localhost:3000')
+                      ? conversationApiUrl
                       : runtimeApiUrl;
                     const currentApiKey = currentConversation?.apiKey || getDefaultKey();
                     setApiUrl(currentApiUrl);

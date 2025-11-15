@@ -6,6 +6,7 @@ import { debugLog, debugWarn, debugError, logError } from '../utils/debug';
 import { AppConfig } from '../utils/config';
 import { getDefaultKey, getApiUrl } from '../utils/runtimeConfig';
 import { sanitizeMessageContent, truncateLongContent } from '../utils/contentValidation';
+import { audioStreamManager } from '../utils/audioStreamManager';
 
 // Default API key from runtime configuration
 const DEFAULT_API_KEY = getDefaultKey();
@@ -921,6 +922,9 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       const streamingConversationId = conversationId;
       let receivedAnyText = false;
 
+      // Reset audio stream manager for new response
+      audioStreamManager.reset();
+
       try {
       // Ensure API is configured with the current conversation's session ID and API key
       // Get fresh conversation state to ensure we have the latest API key
@@ -1022,6 +1026,14 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
               audioLength: response.audio_chunk?.length
             });
 
+            // Immediately queue chunk for real-time playback
+            const chunkIndex = response.chunk_index ?? 0;
+            audioStreamManager.addChunk({
+              audio: response.audio_chunk,
+              audioFormat: response.audioFormat || 'opus',
+              chunkIndex: chunkIndex
+            });
+
             set(state => ({
               conversations: state.conversations.map(conv => {
                 if (conv.id !== streamingConversationId) return conv;
@@ -1036,7 +1048,6 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
 
                   // Add new chunk (maintain order by chunk_index)
                   const newChunks = [...streamingAudioChunks];
-                  const chunkIndex = response.chunk_index ?? streamingAudioChunks.length;
 
                   // Insert chunk at correct position
                   newChunks[chunkIndex] = {

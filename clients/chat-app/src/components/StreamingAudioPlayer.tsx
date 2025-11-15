@@ -35,7 +35,7 @@ export function StreamingAudioPlayer({
   const mimeType = audioFormat === 'mp3' ? 'audio/mpeg' :
                   audioFormat === 'wav' ? 'audio/wav' :
                   audioFormat === 'ogg' ? 'audio/ogg' :
-                  audioFormat === 'opus' ? 'audio/opus' :
+                  audioFormat === 'opus' ? 'audio/ogg; codecs=opus' :
                   audioFormat === 'webm' ? 'audio/webm' :
                   `audio/${audioFormat}`;
 
@@ -53,16 +53,27 @@ export function StreamingAudioPlayer({
         setIsLoading(true);
         setError(null);
 
+        debugLog(`[StreamingAudioPlayer] Loading ${audioChunks.length} audio chunks`, {
+          chunkIndices: audioChunks.map(c => c.chunkIndex),
+          alreadyLoaded: Array.from(audioUrlsRef.current.keys())
+        });
+
         // Process all chunks
         for (const chunk of audioChunks) {
           if (!isMounted) return;
 
           // Skip if already loaded
           if (audioUrlsRef.current.has(chunk.chunkIndex)) {
+            debugLog(`[StreamingAudioPlayer] Skipping already loaded chunk ${chunk.chunkIndex}`);
             continue;
           }
 
           try {
+            debugLog(`[StreamingAudioPlayer] Processing chunk ${chunk.chunkIndex}`, {
+              audioLength: chunk.audio?.length,
+              format: chunk.audioFormat
+            });
+
             // Decode base64 to binary
             const binaryString = atob(chunk.audio);
             const bytes = new Uint8Array(binaryString.length);
@@ -85,11 +96,15 @@ export function StreamingAudioPlayer({
               audioElement.addEventListener('loadedmetadata', () => {
                 resolve(undefined);
               });
-              audioElement.addEventListener('error', reject);
+              audioElement.addEventListener('error', (e) => {
+                debugError(`[StreamingAudioPlayer] Audio element error for chunk ${chunk.chunkIndex}:`, e);
+                reject(e);
+              });
             });
 
             debugLog(`[StreamingAudioPlayer] Loaded chunk ${chunk.chunkIndex}`, {
-              duration: audioElement.duration
+              duration: audioElement.duration,
+              blobSize: audioBlob.size
             });
           } catch (err) {
             debugError(`[StreamingAudioPlayer] Failed to load chunk ${chunk.chunkIndex}:`, err);
@@ -301,13 +316,6 @@ export function StreamingAudioPlayer({
         {/* Audio icon */}
         <Volume2 className="h-4 w-4 text-gray-500 dark:text-[#bfc2cd]" />
       </div>
-      
-      {/* Chunk loading status */}
-      {audioChunks.length > 0 && (
-        <div className="text-xs text-gray-500 dark:text-[#bfc2cd] px-1">
-          {audioElementsRef.current.size} / {audioChunks.length} chunks loaded
-        </div>
-      )}
     </div>
   );
 }
