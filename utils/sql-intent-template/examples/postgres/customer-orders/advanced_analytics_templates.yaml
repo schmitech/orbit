@@ -24,7 +24,7 @@ templates:
           MAX(order_date)::date AS last_order_date,
           COUNT(*) AS total_orders
         FROM orders 
-        WHERE order_date >= CURRENT_DATE - INTERVAL '%(days_back)s days'
+        WHERE order_date >= CURRENT_DATE - (INTERVAL '1 day' * %(days_back)s)
           AND status != 'cancelled'
         GROUP BY customer_id
       ),
@@ -166,7 +166,7 @@ templates:
           STDDEV(total) as order_value_stddev,
           PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY total) as median_order_value
         FROM orders
-        WHERE order_date >= CURRENT_DATE - INTERVAL '%(days_back)s days'
+        WHERE order_date >= CURRENT_DATE - (INTERVAL '1 day' * %(days_back)s)
           AND status != 'cancelled'
         GROUP BY customer_id
         HAVING COUNT(*) >= 2
@@ -247,7 +247,7 @@ templates:
           total,
           NTILE(10) OVER (ORDER BY total) as decile
         FROM orders 
-        WHERE order_date >= CURRENT_DATE - INTERVAL '%(days_back)s days'
+        WHERE order_date >= CURRENT_DATE - (INTERVAL '1 day' * %(days_back)s)
           AND status != 'cancelled'
       )
       SELECT 
@@ -320,7 +320,7 @@ templates:
         RANK() OVER (ORDER BY SUM(o.total) DESC) as revenue_rank
       FROM customers c
       JOIN orders o ON c.id = o.customer_id
-      WHERE o.order_date >= CURRENT_DATE - INTERVAL '%(days_back)s days'
+      WHERE o.order_date >= CURRENT_DATE - (INTERVAL '1 day' * %(days_back)s)
         AND o.status != 'cancelled'
         AND c.country IS NOT NULL
         AND c.city IS NOT NULL
@@ -371,7 +371,7 @@ templates:
         LEFT JOIN orders o ON c.id = o.customer_id 
           AND o.status != 'cancelled'
           AND o.order_date <= c.created_at + INTERVAL '30 days'
-        WHERE c.created_at >= CURRENT_DATE - INTERVAL '%(days_back)s days'
+        WHERE c.created_at >= CURRENT_DATE - (INTERVAL '1 day' * %(days_back)s)
         GROUP BY c.id, c.name, c.created_at
       )
       SELECT 
@@ -424,7 +424,7 @@ templates:
         AVG(total) as avg_order_value,
         ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 2) as percentage_of_orders
       FROM orders
-      WHERE order_date >= CURRENT_DATE - INTERVAL '%(days_back)s days'
+      WHERE order_date >= CURRENT_DATE - (INTERVAL '1 day' * %(days_back)s)
         AND status != 'cancelled'
       GROUP BY EXTRACT(HOUR FROM order_date), TO_CHAR(order_date, 'Day')
       ORDER BY order_count DESC
@@ -466,7 +466,7 @@ templates:
           NTILE(100) OVER (ORDER BY SUM(o.total)) as percentile
         FROM customers c
         JOIN orders o ON c.id = o.customer_id
-        WHERE o.order_date >= CURRENT_DATE - INTERVAL '%(days_back)s days'
+        WHERE o.order_date >= CURRENT_DATE - (INTERVAL '1 day' * %(days_back)s)
           AND o.status != 'cancelled'
         GROUP BY c.id, c.name, c.email, c.city, c.country
       )

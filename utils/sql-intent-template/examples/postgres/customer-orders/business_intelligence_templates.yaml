@@ -135,7 +135,7 @@ templates:
           customer_id,
           COUNT(*) as order_count
         FROM orders 
-        WHERE order_date >= CURRENT_DATE - INTERVAL '%(days_back)s days'
+        WHERE order_date >= CURRENT_DATE - (INTERVAL '1 day' * %(days_back)s)
           AND status != 'cancelled'
         GROUP BY customer_id
       )
@@ -185,7 +185,7 @@ templates:
         AVG(o.total) as average_order_value,
         ROUND(COUNT(o.id) * 100.0 / SUM(COUNT(o.id)) OVER(), 2) as percentage_of_orders
       FROM orders o
-      WHERE o.order_date >= CURRENT_DATE - INTERVAL '%(days_back)s days'
+      WHERE o.order_date >= CURRENT_DATE - (INTERVAL '1 day' * %(days_back)s)
         AND o.status != 'cancelled'
       GROUP BY TO_CHAR(o.order_date, 'Day'), EXTRACT(DOW FROM o.order_date)
       ORDER BY total_orders DESC
@@ -223,7 +223,7 @@ templates:
           SUM(o.total) as total_spent
         FROM customers c
         JOIN orders o ON c.id = o.customer_id
-        WHERE o.order_date >= CURRENT_DATE - INTERVAL '%(days_back)s days'
+        WHERE o.order_date >= CURRENT_DATE - (INTERVAL '1 day' * %(days_back)s)
           AND o.status != 'cancelled'
         GROUP BY c.id, c.name, c.city, c.country
       )
@@ -287,7 +287,7 @@ templates:
           ELSE 'Other'
         END as status_category
       FROM orders o
-      WHERE o.order_date >= CURRENT_DATE - INTERVAL '%(days_back)s days'
+      WHERE o.order_date >= CURRENT_DATE - (INTERVAL '1 day' * %(days_back)s)
       GROUP BY o.status
       ORDER BY order_count DESC
     result_format: "table"
@@ -333,7 +333,7 @@ templates:
         MIN(o.total) as min_order_value,
         MAX(o.total) as max_order_value
       FROM orders o
-      WHERE o.order_date >= CURRENT_DATE - INTERVAL '%(days_back)s days'
+      WHERE o.order_date >= CURRENT_DATE - (INTERVAL '1 day' * %(days_back)s)
         AND o.status != 'cancelled'
       GROUP BY 
         CASE 

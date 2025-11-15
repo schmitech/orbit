@@ -162,7 +162,7 @@ templates:
           END as customer_type
         FROM customers c
         JOIN orders o ON c.id = o.customer_id
-        WHERE o.order_date >= CURRENT_DATE - INTERVAL '%(days_back)s days'
+        WHERE o.order_date >= CURRENT_DATE - (INTERVAL '1 day' * %(days_back)s)
           AND o.status != 'cancelled'
         GROUP BY c.id, c.name
       )
@@ -233,7 +233,7 @@ templates:
         RANK() OVER (ORDER BY SUM(o.total) DESC) as revenue_rank
       FROM customers c
       JOIN orders o ON c.id = o.customer_id
-      WHERE o.order_date >= CURRENT_DATE - INTERVAL '%(days_back)s days'
+      WHERE o.order_date >= CURRENT_DATE - (INTERVAL '1 day' * %(days_back)s)
         AND o.status != 'cancelled'
         AND c.country IS NOT NULL
       GROUP BY 
@@ -283,21 +283,21 @@ templates:
       WITH period_comparison AS (
         SELECT 
           CASE 
-            WHEN order_date >= CURRENT_DATE - INTERVAL '%(current_period_days)s days' THEN 'Current Period'
-            WHEN order_date >= CURRENT_DATE - INTERVAL '%(current_period_days)s days' - INTERVAL '%(previous_period_days)s days'
-                 AND order_date < CURRENT_DATE - INTERVAL '%(current_period_days)s days' THEN 'Previous Period'
+            WHEN order_date >= CURRENT_DATE - (INTERVAL '1 day' * %(current_period_days)s) THEN 'Current Period'
+            WHEN order_date >= CURRENT_DATE - (INTERVAL '1 day' * %(current_period_days)s) - (INTERVAL '1 day' * %(previous_period_days)s)
+                 AND order_date < CURRENT_DATE - (INTERVAL '1 day' * %(current_period_days)s) THEN 'Previous Period'
             ELSE 'Other'
           END as period,
           status,
           COUNT(*) as order_count,
           SUM(total) as total_revenue
         FROM orders
-        WHERE order_date >= CURRENT_DATE - INTERVAL '%(current_period_days)s days' - INTERVAL '%(previous_period_days)s days'
+        WHERE order_date >= CURRENT_DATE - (INTERVAL '1 day' * %(current_period_days)s) - (INTERVAL '1 day' * %(previous_period_days)s)
         GROUP BY 
           CASE 
-            WHEN order_date >= CURRENT_DATE - INTERVAL '%(current_period_days)s days' THEN 'Current Period'
-            WHEN order_date >= CURRENT_DATE - INTERVAL '%(current_period_days)s days' - INTERVAL '%(previous_period_days)s days'
-                 AND order_date < CURRENT_DATE - INTERVAL '%(current_period_days)s days' THEN 'Previous Period'
+            WHEN order_date >= CURRENT_DATE - (INTERVAL '1 day' * %(current_period_days)s) THEN 'Current Period'
+            WHEN order_date >= CURRENT_DATE - (INTERVAL '1 day' * %(current_period_days)s) - (INTERVAL '1 day' * %(previous_period_days)s)
+                 AND order_date < CURRENT_DATE - (INTERVAL '1 day' * %(current_period_days)s) THEN 'Previous Period'
             ELSE 'Other'
           END,
           status
@@ -443,7 +443,7 @@ templates:
         ROUND(((SUM(total) - LAG(SUM(total)) OVER (ORDER BY DATE_TRUNC('week', order_date))) / 
                NULLIF(LAG(SUM(total)) OVER (ORDER BY DATE_TRUNC('week', order_date)), 0)) * 100, 2) as revenue_change_percent
       FROM orders
-      WHERE order_date >= CURRENT_DATE - INTERVAL '%(weeks_to_compare)s weeks'
+      WHERE order_date >= CURRENT_DATE - (INTERVAL '1 week' * %(weeks_to_compare)s)
         AND status != 'cancelled'
       GROUP BY DATE_TRUNC('week', order_date), EXTRACT(WEEK FROM order_date)
       ORDER BY week_start DESC
@@ -494,7 +494,7 @@ templates:
           END as value_segment
         FROM orders o
         JOIN customers c ON o.customer_id = c.id
-        WHERE o.order_date >= CURRENT_DATE - INTERVAL '%(days_back)s days'
+        WHERE o.order_date >= CURRENT_DATE - (INTERVAL '1 day' * %(days_back)s)
           AND o.status != 'cancelled'
       )
       SELECT 

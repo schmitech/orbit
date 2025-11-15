@@ -115,7 +115,7 @@ templates:
       WHERE 1=1
         {% if min_order_id %}AND o.id >= %(min_order_id)s{% endif %}
         {% if max_order_id %}AND o.id <= %(max_order_id)s{% endif %}
-        {% if days_back %}AND o.order_date >= CURRENT_DATE - INTERVAL '%(days_back)s days'{% endif %}
+        {% if days_back %}AND o.order_date >= CURRENT_DATE - (INTERVAL '1 day' * %(days_back)s){% endif %}
       ORDER BY o.id DESC
       LIMIT 100
     result_format: "table"
@@ -155,7 +155,7 @@ templates:
       FROM orders o
       JOIN customers c ON o.customer_id = c.id
       WHERE LOWER(c.name) LIKE LOWER(%(customer_name)s)
-        AND o.order_date >= CURRENT_DATE - INTERVAL '%(days_back)s days'
+        AND o.order_date >= CURRENT_DATE - (INTERVAL '1 day' * %(days_back)s)
       ORDER BY o.order_date DESC
       LIMIT 100
     result_format: "table"
@@ -191,7 +191,7 @@ templates:
       FROM orders o
       JOIN customers c ON o.customer_id = c.id
       WHERE LOWER(c.name) LIKE LOWER(%(customer_name)s)
-        AND o.order_date >= CURRENT_DATE - INTERVAL '%(days_back)s days'
+        AND o.order_date >= CURRENT_DATE - (INTERVAL '1 day' * %(days_back)s)
       ORDER BY o.order_date DESC
       LIMIT 100
     result_format: "table"
@@ -239,7 +239,7 @@ templates:
              MIN(o.order_date) as first_order_date
       FROM customers c
       JOIN orders o ON c.id = o.customer_id
-      WHERE o.order_date >= CURRENT_DATE - INTERVAL '%(days_back)s days'
+      WHERE o.order_date >= CURRENT_DATE - (INTERVAL '1 day' * %(days_back)s)
       GROUP BY c.id, c.name, c.email, c.city, c.country
       ORDER BY last_order_date DESC, total_spent DESC
       LIMIT 100
@@ -277,7 +277,7 @@ templates:
       FROM orders o
       JOIN customers c ON o.customer_id = c.id
       WHERE c.id = %(customer_id)s
-        AND o.order_date >= CURRENT_DATE - INTERVAL '%(days_back)s days'
+        AND o.order_date >= CURRENT_DATE - (INTERVAL '1 day' * %(days_back)s)
       ORDER BY o.order_date DESC
       LIMIT 100
     result_format: "table"
@@ -315,7 +315,7 @@ templates:
       FROM orders o
       JOIN customers c ON o.customer_id = c.id
       WHERE o.total > %(min_amount)s
-        AND o.order_date >= CURRENT_DATE - INTERVAL '%(days_back)s days'
+        AND o.order_date >= CURRENT_DATE - (INTERVAL '1 day' * %(days_back)s)
       ORDER BY o.total DESC, o.order_date DESC
       LIMIT 100
     result_format: "table"
@@ -382,7 +382,7 @@ templates:
       SELECT o.*, c.name as customer_name, c.email as customer_email
       FROM orders o
       JOIN customers c ON o.customer_id = c.id
-      WHERE o.order_date >= CURRENT_DATE - INTERVAL '%(days_back)s days'
+      WHERE o.order_date >= CURRENT_DATE - (INTERVAL '1 day' * %(days_back)s)
       ORDER BY o.total DESC
       LIMIT %(limit)s
     result_format: "table"
@@ -419,7 +419,7 @@ templates:
       FROM orders o
       JOIN customers c ON o.customer_id = c.id
       WHERE o.total < %(max_amount)s
-        AND o.order_date >= CURRENT_DATE - INTERVAL '%(days_back)s days'
+        AND o.order_date >= CURRENT_DATE - (INTERVAL '1 day' * %(days_back)s)
       ORDER BY o.total ASC, o.order_date DESC
       LIMIT 100
     result_format: "table"
@@ -491,7 +491,7 @@ templates:
       SELECT o.*, c.name as customer_name, c.email as customer_email
       FROM orders o
       JOIN customers c ON o.customer_id = c.id
-      WHERE o.order_date >= CURRENT_DATE - INTERVAL '%(days_back)s days'
+      WHERE o.order_date >= CURRENT_DATE - (INTERVAL '1 day' * %(days_back)s)
       ORDER BY o.total ASC
       LIMIT %(limit)s
     result_format: "table"
@@ -604,7 +604,7 @@ templates:
       FROM orders o
       JOIN customers c ON o.customer_id = c.id
       WHERE o.status = %(status)s
-        AND o.order_date >= CURRENT_DATE - INTERVAL '%(days_back)s days'
+        AND o.order_date >= CURRENT_DATE - (INTERVAL '1 day' * %(days_back)s)
       ORDER BY o.order_date DESC
       LIMIT 100
     result_format: "table"
@@ -1136,7 +1136,7 @@ templates:
       WHERE c.id NOT IN (
         SELECT DISTINCT customer_id
         FROM orders
-        WHERE order_date >= CURRENT_DATE - INTERVAL '%(days_inactive)s days'
+        WHERE order_date >= CURRENT_DATE - (INTERVAL '1 day' * %(days_inactive)s)
       )
       GROUP BY c.id, c.name, c.email, c.city, c.country, c.created_at
       ORDER BY last_order_date ASC NULLS LAST
@@ -1311,7 +1311,7 @@ templates:
         COALESCE(SUM(o.total), 0) as total_spent
       FROM customers c
       LEFT JOIN orders o ON c.id = o.customer_id
-      WHERE c.created_at >= CURRENT_DATE - INTERVAL '%(days_back)s days'
+      WHERE c.created_at >= CURRENT_DATE - (INTERVAL '1 day' * %(days_back)s)
       GROUP BY c.id, c.name, c.email, c.phone, c.city, c.country, c.created_at
       ORDER BY c.created_at DESC
       LIMIT 100

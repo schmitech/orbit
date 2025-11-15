@@ -799,6 +799,7 @@ JSON:"""
 
             # Check for different parameter formats
             has_named_params = bool(re.search(r'%\((\w+)\)s', sql_query))
+            has_duckdb_named_params = bool(re.search(r':(\w+)', sql_query))
             has_positional_params = '?' in sql_query
             
             param_list = template.get('parameters', [])
@@ -816,6 +817,20 @@ JSON:"""
                         else:
                             formatted_parameters[param_name] = None
                 # Use dict for named parameters
+                results = await self.execute_query(sql_query, formatted_parameters)
+            elif has_duckdb_named_params:
+                # DuckDB/SQLite-style named parameters: :name
+                # Ensure all referenced parameters are in the dict (even if None)
+                param_names_in_sql = re.findall(r':(\w+)', sql_query)
+                for param_name in param_names_in_sql:
+                    if param_name not in formatted_parameters:
+                        # Try to get from template defaults
+                        param_def = next((p for p in param_list if p.get('name') == param_name), None)
+                        if param_def and 'default' in param_def:
+                            formatted_parameters[param_name] = param_def['default']
+                        else:
+                            formatted_parameters[param_name] = None
+                # Use dict for named parameters (DuckDB retriever will convert :name to ?)
                 results = await self.execute_query(sql_query, formatted_parameters)
             elif has_positional_params and param_list:
                 # SQLite-style positional parameters: ?
