@@ -57,8 +57,8 @@ adapters:
     adapter: "conversational"
     implementation: "implementations.passthrough.conversational.ConversationalImplementation"
     # Provider overrides (optional - use when you want different providers than global defaults)
-    inference_provider: "llama_cpp"    # Override default inference provider
-    model: "granite4:micro"            # Specific model for this adapter
+    inference_provider: "ollama_cloud"  # Override default inference provider
+    model: "kimi-k2-thinking"     # Specific model for this adapter
 
     # Capabilities: Pure passthrough - no retrieval
     capabilities:
@@ -75,10 +75,10 @@ adapters:
     adapter: "multimodal"
     implementation: "implementations.passthrough.multimodal.MultimodalImplementation"
     # Provider overrides (optional - use when you want different providers than global defaults)
-    inference_provider: "ollama"    # Override default inference provider
+    inference_provider: "ollama_cloud"    # Override default inference provider
     model: "gpt-oss:120b"            # Specific model for this adapter
-    embedding_provider: "ollama"          # Embedding provider for file chunk retrieval (matches uploaded files)
-    vision_provider: "ollama"             # Vision provider for image files: openai, gemini, anthropic (see vision.yaml)
+    embedding_provider: "openai"          # Embedding provider for file chunk retrieval (matches uploaded files)
+    vision_provider: "gemini"             # Vision provider for image files: openai, gemini, anthropic (see vision.yaml)
 
     # Capabilities: Multimodal - conditional file retrieval
     capabilities:
@@ -115,6 +115,308 @@ adapters:
       confidence_threshold: 0.3
       max_results: 5
       return_results: 3
+
+  # Enhanced multimodal adapter with audio file transcription support
+  - name: "simple-chat-with-files-audio"
+    enabled: true
+    type: "passthrough"  # Passthrough adapter with file retrieval and audio transcription
+    datasource: "none"
+    adapter: "multimodal"
+    implementation: "implementations.passthrough.multimodal.MultimodalImplementation"
+    # Provider overrides
+    inference_provider: "ollama_cloud"
+    model: "gpt-oss:120b"
+    embedding_provider: "openai"
+    vision_provider: "gemini"             # For image files
+    audio_provider: "openai"              # For audio file transcription (NEW)
+
+    # Capabilities: Multimodal with audio support
+    capabilities:
+      retrieval_behavior: "conditional"
+      formatting_style: "clean"
+      supports_file_ids: true
+      supports_session_tracking: true
+      requires_api_key_validation: true
+      skip_when_no_files: true
+      optional_parameters:
+        - "file_ids"
+        - "api_key"
+        - "session_id"
+
+    config:
+      # Storage configuration
+      storage_backend: "filesystem"
+      storage_root: "./uploads"
+      max_file_size: 104857600  # 100MB (increased for audio files)
+      
+      # Audio processing settings
+      enable_audio_transcription: true
+      audio_transcription_language: null  # Auto-detect language
+      
+      # Processing configuration
+      chunking_strategy: "recursive"
+      chunk_size: 1000
+      chunk_overlap: 200
+      
+      # Vector store integration
+      vector_store: "chroma"
+      collection_prefix: "files_"
+      
+      # Supported file types (including audio)
+      supported_types:
+        - "application/pdf"
+        - "text/plain"
+        - "text/markdown"
+        - "text/csv"
+        - "application/json"
+        - "text/html"
+        - "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        - "image/png"
+        - "image/jpeg"
+        - "image/tiff"
+        - "audio/wav"
+        - "audio/mpeg"
+        - "audio/mp3"
+        - "audio/ogg"
+        - "audio/flac"
+        - "audio/webm"
+      
+      # Q&A settings
+      confidence_threshold: 0.3
+      max_results: 5
+      return_results: 3
+
+  # Voice chat adapter - accepts audio input and returns audio responses
+  - name: "voice-chat"
+    enabled: true
+    type: "passthrough"
+    datasource: "none"
+    adapter: "conversational"
+    implementation: "implementations.passthrough.conversational.ConversationalImplementation"
+    
+    # Provider overrides
+    inference_provider: "ollama_cloud"
+    model: "gpt-oss:120b"
+    audio_provider: "openai"  # For both STT and TTS
+    
+    # Capabilities: Voice-enabled chat
+    capabilities:
+      retrieval_behavior: "none"
+      formatting_style: "standard"
+      supports_file_ids: false
+      supports_session_tracking: true
+      requires_api_key_validation: false
+      optional_parameters:
+        - "audio_input"      # Base64-encoded audio data
+        - "audio_format"    # Input audio format (mp3, wav, etc.)
+        - "language"        # Language code for STT
+        - "session_id"
+        - "return_audio"     # Whether to return audio response
+        - "tts_voice"        # Voice for TTS (alloy, echo, fable, etc.)
+    
+    config:
+      # Audio processing settings
+      audio_input_enabled: true
+      audio_output_enabled: true
+      stt_language: "en-US"     # Default language for speech-to-text
+      tts_voice: "alloy"        # Default voice for text-to-speech
+      tts_format: "mp3"         # Default output format
+      return_text: true         # Also return text alongside audio
+      return_audio: true        # Return audio response
+
+  # Audio transcription adapter - specialized for transcribing audio files
+  - name: "audio-transcription"
+    enabled: true
+    type: "retriever"
+    datasource: "none"
+    adapter: "file"
+    implementation: "retrievers.implementations.file.file_retriever.FileVectorRetriever"
+    
+    # Provider overrides
+    audio_provider: "openai"    # Use OpenAI Whisper for transcription
+    embedding_provider: "openai"
+    
+    # Capabilities: Audio file transcription
+    capabilities:
+      retrieval_behavior: "conditional"
+      formatting_style: "clean"
+      supports_file_ids: true
+      supports_session_tracking: false
+      requires_api_key_validation: true
+      skip_when_no_files: true
+      optional_parameters:
+        - "file_ids"
+        - "api_key"
+        - "transcription_language"  # Optional: specify language
+    
+    config:
+      # Storage configuration
+      storage_backend: "filesystem"
+      storage_root: "./uploads"
+      max_file_size: 104857600  # 100MB for audio files
+      
+      # Audio-specific settings
+      enable_audio_transcription: true
+      transcription_language: null  # Auto-detect, or "en-US", "fr-FR", etc.
+      transcription_format: "text"   # Return format: "text", "json", "srt", "vtt"
+      
+      # Supported audio formats
+      supported_types:
+        - "audio/wav"
+        - "audio/mpeg"
+        - "audio/mp3"
+        - "audio/mp4"
+        - "audio/ogg"
+        - "audio/flac"
+        - "audio/webm"
+      
+      # Vector store for transcribed text
+      vector_store: "chroma"
+      collection_prefix: "audio_transcriptions_"
+      
+      chunking_strategy: "recursive"
+      chunk_size: 2000  # Larger chunks for transcriptions
+      chunk_overlap: 200
+      
+      confidence_threshold: 0.3
+      max_results: 10
+      return_results: 5
+
+  # Multilingual voice assistant - supports translation and voice I/O
+  - name: "multilingual-voice-assistant"
+    enabled: true
+    type: "passthrough"
+    datasource: "none"
+    adapter: "conversational"
+    implementation: "implementations.passthrough.conversational.ConversationalImplementation"
+    
+    # Provider overrides
+    inference_provider: "ollama_cloud"
+    model: "gpt-oss:120b"
+    audio_provider: "google"  # Google supports many languages
+    
+    # Capabilities: Multilingual voice assistant
+    capabilities:
+      retrieval_behavior: "none"
+      formatting_style: "standard"
+      supports_file_ids: false
+      supports_session_tracking: true
+      requires_api_key_validation: false
+      optional_parameters:
+        - "audio_input"
+        - "source_language"    # Language of input audio
+        - "target_language"    # Language for output audio
+        - "session_id"
+    
+    config:
+      # Language settings
+      default_source_language: "auto"  # Auto-detect input language
+      default_target_language: "en-US" # Default output language
+      
+      # Google TTS settings (multilingual)
+      tts_model: "neural2"
+      tts_voice: "en-US-Neural2-A"
+      tts_language_code: "en-US"
+      tts_audio_encoding: "MP3"
+      
+      # Google STT settings
+      stt_model: "latest_long"
+      stt_language_code: "en-US"
+      stt_sample_rate: 16000
+      stt_encoding: "LINEAR16"
+      
+      # Audio I/O
+      audio_input_enabled: true
+      audio_output_enabled: true
+      return_text: true
+      return_audio: true
+
+  # Premium voice chat with ElevenLabs (high-quality TTS)
+  - name: "premium-voice-chat"
+    enabled: false
+    type: "passthrough"
+    datasource: "none"
+    adapter: "conversational"
+    implementation: "implementations.passthrough.conversational.ConversationalImplementation"
+
+    # Provider overrides
+    inference_provider: "ollama_cloud"
+    model: "gpt-oss:120b"
+    audio_provider: "elevenlabs"  # High-quality TTS
+    # Note: ElevenLabs is TTS-only, STT would need separate provider
+    # For now, this adapter expects text input (can be extended)
+
+    # Capabilities: Premium voice output
+    capabilities:
+      retrieval_behavior: "none"
+      formatting_style: "standard"
+      supports_file_ids: false
+      supports_session_tracking: true
+      requires_api_key_validation: false
+      optional_parameters:
+        - "voice_id"           # ElevenLabs voice ID
+        - "session_id"
+        - "return_audio"       # Return audio response
+
+    config:
+      # ElevenLabs TTS settings
+      tts_model: "eleven_multilingual_v2"
+      tts_voice: "EXAVITQu4vr4xnSDxMaL"  # Default voice (Sarah)
+      tts_format: "mp3_44100_128"
+      tts_stability: 0.5
+      tts_similarity_boost: 0.75
+      tts_style: 0.0
+      tts_use_speaker_boost: true
+
+      # Audio output
+      audio_output_enabled: true
+      return_text: true
+      return_audio: true
+
+  # Local offline voice chat with Whisper STT (no API costs!)
+  - name: "local-voice-chat"
+    enabled: false
+    type: "passthrough"
+    datasource: "none"
+    adapter: "conversational"
+    implementation: "implementations.passthrough.conversational.ConversationalImplementation"
+
+    # Provider overrides
+    inference_provider: "ollama_cloud"
+    model: "gpt-oss:120b"
+    audio_provider: "whisper"  # Local Whisper for STT (free, offline)
+    # Note: Whisper is STT-only, for TTS use OpenAI or Google
+
+    # Capabilities: Local voice input
+    capabilities:
+      retrieval_behavior: "none"
+      formatting_style: "standard"
+      supports_file_ids: false
+      supports_session_tracking: true
+      requires_api_key_validation: false
+      optional_parameters:
+        - "audio_input"      # Base64-encoded audio data
+        - "audio_format"     # Input audio format (mp3, wav, etc.)
+        - "language"         # Language code for STT (auto-detect if not specified)
+        - "session_id"
+
+    config:
+      # Whisper STT settings (local, no API key needed)
+      stt_model_size: "base"  # Options: tiny, base, small, medium, large-v3
+      stt_device: "auto"      # Options: auto, cpu, cuda
+      stt_language: null      # Auto-detect language
+
+      # Audio input
+      audio_input_enabled: true
+      audio_output_enabled: false  # Whisper doesn't support TTS
+      return_text: true
+
+      # Performance notes:
+      # - tiny: ~32x faster, good for quick testing
+      # - base: ~16x faster, good balance (RECOMMENDED)
+      # - small: ~6x faster, better accuracy
+      # - medium: ~2x faster, high quality
+      # - large-v3: Best accuracy, slower
   
   # This is an example of a QA adapter for a SQL database.
   # It is used as an example of how to create a QA adapter for a SQL database.
@@ -127,9 +429,10 @@ adapters:
     implementation: "retrievers.implementations.qa.QASSQLRetriever"
 
     # Provider overrides (optional - use when you want different providers than global defaults)
-    inference_provider: "ollama"    # Override default inference provider
-    model: "gpt-oss:20b"            # Specific model for this adapter
-    # reranker_provider: "ollama"     # Override default reranker provider (improves accuracy)
+    inference_provider: "cohere"    # Override default inference provider
+    model: "command-r7b-12-2024"            # Specific model for this adapter
+    reranker_provider: "cohere"     # Override default reranker provider (improves accuracy)
+    reranker_model: "rerank-english-v3.0"     # Specific model for this adapter
 
     # Capabilities: Standard QA retriever
     capabilities:
@@ -146,7 +449,7 @@ adapters:
       confidence_threshold: 0.3
       max_results: 5         # Retrieve up to 5 documents
       return_results: 3      # Return top 3 after retrieval
-      # reranker_top_n: 2      # Optional: limit reranked results (overrides return_results)
+      reranker_top_n: 5      # Optional: limit reranked results (overrides return_results)
       
       # Unified retriever features (available for all SQL adapters)
       use_connection_pool: false  # SQLite doesn't support traditional pooling (file-based)
@@ -193,8 +496,8 @@ adapters:
     implementation: "retrievers.implementations.qa.QAChromaRetriever"
 
     # Provider overrides - this example shows using different providers
-    inference_provider: "ollama"
-    embedding_provider: "ollama"
+    inference_provider: "openai"
+    embedding_provider: "openai"
     
     config:
       collection: "city"
@@ -227,15 +530,15 @@ adapters:
       timezone: "America/Toronto"
 
   - name: "intent-sql-sqlite-contact"
-    enabled: false
+    enabled: true
     type: "retriever"
     datasource: "sqlite"
     adapter: "intent"
     implementation: "retrievers.implementations.intent.IntentSQLiteRetriever"
-
+    database: "utils/sql-intent-template/examples/sqlite/contact/contact.db"
     # Provider overrides - intent adapters benefit from powerful models
     inference_provider: "ollama_cloud"    # Cloud LLM for complex intent classification
-    model: "gpt-oss:20b-cloud"           # Large model for better intent understanding
+    model: "gpt-oss:20b"           # Large model for better intent understanding
     embedding_provider: "cohere"          # Local embeddings for template matching
     # reranker_provider: "ollama"           # Optional: Jina AI reranker for template relevance
 
@@ -319,15 +622,15 @@ adapters:
       query_timeout: 5000  # 5 seconds
   
   - name: "intent-duckdb-analytics"
-    enabled: false
+    enabled: true
     type: "retriever"
     datasource: "duckdb"
     adapter: "intent"
     implementation: "retrievers.implementations.intent.IntentDuckDBRetriever"
     database: "utils/duckdb-intent-template/examples/analytics/analytics.duckdb"
-    inference_provider: "ollama"
-    model: "gpt-oss:12b-cloud"
-    embedding_provider: "ollama"
+    inference_provider: "ollama_cloud"
+    model: "kimi-k2-thinking"
+    embedding_provider: "cohere"
     config:
       # Path to the domain definition file
       domain_config_path: "utils/duckdb-intent-template/examples/analytics/analytics_domain.yaml"
@@ -363,13 +666,13 @@ adapters:
       query_timeout: 5000  # 5 seconds
 
   - name: "intent-sql-postgres"
-    enabled: false
+    enabled: true
     type: "retriever"
     datasource: "postgres"
     adapter: "intent"
     implementation: "retrievers.implementations.intent.IntentPostgreSQLRetriever"
-    inference_provider: "anthropic"
-    model: "claude-sonnet-4-5-20250929"
+    inference_provider: "ollama_cloud"
+    model: "gpt-oss:120b"
     embedding_provider: "cohere"
     # reranker_provider: "ollama"
 
@@ -393,7 +696,7 @@ adapters:
         - "utils/sql-intent-template/examples/postgres/customer-orders/advanced_analytics_templates.yaml"
         - "utils/sql-intent-template/examples/postgres/customer-orders/comparative_analysis_templates.yaml"
       # Name for the vector store collection for templates
-      # reranker_top_n: 3      # Optional: limit reranked results (overrides return_results)
+      # reranker_top_n: 40      # Optional: limit reranked results (overrides return_results)
       template_collection_name: "intent_query_templates"
       # Store configuration - references stores.yaml
       store_name: "chroma"
@@ -404,8 +707,8 @@ adapters:
       return_results: 100
 
       # Template loading settings
-      reload_templates_on_start: false  # Whether to reload templates on startup
-      force_reload_templates: false  # Force reload even if templates exist in storage
+      reload_templates_on_start: true  # Whether to reload templates on startup
+      force_reload_templates: true  # Force reload even if templates exist in storage
 
       # Unified retriever features
       use_connection_pool: true  # Enable connection pooling
@@ -420,7 +723,7 @@ adapters:
   # This adapter demonstrates Elasticsearch Query DSL generation from natural language
   # Connection parameters are inherited from config/datasources.yaml
   - name: "intent-elasticsearch-app-logs"
-    enabled: false
+    enabled: true
     type: "retriever"
     datasource: "elasticsearch"  # References datasources.yaml elasticsearch config
     adapter: "intent"
@@ -527,7 +830,7 @@ adapters:
     implementation: "retrievers.implementations.intent.IntentFirecrawlRetriever"
     inference_provider: "ollama"
     model: "gpt-oss:20b"
-    embedding_provider: "ollama"  # Used for chunk ranking
+    embedding_provider: "openai"  # Used for chunk ranking
     config:
       # TESTING: Using minimal templates for validation
       # Switch to firecrawl_domain.yaml and firecrawl_templates.yaml for full Wikipedia templates
@@ -613,12 +916,12 @@ adapters:
     datasource: "mongodb"
     adapter: "intent"
     implementation: "retrievers.implementations.intent.intent_mongodb_retriever.IntentMongoDBRetriever"
-    inference_provider: "groq"
-    # model: "minimax-m2:cloud"
-    embedding_provider: "ollama"
-    # reranker_provider: "ollama"
+    inference_provider: "ollama_cloud"
+    model: "minimax-m2:cloud"
+    embedding_provider: "openai"
+    reranker_provider: "anthropic"
     config:
-      # reranker_top_n: 3
+      reranker_top_n: 10
       # Domain and template configuration
       domain_config_path: "utils/mongodb-intent-template/examples/sample_mflix/templates/mflix_domain.yaml"
       template_library_path:
@@ -672,17 +975,18 @@ adapters:
   # Supports uploading and querying files (PDF, DOCX, CSV, TXT, HTML, JSON)
   # Uses dual-path strategy: vector stores for documents, DuckDB for structured data
   - name: "file-document-qa"
-    enabled: false
+    enabled: true
     type: "retriever"
     datasource: "none"  # File adapter manages its own storage, no external datasource needed
     adapter: "file"
     implementation: "retrievers.implementations.file.file_retriever.FileVectorRetriever"
 
     # Provider overrides
-    inference_provider: "ollama"
-    model: "gpt-oss:120b"
-    embedding_provider: "ollama"
-    vision_provider: "ollama"  # Vision provider for image files: openai, gemini, anthropic (see vision.yaml)
+    inference_provider: "ollama_cloud"
+    model: "minimax-m2:cloud"
+    embedding_provider: "openai"
+    vision_provider: "gemini"  # Vision provider for image files: openai, gemini, anthropic (see vision.yaml)
+    audio_provider: "openai"   # Audio provider for audio file transcription: openai, google, ollama (see sound.yaml)
 
     # Capabilities: File retriever with clean formatting
     capabilities:
@@ -699,7 +1003,7 @@ adapters:
       # Storage configuration
       storage_backend: "filesystem"  # Future: "s3", "minio"
       storage_root: "./uploads"
-      max_file_size: 52428800  # 50MB
+      max_file_size: 104857600  # 100MB (increased for audio files)
       
       # Processing configuration
       # Chunking strategy options: "fixed", "semantic", "token", "recursive"
@@ -763,9 +1067,21 @@ adapters:
         - "image/png"
         - "image/jpeg"
         - "image/tiff"
-        # - "audio/wav" # No yet implemented, requires transcription service
-        # - "audio/mpeg" # No yet implemented, requires transcription service
+        # Audio file types (transcribed to text using audio_provider)
+        - "audio/wav"
+        - "audio/mpeg"
+        - "audio/mp3"
+        - "audio/mp4"
+        - "audio/ogg"
+        - "audio/flac"
+        - "audio/webm"
+        - "audio/x-m4a"
+        - "audio/aac"
         - "text/vtt"
+      
+      # Audio processing settings
+      enable_audio_transcription: true  # Enable audio file transcription
+      audio_transcription_language: null  # Auto-detect language, or specify "en-US", "fr-FR", etc.
       
       # Q&A settings
       confidence_threshold: 0.3

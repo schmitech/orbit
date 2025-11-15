@@ -610,9 +610,13 @@ export class ApiClient {
                     return;
                 }
 
-              } catch (parseError) {
-                // Only log parse errors in debug scenarios, with friendly message
+              } catch (parseError: any) {
+                // Log more details for debugging
                 console.warn('[ApiClient] Unable to parse server response. This may be a temporary issue.');
+                console.warn('[ApiClient] Parse error details:', parseError?.message);
+                console.warn('[ApiClient] JSON text length:', jsonText?.length);
+                console.warn('[ApiClient] JSON text preview (first 200 chars):', jsonText?.substring(0, 200));
+                console.warn('[ApiClient] JSON text preview (last 200 chars):', jsonText?.substring(jsonText.length - 200));
               }
             } else if (line) {
                 // Handle raw text chunks that are not in SSE format
