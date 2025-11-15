@@ -209,7 +209,7 @@ The local API files will be copied to `src/api/local/` directory. When `VITE_USE
 
 1. Click the paperclip icon (📎) in the message input
 2. Upload files using drag-and-drop or file picker
-3. Supported formats: PDF, DOCX, TXT, CSV, JSON, HTML, Markdown, images (PNG, JPEG, TIFF), audio (WAV, MP3)
+3. Supported formats: PDF, DOCX, TXT, CSV, JSON, HTML, Markdown, images (PNG, JPEG, TIFF), audio (WAV, MP3, MP4, OGG, FLAC, WebM, M4A, AAC)
 4. Files are automatically processed and indexed
 5. Attach files to messages - they will be included in the chat context
 6. Files are chunked and stored in the vector store for semantic search
@@ -230,7 +230,7 @@ The local API files will be copied to `src/api/local/` directory. When `VITE_USE
 | Text | TXT, MD, HTML | Direct chunking and indexing |
 | Data | CSV, Parquet | DuckDB integration or vector store |
 | Images | PNG, JPEG, TIFF | OCR via vision service |
-| Audio | WAV, MP3 | ASR (Automatic Speech Recognition) |
+| Audio | WAV, MP3, MP4, OGG, FLAC, WebM, M4A, AAC | ASR (Automatic Speech Recognition) via audio transcription |
 
 ### File Size Limits
 
