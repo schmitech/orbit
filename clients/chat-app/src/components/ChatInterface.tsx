@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { MessageList } from './MessageList';
 import { MessageInput } from './MessageInput';
 import { useChatStore } from '../stores/chatStore';
@@ -7,7 +7,8 @@ import { debugError, debugLog, debugWarn } from '../utils/debug';
 import { getApi } from '../api/loader';
 import { getDefaultKey, getApiUrl } from '../utils/runtimeConfig';
 import { PACKAGE_VERSION } from '../utils/version';
-import { AudioEnableButton } from './AudioEnableButton';
+import { useSettings } from '../contexts/SettingsContext';
+import { audioStreamManager } from '../utils/audioStreamManager';
 
 // Note: We use getApiUrl() and getDefaultKey() directly when needed
 // to ensure we always read the latest runtime config (including CLI args)
@@ -17,16 +18,18 @@ interface ChatInterfaceProps {
 }
 
 export function ChatInterface({ onOpenSettings }: ChatInterfaceProps) {
-  const { 
-    conversations, 
-    currentConversationId, 
-    sendMessage, 
-    regenerateResponse, 
+  const {
+    conversations,
+    currentConversationId,
+    sendMessage,
+    regenerateResponse,
     isLoading,
     configureApiSettings,
     error,
     clearError
   } = useChatStore();
+
+  const { settings } = useSettings();
 
   // Configuration state for API settings
   const [showConfig, setShowConfig] = useState(false);
@@ -51,6 +54,24 @@ export function ChatInterface({ onOpenSettings }: ChatInterfaceProps) {
   // Don't save API settings to localStorage when modal fields change
   // Only save when explicitly configured via configureApiSettings
   // This prevents default values from overwriting localStorage
+
+  // Enable/disable audio streaming based on Voice Responses setting
+  useEffect(() => {
+    if (settings.voiceEnabled) {
+      // Enable audio playback when Voice Responses is turned on
+      audioStreamManager.enableAudio().then(success => {
+        if (success) {
+          debugLog('[ChatInterface] Audio streaming enabled via settings');
+        } else {
+          debugWarn('[ChatInterface] Failed to enable audio streaming');
+        }
+      });
+    } else {
+      // Stop and disable audio when Voice Responses is turned off
+      audioStreamManager.stop();
+      debugLog('[ChatInterface] Audio streaming disabled via settings');
+    }
+  }, [settings.voiceEnabled]);
 
   const handleSendMessage = (content: string, fileIds?: string[]) => {
     sendMessage(content, fileIds);
@@ -286,7 +307,6 @@ export function ChatInterface({ onOpenSettings }: ChatInterfaceProps) {
                 <span className="text-sm text-gray-500 dark:text-[#bfc2cd]">
                   v{PACKAGE_VERSION}
                 </span>
-                <AudioEnableButton />
                 <button
                   onClick={() => {
                     // Load current conversation's API settings if available, otherwise use defaults
