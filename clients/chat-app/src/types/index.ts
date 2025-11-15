@@ -8,12 +8,6 @@ export interface FileAttachment {
   chunk_count?: number;
 }
 
-export interface StreamingAudioChunk {
-  audio: string;  // Base64-encoded audio chunk
-  audioFormat: string;  // Audio format (mp3, wav, opus, etc.)
-  chunkIndex: number;  // Index of the chunk for ordering
-}
-
 export interface Message {
   id: string;
   content: string;
@@ -23,8 +17,6 @@ export interface Message {
   attachments?: FileAttachment[];
   audio?: string;  // Optional base64-encoded audio data (TTS response) - full audio
   audioFormat?: string;  // Audio format (mp3, wav, etc.)
-  streamingAudioChunks?: StreamingAudioChunk[];  // Streaming audio chunks for incremental playback
-  streamingAudioFormat?: string;  // Format for streaming audio chunks
 }
 
 export interface AdapterInfo {

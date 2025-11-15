@@ -5,7 +5,6 @@ import { MarkdownRenderer } from '@schmitech/markdown-renderer';
 import { debugError } from '../utils/debug';
 import { getEnableFeedbackButtons } from '../utils/runtimeConfig';
 import { AudioPlayer } from './AudioPlayer';
-import { StreamingAudioPlayer } from './StreamingAudioPlayer';
 import { sanitizeMessageContent, truncateLongContent } from '../utils/contentValidation';
 
 interface MessageProps {
@@ -123,17 +122,8 @@ export function Message({ message, onRegenerate }: MessageProps) {
             </div>
           )}
 
-          {/* Streaming audio player for incremental TTS chunks */}
-          {message.streamingAudioChunks && message.streamingAudioChunks.length > 0 && isAssistant && (
-            <StreamingAudioPlayer
-              audioChunks={message.streamingAudioChunks}
-              audioFormat={message.streamingAudioFormat || 'opus'}
-              autoPlay={false}
-            />
-          )}
-
           {/* Audio player for full TTS responses (fallback) */}
-          {message.audio && !message.streamingAudioChunks && isAssistant && !message.isStreaming && (
+          {message.audio && isAssistant && !message.isStreaming && (
             <AudioPlayer
               audio={message.audio}
               audioFormat={message.audioFormat}

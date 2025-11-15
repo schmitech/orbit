@@ -170,6 +170,13 @@ class AudioStreamManager {
 
       const audio = new Audio(audioUrl);
       this.currentAudio = audio;
+      const cleanup = () => {
+        if (audio.src) {
+          audio.src = '';
+        }
+        URL.revokeObjectURL(audioUrl);
+        this.blobUrls = this.blobUrls.filter(url => url !== audioUrl);
+      };
 
       // Play and wait for completion
       await new Promise<void>((resolve, reject) => {
@@ -178,16 +185,25 @@ class AudioStreamManager {
           if (this.onChunkPlayed) {
             this.onChunkPlayed(chunk.chunkIndex);
           }
+          cleanup();
           resolve();
         }, { once: true });
 
         audio.addEventListener('error', (e) => {
           debugError(`[AudioStreamManager] Error playing chunk ${chunk.chunkIndex}:`, e);
+          cleanup();
           reject(e);
         }, { once: true });
 
-        audio.play().catch(reject);
+        const playPromise = audio.play();
+        if (playPromise) {
+          playPromise.catch(err => {
+            cleanup();
+            reject(err);
+          });
+        }
       });
+      this.currentAudio = null;
 
       // Continue with next chunk
       this.playNextChunk();

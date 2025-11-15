@@ -1034,44 +1034,6 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
               chunkIndex: chunkIndex
             });
 
-            set(state => ({
-              conversations: state.conversations.map(conv => {
-                if (conv.id !== streamingConversationId) return conv;
-
-                const messages = [...conv.messages];
-                const lastMessage = messages[messages.length - 1];
-
-                // Update the last assistant message with streaming audio chunks
-                if (lastMessage && lastMessage.role === 'assistant') {
-                  // Initialize streaming audio chunks array if needed
-                  const streamingAudioChunks = lastMessage.streamingAudioChunks || [];
-
-                  // Add new chunk (maintain order by chunk_index)
-                  const newChunks = [...streamingAudioChunks];
-
-                  // Insert chunk at correct position
-                  newChunks[chunkIndex] = {
-                    audio: response.audio_chunk,
-                    audioFormat: response.audioFormat || 'opus',
-                    chunkIndex: chunkIndex
-                  };
-
-                  debugLog(`[chatStore] Stored audio chunk ${chunkIndex}, total chunks: ${newChunks.filter(c => c).length}`);
-
-                  messages[messages.length - 1] = {
-                    ...lastMessage,
-                    streamingAudioChunks: newChunks,
-                    streamingAudioFormat: response.audioFormat || 'opus'
-                  };
-                }
-
-                return {
-                  ...conv,
-                  messages,
-                  updatedAt: new Date()
-                };
-              })
-            }));
           }
           
           if (response.text) {

@@ -84,6 +84,86 @@ function generateMessageId(): string {
   return `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 }
 
+const AUDIO_CHUNK_MIME_TYPE = 'audio/ogg; codecs=opus';
+const hasCreateObjectURL =
+  typeof URL !== 'undefined' &&
+  typeof (URL as typeof URL).createObjectURL === 'function';
+const canStreamAudio =
+  typeof Audio !== 'undefined' &&
+  typeof Blob !== 'undefined' &&
+  typeof atob === 'function' &&
+  hasCreateObjectURL;
+
+const audioChunkQueue: string[] = [];
+let isAudioPlaybackActive = false;
+
+async function enqueueAudioChunk(base64Chunk: string): Promise<void> {
+  if (!canStreamAudio) {
+    return;
+  }
+
+  audioChunkQueue.push(base64Chunk);
+  if (isAudioPlaybackActive) {
+    return;
+  }
+
+  isAudioPlaybackActive = true;
+  while (audioChunkQueue.length > 0) {
+    const nextChunk = audioChunkQueue.shift();
+    if (nextChunk) {
+      await playAudioChunk(nextChunk);
+    }
+  }
+  isAudioPlaybackActive = false;
+}
+
+function playAudioChunk(base64Chunk: string): Promise<void> {
+  return new Promise((resolve) => {
+    try {
+      if (!canStreamAudio) {
+        resolve();
+        return;
+      }
+
+      const binaryString = atob(base64Chunk);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+
+      const blob = new Blob([bytes], { type: AUDIO_CHUNK_MIME_TYPE });
+      const objectUrl = URL.createObjectURL(blob);
+      const audio = new Audio(objectUrl);
+
+      const cleanup = () => {
+        audio.src = '';
+        URL.revokeObjectURL(objectUrl);
+      };
+
+      audio.addEventListener('ended', () => {
+        cleanup();
+        resolve();
+      }, { once: true });
+
+      audio.addEventListener('error', () => {
+        cleanup();
+        resolve();
+      }, { once: true });
+
+      const playPromise = audio.play();
+      if (playPromise) {
+        playPromise.catch(() => {
+          cleanup();
+          resolve();
+        });
+      }
+    } catch (error) {
+      console.error('Failed to play streaming audio chunk', error);
+      resolve();
+    }
+  });
+}
+
 export const useChatStore = create<ChatState>((set, get) => ({
   messages: [],
   isLoading: false,
@@ -120,6 +200,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
       try {
         // Use the streamChat function
         for await (const chunk of streamChat(safeContent)) {
+          if (chunk.audioChunk) {
+            enqueueAudioChunk(chunk.audioChunk).catch(err => {
+              console.error('Audio chunk playback failed', err);
+            });
+          }
+
           if (chunk.text) {
             // Append the text to the last message
             get().appendToLastMessage(chunk.text);

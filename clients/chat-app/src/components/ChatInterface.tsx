@@ -57,20 +57,53 @@ export function ChatInterface({ onOpenSettings }: ChatInterfaceProps) {
 
   // Enable/disable audio streaming based on Voice Responses setting
   useEffect(() => {
+    let removeGestureListeners: (() => void) | null = null;
+
+    const cleanupGestureListeners = () => {
+      if (removeGestureListeners) {
+        removeGestureListeners();
+        removeGestureListeners = null;
+      }
+    };
+
     if (settings.voiceEnabled) {
-      // Enable audio playback when Voice Responses is turned on
-      audioStreamManager.enableAudio().then(success => {
-        if (success) {
-          debugLog('[ChatInterface] Audio streaming enabled via settings');
-        } else {
-          debugWarn('[ChatInterface] Failed to enable audio streaming');
-        }
-      });
-    } else {
-      // Stop and disable audio when Voice Responses is turned off
-      audioStreamManager.stop();
-      debugLog('[ChatInterface] Audio streaming disabled via settings');
+      if (audioStreamManager.isAudioEnabled()) {
+        debugLog('[ChatInterface] Audio streaming already enabled');
+        return cleanupGestureListeners;
+      }
+
+      const attachGestureListeners = () => {
+        cleanupGestureListeners();
+        const handleUserGesture = async () => {
+          cleanupGestureListeners();
+          const success = await audioStreamManager.enableAudio();
+          if (success) {
+            debugLog('[ChatInterface] Audio streaming enabled after user gesture');
+          } else {
+            debugWarn('[ChatInterface] User gesture did not enable audio streaming');
+            attachGestureListeners();
+          }
+        };
+
+        document.addEventListener('pointerdown', handleUserGesture, { once: true });
+        document.addEventListener('keydown', handleUserGesture, { once: true });
+        removeGestureListeners = () => {
+          document.removeEventListener('pointerdown', handleUserGesture);
+          document.removeEventListener('keydown', handleUserGesture);
+        };
+
+        debugLog('[ChatInterface] Waiting for user gesture to enable audio streaming');
+      };
+
+      attachGestureListeners();
+      return cleanupGestureListeners;
     }
+
+    cleanupGestureListeners();
+    audioStreamManager.stop();
+    debugLog('[ChatInterface] Audio streaming disabled via settings');
+
+    return cleanupGestureListeners;
   }, [settings.voiceEnabled]);
 
   const handleSendMessage = (content: string, fileIds?: string[]) => {
