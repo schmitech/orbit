@@ -1,16 +1,76 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Mic, MicOff, Paperclip, X, Loader2 } from 'lucide-react';
+import { Send, Mic, MicOff, Paperclip, X, Loader2, CheckCircle2 } from 'lucide-react';
 import { useVoice } from '../hooks/useVoice';
 import { FileUpload } from './FileUpload';
 import { FileAttachment } from '../types';
 import { useChatStore } from '../stores/chatStore';
 import { debugLog, debugError } from '../utils/debug';
 import { AppConfig } from '../utils/config';
+import { FileUploadService, FileUploadProgress } from '../services/fileService';
+import { getDefaultKey } from '../utils/runtimeConfig';
 
 interface MessageInputProps {
   onSend: (message: string, fileIds?: string[]) => void;
   disabled?: boolean;
   placeholder?: string;
+}
+
+const MIME_EXTENSION_MAP: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/jpg': 'jpg',
+  'image/png': 'png',
+  'image/tiff': 'tiff',
+  'image/tif': 'tif',
+  'image/gif': 'gif',
+  'image/webp': 'webp',
+  'application/pdf': 'pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+  'application/msword': 'doc',
+  'text/plain': 'txt',
+  'text/markdown': 'md',
+  'application/json': 'json'
+};
+
+function getExtensionFromMimeType(mimeType: string | undefined): string {
+  if (!mimeType) {
+    return 'bin';
+  }
+  if (MIME_EXTENSION_MAP[mimeType]) {
+    return MIME_EXTENSION_MAP[mimeType];
+  }
+  const parts = mimeType.split('/');
+  return parts.length === 2 && parts[1] ? parts[1] : 'bin';
+}
+
+function sanitizeFilenamePart(name: string): string {
+  const sanitized = name.replace(/[^a-zA-Z0-9._-]/g, '_').replace(/_+/g, '_');
+  return sanitized || 'pasted-file';
+}
+
+function getExtensionFromName(name: string): string | null {
+  const lastDot = name.lastIndexOf('.');
+  if (lastDot === -1 || lastDot === name.length - 1) {
+    return null;
+  }
+  return name.slice(lastDot + 1).toLowerCase();
+}
+
+function getBaseName(name: string): string {
+  const lastDot = name.lastIndexOf('.');
+  if (lastDot === -1) {
+    return name;
+  }
+  return name.slice(0, lastDot);
+}
+
+function prepareClipboardFile(file: File, index: number): File {
+  const timestamp = Date.now();
+  const originalName = file.name && file.name.trim().length > 0 ? file.name.trim() : `pasted-file`;
+  const baseName = sanitizeFilenamePart(getBaseName(originalName));
+  const existingExtension = getExtensionFromName(originalName);
+  const extension = existingExtension || getExtensionFromMimeType(file.type);
+  const uniqueName = `${baseName}-${timestamp}-${index}.${extension}`;
+  return new File([file], uniqueName, { type: file.type || 'application/octet-stream' });
 }
 
 export function MessageInput({ 
@@ -24,8 +84,11 @@ export function MessageInput({
   const [showFileUpload, setShowFileUpload] = useState(false);
   const [attachedFiles, setAttachedFiles] = useState<FileAttachment[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [pasteUploadingFiles, setPasteUploadingFiles] = useState<Map<string, FileUploadProgress>>(new Map());
   const [isHoveringUpload, setIsHoveringUpload] = useState(false);
   const [isHoveringMic, setIsHoveringMic] = useState(false);
+  const [pasteError, setPasteError] = useState<string | null>(null);
+  const [pasteSuccess, setPasteSuccess] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const processedFilesRef = useRef<Set<string>>(new Set());
 
@@ -129,6 +192,73 @@ export function MessageInput({
     }
   }, [isUploading, attachedFiles.length, showFileUpload]);
 
+  const syncFilesWithConversation = useCallback((files: FileAttachment[]) => {
+    setTimeout(() => {
+      let store = useChatStore.getState();
+      let conversationId = store.currentConversationId;
+      
+      if (!conversationId) {
+        conversationId = createConversation();
+        store = useChatStore.getState();
+        conversationId = store.currentConversationId || conversationId;
+      }
+
+      if (!conversationId) {
+        debugError('[MessageInput] Unable to sync files: conversation ID missing');
+        return;
+      }
+      
+      const currentFileIds = new Set(files.map(f => f.file_id));
+      const keysToRemove: string[] = [];
+      processedFilesRef.current.forEach((_, key) => {
+        const [, ...fileIdParts] = key.split('-');
+        const fileId = fileIdParts.join('-');
+        if (!currentFileIds.has(fileId)) {
+          keysToRemove.push(key);
+        }
+      });
+      keysToRemove.forEach(key => processedFilesRef.current.delete(key));
+      
+      files.forEach(file => {
+        const fileKey = `${conversationId}-${file.file_id}`;
+        if (!processedFilesRef.current.has(fileKey)) {
+          processedFilesRef.current.add(fileKey);
+          
+          debugLog(`[MessageInput] Adding file ${file.file_id} to conversation ${conversationId}`);
+          store.addFileToConversation(conversationId!, file);
+        }
+      });
+    }, 0);
+  }, [createConversation]);
+
+  // Sync attachedFiles with conversationFiles to ensure pasted files appear in UI
+  // This ensures files added via paste or other methods show up correctly
+  // Use a more comprehensive dependency to catch all conversation file changes
+  useEffect(() => {
+    if (currentConversationId && currentConversation) {
+      const convFiles = currentConversation.attachedFiles || [];
+      if (convFiles.length > 0) {
+        // Use functional update to avoid stale closure issues
+        setAttachedFiles(prev => {
+          const attachedFileIds = new Set(prev.map(f => f.file_id));
+          // Check if conversation has files that aren't in attachedFiles
+          const missingFiles = convFiles.filter(f => !attachedFileIds.has(f.file_id));
+          
+          if (missingFiles.length > 0) {
+            debugLog(`[MessageInput] Syncing ${missingFiles.length} missing files from conversation to UI`);
+            // Add missing files to attachedFiles (these are likely pasted files)
+            return [...prev, ...missingFiles];
+          }
+          return prev;
+        });
+      } else if (convFiles.length === 0 && attachedFiles.length > 0) {
+        // If conversation has no files but attachedFiles does, clear attachedFiles
+        // This handles the case when conversation is cleared
+        setAttachedFiles([]);
+      }
+    }
+  }, [currentConversationId, currentConversation, conversations]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if ((message.trim() || attachedFiles.length > 0) && !isInputDisabled && !isComposing) {
@@ -151,52 +281,8 @@ export function MessageInput({
   const handleFilesSelected = useCallback((files: FileAttachment[]) => {
     debugLog(`[MessageInput] handleFilesSelected called with ${files.length} files:`, files);
     setAttachedFiles(files);
-    
-    // Automatically add uploaded files to the current conversation
-    // Use setTimeout to defer state updates and avoid infinite loops
-    setTimeout(() => {
-      // Get fresh state inside setTimeout to avoid dependency issues
-      const store = useChatStore.getState();
-      let conversationId = store.currentConversationId;
-      
-      if (!conversationId) {
-        // Create a new conversation if none exists
-        conversationId = createConversation();
-        // Get updated state after creating conversation
-        const updatedStore = useChatStore.getState();
-        conversationId = updatedStore.currentConversationId || conversationId;
-      }
-      
-      // Get fresh store state to access addFileToConversation
-      const updatedStore = useChatStore.getState();
-      
-      // Clean up processedFilesRef: remove entries for files that are no longer in the current list
-      // This prevents stale entries from blocking new file uploads
-      const currentFileIds = new Set(files.map(f => f.file_id));
-      const keysToRemove: string[] = [];
-      processedFilesRef.current.forEach((_, key) => {
-        const fileId = key.split('-').slice(1).join('-'); // Extract file_id from "conversationId-file_id"
-        if (!currentFileIds.has(fileId)) {
-          keysToRemove.push(key);
-        }
-      });
-      keysToRemove.forEach(key => processedFilesRef.current.delete(key));
-      
-      // Add each file to the conversation (will update status if already exists)
-      // The upload polling will ensure status is updated when processing completes
-      files.forEach(file => {
-        const fileKey = `${conversationId}-${file.file_id}`;
-        if (!processedFilesRef.current.has(fileKey)) {
-          processedFilesRef.current.add(fileKey);
-          
-          debugLog(`[MessageInput] Adding file ${file.file_id} to conversation ${conversationId}`);
-          // Always add/update the file in conversation (addFileToConversation handles updates)
-          // This ensures the status is updated when polling completes
-          updatedStore.addFileToConversation(conversationId!, file);
-        }
-      });
-    }, 0);
-  }, [createConversation]);
+    syncFilesWithConversation(files);
+  }, [syncFilesWithConversation]);
 
   const handleRemoveFile = async (fileId: string) => {
     // Remove from local attached files list
@@ -233,11 +319,196 @@ export function MessageInput({
     }
   };
 
+  const handlePaste = useCallback(async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    if (!isFocused || !isFileSupported || isInputDisabled) {
+      return;
+    }
+
+    const clipboardData = e.clipboardData;
+    if (!clipboardData || !clipboardData.items) {
+      return;
+    }
+
+    const items = Array.from(clipboardData.items);
+    const fileItems = items.filter(item => item.kind === 'file');
+
+    if (fileItems.length === 0) {
+      return;
+    }
+
+    const filesFromClipboard: File[] = [];
+    fileItems.forEach((item, index) => {
+      const file = item.getAsFile();
+      if (file) {
+        filesFromClipboard.push(prepareClipboardFile(file, index));
+      }
+    });
+
+    if (filesFromClipboard.length === 0) {
+      return;
+    }
+
+    e.preventDefault();
+    setPasteError(null);
+    setPasteSuccess(null);
+
+    try {
+      const pasteStore = useChatStore.getState();
+      const currentConv = pasteStore.conversations.find(conv => conv.id === pasteStore.currentConversationId);
+      const currentFiles = currentConv?.attachedFiles || [];
+      const projectedConversationFileCount = currentFiles.length + filesFromClipboard.length;
+
+      if (projectedConversationFileCount > AppConfig.maxFilesPerConversation) {
+        throw new Error(`Maximum ${AppConfig.maxFilesPerConversation} files allowed per conversation. Please remove some files first.`);
+      }
+
+      if (AppConfig.maxTotalFiles !== null) {
+        const totalFilesAcrossConversations = pasteStore.conversations.reduce(
+          (total, conv) => total + (conv.attachedFiles?.length || 0),
+          0
+        );
+        if (totalFilesAcrossConversations + filesFromClipboard.length > AppConfig.maxTotalFiles) {
+          throw new Error(`Maximum ${AppConfig.maxTotalFiles} total files allowed across all conversations. Please remove some files from other conversations first.`);
+        }
+      }
+
+      if (!currentConv || !currentConv.apiKey || currentConv.apiKey === getDefaultKey()) {
+        throw new Error('API key not configured for this conversation. Please configure API settings first.');
+      }
+
+      const conversationApiKey = currentConv.apiKey;
+      const conversationApiUrl = currentConv.apiUrl || 'http://localhost:3000';
+
+      setIsUploading(true);
+      const uploadedAttachments: FileAttachment[] = [];
+      const completionPromises: Promise<void>[] = [];
+      
+      for (let index = 0; index < filesFromClipboard.length; index++) {
+        const file = filesFromClipboard[index];
+        const fallbackName = file.name || `Clipboard file ${index + 1}`;
+        const progressKey = `${fallbackName}-${Date.now()}-${index}`;
+        
+        setPasteUploadingFiles(prev => {
+          const next = new Map(prev);
+          next.set(progressKey, {
+            filename: fallbackName,
+            progress: 0,
+            status: 'uploading'
+          });
+          return next;
+        });
+
+        const updateEntry = (progress: FileUploadProgress) => {
+          setPasteUploadingFiles(prev => {
+            const next = new Map(prev);
+            const existing = next.get(progressKey);
+            if (!existing) {
+              return next;
+            }
+            next.set(progressKey, {
+              ...existing,
+              filename: fallbackName,
+              progress: progress.progress,
+              status: progress.status,
+              fileId: progress.fileId
+            });
+            return next;
+          });
+        };
+
+        const markEntryComplete = () => {
+          return new Promise<void>((resolve) => {
+            setPasteUploadingFiles(prev => {
+              const next = new Map(prev);
+              const existing = next.get(progressKey);
+              if (!existing) {
+                return next;
+              }
+              next.set(progressKey, {
+                ...existing,
+                progress: 100,
+                status: 'completed'
+              });
+              return next;
+            });
+            setTimeout(() => {
+              setPasteUploadingFiles(prev => {
+                const next = new Map(prev);
+                next.delete(progressKey);
+                return next;
+              });
+              resolve();
+            }, 2500);
+          });
+        };
+
+        debugLog(`[MessageInput] Pasting file: ${file.name}, type: ${file.type || 'unknown'}, size: ${file.size}`);
+        const uploadedAttachment = await FileUploadService.uploadFile(
+          file,
+          (progress) => {
+            debugLog(`[MessageInput] Paste upload progress for ${file.name}: ${progress.progress}% - ${progress.status}`);
+            updateEntry(progress);
+          },
+          conversationApiKey,
+          conversationApiUrl
+        );
+        uploadedAttachments.push(uploadedAttachment);
+        completionPromises.push(markEntryComplete());
+      }
+
+      if (uploadedAttachments.length > 0) {
+        setAttachedFiles(prev => {
+          const existingIds = new Set(prev.map(f => f.file_id));
+          const filesToAdd = uploadedAttachments.filter(f => !existingIds.has(f.file_id));
+          if (filesToAdd.length === 0) {
+            return prev;
+          }
+          const updated = [...prev, ...filesToAdd];
+          syncFilesWithConversation(updated);
+          return updated;
+        });
+
+        const successMessage =
+          uploadedAttachments.length === 1
+            ? `File "${uploadedAttachments[0].filename}" uploaded successfully`
+            : `${uploadedAttachments.length} files uploaded successfully`;
+
+        await Promise.all(completionPromises);
+
+        setPasteSuccess(successMessage);
+        setTimeout(() => {
+          setPasteSuccess(null);
+        }, 6000);
+      }
+    } catch (error: any) {
+      const errorMessage = error.message || 'Failed to paste file';
+      debugError('[MessageInput] Paste error:', error);
+      setPasteError(errorMessage);
+      setTimeout(() => {
+        setPasteError(null);
+      }, 5000);
+      setPasteUploadingFiles(new Map());
+    } finally {
+      setIsUploading(false);
+    }
+  }, [isFocused, isFileSupported, isInputDisabled, syncFilesWithConversation]);
+
   return (
     <div className="bg-white px-4 py-4 dark:bg-[#212121]">
       {voiceError && (
         <div className="mx-auto mb-3 w-full max-w-5xl rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-600/40 dark:bg-red-900/30 dark:text-red-200">
           {voiceError}
+        </div>
+      )}
+      {pasteError && (
+        <div className="mx-auto mb-3 w-full max-w-5xl rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-600/40 dark:bg-red-900/30 dark:text-red-200">
+          {pasteError}
+        </div>
+      )}
+      {pasteSuccess && (
+        <div className="mx-auto mb-3 w-full max-w-5xl flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700 dark:border-green-600/40 dark:bg-green-900/30 dark:text-green-200">
+          <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
+          <span>{pasteSuccess}</span>
         </div>
       )}
 
@@ -289,6 +560,7 @@ export function MessageInput({
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
             onCompositionStart={() => setIsComposing(true)}
             onCompositionEnd={() => setIsComposing(false)}
             onFocus={() => setIsFocused(true)}
@@ -393,7 +665,7 @@ export function MessageInput({
           </div>
         )}
 
-        {isFileSupported && (showFileUpload || isUploading) && (
+        {isFileSupported && (showFileUpload || isUploading || pasteUploadingFiles.size > 0) && (
           <div className="rounded-md border border-gray-200 bg-white p-3 dark:border-[#4a4b54] dark:bg-[#2d2f39]">
             {showFileUpload && (
               <div className="mb-2 flex items-center justify-between text-sm text-[#353740] dark:text-[#ececf1]">
@@ -407,9 +679,41 @@ export function MessageInput({
                 </button>
               </div>
             )}
-            {isUploading && !showFileUpload && (
+            {(isUploading || pasteUploadingFiles.size > 0) && !showFileUpload && pasteUploadingFiles.size === 0 && (
               <div className="mb-2 text-sm text-[#353740] dark:text-[#ececf1]">
                 Uploading files…
+              </div>
+            )}
+            {pasteUploadingFiles.size > 0 && (
+              <div className="mb-2 space-y-2">
+                {Array.from(pasteUploadingFiles.entries()).map(([key, progress]) => (
+                  <div
+                    key={key}
+                    className="w-full max-w-full flex items-center gap-3 p-3 bg-gray-50 dark:bg-[#1f1f24] rounded-lg overflow-hidden"
+                  >
+                    <Loader2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 animate-spin flex-shrink-0" />
+                    <div className="flex-1 min-w-0 overflow-hidden">
+                      <p className="text-sm font-medium text-[#353740] dark:text-[#ececf1] truncate">
+                        {progress.filename}
+                      </p>
+                      <div className="mt-1 bg-gray-200 dark:bg-[#3c3f4a] rounded-full h-1.5">
+                        <div
+                          className="bg-emerald-600 dark:bg-emerald-400 h-1.5 rounded-full transition-all duration-300"
+                          style={{ width: `${progress.progress ?? 0}%` }}
+                        />
+                      </div>
+                    </div>
+                    <span className="text-xs text-gray-500 dark:text-[#bfc2cd]">
+                      {progress.status === 'uploading'
+                        ? 'Uploading...'
+                        : progress.status === 'processing'
+                        ? 'Processing...'
+                        : progress.status === 'completed'
+                        ? 'Done'
+                        : 'Pending'}
+                    </span>
+                  </div>
+                ))}
               </div>
             )}
             <FileUpload
