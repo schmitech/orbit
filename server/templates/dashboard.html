@@ -8,8 +8,8 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="/static/dashboard.css">
+    <link rel="stylesheet" href="/static/dashboard.tailwind.generated.css?v={{DASHBOARD_TAILWIND_VERSION}}">
+    <link rel="stylesheet" href="/static/dashboard.css?v={{DASHBOARD_CUSTOM_VERSION}}">
 </head>
 <body class="bg-slate-950 text-slate-100 antialiased">
     <div class="pointer-events-none absolute inset-x-0 top-0 h-72 bg-gradient-to-br from-sky-500/10 via-transparent to-indigo-500/10 blur-3xl -z-10"></div>
@@ -165,19 +165,45 @@
                         <canvas id="response-chart"></canvas>
                     </div>
                 </article>
-                <article id="adapter-status-container" class="surface-card p-6 space-y-4 hidden">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <h3 class="text-lg font-semibold text-slate-100">Adapter Health</h3>
-                            <p class="text-sm text-slate-400">Circuit breaker states and failure counters.</p>
-                        </div>
-                        <span class="badge bg-emerald-400/10 text-emerald-200 border-emerald-400/30">Resilience</span>
+                <article class="surface-card chart-card p-6 h-[320px]">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-semibold text-slate-100">Response Time Percentiles</h3>
+                        <span class="badge bg-rose-400/10 text-rose-200 border-rose-400/30">Tail Latency</span>
                     </div>
-                    <div id="adapter-status" class="space-y-3">
-                        <p class="text-sm text-slate-400">Loading adapter status...</p>
+                    <div class="h-[240px]">
+                        <canvas id="percentile-chart"></canvas>
                     </div>
                 </article>
             </div>
+            <article id="adapter-status-container" class="surface-card p-6 space-y-4 hidden">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="text-lg font-semibold text-slate-100">Adapter Health</h3>
+                        <p class="text-sm text-slate-400">Circuit breaker states and failure counters.</p>
+                    </div>
+                    <span class="badge bg-emerald-400/10 text-emerald-200 border-emerald-400/30">Resilience</span>
+                </div>
+                <div class="adapter-toolbar flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                    <label class="search-field">
+                        <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-4.35-4.35m0 0a7 7 0 10-9.9 0 7 7 0 009.9 0z"/>
+                        </svg>
+                        <input id="adapter-search" type="text" placeholder="Search adapters..." class="bg-transparent text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none" />
+                    </label>
+                    <div class="flex flex-wrap gap-2 text-xs" id="adapter-state-filters">
+                        <button type="button" class="state-filter active" data-adapter-state="all">All</button>
+                        <button type="button" class="state-filter" data-adapter-state="open">Open</button>
+                        <button type="button" class="state-filter" data-adapter-state="half_open">Half-open</button>
+                        <button type="button" class="state-filter" data-adapter-state="closed">Closed</button>
+                    </div>
+                </div>
+                <div id="adapter-summary" class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 text-sm text-slate-400">
+                    <p>Loading adapter status...</p>
+                </div>
+                <div id="adapter-status" class="adapter-grid">
+                    <p class="text-sm text-slate-400">Loading adapter status...</p>
+                </div>
+            </article>
         </section>
 
         <section id="datasource-pool-section" class="surface-card p-6 hidden">
@@ -243,6 +269,6 @@
         </section>
     </div>
 
-    <script src="/static/dashboard.js"></script>
+    <script src="/static/dashboard.js?v={{DASHBOARD_JS_VERSION}}"></script>
 </body>
 </html>

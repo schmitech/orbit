@@ -5,14 +5,26 @@ Provides web-based dashboard and metrics endpoints.
 """
 
 import asyncio
+import base64
 import json
 import logging
+from http.cookies import SimpleCookie
 from typing import Dict, Any, Optional
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Request, Depends, HTTPException
 from fastapi.responses import HTMLResponse, Response
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from pathlib import Path
+from utils import is_true_value
 
 logger = logging.getLogger(__name__)
+
+
+def _is_verbose(app) -> bool:
+    try:
+        config = getattr(app.state, 'config', {})
+        return is_true_value(config.get('general', {}).get('verbose', False))
+    except Exception:
+        return False
 
 
 def get_metrics_service(request: Request):
@@ -49,13 +61,123 @@ def get_adapter_manager(request: Request):
 # Load template at module level
 TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
 _dashboard_html_cache = None
+_dashboard_template_mtime: Optional[float] = None
+_dashboard_static_versions: Dict[str, str] = {}
+BASIC_AUTH_REALM = 'Basic realm="ORBIT Dashboard"'
+basic_auth = HTTPBasic(auto_error=False)
+
+async def require_dashboard_admin(
+    request: Request,
+    credentials: Optional[HTTPBasicCredentials] = Depends(basic_auth)
+):
+    """Require HTTP Basic admin credentials to access dashboard resources."""
+    if not credentials:
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication required",
+            headers={"WWW-Authenticate": BASIC_AUTH_REALM}
+        )
+
+    auth_service = getattr(request.app.state, 'auth_service', None)
+    if not auth_service:
+        raise HTTPException(status_code=503, detail="Authentication service not available")
+
+    if not getattr(auth_service, "_initialized", True):
+        await auth_service.initialize()
+
+    success, user_info = await auth_service.verify_credentials(credentials.username, credentials.password)
+    if not success or not user_info or user_info.get("role") != "admin":
+        raise HTTPException(
+            status_code=401,
+            detail="Admin credentials required",
+            headers={"WWW-Authenticate": BASIC_AUTH_REALM}
+        )
+
+    return {
+        "user": user_info,
+        "credentials": credentials
+    }
 
 def _load_dashboard_template() -> str:
-    global _dashboard_html_cache
-    if _dashboard_html_cache is None:
-        template_path = TEMPLATE_DIR / "dashboard.html"
-        _dashboard_html_cache = template_path.read_text()
+    """Load dashboard HTML template with simple change detection."""
+    global _dashboard_html_cache, _dashboard_template_mtime, _dashboard_static_versions
+    template_path = TEMPLATE_DIR / "dashboard.html"
+    try:
+        current_mtime = template_path.stat().st_mtime
+    except FileNotFoundError:
+        logger.error("Dashboard template not found at %s", template_path)
+        return "<h1>Dashboard template missing</h1>"
+
+    static_files = {
+        "{{DASHBOARD_TAILWIND_VERSION}}": TEMPLATE_DIR / "dashboard.tailwind.generated.css",
+        "{{DASHBOARD_CUSTOM_VERSION}}": TEMPLATE_DIR / "dashboard.css",
+        "{{DASHBOARD_JS_VERSION}}": TEMPLATE_DIR / "dashboard.js",
+    }
+
+    reload_required = _dashboard_html_cache is None or _dashboard_template_mtime != current_mtime
+    new_versions: Dict[str, str] = {}
+    for placeholder, path in static_files.items():
+        try:
+            version = str(path.stat().st_mtime)
+        except FileNotFoundError:
+            version = "0"
+        new_versions[placeholder] = version
+        if not reload_required and _dashboard_static_versions.get(placeholder) != version:
+            reload_required = True
+
+    if reload_required:
+        html = template_path.read_text()
+        for placeholder, version in new_versions.items():
+            html = html.replace(placeholder, version)
+        _dashboard_html_cache = html
+        _dashboard_template_mtime = current_mtime
+        _dashboard_static_versions = new_versions
+
     return _dashboard_html_cache
+
+async def _authenticate_websocket_admin(websocket: WebSocket) -> bool:
+    """Validate dashboard auth for the metrics WebSocket."""
+    auth_service = getattr(websocket.app.state, 'auth_service', None)
+    if not auth_service:
+        await websocket.close(code=1011, reason="Authentication service unavailable")
+        return False
+
+    if not getattr(auth_service, "_initialized", True):
+        await auth_service.initialize()
+
+    # Try cookie-based session first
+    cookie_header = websocket.headers.get('cookie')
+    if cookie_header:
+        try:
+            cookie = SimpleCookie()
+            cookie.load(cookie_header)
+            if "dashboard_token" in cookie:
+                token = cookie["dashboard_token"].value
+                valid, user_info = await auth_service.validate_token(token)
+                if valid and user_info and user_info.get("role") == "admin":
+                    return True
+        except Exception:
+            pass
+
+    # Fall back to HTTP Basic credentials supplied with the websocket request
+    auth_header = websocket.headers.get('authorization')
+    if not auth_header or not auth_header.lower().startswith('basic '):
+        await websocket.close(code=4401, reason="Authentication required")
+        return False
+
+    try:
+        decoded = base64.b64decode(auth_header.split(' ', 1)[1]).decode('utf-8')
+        username, password = decoded.split(':', 1)
+    except Exception:
+        await websocket.close(code=4401, reason="Invalid basic auth header")
+        return False
+
+    success, user_info = await auth_service.verify_credentials(username, password)
+    if not success or not user_info or user_info.get("role") != "admin":
+        await websocket.close(code=4403, reason="Admin credentials required")
+        return False
+
+    return True
 
 def create_dashboard_router() -> APIRouter:
     """Create dashboard router with monitoring endpoints"""
@@ -66,13 +188,45 @@ def create_dashboard_router() -> APIRouter:
     active_connections: list[WebSocket] = []
 
     @router.get("/dashboard", response_class=HTMLResponse)
-    async def get_dashboard(metrics_service = Depends(get_metrics_service_for_dashboard)):
+    async def get_dashboard(
+        request: Request,
+        metrics_service = Depends(get_metrics_service_for_dashboard),
+        auth_context = Depends(require_dashboard_admin)
+    ):
         """Serve the monitoring dashboard"""
-        return _load_dashboard_template()
+        html = _load_dashboard_template()
+        response = HTMLResponse(content=html)
+
+        auth_service = getattr(request.app.state, 'auth_service', None)
+        if auth_service:
+            credentials = auth_context.get("credentials")
+            existing_token = request.cookies.get("dashboard_token")
+            token_valid = False
+            if existing_token:
+                valid, user_info = await auth_service.validate_token(existing_token)
+                token_valid = valid and user_info and user_info.get("role") == "admin"
+
+            if not token_valid and credentials:
+                success, token, _ = await auth_service.authenticate_user(credentials.username, credentials.password)
+                if success and token:
+                    secure_cookie = request.url.scheme == "https"
+                    response.set_cookie(
+                        "dashboard_token",
+                        token,
+                        httponly=True,
+                        secure=secure_cookie,
+                        samesite="lax",
+                        max_age=int(getattr(auth_service, "session_duration_hours", 12) * 3600)
+                    )
+
+        return response
     
     @router.websocket("/ws/metrics")
     async def websocket_metrics(websocket: WebSocket):
         """WebSocket endpoint for real-time metrics streaming"""
+        if not await _authenticate_websocket_admin(websocket):
+            return
+
         await websocket.accept()
         active_connections.append(websocket)
         # Track websocket connections metric if available
@@ -183,10 +337,12 @@ def create_dashboard_router() -> APIRouter:
                     from datasources.registry import get_registry as get_datasource_registry
                     datasource_registry = get_datasource_registry()
                     pool_stats = datasource_registry.get_pool_stats()
+                    if _is_verbose(websocket.app):
+                        logger.debug(f"Datasource pool stats: {pool_stats}")
                     if pool_stats and pool_stats.get('total_cached_datasources', 0) > 0:
                         data['datasource_pool'] = pool_stats
                 except Exception as e:
-                    logger.debug(f"Error getting datasource pool stats: {e}")
+                    logger.warning(f"Error getting datasource pool stats: {e}")
 
                 # Add server mode information for dashboard display
                 data['server_mode'] = {
@@ -206,7 +362,8 @@ def create_dashboard_router() -> APIRouter:
                 
         except WebSocketDisconnect:
             active_connections.remove(websocket)
-            logger.info("WebSocket client disconnected")
+            if _is_verbose(websocket.app):
+                logger.info("WebSocket client disconnected")
         except Exception as e:
             logger.error(f"WebSocket error: {e}")
             if websocket in active_connections:

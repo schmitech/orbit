@@ -149,6 +149,77 @@
             options: chartOptions
         });
 
+        const percentileChart = new Chart(document.getElementById('percentile-chart'), {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'P50',
+                    data: [],
+                    borderColor: 'rgb(34, 197, 94)',
+                    backgroundColor: 'rgba(34, 197, 94, 0.08)',
+                    tension: 0.25,
+                    fill: false,
+                    pointRadius: 0,
+                    pointHoverRadius: 5,
+                    pointHitRadius: 18
+                }, {
+                    label: 'P95',
+                    data: [],
+                    borderColor: 'rgb(251, 146, 60)',
+                    backgroundColor: 'rgba(251, 146, 60, 0.08)',
+                    tension: 0.25,
+                    fill: false,
+                    pointRadius: 0,
+                    pointHoverRadius: 5,
+                    pointHitRadius: 18
+                }, {
+                    label: 'P99',
+                    data: [],
+                    borderColor: 'rgb(244, 63, 94)',
+                    backgroundColor: 'rgba(244, 63, 94, 0.08)',
+                    tension: 0.25,
+                    fill: false,
+                    pointRadius: 0,
+                    pointHoverRadius: 5,
+                    pointHitRadius: 18
+                }]
+            },
+            options: chartOptions
+        });
+
+        let adapterSearchFilter = '';
+        let adapterStateFilter = 'all';
+        let lastAdapterSnapshot = null;
+
+        const adapterSearchInput = document.getElementById('adapter-search');
+        const adapterStateButtons = document.querySelectorAll('[data-adapter-state]');
+
+        if (adapterSearchInput) {
+            adapterSearchInput.addEventListener('input', (event) => {
+                adapterSearchFilter = (event.target.value || '').trim().toLowerCase();
+                if (lastAdapterSnapshot) {
+                    renderAdapterList(lastAdapterSnapshot);
+                }
+            });
+        }
+
+        adapterStateButtons.forEach((button) => {
+            button.addEventListener('click', () => {
+                const state = button.getAttribute('data-adapter-state') || 'all';
+                if (state === adapterStateFilter) {
+                    return;
+                }
+                adapterStateFilter = state;
+                adapterStateButtons.forEach((btn) => {
+                    btn.classList.toggle('active', btn === button);
+                });
+                if (lastAdapterSnapshot) {
+                    renderAdapterList(lastAdapterSnapshot);
+                }
+            });
+        });
+
         function updateChartWithActiveTooltip(chart, labels, datasetValues) {
             const active = chart.getActiveElements();
 
@@ -209,6 +280,20 @@
                 minimumFractionDigits: fractionDigits,
                 maximumFractionDigits: fractionDigits
             });
+        }
+
+        function escapeHtml(value) {
+            if (value === null || value === undefined) {
+                return '';
+            }
+            const lookup = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            };
+            return String(value).replace(/[&<>"']/g, (char) => lookup[char] || char);
         }
 
         function updateMetrics(data) {
@@ -299,51 +384,152 @@
                 updateChartWithActiveTooltip(responseChart, trimmedLabels, [
                     data.time_series.response_time.slice(startIdx)
                 ]);
+
+                updateChartWithActiveTooltip(percentileChart, trimmedLabels, [
+                    data.time_series.response_time_p50.slice(startIdx),
+                    data.time_series.response_time_p95.slice(startIdx),
+                    data.time_series.response_time_p99.slice(startIdx)
+                ]);
             }
         }
 
-        function updateAdapterStatus(data) {
+        const adapterStateStyles = {
+            closed: 'badge bg-emerald-400/15 text-emerald-200 border-emerald-400/30',
+            open: 'badge bg-rose-500/15 text-rose-200 border-rose-500/30',
+            half_open: 'badge bg-amber-400/15 text-amber-200 border-amber-400/30',
+            unknown: 'badge bg-slate-500/15 text-slate-200 border-slate-500/30'
+        };
+
+        const adapterStateSortOrder = {
+            open: 0,
+            half_open: 1,
+            closed: 2,
+            unknown: 3
+        };
+
+        function renderAdapterList(adapters) {
             const container = document.getElementById('adapter-status');
-            const containerDiv = document.getElementById('adapter-status-container');
-            const chartsGrid = document.getElementById('charts-grid');
+            const summaryContainer = document.getElementById('adapter-summary');
+            if (!container || !summaryContainer) {
+                return;
+            }
 
-            if (data.adapters && Object.keys(data.adapters).length > 0) {
-                containerDiv.classList.remove('hidden');
-                chartsGrid.className = 'grid grid-cols-1 gap-6 xl:grid-cols-2';
+            const entries = Object.entries(adapters || {});
+            if (!entries.length) {
+                summaryContainer.innerHTML = '<p class="text-sm text-slate-400">No adapter telemetry available</p>';
+                container.innerHTML = '<p class="text-sm text-slate-400">No adapter telemetry available</p>';
+                return;
+            }
 
-                const stateStyles = {
-                    closed: 'badge bg-emerald-400/15 text-emerald-200 border-emerald-400/30',
-                    open: 'badge bg-rose-500/15 text-rose-200 border-rose-500/30',
-                    half_open: 'badge bg-amber-400/15 text-amber-200 border-amber-400/30'
-                };
+            const counts = entries.reduce((acc, [, status]) => {
+                const state = (status?.state || 'unknown').toLowerCase();
+                acc[state] = (acc[state] || 0) + 1;
+                acc.total += 1;
+                return acc;
+            }, { total: 0, open: 0, half_open: 0, closed: 0, unknown: 0 });
 
-                const html = Object.entries(data.adapters).map(([name, status]) => {
-                    const state = (status.state || 'unknown').toLowerCase();
-                    const badgeClass = stateStyles[state] || 'badge bg-slate-500/15 text-slate-200 border-slate-500/30';
-                    const failures = status.failure_count || 0;
+            const summaryCards = [
+                { label: 'Total', key: 'total', hint: 'Adapters monitored' },
+                { label: 'Open', key: 'open', hint: 'Tripped breakers' },
+                { label: 'Half-open', key: 'half_open', hint: 'Testing health' },
+                { label: 'Closed', key: 'closed', hint: 'Healthy adapters' }
+            ].map(({ label, key, hint }) => `
+                <div class="adapter-summary-card">
+                    <p class="label">${label}</p>
+                    <p class="value">${counts[key] ?? 0}</p>
+                    <p class="hint">${hint}</p>
+                </div>
+            `).join('');
+            summaryContainer.innerHTML = summaryCards;
 
-                    return `
-                        <div class="adapter-card">
-                            <div>
-                                <p class="text-sm font-semibold text-slate-100">${name}</p>
-                                <p class="text-xs text-slate-400">Failures: ${failures}</p>
+            const filtered = entries
+                .filter(([name, status]) => {
+                    const normalizedState = (status?.state || 'unknown').toLowerCase();
+                    const matchesState = adapterStateFilter === 'all' || adapterStateFilter === normalizedState;
+                    const normalizedName = (name || '').toLowerCase();
+                    const matchesSearch = !adapterSearchFilter || normalizedName.includes(adapterSearchFilter);
+                    return matchesState && matchesSearch;
+                })
+                .sort((a, b) => {
+                    const stateA = (a[1]?.state || 'unknown').toLowerCase();
+                    const stateB = (b[1]?.state || 'unknown').toLowerCase();
+                    const orderA = adapterStateSortOrder[stateA] ?? adapterStateSortOrder.unknown;
+                    const orderB = adapterStateSortOrder[stateB] ?? adapterStateSortOrder.unknown;
+                    if (orderA !== orderB) {
+                        return orderA - orderB;
+                    }
+                    return a[0].localeCompare(b[0]);
+                });
+
+            if (!filtered.length) {
+                container.innerHTML = '<p class="text-sm text-slate-400">No adapters match the current filters.</p>';
+                return;
+            }
+
+            const html = filtered.map(([name, status]) => {
+                const state = (status?.state || 'unknown').toLowerCase();
+                const badgeClass = adapterStateStyles[state] || adapterStateStyles.unknown;
+                const failures = status?.failure_count ?? 0;
+                const requestCount = status?.request_count ?? status?.success_count ?? 0;
+                const latency = status?.average_latency_ms;
+                const latencyDisplay = typeof latency === 'number'
+                    ? `${formatNumber(latency, latency >= 100 ? 0 : 1)} ms`
+                    : '—';
+
+                return `
+                    <div class="adapter-card">
+                        <div class="flex items-start justify-between gap-3">
+                            <div class="min-w-0">
+                                <p class="text-sm font-semibold text-slate-100 truncate" title="${escapeHtml(name)}">${escapeHtml(name)}</p>
+                                <p class="text-xs text-slate-400">Failures: ${formatNumber(failures)}</p>
                             </div>
                             <span class="${badgeClass}">${state.replace('_', ' ')}</span>
                         </div>
-                    `;
-                }).join('');
-                container.innerHTML = html;
+                        <div class="grid grid-cols-2 gap-3 text-xs text-slate-400">
+                            <div>
+                                <p class="uppercase tracking-[0.16em] text-[0.65rem]">Requests</p>
+                                <p class="text-sm text-slate-200 font-semibold">${formatNumber(requestCount)}</p>
+                            </div>
+                            <div>
+                                <p class="uppercase tracking-[0.16em] text-[0.65rem]">Latency</p>
+                                <p class="text-sm text-slate-200 font-semibold">${latencyDisplay}</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            container.innerHTML = html;
+        }
+
+        function updateAdapterStatus(data) {
+            const containerDiv = document.getElementById('adapter-status-container');
+            const summaryContainer = document.getElementById('adapter-summary');
+            const container = document.getElementById('adapter-status');
+            if (!containerDiv) {
+                return;
+            }
+
+            if (data.adapters && Object.keys(data.adapters).length > 0) {
+                containerDiv.classList.remove('hidden');
+                lastAdapterSnapshot = data.adapters;
+                renderAdapterList(lastAdapterSnapshot);
             } else {
                 containerDiv.classList.add('hidden');
-                chartsGrid.className = 'grid grid-cols-1 gap-6 xl:grid-cols-3';
-                container.innerHTML = '<p class="text-sm text-slate-400">No adapter telemetry available</p>';
+                lastAdapterSnapshot = null;
+                if (summaryContainer) {
+                    summaryContainer.innerHTML = '<p class="text-sm text-slate-400">No adapter telemetry available</p>';
+                }
+                if (container) {
+                    container.innerHTML = '<p class="text-sm text-slate-400">No adapter telemetry available</p>';
+                }
             }
         }
 
-        function updateThreadPools(data) {
+        function updateThreadPools(pools) {
             const container = document.getElementById('thread-pools');
-            if (data.pools && Object.keys(data.pools).length > 0) {
-                const html = Object.entries(data.pools).map(([name, pool]) => {
+            if (pools && Object.keys(pools).length > 0) {
+                const html = Object.entries(pools).map(([name, pool]) => {
                     const utilization = pool.max_workers > 0 ?
                         ((pool.active_threads / pool.max_workers) * 100) : 0;
                     const clampedUtil = clampPercentage(utilization);
@@ -509,7 +695,10 @@
                 }
 
                 if (data.datasource_pool) {
+                    console.debug('Datasource pool data received:', data.datasource_pool);
                     updateDatasourcePool(data.datasource_pool);
+                } else {
+                    console.debug('No datasource_pool in WebSocket data');
                 }
             };
 

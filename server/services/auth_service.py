@@ -199,6 +199,39 @@ class AuthService:
             logger.error(f"Unexpected error creating default admin user: {str(e)}")
             raise
     
+    async def verify_credentials(self, username: str, password: str) -> Tuple[bool, Optional[Dict[str, Any]]]:
+        """
+        Verify username/password without creating a session token.
+        """
+        try:
+            user = await self.database.find_one(
+                self.users_collection_name,
+                {"username": username}
+            )
+
+            if not user or not user.get("active", True):
+                return False, None
+
+            if not self._verify_password(password, user["password"]):
+                return False, None
+
+            user_info = {
+                "id": str(user["_id"]),
+                "username": user["username"],
+                "role": user.get("role", "user"),
+                "active": user.get("active", True)
+            }
+            return True, user_info
+        except (DatabaseConnectionError, DatabaseTimeoutError) as e:
+            logger.error(f"Database connection error verifying credentials for {username}: {str(e)}")
+            return False, None
+        except (DatabaseOperationError, DatabaseDuplicateKeyError) as e:
+            logger.error(f"Database operation error verifying credentials for {username}: {str(e)}")
+            return False, None
+        except Exception as e:
+            logger.error(f"Unexpected error verifying credentials for {username}: {str(e)}")
+            return False, None
+    
     async def authenticate_user(self, username: str, password: str) -> Tuple[bool, Optional[str], Optional[Dict[str, Any]]]:
         """
         Authenticate a user and create a session

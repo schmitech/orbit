@@ -72,10 +72,10 @@
         }
         .adapter-card {
             display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 1.25rem;
-            padding: 0.85rem 1rem;
+            flex-direction: column;
+            align-items: stretch;
+            gap: 0.75rem;
+            padding: 0.95rem 1.1rem;
             border-radius: 14px;
             border: 1px solid rgba(148, 163, 184, 0.12);
             background: rgba(15, 23, 42, 0.7);
@@ -84,6 +84,68 @@
         .adapter-card:hover {
             border-color: rgba(148, 163, 184, 0.28);
             transform: translateX(2px);
+        }
+        .adapter-summary-card {
+            padding: 0.85rem 1rem;
+            border-radius: 14px;
+            border: 1px solid rgba(148, 163, 184, 0.12);
+            background: rgba(15, 23, 42, 0.65);
+        }
+        .adapter-summary-card .label {
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 0.16em;
+            color: rgba(148, 163, 184, 0.75);
+        }
+        .adapter-summary-card .value {
+            font-size: 1.75rem;
+            font-weight: 600;
+            color: rgba(226, 232, 240, 0.95);
+        }
+        .adapter-summary-card .hint {
+            font-size: 0.75rem;
+            color: rgba(148, 163, 184, 0.7);
+        }
+        .adapter-toolbar {
+            border: 1px solid rgba(148, 163, 184, 0.12);
+            border-radius: 14px;
+            padding: 0.9rem 1rem;
+            background: rgba(15, 23, 42, 0.6);
+        }
+        .search-field {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.45rem 0.9rem;
+            border-radius: 999px;
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            background: rgba(15, 23, 42, 0.5);
+            color: rgba(226, 232, 240, 0.9);
+        }
+        .search-field:focus-within {
+            border-color: rgba(56, 189, 248, 0.4);
+        }
+        .state-filter {
+            padding: 0.3rem 0.9rem;
+            border-radius: 999px;
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            color: rgba(226, 232, 240, 0.7);
+            background: rgba(15, 23, 42, 0.5);
+            transition: all 0.2s ease;
+        }
+        .state-filter:hover {
+            border-color: rgba(148, 163, 184, 0.4);
+            color: rgba(226, 232, 240, 0.95);
+        }
+        .state-filter.active {
+            background: rgba(16, 185, 129, 0.12);
+            border-color: rgba(16, 185, 129, 0.4);
+            color: rgba(16, 185, 129, 0.95);
+        }
+        .adapter-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+            gap: 0.85rem;
         }
         .pulse {
             animation: pulse 2s infinite;

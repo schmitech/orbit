@@ -204,6 +204,9 @@ class MetricsService:
             'requests_per_second': deque(maxlen=max_data_points),
             'error_rate': deque(maxlen=max_data_points),
             'response_time': deque(maxlen=max_data_points),
+            'response_time_p50': deque(maxlen=max_data_points),
+            'response_time_p95': deque(maxlen=max_data_points),
+            'response_time_p99': deque(maxlen=max_data_points),
             'timestamps': deque(maxlen=max_data_points)
         }
         
@@ -236,6 +239,19 @@ class MetricsService:
                 pass
             logger.info("Stopped metrics collection task")
     
+    def _calculate_percentile(self, data: List[float], percentile: float) -> float:
+        """Calculate percentile from a list of values"""
+        if not data:
+            return 0.0
+        sorted_data = sorted(data)
+        index = (percentile / 100.0) * (len(sorted_data) - 1)
+        lower = int(index)
+        upper = lower + 1
+        if upper >= len(sorted_data):
+            return sorted_data[-1]
+        weight = index - lower
+        return sorted_data[lower] * (1 - weight) + sorted_data[upper] * weight
+
     async def _collect_system_metrics(self):
         """Continuously collect system metrics"""
         while True:
@@ -259,13 +275,17 @@ class MetricsService:
                 recent_errors = [t for t in self.error_timestamps if t > cutoff]
                 error_rate = (len(recent_errors) / len(recent_requests) * 100) if recent_requests else 0
 
-                # Calculate average response time
-                avg_response_time = sum(self.response_times) / len(self.response_times) if self.response_times else 0
+                # Calculate response time statistics
+                response_times_list = list(self.response_times)
+                avg_response_time = sum(response_times_list) / len(response_times_list) if response_times_list else 0
+                p50_response_time = self._calculate_percentile(response_times_list, 50)
+                p95_response_time = self._calculate_percentile(response_times_list, 95)
+                p99_response_time = self._calculate_percentile(response_times_list, 99)
 
                 # Store time series data
                 timestamp = datetime.now().isoformat()
                 self.time_series_data['cpu'].append(cpu_percent)
-                
+
                 # Calculate memory percentage relative to total system memory
                 total_mem = psutil.virtual_memory().total
                 memory_percent = (memory_info.rss / total_mem) * 100 if total_mem > 0 else 0
@@ -274,6 +294,9 @@ class MetricsService:
                 self.time_series_data['requests_per_second'].append(requests_per_second)
                 self.time_series_data['error_rate'].append(error_rate)
                 self.time_series_data['response_time'].append(avg_response_time * 1000)  # Convert to ms
+                self.time_series_data['response_time_p50'].append(p50_response_time * 1000)
+                self.time_series_data['response_time_p95'].append(p95_response_time * 1000)
+                self.time_series_data['response_time_p99'].append(p99_response_time * 1000)
                 self.time_series_data['timestamps'].append(timestamp)
 
                 await asyncio.sleep(self.collection_interval)
@@ -384,7 +407,14 @@ class MetricsService:
 
         total_memory = psutil.virtual_memory()
         process_memory_percent = round((process_memory_info.rss / total_memory.total) * 100, 1) if total_memory.total > 0 else 0
-        
+
+        # Calculate current percentiles
+        response_times_list = list(self.response_times)
+        avg_response_time = sum(response_times_list) / len(response_times_list) * 1000 if response_times_list else 0
+        p50_response_time = self._calculate_percentile(response_times_list, 50) * 1000
+        p95_response_time = self._calculate_percentile(response_times_list, 95) * 1000
+        p99_response_time = self._calculate_percentile(response_times_list, 99) * 1000
+
         return {
             'system': {
                 'cpu_percent': round(process_cpu_percent, 1),
@@ -398,7 +428,10 @@ class MetricsService:
                 'total': sum(1 for t in self.request_timestamps),
                 'per_second': round(requests_per_second),  # Integer for requests per second
                 'error_rate': round(error_rate, 2),
-                'avg_response_time': round(sum(self.response_times) / len(self.response_times) * 1000, 2) if self.response_times else 0
+                'avg_response_time': round(avg_response_time, 2),
+                'p50_response_time': round(p50_response_time, 2),
+                'p95_response_time': round(p95_response_time, 2),
+                'p99_response_time': round(p99_response_time, 2)
             },
             'time_series': {
                 'cpu': list(self.time_series_data['cpu']),
@@ -406,6 +439,9 @@ class MetricsService:
                 'requests_per_second': list(self.time_series_data['requests_per_second']),
                 'error_rate': list(self.time_series_data['error_rate']),
                 'response_time': list(self.time_series_data['response_time']),
+                'response_time_p50': list(self.time_series_data['response_time_p50']),
+                'response_time_p95': list(self.time_series_data['response_time_p95']),
+                'response_time_p99': list(self.time_series_data['response_time_p99']),
                 'timestamps': list(self.time_series_data['timestamps'])
             }
         }
