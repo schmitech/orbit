@@ -345,9 +345,17 @@ class TestDynamicAdapterManagerIntegration:
         config = {'adapters': []}
         manager = DynamicAdapterManager(config)
 
+        # Check that reranker_cache manager exists
+        assert hasattr(manager, 'reranker_cache')
+        assert manager.reranker_cache is not None
+        
+        # Check that the cache manager has the expected attributes
+        assert hasattr(manager.reranker_cache, '_cache')
+        assert hasattr(manager.reranker_cache, '_cache_lock')
+        assert hasattr(manager.reranker_cache, '_initializing')
+        
+        # Check backward compatibility property
         assert hasattr(manager, '_reranker_cache')
-        assert hasattr(manager, '_reranker_cache_lock')
-        assert hasattr(manager, '_reranker_initializing')
 
     def test_get_overridden_reranker_exception_handling(self):
         """Test that get_overridden_reranker handles missing provider gracefully."""

@@ -94,12 +94,9 @@ class TestElevenLabsAudioService:
                 }
             }
 
-            service = ElevenLabsAudioService(config)
-
-            # Initialize should return False when API key is missing
-            result = await service.initialize()
-            assert result is False
-            assert service.initialized is False
+            # Service constructor should raise ValueError when API key is missing
+            with pytest.raises(ValueError, match="ElevenLabs API key is required"):
+                service = ElevenLabsAudioService(config)
         finally:
             # Restore the environment variable
             if original_key:

@@ -66,12 +66,10 @@ class TestOpenAIAudioService:
         mock_client = MagicMock()
         mock_audio_response = MagicMock()
 
-        # Mock async iteration
-        async def mock_async_iter(self):
-            yield b"audio"
-            yield b"data"
-
-        mock_audio_response.__aiter__ = lambda self: mock_async_iter(self)
+        # Mock the aread() method as AsyncMock that returns the audio data
+        mock_audio_response.aread = AsyncMock(return_value=b"audiodata")
+        # Also set read attribute so hasattr(response, 'read') returns True
+        mock_audio_response.read = MagicMock()
 
         mock_client.audio.speech.create = AsyncMock(return_value=mock_audio_response)
         service.client = mock_client
@@ -94,10 +92,11 @@ class TestOpenAIAudioService:
         mock_client = MagicMock()
         mock_audio_response = MagicMock()
 
-        async def mock_async_iter(self):
-            yield b"audio"
+        # Mock the aread() method as AsyncMock that returns the audio data
+        mock_audio_response.aread = AsyncMock(return_value=b"audio")
+        # Also set read attribute so hasattr(response, 'read') returns True
+        mock_audio_response.read = MagicMock()
 
-        mock_audio_response.__aiter__ = lambda self: mock_async_iter(self)
         mock_client.audio.speech.create = AsyncMock(return_value=mock_audio_response)
         service.client = mock_client
         service.initialized = True
@@ -223,9 +222,10 @@ class TestOpenAIAudioService:
 
         # Mock TTS response
         mock_audio_response = MagicMock()
-        async def mock_async_iter(self):
-            yield b"audio"
-        mock_audio_response.__aiter__ = lambda self: mock_async_iter(self)
+        # Mock the aread() method as AsyncMock that returns the audio data
+        mock_audio_response.aread = AsyncMock(return_value=b"audio")
+        # Also set read attribute so hasattr(response, 'read') returns True
+        mock_audio_response.read = MagicMock()
         service.client.audio.speech.create = AsyncMock(return_value=mock_audio_response)
 
         # Call TTS - should auto-initialize

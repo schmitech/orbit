@@ -11,7 +11,7 @@ import sys
 import os
 from pathlib import Path
 from typing import Dict, Any
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch, MagicMock, AsyncMock
 
 # Add the server directory to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -573,6 +573,15 @@ async def test_intent_retriever_close_all_resources(test_config, test_database):
         from ai_services import register_all_services
         register_all_services(test_config)
         
+        # Mock vector store initialization to avoid Chroma setup issues
+        async def mock_init_vector_store():
+            # Create a mock template store
+            retriever.template_store = Mock()
+            retriever.template_store.close = AsyncMock()
+            retriever.template_store.batch_add_templates = AsyncMock(return_value=[])
+        
+        retriever._initialize_vector_store = mock_init_vector_store
+        
         await retriever.initialize()
         
         # Verify resources are initialized
@@ -625,15 +634,24 @@ async def test_intent_retriever_close_handles_client_errors(test_config, test_da
         from ai_services import register_all_services
         register_all_services(test_config)
         
+        # Mock vector store initialization to avoid Chroma setup issues
+        async def mock_init_vector_store():
+            retriever.template_store = Mock()
+            retriever.template_store.close = AsyncMock()
+            retriever.template_store.batch_add_templates = AsyncMock(return_value=[])
+        
+        retriever._initialize_vector_store = mock_init_vector_store
+        
         await retriever.initialize()
         
         # Create mock clients that raise errors on close
+        # The close() method checks for aclose() first, then close()
         mock_embedding = Mock()
-        mock_embedding.close = Mock(side_effect=Exception("Embedding close error"))
+        mock_embedding.aclose = AsyncMock(side_effect=Exception("Embedding close error"))
         retriever.embedding_client = mock_embedding
-        
+
         mock_inference = Mock()
-        mock_inference.close = Mock(side_effect=Exception("Inference close error"))
+        mock_inference.aclose = AsyncMock(side_effect=Exception("Inference close error"))
         retriever.inference_client = mock_inference
         
         # Close should handle errors gracefully and still close database
@@ -642,9 +660,9 @@ async def test_intent_retriever_close_handles_client_errors(test_config, test_da
         # Verify database is still closed despite client errors
         assert not retriever._is_connection_alive()
         
-        # Verify close was attempted on both clients
-        mock_embedding.close.assert_called_once()
-        mock_inference.close.assert_called_once()
+        # Verify close was attempted on both clients (via aclose)
+        mock_embedding.aclose.assert_called_once()
+        mock_inference.aclose.assert_called_once()
         
     except Exception as e:
         # Clean up on error
@@ -667,28 +685,36 @@ async def test_intent_retriever_close_handles_sync_and_async_close(test_config, 
         from ai_services import register_all_services
         register_all_services(test_config)
         
+        # Mock vector store initialization to avoid Chroma setup issues
+        async def mock_init_vector_store():
+            retriever.template_store = Mock()
+            retriever.template_store.close = AsyncMock()
+            retriever.template_store.batch_add_templates = AsyncMock(return_value=[])
+        
+        retriever._initialize_vector_store = mock_init_vector_store
+        
         await retriever.initialize()
         
         # Create mock clients with different close method types
-        # Sync close
-        mock_sync_client = Mock()
+        # The close() method checks for aclose() first, then close()
+        # For sync close, we need to ensure aclose doesn't exist so it falls back to close()
+        mock_sync_client = Mock(spec=['close'])  # Only has close, not aclose
         mock_sync_client.close = Mock()  # Regular method (sync)
         retriever.embedding_client = mock_sync_client
-        
-        # Async close
-        async def async_close():
-            pass
-        
+
+        # Async close - has aclose method
         mock_async_client = Mock()
-        mock_async_client.close = async_close
+        mock_async_client.aclose = AsyncMock()
         retriever.inference_client = mock_async_client
         
         # Close should handle both types
         await retriever.close()
         
         # Verify both were called
+        # Sync client uses close() (no aclose)
         mock_sync_client.close.assert_called_once()
-        # Async close is called via await, so we can't easily verify it
+        # Async client uses aclose()
+        mock_async_client.aclose.assert_called_once()
         # but if we get here without error, it worked
         
     except Exception as e:
@@ -711,6 +737,13 @@ async def test_intent_retriever_close_idempotent(test_config, test_database):
         # Register services first
         from ai_services import register_all_services
         register_all_services(test_config)
+        
+        # Mock vector store initialization to avoid Chroma setup issues
+        async def mock_init_vector_store():
+            retriever.template_store = Mock()
+            retriever.template_store.close = AsyncMock()
+        
+        retriever._initialize_vector_store = mock_init_vector_store
         
         await retriever.initialize()
         
@@ -742,6 +775,13 @@ async def test_intent_retriever_close_with_template_store(test_config, test_data
         # Register services first
         from ai_services import register_all_services
         register_all_services(test_config)
+        
+        # Mock vector store initialization to avoid Chroma setup issues
+        async def mock_init_vector_store():
+            retriever.template_store = Mock()
+            retriever.template_store.close = AsyncMock()
+        
+        retriever._initialize_vector_store = mock_init_vector_store
         
         await retriever.initialize()
         

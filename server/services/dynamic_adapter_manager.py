@@ -3,13 +3,30 @@ Dynamic Adapter Manager Service for handling on-demand adapter loading.
 
 This service replaces the static single adapter initialization with a dynamic
 system that loads adapters based on API key configurations.
+
+Refactored to use specialized components for better maintainability:
+- Cache managers for different service types
+- Configuration management
+- Adapter loading
+- Reload orchestration
 """
 
 import asyncio
 import logging
-from typing import Dict, Any, Optional, Set
+from typing import Dict, Any, Optional
 from concurrent.futures import ThreadPoolExecutor
-import threading
+
+from .cache import (
+    AdapterCacheManager,
+    ProviderCacheManager,
+    EmbeddingCacheManager,
+    RerankerCacheManager,
+    VisionCacheManager,
+    AudioCacheManager,
+)
+from .config import AdapterConfigManager, ConfigChangeDetector
+from .loader import AdapterLoader
+from .reload import DependencyCacheCleaner, AdapterReloader
 
 logger = logging.getLogger(__name__)
 
@@ -17,18 +34,21 @@ logger = logging.getLogger(__name__)
 class DynamicAdapterManager:
     """
     Manages dynamic loading and caching of adapters based on API key configurations.
-    
-    This service:
-    - Loads adapters on-demand based on adapter names
-    - Caches initialized adapters for performance
-    - Handles adapter lifecycle and cleanup
-    - Provides thread-safe access to adapters
+
+    This service acts as a facade coordinating specialized components:
+    - Cache managers for adapters, providers, embeddings, and rerankers
+    - Configuration management for adapter configs
+    - Adapter loading and initialization
+    - Reload orchestration for hot-swapping
+
+    This class maintains backward-compatible public API while delegating
+    to specialized components for better maintainability.
     """
-    
+
     def __init__(self, config: Dict[str, Any], app_state=None):
         """
         Initialize the Dynamic Adapter Manager.
-        
+
         Args:
             config: Application configuration
             app_state: FastAPI application state for accessing services
@@ -37,68 +57,63 @@ class DynamicAdapterManager:
         self.app_state = app_state
         self.logger = logger
         self.verbose = config.get('general', {}).get('verbose', False)
-        
-        # Cache for initialized adapters
-        self._adapter_cache: Dict[str, Any] = {}
-        self._adapter_locks: Dict[str, threading.Lock] = {}
-        self._cache_lock = threading.Lock()
-        
-        # Cache for initialized inference providers
-        self._provider_cache: Dict[str, Any] = {}
-        self._provider_cache_lock = threading.Lock()
-        self._provider_initializing: Set[str] = set()
-
-        # Cache for initialized embedding services
-        self._embedding_cache: Dict[str, Any] = {}
-        self._embedding_cache_lock = threading.Lock()
-        self._embedding_initializing: Set[str] = set()
-
-        # Cache for initialized reranker services
-        self._reranker_cache: Dict[str, Any] = {}
-        self._reranker_cache_lock = threading.Lock()
-        self._reranker_initializing: Set[str] = set()
 
         # Thread pool for adapter initialization
         self._thread_pool = ThreadPoolExecutor(max_workers=5)
-        
-        # Track loaded adapter configurations
-        self._adapter_configs: Dict[str, Dict[str, Any]] = {}
-        self._load_adapter_configs()
-        
-        # Set to track which adapters are currently being initialized
-        self._initializing_adapters: Set[str] = set()
-        
-        self.logger.info("Dynamic Adapter Manager initialized")
-        
-    def _load_adapter_configs(self):
-        """Load adapter configurations from config."""
-        adapter_configs = self.config.get('adapters', [])
-        
-        enabled_count = 0
-        disabled_count = 0
-        
-        for adapter_config in adapter_configs:
-            adapter_name = adapter_config.get('name')
-            if adapter_name:
-                # Check if adapter is enabled (default to True if not specified)
-                is_enabled = adapter_config.get('enabled', True)
-                
-                if is_enabled:
-                    self._adapter_configs[adapter_name] = adapter_config
-                    enabled_count += 1
-                    if self.verbose:
-                        inference_provider = adapter_config.get('inference_provider')
-                        log_message = f"Loaded adapter config: {adapter_name} (enabled)"
-                        if inference_provider:
-                            log_message += f" with inference provider override: {inference_provider}"
-                        self.logger.info(log_message)
-                else:
-                    disabled_count += 1
-                    if self.verbose:
-                        self.logger.info(f"Skipping disabled adapter: {adapter_name}")
 
-        self.logger.info(f"Loaded {enabled_count} enabled adapter configurations ({disabled_count} disabled)")
-    
+        # Initialize specialized components
+        self._init_cache_managers()
+        self._init_config_manager()
+        self._init_loader()
+        self._init_reloader()
+
+        self.logger.info("Dynamic Adapter Manager initialized")
+
+    def _init_cache_managers(self) -> None:
+        """Initialize cache manager components."""
+        self.adapter_cache = AdapterCacheManager()
+        self.provider_cache = ProviderCacheManager(self.config, self._thread_pool)
+        self.embedding_cache = EmbeddingCacheManager(self.config, self._thread_pool)
+        self.reranker_cache = RerankerCacheManager(self.config, self._thread_pool)
+        self.vision_cache = VisionCacheManager(self.config, self._thread_pool)
+        self.audio_cache = AudioCacheManager(self.config, self._thread_pool)
+
+    def _init_config_manager(self) -> None:
+        """Initialize configuration manager."""
+        self.config_manager = AdapterConfigManager(self.config)
+
+    def _init_loader(self) -> None:
+        """Initialize adapter loader."""
+        self.adapter_loader = AdapterLoader(
+            self.config,
+            self.app_state,
+            self.provider_cache,
+            self.embedding_cache,
+            self.reranker_cache,
+            self.vision_cache,
+            self.audio_cache,
+            self._thread_pool
+        )
+
+    def _init_reloader(self) -> None:
+        """Initialize reload components."""
+        self.dependency_cleaner = DependencyCacheCleaner(
+            self.config,
+            self.provider_cache,
+            self.embedding_cache,
+            self.reranker_cache,
+            self.vision_cache,
+            self.audio_cache,
+            self.verbose
+        )
+        self.reloader = AdapterReloader(
+            self.config_manager,
+            self.adapter_cache,
+            self.adapter_loader,
+            self.dependency_cleaner,
+            self.verbose
+        )
+
     async def get_adapter(self, adapter_name: str) -> Any:
         """
         Get an adapter instance by name, loading it if necessary.
@@ -116,150 +131,147 @@ class DynamicAdapterManager:
         if not adapter_name:
             raise ValueError("Adapter name cannot be empty")
 
-        # IMPORTANT: Check if adapter is in active configs first, even if cached
-        # This prevents disabled adapters from being used after hot-reload
-        if adapter_name not in self._adapter_configs:
+        # Check if adapter is in active configs (prevents disabled adapters from being used)
+        if not self.config_manager.contains(adapter_name):
             self.logger.warning(f"Attempted to access disabled or removed adapter: {adapter_name}")
             raise ValueError(f"Adapter '{adapter_name}' is not available (may be disabled or removed)")
 
         # Check if adapter is already cached
-        if adapter_name in self._adapter_cache:
+        cached_adapter = self.adapter_cache.get(adapter_name)
+        if cached_adapter:
             if self.verbose:
                 self.logger.debug(f"Using cached adapter: {adapter_name}")
-            return self._adapter_cache[adapter_name]
-        
-        # Try to claim initialization ownership
-        should_initialize = False
-        with self._cache_lock:
-            if adapter_name in self._adapter_cache:
-                return self._adapter_cache[adapter_name]
-            if adapter_name not in self._initializing_adapters:
-                self._initializing_adapters.add(adapter_name)
-                should_initialize = True
+            return cached_adapter
 
-        # If someone else is initializing, wait for them
-        if not should_initialize:
-            while True:
-                await asyncio.sleep(0.1)
-                with self._cache_lock:
-                    if adapter_name in self._adapter_cache:
-                        return self._adapter_cache[adapter_name]
-                    if adapter_name not in self._initializing_adapters:
-                        # Initializer failed, we should try
-                        self._initializing_adapters.add(adapter_name)
-                        should_initialize = True
-                        break
-        
+        # Try to claim initialization ownership
+        if not self.adapter_cache.claim_initialization(adapter_name):
+            # Someone else is initializing, wait for them
+            return await self._wait_for_adapter_initialization(adapter_name)
+
         try:
             # Load the adapter
-            adapter = await self._load_adapter(adapter_name)
+            adapter_config = self.config_manager.get(adapter_name)
+            adapter = await self.adapter_loader.load_adapter(adapter_name, adapter_config)
 
             # Cache the adapter
-            with self._cache_lock:
-                self._adapter_cache[adapter_name] = adapter
-                # Create a lock for this adapter for future thread-safe operations
-                self._adapter_locks[adapter_name] = threading.Lock()
+            self.adapter_cache.put(adapter_name, adapter)
 
             # Log adapter configuration details
-            adapter_config = self._adapter_configs.get(adapter_name, {})
-            inference_provider = adapter_config.get('inference_provider') or self.config.get('general', {}).get('inference_provider', 'default')
-            model_override = adapter_config.get('model')
+            self._log_adapter_loaded(adapter_name, adapter_config)
 
-            # Get embedding configuration
-            embedding_provider = adapter_config.get('embedding_provider') or self.config.get('embedding', {}).get('provider', 'ollama')
-            embedding_model = None
-            if embedding_provider in self.config.get('embeddings', {}):
-                embedding_model = self.config.get('embeddings', {}).get(embedding_provider, {}).get('model')
-
-            # Get reranker configuration
-            reranker_provider = adapter_config.get('reranker_provider')
-            reranker_model = None
-            if reranker_provider and reranker_provider in self.config.get('rerankers', {}):
-                reranker_model = self.config.get('rerankers', {}).get(reranker_provider, {}).get('model')
-
-            # Check if this is an intent adapter and get store info
-            adapter_type = adapter_config.get('adapter')
-            store_info = ""
-            if adapter_type == 'intent':
-                store_name = adapter_config.get('config', {}).get('store_name')
-                if store_name:
-                    store_info = f", store: {store_name}"
-
-            # Build log message with all details
-            log_parts = [f"Successfully loaded adapter '{adapter_name}'"]
-
-            # Inference provider and model
-            if model_override:
-                log_parts.append(f"inference: {inference_provider}/{model_override}")
-            else:
-                log_parts.append(f"inference: {inference_provider}")
-
-            # Embedding provider and model
-            if embedding_model:
-                log_parts.append(f"embedding: {embedding_provider}/{embedding_model}")
-            else:
-                log_parts.append(f"embedding: {embedding_provider}")
-
-            # Reranker provider and model
-            if reranker_provider:
-                if reranker_model:
-                    log_parts.append(f"reranker: {reranker_provider}/{reranker_model}")
-                else:
-                    log_parts.append(f"reranker: {reranker_provider}")
-
-            # Store info for intent adapters
-            if store_info:
-                log_parts.append(store_info.lstrip(", "))
-
-            # Database info if overridden
-            if adapter_config.get('database'):
-                log_parts.append(f"database: {adapter_config['database']}")
-
-            self.logger.info(f"{log_parts[0]} ({', '.join(log_parts[1:])})")
             return adapter
 
         except ValueError as e:
-            # Check if this is a "No service registered" error for a disabled provider
-            if "No service registered for inference with provider" in str(e):
-                adapter_config = self._adapter_configs.get(adapter_name, {})
-                inference_provider = adapter_config.get('inference_provider') or self.config.get('general', {}).get('inference_provider', 'unknown')
-
-                self.logger.warning("=" * 80)
-                self.logger.warning(f"SKIPPING ADAPTER '{adapter_name}': Inference provider not available")
-                self.logger.warning("=" * 80)
-                self.logger.warning(f"The adapter '{adapter_name}' specifies inference provider '{inference_provider}'")
-                self.logger.warning(f"which is not registered (likely disabled in config/inference.yaml).")
-                self.logger.warning("")
-                self.logger.warning("To fix this:")
-                self.logger.warning(f"  1. Enable '{inference_provider}' in config/inference.yaml, OR")
-                self.logger.warning(f"  2. Change the adapter's inference_provider in config/adapters.yaml, OR")
-                self.logger.warning(f"  3. Disable this adapter by setting 'enabled: false' in config/adapters.yaml")
-                self.logger.warning("")
-                self.logger.warning(f"The adapter '{adapter_name}' will NOT be available.")
-                self.logger.warning("=" * 80)
-
-                # Don't cache this adapter but don't crash the server
-                # The adapter simply won't be available for use
-                # Re-raise so caller knows this adapter is not available, but they can handle it
-                raise ValueError(f"Adapter '{adapter_name}' cannot be loaded: provider '{inference_provider}' is disabled") from e
-
-            else:
-                # Re-raise other ValueError exceptions
-                self.logger.error(f"Failed to load adapter {adapter_name}: {str(e)}")
-                raise
-
+            self._handle_adapter_load_error(adapter_name, e)
+            raise
         except Exception as e:
             self.logger.error(f"Failed to load adapter {adapter_name}: {str(e)}")
             raise
         finally:
-            # Remove from initializing set
-            with self._cache_lock:
-                self._initializing_adapters.discard(adapter_name)
+            self.adapter_cache.release_initialization(adapter_name)
+
+    async def _wait_for_adapter_initialization(self, adapter_name: str) -> Any:
+        """
+        Wait for another process to finish initializing an adapter.
+
+        Args:
+            adapter_name: Name of the adapter being initialized
+
+        Returns:
+            The initialized adapter instance
+        """
+        while True:
+            await asyncio.sleep(0.1)
+            cached_adapter = self.adapter_cache.get(adapter_name)
+            if cached_adapter:
+                return cached_adapter
+            if not self.adapter_cache.is_initializing(adapter_name):
+                # Initializer failed, we should try
+                if self.adapter_cache.claim_initialization(adapter_name):
+                    break
+        # Recursively call get_adapter to load it ourselves
+        self.adapter_cache.release_initialization(adapter_name)
+        return await self.get_adapter(adapter_name)
+
+    def _log_adapter_loaded(self, adapter_name: str, adapter_config: Dict[str, Any]) -> None:
+        """Log detailed information about a loaded adapter."""
+        inference_provider = adapter_config.get('inference_provider') or self.config.get('general', {}).get('inference_provider', 'default')
+        model_override = adapter_config.get('model')
+
+        # Get embedding configuration
+        embedding_provider = adapter_config.get('embedding_provider') or self.config.get('embedding', {}).get('provider', 'ollama')
+        embedding_model = None
+        if embedding_provider in self.config.get('embeddings', {}):
+            embedding_model = self.config.get('embeddings', {}).get(embedding_provider, {}).get('model')
+
+        # Get reranker configuration
+        reranker_provider = adapter_config.get('reranker_provider')
+        reranker_model = None
+        if reranker_provider and reranker_provider in self.config.get('rerankers', {}):
+            reranker_model = self.config.get('rerankers', {}).get(reranker_provider, {}).get('model')
+
+        # Check if this is an intent adapter
+        adapter_type = adapter_config.get('adapter')
+        store_info = ""
+        if adapter_type == 'intent':
+            store_name = adapter_config.get('config', {}).get('store_name')
+            if store_name:
+                store_info = f", store: {store_name}"
+
+        # Build log message
+        log_parts = [f"Successfully loaded adapter '{adapter_name}'"]
+
+        if model_override:
+            log_parts.append(f"inference: {inference_provider}/{model_override}")
+        else:
+            log_parts.append(f"inference: {inference_provider}")
+
+        if embedding_model:
+            log_parts.append(f"embedding: {embedding_provider}/{embedding_model}")
+        else:
+            log_parts.append(f"embedding: {embedding_provider}")
+
+        if reranker_provider:
+            if reranker_model:
+                log_parts.append(f"reranker: {reranker_provider}/{reranker_model}")
+            else:
+                log_parts.append(f"reranker: {reranker_provider}")
+
+        if store_info:
+            log_parts.append(store_info.lstrip(", "))
+
+        if adapter_config.get('database'):
+            log_parts.append(f"database: {adapter_config['database']}")
+
+        self.logger.info(f"{log_parts[0]} ({', '.join(log_parts[1:])})")
+
+    def _handle_adapter_load_error(self, adapter_name: str, error: ValueError) -> None:
+        """Handle adapter loading errors with helpful messages."""
+        if "No service registered for inference with provider" in str(error):
+            adapter_config = self.config_manager.get(adapter_name) or {}
+            inference_provider = adapter_config.get('inference_provider') or self.config.get('general', {}).get('inference_provider', 'unknown')
+
+            self.logger.warning("=" * 80)
+            self.logger.warning(f"SKIPPING ADAPTER '{adapter_name}': Inference provider not available")
+            self.logger.warning("=" * 80)
+            self.logger.warning(f"The adapter '{adapter_name}' specifies inference provider '{inference_provider}'")
+            self.logger.warning("which is not registered (likely disabled in config/inference.yaml).")
+            self.logger.warning("")
+            self.logger.warning("To fix this:")
+            self.logger.warning(f"  1. Enable '{inference_provider}' in config/inference.yaml, OR")
+            self.logger.warning(f"  2. Change the adapter's inference_provider in config/adapters.yaml, OR")
+            self.logger.warning(f"  3. Disable this adapter by setting 'enabled: false' in config/adapters.yaml")
+            self.logger.warning("")
+            self.logger.warning(f"The adapter '{adapter_name}' will NOT be available.")
+            self.logger.warning("=" * 80)
+
+            raise ValueError(f"Adapter '{adapter_name}' cannot be loaded: provider '{inference_provider}' is disabled") from error
+        else:
+            self.logger.error(f"Failed to load adapter {adapter_name}: {str(error)}")
 
     async def get_overridden_provider(self, provider_name: str, adapter_name: str = None) -> Any:
         """
         Get an inference provider instance by name, loading and caching it if necessary.
-        This is for providers specified as overrides in adapter configs.
 
         Args:
             provider_name: The name of the provider to create
@@ -268,96 +280,19 @@ class DynamicAdapterManager:
         if not provider_name:
             raise ValueError("Provider name cannot be empty")
 
-        # Create cache key that includes adapter-specific model if present
-        cache_key = provider_name
         model_override = None
-
-        if adapter_name and adapter_name in self._adapter_configs:
-            adapter_config = self._adapter_configs[adapter_name]
-            if adapter_config.get('model'):
+        if adapter_name:
+            adapter_config = self.config_manager.get(adapter_name)
+            if adapter_config and adapter_config.get('model'):
                 model_override = adapter_config['model']
-                cache_key = f"{provider_name}:{model_override}"
                 if self.verbose:
                     self.logger.info(f"Found model override '{model_override}' for adapter '{adapter_name}'")
 
-        # Check cache with the specific key
-        if cache_key in self._provider_cache:
-            if self.verbose:
-                self.logger.debug(f"Using cached provider: {cache_key}")
-            return self._provider_cache[cache_key]
-
-        # Try to claim initialization ownership
-        should_initialize = False
-        with self._provider_cache_lock:
-            if cache_key in self._provider_cache:
-                return self._provider_cache[cache_key]
-            if cache_key not in self._provider_initializing:
-                self._provider_initializing.add(cache_key)
-                should_initialize = True
-
-        # If someone else is initializing, wait for them
-        if not should_initialize:
-            while True:
-                await asyncio.sleep(0.1)
-                with self._provider_cache_lock:
-                    if cache_key in self._provider_cache:
-                        return self._provider_cache[cache_key]
-                    if cache_key not in self._provider_initializing:
-                        # Initializer failed, we should try
-                        self._provider_initializing.add(cache_key)
-                        should_initialize = True
-                        break
-
-        try:
-            # Prepare config with model override if specified
-            import copy
-            config_for_provider = copy.deepcopy(self.config)
-
-            if model_override:
-                # Ensure the inference section exists
-                if 'inference' not in config_for_provider:
-                    config_for_provider['inference'] = {}
-                if provider_name not in config_for_provider['inference']:
-                    config_for_provider['inference'][provider_name] = {}
-
-                # Set the model override
-                config_for_provider['inference'][provider_name]['model'] = model_override
-                self.logger.info(f"Loading inference provider '{provider_name}' with model override: {model_override}")
-            else:
-                self.logger.info(f"Loading inference provider '{provider_name}' with default model")
-
-            try:
-                from server.inference.pipeline.providers import UnifiedProviderFactory as ProviderFactory
-            except ImportError:
-                # Fallback for test environment
-                from inference.pipeline.providers import UnifiedProviderFactory as ProviderFactory
-
-            # Create and initialize the provider
-            provider = ProviderFactory.create_provider_by_name(provider_name, config_for_provider)
-            if hasattr(provider, 'initialize'):
-                if asyncio.iscoroutinefunction(provider.initialize):
-                    await provider.initialize()
-                else:
-                    loop = asyncio.get_event_loop()
-                    await loop.run_in_executor(self._thread_pool, provider.initialize)
-
-            # Cache the initialized provider with the specific key
-            with self._provider_cache_lock:
-                self._provider_cache[cache_key] = provider
-
-            self.logger.info(f"Successfully cached inference provider: {cache_key}")
-            return provider
-        except Exception as e:
-            self.logger.error(f"Failed to load overridden provider {provider_name}: {str(e)}")
-            raise
-        finally:
-            with self._provider_cache_lock:
-                self._provider_initializing.discard(cache_key)
+        return await self.provider_cache.create_provider(provider_name, model_override, adapter_name)
 
     async def get_overridden_embedding(self, provider_name: str, adapter_name: str = None) -> Any:
         """
         Get an embedding service instance by name, loading and caching it if necessary.
-        This is for embedding providers specified as overrides in adapter configs.
 
         Args:
             provider_name: The name of the embedding provider to create
@@ -366,84 +301,11 @@ class DynamicAdapterManager:
         if not provider_name:
             raise ValueError("Embedding provider name cannot be empty")
 
-        # Create cache key for the embedding service
-        # Get the model from embeddings config
-        embedding_config = self.config.get('embeddings', {}).get(provider_name, {})
-        model = embedding_config.get('model', '')
-        cache_key = f"{provider_name}:{model}" if model else provider_name
-
-        # Check cache with the specific key
-        if cache_key in self._embedding_cache:
-            if self.verbose:
-                self.logger.debug(f"Using cached embedding service: {cache_key}")
-            return self._embedding_cache[cache_key]
-
-        # Try to claim initialization ownership
-        should_initialize = False
-        with self._embedding_cache_lock:
-            if cache_key in self._embedding_cache:
-                return self._embedding_cache[cache_key]
-            if cache_key not in self._embedding_initializing:
-                self._embedding_initializing.add(cache_key)
-                should_initialize = True
-
-        # If someone else is initializing, wait for them
-        if not should_initialize:
-            while True:
-                await asyncio.sleep(0.1)
-                with self._embedding_cache_lock:
-                    if cache_key in self._embedding_cache:
-                        return self._embedding_cache[cache_key]
-                    if cache_key not in self._embedding_initializing:
-                        # Initializer failed, we should try
-                        self._embedding_initializing.add(cache_key)
-                        should_initialize = True
-                        break
-
-        try:
-            adapter_context = f" for adapter '{adapter_name}'" if adapter_name else ""
-            if model:
-                self.logger.info(f"Loading embedding service '{provider_name}/{model}'{adapter_context}")
-            else:
-                self.logger.info(f"Loading embedding service '{provider_name}'{adapter_context}")
-
-            # Import the embedding service factory
-            try:
-                from server.embeddings.base import EmbeddingServiceFactory
-            except ImportError:
-                from embeddings.base import EmbeddingServiceFactory
-
-            # Create the embedding service
-            embedding_service = EmbeddingServiceFactory.create_embedding_service(
-                self.config,
-                provider_name
-            )
-
-            # Initialize if needed
-            if hasattr(embedding_service, 'initialize'):
-                if asyncio.iscoroutinefunction(embedding_service.initialize):
-                    await embedding_service.initialize()
-                else:
-                    loop = asyncio.get_event_loop()
-                    await loop.run_in_executor(self._thread_pool, embedding_service.initialize)
-
-            # Cache the initialized embedding service
-            with self._embedding_cache_lock:
-                self._embedding_cache[cache_key] = embedding_service
-
-            self.logger.info(f"Successfully cached embedding service: {cache_key}{adapter_context}")
-            return embedding_service
-        except Exception as e:
-            self.logger.error(f"Failed to load embedding service {provider_name}: {str(e)}")
-            raise
-        finally:
-            with self._embedding_cache_lock:
-                self._embedding_initializing.discard(cache_key)
+        return await self.embedding_cache.create_service(provider_name, adapter_name)
 
     async def get_overridden_reranker(self, provider_name: str, adapter_name: str = None) -> Any:
         """
         Get a reranker service instance by name, loading and caching it if necessary.
-        This is for reranker providers specified as overrides in adapter configs.
 
         Args:
             provider_name: The name of the reranker provider to create
@@ -452,298 +314,68 @@ class DynamicAdapterManager:
         if not provider_name:
             raise ValueError("Reranker provider name cannot be empty")
 
-        # Create cache key for the reranker service
-        # Get the model from rerankers config
-        reranker_config = self.config.get('rerankers', {}).get(provider_name, {})
-        model = reranker_config.get('model', '')
-        cache_key = f"{provider_name}:{model}" if model else provider_name
+        return await self.reranker_cache.create_service(provider_name, adapter_name)
 
-        # Check cache with the specific key
-        if cache_key in self._reranker_cache:
-            if self.verbose:
-                self.logger.debug(f"Using cached reranker service: {cache_key}")
-            return self._reranker_cache[cache_key]
+    async def get_overridden_vision(self, provider_name: str, adapter_name: str = None) -> Any:
+        """
+        Get a vision service instance by name, loading and caching it if necessary.
 
-        # Try to claim initialization ownership
-        should_initialize = False
-        with self._reranker_cache_lock:
-            if cache_key in self._reranker_cache:
-                return self._reranker_cache[cache_key]
-            if cache_key not in self._reranker_initializing:
-                self._reranker_initializing.add(cache_key)
-                should_initialize = True
+        Args:
+            provider_name: The name of the vision provider to create
+            adapter_name: Optional adapter name for logging context
+        """
+        if not provider_name:
+            raise ValueError("Vision provider name cannot be empty")
 
-        # If someone else is initializing, wait for them
-        if not should_initialize:
-            while True:
-                await asyncio.sleep(0.1)
-                with self._reranker_cache_lock:
-                    if cache_key in self._reranker_cache:
-                        return self._reranker_cache[cache_key]
-                    if cache_key not in self._reranker_initializing:
-                        # Initializer failed, we should try
-                        self._reranker_initializing.add(cache_key)
-                        should_initialize = True
-                        break
+        return await self.vision_cache.create_service(provider_name, adapter_name)
 
-        try:
-            adapter_context = f" for adapter '{adapter_name}'" if adapter_name else ""
-            if model:
-                self.logger.info(f"Loading reranker service '{provider_name}/{model}'{adapter_context}")
-            else:
-                self.logger.info(f"Loading reranker service '{provider_name}'{adapter_context}")
+    async def get_overridden_audio(self, provider_name: str, adapter_name: str = None) -> Any:
+        """
+        Get an audio service instance by name, loading and caching it if necessary.
 
-            # Import the reranker service manager
-            try:
-                from server.services.reranker_service_manager import RerankingServiceManager
-            except ImportError:
-                from services.reranker_service_manager import RerankingServiceManager
+        Args:
+            provider_name: The name of the audio provider to create
+            adapter_name: Optional adapter name for logging context
+        """
+        if not provider_name:
+            raise ValueError("Audio provider name cannot be empty")
 
-            # Create the reranker service
-            reranker_service = RerankingServiceManager.create_reranker_service(
-                self.config,
-                provider_name
-            )
+        return await self.audio_cache.create_service(provider_name, adapter_name)
 
-            # Initialize if needed
-            if hasattr(reranker_service, 'initialize'):
-                if asyncio.iscoroutinefunction(reranker_service.initialize):
-                    await reranker_service.initialize()
-                else:
-                    loop = asyncio.get_event_loop()
-                    await loop.run_in_executor(self._thread_pool, reranker_service.initialize)
-
-            # Cache the initialized reranker service
-            with self._reranker_cache_lock:
-                self._reranker_cache[cache_key] = reranker_service
-
-            self.logger.info(f"Successfully cached reranker service: {cache_key}{adapter_context}")
-            return reranker_service
-        except Exception as e:
-            self.logger.error(f"Failed to load reranker service {provider_name}: {str(e)}")
-            raise
-        finally:
-            with self._reranker_cache_lock:
-                self._reranker_initializing.discard(cache_key)
-
-    async def _load_adapter(self, adapter_name: str) -> Any:
-        """Load and initialize an adapter asynchronously"""
-        # Get adapter configuration
-        adapter_config = self._adapter_configs.get(adapter_name)
-        if not adapter_config:
-            raise ValueError(f"No adapter configuration found for: {adapter_name}")
-
-        # Preload embedding service if adapter has an override (and it's not null)
-        if adapter_config.get('embedding_provider'):
-            embedding_provider = adapter_config['embedding_provider']
-            try:
-                await self.get_overridden_embedding(embedding_provider, adapter_name)
-            except Exception as e:
-                self.logger.warning(f"Failed to preload embedding service for adapter {adapter_name}: {str(e)}")
-
-        # Preload reranker service if adapter has an override (and it's not null)
-        if adapter_config.get('reranker_provider'):
-            reranker_provider = adapter_config['reranker_provider']
-            try:
-                await self.get_overridden_reranker(reranker_provider, adapter_name)
-            except Exception as e:
-                self.logger.warning(f"Failed to preload reranker service for adapter {adapter_name}: {str(e)}")
-
-        # Run the import and initialization in a thread pool to prevent blocking
-        loop = asyncio.get_event_loop()
-        
-        def _sync_load():
-            # This runs in a thread, so it won't block the event loop
-            implementation = adapter_config.get('implementation')
-            datasource_name = adapter_config.get('datasource', 'none')
-            domain_adapter_name = adapter_config.get('adapter')
-            adapter_category = adapter_config.get('type', 'retriever')
-
-            # Import the retriever class
-            module_path, class_name = implementation.rsplit('.', 1)
-            module = __import__(module_path, fromlist=[class_name])
-            retriever_class = getattr(module, class_name)
-
-            # Create domain adapter
-            from adapters.registry import ADAPTER_REGISTRY
-            adapter_config_params = adapter_config.get('config') or {}
-            domain_adapter = None
-
-            if domain_adapter_name:
-                domain_adapter = ADAPTER_REGISTRY.create(
-                    adapter_type=adapter_category,
-                    datasource=datasource_name,
-                    adapter_name=domain_adapter_name,
-                    override_config=adapter_config_params
-                )
-
-            # Create a deep copy of config with the adapter config included
-            import copy
-            config_with_adapter = copy.deepcopy(self.config)
-            # Pass adapter config in the standardized key for all retrievers
-            config_with_adapter['adapter_config'] = adapter_config_params
-
-            # For intent adapters, include stores configuration
-            if domain_adapter_name == 'intent' and 'stores' in self.config:
-                config_with_adapter['stores'] = self.config['stores']
-
-            # Include adapter-level inference provider override if specified
-            if 'inference_provider' in adapter_config:
-                config_with_adapter['inference_provider'] = adapter_config['inference_provider']
-                if self.verbose:
-                    logger.info(f"Setting inference provider override: {adapter_config['inference_provider']} for adapter: {adapter_name}")
-
-            # Include adapter-level model override if specified
-            if adapter_config.get('model'):
-                provider_for_model = adapter_config.get('inference_provider') or config_with_adapter.get('general', {}).get('inference_provider')
-                if provider_for_model:
-                    inference_section = config_with_adapter.setdefault('inference', {}).setdefault(provider_for_model, {})
-                    original_model = inference_section.get('model', 'default')
-                    inference_section['model'] = adapter_config['model']
-                    logger.info(
-                        "Model override for adapter '%s': '%s' -> '%s' (provider: %s)",
-                        adapter_name,
-                        original_model,
-                        adapter_config['model'],
-                        provider_for_model,
-                    )
-
-            # Include adapter-level embedding provider override if specified (and it's not null)
-            if adapter_config.get('embedding_provider'):
-                # Ensure the 'embedding' key exists
-                if 'embedding' not in config_with_adapter:
-                    config_with_adapter['embedding'] = {}
-
-                config_with_adapter['embedding']['provider'] = adapter_config['embedding_provider']
-                if self.verbose:
-                    logger.info(f"Setting embedding provider override: {adapter_config['embedding_provider']} for adapter: {adapter_name}")
-
-            # Include adapter-level database override if specified
-            if adapter_config.get('database'):
-                # Ensure the datasources section exists
-                if 'datasources' not in config_with_adapter:
-                    config_with_adapter['datasources'] = {}
-                if datasource_name not in config_with_adapter['datasources']:
-                    config_with_adapter['datasources'][datasource_name] = {}
-                
-                # Set the database override
-                original_database = config_with_adapter['datasources'][datasource_name].get('database', 'default')
-                config_with_adapter['datasources'][datasource_name]['database'] = adapter_config['database']
-                
-                if self.verbose:
-                    logger.info(
-                        f"Database override for adapter '{adapter_name}': '{original_database}' -> '{adapter_config['database']}' (datasource: {datasource_name})"
-                    )
-
-            # Create datasource instance for the retriever using the datasource registry with pooling
-            datasource_instance = None
-            if datasource_name and datasource_name != 'none':
-                try:
-                    from datasources.registry import get_registry as get_datasource_registry
-                    datasource_registry = get_datasource_registry()
-                    # Use get_or_create_datasource for pooling instead of create_datasource
-                    datasource_instance = datasource_registry.get_or_create_datasource(
-                        datasource_name=datasource_name,
-                        config=config_with_adapter,
-                        logger_instance=logger
-                    )
-                    if datasource_instance:
-                        logger.info(f"Got datasource instance '{datasource_name}' for retriever in adapter '{adapter_name}' (pooled)")
-                    else:
-                        logger.warning(f"Failed to get datasource '{datasource_name}' for adapter '{adapter_name}', retriever will not have access to datasource")
-                except Exception as e:
-                    logger.warning(f"Error getting datasource '{datasource_name}' for adapter '{adapter_name}': {e}. Retriever will proceed without datasource.")
-                    datasource_instance = None
-
-            # Create retriever instance with datasource
-            retriever = retriever_class(
-                config=config_with_adapter,
-                domain_adapter=domain_adapter,
-                datasource=datasource_instance
-            )
-
-            # Store metadata for cleanup: datasource name and config
-            retriever._datasource_name = datasource_name
-            retriever._datasource_config_for_release = config_with_adapter
-            
-            return retriever
-        
-        # Load adapter in thread pool
-        retriever = await loop.run_in_executor(self._thread_pool, _sync_load)
-        
-        # Initialize the retriever (if it's async)
-        if hasattr(retriever, 'initialize'):
-            if asyncio.iscoroutinefunction(retriever.initialize):
-                await retriever.initialize()
-            else:
-                await loop.run_in_executor(self._thread_pool, retriever.initialize)
-        
-        # Initialize embeddings for intent adapters that support it
-        if hasattr(retriever, 'domain_adapter') and retriever.domain_adapter:
-            domain_adapter = retriever.domain_adapter
-            if hasattr(domain_adapter, 'initialize_embeddings'):
-                # Try to get store manager from multiple sources
-                store_manager = None
-                
-                # First, check app state for store manager
-                if self.app_state:
-                    store_manager = getattr(self.app_state, 'store_manager', None)
-                    if not store_manager:
-                        # Check for vector_store_manager (legacy name)
-                        store_manager = getattr(self.app_state, 'vector_store_manager', None)
-                
-                # If no store manager in app state, create one if vector stores are configured
-                if not store_manager:
-                    try:
-                        from vector_stores.base.store_manager import StoreManager
-                        store_manager = StoreManager()
-                        self.logger.info(f"Created new StoreManager for adapter {adapter_name}")
-                    except ImportError:
-                        self.logger.warning("Vector store system not available")
-                
-                if store_manager:
-                    self.logger.info(f"Initializing embeddings for adapter {adapter_name} with store manager")
-                    await domain_adapter.initialize_embeddings(store_manager)
-                else:
-                    self.logger.info(f"Initializing embeddings for adapter {adapter_name} without store manager")
-                    await domain_adapter.initialize_embeddings()
-        
-        return retriever
-    
     def get_adapter_config(self, adapter_name: str) -> Optional[Dict[str, Any]]:
         """
         Get the configuration for a specific adapter.
-        
+
         Args:
             adapter_name: The name of the adapter
-            
+
         Returns:
             The adapter configuration dictionary or None if not found
         """
-        return self._adapter_configs.get(adapter_name)
-    
+        return self.config_manager.get(adapter_name)
+
     def get_available_adapters(self) -> list[str]:
         """
         Get list of available adapter names.
-        
+
         Returns:
             List of adapter names that can be loaded
         """
-        return list(self._adapter_configs.keys())
-    
+        return self.config_manager.get_available_adapters()
+
     def get_cached_adapters(self) -> list[str]:
         """
         Get list of currently cached adapter names.
-        
+
         Returns:
             List of adapter names that are currently cached
         """
-        return list(self._adapter_cache.keys())
-    
+        return self.adapter_cache.get_cached_names()
+
     async def preload_adapter(self, adapter_name: str) -> None:
         """
         Preload an adapter into cache.
-        
+
         Args:
             adapter_name: Name of the adapter to preload
         """
@@ -752,95 +384,44 @@ class DynamicAdapterManager:
             self.logger.info(f"Preloaded adapter: {adapter_name}")
         except Exception as e:
             self.logger.error(f"Failed to preload adapter {adapter_name}: {str(e)}")
-    
+
     async def preload_all_adapters(self, timeout_per_adapter: float = 30.0) -> Dict[str, Any]:
         """
         Preload all adapters in parallel with timeout protection.
-        
+
         Args:
             timeout_per_adapter: Maximum time to wait for each adapter to load
-            
+
         Returns:
             Dict with preload results for each adapter
         """
         available_adapters = self.get_available_adapters()
         if not available_adapters:
             return {}
-        
+
         self.logger.info(f"Preloading {len(available_adapters)} adapters in parallel...")
-        
-        # Create tasks for parallel loading
+
         async def load_adapter_with_timeout(adapter_name: str):
             try:
-                # Load adapter with timeout
                 await asyncio.wait_for(
                     self.get_adapter(adapter_name),
                     timeout=timeout_per_adapter
                 )
 
-                # Determine the inference provider and model for logging
+                # Also preload the inference provider
                 adapter_config = self.get_adapter_config(adapter_name) or {}
                 inference_provider = adapter_config.get('inference_provider') or self.config.get('general', {}).get('inference_provider', 'default')
-                model_override = adapter_config.get('model')
 
-                # Also preload the inference provider to catch disabled provider errors early
                 try:
                     await self.get_overridden_provider(inference_provider, adapter_name)
-                    self.logger.debug(f"Successfully preloaded inference provider '{inference_provider}' for adapter '{adapter_name}'")
                 except ValueError as provider_error:
                     if "No service registered for inference with provider" in str(provider_error):
-                        # This is a disabled provider error
                         raise ValueError(f"Adapter '{adapter_name}' uses disabled inference provider '{inference_provider}'") from provider_error
                     else:
                         raise
 
-                # Get embedding configuration
-                embedding_provider = adapter_config.get('embedding_provider') or self.config.get('embedding', {}).get('provider', 'ollama')
-                embedding_model = None
-                if embedding_provider in self.config.get('embeddings', {}):
-                    embedding_model = self.config.get('embeddings', {}).get(embedding_provider, {}).get('model')
-
-                # Get reranker configuration
-                reranker_provider = adapter_config.get('reranker_provider')
-                reranker_model = None
-                if reranker_provider and reranker_provider in self.config.get('rerankers', {}):
-                    reranker_model = self.config.get('rerankers', {}).get(reranker_provider, {}).get('model')
-
-                # Check if this is an intent adapter and get store info
-                adapter_type = adapter_config.get('adapter')
-                store_info = ""
-                if adapter_type == 'intent':
-                    store_name = adapter_config.get('config', {}).get('store_name')
-                    if store_name:
-                        store_info = f", store: {store_name}"
-
-                # Build message parts
-                msg_parts = []
-
-                # Inference provider and model
-                if model_override:
-                    msg_parts.append(f"inference: {inference_provider}/{model_override}")
-                else:
-                    msg_parts.append(f"inference: {inference_provider}")
-
-                # Embedding provider and model
-                if embedding_model:
-                    msg_parts.append(f"embedding: {embedding_provider}/{embedding_model}")
-                else:
-                    msg_parts.append(f"embedding: {embedding_provider}")
-
-                # Reranker provider and model
-                if reranker_provider:
-                    if reranker_model:
-                        msg_parts.append(f"reranker: {reranker_provider}/{reranker_model}")
-                    else:
-                        msg_parts.append(f"reranker: {reranker_provider}")
-
-                # Store info for intent adapters
-                if store_info:
-                    msg_parts.append(store_info.lstrip(", "))
-
-                message = f"Preloaded successfully ({', '.join(msg_parts)})"
+                # Build success message
+                message = self._build_preload_success_message(adapter_name, adapter_config)
 
                 return {
                     "adapter_name": adapter_name,
@@ -854,62 +435,105 @@ class DynamicAdapterManager:
                     "error": f"Timeout after {timeout_per_adapter}s"
                 }
             except ValueError as e:
-                # Check if this is a disabled provider error
-                if "No service registered for inference with provider" in str(e):
-                    adapter_config = self.get_adapter_config(adapter_name) or {}
-                    inference_provider = adapter_config.get('inference_provider') or self.config.get('general', {}).get('inference_provider', 'unknown')
-                    return {
-                        "adapter_name": adapter_name,
-                        "success": False,
-                        "error": f"Inference provider '{inference_provider}' is disabled (enable in config/inference.yaml)"
-                    }
-                else:
-                    return {
-                        "adapter_name": adapter_name,
-                        "success": False,
-                        "error": str(e)
-                    }
+                return self._build_preload_error_result(adapter_name, e)
             except Exception as e:
                 return {
                     "adapter_name": adapter_name,
                     "success": False,
                     "error": str(e)
                 }
-        
+
         # Run all adapter loading tasks in parallel
         tasks = [load_adapter_with_timeout(name) for name in available_adapters]
         results = await asyncio.gather(*tasks, return_exceptions=True)
-        
+
         # Process results
         preload_results = {}
         successful_count = 0
-        
+
         for result in results:
             if isinstance(result, Exception):
-                # This shouldn't happen due to exception handling in load_adapter_with_timeout
                 self.logger.error(f"Unexpected exception in adapter preloading: {result}")
                 continue
-                
+
             adapter_name = result["adapter_name"]
             preload_results[adapter_name] = result
-            
+
             if result["success"]:
                 successful_count += 1
                 self.logger.info(f"✅ {adapter_name}: {result['message']}")
             else:
                 self.logger.warning(f"❌ {adapter_name}: {result['error']}")
-        
+
         self.logger.info(f"Adapter preloading completed: {successful_count}/{len(available_adapters)} successful")
-        
+
         return preload_results
-    
+
+    def _build_preload_success_message(self, adapter_name: str, adapter_config: Dict[str, Any]) -> str:
+        """Build success message for adapter preloading."""
+        model_override = adapter_config.get('model')
+        inference_provider = adapter_config.get('inference_provider') or self.config.get('general', {}).get('inference_provider', 'default')
+
+        embedding_provider = adapter_config.get('embedding_provider') or self.config.get('embedding', {}).get('provider', 'ollama')
+        embedding_model = None
+        if embedding_provider in self.config.get('embeddings', {}):
+            embedding_model = self.config.get('embeddings', {}).get(embedding_provider, {}).get('model')
+
+        reranker_provider = adapter_config.get('reranker_provider')
+        reranker_model = None
+        if reranker_provider and reranker_provider in self.config.get('rerankers', {}):
+            reranker_model = self.config.get('rerankers', {}).get(reranker_provider, {}).get('model')
+
+        adapter_type = adapter_config.get('adapter')
+        store_info = ""
+        if adapter_type == 'intent':
+            store_name = adapter_config.get('config', {}).get('store_name')
+            if store_name:
+                store_info = f", store: {store_name}"
+
+        msg_parts = []
+
+        if model_override:
+            msg_parts.append(f"inference: {inference_provider}/{model_override}")
+        else:
+            msg_parts.append(f"inference: {inference_provider}")
+
+        if embedding_model:
+            msg_parts.append(f"embedding: {embedding_provider}/{embedding_model}")
+        else:
+            msg_parts.append(f"embedding: {embedding_provider}")
+
+        if reranker_provider:
+            if reranker_model:
+                msg_parts.append(f"reranker: {reranker_provider}/{reranker_model}")
+            else:
+                msg_parts.append(f"reranker: {reranker_provider}")
+
+        if store_info:
+            msg_parts.append(store_info.lstrip(", "))
+
+        return f"Preloaded successfully ({', '.join(msg_parts)})"
+
+    def _build_preload_error_result(self, adapter_name: str, error: ValueError) -> Dict[str, Any]:
+        """Build error result for adapter preloading."""
+        if "No service registered for inference with provider" in str(error):
+            adapter_config = self.get_adapter_config(adapter_name) or {}
+            inference_provider = adapter_config.get('inference_provider') or self.config.get('general', {}).get('inference_provider', 'unknown')
+            return {
+                "adapter_name": adapter_name,
+                "success": False,
+                "error": f"Inference provider '{inference_provider}' is disabled (enable in config/inference.yaml)"
+            }
+        else:
+            return {
+                "adapter_name": adapter_name,
+                "success": False,
+                "error": str(error)
+            }
+
     async def remove_adapter(self, adapter_name: str, clear_dependencies: bool = False) -> bool:
         """
         Remove an adapter from cache and clean up resources.
-
-        Note: When called from reload_adapter_configs, dependency caches are cleared
-        separately before calling this method. Set clear_dependencies=True if calling
-        this method directly and you want to ensure all related caches are cleared.
 
         Args:
             adapter_name: Name of the adapter to remove
@@ -918,75 +542,19 @@ class DynamicAdapterManager:
         Returns:
             True if adapter was removed, False if not found
         """
-        # Clear dependency caches first if requested
         if clear_dependencies:
-            old_config = self._adapter_configs.get(adapter_name)
+            old_config = self.config_manager.get(adapter_name)
             if old_config:
-                await self._clear_adapter_dependency_caches(adapter_name, old_config)
+                await self.dependency_cleaner.clear_adapter_dependencies(adapter_name, old_config)
 
-        with self._cache_lock:
-            if adapter_name not in self._adapter_cache:
-                return False
-
-            adapter = self._adapter_cache.pop(adapter_name)
-            self._adapter_locks.pop(adapter_name, None)
-
-        # Try to close the adapter if it has a close method
-        try:
-            if hasattr(adapter, 'close'):
-                if asyncio.iscoroutinefunction(adapter.close):
-                    await adapter.close()
-                else:
-                    adapter.close()
-        except Exception as e:
-            self.logger.warning(f"Error closing adapter {adapter_name}: {str(e)}")
-
-        # Release the datasource reference (uses reference counting)
-        try:
-            if (hasattr(adapter, '_datasource') and adapter._datasource is not None and
-                hasattr(adapter, '_datasource_name') and hasattr(adapter, '_datasource_config_for_release')):
-                from datasources.registry import get_registry as get_datasource_registry
-                datasource_registry = get_datasource_registry()
-                datasource_registry.release_datasource(
-                    datasource_name=adapter._datasource_name,
-                    config=adapter._datasource_config_for_release,
-                    logger_instance=self.logger
-                )
-        except Exception as e:
-            self.logger.warning(f"Error releasing datasource for adapter {adapter_name}: {str(e)}")
-
-        # Unregister capabilities to ensure fresh inference on reload
-        try:
-            from adapters.capabilities import get_capability_registry
-            capability_registry = get_capability_registry()
-            capability_registry.unregister(adapter_name)
-            if self.verbose:
-                self.logger.debug(f"Unregistered capabilities for adapter: {adapter_name}")
-        except Exception as e:
-            self.logger.warning(f"Error unregistering capabilities for adapter {adapter_name}: {str(e)}")
-
-        self.logger.info(f"Removed adapter from cache: {adapter_name}")
-        return True
+        removed = await self.adapter_cache.remove(adapter_name)
+        return removed is not None
 
     async def clear_cache(self) -> None:
         """Clear all cached adapters and clean up resources."""
-        adapter_names = list(self._adapter_cache.keys())
-
-        for adapter_name in adapter_names:
-            await self.remove_adapter(adapter_name)
-
-        # Clear all capabilities from registry
-        try:
-            from adapters.capabilities import get_capability_registry
-            capability_registry = get_capability_registry()
-            capability_registry.clear()
-            if self.verbose:
-                self.logger.debug("Cleared all capabilities from registry")
-        except Exception as e:
-            self.logger.warning(f"Error clearing capability registry: {str(e)}")
-
+        await self.adapter_cache.clear()
         self.logger.info("Cleared all adapters from cache")
-    
+
     async def health_check(self) -> Dict[str, Any]:
         """
         Perform health check on the adapter manager.
@@ -994,7 +562,6 @@ class DynamicAdapterManager:
         Returns:
             Health status information
         """
-        # Get datasource pool stats
         try:
             from datasources.registry import get_registry as get_datasource_registry
             datasource_registry = get_datasource_registry()
@@ -1004,267 +571,23 @@ class DynamicAdapterManager:
 
         return {
             "status": "healthy",
-            "available_adapters": len(self._adapter_configs),
-            "cached_adapters": len(self._adapter_cache),
-            "cached_inference_providers": len(self._provider_cache),
-            "cached_embedding_services": len(self._embedding_cache),
-            "initializing_adapters": len(self._initializing_adapters),
-            "adapter_configs": list(self._adapter_configs.keys()),
-            "cached_adapter_names": list(self._adapter_cache.keys()),
-            "cached_inference_provider_keys": list(self._provider_cache.keys()),
-            "cached_embedding_service_keys": list(self._embedding_cache.keys()),
+            "available_adapters": self.config_manager.get_adapter_count(),
+            "cached_adapters": self.adapter_cache.get_cache_size(),
+            "cached_inference_providers": self.provider_cache.get_cache_size(),
+            "cached_embedding_services": self.embedding_cache.get_cache_size(),
+            "cached_reranker_services": self.reranker_cache.get_cache_size(),
+            "cached_vision_services": self.vision_cache.get_cache_size(),
+            "cached_audio_services": self.audio_cache.get_cache_size(),
+            "initializing_adapters": self.adapter_cache.get_initializing_count(),
+            "adapter_configs": self.config_manager.get_available_adapters(),
+            "cached_adapter_names": self.adapter_cache.get_cached_names(),
+            "cached_inference_provider_keys": self.provider_cache.get_cached_keys(),
+            "cached_embedding_service_keys": self.embedding_cache.get_cached_keys(),
+            "cached_reranker_service_keys": self.reranker_cache.get_cached_keys(),
+            "cached_vision_service_keys": self.vision_cache.get_cached_keys(),
+            "cached_audio_service_keys": self.audio_cache.get_cached_keys(),
             "datasource_pool": datasource_stats
         }
-
-    def _configs_differ(self, old_config: Dict[str, Any], new_config: Dict[str, Any]) -> bool:
-        """
-        Compare configs reliably using JSON serialization.
-
-        This ensures we catch all nested changes including deep dictionary differences.
-
-        Args:
-            old_config: The old configuration dictionary
-            new_config: The new configuration dictionary
-
-        Returns:
-            True if configs differ, False if they are the same
-        """
-        import json
-        try:
-            old_json = json.dumps(old_config, sort_keys=True)
-            new_json = json.dumps(new_config, sort_keys=True)
-            return old_json != new_json
-        except (TypeError, ValueError) as e:
-            # Fallback to simple comparison if JSON serialization fails
-            self.logger.warning(f"Failed to serialize configs for comparison: {e}")
-            return old_config != new_config
-
-    def _detect_config_changes(self, old_config: Dict[str, Any], new_config: Dict[str, Any]) -> list[str]:
-        """
-        Detect what specific configuration values changed between old and new config.
-
-        Args:
-            old_config: The old configuration dictionary
-            new_config: The new configuration dictionary
-
-        Returns:
-            List of change descriptions (e.g., ["inference_provider: ollama -> anthropic", "model: llama3 -> claude-3"])
-        """
-        changes = []
-
-        # Check key fields that affect caching
-        key_fields = [
-            'inference_provider',
-            'model',
-            'embedding_provider',
-            'reranker_provider',
-            'vision_provider',
-            'database',
-            'enabled',
-            'adapter',
-            'datasource'
-        ]
-
-        for field in key_fields:
-            old_val = old_config.get(field)
-            new_val = new_config.get(field)
-
-            if old_val != new_val:
-                # Format the change message
-                old_str = str(old_val) if old_val is not None else "None"
-                new_str = str(new_val) if new_val is not None else "None"
-                changes.append(f"{field}: {old_str} -> {new_str}")
-
-        # Check nested config section
-        old_nested_config = old_config.get('config', {})
-        new_nested_config = new_config.get('config', {})
-
-        if old_nested_config != new_nested_config:
-            # Try to identify specific nested changes
-            nested_changes = []
-            all_keys = set(old_nested_config.keys()) | set(new_nested_config.keys())
-
-            for key in all_keys:
-                old_nested_val = old_nested_config.get(key)
-                new_nested_val = new_nested_config.get(key)
-
-                if old_nested_val != new_nested_val:
-                    old_str = str(old_nested_val) if old_nested_val is not None else "None"
-                    new_str = str(new_nested_val) if new_nested_val is not None else "None"
-                    nested_changes.append(f"config.{key}: {old_str} -> {new_str}")
-
-            if nested_changes:
-                changes.extend(nested_changes[:3])  # Limit to first 3 nested changes to avoid log spam
-                if len(nested_changes) > 3:
-                    changes.append(f"... and {len(nested_changes) - 3} more nested config changes")
-
-        return changes
-
-    async def _clear_adapter_dependency_caches(self, adapter_name: str, old_config: Optional[Dict[str, Any]] = None) -> None:
-        """
-        Clear all provider/embedding/reranker caches for an adapter.
-
-        This ensures that when an adapter configuration changes, any cached providers,
-        embeddings, or rerankers associated with the old configuration are cleared.
-
-        Edge case handling: If multiple adapters share the same provider (e.g., both use
-        "cohere:command-r"), clearing the cache when one adapter is reloaded will affect
-        the other. However, this is acceptable because:
-        1. Providers are lazily re-created on next access via get_overridden_provider()
-        2. Hot-reload scenarios prioritize correctness over avoiding re-initialization
-        3. The performance impact is minimal (providers initialize quickly)
-        4. This approach is simpler and safer than reference counting shared providers
-
-        Args:
-            adapter_name: Name of the adapter whose dependencies should be cleared
-            old_config: Optional old configuration. If not provided, uses current config from _adapter_configs
-        """
-        # Get old config if not provided
-        if old_config is None:
-            old_config = self._adapter_configs.get(adapter_name)
-
-        if not old_config:
-            if self.verbose:
-                self.logger.debug(f"No config found for adapter '{adapter_name}', skipping dependency cache clearing")
-            return
-
-        cleared_caches = []
-
-        # Clear inference provider cache
-        # Match the exact cache key construction logic from get_overridden_provider
-        old_provider = old_config.get('inference_provider')
-        old_model = old_config.get('model')
-
-        if old_provider:
-            # Build cache key exactly as in get_overridden_provider:
-            # - If model exists, use "provider:model"
-            # - Otherwise, use just "provider"
-            cache_key = f"{old_provider}:{old_model}" if old_model else old_provider
-
-            with self._provider_cache_lock:
-                # Try exact match first
-                if cache_key in self._provider_cache:
-                    provider = self._provider_cache.pop(cache_key)
-                    cleared_caches.append(f"provider:{cache_key}")
-
-                    # Try to close provider if it has close method
-                    try:
-                        if hasattr(provider, 'close') and callable(getattr(provider, 'close', None)):
-                            if asyncio.iscoroutinefunction(provider.close):
-                                await provider.close()
-                            else:
-                                provider.close()
-                    except (AttributeError, TypeError) as e:
-                        # Some providers (like Cohere) have a close attribute that isn't callable
-                        if self.verbose:
-                            self.logger.debug(f"Provider {cache_key} close method not available: {str(e)}")
-                    except Exception as e:
-                        self.logger.warning(f"Error closing provider {cache_key}: {str(e)}")
-
-                    # Remove from initializing set if present
-                    self._provider_initializing.discard(cache_key)
-                else:
-                    # Fallback: clear all variants of this provider if exact match fails
-                    # This handles edge cases where cache key might have been constructed differently
-                    provider_keys_to_remove = []
-                    for key in list(self._provider_cache.keys()):
-                        if key == old_provider or key.startswith(f"{old_provider}:"):
-                            provider_keys_to_remove.append(key)
-                    
-                    for key in provider_keys_to_remove:
-                        provider = self._provider_cache.pop(key)
-                        cleared_caches.append(f"provider:{key}")
-                        
-                        try:
-                            if hasattr(provider, 'close') and callable(getattr(provider, 'close', None)):
-                                if asyncio.iscoroutinefunction(provider.close):
-                                    await provider.close()
-                                else:
-                                    provider.close()
-                        except (AttributeError, TypeError):
-                            pass
-                        except Exception as e:
-                            self.logger.warning(f"Error closing provider {key}: {str(e)}")
-                        
-                        self._provider_initializing.discard(key)
-                    
-                    if provider_keys_to_remove and self.verbose:
-                        self.logger.debug(f"Cleared provider cache variants for '{old_provider}': {provider_keys_to_remove}")
-
-        # Clear embedding cache
-        old_embedding_provider = old_config.get('embedding_provider')
-
-        if old_embedding_provider:
-            # Build cache key the same way as in get_overridden_embedding
-            embedding_config = self.config.get('embeddings', {}).get(old_embedding_provider, {})
-            embedding_model = embedding_config.get('model', '')
-            cache_key = f"{old_embedding_provider}:{embedding_model}" if embedding_model else old_embedding_provider
-
-            with self._embedding_cache_lock:
-                if cache_key in self._embedding_cache:
-                    embedding_service = self._embedding_cache.pop(cache_key)
-                    cleared_caches.append(f"embedding:{cache_key}")
-
-                    # Try to close embedding service if it has close method
-                    try:
-                        if hasattr(embedding_service, 'close') and callable(getattr(embedding_service, 'close', None)):
-                            if asyncio.iscoroutinefunction(embedding_service.close):
-                                await embedding_service.close()
-                            else:
-                                embedding_service.close()
-                    except (AttributeError, TypeError) as e:
-                        # Some services have a close attribute that isn't callable
-                        if self.verbose:
-                            self.logger.debug(f"Embedding service {cache_key} close method not available: {str(e)}")
-                    except Exception as e:
-                        self.logger.warning(f"Error closing embedding service {cache_key}: {str(e)}")
-
-                    # Remove from initializing set if present
-                    self._embedding_initializing.discard(cache_key)
-
-        # Clear reranker cache
-        old_reranker_provider = old_config.get('reranker_provider')
-
-        if old_reranker_provider:
-            # Build cache key the same way as in get_overridden_reranker
-            reranker_config = self.config.get('rerankers', {}).get(old_reranker_provider, {})
-            reranker_model = reranker_config.get('model', '')
-            cache_key = f"{old_reranker_provider}:{reranker_model}" if reranker_model else old_reranker_provider
-
-            with self._reranker_cache_lock:
-                if cache_key in self._reranker_cache:
-                    reranker_service = self._reranker_cache.pop(cache_key)
-                    cleared_caches.append(f"reranker:{cache_key}")
-
-                    # Try to close reranker service if it has close method
-                    try:
-                        if hasattr(reranker_service, 'close') and callable(getattr(reranker_service, 'close', None)):
-                            if asyncio.iscoroutinefunction(reranker_service.close):
-                                await reranker_service.close()
-                            else:
-                                reranker_service.close()
-                    except (AttributeError, TypeError) as e:
-                        # Some services have a close attribute that isn't callable
-                        if self.verbose:
-                            self.logger.debug(f"Reranker service {cache_key} close method not available: {str(e)}")
-                    except Exception as e:
-                        self.logger.warning(f"Error closing reranker service {cache_key}: {str(e)}")
-
-                    # Remove from initializing set if present
-                    self._reranker_initializing.discard(cache_key)
-
-        if cleared_caches:
-            self.logger.info(f"Cleared dependency caches for adapter '{adapter_name}': {', '.join(cleared_caches)}")
-        elif self.verbose:
-            self.logger.debug(f"No dependency caches to clear for adapter '{adapter_name}'")
-        
-        # Log summary of what was cleared for better debugging
-        if self.verbose and cleared_caches:
-            provider_count = sum(1 for c in cleared_caches if c.startswith("provider:"))
-            embedding_count = sum(1 for c in cleared_caches if c.startswith("embedding:"))
-            reranker_count = sum(1 for c in cleared_caches if c.startswith("reranker:"))
-            self.logger.debug(f"Cache clearing summary for '{adapter_name}': "
-                            f"{provider_count} provider(s), {embedding_count} embedding(s), {reranker_count} reranker(s)")
 
     async def reload_adapter_configs(self, config: Dict[str, Any], adapter_name: Optional[str] = None) -> Dict[str, Any]:
         """
@@ -1277,279 +600,40 @@ class DynamicAdapterManager:
         Returns:
             Summary dict with counts of added/removed/updated adapters
         """
-        # CRITICAL FIX: Update global config so providers/embeddings/rerankers use latest config
-        # This ensures get_overridden_provider(), get_overridden_embedding(), and get_overridden_reranker()
-        # use the new config values when creating services. Without this, they would use stale config.
+        # Update global config
         self.config = config
         if self.verbose:
             self.logger.debug("Updated global config for adapter reload")
 
-        # Extract new adapter configs
-        new_adapter_configs_list = config.get('adapters', [])
-        new_adapter_configs = {}
+        # Update config references in all components
+        self.adapter_loader.update_config(config)
+        self.dependency_cleaner.update_config(config)
+        self.config_manager.config = config
 
-        for adapter_config in new_adapter_configs_list:
-            name = adapter_config.get('name')
-            if name and adapter_config.get('enabled', True):
-                new_adapter_configs[name] = adapter_config
-
-        # If specific adapter requested, only reload that one
         if adapter_name:
-            # First, look for the adapter in the full config list (including disabled ones)
-            adapter_config_full = None
-            for adapter_config in new_adapter_configs_list:
-                if adapter_config.get('name') == adapter_name:
-                    adapter_config_full = adapter_config
-                    break
-
-            if adapter_config_full is None:
-                raise ValueError(f"Adapter '{adapter_name}' not found in configuration file")
-
-            # Get old config from _adapter_configs (this should exist if adapter was previously enabled)
-            old_config = self._adapter_configs.get(adapter_name)
-            is_enabled = adapter_config_full.get('enabled', True)
-            
-            # Check if adapter was previously cached (indicates it was enabled before)
-            was_cached = adapter_name in self._adapter_cache
-            
-            # If adapter was cached but not in configs, it means it was disabled
-            # We need to get the old config from the cached adapter to clear dependencies
-            if not old_config and was_cached:
-                # Adapter was disabled (removed from _adapter_configs) but still in cache
-                # Get the old config from the cached adapter's metadata if available
-                cached_adapter = self._adapter_cache.get(adapter_name)
-                if cached_adapter and hasattr(cached_adapter, '_adapter_config'):
-                    # Some adapters might store their config
-                    old_config = getattr(cached_adapter, '_adapter_config', None)
-                # If we can't get old config, we'll still clear caches based on new config after removal
-            
-            # Ensure we have old_config for comparison if adapter exists in configs
-            # This is critical for change detection to work properly
-            if not old_config and adapter_name in self._adapter_configs:
-                # Adapter exists in configs but old_config wasn't retrieved (shouldn't happen, but be safe)
-                old_config = self._adapter_configs[adapter_name]
-            
-            # Clear dependency caches before removing adapter
-            # We need old_config to properly clear caches
-            if old_config:
-                # Clear caches using old config (most accurate)
-                await self._clear_adapter_dependency_caches(adapter_name, old_config)
-            elif was_cached:
-                # Adapter was cached but we don't have old_config from _adapter_configs
-                # This means it was disabled and removed from _adapter_configs
-                # Clear caches based on new config (best we can do)
-                await self._clear_adapter_dependency_caches(adapter_name, adapter_config_full)
-
-            # Remove from cache if it exists (dependencies already cleared above)
-            if adapter_name in self._adapter_cache:
-                await self.remove_adapter(adapter_name, clear_dependencies=False)
-
-            # Handle based on enabled status
-            if is_enabled:
-                # Add or update the adapter
-                self._adapter_configs[adapter_name] = adapter_config_full
-                # Determine action: "enabled" if re-enabling after disable, "updated" if config changed, "added" if new
-                # Note: was_cached indicates adapter was previously enabled (even if not in _adapter_configs due to disable)
-                # Priority: enabled > updated > added
-                if was_cached and not old_config:
-                    # Adapter was cached but not in configs = it was disabled, now re-enabling
-                    action = "enabled"
-                elif old_config and not old_config.get('enabled', True):
-                    # Old config exists but was disabled
-                    action = "enabled"
-                elif old_config:
-                    # Old config exists in _adapter_configs = update (regardless of whether it was cached)
-                    action = "updated"
-                else:
-                    # No old config and not cached = truly new adapter
-                    action = "added"
-
-                # Log what changed if this is an update or enabled (re-enabling after disable)
-                # Always log changes when old_config exists, regardless of action
-                # This ensures change detection works even if adapter wasn't previously cached
-                if old_config and action in ["updated", "enabled"]:
-                    changes = self._detect_config_changes(old_config, adapter_config_full)
-                    if changes:
-                        self.logger.info(f"Adapter '{adapter_name}' config changes: {', '.join(changes)}")
-                    elif self.verbose:
-                        # Log when no changes detected (for debugging)
-                        self.logger.debug(f"Adapter '{adapter_name}' reloaded but no config changes detected")
-
-                # Force reload adapter after config change to ensure new config is applied
-                # This is critical for provider/model changes to take effect immediately
-                # Note: "added" action can occur when re-enabling a previously disabled adapter
-                # (since disabled adapters are removed from _adapter_configs), so we preload for all actions
-                try:
-                    if action in ["updated", "enabled", "added"]:
-                        # Preload the adapter to ensure fresh initialization with new config
-                        self.logger.info(f"Preloading adapter '{adapter_name}' to apply new configuration...")
-                        await self.preload_adapter(adapter_name)
-                        self.logger.info(f"Successfully preloaded adapter '{adapter_name}' with new configuration")
-                except ValueError as e:
-                    # ValueError typically means adapter config is invalid or provider is disabled
-                    error_msg = str(e)
-                    self.logger.error(f"Failed to preload adapter '{adapter_name}' after reload: {error_msg}")
-                    # Don't fail the reload - adapter will be loaded lazily on next access
-                    # This allows reload to succeed even if provider is temporarily unavailable
-                except Exception as e:
-                    # Log error but don't fail the reload - adapter will be loaded lazily on next access
-                    self.logger.warning(f"Failed to preload adapter '{adapter_name}' after reload: {str(e)}. "
-                                      f"Adapter will be loaded lazily on next access. Error type: {type(e).__name__}")
-
-                self.logger.info(f"Reloaded adapter '{adapter_name}' ({action})")
-
-                return {
-                    "adapter_name": adapter_name,
-                    "action": action,
-                    "previous_config": old_config,
-                    "new_config": adapter_config_full
-                }
-            else:
-                # Disable/remove the adapter
-                if adapter_name in self._adapter_configs:
-                    del self._adapter_configs[adapter_name]
-                action = "disabled"
-                self.logger.info(f"Disabled adapter '{adapter_name}'")
-
-                return {
-                    "adapter_name": adapter_name,
-                    "action": action,
-                    "previous_config": old_config,
-                    "new_config": None
-                }
-
-        # Otherwise reload all adapters
-        # Compare with existing configs
-        added = []
-        removed = []
-        updated = []
-        unchanged = []
-
-        # Find added and updated adapters
-        for name, new_config in new_adapter_configs.items():
-            if name not in self._adapter_configs:
-                added.append(name)
-                self._adapter_configs[name] = new_config
-                # Preload newly added adapters
-                try:
-                    if self.verbose:
-                        self.logger.info(f"Preloading newly added adapter '{name}'...")
-                    await self.preload_adapter(name)
-                    if self.verbose:
-                        self.logger.info(f"Successfully preloaded newly added adapter '{name}'")
-                except ValueError as e:
-                    # ValueError typically means adapter config is invalid or provider is disabled
-                    error_msg = str(e)
-                    self.logger.error(f"Failed to preload newly added adapter '{name}': {error_msg}")
-                except Exception as e:
-                    self.logger.warning(f"Failed to preload newly added adapter '{name}': {str(e)}. "
-                                      f"Adapter will be loaded lazily on next access. Error type: {type(e).__name__}")
-            else:
-                # Check if config actually changed using reliable comparison
-                if self._configs_differ(self._adapter_configs[name], new_config):
-                    updated.append(name)
-
-                    # Log what changed
-                    old_config = self._adapter_configs[name]
-                    changes = self._detect_config_changes(old_config, new_config)
-                    if changes:
-                        self.logger.info(f"Adapter '{name}' config changes: {', '.join(changes)}")
-
-                    # Clear dependency caches before removing adapter
-                    await self._clear_adapter_dependency_caches(name, old_config)
-
-                    # Remove from cache so it gets reloaded with new config (dependencies already cleared above)
-                    if name in self._adapter_cache:
-                        await self.remove_adapter(name, clear_dependencies=False)
-
-                    self._adapter_configs[name] = new_config
-                    
-                    # Force reload adapter after config change to ensure new config is applied
-                    try:
-                        if self.verbose:
-                            self.logger.info(f"Preloading updated adapter '{name}' to apply new configuration...")
-                        await self.preload_adapter(name)
-                        if self.verbose:
-                            self.logger.info(f"Successfully preloaded updated adapter '{name}' with new configuration")
-                    except ValueError as e:
-                        # ValueError typically means adapter config is invalid or provider is disabled
-                        error_msg = str(e)
-                        self.logger.error(f"Failed to preload updated adapter '{name}': {error_msg}")
-                        # Don't fail the reload - adapter will be loaded lazily on next access
-                    except Exception as e:
-                        # Log error but don't fail the reload - adapter will be loaded lazily on next access
-                        self.logger.warning(f"Failed to preload updated adapter '{name}': {str(e)}. "
-                                          f"Adapter will be loaded lazily on next access. Error type: {type(e).__name__}")
-                else:
-                    unchanged.append(name)
-
-        # Find removed adapters
-        for name in list(self._adapter_configs.keys()):
-            if name not in new_adapter_configs:
-                removed.append(name)
-
-                # Clear dependency caches before removing adapter
-                old_config = self._adapter_configs.get(name)
-                if old_config:
-                    await self._clear_adapter_dependency_caches(name, old_config)
-
-                # Remove from cache (dependencies already cleared above)
-                if name in self._adapter_cache:
-                    await self.remove_adapter(name, clear_dependencies=False)
-
-                # Remove from configs
-                del self._adapter_configs[name]
-
-        total = len(self._adapter_configs)
-
-        self.logger.info(
-            f"Adapter reload complete: {len(added)} added, {len(removed)} removed, "
-            f"{len(updated)} updated, {len(unchanged)} unchanged, {total} total"
-        )
-
-        return {
-            "added": len(added),
-            "removed": len(removed),
-            "updated": len(updated),
-            "unchanged": len(unchanged),
-            "total": total,
-            "added_names": added,
-            "removed_names": removed,
-            "updated_names": updated
-        }
+            return await self.reloader.reload_single_adapter(adapter_name, config)
+        else:
+            return await self.reloader.reload_all_adapters(config)
 
     async def close(self) -> None:
         """Clean up all resources."""
         # Close all cached providers
-        for provider_name, provider in self._provider_cache.items():
-            try:
-                if hasattr(provider, 'close'):
-                    if asyncio.iscoroutinefunction(provider.close):
-                        await provider.close()
-                    else:
-                        provider.close()
-                self.logger.info(f"Closed cached provider: {provider_name}")
-            except Exception as e:
-                self.logger.warning(f"Error closing cached provider {provider_name}: {str(e)}")
-
-        self._provider_cache.clear()
+        await self.provider_cache.close()
 
         # Close all cached embedding services
-        for embedding_name, embedding_service in self._embedding_cache.items():
-            try:
-                if hasattr(embedding_service, 'close'):
-                    if asyncio.iscoroutinefunction(embedding_service.close):
-                        await embedding_service.close()
-                    else:
-                        embedding_service.close()
-                self.logger.info(f"Closed cached embedding service: {embedding_name}")
-            except Exception as e:
-                self.logger.warning(f"Error closing cached embedding service {embedding_name}: {str(e)}")
+        await self.embedding_cache.close()
 
-        self._embedding_cache.clear()
+        # Close all cached reranker services
+        await self.reranker_cache.close()
+
+        # Close all cached vision services
+        await self.vision_cache.close()
+
+        # Close all cached audio services
+        await self.audio_cache.close()
 
         # Clear all cached adapters
-        await self.clear_cache()
+        await self.adapter_cache.clear()
 
         # Shutdown datasource pool
         try:
@@ -1564,51 +648,88 @@ class DynamicAdapterManager:
 
         self.logger.info("Dynamic Adapter Manager closed")
 
+    # Backward compatibility properties for internal state access
+    @property
+    def _adapter_cache(self) -> Dict[str, Any]:
+        """Backward compatibility: Direct access to adapter cache dict."""
+        return self.adapter_cache._cache
+
+    @property
+    def _adapter_configs(self) -> Dict[str, Dict[str, Any]]:
+        """Backward compatibility: Direct access to adapter configs dict."""
+        return self.config_manager._adapter_configs
+
+    @property
+    def _provider_cache(self) -> Dict[str, Any]:
+        """Backward compatibility: Direct access to provider cache dict."""
+        return self.provider_cache._cache
+
+    @property
+    def _embedding_cache(self) -> Dict[str, Any]:
+        """Backward compatibility: Direct access to embedding cache dict."""
+        return self.embedding_cache._cache
+
+    @property
+    def _reranker_cache(self) -> Dict[str, Any]:
+        """Backward compatibility: Direct access to reranker cache dict."""
+        return self.reranker_cache._cache
+
+    @property
+    def _vision_cache(self) -> Dict[str, Any]:
+        """Backward compatibility: Direct access to vision cache dict."""
+        return self.vision_cache._cache
+
+    @property
+    def _audio_cache(self) -> Dict[str, Any]:
+        """Backward compatibility: Direct access to audio cache dict."""
+        return self.audio_cache._cache
+
+    @property
+    def _initializing_adapters(self):
+        """Backward compatibility: Direct access to initializing set."""
+        return self.adapter_cache._initializing
+
 
 class AdapterProxy:
     """
     Proxy object that provides a retriever-like interface for the dynamic adapter manager.
-    
+
     This allows LLM clients to use the adapter manager as if it were a single retriever,
     while actually routing to the appropriate adapter based on the adapter name.
     """
-    
+
     def __init__(self, adapter_manager: DynamicAdapterManager):
         """
         Initialize the adapter proxy.
-        
+
         Args:
             adapter_manager: The dynamic adapter manager instance
         """
         self.adapter_manager = adapter_manager
         self.logger = logger
-    
-    async def get_relevant_context(self, 
-                                   query: str, 
+
+    async def get_relevant_context(self,
+                                   query: str,
                                    adapter_name: str,
                                    api_key: Optional[str] = None,
                                    **kwargs) -> list[Dict[str, Any]]:
         """
         Get relevant context using the specified adapter.
-        
+
         Args:
             query: The user's query
             adapter_name: Name of the adapter to use
             api_key: Optional API key (for backward compatibility)
             **kwargs: Additional parameters
-            
+
         Returns:
             List of relevant context items
         """
         if not adapter_name:
             raise ValueError("Adapter name is required")
-        
+
         try:
-            # Get the appropriate adapter
             adapter = await self.adapter_manager.get_adapter(adapter_name)
-            
-            # Call the adapter's get_relevant_context method
-            # Pass api_key for compatibility but prioritize adapter_name routing
             return await adapter.get_relevant_context(
                 query=query,
                 api_key=api_key,
@@ -1617,12 +738,11 @@ class AdapterProxy:
         except Exception as e:
             self.logger.error(f"Error getting context from adapter {adapter_name}: {str(e)}")
             return []
-    
+
     async def initialize(self) -> None:
         """Initialize method for compatibility."""
-        # The adapter manager handles initialization of individual adapters
         pass
-    
+
     async def close(self) -> None:
         """Close method for compatibility."""
-        await self.adapter_manager.close() 
+        await self.adapter_manager.close()

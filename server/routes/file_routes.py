@@ -420,8 +420,9 @@ def create_file_router() -> APIRouter:
                 except Exception as e:
                     logger.error(f"Error deleting file {file['file_id']}: {e}")
                     errors.append(file['file_id'])
-            s
-            verbose = is_true_value(request.app.state.config.get('general', {}).get('verbose', False))
+            
+            config = getattr(request.app.state, 'config', {})
+            verbose = is_true_value(config.get('general', {}).get('verbose', False))
             if verbose:
                 logger.info(f"Deleted {deleted_count} files for API key {x_api_key}")
             

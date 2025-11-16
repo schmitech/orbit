@@ -11,7 +11,7 @@ import sys
 import os
 from pathlib import Path
 from typing import Dict, Any
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch, MagicMock, AsyncMock
 
 # Add the server directory to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -226,6 +226,14 @@ async def test_intent_retriever_close_all_resources(test_config, test_database):
         # Register services first
         from ai_services import register_all_services
         register_all_services(test_config)
+        
+        # Mock vector store initialization to avoid Chroma setup issues
+        async def mock_init_vector_store():
+            retriever.template_store = Mock()
+            retriever.template_store.close = AsyncMock()
+            retriever.template_store.batch_add_templates = AsyncMock(return_value=[])
+        
+        retriever._initialize_vector_store = mock_init_vector_store
         
         await retriever.initialize()
         
