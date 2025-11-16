@@ -9,7 +9,8 @@ import json
 import asyncio
 import base64
 import logging
-from typing import Dict, Any, Optional, AsyncIterator, Tuple
+from typing import Dict, Any, Optional, AsyncIterator, Tuple, List
+from collections import deque
 
 from utils.sentence_detector import SentenceDetector
 from .audio_handler import AudioHandler
@@ -66,6 +67,17 @@ class StreamingHandler:
         # Sentence batching for TTS (reduces number of API calls)
         self.sentence_batch_size = 3  # Batch up to 3 sentences together
         self._pending_sentences = []  # Accumulator for sentence batching
+        
+        # Parallel audio generation settings
+        # Match vLLM server's max-num-seqs for optimal throughput
+        # Can be increased if vLLM server has higher --max-num-seqs
+        sounds_config = config.get('sounds', {})
+        vllm_config = sounds_config.get('vllm', {})
+        vllm_max_concurrent = vllm_config.get('max_concurrent_requests', 4)
+        self.max_concurrent_audio_tasks = min(vllm_max_concurrent, 4)  # Cap at 4 to prevent overload
+        self._audio_task_queue = deque()  # Queue for audio generation tasks
+        self._audio_results = {}  # Cache for completed audio chunks
+        self._next_chunk_index = 0  # Track expected chunk order
 
     async def _generate_sentence_audio(
         self,
@@ -100,7 +112,12 @@ class StreamingHandler:
             )
 
             if audio_data:
-                audio_base64 = base64.b64encode(audio_data).decode('utf-8')
+                # Use faster base64 encoding in executor to avoid blocking
+                loop = asyncio.get_event_loop()
+                audio_base64 = await loop.run_in_executor(
+                    None,
+                    lambda: base64.b64encode(audio_data).decode('utf-8')
+                )
                 return {
                     "audio_chunk": audio_base64,
                     "audioFormat": audio_format_str or "opus",
@@ -114,6 +131,66 @@ class StreamingHandler:
             logger.warning(f"Failed to generate streaming audio for sentence: {str(e)}", exc_info=True)
 
         return None
+
+    async def _generate_audio_background(
+        self,
+        sentence: str,
+        adapter_name: str,
+        tts_voice: Optional[str],
+        language: Optional[str],
+        chunk_index: int
+    ) -> None:
+        """
+        Generate audio in background and store result.
+
+        Args:
+            sentence: The sentence text
+            adapter_name: Adapter for audio provider lookup
+            tts_voice: TTS voice to use
+            language: Language code
+            chunk_index: Index of this audio chunk
+        """
+        try:
+            audio_chunk = await self._generate_sentence_audio(
+                sentence=sentence,
+                adapter_name=adapter_name,
+                tts_voice=tts_voice,
+                language=language,
+                chunk_index=chunk_index
+            )
+            if audio_chunk:
+                self._audio_results[chunk_index] = audio_chunk
+        except Exception as e:
+            logger.warning(f"Background audio generation failed for chunk {chunk_index}: {str(e)}")
+            self._audio_results[chunk_index] = None  # Mark as failed
+
+    async def _yield_ready_audio_chunks(
+        self, 
+        state: StreamingState
+    ) -> AsyncIterator[Tuple[str, StreamingState]]:
+        """
+        Yield any ready audio chunks in order.
+
+        Args:
+            state: Current streaming state
+
+        Yields:
+            Tuple of (audio_chunk_string, updated_state)
+        """
+        # Yield chunks in order as they become available
+        while self._next_chunk_index in self._audio_results:
+            chunk = self._audio_results.pop(self._next_chunk_index)
+            if chunk:
+                state.audio_chunks_sent += 1
+                audio_chunk_json = json.dumps(chunk)
+                yield f"data: {audio_chunk_json}\n\n", state
+                
+                if self.verbose:
+                    logger.info(
+                        f"Sent streaming audio chunk {state.audio_chunks_sent} "
+                        f"({len(chunk['audio_chunk'])} chars base64)"
+                    )
+            self._next_chunk_index += 1
 
     async def process_stream(
         self,
@@ -138,8 +215,18 @@ class StreamingHandler:
         """
         state = StreamingState(return_audio=return_audio)
 
-        # Clear pending sentences to avoid state leakage between requests
+        # Clear pending sentences and audio state to avoid state leakage between requests
         self._pending_sentences = []
+        self._audio_results.clear()
+        self._next_chunk_index = 0
+        self._audio_task_queue.clear()
+        
+        # Track running audio tasks for parallel generation
+        running_audio_tasks = []
+        
+        # Track remaining audio task (started early when stream nears end)
+        remaining_audio_task = None
+        remaining_audio_started = False
 
         try:
             async for chunk in pipeline_stream:
@@ -161,7 +248,35 @@ class StreamingHandler:
                     if chunk_data.get("done", False):
                         # Accumulate any remaining content before breaking
                         if "response" in chunk_data:
-                            state.accumulated_text += chunk_data["response"]
+                            new_text = chunk_data["response"]
+                            state.accumulated_text += new_text
+                            
+                            # Process any remaining text for early audio generation
+                            if return_audio and state.sentence_detector and new_text:
+                                state.sentence_detector.add_text(new_text)
+                                
+                                # Start remaining audio generation EARLY (non-blocking)
+                                if not remaining_audio_started:
+                                    remaining_text = state.sentence_detector.get_remaining_text()
+                                    if remaining_text.strip():
+                                        remaining_audio_started = True
+                                        chunk_index = state.audio_chunks_sent + len(running_audio_tasks)
+                                        
+                                        if self.verbose:
+                                            logger.info(f"Starting early remaining audio generation: {len(remaining_text)} chars (chunk {chunk_index})")
+                                        
+                                        # Start in background immediately
+                                        remaining_audio_task = asyncio.create_task(
+                                            self._generate_audio_background(
+                                                sentence=remaining_text.strip(),
+                                                adapter_name=adapter_name,
+                                                tts_voice=tts_voice,
+                                                language=language,
+                                                chunk_index=chunk_index
+                                            )
+                                        )
+                                        running_audio_tasks.append(remaining_audio_task)
+                                        
                         if "sources" in chunk_data:
                             state.sources = chunk_data["sources"]
                         state.stream_completed = True
@@ -190,32 +305,40 @@ class StreamingHandler:
                                     if len(self._pending_sentences) >= self.sentence_batch_size:
                                         batched_text = " ".join(self._pending_sentences)
                                         self._pending_sentences = []
+                                        
+                                        chunk_index = state.audio_chunks_sent + len(running_audio_tasks)
 
                                         if self.verbose:
-                                            logger.info(f"Generating TTS for batched sentences: {len(batched_text)} chars")
+                                            logger.info(f"Queueing TTS for batched sentences: {len(batched_text)} chars (chunk {chunk_index})")
 
-                                        audio_chunk = await self._generate_sentence_audio(
-                                            sentence=batched_text,
-                                            adapter_name=adapter_name,
-                                            tts_voice=tts_voice,
-                                            language=language,
-                                            chunk_index=state.audio_chunks_sent
+                                        # Start audio generation in background (non-blocking)
+                                        task = asyncio.create_task(
+                                            self._generate_audio_background(
+                                                sentence=batched_text,
+                                                adapter_name=adapter_name,
+                                                tts_voice=tts_voice,
+                                                language=language,
+                                                chunk_index=chunk_index
+                                            )
                                         )
+                                        running_audio_tasks.append(task)
 
-                                        if audio_chunk:
-                                            state.audio_chunks_sent += 1
-                                            audio_chunk_json = json.dumps(audio_chunk)
-                                            yield f"data: {audio_chunk_json}\n\n", state
-
-                                            # Small pause every 5 chunks to prevent overwhelming client
-                                            if state.audio_chunks_sent % 5 == 0:
-                                                await asyncio.sleep(0.01)
-
-                                            if self.verbose:
-                                                logger.info(
-                                                    f"Sent streaming audio chunk {state.audio_chunks_sent} "
-                                                    f"({len(audio_chunk['audio_chunk'])} chars base64)"
-                                                )
+                                        # Limit concurrent audio tasks
+                                        if len(running_audio_tasks) >= self.max_concurrent_audio_tasks:
+                                            # Wait for at least one task to complete
+                                            done, pending = await asyncio.wait(
+                                                running_audio_tasks,
+                                                return_when=asyncio.FIRST_COMPLETED
+                                            )
+                                            running_audio_tasks = list(pending)
+                                            
+                                            # Yield any ready chunks immediately
+                                            async for audio_chunk_str, updated_state in self._yield_ready_audio_chunks(state):
+                                                yield audio_chunk_str, updated_state
+                                        else:
+                                            # Check for ready chunks even if not at limit
+                                            async for audio_chunk_str, updated_state in self._yield_ready_audio_chunks(state):
+                                                yield audio_chunk_str, updated_state
 
                     # Handle sources
                     if "sources" in chunk_data:
@@ -226,20 +349,33 @@ class StreamingHandler:
                     yield f"data: {chunk}\n\n", state
                     continue
 
+            # Wait for all pending audio tasks to complete (including early-started remaining audio)
+            if running_audio_tasks:
+                if self.verbose:
+                    logger.info(f"Waiting for {len(running_audio_tasks)} pending audio tasks to complete")
+                await asyncio.gather(*running_audio_tasks, return_exceptions=True)
+                
+                # Yield all remaining ready chunks (including early-started remaining audio)
+                async for audio_chunk_str, updated_state in self._yield_ready_audio_chunks(state):
+                    yield audio_chunk_str, updated_state
+
             # Flush any remaining batched sentences after stream completes
             if return_audio and self._pending_sentences:
                 batched_text = " ".join(self._pending_sentences)
                 self._pending_sentences = []
+                
+                chunk_index = state.audio_chunks_sent
 
                 if self.verbose:
                     logger.info(f"Flushing remaining batched sentences: {len(batched_text)} chars")
 
+                # Generate final audio chunk
                 audio_chunk = await self._generate_sentence_audio(
                     sentence=batched_text,
                     adapter_name=adapter_name,
                     tts_voice=tts_voice,
                     language=language,
-                    chunk_index=state.audio_chunks_sent
+                    chunk_index=chunk_index
                 )
 
                 if audio_chunk:
@@ -270,6 +406,9 @@ class StreamingHandler:
     ) -> Optional[str]:
         """
         Generate audio for remaining text after streaming completes.
+        
+        Note: This is now primarily a fallback. Remaining audio should be
+        generated early during stream processing for better performance.
 
         Args:
             state: Current streaming state
@@ -277,7 +416,7 @@ class StreamingHandler:
             tts_voice: Optional TTS voice
             language: Optional language code
 
-        Yields:
+        Returns:
             Formatted audio chunk string if audio was generated
         """
         if not state.sentence_detector or state.audio_chunks_sent == 0:
@@ -289,7 +428,7 @@ class StreamingHandler:
 
         try:
             if self.verbose:
-                logger.info(f"Generating audio for remaining text: {len(remaining_text)} chars")
+                logger.info(f"Generating audio for remaining text (fallback): {len(remaining_text)} chars")
 
             audio_data, audio_format_str = await self.audio_handler.generate_audio(
                 text=remaining_text.strip(),
@@ -299,7 +438,13 @@ class StreamingHandler:
             )
 
             if audio_data:
-                audio_base64 = base64.b64encode(audio_data).decode('utf-8')
+                # Use async base64 encoding for better performance
+                loop = asyncio.get_event_loop()
+                audio_base64 = await loop.run_in_executor(
+                    None,
+                    lambda: base64.b64encode(audio_data).decode('utf-8')
+                )
+                
                 audio_chunk = {
                     "audio_chunk": audio_base64,
                     "audioFormat": audio_format_str or "opus",

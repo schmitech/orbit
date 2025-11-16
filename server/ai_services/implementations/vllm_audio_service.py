@@ -82,18 +82,27 @@ class VLLMAudioService(AudioService):
 
         # Streaming configuration
         self.stream = provider_config.get('stream', False)
+        
+        # vLLM-specific optimizations
+        self.max_concurrent_requests = provider_config.get('max_concurrent_requests', 4)  # Parallel requests to vLLM
+        self.request_queue_size = provider_config.get('request_queue_size', 10)  # Queue size for pending requests
 
         # Initialize AsyncOpenAI client pointing to local vLLM server
         # vLLM local deployment doesn't require API key
+        # Optimized for high concurrency and low latency
         http_client = httpx.AsyncClient(
             http2=True,
             limits=httpx.Limits(
-                max_keepalive_connections=20,
-                max_connections=100,
-                keepalive_expiry=300.0
+                max_keepalive_connections=50,  # Increased for better connection reuse
+                max_connections=200,  # Higher limit for parallel requests
+                keepalive_expiry=600.0  # Longer keepalive for connection reuse
             ),
-            timeout=httpx.Timeout(120.0, connect=15.0)  # Longer timeout for audio generation
+            timeout=httpx.Timeout(120.0, connect=15.0),  # Longer timeout for audio generation
+            follow_redirects=True
         )
+        
+        # Semaphore to limit concurrent requests to vLLM (prevents overwhelming server)
+        self._request_semaphore = asyncio.Semaphore(self.max_concurrent_requests)
 
         # Use dummy API key for local vLLM (OpenAI client requires one)
         self.api_key = provider_config.get('api_key', 'EMPTY')
@@ -128,13 +137,41 @@ class VLLMAudioService(AudioService):
 
         # SNAC decoder for Orpheus-style models
         self.snac_model = None
-        self.snac_device = provider_config.get('snac_device', 'cpu')  # Use CPU by default for compatibility
+        # Auto-detect CUDA if available, otherwise use CPU
+        if SNAC_AVAILABLE and torch is not None and torch.cuda.is_available():
+            default_device = 'cuda'
+            if self.verbose:
+                self.logger.info(f"CUDA available: {torch.cuda.get_device_name(0)}")
+        else:
+            default_device = 'cpu'
+        self.snac_device = provider_config.get('snac_device', default_device)
         self._snac_initialized = False
 
         self.logger.info(
             f"Configured vLLM audio service with TTS model: {self.tts_model} "
-            f"at {self.base_url}"
+            f"at {self.base_url} (max_concurrent_requests: {self.max_concurrent_requests})"
         )
+        
+        # vLLM Server-side optimization recommendations:
+        # For better performance with FP8 quantization and chunked prefill, use:
+        # vllm serve canopylabs/orpheus-3b-0.1-ft \
+        #   --dtype auto \
+        #   --quantization fp8 \
+        #   --enable-chunked-prefill \
+        #   --max_model_len 4096 \
+        #   --gpu-memory-utilization 0.85 \
+        #   --max-num-seqs 8
+        # 
+        # Key parameters:
+        # - --max-num-seqs: CRITICAL for parallel processing (default is 1, causing sequential delays)
+        #   With FP8 quantization, you can typically run 8-12 concurrent sequences
+        # - --gpu-memory-utilization: Increase from 0.7 to 0.85-0.9 for better throughput
+        # - FP8 quantization reduces memory by ~50%, allowing more concurrent requests
+        if self.verbose:
+            self.logger.info(
+                f"vLLM optimization: Add --max-num-seqs {self.max_concurrent_requests}+ to your vLLM server command "
+                f"to enable parallel audio generation (currently missing, causing sequential processing)"
+            )
 
     def _extract_provider_config(self) -> Dict[str, Any]:
         """
@@ -177,8 +214,30 @@ class VLLMAudioService(AudioService):
         try:
             if self.verbose:
                 self.logger.info(f"Loading SNAC model on device: {self.snac_device}")
+                if self.snac_device.startswith('cuda') and torch.cuda.is_available():
+                    self.logger.info(f"GPU: {torch.cuda.get_device_name(0)}, "
+                                   f"Memory: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.2f} GB")
+            
             self.snac_model = SNAC.from_pretrained("hubertsiuzdak/snac_24khz").eval()
             self.snac_model = self.snac_model.to(self.snac_device)
+            
+            # Set model to inference mode for better GPU performance
+            self.snac_model.eval()
+            
+            # Warm up GPU with a dummy inference if on CUDA (reduces first inference latency)
+            if self.snac_device.startswith('cuda') and torch.cuda.is_available():
+                with torch.inference_mode():
+                    dummy_codes = [
+                        torch.zeros((1, 1), device=self.snac_device, dtype=torch.int32),
+                        torch.zeros((1, 2), device=self.snac_device, dtype=torch.int32),
+                        torch.zeros((1, 4), device=self.snac_device, dtype=torch.int32)
+                    ]
+                    _ = self.snac_model.decode(dummy_codes)
+                    torch.cuda.synchronize()
+                    torch.cuda.empty_cache()
+                if self.verbose:
+                    self.logger.debug("GPU warm-up completed")
+            
             self._snac_initialized = True
 
             # Cache globally for reuse
@@ -187,6 +246,10 @@ class VLLMAudioService(AudioService):
 
             if self.verbose:
                 self.logger.info("SNAC model loaded and cached successfully")
+                if self.snac_device.startswith('cuda'):
+                    allocated = torch.cuda.memory_allocated(0) / 1024**2
+                    reserved = torch.cuda.memory_reserved(0) / 1024**2
+                    self.logger.info(f"GPU memory - Allocated: {allocated:.2f} MB, Reserved: {reserved:.2f} MB")
             return True
         except Exception as e:
             self.logger.error(f"Failed to initialize SNAC model: {str(e)}")
@@ -271,38 +334,26 @@ class VLLMAudioService(AudioService):
         num_frames = len(token_ids) // 7
         frame = token_ids[:num_frames * 7]
 
-        codes_0 = torch.tensor([], device=self.snac_device, dtype=torch.int32)
-        codes_1 = torch.tensor([], device=self.snac_device, dtype=torch.int32)
-        codes_2 = torch.tensor([], device=self.snac_device, dtype=torch.int32)
-
+        # Pre-allocate tensors for better GPU performance (vectorized operations)
+        # Code 0: 1 token per frame (indices: 0, 7, 14, ...)
+        # Code 1: 2 tokens per frame (indices: 1,4, 8,11, 15,18, ...)
+        # Code 2: 4 tokens per frame (indices: 2,3,5,6, 9,10,12,13, ...)
+        
+        # Pre-allocate lists for efficient collection
+        codes_0_list = []
+        codes_1_list = []
+        codes_2_list = []
+        
         for j in range(num_frames):
             i = 7 * j
-
-            # Code 0: 1 token per frame
-            if codes_0.shape[0] == 0:
-                codes_0 = torch.tensor([frame[i]], device=self.snac_device, dtype=torch.int32)
-            else:
-                codes_0 = torch.cat([codes_0, torch.tensor([frame[i]], device=self.snac_device, dtype=torch.int32)])
-
-            # Code 1: 2 tokens per frame
-            if codes_1.shape[0] == 0:
-                codes_1 = torch.tensor([frame[i+1]], device=self.snac_device, dtype=torch.int32)
-                codes_1 = torch.cat([codes_1, torch.tensor([frame[i+4]], device=self.snac_device, dtype=torch.int32)])
-            else:
-                codes_1 = torch.cat([codes_1, torch.tensor([frame[i+1]], device=self.snac_device, dtype=torch.int32)])
-                codes_1 = torch.cat([codes_1, torch.tensor([frame[i+4]], device=self.snac_device, dtype=torch.int32)])
-
-            # Code 2: 4 tokens per frame
-            if codes_2.shape[0] == 0:
-                codes_2 = torch.tensor([frame[i+2]], device=self.snac_device, dtype=torch.int32)
-                codes_2 = torch.cat([codes_2, torch.tensor([frame[i+3]], device=self.snac_device, dtype=torch.int32)])
-                codes_2 = torch.cat([codes_2, torch.tensor([frame[i+5]], device=self.snac_device, dtype=torch.int32)])
-                codes_2 = torch.cat([codes_2, torch.tensor([frame[i+6]], device=self.snac_device, dtype=torch.int32)])
-            else:
-                codes_2 = torch.cat([codes_2, torch.tensor([frame[i+2]], device=self.snac_device, dtype=torch.int32)])
-                codes_2 = torch.cat([codes_2, torch.tensor([frame[i+3]], device=self.snac_device, dtype=torch.int32)])
-                codes_2 = torch.cat([codes_2, torch.tensor([frame[i+5]], device=self.snac_device, dtype=torch.int32)])
-                codes_2 = torch.cat([codes_2, torch.tensor([frame[i+6]], device=self.snac_device, dtype=torch.int32)])
+            codes_0_list.append(frame[i])
+            codes_1_list.extend([frame[i+1], frame[i+4]])
+            codes_2_list.extend([frame[i+2], frame[i+3], frame[i+5], frame[i+6]])
+        
+        # Create tensors in one operation (much faster on GPU)
+        codes_0 = torch.tensor(codes_0_list, device=self.snac_device, dtype=torch.int32)
+        codes_1 = torch.tensor(codes_1_list, device=self.snac_device, dtype=torch.int32)
+        codes_2 = torch.tensor(codes_2_list, device=self.snac_device, dtype=torch.int32)
 
         codes = [codes_0.unsqueeze(0), codes_1.unsqueeze(0), codes_2.unsqueeze(0)]
 
@@ -313,14 +364,28 @@ class VLLMAudioService(AudioService):
                 invalid_values = code_tensor[invalid_mask].tolist()
                 raise ValueError(f"Tokens out of range (0-4096) in codes_{idx}: {invalid_values}")
 
-        # Decode with SNAC
+        # Decode with SNAC (GPU-optimized)
         with torch.inference_mode():
+            # Use torch.cuda.synchronize() if on GPU for accurate timing
+            if self.snac_device.startswith('cuda'):
+                torch.cuda.synchronize()
+            
             audio_hat = self.snac_model.decode(codes)
+            
+            # Keep operations on GPU as long as possible
+            if self.snac_device.startswith('cuda'):
+                torch.cuda.synchronize()
 
         # Convert to audio bytes
         # audio_hat shape: [1, 1, num_samples]
         # Don't slice - use all decoded audio
         detached_audio = audio_hat.detach().cpu().squeeze()  # Remove batch and channel dims
+        
+        # Clear GPU cache after moving to CPU
+        if self.snac_device.startswith('cuda'):
+            del audio_hat, codes
+            torch.cuda.empty_cache()
+        
         audio_np = detached_audio.numpy()
         audio_int16 = (audio_np * 32767).astype(np.int16)
         audio_bytes = audio_int16.tobytes()
@@ -450,10 +515,22 @@ class VLLMAudioService(AudioService):
         if self.connection_manager:
             await self.connection_manager.close()
 
+        # Clean up GPU memory if using CUDA
+        if self.snac_device.startswith('cuda') and SNAC_AVAILABLE and torch is not None:
+            if torch.cuda.is_available():
+                # Clear model from GPU
+                if self.snac_model is not None:
+                    del self.snac_model
+                    self.snac_model = None
+                torch.cuda.empty_cache()
+                if self.verbose:
+                    self.logger.debug("GPU memory cleared")
+
         self.initialized = False
         self._verification_attempted = False
         self.connection_verified = False
         self._verification_inflight = False
+        self._snac_initialized = False
         self.logger.debug("Closed vLLM audio service")
 
     async def text_to_speech(
@@ -540,17 +617,19 @@ class VLLMAudioService(AudioService):
 
             # Use completions API (not chat) to avoid chat template interference
             # Orpheus models expect raw prompts without chat template wrapping
-            response = await self.client.completions.create(
-                model=self.tts_model,
-                prompt=prompt,
-                temperature=kwargs.get('temperature', self.temperature),
-                top_p=kwargs.get('top_p', self.top_p),
-                max_tokens=kwargs.get('max_tokens', self.max_tokens),
-                extra_body={
-                    "repetition_penalty": kwargs.get('repetition_penalty', self.repetition_penalty),
-                    "skip_special_tokens": False,  # CRITICAL: Keep audio tokens in output
-                }
-            )
+            # Use semaphore to limit concurrent requests and prevent server overload
+            async with self._request_semaphore:
+                response = await self.client.completions.create(
+                    model=self.tts_model,
+                    prompt=prompt,
+                    temperature=kwargs.get('temperature', self.temperature),
+                    top_p=kwargs.get('top_p', self.top_p),
+                    max_tokens=kwargs.get('max_tokens', self.max_tokens),
+                    extra_body={
+                        "repetition_penalty": kwargs.get('repetition_penalty', self.repetition_penalty),
+                        "skip_special_tokens": False,  # CRITICAL: Keep audio tokens in output
+                    }
+                )
 
             # Extract generated content from completions response
             generated_text = response.choices[0].text

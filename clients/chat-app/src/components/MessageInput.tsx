@@ -91,6 +91,8 @@ export function MessageInput({
   const [pasteSuccess, setPasteSuccess] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const processedFilesRef = useRef<Set<string>>(new Set());
+  const prevIsListeningRef = useRef(false);
+  const voiceMessageRef = useRef('');
 
   const { createConversation, currentConversationId, removeFileFromConversation, conversations, isLoading } = useChatStore();
 
@@ -101,7 +103,11 @@ export function MessageInput({
     stopListening,
     error: voiceError
   } = useVoice((text) => {
-    setMessage(prev => (prev + text).slice(0, AppConfig.maxMessageLength));
+    setMessage(prev => {
+      const updated = (prev + text).slice(0, AppConfig.maxMessageLength);
+      voiceMessageRef.current = updated;
+      return updated;
+    });
   });
 
   // Check if any files are currently uploading or processing
@@ -174,6 +180,41 @@ export function MessageInput({
     }
     prevIsLoadingRef.current = isLoading;
   }, [isLoading, isInputDisabled]);
+
+  // Auto-send message when voice recording stops
+  useEffect(() => {
+    // Detect when voice recording stops (transition from true to false)
+    if (prevIsListeningRef.current && !isListening) {
+      // Voice recording just stopped - check if we have text to send
+      // Use both ref and state to ensure we have the latest value
+      const messageToSend = (voiceMessageRef.current || message).trim();
+      if (messageToSend && !isInputDisabled && !isComposing && !isLoading) {
+        // Small delay to ensure all transcription is complete
+        setTimeout(() => {
+          // Re-check conditions and get the latest message value
+          const currentState = useChatStore.getState();
+          const finalMessage = (voiceMessageRef.current || message).trim();
+          if (finalMessage && !isInputDisabled && !isComposing && !currentState.isLoading) {
+            // Get conversation files for sending
+            const conversationFiles = currentConversation?.attachedFiles || [];
+            const allFileIds = conversationFiles.map(f => f.file_id);
+            
+            // Send the message automatically
+            onSend(finalMessage, allFileIds.length > 0 ? allFileIds : undefined);
+            
+            // Clear the message and reset voice message ref
+            setMessage('');
+            voiceMessageRef.current = '';
+            if (textareaRef.current) {
+              textareaRef.current.style.height = 'auto';
+              textareaRef.current.style.overflowY = 'hidden';
+            }
+          }
+        }, 300); // Small delay to ensure all transcription callbacks have completed
+      }
+    }
+    prevIsListeningRef.current = isListening;
+  }, [isListening, isInputDisabled, isComposing, isLoading, message, currentConversation, onSend]);
 
   // Close upload area when upload starts (hide upload widget, show only progress)
   useEffect(() => {
@@ -269,6 +310,7 @@ export function MessageInput({
 
       onSend(message.trim(), allFileIds.length > 0 ? allFileIds : undefined);
       setMessage('');
+      voiceMessageRef.current = ''; // Clear voice message ref when manually submitting
       setAttachedFiles([]);
       setShowFileUpload(false);
       if (textareaRef.current) {

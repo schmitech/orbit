@@ -348,7 +348,7 @@ class PipelineChatService:
                     return_audio=return_audio or False
                 ):
                     yield chunk
-                    await asyncio.sleep(0)  # Force immediate flush
+                    # No sleep needed - async generator already yields control
                     final_state = state
 
                 # Post-stream processing
@@ -443,16 +443,20 @@ class PipelineChatService:
             yield f"data: {warning_chunk}\n\n"
 
         # Generate remaining audio if streaming audio was used
+        # Note: Remaining audio may have already been generated early during streaming
+        # Check if there's actually remaining text that needs audio
         if return_audio and final_state.sentence_detector and final_state.audio_chunks_sent > 0:
-            remaining_audio_chunk = await self.streaming_handler.generate_remaining_audio(
-                state=final_state,
-                adapter_name=adapter_name,
-                tts_voice=tts_voice,
-                language=language
-            )
-            if remaining_audio_chunk:
-                yield remaining_audio_chunk
-                await asyncio.sleep(0)
+            # Only generate if there's actually remaining text (early generation may have already handled it)
+            remaining_text = final_state.sentence_detector.get_remaining_text()
+            if remaining_text and remaining_text.strip():
+                remaining_audio_chunk = await self.streaming_handler.generate_remaining_audio(
+                    state=final_state,
+                    adapter_name=adapter_name,
+                    tts_voice=tts_voice,
+                    language=language
+                )
+                if remaining_audio_chunk:
+                    yield remaining_audio_chunk
 
         # Generate full audio if no streaming audio was sent
         audio_data = None
