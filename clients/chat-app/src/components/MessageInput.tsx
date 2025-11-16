@@ -91,10 +91,14 @@ export function MessageInput({
   const [pasteSuccess, setPasteSuccess] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const processedFilesRef = useRef<Set<string>>(new Set());
-  const prevIsListeningRef = useRef(false);
   const voiceMessageRef = useRef('');
+  const [voiceCompletionCount, setVoiceCompletionCount] = useState(0);
 
   const { createConversation, currentConversationId, removeFileFromConversation, conversations, isLoading } = useChatStore();
+
+  const handleVoiceCompletion = useCallback(() => {
+    setVoiceCompletionCount((count) => count + 1);
+  }, []);
 
   const {
     isListening,
@@ -108,7 +112,7 @@ export function MessageInput({
       voiceMessageRef.current = updated;
       return updated;
     });
-  });
+  }, handleVoiceCompletion);
 
   // Check if any files are currently uploading or processing
   const currentConversation = conversations.find(conv => conv.id === currentConversationId);
@@ -181,40 +185,50 @@ export function MessageInput({
     prevIsLoadingRef.current = isLoading;
   }, [isLoading, isInputDisabled]);
 
-  // Auto-send message when voice recording stops
+  // Auto-send message when voice recording completes
   useEffect(() => {
-    // Detect when voice recording stops (transition from true to false)
-    if (prevIsListeningRef.current && !isListening) {
-      // Voice recording just stopped - check if we have text to send
-      // Use both ref and state to ensure we have the latest value
-      const messageToSend = (voiceMessageRef.current || message).trim();
-      if (messageToSend && !isInputDisabled && !isComposing && !isLoading) {
-        // Small delay to ensure all transcription is complete
-        setTimeout(() => {
-          // Re-check conditions and get the latest message value
-          const currentState = useChatStore.getState();
-          const finalMessage = (voiceMessageRef.current || message).trim();
-          if (finalMessage && !isInputDisabled && !isComposing && !currentState.isLoading) {
-            // Get conversation files for sending
-            const conversationFiles = currentConversation?.attachedFiles || [];
-            const allFileIds = conversationFiles.map(f => f.file_id);
-            
-            // Send the message automatically
-            onSend(finalMessage, allFileIds.length > 0 ? allFileIds : undefined);
-            
-            // Clear the message and reset voice message ref
-            setMessage('');
-            voiceMessageRef.current = '';
-            if (textareaRef.current) {
-              textareaRef.current.style.height = 'auto';
-              textareaRef.current.style.overflowY = 'hidden';
-            }
-          }
-        }, 300); // Small delay to ensure all transcription callbacks have completed
-      }
+    if (voiceCompletionCount === 0) {
+      return;
     }
-    prevIsListeningRef.current = isListening;
-  }, [isListening, isInputDisabled, isComposing, isLoading, message, currentConversation, onSend]);
+
+    debugLog('[MessageInput] Voice recording completed, scheduling auto-send');
+    const timeoutId = setTimeout(() => {
+      const currentMessage = message.trim();
+      const currentState = useChatStore.getState();
+
+      debugLog('[MessageInput] Auto-send check after voice completion:', {
+        hasMessage: !!currentMessage,
+        isInputDisabled,
+        isComposing,
+        isLoading: currentState.isLoading
+      });
+
+      if (currentMessage && !isInputDisabled && !isComposing && !currentState.isLoading) {
+        const currentConv = currentState.conversations.find(conv => conv.id === currentState.currentConversationId);
+        const conversationFiles = currentConv?.attachedFiles || [];
+        const allFileIds = conversationFiles.map(f => f.file_id);
+
+        debugLog('[MessageInput] Auto-sending voice message:', currentMessage);
+        onSend(currentMessage, allFileIds.length > 0 ? allFileIds : undefined);
+
+        setMessage('');
+        voiceMessageRef.current = '';
+        if (textareaRef.current) {
+          textareaRef.current.style.height = 'auto';
+          textareaRef.current.style.overflowY = 'hidden';
+        }
+      } else {
+        debugLog('[MessageInput] Auto-send skipped after voice completion:', {
+          hasMessage: !!currentMessage,
+          isInputDisabled,
+          isComposing,
+          isLoading: currentState.isLoading
+        });
+      }
+    }, 400);
+
+    return () => clearTimeout(timeoutId);
+  }, [voiceCompletionCount, message, isInputDisabled, isComposing, onSend]);
 
   // Close upload area when upload starts (hide upload widget, show only progress)
   useEffect(() => {
@@ -303,6 +317,11 @@ export function MessageInput({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if ((message.trim() || attachedFiles.length > 0) && !isInputDisabled && !isComposing) {
+      // Stop listening if still active
+      if (isListening) {
+        stopListening();
+      }
+      
       // For multimodal conversations, send ALL files attached to the conversation
       // (not just the newly attached ones in this message)
       const conversationFiles = currentConversation?.attachedFiles || [];
