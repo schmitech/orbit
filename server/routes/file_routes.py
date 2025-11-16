@@ -420,8 +420,10 @@ def create_file_router() -> APIRouter:
                 except Exception as e:
                     logger.error(f"Error deleting file {file['file_id']}: {e}")
                     errors.append(file['file_id'])
-            
-            logger.info(f"Deleted {deleted_count} files for API key {x_api_key}")
+            s
+            verbose = is_true_value(request.app.state.config.get('general', {}).get('verbose', False))
+            if verbose:
+                logger.info(f"Deleted {deleted_count} files for API key {x_api_key}")
             
             return JSONResponse(
                 content={
@@ -477,7 +479,9 @@ def create_file_router() -> APIRouter:
             if not success:
                 raise HTTPException(status_code=500, detail="Failed to delete file")
             
-            logger.info(f"File deleted: {file_id}")
+            verbose = is_true_value(request.app.state.config.get('general', {}).get('verbose', False))
+            if verbose:
+                logger.info(f"File deleted: {file_id}")
             
             return JSONResponse(
                 content={"message": "File deleted successfully", "file_id": file_id}
