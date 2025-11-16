@@ -493,6 +493,12 @@ export function MessageInput({
     }
   }, [isFocused, isFileSupported, isInputDisabled, syncFilesWithConversation]);
 
+  const effectivePlaceholder = (hasProcessingFiles || isUploading)
+    ? 'Files are uploading/processing, please wait...'
+    : isFileSupported
+    ? 'Message ORBIT or drop files here'
+    : placeholder;
+
   return (
     <div className="bg-white px-4 py-4 dark:bg-[#212121]">
       {voiceError && (
@@ -565,7 +571,7 @@ export function MessageInput({
             onCompositionEnd={() => setIsComposing(false)}
             onFocus={() => setIsFocused(true)}
             onBlur={() => setIsFocused(false)}
-            placeholder={(hasProcessingFiles || isUploading) ? 'Files are uploading/processing, please wait...' : placeholder}
+            placeholder={effectivePlaceholder}
             disabled={isInputDisabled}
             rows={1}
             maxLength={AppConfig.maxMessageLength}
