@@ -81,7 +81,8 @@ dependencies = [
     "filetype>=1.2.0",
     "docling>=2.58.0",
     "sentence-transformers>=5.1.2",
-    "pyarrow>=22.0.0"
+    "pyarrow>=22.0.0",
+    "snac>=1.2.1"  # SNAC codec for Orpheus TTS audio token decoding
 ]
 
 [profiles.torch]
