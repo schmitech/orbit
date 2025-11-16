@@ -12,8 +12,8 @@ sounds:
     # STT (Speech-to-Text) configuration
     stt_model: "whisper-1"  # OpenAI Whisper model for transcription
     # TTS (Text-to-Speech) configuration
-    tts_model: "tts-1"  # OpenAI TTS model (tts-1 or tts-1-hd)
-    tts_voice: "alloy"  # Voice options: alloy, echo, fable, onyx, nova, shimmer
+    tts_model: "gpt-4o-mini-tts"  # OpenAI TTS model: tts-1, tts-1-hd, gpt-4o-mini-tts
+    tts_voice: "coral"  # Voice options: alloy, ash, ballad, coral, echo, fable, onyx, nova, sage, shimmer, verse
     tts_format: "mp3"  # Output format: mp3, opus, aac, flac
     # Timeout configuration
     timeout:
@@ -188,5 +188,36 @@ sounds:
       max_retries: 1
       initial_wait_ms: 1000
       max_wait_ms: 5000
+      exponential_base: 2
+
+  vllm:
+    # vLLM-served audio models (e.g., Orpheus TTS)
+    # Serves audio models via vLLM's OpenAI-compatible API
+    # Example: vllm serve canopylabs/orpheus-3b-0.1-ft --dtype auto --quantization fp8
+    enabled: true
+    host: "localhost"
+    port: 8000
+    # TTS (Text-to-Speech) configuration
+    tts_model: "canopylabs/orpheus-3b-0.1-ft"  # Orpheus 3B TTS model
+    tts_voice: "tara"  # Voice options: tara, leah, jess, leo, dan, mia, zac, zoe
+    tts_format: "wav"  # Output format: wav, mp3
+    # STT (Speech-to-Text) configuration - set model if serving STT
+    stt_model: null  # Set to STT model name if available
+    # Generation parameters
+    temperature: 0.6
+    top_p: 0.95
+    max_tokens: 1200  # Keep low to leave room for input in 4096 context window
+    repetition_penalty: 1.1
+    stream: false
+    # Timeout configuration
+    timeout:
+      connect: 15000   # 15 seconds
+      total: 120000    # 2 minutes (audio generation can be slow)
+    # Retry configuration
+    retry:
+      enabled: true
+      max_retries: 3
+      initial_wait_ms: 1000
+      max_wait_ms: 30000
       exponential_base: 2
 

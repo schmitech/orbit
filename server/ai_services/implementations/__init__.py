@@ -70,6 +70,7 @@ Available Audio Services:
     - CohereAudioService: Cohere audio (placeholder - not yet supported)
     - ElevenLabsAudioService: ElevenLabs audio (high-quality TTS)
     - WhisperAudioService: Direct Whisper integration (local, offline STT)
+    - VLLMAudioService: vLLM audio (Orpheus TTS, local serving)
 
 More implementations will be added as migration progresses.
 """
@@ -148,6 +149,7 @@ _implementations = [
     ('cohere_audio_service', 'CohereAudioService'),
     ('elevenlabs_audio_service', 'ElevenLabsAudioService'),
     ('whisper_audio_service', 'WhisperAudioService'),
+    ('vllm_audio_service', 'VLLMAudioService'),
 ]
 
 # Map service classes to their required SDK packages for commercial/cloud providers

@@ -59,7 +59,13 @@ class StreamingHandler:
         self.verbose = verbose
 
         # Audio timeout settings
-        self.audio_timeout = 5.0  # 5 second timeout per sentence
+        # Increased for vLLM TTS which can take 5-10s per sentence with remote servers
+        # With sentence batching (3 sentences), we need longer timeout for the combined text
+        self.audio_timeout = 45.0  # 45 second timeout for batched sentences
+
+        # Sentence batching for TTS (reduces number of API calls)
+        self.sentence_batch_size = 3  # Batch up to 3 sentences together
+        self._pending_sentences = []  # Accumulator for sentence batching
 
     async def _generate_sentence_audio(
         self,
@@ -132,6 +138,9 @@ class StreamingHandler:
         """
         state = StreamingState(return_audio=return_audio)
 
+        # Clear pending sentences to avoid state leakage between requests
+        self._pending_sentences = []
+
         try:
             async for chunk in pipeline_stream:
                 try:
@@ -172,31 +181,41 @@ class StreamingHandler:
                         if return_audio and state.sentence_detector and new_text:
                             completed_sentences = state.sentence_detector.add_text(new_text)
 
-                            # Generate TTS for each completed sentence
+                            # Batch sentences for TTS to reduce API calls
                             for sentence in completed_sentences:
                                 if sentence.strip():
-                                    audio_chunk = await self._generate_sentence_audio(
-                                        sentence=sentence,
-                                        adapter_name=adapter_name,
-                                        tts_voice=tts_voice,
-                                        language=language,
-                                        chunk_index=state.audio_chunks_sent
-                                    )
+                                    self._pending_sentences.append(sentence.strip())
 
-                                    if audio_chunk:
-                                        state.audio_chunks_sent += 1
-                                        audio_chunk_json = json.dumps(audio_chunk)
-                                        yield f"data: {audio_chunk_json}\n\n", state
-
-                                        # Small pause every 5 chunks to prevent overwhelming client
-                                        if state.audio_chunks_sent % 5 == 0:
-                                            await asyncio.sleep(0.01)
+                                    # Generate TTS when batch is full
+                                    if len(self._pending_sentences) >= self.sentence_batch_size:
+                                        batched_text = " ".join(self._pending_sentences)
+                                        self._pending_sentences = []
 
                                         if self.verbose:
-                                            logger.info(
-                                                f"Sent streaming audio chunk {state.audio_chunks_sent} "
-                                                f"({len(audio_chunk['audio_chunk'])} chars base64)"
-                                            )
+                                            logger.info(f"Generating TTS for batched sentences: {len(batched_text)} chars")
+
+                                        audio_chunk = await self._generate_sentence_audio(
+                                            sentence=batched_text,
+                                            adapter_name=adapter_name,
+                                            tts_voice=tts_voice,
+                                            language=language,
+                                            chunk_index=state.audio_chunks_sent
+                                        )
+
+                                        if audio_chunk:
+                                            state.audio_chunks_sent += 1
+                                            audio_chunk_json = json.dumps(audio_chunk)
+                                            yield f"data: {audio_chunk_json}\n\n", state
+
+                                            # Small pause every 5 chunks to prevent overwhelming client
+                                            if state.audio_chunks_sent % 5 == 0:
+                                                await asyncio.sleep(0.01)
+
+                                            if self.verbose:
+                                                logger.info(
+                                                    f"Sent streaming audio chunk {state.audio_chunks_sent} "
+                                                    f"({len(audio_chunk['audio_chunk'])} chars base64)"
+                                                )
 
                     # Handle sources
                     if "sources" in chunk_data:
@@ -206,6 +225,33 @@ class StreamingHandler:
                     # Still yield the chunk even if we can't parse it
                     yield f"data: {chunk}\n\n", state
                     continue
+
+            # Flush any remaining batched sentences after stream completes
+            if return_audio and self._pending_sentences:
+                batched_text = " ".join(self._pending_sentences)
+                self._pending_sentences = []
+
+                if self.verbose:
+                    logger.info(f"Flushing remaining batched sentences: {len(batched_text)} chars")
+
+                audio_chunk = await self._generate_sentence_audio(
+                    sentence=batched_text,
+                    adapter_name=adapter_name,
+                    tts_voice=tts_voice,
+                    language=language,
+                    chunk_index=state.audio_chunks_sent
+                )
+
+                if audio_chunk:
+                    state.audio_chunks_sent += 1
+                    audio_chunk_json = json.dumps(audio_chunk)
+                    yield f"data: {audio_chunk_json}\n\n", state
+
+                    if self.verbose:
+                        logger.info(
+                            f"Sent final batched audio chunk {state.audio_chunks_sent} "
+                            f"({len(audio_chunk['audio_chunk'])} chars base64)"
+                        )
 
         except Exception as e:
             logger.error(f"Error in streaming handler: {str(e)}", exc_info=True)

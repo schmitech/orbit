@@ -286,6 +286,7 @@ def register_audio_services(config: Dict[str, Any] = None) -> None:
         ("cohere", "CohereAudioService", "Cohere"),
         ("elevenlabs", "ElevenLabsAudioService", "ElevenLabs"),
         ("whisper", "WhisperAudioService", "Whisper (Local)"),
+        ("vllm", "VLLMAudioService", "vLLM"),
     ]
 
     # Get sounds config if available (plural form, like 'visions')
