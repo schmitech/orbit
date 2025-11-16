@@ -137,13 +137,18 @@ type LocalApiModule = {
 let apiCache: ApiFunctions | null = null;
 
 /**
- * Ensure Vite can resolve aliases by avoiding @vite-ignore when we use them.
+ * Import local API module with proper handling for aliases and relative paths
  */
 async function importLocalApiModule(apiPath: string): Promise<LocalApiModule> {
+  // When using alias, don't use @vite-ignore so Vite can resolve it
+  // The alias is configured in vite.config.ts when VITE_USE_LOCAL_API=true
   if (apiPath === '@local-node-api/api.mjs') {
-    // @ts-ignore - resolved at build time via Vite alias
+    // @ts-ignore - alias resolved by Vite at build/runtime
     return import('@local-node-api/api.mjs');
   }
+  
+  // For relative paths, use @vite-ignore to suppress Vite's static analysis warning
+  // @ts-ignore - dynamic import path resolved at runtime
   return import(/* @vite-ignore */ apiPath);
 }
 
@@ -168,9 +173,10 @@ export async function loadApi(): Promise<ApiFunctions> {
         // If a custom path is provided, use it (must be a relative path that Vite can resolve)
         if (localApiPath.startsWith('/')) {
           // Absolute path - convert to relative from src
+          const hasAlias = (import.meta.env as any).VITE_USE_LOCAL_API === 'true';
           apiPath = localApiPath.startsWith('/src/')
             ? `.${localApiPath.substring(4)}${localApiPath.endsWith('.mjs') ? '' : '/api.mjs'}`
-            : '@local-node-api/api.mjs';
+            : hasAlias ? '@local-node-api/api.mjs' : '../../../node-api/dist/api.mjs';
         } else if (localApiPath.startsWith('../') || localApiPath.startsWith('./')) {
           // Relative path - use as-is, appending /api.mjs if needed
           apiPath = localApiPath.endsWith('.mjs') ? localApiPath : `${localApiPath}/api.mjs`;
@@ -179,9 +185,18 @@ export async function loadApi(): Promise<ApiFunctions> {
           apiPath = `./${localApiPath}${localApiPath.endsWith('.mjs') ? '' : '/api.mjs'}`;
         }
       } else {
-        // Default: use Vite alias @local-node-api (configured in vite.config.ts)
-        // This resolves to clients/node-api/dist
-        apiPath = '@local-node-api/api.mjs';
+        // Default: use Vite alias @local-node-api when VITE_USE_LOCAL_API=true
+        // The alias is configured in vite.config.ts when VITE_USE_LOCAL_API=true
+        // Check if we're in a context where the alias should be available
+        const hasAlias = (import.meta.env as any).VITE_USE_LOCAL_API === 'true';
+        if (hasAlias) {
+          // Use alias - it's configured in vite.config.ts
+          apiPath = '@local-node-api/api.mjs';
+        } else {
+          // Fallback to relative path (shouldn't happen if useLocalApi is true)
+          // This path resolves to clients/node-api/dist/api.mjs from src/api/loader.ts
+          apiPath = '../../../node-api/dist/api.mjs';
+        }
       }
       
       debugLog(`🔧 Loading local API from: ${apiPath}`);

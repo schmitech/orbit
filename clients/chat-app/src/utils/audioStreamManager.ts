@@ -23,26 +23,32 @@ class AudioStreamManager {
   private onPlaybackEnd: (() => void) | null = null;
   private onChunkPlayed: ((chunkIndex: number) => void) | null = null;
   private blobUrls: string[] = [];
+  private suppressPlaybackErrors: boolean = false;
 
   /**
    * Enable audio playback after user interaction (required by browsers)
    * Call this after a user gesture like clicking a button
+   * 
+   * Note: AudioContext is created lazily when first audio chunk is played,
+   * not here, to avoid browser warnings about autoplay policies.
    */
   public async enableAudio(): Promise<boolean> {
     try {
-      if (!this.audioContext && typeof AudioContext !== 'undefined') {
-        this.audioContext = new AudioContext();
-      }
-
-      if (this.audioContext && this.audioContext.state === 'suspended') {
-        await this.audioContext.resume();
-      }
-
+      // Don't create AudioContext here - create it lazily when we actually play audio
+      // This prevents the browser warning about AudioContext not being in a user gesture
+      
       // Create a silent audio to unlock audio playback
-      const silentAudio = new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=');
-      silentAudio.volume = 0;
-      await silentAudio.play();
-      silentAudio.pause();
+      // This helps with browser autoplay policies and must happen in user gesture context
+      try {
+        const silentAudio = new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=');
+        silentAudio.volume = 0;
+        await silentAudio.play();
+        silentAudio.pause();
+      } catch (silentAudioError) {
+        // Silent audio unlock might fail if not in user gesture context
+        // This is okay - we'll still mark as enabled and try again later
+        debugLog('[AudioStreamManager] Silent audio unlock deferred (will work on next interaction)');
+      }
 
       this.isEnabled = true;
       debugLog('[AudioStreamManager] Audio playback enabled');
@@ -51,6 +57,36 @@ class AudioStreamManager {
       debugError('[AudioStreamManager] Failed to enable audio:', err);
       return false;
     }
+  }
+
+  /**
+   * Initialize AudioContext lazily when needed (during user gesture)
+   * This is called from playNextChunk to ensure it's within a user gesture context
+   */
+  private async ensureAudioContext(): Promise<boolean> {
+    if (!this.audioContext && typeof AudioContext !== 'undefined') {
+      try {
+        this.audioContext = new AudioContext();
+        // If created in suspended state, try to resume (should work if in user gesture)
+        if (this.audioContext.state === 'suspended') {
+          await this.audioContext.resume();
+        }
+        return true;
+      } catch (err) {
+        debugError('[AudioStreamManager] Failed to create/resume AudioContext:', err);
+        return false;
+      }
+    }
+    // Resume if suspended
+    if (this.audioContext && this.audioContext.state === 'suspended') {
+      try {
+        await this.audioContext.resume();
+      } catch (err) {
+        debugLog('[AudioStreamManager] AudioContext resume deferred');
+        return false;
+      }
+    }
+    return true;
   }
 
   /**
@@ -115,6 +151,10 @@ class AudioStreamManager {
       return;
     }
 
+    // Initialize AudioContext lazily when we actually need to play audio
+    // This ensures it's created within a user gesture context (when user interacts)
+    await this.ensureAudioContext();
+
     this.isPlaying = true;
     const chunk = this.audioQueue.shift()!;
 
@@ -130,8 +170,23 @@ class AudioStreamManager {
 
       debugLog(`[AudioStreamManager] Playing chunk ${chunk.chunkIndex}`);
 
+      // Validate audio data
+      if (!chunk.audio || chunk.audio.length === 0) {
+        throw new Error(`Empty audio data for chunk ${chunk.chunkIndex}`);
+      }
+
       // Decode base64 to binary
-      const binaryString = atob(chunk.audio);
+      let binaryString: string;
+      try {
+        binaryString = atob(chunk.audio);
+      } catch (err) {
+        throw new Error(`Failed to decode base64 audio for chunk ${chunk.chunkIndex}: ${err instanceof Error ? err.message : String(err)}`);
+      }
+
+      if (binaryString.length === 0) {
+        throw new Error(`Decoded audio data is empty for chunk ${chunk.chunkIndex}`);
+      }
+
       const bytes = new Uint8Array(binaryString.length);
       for (let i = 0; i < binaryString.length; i++) {
         bytes[i] = binaryString.charCodeAt(i);
@@ -150,8 +205,11 @@ class AudioStreamManager {
       const audioUrl = URL.createObjectURL(audioBlob);
       this.blobUrls.push(audioUrl);
 
-      const audio = new Audio(audioUrl);
+      const audio = new Audio();
+      // Explicitly set src to ensure it's set before loading
+      audio.src = audioUrl;
       this.currentAudio = audio;
+      
       const cleanup = () => {
         if (audio.src) {
           audio.src = '';
@@ -160,29 +218,101 @@ class AudioStreamManager {
         this.blobUrls = this.blobUrls.filter(url => url !== audioUrl);
       };
 
-      // Play and wait for completion
+      // Wait for audio to be ready before playing
       await new Promise<void>((resolve, reject) => {
-        audio.addEventListener('ended', () => {
-          debugLog(`[AudioStreamManager] Chunk ${chunk.chunkIndex} finished`);
-          if (this.onChunkPlayed) {
-            this.onChunkPlayed(chunk.chunkIndex);
+        let isResolved = false;
+        
+        // Set up error handler
+        const errorHandler = () => {
+          if (isResolved) return;
+          
+          // Extract error details from the audio element
+          const error = audio.error;
+          const errorDetails = error ? {
+            code: error.code,
+            message: error.message || `MediaError code ${error.code}`,
+            MEDIA_ERR_ABORTED: error.code === MediaError.MEDIA_ERR_ABORTED,
+            MEDIA_ERR_NETWORK: error.code === MediaError.MEDIA_ERR_NETWORK,
+            MEDIA_ERR_DECODE: error.code === MediaError.MEDIA_ERR_DECODE,
+            MEDIA_ERR_SRC_NOT_SUPPORTED: error.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED
+          } : 'Unknown error';
+          
+          // When playback is intentionally stopped we expect an empty src error
+          if (this.suppressPlaybackErrors) {
+            isResolved = true;
+            cleanup();
+            resolve();
+            return;
           }
-          cleanup();
-          resolve();
-        }, { once: true });
 
-        audio.addEventListener('error', (e) => {
-          debugError(`[AudioStreamManager] Error playing chunk ${chunk.chunkIndex}:`, e);
+          isResolved = true;
+          console.error(`[AudioStreamManager] Error playing chunk ${chunk.chunkIndex}:`, errorDetails, {
+            audioFormat: chunk.audioFormat,
+            chunkIndex: chunk.chunkIndex,
+            audioLength: chunk.audio.length,
+            mimeType: mimeType,
+            audioContextState: this.audioContext?.state,
+            audioSrc: audio.src,
+            audioReadyState: audio.readyState
+          });
+          debugError(`[AudioStreamManager] Error playing chunk ${chunk.chunkIndex}:`, errorDetails);
           cleanup();
-          reject(e);
-        }, { once: true });
+          reject(new Error(`Audio playback error: ${JSON.stringify(errorDetails)}`));
+        };
+        
+        audio.addEventListener('error', errorHandler, { once: true });
 
-        const playPromise = audio.play();
-        if (playPromise) {
-          playPromise.catch(err => {
+        // Wait for audio to be ready to play
+        const canPlayHandler = async () => {
+          if (isResolved) return;
+          
+          try {
+            // Set up ended handler
+            audio.addEventListener('ended', () => {
+              if (isResolved) return;
+              isResolved = true;
+              debugLog(`[AudioStreamManager] Chunk ${chunk.chunkIndex} finished`);
+              if (this.onChunkPlayed) {
+                this.onChunkPlayed(chunk.chunkIndex);
+              }
+              cleanup();
+              resolve();
+            }, { once: true });
+
+            // Try to play
+            const playPromise = audio.play();
+            if (playPromise) {
+              await playPromise;
+            }
+          } catch (err) {
+            if (isResolved) return;
+            if (this.suppressPlaybackErrors) {
+              isResolved = true;
+              cleanup();
+              resolve();
+              return;
+            }
+            isResolved = true;
+            console.error(`[AudioStreamManager] Audio.play() rejected for chunk ${chunk.chunkIndex}:`, err, {
+              audioFormat: chunk.audioFormat,
+              chunkIndex: chunk.chunkIndex,
+              audioContextState: this.audioContext?.state,
+              isEnabled: this.isEnabled,
+              audioSrc: audio.src,
+              audioReadyState: audio.readyState
+            });
             cleanup();
             reject(err);
-          });
+          }
+        };
+
+        // Use 'canplay' event - fired when enough data is available to start playback
+        if (audio.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+          // Already ready, play immediately
+          canPlayHandler();
+        } else {
+          // Wait for audio to load - use 'canplay' which fires when enough data is available
+          audio.addEventListener('canplay', canPlayHandler, { once: true });
         }
       });
       this.currentAudio = null;
@@ -191,6 +321,18 @@ class AudioStreamManager {
       this.playNextChunk();
 
     } catch (err) {
+      if (this.suppressPlaybackErrors) {
+        debugLog('[AudioStreamManager] Playback stopped, suppressing audio error');
+        return;
+      }
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      console.error(`[AudioStreamManager] Failed to play chunk ${chunk.chunkIndex}:`, errorMessage, err, {
+        audioFormat: chunk.audioFormat,
+        chunkIndex: chunk.chunkIndex,
+        audioLength: chunk.audio?.length,
+        audioContextState: this.audioContext?.state,
+        isEnabled: this.isEnabled
+      });
       debugError(`[AudioStreamManager] Failed to play chunk ${chunk.chunkIndex}:`, err);
       // Try to continue with next chunk even if one fails
       this.playNextChunk();
@@ -202,6 +344,7 @@ class AudioStreamManager {
    */
   public stop(): void {
     debugLog('[AudioStreamManager] Stopping playback');
+    this.suppressPlaybackErrors = true;
     this.isPlaying = false;
     this.audioQueue = [];
 
@@ -214,6 +357,11 @@ class AudioStreamManager {
     // Clean up blob URLs
     this.blobUrls.forEach(url => URL.revokeObjectURL(url));
     this.blobUrls = [];
+
+    // Allow normal error handling on next playback tick
+    setTimeout(() => {
+      this.suppressPlaybackErrors = false;
+    }, 0);
   }
 
   /**

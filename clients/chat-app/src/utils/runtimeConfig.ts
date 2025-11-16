@@ -8,6 +8,8 @@
  * 4. Default values
  */
 
+export const DEFAULT_API_URL = 'http://localhost:3000';
+
 interface RuntimeConfig {
   // API Configuration
   apiUrl: string;
@@ -169,7 +171,7 @@ function parseRequiredLimit(envValue: string | undefined, defaultValue: number):
  */
 export const runtimeConfig: RuntimeConfig = {
   // API Configuration
-  apiUrl: getConfigValue('apiUrl', 'http://localhost:3000', 'string'),
+  apiUrl: getConfigValue('apiUrl', DEFAULT_API_URL, 'string'),
   defaultKey: getConfigValue('defaultKey', 'default-key', 'string'),
   useLocalApi: getConfigValue('useLocalApi', false, 'boolean'),
   localApiPath: getConfigValue('localApiPath', undefined, 'string'),
@@ -225,8 +227,13 @@ export const runtimeConfig: RuntimeConfig = {
  */
 export function getApiUrl(): string {
   // Read dynamically to ensure we get the latest window.ORBIT_CHAT_CONFIG
-  const value = getConfigValue('apiUrl', 'http://localhost:3000', 'string');  
+  const value = getConfigValue('apiUrl', DEFAULT_API_URL, 'string');  
   return value;
+}
+
+export function resolveApiUrl(url?: string | null): string {
+  const trimmed = url?.trim();
+  return trimmed && trimmed.length > 0 ? trimmed : getApiUrl();
 }
 
 export function getDefaultKey(): string {
@@ -265,4 +272,3 @@ export function getGitHubOwner(): string {
 export function getGitHubRepo(): string {
   return runtimeConfig.githubRepo;
 }
-

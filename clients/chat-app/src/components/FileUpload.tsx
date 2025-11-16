@@ -5,7 +5,7 @@ import { FileUploadService, FileUploadProgress } from '../services/fileService';
 import { useChatStore } from '../stores/chatStore';
 import { debugLog, debugWarn, debugError } from '../utils/debug';
 import { AppConfig } from '../utils/config';
-import { getDefaultKey } from '../utils/runtimeConfig';
+import { getDefaultKey, resolveApiUrl } from '../utils/runtimeConfig';
 
 // Default API key from runtime configuration
 const DEFAULT_API_KEY = getDefaultKey();
@@ -144,7 +144,7 @@ export function FileUpload({
                   const conversation = store.conversations.find(conv => conv.id === store.currentConversationId);
                   if (conversation && conversation.apiKey && conversation.apiKey !== DEFAULT_API_KEY) {
                     const conversationApiKey = conversation.apiKey;
-                    const conversationApiUrl = conversation.apiUrl || 'http://localhost:3000';
+                    const conversationApiUrl = resolveApiUrl(conversation.apiUrl);
                     await FileUploadService.deleteFile(fileId, conversationApiKey, conversationApiUrl);
                   } else {
                     // If no valid API key, just log warning (file might already be deleted)
@@ -217,7 +217,7 @@ export function FileUpload({
         
         // Use conversation's stored API key and URL
         const conversationApiKey = conversation.apiKey;
-        const conversationApiUrl = conversation.apiUrl || 'http://localhost:3000';
+        const conversationApiUrl = resolveApiUrl(conversation.apiUrl);
         
         // Upload file and get the full response with correct file_size from server
         // Note: We allow upload to proceed even if component unmounts, cleanup will handle orphaned files

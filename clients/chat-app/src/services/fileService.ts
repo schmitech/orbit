@@ -8,10 +8,37 @@ import { getApi } from '../api/loader';
 import { FileAttachment } from '../types';
 import { debugLog, debugWarn, logError } from '../utils/debug';
 import { AppConfig } from '../utils/config';
-import { getDefaultKey, getApiUrl } from '../utils/runtimeConfig';
+import { getDefaultKey, getApiUrl, DEFAULT_API_URL } from '../utils/runtimeConfig';
 
 // Default API key from runtime configuration
 const DEFAULT_API_KEY = getDefaultKey();
+const getStoredApiUrl = (): string | null => {
+  try {
+    if (typeof window === 'undefined' || !window.localStorage) {
+      return null;
+    }
+    const stored = window.localStorage.getItem('chat-api-url');
+    if (stored && stored === DEFAULT_API_URL) {
+      window.localStorage.removeItem('chat-api-url');
+      return null;
+    }
+    return stored;
+  } catch {
+    return null;
+  }
+};
+
+const determineApiUrl = (explicit?: string | null): string => {
+  const trimmed = explicit?.trim();
+  if (trimmed) {
+    return trimmed;
+  }
+  const stored = getStoredApiUrl();
+  if (stored && stored !== DEFAULT_API_URL) {
+    return stored;
+  }
+  return getApiUrl();
+};
 
 export interface FileUploadProgress {
   filename: string;
@@ -127,11 +154,7 @@ export class FileUploadService {
       // Get API client
       // Use provided API key/URL if available, otherwise fall back to localStorage
       const api = await getApi();
-      const resolvedApiUrl = apiUrl || 
-                     localStorage.getItem('chat-api-url') || 
-                     getApiUrl() || 
-                     (window as any).CHATBOT_API_URL ||
-                     'http://localhost:3000';
+      const resolvedApiUrl = determineApiUrl(apiUrl);
       const resolvedApiKey = apiKey || 
                      localStorage.getItem('chat-api-key') || 
                      (window as any).CHATBOT_API_KEY ||
@@ -224,11 +247,12 @@ export class FileUploadService {
           ? `${currentApiKey.substring(0, 8)}...${currentApiKey.substring(currentApiKey.length - 4)}`
           : currentApiKey || 'not set';
         
+        const adminApiUrl = determineApiUrl(apiUrl);
         errorMessage = `Invalid API key (using: ${maskedKey}). Please:\n` +
                       '1. Open Settings (⚙️ icon) in the top-right corner\n' +
                       '2. Enter a valid API key\n' +
                       '3. To create an API key: Use the admin interface or POST to /admin/api-keys\n' +
-                      '   Example: curl -X POST http://localhost:3000/admin/api-keys \\\n' +
+                      `   Example: curl -X POST ${adminApiUrl}/admin/api-keys \\\n` +
                       '     -H "Authorization: Bearer <admin-token>" \\\n' +
                       '     -H "Content-Type: application/json" \\\n' +
                       '     -d \'{"client_name": "chat-app", "adapter_name": "file-document-qa"}\'';
@@ -288,11 +312,7 @@ export class FileUploadService {
   static async listFiles(apiKey?: string, apiUrl?: string): Promise<FileAttachment[]> {
     try {
       const api = await getApi();
-      const resolvedApiUrl = apiUrl || 
-                     localStorage.getItem('chat-api-url') || 
-                     (import.meta.env as any).VITE_API_URL || 
-                     (window as any).CHATBOT_API_URL ||
-                     'http://localhost:3000';
+      const resolvedApiUrl = determineApiUrl(apiUrl);
       const resolvedApiKey = apiKey || 
                      localStorage.getItem('chat-api-key') || 
                      (window as any).CHATBOT_API_KEY ||
@@ -338,11 +358,7 @@ export class FileUploadService {
   static async getFileInfo(fileId: string, apiKey?: string, apiUrl?: string): Promise<FileAttachment> {
     try {
       const api = await getApi();
-      const resolvedApiUrl = apiUrl || 
-                     localStorage.getItem('chat-api-url') || 
-                     (import.meta.env as any).VITE_API_URL || 
-                     (window as any).CHATBOT_API_URL ||
-                     'http://localhost:3000';
+      const resolvedApiUrl = determineApiUrl(apiUrl);
       const resolvedApiKey = apiKey || 
                      localStorage.getItem('chat-api-key') || 
                      (window as any).CHATBOT_API_KEY ||
@@ -458,11 +474,7 @@ export class FileUploadService {
   static async deleteFile(fileId: string, apiKey?: string, apiUrl?: string): Promise<{ message: string; file_id: string }> {
     try {
       const api = await getApi();
-      const resolvedApiUrl = apiUrl || 
-                     localStorage.getItem('chat-api-url') || 
-                     (import.meta.env as any).VITE_API_URL || 
-                     (window as any).CHATBOT_API_URL ||
-                     'http://localhost:3000';
+      const resolvedApiUrl = determineApiUrl(apiUrl);
       const resolvedApiKey = apiKey || 
                      localStorage.getItem('chat-api-key') || 
                      (window as any).CHATBOT_API_KEY ||
@@ -491,4 +503,3 @@ export class FileUploadService {
     }
   }
 }
-

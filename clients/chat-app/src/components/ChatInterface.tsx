@@ -347,10 +347,8 @@ export function ChatInterface({ onOpenSettings }: ChatInterfaceProps) {
                     // Always use runtime config defaults (from CLI args) when no conversation exists
                     // Read dynamically to ensure we get the latest runtime config
                     const runtimeApiUrl = getApiUrl();
-                    // If conversation has localhost (default) but runtime config has a different value,
-                    // prefer the runtime config (from CLI args or env vars)
                     const conversationApiUrl = currentConversation?.apiUrl;
-                    const currentApiUrl = (conversationApiUrl && conversationApiUrl !== 'http://localhost:3000')
+                    const currentApiUrl = conversationApiUrl && conversationApiUrl !== runtimeApiUrl
                       ? conversationApiUrl
                       : runtimeApiUrl;
                     const currentApiKey = currentConversation?.apiKey || getDefaultKey();

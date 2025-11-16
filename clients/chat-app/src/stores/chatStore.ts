@@ -4,7 +4,7 @@ import { Message, Conversation, ChatState, FileAttachment, AdapterInfo } from '.
 import { FileUploadService } from '../services/fileService';
 import { debugLog, debugWarn, debugError, logError } from '../utils/debug';
 import { AppConfig } from '../utils/config';
-import { getDefaultKey, getApiUrl } from '../utils/runtimeConfig';
+import { getDefaultKey, getApiUrl, resolveApiUrl, DEFAULT_API_URL } from '../utils/runtimeConfig';
 import { sanitizeMessageContent, truncateLongContent } from '../utils/contentValidation';
 import { audioStreamManager } from '../utils/audioStreamManager';
 
@@ -80,11 +80,13 @@ async function ensureApiConfigured(): Promise<boolean> {
     // Load the API dynamically
     const api = await getApi();
 
-    // Check localStorage first, then runtime configuration
-    const apiUrl = localStorage.getItem('chat-api-url') || 
-                  getApiUrl() || 
-                  (window as any).CHATBOT_API_URL ||
-                  getApiUrl(); // Use runtime config as final fallback
+    const storedApiUrl = localStorage.getItem('chat-api-url');
+    if (storedApiUrl && storedApiUrl === DEFAULT_API_URL) {
+      localStorage.removeItem('chat-api-url');
+    }
+    const apiUrl = storedApiUrl && storedApiUrl !== DEFAULT_API_URL
+      ? storedApiUrl
+      : getApiUrl();
 
     const apiKey = localStorage.getItem('chat-api-key') || DEFAULT_API_KEY;
     const sessionId = getOrCreateSessionId();
@@ -258,7 +260,11 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
     }
 
     // Save settings to localStorage only if configuration was successful
-    localStorage.setItem('chat-api-url', apiUrl);
+    if (apiUrl && apiUrl !== DEFAULT_API_URL) {
+      localStorage.setItem('chat-api-url', apiUrl);
+    } else {
+      localStorage.removeItem('chat-api-url');
+    }
     if (apiKey) {
       localStorage.setItem('chat-api-key', apiKey);
     }
@@ -451,7 +457,8 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
   },
 
   deleteConversation: async (id: string) => {
-    const conversation = get().conversations.find(conv => conv.id === id);
+    const state = get();
+    const conversation = state.conversations.find(conv => conv.id === id);
 
     debugLog(`🗑️ Deleting conversation ${id}:`, {
       conversationId: id,
@@ -460,6 +467,11 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       messageCount: conversation?.messages.length,
       fileCount: conversation?.attachedFiles?.length || 0
     });
+
+    // Stop audio playback if deleting the current conversation
+    if (state.currentConversationId === id) {
+      audioStreamManager.stop();
+    }
 
     // If conversation has a session ID, delete conversation and files in one call
     if (conversation?.sessionId) {
@@ -522,6 +534,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       if (filtered.length === 0) {
         const defaultConversationId = `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         const defaultSessionId = generateUniqueSessionId();
+        const defaultApiUrl = getApiUrl();
         const defaultConversation: Conversation = {
           id: defaultConversationId,
           sessionId: defaultSessionId,
@@ -530,19 +543,19 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
           createdAt: new Date(),
           updatedAt: new Date(),
           apiKey: DEFAULT_API_KEY,
-          apiUrl: 'http://localhost:3000'
+          apiUrl: defaultApiUrl
         };
 
         // Configure API with default key and validate it
         ensureApiConfigured().then(isConfigured => {
           if (isConfigured) {
             getApi().then(api => {
-              api.configureApi('http://localhost:3000', DEFAULT_API_KEY, defaultSessionId);
+              api.configureApi(defaultApiUrl, DEFAULT_API_KEY, defaultSessionId);
               
               // Validate and load adapter info for default key
               try {
                 const validationClient = new api.ApiClient({
-                  apiUrl: 'http://localhost:3000',
+                  apiUrl: defaultApiUrl,
                   apiKey: DEFAULT_API_KEY,
                   sessionId: null
                 });
@@ -614,42 +627,55 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
 
     debugLog(`🗑️ Deleting all conversations (${conversationsToDelete.length} total)`);
 
-    // Delete all conversations from server
-    for (const conversation of conversationsToDelete) {
-      if (conversation?.sessionId) {
-        try {
-          const isConfigured = await ensureApiConfigured();
-          if (!isConfigured) {
-            logError('Failed to configure API for conversation deletion');
-            continue;
-          }
+    // Stop any ongoing audio playback when clearing all conversations
+    audioStreamManager.stop();
 
-          const conversationApiUrl = conversation.apiUrl || getApiUrl();
-          const conversationApiKey = conversation.apiKey || DEFAULT_API_KEY;
-          
-          const api = await getApi();
-          const apiClient: ApiClient = new api.ApiClient({
-            apiUrl: conversationApiUrl,
-            apiKey: conversationApiKey,
-            sessionId: conversation.sessionId
-          });
-
-          const fileIds = conversation?.attachedFiles?.map(f => f.file_id) || [];
-
-          if (apiClient.deleteConversationWithFiles) {
-            await apiClient.deleteConversationWithFiles(conversation.sessionId, fileIds);
-            debugLog(`✅ Deleted conversation ${conversation.id} and files`);
-          }
-        } catch (error) {
-          logError(`Failed to delete conversation ${conversation.id} from server:`, error);
-          // Continue with other conversations even if one fails
-        }
+    // Delete all conversations from server in the background
+    const deletionTasks = conversationsToDelete.map(async (conversation) => {
+      if (!conversation?.sessionId) {
+        return;
       }
-    }
+      try {
+        const isConfigured = await ensureApiConfigured();
+        if (!isConfigured) {
+          logError('Failed to configure API for conversation deletion');
+          return;
+        }
+
+        const conversationApiUrl = resolveApiUrl(conversation.apiUrl);
+        const conversationApiKey = conversation.apiKey || DEFAULT_API_KEY;
+        
+        const api = await getApi();
+        const apiClient: ApiClient = new api.ApiClient({
+          apiUrl: conversationApiUrl,
+          apiKey: conversationApiKey,
+          sessionId: conversation.sessionId
+        });
+
+        const fileIds = conversation?.attachedFiles?.map(f => f.file_id) || [];
+
+        if (apiClient.deleteConversationWithFiles) {
+          await apiClient.deleteConversationWithFiles(conversation.sessionId, fileIds);
+          debugLog(`✅ Deleted conversation ${conversation.id} and files`);
+        } else {
+          debugWarn(`deleteConversationWithFiles not available for conversation ${conversation.id}`);
+        }
+      } catch (error) {
+        logError(`Failed to delete conversation ${conversation.id} from server:`, error);
+      }
+    });
+
+    Promise.allSettled(deletionTasks).then(results => {
+      const failures = results.filter(result => result.status === 'rejected');
+      if (failures.length > 0) {
+        logError(`Some conversations failed to delete from server: ${failures.length}`, failures);
+      }
+    });
 
     // Create a new default conversation after deleting all
     const defaultConversationId = `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const defaultSessionId = generateUniqueSessionId();
+    const defaultApiUrl = getApiUrl();
     const defaultConversation: Conversation = {
       id: defaultConversationId,
       sessionId: defaultSessionId,
@@ -658,19 +684,19 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       createdAt: new Date(),
       updatedAt: new Date(),
       apiKey: DEFAULT_API_KEY,
-      apiUrl: 'http://localhost:3000'
+      apiUrl: defaultApiUrl
     };
 
     // Configure API with default key and validate it
     ensureApiConfigured().then(isConfigured => {
       if (isConfigured) {
         getApi().then(api => {
-          api.configureApi('http://localhost:3000', DEFAULT_API_KEY, defaultSessionId);
+          api.configureApi(defaultApiUrl, DEFAULT_API_KEY, defaultSessionId);
           
           // Validate and load adapter info for default key
           try {
             const validationClient = new api.ApiClient({
-              apiUrl: 'http://localhost:3000',
+              apiUrl: defaultApiUrl,
               apiKey: DEFAULT_API_KEY,
               sessionId: null
             });
@@ -943,7 +969,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       
       if (currentConversation.sessionId) {
         // Use conversation's stored API key and URL
-        const conversationApiUrl = currentConversation.apiUrl || 'http://localhost:3000';
+        const conversationApiUrl = resolveApiUrl(currentConversation.apiUrl);
         const conversationApiKey = currentConversation.apiKey;
         
         const api = await getApi();
@@ -1253,7 +1279,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         
         if (currentConversation.sessionId) {
           // Use conversation's stored API key and URL
-          const conversationApiUrl = currentConversation.apiUrl || 'http://localhost:3000';
+          const conversationApiUrl = resolveApiUrl(currentConversation.apiUrl);
           const conversationApiKey = currentConversation.apiKey;
           
           const api = await getApi();
@@ -1525,7 +1551,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       
       // Use conversation's stored API key and URL
       const conversationApiKey = conversation.apiKey;
-      const conversationApiUrl = conversation.apiUrl || 'http://localhost:3000';
+      const conversationApiUrl = resolveApiUrl(conversation.apiUrl);
       
       // Delete from server
       debugLog(`[chatStore] Calling FileUploadService.deleteFile for ${fileId}`);
@@ -1582,7 +1608,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       
       // Use conversation's stored API key and URL
       const conversationApiKey = conversation.apiKey;
-      const conversationApiUrl = conversation.apiUrl || 'http://localhost:3000';
+      const conversationApiUrl = resolveApiUrl(conversation.apiUrl);
       
       // Only load files that are already in the conversation's attachedFiles
       // This ensures full segregation - files uploaded in one conversation don't appear in others
@@ -1689,7 +1715,7 @@ const initializeStore = async () => {
         // Preserve existing API keys - only use default if missing (backward compatibility)
         // This ensures existing conversations maintain their associated API keys
         apiKey: conv.apiKey || DEFAULT_API_KEY,
-        apiUrl: conv.apiUrl || 'http://localhost:3000',
+        apiUrl: resolveApiUrl(conv.apiUrl),
         // Preserve adapterInfo if it exists
         adapterInfo: conv.adapterInfo || undefined,
         messages: conv.messages
@@ -1773,6 +1799,7 @@ const initializeStore = async () => {
       // If loading fails, create a default conversation
       const defaultConversationId = `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const defaultSessionId = generateUniqueSessionId();
+      const defaultApiUrl = getApiUrl();
       const defaultConversation: Conversation = {
         id: defaultConversationId,
         sessionId: defaultSessionId,
@@ -1781,7 +1808,7 @@ const initializeStore = async () => {
         createdAt: new Date(),
         updatedAt: new Date(),
         apiKey: DEFAULT_API_KEY,
-        apiUrl: 'http://localhost:3000'
+        apiUrl: defaultApiUrl
       };
       
       useChatStore.setState({
@@ -1797,6 +1824,7 @@ const initializeStore = async () => {
     // Always use default-key when there are no conversations, regardless of localStorage
     const defaultConversationId = `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const defaultSessionId = generateUniqueSessionId();
+    const defaultApiUrl = getApiUrl();
     const defaultConversation: Conversation = {
       id: defaultConversationId,
       sessionId: defaultSessionId,
@@ -1805,7 +1833,7 @@ const initializeStore = async () => {
       createdAt: new Date(),
       updatedAt: new Date(),
       apiKey: DEFAULT_API_KEY, // Always use default-key when no conversations exist
-      apiUrl: 'http://localhost:3000'
+      apiUrl: defaultApiUrl
     };
     
     useChatStore.setState({
@@ -1833,7 +1861,7 @@ const initializeStore = async () => {
     : DEFAULT_API_KEY;
   const apiUrlToUse = (hasExistingConversations && currentConversation?.apiUrl)
     ? currentConversation.apiUrl
-    : 'http://localhost:3000';
+    : getApiUrl();
   
   // Auto-configure API with the determined key and validate it
   try {

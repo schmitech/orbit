@@ -7,7 +7,7 @@ import { useChatStore } from '../stores/chatStore';
 import { debugLog, debugError } from '../utils/debug';
 import { AppConfig } from '../utils/config';
 import { FileUploadService, FileUploadProgress } from '../services/fileService';
-import { getDefaultKey } from '../utils/runtimeConfig';
+import { getDefaultKey, resolveApiUrl } from '../utils/runtimeConfig';
 
 interface MessageInputProps {
   onSend: (message: string, fileIds?: string[]) => void;
@@ -377,7 +377,7 @@ export function MessageInput({
       }
 
       const conversationApiKey = currentConv.apiKey;
-      const conversationApiUrl = currentConv.apiUrl || 'http://localhost:3000';
+      const conversationApiUrl = resolveApiUrl(currentConv.apiUrl);
 
       setIsUploading(true);
       const uploadedAttachments: FileAttachment[] = [];
