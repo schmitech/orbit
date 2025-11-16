@@ -92,6 +92,8 @@ export function MessageInput({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const processedFilesRef = useRef<Set<string>>(new Set());
   const voiceMessageRef = useRef('');
+  const pendingVoiceAutoSendRef = useRef(false);
+  const lastProcessedVoiceCompletionRef = useRef(0);
   const [voiceCompletionCount, setVoiceCompletionCount] = useState(0);
 
   const { createConversation, currentConversationId, removeFileFromConversation, conversations, isLoading } = useChatStore();
@@ -187,30 +189,41 @@ export function MessageInput({
 
   // Auto-send message when voice recording completes
   useEffect(() => {
-    if (voiceCompletionCount === 0) {
+    if (voiceCompletionCount > lastProcessedVoiceCompletionRef.current) {
+      pendingVoiceAutoSendRef.current = true;
+      lastProcessedVoiceCompletionRef.current = voiceCompletionCount;
+    }
+
+    if (!pendingVoiceAutoSendRef.current || voiceCompletionCount === 0) {
       return;
     }
 
     debugLog('[MessageInput] Voice recording completed, scheduling auto-send');
     const timeoutId = setTimeout(() => {
-      const currentMessage = message.trim();
+      const voiceMessage = voiceMessageRef.current.trim();
       const currentState = useChatStore.getState();
 
       debugLog('[MessageInput] Auto-send check after voice completion:', {
-        hasMessage: !!currentMessage,
+        hasMessage: !!voiceMessage,
         isInputDisabled,
         isComposing,
         isLoading: currentState.isLoading
       });
 
-      if (currentMessage && !isInputDisabled && !isComposing && !currentState.isLoading) {
+      if (!voiceMessage) {
+        pendingVoiceAutoSendRef.current = false;
+        return;
+      }
+
+      if (!isInputDisabled && !isComposing && !currentState.isLoading) {
         const currentConv = currentState.conversations.find(conv => conv.id === currentState.currentConversationId);
         const conversationFiles = currentConv?.attachedFiles || [];
         const allFileIds = conversationFiles.map(f => f.file_id);
 
-        debugLog('[MessageInput] Auto-sending voice message:', currentMessage);
-        onSend(currentMessage, allFileIds.length > 0 ? allFileIds : undefined);
+        debugLog('[MessageInput] Auto-sending voice message:', voiceMessage);
+        onSend(voiceMessage, allFileIds.length > 0 ? allFileIds : undefined);
 
+        pendingVoiceAutoSendRef.current = false;
         setMessage('');
         voiceMessageRef.current = '';
         if (textareaRef.current) {
@@ -218,17 +231,12 @@ export function MessageInput({
           textareaRef.current.style.overflowY = 'hidden';
         }
       } else {
-        debugLog('[MessageInput] Auto-send skipped after voice completion:', {
-          hasMessage: !!currentMessage,
-          isInputDisabled,
-          isComposing,
-          isLoading: currentState.isLoading
-        });
+        debugLog('[MessageInput] Auto-send paused, waiting for input to become available');
       }
     }, 400);
 
     return () => clearTimeout(timeoutId);
-  }, [voiceCompletionCount, message, isInputDisabled, isComposing, onSend]);
+  }, [voiceCompletionCount, isInputDisabled, isComposing, onSend]);
 
   // Close upload area when upload starts (hide upload widget, show only progress)
   useEffect(() => {
