@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, Monitor, Sun, Moon, Palette, Type, Volume2, Package } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
+import { useSettings } from '../contexts/SettingsContext';
 import { getVersionInfo } from '../utils/version';
 
 interface SettingsProps {
@@ -10,6 +11,7 @@ interface SettingsProps {
 
 export function Settings({ isOpen, onClose }: SettingsProps) {
   const { theme, updateTheme } = useTheme();
+  const { settings, updateSettings } = useSettings();
   const [versionInfo, setVersionInfo] = useState<{
     appVersion: string;
     apiVersion: string;
@@ -34,6 +36,10 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
 
   const handleHighContrastToggle = () => {
     updateTheme({ highContrast: !theme.highContrast });
+  };
+
+  const handleSoundEffectsToggle = () => {
+    updateSettings({ soundEnabled: !settings.soundEnabled });
   };
 
   return (
@@ -152,23 +158,29 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
             </h3>
 
             {/* Sound Effects */}
-            <div className="flex items-center justify-between opacity-50">
+            <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Volume2 className="w-4 h-4 text-gray-400 dark:text-gray-500" />
+                <Volume2 className="w-4 h-4 text-gray-600 dark:text-gray-400" />
                 <div>
-                  <label className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
                     Sound Effects
                   </label>
-                  <p className="text-xs text-gray-400 dark:text-gray-500">
-                    Play sounds for notifications (Coming soon)
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Play sounds for notifications and events
                   </p>
                 </div>
               </div>
               <button 
-                disabled
-                className="relative inline-flex h-6 w-11 items-center rounded-full bg-gray-200 dark:bg-gray-600 cursor-not-allowed"
+                onClick={handleSoundEffectsToggle}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  settings.soundEnabled ? 'bg-blue-600' : 'bg-gray-200 dark:bg-gray-600'
+                }`}
               >
-                <span className="inline-block h-4 w-4 transform translate-x-1 rounded-full bg-gray-300 dark:bg-gray-500" />
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    settings.soundEnabled ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
               </button>
             </div>
           </div>

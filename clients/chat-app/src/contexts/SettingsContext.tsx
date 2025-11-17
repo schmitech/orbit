@@ -22,7 +22,17 @@ const DEFAULT_SETTINGS: AppSettings = {
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const [settings, setSettings] = useState<AppSettings>(() => {
     const saved = localStorage.getItem('chat-settings');
-    return saved ? { ...DEFAULT_SETTINGS, ...JSON.parse(saved) } : DEFAULT_SETTINGS;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        // Ensure voiceEnabled is always false on app start (user can enable it manually)
+        return { ...DEFAULT_SETTINGS, ...parsed, voiceEnabled: false };
+      } catch (error) {
+        // If parsing fails, use defaults
+        return DEFAULT_SETTINGS;
+      }
+    }
+    return DEFAULT_SETTINGS;
   });
 
   // Save settings to localStorage whenever they change

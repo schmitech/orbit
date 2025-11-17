@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Message } from './Message';
 import { Message as MessageType } from '../types';
+import { useSettings } from '../contexts/SettingsContext';
+import { playSoundEffect } from '../utils/soundEffects';
 
 interface MessageListProps {
   messages: MessageType[];
@@ -13,7 +15,9 @@ export function MessageList({ messages, onRegenerate, isLoading }: MessageListPr
   const containerRef = useRef<HTMLDivElement>(null);
   const prevMessageCountRef = useRef(messages.length);
   const prevLastMessageContentRef = useRef<string>('');
+  const prevIsLoadingRef = useRef(isLoading);
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
+  const { settings } = useSettings();
 
   // Check if user has scrolled up manually
   const handleScroll = () => {
@@ -79,6 +83,19 @@ export function MessageList({ messages, onRegenerate, isLoading }: MessageListPr
       setShouldAutoScroll(true);
     }
   }, [isLoading]);
+
+  // Play sound when assistant message is received (loading completes)
+  useEffect(() => {
+    // When loading transitions from true to false, assistant message is complete
+    if (prevIsLoadingRef.current && !isLoading) {
+      const lastMessage = messages[messages.length - 1];
+      // Only play sound if the last message is from assistant and has content
+      if (lastMessage?.role === 'assistant' && lastMessage.content) {
+        playSoundEffect('messageReceived', settings.soundEnabled);
+      }
+    }
+    prevIsLoadingRef.current = isLoading;
+  }, [isLoading, messages, settings.soundEnabled]);
 
   if (messages.length === 0) {
     return (

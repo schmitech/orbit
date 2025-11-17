@@ -9,6 +9,7 @@ import { AppConfig } from '../utils/config';
 import { FileUploadService, FileUploadProgress } from '../services/fileService';
 import { getDefaultKey, resolveApiUrl } from '../utils/runtimeConfig';
 import { useSettings } from '../contexts/SettingsContext';
+import { playSoundEffect } from '../utils/soundEffects';
 
 interface MessageInputProps {
   onSend: (message: string, fileIds?: string[]) => void;
@@ -379,6 +380,7 @@ export function MessageInput({
       const allFileIds = conversationFiles.map(f => f.file_id);
 
       onSend(message.trim(), allFileIds.length > 0 ? allFileIds : undefined);
+      playSoundEffect('messageSent', settings.soundEnabled);
       setMessage('');
       voiceMessageRef.current = ''; // Clear voice message ref when manually submitting
       setAttachedFiles([]);
@@ -604,6 +606,7 @@ export function MessageInput({
 
         await Promise.all(completionPromises);
 
+        playSoundEffect('success', settings.soundEnabled);
         setPasteSuccess(successMessage);
         setTimeout(() => {
           setPasteSuccess(null);
@@ -612,6 +615,7 @@ export function MessageInput({
     } catch (error: any) {
       const errorMessage = error.message || 'Failed to paste file';
       debugError('[MessageInput] Paste error:', error);
+      playSoundEffect('error', settings.soundEnabled);
       setPasteError(errorMessage);
       setTimeout(() => {
         setPasteError(null);
@@ -627,6 +631,13 @@ export function MessageInput({
     : isFileSupported
     ? 'Message ORBIT or drop files here'
     : placeholder;
+
+  // Play sound when voice error appears
+  useEffect(() => {
+    if (voiceError) {
+      playSoundEffect('error', settings.soundEnabled);
+    }
+  }, [voiceError, settings.soundEnabled]);
 
   return (
     <div className="bg-white px-4 py-4 dark:bg-[#212121]">
