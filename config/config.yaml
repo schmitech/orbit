@@ -8,6 +8,7 @@ import:
   - "moderators.yaml"
   - "guardrails.yaml"
   - "vision.yaml"
+  - "sound.yaml"
 
 general:
   port: 3000
@@ -263,3 +264,75 @@ monitoring:
     memory_threshold: 85          # Alert when memory > 85%
     error_rate_threshold: 5       # Alert when error rate > 5%
     response_time_threshold: 5000 # Alert when avg response time > 5000ms
+
+security:
+  # CORS (Cross-Origin Resource Sharing) configuration
+  cors:
+    # Allowed origins - MUST be explicitly configured for production
+    # Use specific origins like ["https://app.example.com", "https://admin.example.com"]
+    # Use ["*"] ONLY for development (credentials will be automatically disabled)
+    allowed_origins: ["*"]  # WARNING: Wildcard only for development
+
+    # Allow credentials (cookies, authorization headers)
+    # IMPORTANT: Cannot be true when allowed_origins contains "*"
+    # Set to true only when using specific origin list
+    allow_credentials: false
+
+    # Allowed HTTP methods
+    allowed_methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"]
+
+    # Allowed request headers
+    allowed_headers:
+      - "Authorization"
+      - "Content-Type"
+      - "X-API-Key"
+      - "X-Session-ID"
+      - "X-User-ID"
+      - "X-Request-ID"
+
+    # Headers exposed to the browser
+    expose_headers:
+      - "X-Request-ID"
+      - "X-RateLimit-Limit"
+      - "X-RateLimit-Remaining"
+      - "X-RateLimit-Reset"
+
+    # Max age for preflight request caching (seconds)
+    max_age: 600
+
+  # Security headers configuration
+  headers:
+    enabled: true
+
+    # Content Security Policy - restricts resource loading
+    # Adjust based on your frontend requirements
+    content_security_policy: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ws: wss:; font-src 'self' data:; frame-ancestors 'self'"
+
+    # HTTP Strict Transport Security - enforce HTTPS
+    # Only effective when served over HTTPS
+    strict_transport_security: "max-age=31536000; includeSubDomains"
+
+    # Prevent MIME type sniffing
+    x_content_type_options: "nosniff"
+
+    # Clickjacking protection
+    x_frame_options: "SAMEORIGIN"
+
+    # XSS protection (legacy, but still useful)
+    x_xss_protection: "1; mode=block"
+
+    # Referrer policy - control referrer information
+    referrer_policy: "strict-origin-when-cross-origin"
+
+    # Permissions policy - control browser features
+    permissions_policy: "geolocation=(), microphone=(), camera=()"
+
+  # Request size limits
+  request_limits:
+    max_body_size_mb: 10  # Maximum request body size in MB
+
+  # Error handling security
+  error_handling:
+    # Never expose detailed errors in production
+    # Set to true only for development/debugging
+    expose_details: false

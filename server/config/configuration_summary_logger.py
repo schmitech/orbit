@@ -126,12 +126,69 @@ class ConfigurationSummaryLogger:
             self._log_message(f"Default admin username: {auth_config.get('default_admin_username', 'admin')}", indent=2)
             self._log_message(f"Password hashing iterations: {auth_config.get('pbkdf2_iterations', 600000)}", indent=2)
             self._log_message(f"Credential storage: {auth_config.get('credential_storage', 'keyring')}", indent=2)
-            
+
+            # CORS Configuration
+            security_config = self.config.get('security', {})
+            cors_config = security_config.get('cors', {})
+            if cors_config:
+                allowed_origins = cors_config.get('allowed_origins', ['*'])
+                has_wildcard = '*' in allowed_origins
+                allow_credentials = cors_config.get('allow_credentials', False)
+
+                if has_wildcard:
+                    # self._log_message("🌐 CORS: DEVELOPMENT MODE (wildcard origins)", level='warning')
+                    self._log_message("Allowed origins: * (all origins)", indent=2)
+                    self._log_message("Allow credentials: DISABLED (required for wildcard)", indent=2)
+                else:
+                    # self._log_message("🌐 CORS: PRODUCTION MODE (restricted origins)")
+                    origin_count = len(allowed_origins)
+                    self._log_message(f"Allowed origins: {origin_count} specific origin(s)", indent=2)
+                    for origin in allowed_origins[:5]:  # Show first 5
+                        self._log_message(f"  - {origin}", indent=4)
+                    if origin_count > 5:
+                        self._log_message(f"  ... and {origin_count - 5} more", indent=4)
+                    self._log_message(f"Allow credentials: {'ENABLED' if allow_credentials else 'DISABLED'}", indent=2)
+
+                self._log_message(f"Allowed methods: {', '.join(cors_config.get('allowed_methods', []))}", indent=2)
+                self._log_message(f"Max age: {cors_config.get('max_age', 600)}s", indent=2)
+
+            # Security Headers Configuration
+            headers_config = security_config.get('headers', {})
+            if headers_config.get('enabled', True):
+                self._log_message("🛡️ Security Headers: ENABLED")
+                if headers_config.get('content_security_policy'):
+                    self._log_message("Content-Security-Policy: configured", indent=2)
+                if headers_config.get('strict_transport_security'):
+                    self._log_message("Strict-Transport-Security: configured", indent=2)
+                if headers_config.get('x_content_type_options'):
+                    self._log_message(f"X-Content-Type-Options: {headers_config.get('x_content_type_options')}", indent=2)
+                if headers_config.get('x_frame_options'):
+                    self._log_message(f"X-Frame-Options: {headers_config.get('x_frame_options')}", indent=2)
+                if headers_config.get('x_xss_protection'):
+                    self._log_message(f"X-XSS-Protection: {headers_config.get('x_xss_protection')}", indent=2)
+            else:
+                self._log_message("🛡️ Security Headers: DISABLED", level='warning')
+                self._log_message("WARNING: Security headers are disabled - not recommended for production", indent=2, level='warning')
+
+            # Request Limits Configuration
+            request_limits = security_config.get('request_limits', {})
+            if request_limits:
+                max_body_size = request_limits.get('max_body_size_mb', 10)
+                self._log_message(f"📦 Request Limits: max body size {max_body_size}MB")
+
+            # Error Handling Configuration
+            error_handling = security_config.get('error_handling', {})
+            expose_details = error_handling.get('expose_details', False)
+            if expose_details:
+                self._log_message("⚠️ Error Details: EXPOSED (development mode)", level='warning')
+            else:
+                self._log_message("🔒 Error Details: HIDDEN (production mode)")
+
             # LLM Guard Configuration
             llm_guard_config = self.config.get('llm_guard', {})
             llm_guard_enabled = bool(llm_guard_config) and llm_guard_config.get('enabled', True)
             self._log_message(f"LLM Guard: {'enabled' if llm_guard_enabled else 'disabled'}")
-            
+
             if llm_guard_enabled:
                 service_config = llm_guard_config.get('service', {})
                 security_config = llm_guard_config.get('security', {})
@@ -139,12 +196,12 @@ class ConfigurationSummaryLogger:
                 self._log_message(f"Default risk threshold: {security_config.get('risk_threshold', 0.6)}", indent=2)
                 self._log_message("Available input scanners: 7 (default)", indent=2)
                 self._log_message("Available output scanners: 4 (default)", indent=2)
-            
+
             # Safety Configuration
             safety_config = self.config.get('safety', {})
             safety_enabled = is_true_value(safety_config.get('enabled', False))
             self._log_message(f"Safety: {'enabled' if safety_enabled else 'disabled'}")
-            
+
             if safety_enabled:
                 self._log_message(f"Safety mode: {safety_config.get('mode', 'strict')}", indent=2)
                 safety_moderator = safety_config.get('moderator')
