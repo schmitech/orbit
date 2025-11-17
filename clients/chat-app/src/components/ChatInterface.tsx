@@ -375,19 +375,38 @@ export function ChatInterface({ onOpenSettings }: ChatInterfaceProps) {
             </div>
           </div>
 
-          {/* Messages */}
-          <MessageList
-            messages={currentConversation?.messages || []}
-            onRegenerate={regenerateResponse}
-            isLoading={isLoading}
-          />
-
-          {/* Input */}
-          <MessageInput
-            onSend={handleSendMessage}
-            disabled={isLoading || !currentConversation || !currentConversation.apiKey}
-            placeholder="Message ORBIT..."
-          />
+          {/* Messages and Input - Conditional Layout */}
+          {!currentConversation || currentConversation.messages.length === 0 ? (
+            // Empty state: Center the input in the middle
+            <div className="flex-1 flex flex-col items-center justify-start min-h-0 pt-40">
+              <div className="w-full max-w-3xl px-4">
+                <div className="text-center mb-2">
+                  <h2 className="text-2xl font-medium text-[#353740] dark:text-[#ececf1]">
+                    How can I assist you today?
+                  </h2>
+                </div>
+                <MessageInput
+                  onSend={handleSendMessage}
+                  disabled={isLoading || !currentConversation || !currentConversation.apiKey}
+                  placeholder="Ask anything"
+                />
+              </div>
+            </div>
+          ) : (
+            // Has messages: Normal layout with messages at top and input at bottom
+            <>
+              <MessageList
+                messages={currentConversation.messages}
+                onRegenerate={regenerateResponse}
+                isLoading={isLoading}
+              />
+              <MessageInput
+                onSend={handleSendMessage}
+                disabled={isLoading || !currentConversation || !currentConversation.apiKey}
+                placeholder="Message ORBIT..."
+              />
+            </>
+          )}
         </div>
       </div>
     </div>
