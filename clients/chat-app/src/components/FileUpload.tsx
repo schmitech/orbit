@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { Upload, X, Loader2 } from 'lucide-react';
 import { FileAttachment } from '../types';
 import { FileUploadService, FileUploadProgress } from '../services/fileService';
@@ -11,15 +11,17 @@ import { getDefaultKey, resolveApiUrl } from '../utils/runtimeConfig';
 const DEFAULT_API_KEY = getDefaultKey();
 
 interface FileUploadProps {
-  onFilesSelected: (files: FileAttachment[]) => void;
+  conversationId: string | null;
+  onFilesSelected: (conversationId: string | null, files: FileAttachment[]) => void;
   onUploadError?: (error: string) => void;
   onClose?: () => void;
-  onUploadingChange?: (isUploading: boolean) => void;
+  onUploadingChange?: (conversationId: string | null, isUploading: boolean) => void;
   maxFiles?: number;
   disabled?: boolean;
 }
 
 export function FileUpload({ 
+  conversationId,
   onFilesSelected, 
   onUploadError,
   onClose,
@@ -30,54 +32,61 @@ export function FileUpload({
   const [isDragging, setIsDragging] = useState(false);
   const [uploadingFiles, setUploadingFiles] = useState<Map<string, FileUploadProgress>>(new Map());
   const [uploadedFiles, setUploadedFiles] = useState<FileAttachment[]>([]);
+  const [globalUploadRevision, setGlobalUploadRevision] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const uploadedFileIdsRef = useRef<Set<string>>(new Set());
+  const uploadedFileIdsRef = useRef<Map<string, string>>(new Map());
   const abortControllersRef = useRef<Map<string, AbortController>>(new Map());
   const isMountedRef = useRef<boolean>(true);
+  const uploadingFilesStoreRef = useRef<Map<string, Map<string, FileUploadProgress>>>(new Map());
+  const uploadedFilesStoreRef = useRef<Map<string, FileAttachment[]>>(new Map());
+  const latestConversationIdRef = useRef<string | null>(conversationId);
   
-  const { currentConversationId, removeFileFromConversation } = useChatStore();
-
-  // Notify parent component when upload status changes
-  useEffect(() => {
-    const isUploading = uploadingFiles.size > 0;
-    onUploadingChange?.(isUploading);
-  }, [uploadingFiles, onUploadingChange]);
-
-  // Notify parent component when uploaded files change
-  // Use a ref to track previous length to avoid unnecessary updates
-  const prevUploadedFilesLengthRef = useRef(0);
-  
-  useEffect(() => {
-    // Only notify if the length actually changed
-    if (uploadedFiles.length !== prevUploadedFilesLengthRef.current) {
-      prevUploadedFilesLengthRef.current = uploadedFiles.length;
-      
-      debugLog(`[FileUpload] Notifying parent about ${uploadedFiles.length} files:`, uploadedFiles);
-      onFilesSelected(uploadedFiles);
-      
-      // When files are selected and parent adds them to conversation,
-      // remove them from cleanup tracking (they're now safely in conversation)
-      if (uploadedFiles.length > 0 && currentConversationId) {
-        setTimeout(() => {
-          // Check mount status inside timeout
-          if (isMountedRef.current) {
-            const store = useChatStore.getState();
-            const conversation = store.conversations.find(conv => conv.id === currentConversationId);
-            const filesInConversation = new Set(
-              conversation?.attachedFiles?.map(f => f.file_id) || []
-            );
-            
-            // Remove files that are now in conversation from cleanup tracking
-            uploadedFiles.forEach(file => {
-              if (filesInConversation.has(file.file_id)) {
-                uploadedFileIdsRef.current.delete(file.file_id);
-              }
-            });
-          }
-        }, 100); // Small delay to allow conversation update to complete
-      }
+  const refreshVisibleUploads = useCallback((targetConversationId: string | null) => {
+    if (!targetConversationId) {
+      setUploadingFiles(new Map());
+      setUploadedFiles([]);
+      return;
     }
-  }, [uploadedFiles.length, onFilesSelected, currentConversationId]); // Only depend on length
+    const uploads = uploadingFilesStoreRef.current.get(targetConversationId);
+    setUploadingFiles(uploads ? new Map(uploads) : new Map());
+    const files = uploadedFilesStoreRef.current.get(targetConversationId) || [];
+    setUploadedFiles(files);
+  }, []);
+
+  useEffect(() => {
+    latestConversationIdRef.current = conversationId;
+    refreshVisibleUploads(conversationId);
+  }, [conversationId, refreshVisibleUploads]);
+
+  const updateUploadingStore = useCallback((targetConversationId: string, updater: (prev: Map<string, FileUploadProgress>) => Map<string, FileUploadProgress>) => {
+    if (!targetConversationId) {
+      return;
+    }
+    const previous = uploadingFilesStoreRef.current.get(targetConversationId) || new Map<string, FileUploadProgress>();
+    const next = updater(new Map(previous));
+    uploadingFilesStoreRef.current.set(targetConversationId, next);
+    if (latestConversationIdRef.current === targetConversationId && isMountedRef.current) {
+      setUploadingFiles(new Map(next));
+    }
+    onUploadingChange?.(targetConversationId, next.size > 0);
+    setGlobalUploadRevision(prev => prev + 1);
+  }, [onUploadingChange]);
+
+  const updateUploadedStore = useCallback((targetConversationId: string, updater: (prev: FileAttachment[]) => FileAttachment[]) => {
+    if (!targetConversationId) {
+      return;
+    }
+    const previous = uploadedFilesStoreRef.current.get(targetConversationId) || [];
+    const next = updater([...(previous || [])]);
+    uploadedFilesStoreRef.current.set(targetConversationId, next);
+    if (latestConversationIdRef.current === targetConversationId && isMountedRef.current) {
+      setUploadedFiles(next);
+    }
+    onFilesSelected(targetConversationId, next);
+  }, [onFilesSelected]);
+  
+  const removeFileFromConversation = useChatStore(state => state.removeFileFromConversation);
+  const conversations = useChatStore(state => state.conversations);
 
   // Track mount status
   useEffect(() => {
@@ -91,104 +100,79 @@ export function FileUpload({
   // Only delete files that aren't already in the conversation
   useEffect(() => {
     return () => {
-      // Mark as unmounting to stop any ongoing operations
       isMountedRef.current = false;
-      
-      // Cancel any ongoing uploads
-      abortControllersRef.current.forEach(controller => {
-        controller.abort();
-      });
-      
-      // Wait a moment to allow any pending conversation updates to complete
-      // This prevents race condition where files are added to conversation asynchronously
-      // We use a slightly longer delay to ensure async operations complete
+      abortControllersRef.current.forEach(controller => controller.abort());
+
       setTimeout(() => {
-        // Get current conversation to check which files are already added
         const store = useChatStore.getState();
-        const conversation = store.conversations.find(conv => conv.id === store.currentConversationId);
-        const filesInConversation = new Set(
-          conversation?.attachedFiles?.map(f => f.file_id) || []
-        );
-        
-        // Delete only files that aren't in the conversation
-        // Double-check by looking at both uploadedFileIdsRef AND actual conversation state
-        // Files that are in the conversation should NOT be deleted, even if still in uploadedFileIdsRef
-        const fileIdsToDelete = Array.from(uploadedFileIdsRef.current).filter(
-          fileId => {
-            // Don't delete if file is in conversation
+        const conversationsById = new Map(store.conversations.map(conv => [conv.id, conv]));
+        const fileIdsToDelete: Array<{ fileId: string; conversationId: string | null }> = [];
+
+        uploadedFileIdsRef.current.forEach((convId, fileId) => {
+          if (convId) {
+            const conversation = conversationsById.get(convId);
+            const filesInConversation = new Set(
+              conversation?.attachedFiles?.map(f => f.file_id) || []
+            );
             if (filesInConversation.has(fileId)) {
-              // Remove from tracking since it's safely in conversation
               uploadedFileIdsRef.current.delete(fileId);
-              return false;
+              return;
             }
-            return true;
           }
-        );
-        
+          fileIdsToDelete.push({ fileId, conversationId: convId || null });
+        });
+
         if (fileIdsToDelete.length > 0) {
-          // Notify parent that we're cleaning up
-          if (onClose) {
-            onClose();
-          }
-          
-          // Delete files from server
-          fileIdsToDelete.forEach(async (fileId) => {
+          onClose?.();
+          fileIdsToDelete.forEach(async ({ fileId, conversationId }) => {
             try {
-              if (store.currentConversationId) {
-                // Try to remove from conversation first (handles server deletion)
-                const fileInUploadedList = uploadedFiles.find(f => f.file_id === fileId);
-                if (fileInUploadedList) {
-                  await removeFileFromConversation(store.currentConversationId, fileId);
-                } else {
-                  // File was uploaded but not in uploadedFiles, delete directly with conversation's API key
-                  const conversation = store.conversations.find(conv => conv.id === store.currentConversationId);
-                  if (conversation && conversation.apiKey && conversation.apiKey !== DEFAULT_API_KEY) {
-                    const conversationApiKey = conversation.apiKey;
-                    const conversationApiUrl = resolveApiUrl(conversation.apiUrl);
-                    await FileUploadService.deleteFile(fileId, conversationApiKey, conversationApiUrl);
-                  } else {
-                    // If no valid API key, just log warning (file might already be deleted)
-                    debugWarn(`Cannot delete file ${fileId}: API key not configured for conversation`);
-                  }
-                }
+              if (conversationId) {
+                await removeFileFromConversation(conversationId, fileId);
               } else {
-                // Just delete from server if no conversation (fallback to localStorage)
                 await FileUploadService.deleteFile(fileId);
               }
             } catch (error: any) {
-              // Silently handle errors during cleanup (including 404s)
               if (!error.message?.includes('404') && !error.message?.includes('File not found')) {
                 debugWarn(`Failed to cleanup file ${fileId} during component unmount:`, error);
               }
             }
           });
         }
-      }, 300); // Longer delay to ensure async conversation updates complete
+      }, 300);
     };
-  }, [currentConversationId, removeFileFromConversation, uploadedFiles, onClose]);
+  }, [removeFileFromConversation, onClose]);
 
   const handleFiles = useCallback(async (files: FileList | null) => {
     if (!files || files.length === 0) return;
 
     const fileArray = Array.from(files);
-    
-    // Check per-conversation file limit
-    if (uploadedFiles.length + fileArray.length > maxFiles) {
+    const store = useChatStore.getState();
+    const activeConversationId = conversationId || store.currentConversationId;
+
+    if (!activeConversationId) {
+      onUploadError?.('Please select or create a conversation before uploading files.');
+      return;
+    }
+
+    const conversation = store.conversations.find(conv => conv.id === activeConversationId);
+    if (!conversation) {
+      onUploadError?.('Conversation not found. Please try again.');
+      return;
+    }
+
+    const existingUploads = uploadedFilesStoreRef.current.get(activeConversationId) || [];
+    if (existingUploads.length + fileArray.length > maxFiles) {
       const error = `Maximum ${maxFiles} files allowed per conversation. Please remove some files first.`;
       onUploadError?.(error);
       return;
     }
 
-    // Check total files limit across all conversations
     if (AppConfig.maxTotalFiles !== null) {
-      const store = useChatStore.getState();
       const totalFilesAcrossConversations = store.conversations.reduce(
         (total, conv) => total + (conv.attachedFiles?.length || 0),
         0
       );
-      const filesToAdd = fileArray.length;
-      const projectedTotal = totalFilesAcrossConversations + filesToAdd;
-      
+      const projectedTotal = totalFilesAcrossConversations + fileArray.length;
       if (projectedTotal > AppConfig.maxTotalFiles) {
         const error = `Maximum ${AppConfig.maxTotalFiles} total files allowed across all conversations. Please remove some files from other conversations first.`;
         onUploadError?.(error);
@@ -196,54 +180,41 @@ export function FileUpload({
       }
     }
 
-    // Process each file
-    const newFiles: FileAttachment[] = [];
-    for (const file of fileArray) {
-      // Create abort controller for this upload (though uploadFile doesn't support abort yet)
+    if (!conversation.apiKey || conversation.apiKey === DEFAULT_API_KEY) {
+      onUploadError?.('API key not configured for this conversation. Please configure API settings first.');
+      return;
+    }
+
+    const conversationApiKey = conversation.apiKey;
+    const conversationApiUrl = resolveApiUrl(conversation.apiUrl);
+
+    for (let index = 0; index < fileArray.length; index++) {
+      const file = fileArray[index];
       const abortController = new AbortController();
       abortControllersRef.current.set(file.name, abortController);
-      
+      const progressKey = `${activeConversationId}-${file.name}-${Date.now()}-${index}`;
       let uploadedFileId: string | null = null;
-      
+
       try {
-        // Get current conversation to access its API key
-        const store = useChatStore.getState();
-        const conversation = store.conversations.find(conv => conv.id === store.currentConversationId);
-        
-        // Check if conversation has a valid API key (not the default key)
-        if (!conversation || !conversation.apiKey || conversation.apiKey === DEFAULT_API_KEY) {
-          throw new Error('API key not configured for this conversation. Please configure API settings first.');
-        }
-        
-        // Use conversation's stored API key and URL
-        const conversationApiKey = conversation.apiKey;
-        const conversationApiUrl = resolveApiUrl(conversation.apiUrl);
-        
-        // Upload file and get the full response with correct file_size from server
-        // Note: We allow upload to proceed even if component unmounts, cleanup will handle orphaned files
         const uploadedAttachment = await FileUploadService.uploadFile(
-          file, 
+          file,
           (progress) => {
-            // Only update state if component is still mounted (to avoid React warnings)
-            if (isMountedRef.current) {
-              setUploadingFiles(prev => new Map(prev.set(file.name, progress)));
-            }
-            // Track file ID once we get it (even if unmounted, for cleanup purposes)
+            updateUploadingStore(activeConversationId, (prev) => {
+              prev.set(progressKey, progress);
+              return prev;
+            });
             if (progress.fileId) {
               uploadedFileId = progress.fileId;
-              uploadedFileIdsRef.current.add(progress.fileId);
+              uploadedFileIdsRef.current.set(progress.fileId, activeConversationId);
             }
           },
           conversationApiKey,
           conversationApiUrl
         ).catch(error => {
-          // If file was deleted during upload, handle gracefully
           if (error.message && error.message.includes('was deleted')) {
-            // File was deleted during upload - remove from tracking if we have the ID
             if (uploadedFileId) {
               uploadedFileIdsRef.current.delete(uploadedFileId);
             }
-            // Extract file ID from error message if available
             const fileIdMatch = error.message.match(/File\s+([\w-]+)\s+was deleted/);
             if (fileIdMatch && fileIdMatch[1]) {
               uploadedFileIdsRef.current.delete(fileIdMatch[1]);
@@ -254,84 +225,58 @@ export function FileUpload({
           throw error;
         });
 
-        // Add completed file to list using the response from server (has correct file_size)
-        // Always add to newFiles so files are included even if component unmounts during upload
         if (uploadedAttachment) {
-          if (!uploadedFileId || uploadedFileId !== uploadedAttachment.file_id) {
-            uploadedFileIdsRef.current.add(uploadedAttachment.file_id);
-          }
-          newFiles.push(uploadedAttachment);
-          debugLog(`File ${file.name} uploaded successfully, added to list:`, uploadedAttachment);
+          uploadedFileIdsRef.current.set(uploadedAttachment.file_id, activeConversationId);
+          updateUploadedStore(activeConversationId, (prev) => {
+            const existingIds = new Set(prev.map(f => f.file_id));
+            if (existingIds.has(uploadedAttachment.file_id)) {
+              return prev;
+            }
+            const updated = [...prev, uploadedAttachment];
+            debugLog(`[FileUpload] Updated uploadedFiles for ${activeConversationId}: ${updated.length} files`, updated);
+            return updated;
+          });
         } else {
           debugWarn(`Upload completed for ${file.name} but uploadedAttachment is null`);
         }
       } catch (error: any) {
-        // If error is from abort or component unmounted, don't show error message
-        if (error.name === 'AbortError' || abortController.signal.aborted || !isMountedRef.current) {
+        if (error.name === 'AbortError' || abortController.signal.aborted) {
           debugLog(`Upload cancelled for ${file.name}`);
-          // Remove from tracking if we have the ID
           if (uploadedFileId) {
             uploadedFileIdsRef.current.delete(uploadedFileId);
           }
           continue;
         }
-        // If file was deleted during upload, handle gracefully
         if (error.message && error.message.includes('was deleted')) {
           debugLog(`File ${file.name} was deleted during upload`);
-          // Remove from tracking since it's already deleted
           if (uploadedFileId) {
             uploadedFileIdsRef.current.delete(uploadedFileId);
           }
-          // Try to extract file ID from error message
           const fileIdMatch = error.message.match(/File\s+([\w-]+)\s+was deleted/);
           if (fileIdMatch && fileIdMatch[1]) {
             uploadedFileIdsRef.current.delete(fileIdMatch[1]);
           }
           continue;
         }
-        // Only show error if component is still mounted
         if (isMountedRef.current) {
           debugError(`Failed to upload file ${file.name}:`, error);
           debugError(`File type: ${file.type}, File name: ${file.name}`);
           onUploadError?.(error.message || `Failed to upload ${file.name}`);
         } else {
-          // Log even if unmounted for debugging
           debugWarn(`Upload error for ${file.name} (component unmounted):`, error.message);
         }
-        // Remove from tracking on error
         if (uploadedFileId) {
           uploadedFileIdsRef.current.delete(uploadedFileId);
         }
       } finally {
-        // Clean up abort controller
         abortControllersRef.current.delete(file.name);
-        // Only update state if component is still mounted
-        if (isMountedRef.current) {
-          setUploadingFiles(prev => {
-            const next = new Map(prev);
-            next.delete(file.name);
-            return next;
-          });
-        }
+        updateUploadingStore(activeConversationId, (prev) => {
+          prev.delete(progressKey);
+          return prev;
+        });
       }
     }
-    
-    // Update uploaded files list with all new files
-    // The useEffect hook will call onFilesSelected when uploadedFiles changes
-    // Always update state - this will trigger the useEffect to notify parent
-    if (newFiles.length > 0) {
-      setUploadedFiles(prev => {
-        const existingIds = new Set(prev.map(f => f.file_id));
-        const filesToAdd = newFiles.filter(f => !existingIds.has(f.file_id));
-        if (filesToAdd.length > 0) {
-          const updated = [...prev, ...filesToAdd];
-          debugLog(`[FileUpload] Updated uploadedFiles: ${updated.length} files`, updated);
-          return updated;
-        }
-        return prev;
-      });
-    }
-  }, [maxFiles, onFilesSelected, onUploadError, onUploadingChange]);
+  }, [conversationId, maxFiles, onUploadError, updateUploadedStore, updateUploadingStore]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -368,38 +313,39 @@ export function FileUpload({
   }, [handleFiles]);
 
   const handleRemoveFile = useCallback(async (fileId: string) => {
+    const store = useChatStore.getState();
+    const activeConversationId = conversationId || store.currentConversationId;
+
     debugLog(`[FileUpload] handleRemoveFile called for file ${fileId}`, {
-      currentConversationId,
+      activeConversationId,
       hasRemoveFileFromConversation: !!removeFileFromConversation
     });
-    
-    // Remove from local list first
-    setUploadedFiles(prev => prev.filter(f => f.file_id !== fileId));
-    
-    // Remove from tracking ref
-    uploadedFileIdsRef.current.delete(fileId);
-    
-    // Remove from conversation and delete from server if conversation exists
-    if (currentConversationId) {
+
+    if (!activeConversationId) {
+      uploadedFileIdsRef.current.delete(fileId);
       try {
-        debugLog(`[FileUpload] Calling removeFileFromConversation for ${fileId}`);
-        await removeFileFromConversation(currentConversationId, fileId);
-        debugLog(`[FileUpload] Successfully removed file ${fileId} from conversation`);
-      } catch (error) {
-        debugError(`[FileUpload] Failed to remove file ${fileId} from conversation:`, error);
-        // File is already removed from local list, so continue
-      }
-    } else {
-      // If no conversation, just delete from server
-      try {
-        debugLog(`[FileUpload] Calling FileUploadService.deleteFile for ${fileId}`);
         await FileUploadService.deleteFile(fileId);
-        debugLog(`[FileUpload] Successfully deleted file ${fileId} from server`);
       } catch (error) {
         debugError(`[FileUpload] Failed to delete file ${fileId} from server:`, error);
       }
+      return;
     }
-  }, [currentConversationId, removeFileFromConversation]);
+
+    updateUploadedStore(activeConversationId, (prev) => prev.filter(f => f.file_id !== fileId));
+    uploadedFileIdsRef.current.delete(fileId);
+
+    try {
+      await removeFileFromConversation(activeConversationId, fileId);
+      debugLog(`[FileUpload] Successfully removed file ${fileId} from conversation ${activeConversationId}`);
+    } catch (error) {
+      debugError(`[FileUpload] Failed to remove file ${fileId} from conversation:`, error);
+      try {
+        await FileUploadService.deleteFile(fileId);
+      } catch (deleteError) {
+        debugError(`[FileUpload] Failed to delete file ${fileId} from server:`, deleteError);
+      }
+    }
+  }, [conversationId, removeFileFromConversation, updateUploadedStore]);
 
   const handleClick = useCallback(() => {
     if (!disabled && fileInputRef.current) {
@@ -410,6 +356,26 @@ export function FileUpload({
   // Hide upload area when files are uploading OR when files have been uploaded
   const isUploading = uploadingFiles.size > 0;
   const hasUploadedFiles = uploadedFiles.length > 0;
+  const conversationNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    conversations.forEach(conv => {
+      map.set(conv.id, conv.title || 'Conversation');
+    });
+    return map;
+  }, [conversations]);
+
+  const otherUploadingConversations = useMemo(() => {
+    const entries: Array<{ conversationId: string; uploads: Array<{ key: string; progress: FileUploadProgress }> }> = [];
+    uploadingFilesStoreRef.current.forEach((progressMap, convId) => {
+      if (convId !== conversationId && progressMap.size > 0) {
+        entries.push({
+          conversationId: convId,
+          uploads: Array.from(progressMap.entries()).map(([key, progress]) => ({ key, progress }))
+        });
+      }
+    });
+    return entries;
+  }, [conversationId, globalUploadRevision]);
 
   return (
     <div className="w-full max-w-full overflow-hidden space-y-3">
@@ -476,6 +442,42 @@ export function FileUpload({
                  progress.status === 'processing' ? 'Processing...' :
                  progress.status === 'completed' ? 'Done' : 'Error'}
               </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {otherUploadingConversations.length > 0 && (
+        <div className="w-full max-w-full space-y-3 rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900/40">
+          <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+            Uploads in other conversations
+          </p>
+          {otherUploadingConversations.map(({ conversationId: otherId, uploads }) => (
+            <div key={otherId} className="space-y-2">
+              <div className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                {conversationNameMap.get(otherId) || 'Conversation'}
+              </div>
+              {uploads.map(({ key, progress }) => (
+                <div key={key} className="w-full max-w-full flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg overflow-hidden">
+                  <Loader2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 animate-spin flex-shrink-0" />
+                  <div className="flex-1 min-w-0 overflow-hidden">
+                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300 truncate">
+                      {progress.filename}
+                    </p>
+                    <div className="mt-1 bg-slate-200 dark:bg-slate-700 rounded-full h-1.5">
+                      <div
+                        className="bg-emerald-600 dark:bg-emerald-400 h-1.5 rounded-full transition-all duration-300"
+                        style={{ width: `${progress.progress}%` }}
+                      />
+                    </div>
+                  </div>
+                  <span className="text-xs text-slate-500 dark:text-slate-400">
+                    {progress.status === 'uploading' ? 'Uploading...' :
+                     progress.status === 'processing' ? 'Processing...' :
+                     progress.status === 'completed' ? 'Done' : 'Error'}
+                  </span>
+                </div>
+              ))}
             </div>
           ))}
         </div>

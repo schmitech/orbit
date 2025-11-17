@@ -10,6 +10,8 @@ import { getShowGitHubStats, getGitHubOwner, getGitHubRepo } from '../utils/runt
 
 interface SidebarProps {}
 
+const MAX_TITLE_LENGTH = 100;
+
 export function Sidebar({}: SidebarProps) {
     const {
     conversations,
@@ -129,12 +131,13 @@ export function Sidebar({}: SidebarProps) {
   const handleEditStart = (e: React.MouseEvent, conversation: Conversation) => {
     e.stopPropagation();
     setEditingId(conversation.id);
-    setEditTitle(conversation.title);
+    setEditTitle(conversation.title.slice(0, MAX_TITLE_LENGTH));
   };
 
   const handleEditSubmit = (id: string) => {
-    if (editTitle.trim()) {
-      updateConversationTitle(id, editTitle.trim());
+    const sanitized = editTitle.slice(0, MAX_TITLE_LENGTH).trim();
+    if (sanitized) {
+      updateConversationTitle(id, sanitized);
     }
     setEditingId(null);
     setEditTitle('');
@@ -260,12 +263,13 @@ export function Sidebar({}: SidebarProps) {
                     <input
                       type="text"
                       value={editTitle}
-                      onChange={(e) => setEditTitle(e.target.value)}
+                      onChange={(e) => setEditTitle(e.target.value.slice(0, MAX_TITLE_LENGTH))}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') handleEditSubmit(conversation.id);
                         if (e.key === 'Escape') handleEditCancel();
                       }}
                       onBlur={() => handleEditSubmit(conversation.id)}
+                      maxLength={MAX_TITLE_LENGTH}
                       className="flex-1 border-none bg-transparent text-sm text-[#353740] focus:outline-none dark:text-[#ececf1]"
                       autoFocus
                     />

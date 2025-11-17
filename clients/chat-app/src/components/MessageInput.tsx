@@ -83,7 +83,7 @@ export function MessageInput({
   const [isFocused, setIsFocused] = useState(false);
   const [showFileUpload, setShowFileUpload] = useState(false);
   const [attachedFiles, setAttachedFiles] = useState<FileAttachment[]>([]);
-  const [isUploading, setIsUploading] = useState(false);
+  const [conversationUploadingState, setConversationUploadingState] = useState<Record<string, boolean>>({});
   const [pasteUploadingFiles, setPasteUploadingFiles] = useState<Map<string, FileUploadProgress>>(new Map());
   const [isHoveringUpload, setIsHoveringUpload] = useState(false);
   const [isHoveringMic, setIsHoveringMic] = useState(false);
@@ -94,6 +94,24 @@ export function MessageInput({
   const voiceMessageRef = useRef('');
   const pendingVoiceAutoSendRef = useRef(false);
   const lastProcessedVoiceCompletionRef = useRef(0);
+  const lastConversationIdRef = useRef<string | null>(null);
+  const setConversationUploading = useCallback((conversationId: string | null, uploading: boolean) => {
+    if (!conversationId) {
+      return;
+    }
+    setConversationUploadingState(prev => {
+      if (prev[conversationId] === uploading) {
+        return prev;
+      }
+      const next = { ...prev };
+      if (uploading) {
+        next[conversationId] = true;
+      } else {
+        delete next[conversationId];
+      }
+      return next;
+    });
+  }, []);
   const [voiceCompletionCount, setVoiceCompletionCount] = useState(0);
 
   const { createConversation, currentConversationId, removeFileFromConversation, conversations, isLoading } = useChatStore();
@@ -145,6 +163,8 @@ export function MessageInput({
            file.processing_status !== 'error' &&
            file.processing_status !== 'failed';
   });
+
+  const isUploading = currentConversationId ? !!conversationUploadingState[currentConversationId] : false;
 
   // Disable input if files are uploading, processing, or if already disabled
   const isInputDisabled = disabled || hasProcessingFiles || isUploading;
@@ -255,10 +275,10 @@ export function MessageInput({
     }
   }, [isUploading, attachedFiles.length, showFileUpload]);
 
-  const syncFilesWithConversation = useCallback((files: FileAttachment[]) => {
+  const syncFilesWithConversation = useCallback((files: FileAttachment[], targetConversationId?: string | null) => {
     setTimeout(() => {
       let store = useChatStore.getState();
-      let conversationId = store.currentConversationId;
+      let conversationId = targetConversationId || store.currentConversationId;
       
       if (!conversationId) {
         conversationId = createConversation();
@@ -294,33 +314,54 @@ export function MessageInput({
     }, 0);
   }, [createConversation]);
 
+  // Reset attached files when switching conversations to avoid bleed-through
+  useEffect(() => {
+    if (currentConversationId !== lastConversationIdRef.current) {
+      lastConversationIdRef.current = currentConversationId || null;
+      if (currentConversationId && currentConversation) {
+        const convFiles = currentConversation.attachedFiles || [];
+        setAttachedFiles(convFiles.map(file => ({ ...file })));
+      } else {
+        setAttachedFiles([]);
+      }
+    }
+  }, [currentConversationId, currentConversation]);
+
   // Sync attachedFiles with conversationFiles to ensure pasted files appear in UI
-  // This ensures files added via paste or other methods show up correctly
-  // Use a more comprehensive dependency to catch all conversation file changes
   useEffect(() => {
     if (currentConversationId && currentConversation) {
       const convFiles = currentConversation.attachedFiles || [];
       if (convFiles.length > 0) {
-        // Use functional update to avoid stale closure issues
         setAttachedFiles(prev => {
           const attachedFileIds = new Set(prev.map(f => f.file_id));
-          // Check if conversation has files that aren't in attachedFiles
           const missingFiles = convFiles.filter(f => !attachedFileIds.has(f.file_id));
           
           if (missingFiles.length > 0) {
             debugLog(`[MessageInput] Syncing ${missingFiles.length} missing files from conversation to UI`);
-            // Add missing files to attachedFiles (these are likely pasted files)
             return [...prev, ...missingFiles];
           }
           return prev;
         });
       } else if (convFiles.length === 0 && attachedFiles.length > 0) {
-        // If conversation has no files but attachedFiles does, clear attachedFiles
-        // This handles the case when conversation is cleared
         setAttachedFiles([]);
       }
     }
-  }, [currentConversationId, currentConversation, conversations]);
+  }, [currentConversationId, currentConversation, conversations, attachedFiles.length]);
+
+  useEffect(() => {
+    setConversationUploadingState(prev => {
+      const existingIds = new Set(conversations.map(conv => conv.id));
+      let changed = false;
+      const next = { ...prev };
+      Object.keys(next).forEach(id => {
+        if (!existingIds.has(id)) {
+          delete next[id];
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [conversations]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -347,11 +388,16 @@ export function MessageInput({
     }
   };
 
-  const handleFilesSelected = useCallback((files: FileAttachment[]) => {
-    debugLog(`[MessageInput] handleFilesSelected called with ${files.length} files:`, files);
-    setAttachedFiles(files);
-    syncFilesWithConversation(files);
-  }, [syncFilesWithConversation]);
+  const handleFilesSelected = useCallback((conversationId: string | null, files: FileAttachment[]) => {
+    debugLog(`[MessageInput] handleFilesSelected called with ${files.length} files for conversation ${conversationId}:`, files);
+    if (!conversationId) {
+      return;
+    }
+    if (conversationId === currentConversationId) {
+      setAttachedFiles(files);
+    }
+    syncFilesWithConversation(files, conversationId);
+  }, [currentConversationId, syncFilesWithConversation]);
 
   const handleRemoveFile = async (fileId: string) => {
     // Remove from local attached files list
@@ -421,6 +467,8 @@ export function MessageInput({
     setPasteError(null);
     setPasteSuccess(null);
 
+    let pasteConversationId: string | null = null;
+
     try {
       const pasteStore = useChatStore.getState();
       const currentConv = pasteStore.conversations.find(conv => conv.id === pasteStore.currentConversationId);
@@ -447,8 +495,9 @@ export function MessageInput({
 
       const conversationApiKey = currentConv.apiKey;
       const conversationApiUrl = resolveApiUrl(currentConv.apiUrl);
+      pasteConversationId = currentConv.id;
 
-      setIsUploading(true);
+      setConversationUploading(pasteConversationId, true);
       const uploadedAttachments: FileAttachment[] = [];
       const completionPromises: Promise<void>[] = [];
       
@@ -526,16 +575,21 @@ export function MessageInput({
       }
 
       if (uploadedAttachments.length > 0) {
-        setAttachedFiles(prev => {
-          const existingIds = new Set(prev.map(f => f.file_id));
-          const filesToAdd = uploadedAttachments.filter(f => !existingIds.has(f.file_id));
-          if (filesToAdd.length === 0) {
-            return prev;
+        let filesForSync = uploadedAttachments;
+        if (pasteConversationId && pasteConversationId === currentConversationId) {
+          const existingIds = new Set(attachedFiles.map(f => f.file_id));
+          const filteredAdds = uploadedAttachments.filter(f => !existingIds.has(f.file_id));
+          if (filteredAdds.length > 0) {
+            setAttachedFiles(prev => [...prev, ...filteredAdds]);
+            filesForSync = filteredAdds;
+          } else {
+            filesForSync = [];
           }
-          const updated = [...prev, ...filesToAdd];
-          syncFilesWithConversation(updated);
-          return updated;
-        });
+        }
+
+        if (filesForSync.length > 0) {
+          syncFilesWithConversation(filesForSync, pasteConversationId);
+        }
 
         const successMessage =
           uploadedAttachments.length === 1
@@ -558,9 +612,9 @@ export function MessageInput({
       }, 5000);
       setPasteUploadingFiles(new Map());
     } finally {
-      setIsUploading(false);
+      setConversationUploading(pasteConversationId, false);
     }
-  }, [isFocused, isFileSupported, isInputDisabled, syncFilesWithConversation]);
+  }, [attachedFiles, currentConversationId, isFocused, isFileSupported, isInputDisabled, setConversationUploading, syncFilesWithConversation]);
 
   const effectivePlaceholder = (hasProcessingFiles || isUploading)
     ? 'Files are uploading/processing, please wait...'
@@ -792,11 +846,12 @@ export function MessageInput({
               </div>
             )}
             <FileUpload
+              conversationId={currentConversationId}
               onFilesSelected={handleFilesSelected}
               onUploadError={(error) => {
                 debugError('File upload error:', error);
               }}
-              onUploadingChange={setIsUploading}
+              onUploadingChange={setConversationUploading}
               maxFiles={AppConfig.maxFilesPerConversation}
               disabled={isFileUploadDisabled}
             />
