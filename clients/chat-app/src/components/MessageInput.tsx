@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Mic, MicOff, Paperclip, X, Loader2, CheckCircle2 } from 'lucide-react';
+import { ArrowUp, Mic, MicOff, Paperclip, X, Loader2, CheckCircle2, Volume2, VolumeX } from 'lucide-react';
 import { useVoice } from '../hooks/useVoice';
 import { FileUpload } from './FileUpload';
 import { FileAttachment } from '../types';
@@ -8,6 +8,7 @@ import { debugLog, debugError } from '../utils/debug';
 import { AppConfig } from '../utils/config';
 import { FileUploadService, FileUploadProgress } from '../services/fileService';
 import { getDefaultKey, resolveApiUrl } from '../utils/runtimeConfig';
+import { useSettings } from '../contexts/SettingsContext';
 
 interface MessageInputProps {
   onSend: (message: string, fileIds?: string[]) => void;
@@ -95,6 +96,7 @@ export function MessageInput({
   const pendingVoiceAutoSendRef = useRef(false);
   const lastProcessedVoiceCompletionRef = useRef(0);
   const lastConversationIdRef = useRef<string | null>(null);
+  const { settings, updateSettings } = useSettings();
   const setConversationUploading = useCallback((conversationId: string | null, uploading: boolean) => {
     if (!conversationId) {
       return;
@@ -434,6 +436,10 @@ export function MessageInput({
     }
   };
 
+  const handleVoiceResponseToggle = () => {
+    updateSettings({ voiceEnabled: !settings.voiceEnabled });
+  };
+
   const handlePaste = useCallback(async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     if (!isFocused || !isFileSupported || isInputDisabled) {
       return;
@@ -721,33 +727,55 @@ export function MessageInput({
           )}
 
           {voiceSupported && (
-            <button
-              type="button"
-              onClick={handleVoiceToggle}
-              disabled={isInputDisabled}
-              onMouseEnter={() => setIsHoveringMic(true)}
-              onMouseLeave={() => setIsHoveringMic(false)}
-              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors ${
-                isListening
-                  ? 'bg-red-50 text-red-600 dark:bg-red-900/40 dark:text-red-300'
-                  : isInputDisabled
-                  ? 'cursor-not-allowed text-gray-300 dark:text-[#6b6f7a]'
-                  : 'text-gray-500 hover:bg-gray-100 hover:text-[#353740] dark:text-[#bfc2cd] dark:hover:bg-[#565869]'
-              }`}
-              title={
-                isInputDisabled
-                  ? 'Files are uploading/processing. Please wait...'
-                  : isListening
-                  ? 'Stop recording'
-                  : 'Start voice input'
-              }
-            >
-              {isListening || (isInputDisabled && isHoveringMic) ? (
-                <MicOff className="h-5 w-5" />
-              ) : (
-                <Mic className="h-5 w-5" />
-              )}
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={handleVoiceResponseToggle}
+                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors ${
+                  settings.voiceEnabled
+                    ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300'
+                    : 'text-gray-500 hover:bg-gray-100 hover:text-[#353740] dark:text-[#bfc2cd] dark:hover:bg-[#565869]'
+                }`}
+                title={
+                  settings.voiceEnabled
+                    ? 'Voice responses enabled - Click to disable'
+                    : 'Enable voice responses (text-to-speech)'
+                }
+              >
+                {settings.voiceEnabled ? (
+                  <Volume2 className="h-5 w-5" />
+                ) : (
+                  <VolumeX className="h-5 w-5" />
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={handleVoiceToggle}
+                disabled={isInputDisabled}
+                onMouseEnter={() => setIsHoveringMic(true)}
+                onMouseLeave={() => setIsHoveringMic(false)}
+                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors ${
+                  isListening
+                    ? 'bg-red-50 text-red-600 dark:bg-red-900/40 dark:text-red-300'
+                    : isInputDisabled
+                    ? 'cursor-not-allowed text-gray-300 dark:text-[#6b6f7a]'
+                    : 'text-gray-500 hover:bg-gray-100 hover:text-[#353740] dark:text-[#bfc2cd] dark:hover:bg-[#565869]'
+                }`}
+                title={
+                  isInputDisabled
+                    ? 'Files are uploading/processing. Please wait...'
+                    : isListening
+                    ? 'Stop recording'
+                    : 'Start voice input'
+                }
+              >
+                {isListening || (isInputDisabled && isHoveringMic) ? (
+                  <MicOff className="h-5 w-5" />
+                ) : (
+                  <Mic className="h-5 w-5" />
+                )}
+              </button>
+            </>
           )}
 
           {(hasProcessingFiles || isUploading) && (
@@ -766,7 +794,7 @@ export function MessageInput({
             }`}
             title="Send message"
           >
-            <Send className="h-4 w-4" style={{ transform: 'translate(-1px, 0.5px)' }} />
+            <ArrowUp className="h-4 w-4" />
           </button>
         </div>
 
