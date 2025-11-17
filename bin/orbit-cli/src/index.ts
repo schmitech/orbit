@@ -265,6 +265,16 @@ Use --no-color to disable colored output.
     const command = args[0].toLowerCase();
     const rest = args.slice(1);
 
+    // Handle special commands that aren't in the registry
+    if (command === 'help' || command === '?') {
+      if (rest.length > 0) {
+        this.showCommandHelp(rest[0]);
+      } else {
+        this.showHelp();
+      }
+      return;
+    }
+
     try {
       await this.commandRegistry.execute(command, rest);
     } catch (error: any) {
@@ -282,7 +292,12 @@ Use --no-color to disable colored output.
 }
 
 // Main entry point
-if (require.main === module) {
+// Check if this is the main module OR if it's being required from orbit.js
+const isMainModule = require.main === module || 
+                     (require.main && require.main.filename && require.main.filename.includes('orbit.js')) ||
+                     process.argv[1] && process.argv[1].includes('orbit.js');
+
+if (isMainModule) {
   const repl = new REPL();
   
   // Check if running in non-interactive mode (command passed as args)

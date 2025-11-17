@@ -13,11 +13,16 @@ const orbitCliPath = path.join(__dirname, 'orbit-cli');
 const distPath = path.join(orbitCliPath, 'dist', 'index.js');
 const srcPath = path.join(orbitCliPath, 'src', 'index.ts');
 
+// Preserve the original require.main so the CLI knows it's the main module
+const originalMain = require.main;
+
 if (isDevelopment) {
   // Development mode: use ts-node
   try {
     const tsNodePath = require.resolve('ts-node/register', { paths: [orbitCliPath] });
     require(tsNodePath);
+    // Set require.main to this file so the CLI knows it's the entry point
+    require.main = { filename: __filename, paths: require.main.paths };
     require(srcPath);
   } catch (error) {
     console.error('Failed to load ts-node. Make sure dependencies are installed:');
@@ -27,6 +32,8 @@ if (isDevelopment) {
 } else {
   // Production mode: use compiled JavaScript
   if (fs.existsSync(distPath)) {
+    // Set require.main to this file so the CLI knows it's the entry point
+    require.main = { filename: __filename, paths: require.main.paths };
     require(distPath);
   } else {
     // If dist doesn't exist, try to build it or use ts-node as fallback
@@ -38,6 +45,7 @@ if (isDevelopment) {
         stdio: 'inherit'
       });
       if (fs.existsSync(distPath)) {
+        require.main = { filename: __filename, paths: require.main.paths };
         require(distPath);
       } else {
         throw new Error('Build completed but dist/index.js not found');
@@ -47,6 +55,7 @@ if (isDevelopment) {
       try {
         const tsNodePath = require.resolve('ts-node/register', { paths: [orbitCliPath] });
         require(tsNodePath);
+        require.main = { filename: __filename, paths: require.main.paths };
         require(srcPath);
       } catch (tsNodeError) {
         console.error('Failed to use ts-node fallback. Please build the project:');
