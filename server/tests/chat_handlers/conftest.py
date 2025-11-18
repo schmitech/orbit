@@ -27,7 +27,7 @@ def base_config():
         },
         'messages': {
             'conversation_limit_warning': (
-                "Warning: Conversation will reach {max_messages} messages after this response."
+                "Warning: Conversation is using {current_tokens}/{max_tokens} tokens."
             )
         },
         'sound': {
@@ -71,9 +71,9 @@ def mock_chat_history_service():
         {'role': 'assistant', 'content': 'Hi there!'}
     ])
     service.add_conversation_turn = AsyncMock()
-    service._check_conversation_limits = AsyncMock()
-    service._session_message_counts = {'session123': 8}
-    service.max_conversation_messages = 10
+    service._session_token_counts = {'session123': 3600}
+    service.max_token_budget = 4000
+    service._get_session_token_count = AsyncMock(return_value=3600)
     return service
 
 

@@ -94,7 +94,7 @@ class TestConversationHistoryHandler:
         assert len(context) == 2
         assert context[0]['role'] == 'user'
         assert context[1]['role'] == 'assistant'
-        mock_chat_history_service._check_conversation_limits.assert_called_once_with('session123')
+        mock_chat_history_service.get_context_messages.assert_awaited_once_with('session123')
 
     @pytest.mark.asyncio
     async def test_get_context_returns_empty_when_disabled(
@@ -198,7 +198,8 @@ class TestConversationHistoryHandler:
         warning = await handler.check_limit_warning('session123', 'test_adapter')
 
         assert warning is not None
-        assert '10' in warning  # max_messages
+        assert '3600' in warning  # current_tokens
+        assert '4000' in warning  # max_tokens
         assert 'Warning' in warning
 
     @pytest.mark.asyncio
@@ -206,7 +207,8 @@ class TestConversationHistoryHandler:
         self, base_config, mock_adapter_manager, mock_chat_history_service
     ):
         """Test that no warning is returned when not approaching limit."""
-        mock_chat_history_service._session_message_counts = {'session123': 5}
+        mock_chat_history_service._session_token_counts = {'session123': 500}
+        mock_chat_history_service._get_session_token_count.return_value = 500
 
         handler = ConversationHistoryHandler(
             config=base_config,

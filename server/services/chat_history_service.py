@@ -21,6 +21,18 @@ from services.database_service import (
     DatabaseTimeoutError
 )
 
+# Import tokenizer utilities for token counting
+try:
+    from services.file_processing.chunking.utils import get_tokenizer
+except ImportError:
+    # Fallback if tokenizer utilities not available
+    def get_tokenizer(tokenizer=None):
+        class SimpleTokenizer:
+            def count_tokens(self, text: str) -> int:
+                # Conservative estimate: ~3 characters per token
+                return len(text) // 3
+        return SimpleTokenizer()
+
 logger = logging.getLogger(__name__)
 
 T = TypeVar('T')
@@ -88,8 +100,6 @@ class ChatHistoryService:
         
         # Configuration parameters
         self.default_limit = self.chat_history_config.get('default_limit', 50)
-        # Dynamic max_conversation_messages - will be calculated based on inference provider
-        self.max_conversation_messages = self._calculate_max_conversation_messages()
         self.store_metadata = self.chat_history_config.get('store_metadata', True)
         self.retention_days = self.chat_history_config.get('retention_days', 90)
         self.max_tracked_sessions = self.chat_history_config.get('max_tracked_sessions', 10000)
@@ -110,40 +120,53 @@ class ChatHistoryService:
         
         # In-memory cache for active sessions (lightweight, temporary)
         self._active_sessions = {}  # session_id -> last_activity timestamp
-        self._session_message_counts = {}  # session_id -> message count
+        self._session_token_counts = {}  # session_id -> total token count
         
         self._initialized = False
         
         # Cleanup task handle
         self._cleanup_task = None
         
-        logger.info(f"Chat History Service initialized with max_conversation_messages={self.max_conversation_messages} (inference-only mode)")
+        # Tokenization configuration
+        self.tokenizer_config = self.chat_history_config.get('tokenizer', 'character')
+        self._tokenizer = None  # Lazy initialization
+        self._tokenization_queue = asyncio.Queue() if self.enabled else None
+        self._tokenization_task = None
         
-    def _calculate_max_conversation_messages(self) -> int:
+        # Calculate token budget for conversation history
+        self.max_token_budget = self._calculate_max_token_budget()
+
+        logger.info(f"Chat History Service initialized with max_token_budget={self.max_token_budget} tokens")
+        
+    def _get_tokenizer(self):
+        """Get or create tokenizer instance (lazy initialization)"""
+        if self._tokenizer is None:
+            self._tokenizer = get_tokenizer(self.tokenizer_config)
+        return self._tokenizer
+    
+    def _estimate_token_count(self, content: str) -> int:
         """
-        Calculate the maximum conversation messages based on the active inference provider's context window.
+        Estimate token count for a message (fast, used for immediate storage).
         
-        This method dynamically determines the conversation limit by:
-        1. Getting the active inference provider configuration
-        2. Extracting the context window size
-        3. Estimating average message length in tokens
-        4. Reserving space for system prompts and current query
-        5. Converting available context to message count
+        Uses character-based estimation: ~3 characters per token (conservative).
+        Actual tokenization happens asynchronously.
+        """
+        return max(1, len(content) // 3)
+    
+    def _calculate_max_token_budget(self) -> int:
+        """
+        Calculate the maximum token budget for conversation history.
         
         Returns:
-            Maximum number of conversation messages to store
+            Maximum tokens available for conversation history
         """
         try:
             # Get the active inference provider
             inference_provider = self.config.get('general', {}).get('inference_provider', 'ollama')
             inference_config = self.config.get('inference', {}).get(inference_provider, {})
             
-            # Extract context window size based on provider
+            # Extract context window size
             context_window = self._get_context_window_size(inference_provider, inference_config)
-            
-            # Estimate average tokens per message (including role labels and formatting)
-            # This is a conservative estimate: typical message ~50-100 tokens + overhead
-            avg_tokens_per_message = 100
             
             # Reserve space for system prompts, current query, and response generation
             # System prompt: ~200 tokens, current query: ~50 tokens, response buffer: ~100 tokens
@@ -152,21 +175,21 @@ class ChatHistoryService:
             # Calculate available tokens for conversation history
             available_tokens = max(0, context_window - reserved_tokens)
             
-            # Convert to message count (minimum 10, maximum 1000 for safety)
-            max_messages = max(10, min(1000, available_tokens // avg_tokens_per_message))
+            # Apply safety bounds: minimum 100 tokens, maximum 800,000 tokens (for very large models)
+            max_tokens = max(100, min(800000, available_tokens))
             
             if self.verbose:
-                logger.info(f"Context window calculation: provider={inference_provider}, "
-                          f"context_window={context_window}, available_tokens={available_tokens}, "
-                          f"max_messages={max_messages}")
+                logger.info(f"Token budget calculation: provider={inference_provider}, "
+                          f"context_window={context_window}, reserved={reserved_tokens}, "
+                          f"available={available_tokens}, max_budget={max_tokens}")
             
-            return max_messages
+            return max_tokens
             
         except Exception as e:
-            logger.warning(f"Error calculating max conversation messages: {str(e)}. Using fallback value.")
+            logger.warning(f"Error calculating max token budget: {str(e)}. Using fallback value.")
             # Fallback to a reasonable default if calculation fails
-            return 100
-
+            return 4000  # ~40 messages at 100 tokens each
+    
     def _get_context_window_size(self, provider: str, provider_config: Dict[str, Any]) -> int:
         """
         Extract context window size from provider configuration.
@@ -279,9 +302,9 @@ class ChatHistoryService:
             return
             
         try:
-            # Ensure MongoDB is available
+            # Ensure database service is available
             if not self.database_service:
-                raise ValueError("MongoDB service is required for chat history")
+                raise ValueError("Database service is required for chat history")
                 
             # Create indexes for efficient querying
             await self._create_indexes()
@@ -290,6 +313,14 @@ class ChatHistoryService:
             if self.retention_days > 0:
                 self._cleanup_task = asyncio.create_task(self._cleanup_old_conversations())
                 self._inactive_cleanup_task = asyncio.create_task(self._cleanup_inactive_sessions_periodic())
+            
+            # Start tokenization background task
+            if self._tokenization_queue is not None:
+                self._tokenization_task = asyncio.create_task(self._tokenization_worker())
+                
+            # Start batch backfill task for existing messages without token_count
+            if self.enabled:
+                asyncio.create_task(self._backfill_token_counts())
                 
             self._initialized = True
             logger.info("Chat history service initialized successfully")
@@ -333,27 +364,14 @@ class ChatHistoryService:
                 sparse=True  # Allow null values
             )
             
-            # Create archive collection indexes
-            archive_collection = f"{self.collection_name}_archive"
+            # Create index for token-based queries (for rolling window)
             await self.database_service.create_index(
-                archive_collection,
-                [("session_id", 1), ("timestamp", -1)]
-            )
-            
-            # Create index for archive cleanup queries
-            await self.database_service.create_index(
-                archive_collection,
-                "timestamp"
-            )
-            
-            # Create index for archive user queries
-            await self.database_service.create_index(
-                archive_collection,
-                [("user_id", 1), ("timestamp", -1)]
+                self.collection_name,
+                [("session_id", 1), ("timestamp", -1), ("token_count", 1)]
             )
             
             if self.verbose:
-                logger.info("Created indexes for chat history and archive collections")
+                logger.info("Created indexes for chat history collection")
                 
         except Exception as e:
             logger.error(f"Error creating indexes: {str(e)}")
@@ -364,6 +382,161 @@ class ChatHistoryService:
         # Create a unique hash based on session, role, content, and timestamp
         hash_input = f"{session_id}:{role}:{content}:{timestamp.isoformat()}"
         return hashlib.sha256(hash_input.encode()).hexdigest()[:16]
+    
+    async def _calculate_actual_tokens(self, content: str) -> int:
+        """
+        Calculate actual token count for a message.
+        
+        This is the accurate tokenization that happens asynchronously.
+        """
+        try:
+            tokenizer = self._get_tokenizer()
+            # Count tokens in content, add overhead for role labels and formatting (~5 tokens)
+            token_count = tokenizer.count_tokens(content) + 5
+            return max(1, token_count)
+        except Exception as e:
+            logger.warning(f"Error calculating tokens, using estimate: {str(e)}")
+            return self._estimate_token_count(content)
+    
+    async def _tokenization_worker(self) -> None:
+        """
+        Background worker that processes tokenization queue.
+        
+        Calculates actual token counts for messages and updates the database.
+        """
+        while True:
+            try:
+                # Get message from queue (with timeout to allow cancellation)
+                try:
+                    item = await asyncio.wait_for(self._tokenization_queue.get(), timeout=1.0)
+                except asyncio.TimeoutError:
+                    continue
+                
+                message_id, content = item
+                
+                # Calculate actual token count
+                actual_token_count = await self._calculate_actual_tokens(content)
+                
+                # Update message in database
+                try:
+                    # Get the message to find its session_id for cache update
+                    message = await self.database_service.find_one(
+                        self.collection_name,
+                        {"_id": message_id}
+                    )
+                    
+                    if message:
+                        old_token_count = message.get("token_count", 0)
+                        session_id = message.get("session_id")
+                        
+                        # Update token count in database (wrap in $set for MongoDB/SQLite compatibility)
+                        await self.database_service.update_one(
+                            self.collection_name,
+                            {"_id": message_id},
+                            {"$set": {"token_count": actual_token_count}}
+                        )
+                        
+                        # Update cache if session_id is available
+                        if session_id:
+                            # Adjust cache by the difference
+                            current_cache = self._session_token_counts.get(session_id, 0)
+                            adjustment = actual_token_count - old_token_count
+                            self._session_token_counts[session_id] = current_cache + adjustment
+                        
+                        if self.verbose:
+                            logger.debug(f"Updated token_count for message {message_id}: {actual_token_count}")
+                    else:
+                        logger.warning(f"Message {message_id} not found for token count update")
+                        
+                except Exception as e:
+                    logger.error(f"Error updating token_count for message {message_id}: {str(e)}")
+                
+                # Mark task as done
+                self._tokenization_queue.task_done()
+                
+            except asyncio.CancelledError:
+                logger.info("Tokenization worker cancelled")
+                break
+            except Exception as e:
+                logger.error(f"Error in tokenization worker: {str(e)}")
+                await asyncio.sleep(1)  # Brief pause before retrying
+    
+    async def _backfill_token_counts(self) -> None:
+        """
+        Background task to backfill token counts for existing messages.
+        
+        Processes messages in batches to avoid blocking.
+        """
+        try:
+            # Wait a bit before starting backfill to let service fully initialize
+            await asyncio.sleep(5)
+            
+            if self.verbose:
+                logger.info("Starting token count backfill for existing messages")
+            
+            batch_size = 100
+            processed = 0  # Count of messages actually updated
+            offset = 0     # Monotonically increasing offset for pagination
+            
+            while True:
+                # Fetch messages in batches (backend-agnostic approach)
+                # We'll filter in Python to avoid backend-specific query syntax
+                # Use offset (not processed) to ensure we scan all messages
+                messages = await self.database_service.find_many(
+                    self.collection_name,
+                    {},  # Fetch all messages, filter in Python
+                    limit=batch_size,
+                    skip=offset
+                )
+                
+                if not messages:
+                    # No more messages to process
+                    if processed > 0 and self.verbose:
+                        logger.info(f"Token count backfill complete: processed {processed} messages")
+                    break
+                
+                # Process batch - only update messages without token_count
+                batch_processed = 0
+                for msg in messages:
+                    message_id = msg.get("_id")
+                    content = msg.get("content", "")
+                    token_count = msg.get("token_count")
+                    
+                    # Skip if token_count already exists and is not None
+                    if token_count is not None:
+                        continue
+                    
+                    if message_id and content:
+                        # Calculate actual token count
+                        actual_token_count = await self._calculate_actual_tokens(content)
+                        
+                        # Update message (wrap in $set for MongoDB/SQLite compatibility)
+                        try:
+                            await self.database_service.update_one(
+                                self.collection_name,
+                                {"_id": message_id},
+                                {"$set": {"token_count": actual_token_count}}
+                            )
+                            processed += 1
+                            batch_processed += 1
+                        except Exception as e:
+                            logger.warning(f"Error updating token_count for message {message_id}: {str(e)}")
+                
+                # Always advance offset by batch size to scan all messages
+                # Don't break early - continue scanning even if current batch had no updates
+                offset += batch_size
+                
+                # Small delay between batches to avoid overwhelming the system
+                await asyncio.sleep(0.1)
+                
+                # Safety check: if we've processed a very large number, log and continue
+                if offset > 100000 and self.verbose:
+                    logger.info(f"Token count backfill: scanned {offset} messages, updated {processed}")
+                
+        except asyncio.CancelledError:
+            logger.info("Token count backfill cancelled")
+        except Exception as e:
+            logger.error(f"Error in token count backfill: {str(e)}")
     
     @with_retry()
     async def add_message(
@@ -397,11 +570,16 @@ class ChatHistoryService:
         try:
             # Prepare message document
             timestamp = datetime.now(UTC)
+            
+            # Estimate token count immediately (fast, non-blocking)
+            estimated_token_count = self._estimate_token_count(content)
+            
             message_doc = {
                 "session_id": session_id,
                 "role": role,
                 "content": content,
-                "timestamp": timestamp
+                "timestamp": timestamp,
+                "token_count": estimated_token_count  # Store estimate immediately
             }
             
             # Add optional fields
@@ -422,7 +600,7 @@ class ChatHistoryService:
                     session_id, role, content, timestamp
                 )
             
-            # Insert into MongoDB with duplicate handling
+            # Insert into database with duplicate handling
             try:
                 message_id = await self.database_service.insert_one(
                     self.collection_name,
@@ -431,13 +609,22 @@ class ChatHistoryService:
                 
                 # Update session tracking
                 self._active_sessions[session_id] = timestamp
-                self._session_message_counts[session_id] = \
-                    self._session_message_counts.get(session_id, 0) + 1
+
+                # Update token count cache (using estimate for now)
+                self._session_token_counts[session_id] = \
+                    self._session_token_counts.get(session_id, 0) + estimated_token_count
+                
+                # Enqueue actual tokenization (non-blocking)
+                if self._tokenization_queue is not None and message_id:
+                    try:
+                        self._tokenization_queue.put_nowait((message_id, content))
+                    except asyncio.QueueFull:
+                        logger.warning(f"Tokenization queue full, skipping token calculation for message {message_id}")
                 
                 # Add useful progress logging
                 if self.verbose:
-                    current_count = self._session_message_counts[session_id]
-                    logger.info(f"Session {session_id}: {current_count}/{self.max_conversation_messages} messages used ({role})")
+                    current_tokens = self._session_token_counts.get(session_id, 0)
+                    logger.info(f"Session {session_id}: {current_tokens}/{self.max_token_budget} tokens used ({role})")
                 
                 # Check if we need to clean up inactive sessions
                 if len(self._active_sessions) > self.max_tracked_sessions:
@@ -689,7 +876,7 @@ class ChatHistoryService:
 
             # Clear from tracking
             self._active_sessions.pop(session_id, None)
-            self._session_message_counts.pop(session_id, None)
+            self._session_token_counts.pop(session_id, None)
 
             if self.verbose:
                 logger.info(f"Cleared history for session {session_id}: {deleted_count} messages")
@@ -765,7 +952,7 @@ class ChatHistoryService:
             )
 
             self._active_sessions.pop(session_id, None)
-            self._session_message_counts.pop(session_id, None)
+            self._session_token_counts.pop(session_id, None)
 
             if self.verbose:
                 logger.info(
@@ -846,101 +1033,48 @@ class ChatHistoryService:
             logger.error(f"Error getting session stats: {str(e)}")
             return {"session_id": session_id, "error": str(e)}
     
-    @with_retry()
-    async def _check_conversation_limits(self, session_id: str) -> None:
+    async def _get_session_token_count(self, session_id: str) -> int:
         """
-        Check and handle conversation size limits atomically with retry logic
-
+        Get total token count for a session (backend-agnostic).
+        
+        Uses cache if available, otherwise queries database.
+        
         Args:
             session_id: Session identifier
+            
+        Returns:
+            Total token count for the session
         """
+        # Check cache first
+        if session_id in self._session_token_counts:
+            return self._session_token_counts[session_id]
+        
+        # Query database for accurate count
         try:
-            # Get count of messages for this session using database service
             messages = await self.database_service.find_many(
                 self.collection_name,
                 {"session_id": session_id},
-                limit=self.max_conversation_messages + 1000  # Get slightly more to ensure accurate count
+                limit=10000  # Reasonable upper bound
             )
-            message_count = len(messages)
-
+            
+            # Sum token counts (use estimate if token_count is missing)
+            total_tokens = 0
+            for msg in messages:
+                token_count = msg.get("token_count")
+                if token_count is None:
+                    # Fallback to estimate if token_count not yet calculated
+                    content = msg.get("content", "")
+                    token_count = self._estimate_token_count(content)
+                total_tokens += token_count
+            
             # Update cache
-            self._session_message_counts[session_id] = message_count
-
-            if self.verbose:
-                logger.info(f"Session {session_id}: Current message count = {message_count}, Limit = {self.max_conversation_messages}")
-
-            if message_count >= self.max_conversation_messages:
-                # Calculate how many messages to archive (keep 90% instead of 80%)
-                keep_count = int(self.max_conversation_messages * 0.9)
-                archive_count = message_count - keep_count
-
-                if self.verbose:
-                    logger.info(f"Session {session_id}: ARCHIVING TRIGGERED - Need to archive {archive_count} messages, keeping {keep_count} most recent")
-
-                if archive_count > 0:
-                    try:
-                        # Find oldest messages to archive
-                        messages_to_archive = await self.database_service.find_many(
-                            self.collection_name,
-                            {"session_id": session_id},
-                            sort=[("timestamp", 1)],  # Sort ascending to get oldest first
-                            limit=archive_count
-                        )
-
-                        if messages_to_archive:
-                            if self.verbose:
-                                # Show details of messages being archived
-                                logger.info(f"Session {session_id}: Found {len(messages_to_archive)} messages to archive:")
-                                for i, msg in enumerate(messages_to_archive):
-                                    timestamp_str = msg.get('timestamp', 'unknown').strftime('%Y-%m-%d %H:%M:%S') if msg.get('timestamp') else 'unknown'
-                                    role = msg.get('role', 'unknown')
-                                    content_preview = msg.get('content', '')[:50] + "..." if len(msg.get('content', '')) > 50 else msg.get('content', '')
-                                    logger.info(f"  [{i+1}] {timestamp_str} - {role}: {content_preview}")
-
-                            # Insert into archive collection (one at a time for compatibility)
-                            archive_collection = f"{self.collection_name}_archive"
-                            for msg in messages_to_archive:
-                                await self.database_service.insert_one(archive_collection, msg)
-
-                            if self.verbose:
-                                logger.info(f"Session {session_id}: Successfully moved {len(messages_to_archive)} messages to archive collection")
-
-                            # Delete from main collection using IDs
-                            message_ids = [msg["_id"] for msg in messages_to_archive]
-                            deleted_count = 0
-                            for msg_id in message_ids:
-                                if await self.database_service.delete_one(self.collection_name, {"_id": msg_id}):
-                                    deleted_count += 1
-
-                            if self.verbose:
-                                logger.info(f"Session {session_id}: Deleted {deleted_count} messages from main collection")
-
-                            # Update cache
-                            self._session_message_counts[session_id] = keep_count
-
-                            # Verify final state
-                            if self.verbose:
-                                final_messages = await self.database_service.find_many(
-                                    self.collection_name,
-                                    {"session_id": session_id},
-                                    limit=self.max_conversation_messages + 100
-                                )
-                                final_count = len(final_messages)
-                                logger.info(f"Session {session_id}: ARCHIVING COMPLETE - Final message count: {final_count}/{self.max_conversation_messages}")
-                                logger.info(f"Session {session_id}: Sliding window now contains most recent {final_count} messages")
-
-                    except Exception as e:
-                        logger.error(f"Session {session_id}: Error during archive operation: {str(e)}")
-                        # Continue without archiving to prevent blocking new messages
-                        pass
-            else:
-                if self.verbose:
-                    remaining_capacity = self.max_conversation_messages - message_count
-                    logger.debug(f"Session {session_id}: No archiving needed - {remaining_capacity} messages remaining before limit")
-                
+            self._session_token_counts[session_id] = total_tokens
+            
+            return total_tokens
+            
         except Exception as e:
-            logger.error(f"Error checking conversation limits: {str(e)}")
-            raise
+            logger.error(f"Error getting session token count: {str(e)}")
+            return 0
     
     async def _cleanup_old_conversations(self) -> None:
         """Background task to clean up old conversations"""
@@ -982,7 +1116,7 @@ class ChatHistoryService:
                         )
                         if not remaining:
                             self._active_sessions.pop(session_id, None)
-                            self._session_message_counts.pop(session_id, None)
+                            self._session_token_counts.pop(session_id, None)
 
                     if total_deleted > 0:
                         logger.info(f"Cleaned up {total_deleted} old messages from {len(sessions_to_clean)} sessions")
@@ -1000,42 +1134,94 @@ class ChatHistoryService:
     async def get_context_messages(
         self,
         session_id: str,
-        max_messages: Optional[int] = None
+        max_messages: Optional[int] = None,
+        max_tokens: Optional[int] = None
     ) -> List[Dict[str, str]]:
         """
-        Get conversation messages formatted for LLM context
+        Get conversation messages formatted for LLM context using rolling window query.
+        
+        This method uses a token-based rolling window approach:
+        - Fetches messages from newest to oldest
+        - Accumulates tokens until budget is reached
+        - Returns messages in chronological order (oldest to newest)
+        - No archiving needed - query naturally enforces token budget
         
         Args:
             session_id: Session identifier
-            max_messages: Maximum number of messages to include
+            max_messages: Maximum number of messages to include (deprecated, use max_tokens)
+            max_tokens: Maximum token budget for context (defaults to max_token_budget)
             
         Returns:
             List of messages formatted for LLM context
         """
         if not self.enabled:
             return []
+        
+        # Determine token budget
+        token_budget = max_tokens or self.max_token_budget
+
+        try:
+            # Calculate intelligent fetch limit based on token budget
+            # Assume conservative minimum of 50 tokens per message
+            # Add 20% buffer to account for variation in message sizes
+            estimated_messages_needed = int((token_budget / 50) * 1.2)
+            # Cap at reasonable maximum to prevent excessive memory usage
+            fetch_limit = min(max(estimated_messages_needed, 20), 1000)
+
+            if self.verbose:
+                logger.debug(f"Fetching up to {fetch_limit} messages for token budget {token_budget}")
+
+            # Fetch messages for session, ordered by timestamp DESC (newest first)
+            all_messages = await self.database_service.find_many(
+                self.collection_name,
+                {"session_id": session_id},
+                sort=[("timestamp", -1)],  # Newest first
+                limit=fetch_limit
+            )
             
-        # Use the actual conversation limit, not default_limit (which is for API pagination)
-        # This ensures we get all available conversation messages after archiving
-        effective_limit = max_messages or self.max_conversation_messages
-        
-        # Get conversation history
-        messages = await self.get_conversation_history(
-            session_id=session_id,
-            limit=effective_limit,
-            include_metadata=False
-        )
-        
-        # Format for LLM context
-        context_messages = []
-        for msg in messages:
-            if msg.get("role") in ["user", "assistant", "system"]:
-                context_messages.append({
-                    "role": msg["role"],
-                    "content": msg["content"]
-                })
-        
-        return context_messages
+            # Rolling window: accumulate messages from newest to oldest until token budget reached
+            selected_messages = []
+            accumulated_tokens = 0
+            
+            for msg in all_messages:
+                # Get token count (use actual if available, otherwise estimate)
+                token_count = msg.get("token_count")
+                if token_count is None:
+                    # Fallback to estimate if token_count not yet calculated
+                    content = msg.get("content", "")
+                    token_count = self._estimate_token_count(content)
+                
+                # Check if adding this message would exceed budget
+                if accumulated_tokens + token_count > token_budget:
+                    # Stop here - we've reached the token budget
+                    break
+                
+                # Add message to selection
+                selected_messages.append(msg)
+                accumulated_tokens += token_count
+            
+            # Reverse to get chronological order (oldest to newest)
+            selected_messages.reverse()
+            
+            if self.verbose:
+                logger.debug(f"Session {session_id}: Selected {len(selected_messages)} messages "
+                           f"using {accumulated_tokens}/{token_budget} tokens")
+            
+            # Format for LLM context
+            context_messages = []
+            for msg in selected_messages:
+                role = msg.get("role")
+                if role in ["user", "assistant", "system"]:
+                    context_messages.append({
+                        "role": role,
+                        "content": msg.get("content", "")
+                    })
+            
+            return context_messages
+            
+        except Exception as e:
+            logger.error(f"Error getting context messages: {str(e)}")
+            return []
     
     async def health_check(self) -> Dict[str, Any]:
         """
@@ -1053,7 +1239,7 @@ class ChatHistoryService:
                 "database": "connected",
                 "enabled": self.enabled,
                 "active_sessions": len(self._active_sessions),
-                "tracked_sessions": len(self._session_message_counts)
+                "tracked_sessions": len(self._session_token_counts)
             }
         except Exception as e:
             return {
@@ -1083,20 +1269,12 @@ class ChatHistoryService:
             )
             today_count = len(today_messages)
 
-            # Get archive collection metrics
-            archive_messages = await self.database_service.find_many(
-                f"{self.collection_name}_archive",
-                {},
-                limit=100000  # Large limit to get count
-            )
-            archive_count = len(archive_messages)
-
             return {
                 "active_sessions": len(self._active_sessions),
-                "tracked_sessions": len(self._session_message_counts),
+                "tracked_sessions": len(self._session_token_counts),
                 "messages_today": today_count,
                 "oldest_tracked_session": min(self._active_sessions.values()).isoformat() if self._active_sessions else None,
-                "archived_messages": archive_count,
+                "max_token_budget": self.max_token_budget,
                 "max_tracked_sessions": self.max_tracked_sessions,
                 "retention_days": self.retention_days
             }
@@ -1105,7 +1283,7 @@ class ChatHistoryService:
             return {
                 "error": str(e),
                 "active_sessions": len(self._active_sessions),
-                "tracked_sessions": len(self._session_message_counts)
+                "tracked_sessions": len(self._session_token_counts)
             }
     
     async def _cleanup_inactive_sessions(self) -> None:
@@ -1124,7 +1302,7 @@ class ChatHistoryService:
             
             for sid in inactive:
                 self._active_sessions.pop(sid, None)
-                self._session_message_counts.pop(sid, None)
+                self._session_token_counts.pop(sid, None)
                 
             if inactive and self.verbose:
                 logger.info(f"Cleaned up {len(inactive)} inactive sessions from memory tracking")
@@ -1168,8 +1346,16 @@ class ChatHistoryService:
             except asyncio.CancelledError:
                 pass
         
+        # Cancel tokenization task
+        if self._tokenization_task:
+            self._tokenization_task.cancel()
+            try:
+                await self._tokenization_task
+            except asyncio.CancelledError:
+                pass
+        
         # Clear tracking
         self._active_sessions.clear()
-        self._session_message_counts.clear()
+        self._session_token_counts.clear()
         
         logger.info("Chat history service closed")

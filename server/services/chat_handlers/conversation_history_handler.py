@@ -88,10 +88,8 @@ class ConversationHistoryHandler:
             return []
 
         try:
-            # Check conversation limits BEFORE retrieving context
-            await self.chat_history_service._check_conversation_limits(session_id)
-
-            # Get context messages from chat history
+            # Get context messages from chat history using rolling window query
+            # No need to check limits - rolling window query naturally enforces token budget
             context_messages = await self.chat_history_service.get_context_messages(session_id)
 
             if self.verbose and context_messages:
@@ -163,17 +161,47 @@ class ConversationHistoryHandler:
             return None
 
         try:
-            current_count = self.chat_history_service._session_message_counts.get(session_id, 0)
-            max_messages = self.chat_history_service.max_conversation_messages
+            # Use token-based limits instead of message counts
+            # Check cache first, but query database if cache is empty (e.g., after restart)
+            session_tokens = getattr(self.chat_history_service, "_session_token_counts", {})
+            current_tokens = session_tokens.get(session_id) if isinstance(session_tokens, dict) else None
+            
+            if current_tokens is None:
+                # Cache miss - query database for accurate count
+                current_tokens = await self.chat_history_service._get_session_token_count(session_id)
+                # Update cache for future use (ensure dict-like)
+                if isinstance(session_tokens, dict):
+                    session_tokens[session_id] = current_tokens
+                else:
+                    self.chat_history_service._session_token_counts = {session_id: current_tokens}
+            
+            max_tokens = getattr(self.chat_history_service, "max_token_budget", 0) or 0
+            if max_tokens <= 0:
+                return None
+            
+            threshold = int(max_tokens * 0.9)  # Warn at 90% of token budget
 
-            if current_count + 2 == max_messages:
+            if current_tokens >= threshold:
                 warning_template = self.messages_config.get(
                     'conversation_limit_warning',
-                    "⚠️ **WARNING**: This conversation will reach {max_messages} messages after this response. "
-                    "The next exchange will automatically archive older messages. "
+                    "⚠️ **WARNING**: This conversation is using {current_tokens}/{max_tokens} tokens. "
+                    "Older messages will be automatically excluded from context to stay within limits. "
                     "Consider starting a new conversation if you want to preserve the full context."
                 )
-                return warning_template.format(max_messages=max_messages)
+
+                # Format warning with token-based placeholders
+                try:
+                    return warning_template.format(
+                        current_tokens=current_tokens,
+                        max_tokens=max_tokens
+                    )
+                except KeyError as e:
+                    # If template uses unexpected placeholders, fall back to default
+                    logger.warning(f"Invalid placeholder in conversation_limit_warning template: {e}")
+                    return (
+                        f"⚠️ **WARNING**: This conversation is using "
+                        f"{current_tokens}/{max_tokens} tokens. Older messages will be dropped soon."
+                    )
 
             return None
 
