@@ -378,17 +378,16 @@ export function ChatInterface({ onOpenSettings }: ChatInterfaceProps) {
           {/* Messages and Input - Conditional Layout */}
           {!currentConversation || currentConversation.messages.length === 0 ? (
             // Empty state: Center the input in the middle (ChatGPT-style)
-            <div className="flex-1 flex flex-col items-center justify-center min-h-0">
-              <div className="w-full max-w-3xl px-4">
-                <div className="text-center mb-3">
-                  <h2 className="text-2xl font-medium text-[#353740] dark:text-[#ececf1]">
-                    How can I assist you today?
-                  </h2>
-                </div>
+            <div className="flex-1 flex flex-col items-center justify-center min-h-0 px-4">
+              <div className="w-full max-w-2xl mx-auto text-center space-y-4">
+                <h2 className="text-2xl font-medium text-[#353740] dark:text-[#ececf1]">
+                  How can I assist you today?
+                </h2>
                 <MessageInput
                   onSend={handleSendMessage}
                   disabled={isLoading || !currentConversation || !currentConversation.apiKey}
                   placeholder="Ask anything"
+                  isCentered
                 />
               </div>
             </div>

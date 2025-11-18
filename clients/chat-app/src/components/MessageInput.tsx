@@ -15,6 +15,11 @@ interface MessageInputProps {
   onSend: (message: string, fileIds?: string[]) => void;
   disabled?: boolean;
   placeholder?: string;
+  /**
+   * When true, constrains the input to a tighter max width and centers it.
+   * Used for the empty state layout so the field and title feel aligned.
+   */
+  isCentered?: boolean;
 }
 
 const MIME_EXTENSION_MAP: Record<string, string> = {
@@ -78,7 +83,8 @@ function prepareClipboardFile(file: File, index: number): File {
 export function MessageInput({ 
   onSend, 
   disabled = false, 
-  placeholder = "Ask me anything..." 
+  placeholder = "Ask me anything...",
+  isCentered = false
 }: MessageInputProps) {
   const [message, setMessage] = useState('');
   const [isComposing, setIsComposing] = useState(false);
@@ -639,26 +645,29 @@ export function MessageInput({
     }
   }, [voiceError, settings.soundEnabled]);
 
+  const contentMaxWidth = isCentered ? 'max-w-3xl' : 'max-w-5xl';
+  const containerAlignmentClasses = isCentered ? 'flex justify-center' : '';
+
   return (
-    <div className="bg-white px-4 py-4 dark:bg-[#212121]">
+    <div className={`bg-white px-4 py-4 dark:bg-[#212121] ${containerAlignmentClasses}`}>
       {voiceError && (
-        <div className="mx-auto mb-3 w-full max-w-5xl rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-600/40 dark:bg-red-900/30 dark:text-red-200">
+        <div className={`mx-auto mb-3 w-full ${contentMaxWidth} rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-600/40 dark:bg-red-900/30 dark:text-red-200`}>
           {voiceError}
         </div>
       )}
       {pasteError && (
-        <div className="mx-auto mb-3 w-full max-w-5xl rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-600/40 dark:bg-red-900/30 dark:text-red-200">
+        <div className={`mx-auto mb-3 w-full ${contentMaxWidth} rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-600/40 dark:bg-red-900/30 dark:text-red-200`}>
           {pasteError}
         </div>
       )}
       {pasteSuccess && (
-        <div className="mx-auto mb-3 w-full max-w-5xl flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700 dark:border-green-600/40 dark:bg-green-900/30 dark:text-green-200">
+        <div className={`mx-auto mb-3 w-full ${contentMaxWidth} flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700 dark:border-green-600/40 dark:bg-green-900/30 dark:text-green-200`}>
           <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
           <span>{pasteSuccess}</span>
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="mx-auto flex w-full max-w-5xl flex-col gap-3">
+      <form onSubmit={handleSubmit} className={`mx-auto flex w-full ${contentMaxWidth} flex-col gap-3`}>
         <div
           className={`flex items-center gap-2 rounded-lg border px-4 py-3 shadow-sm transition-all ${
             isFocused
