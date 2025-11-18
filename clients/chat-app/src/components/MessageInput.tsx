@@ -649,7 +649,7 @@ export function MessageInput({
   const containerAlignmentClasses = isCentered ? 'flex justify-center' : '';
 
   return (
-    <div className={`bg-white px-4 py-4 dark:bg-[#212121] ${containerAlignmentClasses}`}>
+    <div className={`bg-white px-3 py-4 dark:bg-[#212121] sm:px-4 ${containerAlignmentClasses}`}>
       {voiceError && (
         <div className={`mx-auto mb-3 w-full ${contentMaxWidth} rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-600/40 dark:bg-red-900/30 dark:text-red-200`}>
           {voiceError}
@@ -669,7 +669,7 @@ export function MessageInput({
 
       <form onSubmit={handleSubmit} className={`mx-auto flex w-full ${contentMaxWidth} flex-col gap-3`}>
         <div
-          className={`flex items-center gap-2 rounded-lg border px-4 py-3 shadow-sm transition-all ${
+          className={`flex flex-wrap gap-2 rounded-lg border px-3 py-3 shadow-sm transition-all sm:flex-nowrap sm:px-4 ${
             isFocused
               ? 'border-gray-400 shadow-md dark:border-[#565869] dark:shadow-lg'
               : 'border-gray-300 dark:border-[#40414f]'
@@ -724,7 +724,7 @@ export function MessageInput({
             disabled={isInputDisabled}
             rows={1}
             maxLength={AppConfig.maxMessageLength}
-            className="flex-1 resize-none bg-transparent py-1 text-sm text-[#353740] placeholder-gray-600 focus:outline-none dark:text-[#ececf1] dark:placeholder-[#bfc2cd]"
+            className="flex-1 min-w-[150px] resize-none bg-transparent py-1 text-sm text-[#353740] placeholder-gray-600 focus:outline-none dark:text-[#ececf1] dark:placeholder-[#bfc2cd]"
             style={{ 
               minHeight: '24px',
               maxHeight: '120px',

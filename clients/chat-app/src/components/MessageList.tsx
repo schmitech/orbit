@@ -99,8 +99,8 @@ export function MessageList({ messages, onRegenerate, isLoading }: MessageListPr
 
   if (messages.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center">
-        <div className="text-center text-lg text-gray-500 dark:text-[#bfc2cd] px-6">
+      <div className="flex-1 flex items-center justify-center px-4 sm:px-6">
+        <div className="text-center text-lg text-gray-500 dark:text-[#bfc2cd]">
           <p className="text-xl">Your messages will appear here.</p>
           <p className="mt-1 text-lg">Start the conversation by sending a prompt below.</p>
         </div>
@@ -114,7 +114,7 @@ export function MessageList({ messages, onRegenerate, isLoading }: MessageListPr
       className="flex-1 overflow-y-auto py-6"
       onScroll={handleScroll}
     >
-      <div className="space-y-6 px-4">
+      <div className="space-y-6 px-3 sm:px-4">
         {messages.map((message) => (
           <Message
             key={message.id}

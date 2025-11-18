@@ -56,14 +56,13 @@ export function Message({ message, onRegenerate }: MessageProps) {
   };
 
   return (
-    <div className="group flex items-start gap-3 animate-fadeIn min-w-0">
+    <div className="group flex items-start gap-3 px-1 animate-fadeIn min-w-0 sm:px-0">
       <div
-        className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full self-start ${
+        className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full self-start -mt-2 ml-1 sm:-mt-3 sm:ml-2 ${
           isAssistant
             ? 'bg-gray-100 text-gray-700 dark:bg-[#4a4b54] dark:text-white'
             : 'bg-gray-100 text-gray-700 dark:bg-[#4a4b54] dark:text-white'
         }`}
-        style={{ marginTop: '-10px', marginLeft: '8px' }}
       >
         {isAssistant ? <Bot className="h-5 w-5" /> : <User2 className="h-5 w-5" />}
       </div>
@@ -81,8 +80,8 @@ export function Message({ message, onRegenerate }: MessageProps) {
         <div
           className={`${
             isAssistant
-              ? 'rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-[#353740] dark:border-[#4a4b54] dark:bg-[#202123] dark:text-[#ececf1] min-w-0'
-              : 'text-[#353740] dark:text-[#ececf1] leading-relaxed'
+              ? 'rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-[#353740] dark:border-[#4a4b54] dark:bg-[#202123] dark:text-[#ececf1] min-w-0 break-words'
+              : 'text-[#353740] dark:text-[#ececf1] leading-relaxed break-words'
           }`}
         >
           <div className={contentClass}>
@@ -134,7 +133,7 @@ export function Message({ message, onRegenerate }: MessageProps) {
         </div>
 
         {isAssistant && !message.isStreaming && (
-          <div className="flex items-center gap-2 text-xs text-gray-500 opacity-0 transition-opacity group-hover:opacity-100 dark:text-[#bfc2cd]">
+          <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 transition-opacity dark:text-[#bfc2cd] sm:opacity-0 sm:group-hover:opacity-100">
             <button
               onClick={copyToClipboard}
               className="inline-flex items-center gap-1 rounded px-2 py-1 hover:bg-gray-200 dark:hover:bg-[#3c3f4a]"

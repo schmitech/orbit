@@ -8,11 +8,17 @@ import { useGitHubStats } from '../hooks/useGitHubStats';
 import { AppConfig } from '../utils/config';
 import { getShowGitHubStats, getGitHubOwner, getGitHubRepo } from '../utils/runtimeConfig';
 
-interface SidebarProps {}
+interface SidebarProps {
+  /**
+   * Optional callback invoked after an action that should close the sidebar on mobile
+   * (e.g. selecting a conversation or creating a new one).
+   */
+  onRequestClose?: () => void;
+}
 
 const MAX_TITLE_LENGTH = 100;
 
-export function Sidebar({}: SidebarProps) {
+export function Sidebar({ onRequestClose }: SidebarProps) {
     const {
     conversations,
     currentConversationId,
@@ -82,8 +88,18 @@ export function Sidebar({}: SidebarProps) {
   const handleNewChat = () => {
     try {
       createConversation();
+      onRequestClose?.();
     } catch (error) {
       debugWarn('Cannot create new conversation:', error instanceof Error ? error.message : 'Unknown error');
+    }
+  };
+
+  const handleSelectConversation = async (conversationId: string) => {
+    try {
+      await selectConversation(conversationId);
+      onRequestClose?.();
+    } catch (error) {
+      debugError('Failed to select conversation:', error);
     }
   };
 
@@ -181,7 +197,7 @@ export function Sidebar({}: SidebarProps) {
 
   return (
     <>
-      <div className="flex h-full w-72 flex-col border-r border-b border-gray-200 bg-gray-50 dark:border-[#4a4b54] dark:bg-[#202123]">
+      <div className="flex h-full w-full md:w-72 flex-col border-r border-b border-gray-200 bg-gray-50 dark:border-[#4a4b54] dark:bg-[#202123]">
         <div className="border-b border-gray-200 p-4 dark:border-[#4a4b54]">
           <button
             onClick={handleNewChat}
@@ -242,7 +258,7 @@ export function Sidebar({}: SidebarProps) {
               {filteredConversations.map((conversation) => (
                 <div
                   key={conversation.id}
-                  onClick={async () => await selectConversation(conversation.id)}
+                  onClick={() => handleSelectConversation(conversation.id)}
                   className={`group flex cursor-pointer items-center gap-3 rounded-md border px-3 py-3 text-left ${
                     currentConversationId === conversation.id
                       ? 'border-[#343541] bg-white dark:border-[#6b6f7a] dark:bg-[#343541]'

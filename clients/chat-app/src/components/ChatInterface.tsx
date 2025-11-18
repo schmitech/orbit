@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { MessageList } from './MessageList';
 import { MessageInput } from './MessageInput';
 import { useChatStore } from '../stores/chatStore';
-import { Eye, EyeOff, Settings, RefreshCw } from 'lucide-react';
+import { Eye, EyeOff, Settings, RefreshCw, Menu } from 'lucide-react';
 import { debugError, debugLog, debugWarn } from '../utils/debug';
 import { getApi } from '../api/loader';
 import { getDefaultKey, getApiUrl } from '../utils/runtimeConfig';
@@ -15,9 +15,10 @@ import { audioStreamManager } from '../utils/audioStreamManager';
 
 interface ChatInterfaceProps {
   onOpenSettings: () => void;
+  onOpenSidebar?: () => void;
 }
 
-export function ChatInterface({ onOpenSettings }: ChatInterfaceProps) {
+export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfaceProps) {
   const {
     conversations,
     currentConversationId,
@@ -189,7 +190,7 @@ export function ChatInterface({ onOpenSettings }: ChatInterfaceProps) {
 
   return (
     <div className="flex-1 flex flex-col">
-      <div className="flex h-full w-full flex-col px-4 sm:px-6">
+      <div className="flex h-full w-full flex-col px-3 sm:px-6">
         <div className="mx-auto flex h-full w-full max-w-5xl flex-col">
 
           {/* API Configuration Modal */}
@@ -291,9 +292,29 @@ export function ChatInterface({ onOpenSettings }: ChatInterfaceProps) {
             </div>
           )}
 
+          {onOpenSidebar && (
+            <div className="mb-4 flex items-center justify-between gap-3 md:hidden">
+              <button
+                onClick={onOpenSidebar}
+                className="inline-flex items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors dark:border-[#4a4b54] dark:text-[#ececf1] dark:hover:bg-[#343541]"
+                aria-label="Open conversations menu"
+              >
+                <Menu className="h-4 w-4" />
+                Chats
+              </button>
+              <button
+                onClick={onOpenSettings}
+                className="inline-flex items-center justify-center rounded-md bg-[#343541] p-2 text-white hover:bg-[#282b32] transition-colors dark:bg-[#565869] dark:hover:bg-[#6b6f7a]"
+                aria-label="Open settings"
+              >
+                <Settings className="h-4 w-4" />
+              </button>
+            </div>
+          )}
+
           {/* Chat Header */}
           <div className="border-b border-gray-200 dark:border-[#4a4b54] pb-6 pt-6">
-            <div className="flex items-start justify-between gap-4">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0 flex-1">
                 {/* Adapter Info - show first when available */}
                 {currentConversation?.adapterInfo && (
@@ -336,8 +357,8 @@ export function ChatInterface({ onOpenSettings }: ChatInterfaceProps) {
                   </div>
                 )}
               </div>
-              <div className="flex shrink-0 items-center gap-3">
-                <span className="text-sm text-gray-500 dark:text-[#bfc2cd]">
+              <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto sm:flex-nowrap sm:justify-end">
+                <span className="text-sm text-gray-500 dark:text-[#bfc2cd] sm:text-right">
                   v{PACKAGE_VERSION}
                 </span>
                 <button
@@ -359,14 +380,14 @@ export function ChatInterface({ onOpenSettings }: ChatInterfaceProps) {
                     setShowConfig(true);
                   }}
                   disabled={!canConfigureApi}
-                  className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:border-gray-300 dark:border-[#4a4b54] dark:text-[#ececf1] dark:hover:bg-[#3c3f4a] dark:hover:border-[#6b6f7a] dark:disabled:hover:bg-transparent dark:disabled:hover:border-[#4a4b54]"
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:border-gray-300 dark:border-[#4a4b54] dark:text-[#ececf1] dark:hover:bg-[#3c3f4a] dark:hover:border-[#6b6f7a] dark:disabled:hover:bg-transparent dark:disabled:hover:border-[#4a4b54] sm:w-auto"
                   title={!canConfigureApi ? "API key cannot be changed once conversation has started. Create a new conversation to use a different API key." : "Configure API settings"}
                 >
                   Configure API
                 </button>
                 <button
                   onClick={onOpenSettings}
-                  className="rounded-md bg-[#343541] p-2 text-white hover:bg-[#282b32] transition-colors dark:bg-[#565869] dark:hover:bg-[#6b6f7a]"
+                  className="hidden rounded-md bg-[#343541] p-2 text-white hover:bg-[#282b32] transition-colors dark:bg-[#565869] dark:hover:bg-[#6b6f7a] md:inline-flex"
                   title="Settings"
                 >
                   <Settings className="h-4 w-4" />
