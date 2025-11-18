@@ -137,7 +137,8 @@ class SQLiteService(DatabaseService):
                     user_id TEXT,
                     api_key TEXT,
                     metadata_json TEXT,
-                    message_hash TEXT
+                    message_hash TEXT,
+                    token_count INTEGER
                 )
             ''',
             'chat_history_archive': '''
@@ -150,7 +151,8 @@ class SQLiteService(DatabaseService):
                     user_id TEXT,
                     api_key TEXT,
                     metadata_json TEXT,
-                    message_hash TEXT
+                    message_hash TEXT,
+                    token_count INTEGER
                 )
             '''
         }
