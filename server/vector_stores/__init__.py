@@ -29,7 +29,8 @@ def _lazy_import():
         from .implementations.chroma_store import ChromaStore
         from .implementations.faiss_store import FaissStore
         from .implementations.weaviate_store import WeaviateStore
-        from .implementations.milvus_store import MilvusStore
+        # Note: MilvusStore is NOT imported here to avoid protobuf conflicts
+        # It will be imported conditionally in store_manager.py when Milvus is enabled
         from .implementations.marqo_store import MarqoStore
         from .implementations.pgvector_store import PgvectorStore
         from .services.template_embedding_store import TemplateEmbeddingStore
@@ -40,7 +41,7 @@ def _lazy_import():
             'ChromaStore': ChromaStore,
             'FaissStore': FaissStore,
             'WeaviateStore': WeaviateStore,
-            'MilvusStore': MilvusStore,
+            # 'MilvusStore' is intentionally omitted - import it from store_manager when needed
             'MarqoStore': MarqoStore,
             'PgvectorStore': PgvectorStore,
             'TemplateEmbeddingStore': TemplateEmbeddingStore,
@@ -64,4 +65,4 @@ __all__ = [
     'StoreConfig',
     'StoreStatus',
     'StoreType',
-] + list(_OPTIONAL_COMPONENTS.keys())
+] + [k for k in _OPTIONAL_COMPONENTS.keys() if k != 'MilvusStore']
