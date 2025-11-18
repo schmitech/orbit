@@ -200,7 +200,9 @@ _required_packages = {
     'GoogleAudioService': 'google.cloud.speech',  # Requires google-cloud-speech and google-cloud-texttospeech
     'AnthropicAudioService': 'anthropic',  # Placeholder - not yet supported
     'CohereAudioService': 'cohere',  # Placeholder - not yet supported
-    'ElevenLabsAudioService': 'elevenlabs',  # Requires elevenlabs package
+    # Note: ElevenLabsAudioService uses aiohttp directly, no SDK package required
+    # Note: WhisperAudioService uses openai-whisper package, checked separately in its implementation
+    # Note: VLLMAudioService uses openai SDK (in default dependencies)
 }
 
 # Try importing each implementation

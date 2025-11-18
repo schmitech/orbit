@@ -25,12 +25,11 @@ try:
 except ImportError:
     WHISPER_AVAILABLE = False
 
-from ..base import ServiceType
-from ..providers import BaseProviderService
+from ..base import ProviderAIService, ServiceType
 from ..services import AudioService
 
 
-class WhisperAudioService(AudioService, BaseProviderService):
+class WhisperAudioService(AudioService, ProviderAIService):
     """
     Direct Whisper audio service using OpenAI's open-source model.
 
@@ -61,7 +60,7 @@ class WhisperAudioService(AudioService, BaseProviderService):
             )
 
         # Initialize base service
-        BaseProviderService.__init__(self, config, ServiceType.AUDIO, "whisper")
+        ProviderAIService.__init__(self, config, ServiceType.AUDIO, "whisper")
 
         # Get Whisper-specific configuration
         provider_config = self._extract_provider_config()
@@ -254,6 +253,36 @@ class WhisperAudioService(AudioService, BaseProviderService):
             "Whisper does not support text-to-speech (TTS). "
             "Use OpenAI TTS API, Google TTS, ElevenLabs, or Ollama TTS instead."
         )
+
+    async def close(self) -> None:
+        """Close the Whisper audio service and release resources."""
+        await self.cleanup()
+
+    async def verify_connection(self) -> bool:
+        """
+        Verify that Whisper is available and can load models.
+
+        For a local service, this checks if the model can be initialized.
+
+        Returns:
+            True if Whisper is available, False otherwise
+        """
+        try:
+            if not WHISPER_AVAILABLE:
+                self.logger.error("Whisper library not available")
+                return False
+
+            # If already initialized, we're good
+            if self.initialized and self.model_loaded:
+                return True
+
+            # Try to initialize
+            await self.initialize()
+            return self.initialized and self.model_loaded
+
+        except Exception as e:
+            self.logger.error(f"Whisper connection verification failed: {str(e)}")
+            return False
 
     async def cleanup(self) -> None:
         """Clean up resources."""
