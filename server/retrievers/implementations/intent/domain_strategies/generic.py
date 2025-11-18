@@ -192,10 +192,28 @@ class GenericDomainStrategy(DomainStrategy):
         self.semantic_extractors.update(self._get_builtin_extractors())
 
         # Override with domain-specific extractors from config
-        if not getattr(self.domain_config, "semantic_types", None):
+        semantic_types = getattr(self.domain_config, "semantic_types", None)
+        if not semantic_types:
             return
 
-        for semantic_type, config in self.domain_config.semantic_types.items():
+        # Handle both list and dict formats
+        if isinstance(semantic_types, list):
+            # Convert list format to dict format
+            # List format: [{"name": "type_name", "description": "...", ...}, ...]
+            semantic_types_dict = {}
+            for item in semantic_types:
+                if isinstance(item, dict) and "name" in item:
+                    type_name = item["name"]
+                    # Use the item as config, but remove 'name' since it's now the key
+                    config = {k: v for k, v in item.items() if k != "name"}
+                    semantic_types_dict[type_name] = config
+            semantic_types = semantic_types_dict
+        elif not isinstance(semantic_types, dict):
+            # If it's neither list nor dict, skip
+            logger.warning("semantic_types must be a list or dict, got %s", type(semantic_types).__name__)
+            return
+
+        for semantic_type, config in semantic_types.items():
             extractor = self._create_pattern_extractor(config)
             if extractor:
                 self.semantic_extractors[semantic_type] = extractor
