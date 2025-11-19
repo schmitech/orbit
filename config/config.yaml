@@ -306,7 +306,8 @@ security:
 
     # Content Security Policy - restricts resource loading
     # Adjust based on your frontend requirements
-    content_security_policy: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ws: wss:; font-src 'self' data:; frame-ancestors 'self'"
+    # Allows dashboard external resources: Chart.js CDN and Google Fonts
+    content_security_policy: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob:; connect-src 'self' ws: wss:; font-src 'self' data: https://fonts.gstatic.com https://fonts.googleapis.com; frame-ancestors 'self'"
 
     # HTTP Strict Transport Security - enforce HTTPS
     # Only effective when served over HTTPS
