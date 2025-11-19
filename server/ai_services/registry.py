@@ -281,6 +281,7 @@ def register_audio_services(config: Dict[str, Any] = None) -> None:
     services = [
         ("openai", "OpenAIAudioService", "OpenAI"),
         ("google", "GoogleAudioService", "Google"),
+        ("gemini", "GeminiAudioService", "Gemini"),
         ("anthropic", "AnthropicAudioService", "Anthropic"),
         ("ollama", "OllamaAudioService", "Ollama"),
         ("cohere", "CohereAudioService", "Cohere"),

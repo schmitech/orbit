@@ -65,6 +65,7 @@ Available Vision Services:
 Available Audio Services:
     - OpenAIAudioService: OpenAI audio (Whisper STT, TTS-1)
     - GoogleAudioService: Google Cloud audio (Speech-to-Text, Text-to-Speech)
+    - GeminiAudioService: Gemini audio (native multimodal STT/TTS)
     - AnthropicAudioService: Anthropic audio (placeholder - not yet supported)
     - OllamaAudioService: Ollama audio (local audio models)
     - CohereAudioService: Cohere audio (placeholder - not yet supported)
@@ -145,6 +146,7 @@ _implementations = [
     # Audio Services
     ('openai_audio_service', 'OpenAIAudioService'),
     ('google_audio_service', 'GoogleAudioService'),
+    ('gemini_audio_service', 'GeminiAudioService'),
     ('anthropic_audio_service', 'AnthropicAudioService'),
     ('ollama_audio_service', 'OllamaAudioService'),
     ('cohere_audio_service', 'CohereAudioService'),
@@ -200,6 +202,7 @@ _required_packages = {
     # Audio services
     'OpenAIAudioService': 'openai',
     'GoogleAudioService': 'google.cloud.speech',  # Requires google-cloud-speech and google-cloud-texttospeech
+    'GeminiAudioService': 'google.genai',  # Requires google-genai (separate from google-generativeai)
     'AnthropicAudioService': 'anthropic',  # Placeholder - not yet supported
     'CohereAudioService': 'cohere',  # Placeholder - not yet supported
     # Note: ElevenLabsAudioService uses aiohttp directly, no SDK package required

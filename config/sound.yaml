@@ -1,7 +1,7 @@
 # Global sound configuration
 sound:
-  provider: "openai"  # Default sound provider: openai, google, anthropic, ollama, cohere, elevenlabs
-  enabled: true       # Whether sound processing is enabled globally
+  provider: "openai"  # Default sound provider: openai, google, anthropic, ollama, cohere, elevenlabs, whisper
+  enabled: true        # Whether sound processing is enabled globally
 
 # Provider-specific configurations
 sounds:
@@ -213,6 +213,110 @@ sounds:
     timeout:
       connect: 15000   # 15 seconds
       total: 120000    # 2 minutes (audio generation can be slow)
+    # Retry configuration
+    retry:
+      enabled: true
+      max_retries: 3
+      initial_wait_ms: 1000
+      max_wait_ms: 30000
+      exponential_base: 2
+
+  coqui:
+    # Coqui TTS - Local, open-source text-to-speech synthesis
+    # Based on https://github.com/coqui-ai/TTS
+    # Runs completely locally on your machine - no API costs, completely free!
+    # Requires: pip install TTS
+    enabled: false
+
+    # Model selection
+    # Available models can be listed with: tts --list_models
+    # Popular models:
+    # - tts_models/en/ljspeech/tacotron2-DDC (English, single speaker)
+    # - tts_models/en/vctk/vits (English, multi-speaker)
+    # - tts_models/multilingual/multi-dataset/xtts_v2 (Multilingual, voice cloning)
+    # - tts_models/en/ljspeech/glow-tts (English, fast)
+    tts_model: "tts_models/en/ljspeech/tacotron2-DDC"
+
+    # Vocoder model (converts mel-spectrograms to audio)
+    # Some models (like VITS, XTTS) have built-in vocoders and don't need this
+    # For Tacotron2 and other models that output spectrograms, specify a vocoder
+    # - vocoder_models/en/ljspeech/hifigan_v2 (high quality)
+    # - vocoder_models/universal/libri-tts/fullband-melgan (fast)
+    vocoder_model: "vocoder_models/en/ljspeech/hifigan_v2"
+
+    # Speaker/Voice configuration
+    # For multi-speaker models, specify speaker name or ID
+    # For single-speaker models, leave as null
+    speaker: null  # Options: null (default), or speaker name/ID for multi-speaker models
+
+    # Language (for multilingual models like XTTS)
+    language: "en"  # Options: en, es, fr, de, pt, etc.
+
+    # Audio format configuration
+    tts_format: "wav"  # Output format: wav, mp3 (wav recommended for local synthesis)
+
+    # Device selection
+    device: "auto"  # Options: auto, cpu, cuda
+    # - auto: Automatically use GPU if available, otherwise CPU
+    # - cpu: Force CPU usage (slower but works on any machine)
+    # - cuda: Force GPU usage (requires NVIDIA GPU + CUDA)
+
+    # Synthesis parameters
+    speed: 1.0  # Speech speed multiplier (0.5 = half speed, 2.0 = double speed)
+
+    # Enable/disable features
+    use_cuda: true  # Enable CUDA acceleration if available
+
+    # Note: Coqui TTS is TTS-only. For STT, use Whisper or other STT services
+    stt_model: null  # Coqui TTS does not support STT
+
+    # Timeout configuration (local processing, so timeouts are less critical)
+    timeout:
+      connect: 5000    # 5 seconds (local connection)
+      total: 120000    # 2 minutes (for synthesis of long texts)
+
+    # Retry configuration
+    retry:
+      enabled: false   # Usually not needed for local processing
+      max_retries: 1
+      initial_wait_ms: 1000
+      max_wait_ms: 5000
+      exponential_base: 2
+
+  gemini:
+    # Gemini - Google's multimodal AI model with native audio support
+    # Similar to OpenAI's GPT-4o, Gemini supports both audio input and output
+    # Requires: pip install google-genai (NOT google-generativeai)
+    # Note: This is a separate package from google-generativeai
+    enabled: true
+    api_key: ${GOOGLE_API_KEY}
+    # STT (Speech-to-Text) configuration
+    # Gemini supports native audio understanding (audio input)
+    stt_model: "gemini-2.0-flash-exp"  # Gemini model for audio transcription
+    # TTS (Text-to-Speech) configuration
+    # Gemini supports native audio generation (audio output)
+    tts_model: "gemini-2.5-flash-preview-tts"  # Gemini 2.5 Flash TTS model (required for audio generation)
+    # Voice options (30 voices available):
+    # - puck (default) - Bright, upbeat
+    # - charon - Deep, authoritative
+    # - kore - Warm, friendly
+    # - fenrir - Strong, confident
+    # - aoede - Melodic, expressive
+    # - zephyr - Light, airy
+    # - leda - Gentle, soothing
+    # - orus - Firm, steady
+    # - despina, enceladus, iapetus, umbriel (celestial-themed voices)
+    # - achernar, achird, algenib, algieba, alnilam (star-themed voices)
+    # - autonoe, callirrhoe, erinome, laomedeia (mythological voices)
+    # - gacrux, pulcherrima, rasalgethi, sadachbia, sadaltager, schedar, sulafat, vindemiatrix, zubenelgenubi
+    tts_voice: "Puck"  # Default voice (bright, upbeat)
+    tts_format: "wav"  # Output format: wav, mp3
+    # Transport configuration
+    transport: "rest"  # Use REST to avoid gRPC/ALTS warnings
+    # Timeout configuration
+    timeout:
+      connect: 15000   # 15 seconds
+      total: 90000     # 90 seconds
     # Retry configuration
     retry:
       enabled: true
