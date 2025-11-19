@@ -4,10 +4,11 @@ Orbit includes a conversation history system that automatically adapts to your c
 
 ## Table of Contents
 
+- [What is a Token?](#what-is-a-token)
 - [Overview](#overview)
 - [How It Works](#how-it-works)
-- [Sliding Window Memory](#sliding-window-memory)
-- [Dynamic Message Limits](#dynamic-message-limits)
+- [Rolling Window Memory](#rolling-window-memory)
+- [Dynamic Token Budget](#dynamic-token-budget)
 - [Provider-Specific Behavior](#provider-specific-behavior)
 - [Configuration](#configuration)
 - [Examples](#examples)
@@ -20,11 +21,11 @@ Orbit includes a conversation history system that automatically adapts to your c
 The conversation history system provides:
 
 - **Automatic Context Management**: Maintains conversation context without manual tuning
-- **Memory Usage**: Dynamically calculates optimal message limits based on your AI model
+- **Token-Based Memory**: Dynamically calculates optimal token budget based on your AI model
 - **Provider Awareness**: Adapts to different inference providers (llama.cpp, Ollama, OpenAI, etc.)
-- **Efficient Resource Utilization**: Uses ~99% of available context window efficiently
-- **Automatic Archiving**: Moves old messages to archive when limits are reached
-- **⚠️ Proactive Warnings**: Alerts users before conversation memory gets archived
+- **Efficient Resource Utilization**: Uses available context window efficiently via rolling window queries
+- **Rolling Window Queries**: Automatically selects recent messages that fit within token budget
+- **⚠️ Proactive Warnings**: Alerts users when conversation approaches token budget limits
 
 ### Key Benefits
 
@@ -47,105 +48,122 @@ Different AI models have vastly different context window sizes:
 
 A fixed conversation limit doesn't make sense across this range.
 
+### What is a Token?
+
+A **token** is the basic unit of text that AI models process. Tokens are not the same as words or characters:
+
+- **Words**: "Hello world" = 2 words
+- **Tokens**: "Hello world" ≈ 2-3 tokens (varies by tokenizer)
+- **Characters**: "Hello world" = 11 characters
+
+Tokens are created by breaking text into smaller pieces that the model understands. For example:
+- Short words like "the" or "cat" are usually 1 token each
+- Longer words might be split into multiple tokens
+- Punctuation and spaces also count as tokens
+
+**Why tokens matter**: AI models have limits on how many tokens they can process at once (their "context window"). The conversation history system uses token counts to ensure conversations stay within these limits, automatically selecting the most recent messages that fit within the available token budget.
+
 ### The Solution
 
-The system **dynamically calculates** the optimal number of conversation messages based on:
+The system **dynamically calculates** the optimal token budget for conversation history based on:
 
 1. **Active inference provider** configuration
 2. **Model's context window size**
-3. **Estimated tokens per message**
-4. **Reserved space** for system prompts and current queries
+3. **Reserved space** for system prompts and current queries
 
 ### The Calculation Process
 
 ```
-Available Context = Context Window - Reserved Tokens
-Max Messages = Available Context ÷ Average Tokens Per Message
+Token Budget = Context Window - Reserved Tokens
 ```
 
 Where:
 - **Reserved Tokens**: 350 (system prompts + current query + response buffer)
-- **Average Tokens Per Message**: 100 (conservative estimate including formatting)
-- **Safety Bounds**: Minimum 10 messages, maximum 1,000 messages
+- **Safety Bounds**: Minimum 100 tokens, maximum 800,000 tokens
 
-## Sliding Window Memory
+The system then uses a **rolling window query** to select messages that fit within this token budget, starting from the most recent messages and working backwards until the budget is reached.
+
+## Rolling Window Memory
 
 ### 🔄 How Memory Actually Works
 
-**IMPORTANT**: The system uses **sliding window memory**, not complete deletion. This is crucial to understand:
+**IMPORTANT**: The system uses **token-based rolling window queries**, not message archiving. All messages remain in the database, but only recent messages that fit within the token budget are included in context.
 
 ### ❌ **What It Does NOT Do** (Common Misconception):
 ```
 Conversation: [1,2,3,4,5,6,7,8,9,10] → DELETE ALL → Start fresh from 0
 ```
 
-### ✅ **What It Actually Does** (Sliding Window):
+### ✅ **What It Actually Does** (Rolling Window Query):
 ```
-Messages: [1,2,3,4,5,6,7,8,9,10] → Archive [1,2] → Keep [3,4,5,6,7,8,9,10]
-Add new:  [3,4,5,6,7,8,9,10,11,12] → Archive [3,4] → Keep [5,6,7,8,9,10,11,12]
+All messages in DB: [1,2,3,4,5,6,7,8,9,10,11,12]
+Token budget: 1000 tokens
+Query result: [7,8,9,10,11,12]  ← Only messages that fit in token budget
+Next query: [8,9,10,11,12,13]    ← Automatically adjusts as new messages added
 ```
-ß
-**The AI remembers information based on recency, not arbitrary cutoffs:**
+
+**The AI remembers information based on recency and token usage, not arbitrary cutoffs:**
 
 #### **Information Gets Remembered When:**
-- ✅ **Recently discussed**: "What's my name?" → AI recalls because it's in recent window
+- ✅ **Recently discussed**: "What's my name?" → AI recalls because it's in recent token window
 - ✅ **Frequently reinforced**: Topics you keep bringing up stay accessible
 - ✅ **Context-relevant**: Information that connects to recent conversations
+- ✅ **Within token budget**: Messages that fit within the available token budget
 
-#### **Information Gets Forgotten When:**
-- ❌ **Old and unreferenced**: Early topics not mentioned recently get archived
+#### **Information Gets Excluded When:**
+- ❌ **Old and unreferenced**: Early topics not mentioned recently fall outside token budget
 - ❌ **No recent reinforcement**: Details from beginning that haven't come up again
-- ❌ **Outside sliding window**: Falls beyond the recent message limit
+- ❌ **Outside token window**: Messages exceed the token budget for context retrieval
 
 ### 📊 **Real Example Scenarios**
 
 #### **Scenario 1: Name Memory** (Why it persists)
 ```
-Message 1:  "Hi, I'm Sarah"                    → [Eventually archived]
-Message 15: "What's my name?"                  → [In recent window]
-Message 16: "Your name is Sarah"               → [In recent window]
-Message 25: "What's my name again?"            → [In recent window]  
-Message 26: "Your name is Sarah"               → [In recent window]
+Message 1:  "Hi, I'm Sarah"                    → [Outside token budget]
+Message 15: "What's my name?"                  → [In token window]
+Message 16: "Your name is Sarah"               → [In token window]
+Message 25: "What's my name again?"            → [In token window]  
+Message 26: "Your name is Sarah"               → [In token window]
 
-Result: AI remembers "Sarah" because recent exchanges reinforced it
+Result: AI remembers "Sarah" because recent exchanges are within token budget
 ```
 
-#### **Scenario 2: Early Details** (Why they're forgotten)
+#### **Scenario 2: Early Details** (Why they're excluded)
 ```
-Message 2:  "I work at Microsoft"              → [Gets archived]
-Message 3:  "I have a dog named Buddy"         → [Gets archived]  
+Message 2:  "I work at Microsoft"              → [Outside token budget]
+Message 3:  "I have a dog named Buddy"         → [Outside token budget]  
 [... 20 messages about other topics ...]
 Message 25: "Where do I work?"                 → [Recent, but context lost]
-Message 26: "I don't see that information     → [Can't access archived
-             in our recent conversation"           messages]
+Message 26: "I don't see that information     → [Can't access messages
+             in our recent conversation"           outside token budget]
 
-Result: AI forgets early details not reinforced in recent conversation
+Result: AI can't access early details that fall outside the token budget
 ```
 
 #### **Scenario 3: Natural Conversation Flow**
 ```
-Messages 1-5:   Discuss weekend plans          → [Eventually archived]
-Messages 6-10:  Talk about work projects       → [Eventually archived]
-Messages 11-15: Conversation about cooking     → [May be archived]
-Messages 16-20: Return to work discussion      → [In recent window]
-Messages 21-25: More work-related topics       → [In recent window]
+Messages 1-5:   Discuss weekend plans          → [Outside token budget]
+Messages 6-10:  Talk about work projects       → [Outside token budget]
+Messages 11-15: Conversation about cooking     → [May be outside budget]
+Messages 16-20: Return to work discussion      → [In token window]
+Messages 21-25: More work-related topics       → [In token window]
 
-Result: AI remembers recent work discussion, forgets weekend plans
+Result: AI remembers recent work discussion, can't access weekend plans
 ```
 
 ### 🔍 **Testing Memory Behavior**
 
-To verify the sliding window works correctly, try:
+To verify the rolling window works correctly, try:
 
-#### **Test Forgotten Information:**
+#### **Test Excluded Information:**
 - Ask about topics from your **first few messages** that you haven't mentioned recently
 - Example: "What was the first thing I told you about myself?"
-- **Expected**: AI won't remember if it's been archived
+- **Expected**: AI won't remember if those messages fall outside the token budget
 
 #### **Test Remembered Information:**
 - Ask about topics you've discussed **recently or repeatedly**  
 - Example: "What's my name?" (if asked multiple times recently)
-- **Expected**: AI remembers because it's in the sliding window
+- **Expected**: AI remembers because those messages are within the token budget
 
 ### 🚀 **Why This Design is Optimal**
 
@@ -154,30 +172,33 @@ To verify the sliding window works correctly, try:
 3. **🔄 Continuous Context**: No jarring "memory wipes" that break conversation flow
 4. **🎯 Relevance-Based**: Important information naturally stays through reinforcement
 5. **📈 Scalable**: Works identically across tiny to massive models
+6. **💾 Data Preservation**: All messages remain in database, only query results are limited
 
-### 🔧 **How Archiving Timing Works**
+### 🔧 **How Rolling Window Query Works**
 
-**Archiving happens BEFORE each new conversation turn:**
+**Query happens BEFORE each new conversation turn:**
 
 ```
 1. User asks question
-2. System checks: "Will this exceed limit?"
-3. If yes: Archive oldest messages first
-4. Then: Retrieve recent context (post-archiving)
-5. Generate response using clean recent context
-6. Store new user question + AI response
+2. System calculates: "What messages fit in token budget?"
+3. Query fetches messages from newest to oldest
+4. Accumulates tokens until budget reached
+5. Returns messages in chronological order (oldest to newest)
+6. Generate response using context within token budget
+7. Store new user question + AI response
 ```
 
 **This ensures:**
-- ✅ **Fresh context**: AI always sees most relevant recent messages
+- ✅ **Fresh context**: AI always sees most relevant recent messages within token budget
 - ✅ **No overflow**: Context never exceeds model limits
 - ✅ **Smooth experience**: No mid-conversation memory loss
+- ✅ **Data integrity**: All messages preserved in database
 
-## Dynamic Message Limits
+## Dynamic Token Budget
 
 ### Automatic Calculation
 
-The system examines your active inference provider configuration and extracts the context window size:
+The system examines your active inference provider configuration and extracts the context window size to calculate a token budget:
 
 | Provider | Primary Parameter | Universal Parameter | Typical Range |
 |----------|------------------|-------------------|---------------|
@@ -195,21 +216,24 @@ The system examines your active inference provider configuration and extracts th
 
 **Small Model (llama.cpp with n_ctx: 1,024)**:
 ```
-Available: 1,024 - 350 = 674 tokens
-Max Messages: 674 ÷ 100 = 6.7 → 10 messages (safety minimum)
+Token Budget: 1,024 - 350 = 674 tokens
+Safety Minimum: 100 tokens (applied)
+Result: 674 tokens available for conversation history
 ```
 
 **Medium Model (Ollama with num_ctx: 8,192)**:
 ```
-Available: 8,192 - 350 = 7,842 tokens  
-Max Messages: 7,842 ÷ 100 = 78 messages
+Token Budget: 8,192 - 350 = 7,842 tokens
+Result: 7,842 tokens available for conversation history
 ```
 
 **Large Model (OpenAI GPT-4 with ~32K context)**:
 ```
-Available: 32,768 - 350 = 32,418 tokens
-Max Messages: 32,418 ÷ 100 = 324 messages
+Token Budget: 32,768 - 350 = 32,418 tokens
+Result: 32,418 tokens available for conversation history
 ```
+
+The system then uses a rolling window query to select messages that fit within this token budget, starting from the most recent messages.
 
 ## Provider-Specific Behavior
 
@@ -225,9 +249,9 @@ inference:
 ```
 
 **Typical Results**:
-- 1K context → ~10 messages
-- 4K context → ~37 messages  
-- 8K context → ~78 messages
+- 1K context → 674 tokens available (minimum 100 tokens enforced)
+- 4K context → 3,746 tokens available
+- 8K context → 7,842 tokens available
 
 ### Cloud APIs (OpenAI, Anthropic, etc.)
 
@@ -248,9 +272,9 @@ inference:
 ```
 
 **Fallbacks**: Uses defaults when not configured
-- OpenAI: 32,768 tokens → ~324 messages
-- Anthropic: 200,000 tokens → 1,000 messages (capped)
-- Groq: 8,192 tokens → ~78 messages
+- OpenAI: 32,768 tokens → 32,418 token budget
+- Anthropic: 200,000 tokens → 199,650 token budget (capped at 800,000)
+- Groq: 8,192 tokens → 7,842 token budget
 
 ### Universal Configuration
 
@@ -315,7 +339,7 @@ openai:
 
 **For unknown providers or missing configuration**:
 - **Default context window**: 4,096 tokens
-- **Resulting message limit**: ~37 messages  
+- **Resulting token budget**: 3,746 tokens
 - **Graceful degradation**: System continues working with reasonable defaults
 - **Verbose logging**: Shows which defaults are being used
 
@@ -384,8 +408,8 @@ inference:
 
 **Result**:
 - Context window: 1,024 tokens
-- Max messages: 10 (safety minimum)
-- Conversation length: ~5 back-and-forth exchanges
+- Token budget: 674 tokens (minimum 100 tokens enforced)
+- Conversation length: Varies based on message sizes
 
 ### Example 2: Medium Local Model
 
@@ -400,8 +424,8 @@ inference:
 
 **Result**:
 - Context window: 8,192 tokens
-- Max messages: 78
-- Conversation length: ~39 back-and-forth exchanges
+- Token budget: 7,842 tokens
+- Conversation length: Varies based on message sizes
 
 ### Example 3: Cloud API
 
@@ -416,8 +440,8 @@ inference:
 
 **Result**:
 - Context window: 32,768 tokens (default)
-- Max messages: 324
-- Conversation length: ~162 back-and-forth exchanges
+- Token budget: 32,418 tokens
+- Conversation length: Varies based on message sizes
 
 ### Example 4: Switching Providers
 
@@ -426,14 +450,14 @@ When you change providers, limits automatically adjust:
 ```yaml
 # Before: Using small local model
 general:
-  inference_provider: "llama_cpp"  # 10 messages max
+  inference_provider: "llama_cpp"  # 674 token budget
 
 # After: Switching to cloud API  
 general:
-  inference_provider: "anthropic"  # 1000 messages max
+  inference_provider: "anthropic"  # 199,650 token budget
 ```
 
-**No restart required** - limits recalculate on service initialization.
+**No restart required** - token budget recalculates on service initialization.
 
 ### Example 5: Custom Context Windows
 
@@ -462,24 +486,27 @@ inference:
 ```
 
 **Results**:
-- **OpenAI**: 64,000 tokens → 636 conversation messages
-- **Anthropic**: 150,000 tokens → 1,000 messages (safety cap)
-- **Ollama**: 16,384 tokens → 163 conversation messages
+- **OpenAI**: 64,000 tokens → 63,650 token budget
+- **Anthropic**: 150,000 tokens → 149,650 token budget
+- **Ollama**: 16,384 tokens → 16,034 token budget
 - **Automatic scaling** based on your exact configuration
 
 ## Technical Details
 
-### Token Estimation
+### Token Counting
 
-The system uses conservative estimates:
+The system uses a two-phase token counting approach:
 
-**Per Message Breakdown**:
-```
-Role label: "User: " or "Assistant: "     ~5 tokens
-Average message content:                  ~80 tokens  
-Formatting and separators:                ~15 tokens
-Total per message:                        ~100 tokens
-```
+**Phase 1: Fast Estimation (Immediate Storage)**:
+- Uses character-based estimation: ~3 characters per token (conservative)
+- Applied immediately when messages are stored
+- Ensures non-blocking message storage
+
+**Phase 2: Accurate Tokenization (Background)**:
+- Uses actual tokenizer (configurable via `tokenizer` setting)
+- Calculated asynchronously in background worker
+- Updates database with accurate token counts
+- Adjusts session token cache when complete
 
 **Reserved Space Breakdown**:
 ```
@@ -489,39 +516,41 @@ Response generation buffer:              ~100 tokens
 Total reserved:                          ~350 tokens
 ```
 
-### Message Archiving
+### Rolling Window Query
 
-When conversation exceeds the limit:
+The system uses a token-based rolling window query approach:
 
-1. **Archive Trigger**: When messages >= `max_conversation_messages`
-2. **Archive Amount**: Keep 80% of limit, archive the rest
-3. **Archive Location**: `{collection_name}_archive` MongoDB collection
-4. **Process**: Atomic MongoDB transaction ensures data integrity
+1. **Query Strategy**: Fetches messages from newest to oldest
+2. **Token Accumulation**: Adds messages until token budget is reached
+3. **Natural Limiting**: Query automatically stops when budget would be exceeded
+4. **Chronological Order**: Results are reversed to oldest-to-newest for LLM context
+5. **No Archiving**: All messages remain in database, only query results are limited
 
-**Example**: If limit is 100 messages and conversation reaches 100:
-- Keep: 80 newest messages in active conversation
-- Archive: 20 oldest messages moved to archive collection
+**Example**: If token budget is 7,842 tokens:
+- Query fetches messages starting from most recent
+- Accumulates: Message 1 (150 tokens), Message 2 (200 tokens), ...
+- Stops when adding next message would exceed 7,842 tokens
+- Returns selected messages in chronological order
 
 ### Safety Bounds
 
-**Minimum Limit**: 10 messages
+**Minimum Token Budget**: 100 tokens
 - Ensures basic conversation functionality
 - Applied even for very small context windows
 
-**Maximum Limit**: 1,000 messages  
+**Maximum Token Budget**: 800,000 tokens  
 - Prevents excessive memory usage
 - Applied even for very large context windows (e.g., Claude 3)
 
 ### Efficiency Metrics
 
-The system targets **~99% context window utilization**:
+The system maximizes context window utilization:
 
 ```
-Efficiency = (Reserved + Message_Tokens) / Context_Window
-Target: ~99%
+Efficiency = (Reserved + Conversation_Tokens) / Context_Window
 ```
 
-This maximizes conversation length while preventing context overflow.
+The rolling window query naturally fills the available token budget, maximizing conversation length while preventing context overflow.
 
 ## Monitoring and Troubleshooting
 
@@ -530,7 +559,7 @@ This maximizes conversation length while preventing context overflow.
 When the service starts, you'll see:
 
 ```
-Chat History Service initialized with max_conversation_messages=78 (inference-only mode)
+Chat History Service initialized with max_token_budget=7842 tokens
 ```
 
 ### Verbose Logging
@@ -544,8 +573,8 @@ general:
 
 **Verbose Output**:
 ```
-Context window calculation: provider=ollama, context_window=8192, 
-available_tokens=7842, max_messages=78
+Token budget calculation: provider=ollama, context_window=8192, 
+reserved=350, available=7842, max_budget=7842
 ```
 
 ### Health Check Endpoint
@@ -562,7 +591,7 @@ GET /admin/chat-history-stats
   "active_sessions": 15,
   "tracked_sessions": 42,
   "messages_today": 234,
-  "archived_messages": 1200,
+  "max_token_budget": 7842,
   "max_tracked_sessions": 10000,
   "retention_days": 90
 }
@@ -570,11 +599,12 @@ GET /admin/chat-history-stats
 
 ### Common Issues
 
-**Issue**: Max messages seems too low
+**Issue**: Token budget seems too low
 ```
 Solution: Check your inference provider's context window setting
 - llama.cpp: Increase n_ctx
 - ollama: Increase num_ctx  
+- Cloud providers: Set context_window parameter
 - Check model documentation for optimal values
 ```
 
@@ -588,8 +618,8 @@ Solution: Verify chat_history configuration
 
 **Issue**: Context window calculation fails
 ```
-Fallback: System uses 100 messages as safe default
-Check logs for: "Error calculating max conversation messages"
+Fallback: System uses 4000 tokens as safe default
+Check logs for: "Error calculating max token budget"
 Verify inference provider configuration is valid
 ```
 
@@ -605,53 +635,46 @@ If you previously used a fixed `max_conversation_messages`:
 
 1. **Remove** the parameter from your config
 2. **Restart** the service
-3. **Verify** new limits in startup logs
+3. **Verify** new token budget in startup logs
 4. **Enjoy** automatic optimization!
 
-The system will seamlessly transition to dynamic calculation without data loss.
+The system will seamlessly transition to dynamic token budget calculation without data loss. All existing messages remain in the database and will be included in rolling window queries based on their token counts.
 
 ## Conversation Limit Warnings
 
 ### 🔔 Proactive Memory Alerts
 
-The system automatically warns users before their conversation reaches the memory limit, preventing unexpected context loss. Users receive clear notifications when it's time to consider starting a new conversation.
+The system automatically warns users when their conversation approaches the token budget limit, preventing unexpected context exclusion. Users receive clear notifications when it's time to consider starting a new conversation.
 
 ### Warning Thresholds
 
-The system uses **two-tier warning thresholds** that adapt to your model's context window:
+The system uses a **single warning threshold** based on token usage:
 
-| Threshold | Calculation | Purpose | Message Type |
-|-----------|-------------|---------|--------------|
-| **Warning** | 90% of limit OR 5 messages before | Early notice | ℹ️ Memory Notice |
-| **Critical** | 95% of limit OR 2 messages before | Urgent alert | ⚠️ Memory Warning |
+| Threshold | Calculation | Purpose |
+|-----------|-------------|---------|
+| **Warning** | 90% of token budget | Early notice before older messages are excluded |
 
 ### Example Warning Messages
 
-**ℹ️ Memory Notice** (at 90% threshold):
+**⚠️ Memory Warning** (at 90% token threshold):
 ```
-ℹ️ Memory Notice: This conversation has 33/37 messages. After 4 more 
-messages, older parts of our conversation will be automatically archived 
-to maintain performance.
+⚠️ **WARNING**: This conversation is using 7057/7842 tokens. Older messages 
+will be automatically excluded from context to stay within limits. Consider 
+starting a new conversation if you want to preserve the full context.
 ```
 
-**⚠️ Memory Warning** (at 95% threshold):
-```
-⚠️ Memory Warning: This conversation has 35/37 messages. The next few 
-messages will trigger automatic memory management - older messages will 
-be archived. Consider starting a new 
-conversation if you want to preserve the full context.
-```
+The warning message can be customized via the `messages.conversation_limit_warning` configuration option, which supports `{current_tokens}` and `{max_tokens}` placeholders.
 
 ### Warning Behavior by Model Size
 
-**Small Models** (e.g., TinyLLama with 1K context → 10 messages):
-- Warning at message 9: **Critical warning immediately**
+**Small Models** (e.g., TinyLLama with 1K context → 674 token budget):
+- Warning at 607 tokens (90% of 674)
 - Tight limits require immediate action
 
-**Medium Models** (e.g., Ollama with 8K context → 78 messages):
-- Warning at message 70: "After 8 more messages, archiving will begin"
-- Critical at message 74: "Consider starting new conversation"
+**Medium Models** (e.g., Ollama with 8K context → 7,842 token budget):
+- Warning at 7,058 tokens (90% of 7,842)
+- "Older messages will be automatically excluded from context"
 
-**Large Models** (e.g., GPT-4 with 32K context → 324 messages):
-- Warning at message 291: "After 33 more messages, archiving will begin"
-- Critical at message 307: "Next few messages will trigger archiving"
+**Large Models** (e.g., GPT-4 with 32K context → 32,418 token budget):
+- Warning at 29,176 tokens (90% of 32,418)
+- "Consider starting a new conversation if you want to preserve the full context"
