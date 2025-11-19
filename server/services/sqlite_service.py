@@ -25,6 +25,50 @@ from utils.id_utils import generate_id, ensure_id, id_to_string
 logger = logging.getLogger(__name__)
 
 
+def _make_json_serializable(obj: Any) -> Any:
+    """
+    Convert non-JSON-serializable objects to serializable format.
+
+    Handles:
+    - Elasticsearch ObjectApiResponse objects
+    - datetime objects
+    - Custom objects with __dict__
+    - Other special types
+    """
+    # Handle Elasticsearch ObjectApiResponse
+    if hasattr(obj, '__class__') and 'ObjectApiResponse' in obj.__class__.__name__:
+        # Convert to dict or list based on structure
+        if hasattr(obj, 'body'):
+            return obj.body
+        elif hasattr(obj, '__dict__'):
+            return {k: v for k, v in obj.__dict__.items() if not k.startswith('_')}
+        else:
+            return str(obj)
+
+    # Handle datetime
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+
+    # Handle dict recursively
+    if isinstance(obj, dict):
+        return {k: _make_json_serializable(v) for k, v in obj.items()}
+
+    # Handle list/tuple recursively
+    if isinstance(obj, (list, tuple)):
+        return [_make_json_serializable(item) for item in obj]
+
+    # Handle objects with __dict__
+    if hasattr(obj, '__dict__') and not isinstance(obj, type):
+        return {k: _make_json_serializable(v) for k, v in obj.__dict__.items() if not k.startswith('_')}
+
+    # Return as-is for basic types
+    if isinstance(obj, (str, int, float, bool, type(None))):
+        return obj
+
+    # Last resort: convert to string
+    return str(obj)
+
+
 class SQLiteService(DatabaseService):
     """Service for handling SQLite database operations with singleton pattern"""
 
@@ -154,6 +198,20 @@ class SQLiteService(DatabaseService):
                     message_hash TEXT,
                     token_count INTEGER
                 )
+            ''',
+            'conversation_threads': '''
+                CREATE TABLE IF NOT EXISTS conversation_threads (
+                    id TEXT PRIMARY KEY,
+                    parent_message_id TEXT NOT NULL,
+                    parent_session_id TEXT NOT NULL,
+                    thread_session_id TEXT NOT NULL,
+                    adapter_name TEXT NOT NULL,
+                    query_context TEXT NOT NULL,
+                    dataset_key TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    expires_at TEXT NOT NULL,
+                    metadata_json TEXT
+                )
             '''
         }
 
@@ -183,6 +241,12 @@ class SQLiteService(DatabaseService):
                 'CREATE INDEX IF NOT EXISTS idx_chat_history_archive_session ON chat_history_archive(session_id, timestamp)',
                 'CREATE INDEX IF NOT EXISTS idx_chat_history_archive_user ON chat_history_archive(user_id, timestamp)',
                 'CREATE INDEX IF NOT EXISTS idx_chat_history_archive_timestamp ON chat_history_archive(timestamp)',
+            ],
+            'conversation_threads': [
+                'CREATE INDEX IF NOT EXISTS idx_conversation_threads_parent_message ON conversation_threads(parent_message_id)',
+                'CREATE INDEX IF NOT EXISTS idx_conversation_threads_parent_session ON conversation_threads(parent_session_id)',
+                'CREATE INDEX IF NOT EXISTS idx_conversation_threads_thread_session ON conversation_threads(thread_session_id)',
+                'CREATE INDEX IF NOT EXISTS idx_conversation_threads_expires_at ON conversation_threads(expires_at)',
             ],
         }
 
@@ -575,14 +639,17 @@ class SQLiteService(DatabaseService):
             Tuple of (columns, placeholders, values)
         """
         # Generate ID if not provided
-        if '_id' not in document:
+        if '_id' not in document and 'id' not in document:
             document['id'] = generate_id('sqlite')
-        else:
+        elif '_id' in document:
             document['id'] = id_to_string(document.pop('_id'))
 
         # Handle metadata field for chat_history
         if collection_name in ['chat_history', 'chat_history_archive'] and 'metadata' in document:
-            document['metadata_json'] = json.dumps(document.pop('metadata'))
+            # Sanitize metadata to handle non-serializable objects (e.g., Elasticsearch ObjectApiResponse)
+            metadata = document.pop('metadata')
+            sanitized_metadata = _make_json_serializable(metadata)
+            document['metadata_json'] = json.dumps(sanitized_metadata)
 
         # Convert datetime objects to ISO strings
         for key, value in document.items():
@@ -775,12 +842,18 @@ class SQLiteService(DatabaseService):
 
             set_data = update['$set']
 
-            # Convert datetime objects to ISO strings
+            # Convert datetime objects to ISO strings and sanitize complex objects
             for key, value in set_data.items():
                 if isinstance(value, datetime):
                     set_data[key] = value.isoformat()
                 elif isinstance(value, bool):
                     set_data[key] = 1 if value else 0
+                # Sanitize complex objects (e.g., Elasticsearch ObjectApiResponse)
+                elif hasattr(value, '__class__') and 'ObjectApiResponse' in value.__class__.__name__:
+                    set_data[key] = _make_json_serializable(value)
+                elif isinstance(value, (dict, list)) and key == 'metadata_json':
+                    # If updating metadata_json, ensure it's serializable
+                    set_data[key] = json.dumps(_make_json_serializable(value))
 
             # Build SET clause (quote column names to handle reserved keywords)
             set_parts = [f'"{key}" = ?' for key in set_data.keys()]

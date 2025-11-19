@@ -76,6 +76,9 @@ class RouteConfigurator:
         # Configure health endpoint
         self._configure_health_endpoint(app, dependencies)
         
+        # Configure thread endpoints
+        self._configure_thread_endpoints(app, dependencies)
+        
         # Include admin router
         self._include_admin_routes(app)
         
@@ -88,6 +91,7 @@ class RouteConfigurator:
             'get_health_service': self._create_health_service_dependency(),
             'get_api_key_service': self._create_api_key_service_dependency(),
             'get_prompt_service': self._create_prompt_service_dependency(),
+            'get_thread_service': self._create_thread_service_dependency(),
             'validate_session_id': self._create_session_validator(),
             'get_user_id': self._create_user_id_extractor(),
             'get_api_key': self._create_api_key_validator()
@@ -127,6 +131,18 @@ class RouteConfigurator:
         async def get_prompt_service(request: Request):
             return request.app.state.prompt_service
         return get_prompt_service
+    
+    def _create_thread_service_dependency(self):
+        """Create thread service dependency."""
+        async def get_thread_service(request: Request):
+            if not hasattr(request.app.state, 'thread_service'):
+                # Initialize thread service if not already initialized
+                from services.thread_service import ThreadService
+                thread_service = ThreadService(request.app.state.config)
+                await thread_service.initialize()
+                request.app.state.thread_service = thread_service
+            return request.app.state.thread_service
+        return get_thread_service
     
     def _create_session_validator(self):
         """Create session ID validation dependency."""
@@ -280,6 +296,7 @@ class RouteConfigurator:
             messages: List[Dict[str, str]]
             stream: bool = False
             file_ids: Optional[List[str]] = None  # Optional list of file IDs for file context
+            thread_id: Optional[str] = None  # Optional thread ID for follow-up questions
             # Audio input parameters (for STT)
             audio_input: Optional[str] = None  # Base64-encoded audio data for STT
             audio_format: Optional[str] = None  # Audio format (mp3, wav, etc.)
@@ -318,6 +335,9 @@ class RouteConfigurator:
             # Extract file_ids from request (for file context in conversations)
             file_ids = chat_request.file_ids or []
             
+            # Extract thread_id for follow-up questions
+            thread_id = chat_request.thread_id
+            
             # Extract audio parameters
             audio_input = chat_request.audio_input
             audio_format = chat_request.audio_format
@@ -338,6 +358,7 @@ class RouteConfigurator:
                         session_id=session_id,
                         user_id=user_id,
                         file_ids=file_ids,
+                        thread_id=thread_id,
                         audio_input=audio_input,
                         audio_format=audio_format,
                         language=language,
@@ -367,6 +388,7 @@ class RouteConfigurator:
                     session_id=session_id,
                     user_id=user_id,
                     file_ids=file_ids,
+                    thread_id=thread_id,
                     audio_input=audio_input,
                     audio_format=audio_format,
                     language=language,
@@ -386,6 +408,128 @@ class RouteConfigurator:
             """Check the health of the application and its dependencies"""
             health = await health_service.get_health_status()
             return health
+    
+    def _configure_thread_endpoints(self, app: FastAPI, dependencies: Dict[str, Any]) -> None:
+        """Configure thread management endpoints."""
+        
+        class CreateThreadRequest(BaseModel):
+            message_id: str
+            session_id: str
+        
+        @app.post("/api/threads", operation_id="create_thread")
+        async def create_thread(
+            request_body: CreateThreadRequest,
+            request: Request,
+            thread_service = Depends(dependencies['get_thread_service']),
+            api_key_result: tuple[str, Optional[ObjectId]] = Depends(dependencies['get_api_key']),
+            session_id: str = Depends(dependencies['validate_session_id'])
+        ):
+            """
+            Create a conversation thread from a parent message.
+            
+            This endpoint creates a thread that allows follow-up questions
+            on retrieved datasets without re-querying the database.
+            """
+            adapter_name, _ = api_key_result
+            api_key = request.headers.get(self.config.get('api_keys', {}).get('header_name', 'X-API-Key'))
+            
+            # Get the parent message from chat history using database service
+            chat_history_service = getattr(request.app.state, 'chat_history_service', None)
+            if not chat_history_service:
+                raise HTTPException(status_code=503, detail="Chat history service is not available")
+            
+            # Get parent message from database
+            database_service = chat_history_service.database_service
+            collection_name = chat_history_service.collection_name
+            
+            # Query using _id (database service will convert to 'id' for SQLite automatically)
+            parent_message = await database_service.find_one(
+                collection_name,
+                {'_id': request_body.message_id, 'session_id': request_body.session_id}
+            )
+            
+            if not parent_message:
+                raise HTTPException(status_code=404, detail="Parent message not found")
+            
+            # Check if message is from assistant
+            if parent_message.get('role') != 'assistant':
+                raise HTTPException(status_code=400, detail="Parent message must be from assistant")
+            
+            # Extract query context and raw results from message metadata
+            metadata = parent_message.get('metadata', {})
+            if not isinstance(metadata, dict):
+                try:
+                    import json
+                    if isinstance(metadata, str):
+                        metadata = json.loads(metadata)
+                    elif hasattr(metadata, '__dict__'):
+                        metadata = vars(metadata)
+                    else:
+                        metadata = {}
+                except:
+                    metadata = {}
+            
+            # Get retrieved docs from metadata (stored by pipeline)
+            # The metadata might be stored as metadata_json in SQLite
+            if 'metadata_json' in parent_message:
+                try:
+                    import json
+                    metadata_json = json.loads(parent_message['metadata_json'])
+                    metadata.update(metadata_json)
+                except:
+                    pass
+            
+            retrieved_docs = metadata.get('retrieved_docs', [])
+            if not retrieved_docs:
+                raise HTTPException(status_code=400, detail="Parent message does not contain retrieved data")
+            
+            # Extract query context from metadata
+            query_context = {
+                'original_query': metadata.get('original_query', ''),
+                'adapter_name': adapter_name,
+                'template_id': metadata.get('template_id'),
+                'parameters': metadata.get('parameters_used', {})
+            }
+            
+            # Create thread
+            try:
+                thread_info = await thread_service.create_thread(
+                    parent_message_id=request_body.message_id,
+                    parent_session_id=request_body.session_id,
+                    adapter_name=adapter_name,
+                    query_context=query_context,
+                    raw_results=retrieved_docs
+                )
+                return thread_info
+            except Exception as e:
+                self.logger.error(f"Failed to create thread: {e}")
+                raise HTTPException(status_code=500, detail=f"Failed to create thread: {str(e)}")
+        
+        @app.get("/api/threads/{thread_id}", operation_id="get_thread")
+        async def get_thread(
+            thread_id: str,
+            request: Request,
+            thread_service = Depends(dependencies['get_thread_service']),
+            api_key_result: tuple[str, Optional[ObjectId]] = Depends(dependencies['get_api_key'])
+        ):
+            """Get thread information by thread ID."""
+            thread_info = await thread_service.get_thread(thread_id)
+            if not thread_info:
+                raise HTTPException(status_code=404, detail="Thread not found or expired")
+            return thread_info
+        
+        @app.delete("/api/threads/{thread_id}", operation_id="delete_thread")
+        async def delete_thread(
+            thread_id: str,
+            request: Request,
+            thread_service = Depends(dependencies['get_thread_service']),
+            api_key_result: tuple[str, Optional[ObjectId]] = Depends(dependencies['get_api_key'])
+        ):
+            """Delete a thread and its associated dataset."""
+            result = await thread_service.delete_thread(thread_id)
+            if not result:
+                raise HTTPException(status_code=404, detail="Thread not found")
+            return {"status": "success", "message": "Thread deleted", "thread_id": thread_id}
     
     def _include_admin_routes(self, app: FastAPI) -> None:
         """Include admin routes, auth routes, and health routes."""

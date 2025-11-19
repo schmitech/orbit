@@ -36,6 +36,11 @@ export interface StreamResponse {
   audioFormat?: string;  // Audio format (mp3, wav, etc.)
   audio_chunk?: string;  // Optional streaming audio chunk (base64-encoded)
   chunk_index?: number;  // Index of the audio chunk for ordering
+  threading?: {  // Optional threading metadata
+    supports_threading: boolean;
+    message_id: string;
+    session_id: string;
+  };
 }
 
 // The server now returns this directly for non-streaming chat
@@ -46,11 +51,23 @@ export interface ChatResponse {
   audio_format?: string;  // Audio format (mp3, wav, etc.)
 }
 
+// Thread-related interfaces
+export interface ThreadInfo {
+  thread_id: string;
+  thread_session_id: string;
+  parent_message_id: string;
+  parent_session_id: string;
+  adapter_name: string;
+  created_at: string;
+  expires_at: string;
+}
+
 // The request body for the /v1/chat endpoint
 interface ChatRequest {
   messages: Array<{ role: string; content: string; }>;
   stream: boolean;
   file_ids?: string[];  // Optional list of file IDs for file context
+  thread_id?: string;  // Optional thread ID for follow-up questions
   audio_input?: string;  // Optional base64-encoded audio data for STT
   audio_format?: string;  // Optional audio format (mp3, wav, etc.)
   language?: string;  // Optional language code for STT (e.g., "en-US")
@@ -430,6 +447,7 @@ export class ApiClient {
     message: string, 
     stream: boolean = true, 
     fileIds?: string[],
+    threadId?: string,
     audioInput?: string,
     audioFormat?: string,
     language?: string,
@@ -446,6 +464,9 @@ export class ApiClient {
     };
     if (fileIds && fileIds.length > 0) {
       request.file_ids = fileIds;
+    }
+    if (threadId) {
+      request.thread_id = threadId;
     }
     if (audioInput) {
       request.audio_input = audioInput;
@@ -475,6 +496,7 @@ export class ApiClient {
     message: string,
     stream: boolean = true,
     fileIds?: string[],
+    threadId?: string,
     audioInput?: string,
     audioFormat?: string,
     language?: string,
@@ -499,6 +521,7 @@ export class ApiClient {
             message, 
             stream, 
             fileIds,
+            threadId,
             audioInput,
             audioFormat,
             language,
@@ -575,6 +598,20 @@ export class ApiClient {
                   throw new Error(friendlyMessage);
                 }
 
+                // Check for done chunk first - it may not have a response field
+                // This handles the final done chunk that contains threading metadata
+                if (data.done === true) {
+                    hasReceivedContent = true;
+                    yield {
+                      text: '',
+                      done: true,
+                      audio: data.audio,
+                      audioFormat: data.audio_format || data.audioFormat,
+                      threading: data.threading  // Pass through threading metadata
+                    };
+                    return;
+                }
+
                 // Note: Base64 audio filtering is handled by chatStore's sanitizeMessageContent
                 // We keep response text as-is here and let the application layer decide
                 const responseText = data.response || '';
@@ -596,18 +633,9 @@ export class ApiClient {
                     text: responseText,
                     done: data.done || false,
                     audio: data.audio,
-                    audioFormat: data.audio_format || data.audioFormat
+                    audioFormat: data.audio_format || data.audioFormat,
+                    threading: data.threading  // Include threading if present
                   };
-                }
-
-                if (data.done) {
-                    yield {
-                      text: '',
-                      done: true,
-                      audio: data.audio,
-                      audioFormat: data.audio_format || data.audioFormat
-                    };
-                    return;
                 }
 
               } catch (parseError: any) {
@@ -762,6 +790,135 @@ export class ApiClient {
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(`Failed to delete conversation: ${response.status} ${errorText}`);
+      }
+
+      const result = await response.json();
+      return result;
+
+    } catch (error: any) {
+      if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+        throw new Error('Could not connect to the server. Please check if the server is running.');
+      } else {
+        throw error;
+      }
+    }
+  }
+
+  /**
+   * Create a conversation thread from a parent message.
+   *
+   * @param messageId - ID of the parent message
+   * @param sessionId - Session ID of the parent conversation
+   * @returns Promise resolving to thread information
+   * @throws Error if the operation fails
+   */
+  public async createThread(messageId: string, sessionId: string): Promise<ThreadInfo> {
+    if (!this.apiKey) {
+      throw new Error('API key is required for creating threads');
+    }
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'X-API-Key': this.apiKey
+    };
+
+    try {
+      const response = await fetch(`${this.apiUrl}/api/threads`, {
+        ...this.getFetchOptions({
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            message_id: messageId,
+            session_id: sessionId
+          })
+        })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to create thread: ${response.status} ${errorText}`);
+      }
+
+      const result = await response.json();
+      return result;
+
+    } catch (error: any) {
+      if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+        throw new Error('Could not connect to the server. Please check if the server is running.');
+      } else {
+        throw error;
+      }
+    }
+  }
+
+  /**
+   * Get thread information by thread ID.
+   *
+   * @param threadId - Thread identifier
+   * @returns Promise resolving to thread information
+   * @throws Error if the operation fails
+   */
+  public async getThreadInfo(threadId: string): Promise<ThreadInfo> {
+    if (!this.apiKey) {
+      throw new Error('API key is required for getting thread info');
+    }
+
+    const headers: Record<string, string> = {
+      'X-API-Key': this.apiKey
+    };
+
+    try {
+      const response = await fetch(`${this.apiUrl}/api/threads/${threadId}`, {
+        ...this.getFetchOptions({
+          method: 'GET',
+          headers
+        })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to get thread info: ${response.status} ${errorText}`);
+      }
+
+      const result = await response.json();
+      return result;
+
+    } catch (error: any) {
+      if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+        throw new Error('Could not connect to the server. Please check if the server is running.');
+      } else {
+        throw error;
+      }
+    }
+  }
+
+  /**
+   * Delete a thread and its associated dataset.
+   *
+   * @param threadId - Thread identifier
+   * @returns Promise resolving to deletion result
+   * @throws Error if the operation fails
+   */
+  public async deleteThread(threadId: string): Promise<{ status: string; message: string; thread_id: string }> {
+    if (!this.apiKey) {
+      throw new Error('API key is required for deleting threads');
+    }
+
+    const headers: Record<string, string> = {
+      'X-API-Key': this.apiKey
+    };
+
+    try {
+      const response = await fetch(`${this.apiUrl}/api/threads/${threadId}`, {
+        ...this.getFetchOptions({
+          method: 'DELETE',
+          headers
+        })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to delete thread: ${response.status} ${errorText}`);
       }
 
       const result = await response.json();
@@ -990,6 +1147,7 @@ export async function* streamChat(
   message: string,
   stream: boolean = true,
   fileIds?: string[],
+  threadId?: string,
   audioInput?: string,
   audioFormat?: string,
   language?: string,
@@ -1006,6 +1164,7 @@ export async function* streamChat(
     message, 
     stream, 
     fileIds,
+    threadId,
     audioInput,
     audioFormat,
     language,

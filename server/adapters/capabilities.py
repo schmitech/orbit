@@ -44,6 +44,7 @@ class AdapterCapabilities:
     supports_file_ids: bool = False  # Can filter by file_ids
     supports_session_tracking: bool = False  # Needs session_id
     requires_api_key_validation: bool = False  # Needs api_key for ownership validation
+    supports_threading: bool = False  # Supports conversation threading on retrieved datasets
 
     # Additional parameters to pass to get_relevant_context()
     required_parameters: List[str] = field(default_factory=list)
@@ -84,6 +85,7 @@ class AdapterCapabilities:
             supports_file_ids=capabilities_config.get('supports_file_ids', False),
             supports_session_tracking=capabilities_config.get('supports_session_tracking', False),
             requires_api_key_validation=capabilities_config.get('requires_api_key_validation', False),
+            supports_threading=capabilities_config.get('supports_threading', False),
             required_parameters=capabilities_config.get('required_parameters', []),
             optional_parameters=capabilities_config.get('optional_parameters', []),
             skip_when_no_files=capabilities_config.get('skip_when_no_files', False),
@@ -129,12 +131,30 @@ class AdapterCapabilities:
         )
 
     @classmethod
-    def for_standard_retriever(cls) -> 'AdapterCapabilities':
-        """Create capabilities for standard retriever adapters (QA, Intent, etc.)."""
+    def for_standard_retriever(cls, adapter_name: Optional[str] = None) -> 'AdapterCapabilities':
+        """
+        Create capabilities for standard retriever adapters (QA, Intent, etc.).
+        
+        Args:
+            adapter_name: Optional adapter name to determine threading support
+        """
+        # Check if adapter supports threading (intent or QA adapters)
+        supports_threading = False
+        if adapter_name:
+            supports_threading = (
+                adapter_name.startswith('intent-') or 
+                adapter_name.startswith('qa-') or 
+                'qa' in adapter_name.lower()
+            ) and not (
+                'conversational' in adapter_name.lower() or 
+                'multimodal' in adapter_name.lower()
+            )
+        
         return cls(
             retrieval_behavior=RetrievalBehavior.ALWAYS,
             formatting_style=FormattingStyle.STANDARD,
             supports_file_ids=False,
+            supports_threading=supports_threading,
             optional_parameters=['api_key'],
         )
 

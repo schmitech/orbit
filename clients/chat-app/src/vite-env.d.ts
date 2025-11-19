@@ -11,6 +11,7 @@ interface ImportMetaEnv {
   readonly VITE_MAX_MESSAGES_PER_CONVERSATION?: string
   readonly VITE_MAX_TOTAL_MESSAGES?: string
   readonly VITE_MAX_MESSAGE_LENGTH?: string
+  readonly VITE_ENABLE_CONVERSATION_THREADS?: string
 }
 
 interface ImportMeta {

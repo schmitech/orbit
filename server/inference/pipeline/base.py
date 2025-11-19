@@ -54,6 +54,9 @@ class ProcessingContext:
     # File context
     file_ids: List[str] = field(default_factory=list)  # Optional list of file IDs for file context
     
+    # Thread context
+    thread_id: Optional[str] = None  # Optional thread ID for follow-up questions on stored datasets
+    
     # Audio input parameters (for STT)
     audio_input: Optional[str] = None  # Base64-encoded audio data for STT
     audio_format: Optional[str] = None  # Audio format (mp3, wav, etc.)

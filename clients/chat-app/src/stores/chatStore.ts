@@ -50,7 +50,8 @@ interface ExtendedChatState extends ChatState {
   selectConversation: (id: string) => Promise<void>;
   deleteConversation: (id: string) => Promise<void>;
   deleteAllConversations: () => Promise<void>;
-  sendMessage: (content: string, fileIds?: string[]) => Promise<void>;
+  sendMessage: (content: string, fileIds?: string[], threadId?: string) => Promise<void>;
+  createThread: (messageId: string, sessionId: string) => Promise<void>;
   appendToLastMessage: (content: string, conversationId?: string) => void;
   regenerateResponse: (messageId: string) => Promise<void>;
   updateConversationTitle: (id: string, title: string) => void;
@@ -747,7 +748,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
     }, 0);
   },
 
-  sendMessage: async (content: string, fileIds?: string[]) => {
+  sendMessage: async (content: string, fileIds?: string[], threadId?: string) => {
     try {
       // Prevent multiple simultaneous requests
       if (get().isLoading) {
@@ -967,23 +968,27 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       
       debugLog(`[sendMessage] Using API key for conversation ${streamingConversationId}: ${currentConversation.apiKey.substring(0, 8)}...`);
       
-      if (currentConversation.sessionId) {
-        // Use conversation's stored API key and URL
-        const conversationApiUrl = resolveApiUrl(currentConversation.apiUrl);
-        const conversationApiKey = currentConversation.apiKey;
-        
-        const api = await getApi();
-        // Reconfigure API with the current conversation's session ID and API key to ensure consistency
-        api.configureApi(
-          conversationApiUrl,
-          conversationApiKey,
-          currentConversation.sessionId
-        );
+      // Use conversation's stored API key and URL
+      const conversationApiUrl = resolveApiUrl(currentConversation.apiUrl);
+      const conversationApiKey = currentConversation.apiKey;
+      
+      // Determine if we're in thread mode and use appropriate session ID
+      const activeThreadId = threadId || currentConversation?.currentThreadId;
+      const activeSessionId = currentConversation?.currentThreadSessionId || currentConversation.sessionId;
+      
+      const api = await getApi();
+      // Reconfigure API with the active session ID (thread session if in thread mode)
+      api.configureApi(
+        conversationApiUrl,
+        conversationApiKey,
+        activeSessionId
+      );
+      
+      if (activeThreadId && activeSessionId !== currentConversation.sessionId) {
+        debugLog(`[chatStore] Thread mode: using thread session ${activeSessionId} (original: ${currentConversation.sessionId})`);
       }
         
-        // Load the API and stream the response
-        const api = await getApi();
-        debugLog(`[chatStore] Starting streamChat with fileIds:`, fileIds);
+      debugLog(`[chatStore] Starting streamChat with fileIds:`, fileIds);
 
         // Extract audio parameters from conversation or use defaults
         const conversation = get().conversations.find(conv => conv.id === streamingConversationId);
@@ -1024,10 +1029,14 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
           adapterName: conversation?.adapterInfo?.adapter_name
         });
 
+        // activeThreadId and activeSessionId are already determined above
+        // Use them for the streamChat call
+
         for await (const response of api.streamChat(
           content,
           true,
           fileIds,
+          activeThreadId, // threadId for follow-up questions
           undefined, // audioInput - for STT (to be implemented)
           undefined, // audioFormat for input
           language,
@@ -1106,6 +1115,43 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
           
           if (response.done) {
             debugLog(`[chatStore] Stream completed, receivedAnyText:`, receivedAnyText);
+            debugLog(`[chatStore] Done chunk received:`, { 
+              hasThreading: !!response.threading,
+              threading: response.threading,
+              assistantMessageId 
+            });
+            
+            // Check for threading metadata in the response
+            const threadingInfo = response.threading;
+            if (threadingInfo && threadingInfo.supports_threading) {
+              // Update the assistant message with threading support and database message ID
+              set(state => ({
+                conversations: state.conversations.map(conv => {
+                  if (conv.id !== streamingConversationId) return conv;
+                  
+                  return {
+                    ...conv,
+                    messages: conv.messages.map(msg =>
+                      msg.id === assistantMessageId
+                        ? { 
+                            ...msg, 
+                            supportsThreading: true,
+                            databaseMessageId: threadingInfo.message_id  // Store database message ID
+                          }
+                        : msg
+                    ),
+                    updatedAt: new Date()
+                  };
+                })
+              }));
+              
+              debugLog(`[chatStore] Message ${assistantMessageId} marked as supporting threading`, {
+                message_id: threadingInfo.message_id,
+                session_id: threadingInfo.session_id,
+                databaseMessageId: threadingInfo.message_id
+              });
+            }
+            
             break;
           }
         }
@@ -1165,6 +1211,66 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         isLoading: false,
         error: `Failed to send message: ${error instanceof Error ? error.message : 'Unknown error'}`
       }));
+    }
+  },
+
+  createThread: async (messageId: string, sessionId: string) => {
+    try {
+      // Get the conversation to use its API key and URL
+      const conversation = get().conversations.find(conv => conv.sessionId === sessionId);
+      if (!conversation) {
+        throw new Error('Conversation not found for session');
+      }
+      
+      // Find the message to get its database message ID
+      const message = conversation.messages.find(msg => msg.id === messageId);
+      if (!message) {
+        throw new Error('Message not found');
+      }
+      
+      // Use database message ID if available, otherwise fall back to client message ID
+      const dbMessageId = message.databaseMessageId || messageId;
+      
+      const conversationApiUrl = resolveApiUrl(conversation.apiUrl || getApiUrl());
+      const conversationApiKey = conversation.apiKey || DEFAULT_API_KEY;
+      
+      const api = await getApi();
+      const apiClient = new api.ApiClient({
+        apiUrl: conversationApiUrl,
+        apiKey: conversationApiKey,
+        sessionId: sessionId
+      });
+
+      const threadService = new (await import('../services/threadService')).ThreadService(apiClient);
+      const threadInfo = await threadService.createThread(dbMessageId, sessionId);
+
+      // Update the message with thread info
+      set(state => ({
+        conversations: state.conversations.map(conv => {
+          if (conv.sessionId !== sessionId) return conv;
+          
+          return {
+            ...conv,
+            messages: conv.messages.map(msg => {
+              if (msg.id === messageId) {
+                return {
+                  ...msg,
+                  threadInfo: threadInfo,
+                  supportsThreading: true
+                };
+              }
+              return msg;
+            }),
+            currentThreadId: threadInfo.thread_id,
+            currentThreadSessionId: threadInfo.thread_session_id
+          };
+        })
+      }));
+
+      debugLog(`[chatStore] Created thread ${threadInfo.thread_id} for message ${messageId}`);
+    } catch (error) {
+      logError('Failed to create thread:', error);
+      throw error;
     }
   },
 
@@ -1323,6 +1429,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
           userMessage.content,
           true,
           undefined, // fileIds
+          undefined, // threadId
           undefined, // audioInput
           undefined, // audioFormat for input
           language,

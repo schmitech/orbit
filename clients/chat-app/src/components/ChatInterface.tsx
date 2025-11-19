@@ -27,7 +27,8 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
     isLoading,
     configureApiSettings,
     error,
-    clearError
+    clearError,
+    createThread
   } = useChatStore();
 
   const { settings } = useSettings();
@@ -107,8 +108,8 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
     return cleanupGestureListeners;
   }, [settings.voiceEnabled]);
 
-  const handleSendMessage = (content: string, fileIds?: string[]) => {
-    sendMessage(content, fileIds);
+  const handleSendMessage = (content: string, fileIds?: string[], threadId?: string) => {
+    sendMessage(content, fileIds, threadId);
   };
 
   const handleRefreshAdapterInfo = async () => {
@@ -418,12 +419,20 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
               <MessageList
                 messages={currentConversation.messages}
                 onRegenerate={regenerateResponse}
+                onStartThread={async (messageId: string, sessionId: string) => {
+                  try {
+                    await createThread(messageId, sessionId);
+                  } catch (error) {
+                    debugError('Failed to create thread:', error);
+                  }
+                }}
+                sessionId={currentConversation.sessionId}
                 isLoading={isLoading}
               />
               <MessageInput
                 onSend={handleSendMessage}
                 disabled={isLoading || !currentConversation || !currentConversation.apiKey}
-                placeholder="Message ORBIT..."
+                placeholder={currentConversation?.currentThreadId ? "Ask a follow-up question in this thread..." : "Message ORBIT..."}
               />
             </>
           )}

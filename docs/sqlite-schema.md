@@ -12,6 +12,7 @@ Orbit uses SQLite as an alternative backend to MongoDB for data persistence. The
 - `system_prompts` - System prompts for chat
 - `chat_history` - Chat message history
 - `chat_history_archive` - Archived chat messages
+- `conversation_threads` - Conversation threading for intent adapters
 
 ## Database File Location
 
@@ -211,6 +212,45 @@ CREATE TABLE IF NOT EXISTS chat_history_archive (
 - `idx_chat_history_archive_session` on `(session_id, timestamp)`
 - `idx_chat_history_archive_user` on `(user_id, timestamp)`
 - `idx_chat_history_archive_timestamp` on `timestamp`
+
+---
+
+### conversation_threads
+
+Stores conversation thread metadata for follow-up questions on retrieved datasets from intent/QA adapters.
+
+```sql
+CREATE TABLE IF NOT EXISTS conversation_threads (
+    id TEXT PRIMARY KEY,
+    parent_message_id TEXT NOT NULL,
+    parent_session_id TEXT NOT NULL,
+    thread_session_id TEXT NOT NULL,
+    adapter_name TEXT NOT NULL,
+    query_context TEXT NOT NULL,
+    dataset_key TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    metadata_json TEXT
+)
+```
+
+**Fields:**
+- `id` (TEXT, PK): Unique thread ID (UUID)
+- `parent_message_id` (TEXT): ID of the parent message that triggered the thread (references chat_history.id)
+- `parent_session_id` (TEXT): Session ID of the parent conversation
+- `thread_session_id` (TEXT): New session ID for the thread conversation
+- `adapter_name` (TEXT): Name of the adapter that generated the original response
+- `query_context` (TEXT): JSON-encoded query context (original query, parameters, template_id)
+- `dataset_key` (TEXT): Key/reference to stored dataset in Redis or fallback storage
+- `created_at` (TEXT): ISO format timestamp of thread creation
+- `expires_at` (TEXT): ISO format timestamp when thread expires (TTL)
+- `metadata_json` (TEXT): JSON-encoded additional metadata
+
+**Indexes:**
+- `idx_conversation_threads_parent_message` on `parent_message_id`
+- `idx_conversation_threads_parent_session` on `parent_session_id`
+- `idx_conversation_threads_thread_session` on `thread_session_id`
+- `idx_conversation_threads_expires_at` on `expires_at`
 
 ---
 

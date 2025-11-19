@@ -8,6 +8,16 @@ export interface FileAttachment {
   chunk_count?: number;
 }
 
+export interface ThreadInfo {
+  thread_id: string;
+  thread_session_id: string;
+  parent_message_id: string;
+  parent_session_id: string;
+  adapter_name: string;
+  created_at: string;
+  expires_at: string;
+}
+
 export interface Message {
   id: string;
   content: string;
@@ -17,6 +27,9 @@ export interface Message {
   attachments?: FileAttachment[];
   audio?: string;  // Optional base64-encoded audio data (TTS response) - full audio
   audioFormat?: string;  // Audio format (mp3, wav, etc.)
+  threadInfo?: ThreadInfo;
+  supportsThreading?: boolean;
+  databaseMessageId?: string;  // Database message ID from server (used for thread creation)
 }
 
 export interface AdapterInfo {
@@ -46,6 +59,8 @@ export interface Conversation {
   apiUrl?: string; // API URL associated with this conversation
   adapterInfo?: AdapterInfo; // Adapter information (client_name, model)
   audioSettings?: AudioSettings; // Audio configuration for this conversation
+  currentThreadId?: string; // Current thread ID if in thread mode
+  currentThreadSessionId?: string; // Current thread session ID if in thread mode
 }
 
 export interface ChatState {

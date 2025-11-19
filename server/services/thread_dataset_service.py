@@ -1,0 +1,346 @@
+"""
+Thread Dataset Service
+======================
+
+This service handles storage and retrieval of datasets for conversation threads.
+Supports Redis (with TTL) as primary storage, with fallback to SQLite/MongoDB.
+
+Datasets are stored separately from query context for efficient retrieval.
+"""
+
+import logging
+import json
+import gzip
+from typing import Dict, Any, Optional, Tuple
+from datetime import datetime, timedelta
+from utils.id_utils import generate_id
+
+from services.redis_service import RedisService
+from services.database_service import create_database_service
+
+logger = logging.getLogger(__name__)
+
+
+class ThreadDatasetService:
+    """Service for storing and retrieving thread datasets"""
+
+    def __init__(self, config: Dict[str, Any]):
+        """
+        Initialize the thread dataset service.
+
+        Args:
+            config: Application configuration
+        """
+        self.config = config
+        self.verbose = config.get('general', {}).get('verbose', False)
+        
+        # Threading configuration
+        threading_config = config.get('conversation_threading', {})
+        self.enabled = threading_config.get('enabled', True)
+        self.dataset_ttl_hours = threading_config.get('dataset_ttl_hours', 24)
+        self.storage_backend = threading_config.get('storage_backend', 'redis')
+        self.redis_key_prefix = threading_config.get('redis_key_prefix', 'thread_dataset:')
+        
+        # Initialize services - set to None first to avoid AttributeError
+        self.redis_service = None
+        self.database_service = None
+        
+        # Initialize Redis service (if enabled)
+        if self.storage_backend == 'redis':
+            try:
+                self.redis_service = RedisService(config)
+                if self.redis_service.enabled:
+                    logger.info(f"✓ ThreadDatasetService: Redis storage enabled (key prefix: {self.redis_key_prefix})")
+                else:
+                    logger.warning(f"ThreadDatasetService: Redis service initialized but not enabled. Falling back to database storage.")
+                    self.storage_backend = 'database'
+            except Exception as e:
+                logger.warning(f"Failed to initialize Redis service: {e}. Falling back to database storage.")
+                self.storage_backend = 'database'
+        
+        # Initialize database service as fallback
+        if self.storage_backend == 'database':
+            try:
+                self.database_service = create_database_service(config)
+            except Exception as e:
+                logger.error(f"Failed to initialize database service: {e}")
+                self.database_service = None
+        
+        # Always log initialization status for verification
+        if self.storage_backend == 'redis' and self.redis_service and self.redis_service.enabled:
+            logger.info(f"ThreadDatasetService initialized: storage_backend=redis, ttl={self.dataset_ttl_hours}h, key_prefix={self.redis_key_prefix}")
+        else:
+            logger.info(f"ThreadDatasetService initialized: storage_backend={self.storage_backend}, ttl={self.dataset_ttl_hours}h")
+
+    async def initialize(self) -> None:
+        """Initialize the service and its dependencies."""
+        if not self.enabled:
+            return
+        
+        # Initialize Redis if using it
+        if self.redis_service:
+            await self.redis_service.initialize()
+        
+        # Initialize database if using it
+        if self.database_service:
+            await self.database_service.initialize()
+
+    def _generate_dataset_key(self, thread_id: str) -> str:
+        """Generate a unique dataset key for a thread."""
+        if self.storage_backend == 'redis':
+            return f"{self.redis_key_prefix}{thread_id}"
+        else:
+            return f"thread_dataset_{thread_id}"
+
+    def _compress_data(self, data: Dict[str, Any]) -> bytes:
+        """Compress data using gzip for efficient storage."""
+        json_str = json.dumps(data, default=str)
+        return gzip.compress(json_str.encode('utf-8'))
+
+    def _decompress_data(self, compressed_data: bytes) -> Dict[str, Any]:
+        """Decompress data from gzip."""
+        json_str = gzip.decompress(compressed_data).decode('utf-8')
+        return json.loads(json_str)
+
+    async def store_dataset(
+        self,
+        thread_id: str,
+        query_context: Dict[str, Any],
+        raw_results: list
+    ) -> str:
+        """
+        Store a dataset for a thread.
+
+        Args:
+            thread_id: Unique thread identifier
+            query_context: Query context (original query, parameters, template_id)
+            raw_results: Raw results from the retriever
+
+        Returns:
+            Dataset key for retrieval
+        """
+        if not self.enabled:
+            raise RuntimeError("Thread dataset service is not enabled")
+
+        dataset_key = self._generate_dataset_key(thread_id)
+        
+        # Prepare dataset structure
+        dataset = {
+            'thread_id': thread_id,
+            'query_context': query_context,
+            'raw_results': raw_results,
+            'stored_at': datetime.utcnow().isoformat()
+        }
+
+        # Calculate expiration time
+        expires_at = datetime.utcnow() + timedelta(hours=self.dataset_ttl_hours)
+        ttl_seconds = int(self.dataset_ttl_hours * 3600)
+
+        try:
+            if self.storage_backend == 'redis' and self.redis_service and self.redis_service.enabled:
+                # Store in Redis with TTL
+                compressed = self._compress_data(dataset)
+                # Redis stores bytes, so we need to base64 encode or use binary
+                import base64
+                encoded = base64.b64encode(compressed).decode('utf-8')
+                await self.redis_service.set(dataset_key, encoded, ttl=ttl_seconds)
+                
+                # Always log Redis storage for verification (not just verbose)
+                logger.info(f"✓ Stored dataset for thread {thread_id} in Redis (key: {dataset_key}, TTL: {ttl_seconds}s, results: {len(raw_results)} items)")
+                
+                if self.verbose:
+                    logger.debug(f"Dataset structure: query_context keys={list(query_context.keys())}, raw_results count={len(raw_results)}")
+            else:
+                # Store in database
+                if not self.database_service:
+                    raise RuntimeError("Database service not available for dataset storage")
+                
+                # Store as JSON in a special collection/table
+                collection_name = 'thread_datasets'
+                document = {
+                    'id': dataset_key,
+                    'thread_id': str(thread_id),  # Convert to string for SQLite compatibility
+                    'dataset_json': json.dumps(dataset, default=str),
+                    'expires_at': expires_at.isoformat(),
+                    'created_at': datetime.utcnow().isoformat()
+                }
+                
+                await self.database_service.insert_one(collection_name, document)
+                
+                if self.verbose:
+                    logger.info(f"Stored dataset for thread {thread_id} in database (expires: {expires_at})")
+            
+            return dataset_key
+
+        except Exception as e:
+            logger.error(f"Failed to store dataset for thread {thread_id}: {e}")
+            raise
+
+    async def get_dataset(self, dataset_key: str) -> Optional[Tuple[Dict[str, Any], list]]:
+        """
+        Retrieve a dataset by key.
+
+        Args:
+            dataset_key: Dataset key from store_dataset()
+
+        Returns:
+            Tuple of (query_context, raw_results) or None if not found/expired
+        """
+        if not self.enabled:
+            return None
+
+        try:
+            if self.storage_backend == 'redis' and self.redis_service and self.redis_service.enabled:
+                # Retrieve from Redis
+                encoded = await self.redis_service.get(dataset_key)
+                if not encoded:
+                    if self.verbose:
+                        logger.debug(f"Dataset {dataset_key} not found in Redis (may have expired)")
+                    return None
+                
+                # Decode and decompress
+                import base64
+                compressed = base64.b64decode(encoded.encode('utf-8'))
+                dataset = self._decompress_data(compressed)
+                
+                # Log successful retrieval for verification
+                if self.verbose:
+                    logger.debug(f"✓ Retrieved dataset {dataset_key} from Redis (results: {len(dataset.get('raw_results', []))} items)")
+                
+            else:
+                # Retrieve from database
+                if not self.database_service:
+                    return None
+                
+                collection_name = 'thread_datasets'
+                document = await self.database_service.find_one(
+                    collection_name,
+                    {'id': dataset_key}
+                )
+                
+                if not document:
+                    if self.verbose:
+                        logger.debug(f"Dataset {dataset_key} not found in database")
+                    return None
+                
+                # Check expiration
+                expires_at_str = document.get('expires_at')
+                if expires_at_str:
+                    expires_at = datetime.fromisoformat(expires_at_str)
+                    if datetime.utcnow() > expires_at:
+                        if self.verbose:
+                            logger.debug(f"Dataset {dataset_key} has expired")
+                        # Delete expired dataset
+                        await self.delete_dataset(dataset_key)
+                        return None
+                
+                # Parse dataset JSON
+                dataset_json = document.get('dataset_json')
+                if not dataset_json:
+                    return None
+                dataset = json.loads(dataset_json)
+            
+            # Extract query context and raw results
+            query_context = dataset.get('query_context', {})
+            raw_results = dataset.get('raw_results', [])
+            
+            if self.verbose:
+                logger.debug(f"Retrieved dataset {dataset_key} with {len(raw_results)} results")
+            
+            return (query_context, raw_results)
+
+        except Exception as e:
+            logger.error(f"Failed to retrieve dataset {dataset_key}: {e}")
+            return None
+
+    async def delete_dataset(self, dataset_key: str) -> bool:
+        """
+        Delete a dataset by key.
+
+        Args:
+            dataset_key: Dataset key to delete
+
+        Returns:
+            True if deleted, False otherwise
+        """
+        if not self.enabled:
+            return False
+
+        try:
+            if self.storage_backend == 'redis' and self.redis_service and self.redis_service.enabled:
+                # Delete from Redis
+                deleted = await self.redis_service.delete(dataset_key)
+                if self.verbose and deleted > 0:
+                    logger.debug(f"Deleted dataset {dataset_key} from Redis")
+                return deleted > 0
+            else:
+                # Delete from database
+                if not self.database_service:
+                    return False
+                
+                collection_name = 'thread_datasets'
+                result = await self.database_service.delete_one(
+                    collection_name,
+                    {'id': dataset_key}
+                )
+                
+                if self.verbose and result:
+                    logger.debug(f"Deleted dataset {dataset_key} from database")
+                
+                return result
+
+        except Exception as e:
+            logger.error(f"Failed to delete dataset {dataset_key}: {e}")
+            return False
+
+    async def cleanup_expired_datasets(self) -> int:
+        """
+        Clean up expired datasets from database storage.
+        Redis handles expiration automatically, so this only affects database storage.
+
+        Returns:
+            Number of datasets deleted
+        """
+        if not self.enabled or not self.database_service:
+            return 0
+
+        try:
+            collection_name = 'thread_datasets'
+            now = datetime.utcnow().isoformat()
+            
+            # Find expired datasets
+            expired = await self.database_service.find_many(
+                collection_name,
+                {'expires_at': {'$lt': now}},
+                limit=1000
+            )
+            
+            if not expired:
+                return 0
+            
+            # Delete expired datasets
+            deleted_count = 0
+            for doc in expired:
+                result = await self.database_service.delete_one(
+                    collection_name,
+                    {'id': doc.get('id')}
+                )
+                if result:
+                    deleted_count += 1
+            
+            if self.verbose and deleted_count > 0:
+                logger.info(f"Cleaned up {deleted_count} expired thread datasets")
+            
+            return deleted_count
+
+        except Exception as e:
+            logger.error(f"Failed to cleanup expired datasets: {e}")
+            return 0
+
+    async def close(self) -> None:
+        """Close the service and its dependencies."""
+        if self.redis_service:
+            await self.redis_service.close()
+        
+        # Database service cleanup is handled by the service itself
+

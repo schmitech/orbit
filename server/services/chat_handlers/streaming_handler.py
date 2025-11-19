@@ -180,7 +180,8 @@ class StreamingHandler:
         # Yield chunks in order as they become available
         while self._next_chunk_index in self._audio_results:
             chunk = self._audio_results.pop(self._next_chunk_index)
-            if chunk:
+            # Only yield if chunk is not None and is a valid dictionary
+            if chunk and isinstance(chunk, dict):
                 state.audio_chunks_sent += 1
                 audio_chunk_json = json.dumps(chunk)
                 yield f"data: {audio_chunk_json}\n\n", state
@@ -188,8 +189,12 @@ class StreamingHandler:
                 if self.verbose:
                     logger.info(
                         f"Sent streaming audio chunk {state.audio_chunks_sent} "
-                        f"({len(chunk['audio_chunk'])} chars base64)"
+                        f"({len(chunk.get('audio_chunk', ''))} chars base64)"
                     )
+            elif chunk is None:
+                # Log but don't yield - chunk generation failed
+                if self.verbose:
+                    logger.debug(f"Skipping None chunk at index {self._next_chunk_index}")
             self._next_chunk_index += 1
 
     async def process_stream(
@@ -227,6 +232,16 @@ class StreamingHandler:
         # Track remaining audio task (started early when stream nears end)
         remaining_audio_task = None
         remaining_audio_started = False
+
+        # Validate pipeline_stream is not None
+        if pipeline_stream is None:
+            logger.error("pipeline_stream is None - cannot process stream")
+            error_chunk = json.dumps({
+                "error": "Pipeline stream is not available",
+                "done": True
+            })
+            yield f"data: {error_chunk}\n\n", state
+            return
 
         try:
             async for chunk in pipeline_stream:
@@ -430,12 +445,18 @@ class StreamingHandler:
             if self.verbose:
                 logger.info(f"Generating audio for remaining text (fallback): {len(remaining_text)} chars")
 
-            audio_data, audio_format_str = await self.audio_handler.generate_audio(
+            result = await self.audio_handler.generate_audio(
                 text=remaining_text.strip(),
                 adapter_name=adapter_name,
                 tts_voice=tts_voice,
                 language=language
             )
+
+            # Properly handle None or tuple return
+            audio_data = None
+            audio_format_str = None
+            if result is not None:
+                audio_data, audio_format_str = result
 
             if audio_data:
                 # Use async base64 encoding for better performance
@@ -470,7 +491,8 @@ class StreamingHandler:
         self,
         state: StreamingState,
         audio_data: Optional[bytes] = None,
-        audio_format_str: Optional[str] = None
+        audio_format_str: Optional[str] = None,
+        threading_metadata: Optional[Dict[str, Any]] = None
     ) -> str:
         """
         Build the final done chunk with all metadata.
@@ -491,6 +513,12 @@ class StreamingHandler:
         # Include total audio chunks count if streaming audio was used
         if state.sentence_detector and state.audio_chunks_sent > 0:
             done_chunk["total_audio_chunks"] = state.audio_chunks_sent
+        
+        # Include threading metadata if available
+        if threading_metadata:
+            done_chunk["threading"] = threading_metadata
+            if self.verbose:
+                logger.info(f"Including threading metadata in done chunk: {threading_metadata}")
 
         if self.verbose:
             logger.info(

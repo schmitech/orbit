@@ -1,18 +1,20 @@
 import { useMemo, useState } from 'react';
-import { Bot, Copy, RotateCcw, ThumbsDown, ThumbsUp, User2, File } from 'lucide-react';
+import { Bot, Copy, RotateCcw, ThumbsDown, ThumbsUp, User2, File, MessageSquare } from 'lucide-react';
 import { Message as MessageType } from '../types';
 import { MarkdownRenderer } from '@schmitech/markdown-renderer';
 import { debugError } from '../utils/debug';
-import { getEnableFeedbackButtons } from '../utils/runtimeConfig';
+import { getEnableFeedbackButtons, getEnableConversationThreads } from '../utils/runtimeConfig';
 import { AudioPlayer } from './AudioPlayer';
 import { sanitizeMessageContent, truncateLongContent } from '../utils/contentValidation';
 
 interface MessageProps {
   message: MessageType;
   onRegenerate?: (messageId: string) => void;
+  onStartThread?: (messageId: string, sessionId: string) => void;
+  sessionId?: string;
 }
 
-export function Message({ message, onRegenerate }: MessageProps) { 
+export function Message({ message, onRegenerate, onStartThread, sessionId }: MessageProps) { 
   const [copied, setCopied] = useState(false);
   const [feedback, setFeedback] = useState<'up' | 'down' | null>(null);
 
@@ -54,6 +56,7 @@ export function Message({ message, onRegenerate }: MessageProps) {
   const handleFeedback = (type: 'up' | 'down') => {
     setFeedback(feedback === type ? null : type);
   };
+  const threadsEnabled = getEnableConversationThreads();
 
   return (
     <div className="group flex items-start gap-3 px-1 animate-fadeIn min-w-0 sm:px-0">
@@ -78,10 +81,10 @@ export function Message({ message, onRegenerate }: MessageProps) {
         </div>
 
         <div
-          className={`${
+          className={`message-bubble min-w-0 break-words leading-relaxed text-[#353740] dark:text-[#ececf1] ${
             isAssistant
-              ? 'rounded-lg border border-gray-300 bg-gray-100 px-4 py-3 text-[#353740] dark:border-[#4a4b54] dark:bg-[#202123] dark:text-[#ececf1] min-w-0 break-words'
-              : 'text-[#353740] dark:text-[#ececf1] leading-relaxed break-words'
+              ? 'assistant-bubble dark:rounded-lg dark:border-[#4a4b54] dark:bg-[#202123] dark:px-4 dark:py-3'
+              : ''
           }`}
         >
           <div className={contentClass}>
@@ -151,6 +154,17 @@ export function Message({ message, onRegenerate }: MessageProps) {
               >
                 <RotateCcw className="h-4 w-4" />
                 Retry
+              </button>
+            )}
+
+            {threadsEnabled && onStartThread && message.supportsThreading && !message.threadInfo && sessionId && (
+              <button
+                onClick={() => onStartThread(message.id, sessionId)}
+                className="inline-flex items-center gap-1 rounded px-2 py-1 hover:bg-gray-200 dark:hover:bg-[#3c3f4a]"
+                title="Start thread for follow-up questions"
+              >
+                <MessageSquare className="h-4 w-4" />
+                Start Thread
               </button>
             )}
 

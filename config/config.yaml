@@ -195,6 +195,12 @@ chat_history:
     header_name: "X-User-ID"
     required: false
 
+conversation_threading:
+  enabled: false
+  dataset_ttl_hours: 24  # Global default TTL for stored datasets
+  storage_backend: "redis"  # redis, sqlite, mongodb (fallback order: redis -> sqlite/mongodb)
+  redis_key_prefix: "thread_dataset:"
+
 files:
   # Global defaults for all file adapters
   # Individual adapters in adapters.yaml can override these settings

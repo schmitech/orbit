@@ -60,11 +60,17 @@ class ConversationHistoryHandler:
         if not self._base_enabled:
             return False
 
-        # Check adapter type - enable only for passthrough adapters
+        # Check adapter type - enable for passthrough adapters and retriever adapters (for threading support)
         if adapter_name and self.adapter_manager:
             adapter_config = self.adapter_manager.get_adapter_config(adapter_name)
-            if adapter_config and adapter_config.get('type') == 'passthrough':
-                return True
+            if adapter_config:
+                adapter_type = adapter_config.get('type')
+                # Enable for passthrough adapters (conversational)
+                if adapter_type == 'passthrough':
+                    return True
+                # Enable for retriever adapters (intent/QA) to support threading
+                if adapter_type == 'retriever':
+                    return True
 
         # Disable for all other adapters
         return False
@@ -110,7 +116,7 @@ class ConversationHistoryHandler:
         user_id: Optional[str] = None,
         api_key: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None
-    ) -> None:
+    ) -> tuple[Optional[Any], Optional[Any]]:
         """
         Store a conversation turn in chat history.
 
@@ -122,12 +128,26 @@ class ConversationHistoryHandler:
             user_id: Optional user identifier
             api_key: Optional API key
             metadata: Optional metadata to store
+
+        Returns:
+            Tuple of (user_message_id, assistant_message_id)
         """
-        if not self.should_enable(adapter_name) or not self.chat_history_service or not session_id:
-            return
+        # Always store if chat history service is available and session_id is provided
+        # This is needed for threading support even if chat history context is disabled
+        # Check if we should enable context retrieval (for get_context), but always store for threading
+        if not self.chat_history_service or not session_id:
+            return None, None
+
+        # Check if metadata contains retrieved_docs (for threading support)
+        # If so, always store even if chat history context is disabled
+        has_retrieved_docs = metadata and metadata.get('retrieved_docs')
+        should_store = self.should_enable(adapter_name) or has_retrieved_docs
+
+        if not should_store:
+            return None, None
 
         try:
-            await self.chat_history_service.add_conversation_turn(
+            result = await self.chat_history_service.add_conversation_turn(
                 session_id=session_id,
                 user_message=user_message,
                 assistant_response=assistant_response,
@@ -137,10 +157,13 @@ class ConversationHistoryHandler:
             )
 
             if self.verbose:
-                logger.info(f"Stored conversation turn for session {session_id}")
+                logger.info(f"Stored conversation turn for session {session_id} (threading={has_retrieved_docs})")
+
+            return result
 
         except Exception as e:
             logger.error(f"Error storing conversation turn: {str(e)}")
+            return None, None
 
     async def check_limit_warning(
         self,

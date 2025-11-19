@@ -69,7 +69,7 @@ class ContextRetrievalStep(PipelineStep):
             f"Initialized capabilities for {len(adapter_configs)} adapters"
         )
 
-    def _infer_capabilities(self, adapter_config: Dict[str, Any]) -> AdapterCapabilities:
+    def _infer_capabilities(self, adapter_config: Dict[str, Any], adapter_name: Optional[str] = None) -> AdapterCapabilities:
         """
         Infer adapter capabilities from configuration.
 
@@ -78,12 +78,17 @@ class ContextRetrievalStep(PipelineStep):
 
         Args:
             adapter_config: Adapter configuration dictionary
+            adapter_name: Optional adapter name for threading detection
 
         Returns:
             Inferred AdapterCapabilities
         """
         adapter_type = adapter_config.get('type', 'retriever')
         adapter_impl = adapter_config.get('adapter', '')
+        
+        # Use provided adapter_name or get from config
+        if not adapter_name:
+            adapter_name = adapter_config.get('name', '')
 
         # Passthrough adapters
         if adapter_type == 'passthrough':
@@ -93,11 +98,11 @@ class ContextRetrievalStep(PipelineStep):
                 return AdapterCapabilities.for_passthrough(supports_file_retrieval=False)
 
         # File adapters
-        if adapter_impl == 'file' or 'file' in adapter_config.get('name', '').lower():
+        if adapter_impl == 'file' or 'file' in adapter_name.lower():
             return AdapterCapabilities.for_file_adapter()
 
         # Standard retriever adapters (QA, Intent, etc.)
-        return AdapterCapabilities.for_standard_retriever()
+        return AdapterCapabilities.for_standard_retriever(adapter_name=adapter_name)
 
     def _get_capabilities(self, adapter_name: str) -> Optional[AdapterCapabilities]:
         """
@@ -119,7 +124,7 @@ class ContextRetrievalStep(PipelineStep):
 
                 if adapter_config:
                     try:
-                        capabilities = self._infer_capabilities(adapter_config)
+                        capabilities = self._infer_capabilities(adapter_config, adapter_name)
                         self._capability_registry.register(adapter_name, capabilities)
                         self.logger.debug(
                             f"Inferred and registered capabilities for adapter: {adapter_name}"
@@ -187,6 +192,52 @@ class ContextRetrievalStep(PipelineStep):
             return context
 
         self.logger.debug(f"Retrieving context for adapter: {context.adapter_name}")
+
+        # Check if this is a thread follow-up (use stored dataset instead of retrieval)
+        if context.thread_id:
+            try:
+                # Get thread service from container
+                if self.container.has('thread_service'):
+                    thread_service = self.container.get('thread_service')
+                else:
+                    # Create thread service if not in container
+                    from services.thread_service import ThreadService
+                    config = self.container.get('config')
+                    thread_service = ThreadService(config)
+                    await thread_service.initialize()
+                
+                # Get stored dataset from thread
+                dataset = await thread_service.get_thread_dataset(context.thread_id)
+                
+                if dataset:
+                    query_context, raw_results = dataset
+                    # Convert raw results to retrieved_docs format
+                    docs = raw_results if isinstance(raw_results, list) else []
+                    
+                    # Update session_id to thread session_id for conversation history
+                    thread_info = await thread_service.get_thread(context.thread_id)
+                    if thread_info:
+                        context.session_id = thread_info.get('thread_session_id', context.session_id)
+                    
+                    context.retrieved_docs = docs
+                    
+                    if self.verbose:
+                        self.logger.info(f"Loaded {len(docs)} documents from thread {context.thread_id}")
+                    
+                    # Format context for LLM
+                    capabilities = self._get_capabilities(context.adapter_name)
+                    truncation_info = self._get_truncation_info(docs)
+                    context.formatted_context = self._format_context(
+                        docs,
+                        capabilities,
+                        truncation_info
+                    )
+                    
+                    return context
+                else:
+                    self.logger.warning(f"Thread {context.thread_id} dataset not found or expired, falling back to normal retrieval")
+            except Exception as e:
+                self.logger.error(f"Error loading thread dataset: {e}, falling back to normal retrieval")
 
         # Get adapter capabilities
         capabilities = self._get_capabilities(context.adapter_name)

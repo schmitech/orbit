@@ -149,6 +149,7 @@ class PipelineChatService:
                           system_prompt_id: Optional[ObjectId] = None, api_key: Optional[str] = None,
                           session_id: Optional[str] = None, user_id: Optional[str] = None,
                           file_ids: Optional[List[str]] = None,
+                          thread_id: Optional[str] = None,
                           audio_input: Optional[str] = None,
                           audio_format: Optional[str] = None,
                           language: Optional[str] = None,
@@ -203,6 +204,7 @@ class PipelineChatService:
                 session_id=session_id,
                 api_key=api_key,
                 file_ids=file_ids,
+                thread_id=thread_id,
                 audio_input=audio_input,
                 audio_format=audio_format,
                 language=language,
@@ -228,7 +230,7 @@ class PipelineChatService:
             )
 
             # Process response (formatting, warnings, storage, logging)
-            processed_response = await self.response_processor.process_response(
+            processed_response, assistant_message_id = await self.response_processor.process_response(
                 response=result.response,
                 message=message,
                 client_ip=client_ip,
@@ -237,7 +239,8 @@ class PipelineChatService:
                 user_id=user_id,
                 api_key=api_key,
                 backend=backend,
-                processing_time=result.processing_time
+                processing_time=result.processing_time,
+                retrieved_docs=result.retrieved_docs
             )
 
             # Generate audio if requested
@@ -245,12 +248,15 @@ class PipelineChatService:
             audio_format_str = None
             if return_audio and result.response:
                 try:
-                    audio_data, audio_format_str = await self.audio_handler.generate_audio(
+                    result_audio = await self.audio_handler.generate_audio(
                         text=result.response,
                         adapter_name=adapter_name,
                         tts_voice=tts_voice,
                         language=language
                     )
+                    # Properly handle None or tuple return
+                    if result_audio is not None:
+                        audio_data, audio_format_str = result_audio
                 except Exception as e:
                     logger.warning(f"Failed to generate audio: {str(e)}")
 
@@ -261,7 +267,10 @@ class PipelineChatService:
                 metadata=result.metadata,
                 processing_time=result.processing_time,
                 audio_data=audio_data,
-                audio_format=audio_format_str
+                audio_format=audio_format_str,
+                assistant_message_id=assistant_message_id,
+                session_id=session_id,
+                adapter_name=adapter_name
             )
 
         except Exception as e:
@@ -272,6 +281,7 @@ class PipelineChatService:
                                  system_prompt_id: Optional[ObjectId] = None, api_key: Optional[str] = None,
                                  session_id: Optional[str] = None, user_id: Optional[str] = None,
                                  file_ids: Optional[List[str]] = None,
+                                 thread_id: Optional[str] = None,
                                  audio_input: Optional[str] = None,
                                  audio_format: Optional[str] = None,
                                  language: Optional[str] = None,
@@ -326,6 +336,7 @@ class PipelineChatService:
                 session_id=session_id,
                 api_key=api_key,
                 file_ids=file_ids,
+                thread_id=thread_id,
                 audio_input=audio_input,
                 audio_format=audio_format,
                 language=language,
@@ -339,17 +350,51 @@ class PipelineChatService:
             final_state = None
 
             try:
+                # Get pipeline stream
+                pipeline_stream = self.pipeline.process_stream(context)
+                
+                # Validate pipeline stream is not None
+                if pipeline_stream is None:
+                    logger.error("pipeline.process_stream returned None")
+                    error_chunk = json.dumps({
+                        "error": "Pipeline stream is not available",
+                        "done": True
+                    })
+                    yield f"data: {error_chunk}\n\n"
+                    return
+                
                 # Process stream through handler
-                async for chunk, state in self.streaming_handler.process_stream(
-                    pipeline_stream=self.pipeline.process_stream(context),
-                    adapter_name=adapter_name,
-                    tts_voice=tts_voice,
-                    language=language,
-                    return_audio=return_audio or False
-                ):
-                    yield chunk
-                    # No sleep needed - async generator already yields control
-                    final_state = state
+                # Wrap in try-except to catch unpacking errors
+                try:
+                    async for item in self.streaming_handler.process_stream(
+                        pipeline_stream=pipeline_stream,
+                        adapter_name=adapter_name,
+                        tts_voice=tts_voice,
+                        language=language,
+                        return_audio=return_audio or False
+                    ):
+                        # Validate that item is a tuple before unpacking
+                        if item is None:
+                            logger.error("streaming_handler.process_stream yielded None instead of tuple")
+                            continue
+                        if not isinstance(item, tuple) or len(item) != 2:
+                            logger.error(f"streaming_handler.process_stream yielded invalid item: {type(item)}, value: {item}")
+                            continue
+                        
+                        chunk, state = item
+                        yield chunk
+                        # No sleep needed - async generator already yields control
+                        final_state = state
+                except TypeError as te:
+                    if "cannot unpack" in str(te) or "non-iterable" in str(te):
+                        logger.error(f"Unpacking error in stream processing: {str(te)}", exc_info=True)
+                        error_chunk = json.dumps({
+                            "error": f"Stream processing error: {str(te)}",
+                            "done": True
+                        })
+                        yield f"data: {error_chunk}\n\n"
+                        return
+                    raise
 
                 # Post-stream processing
                 if final_state and final_state.accumulated_text and final_state.stream_completed:
@@ -421,7 +466,7 @@ class PipelineChatService:
             or self.config.get('general', {}).get('inference_provider', 'unknown')
         )
 
-        final_response = await self.response_processor.process_response(
+        final_response, assistant_message_id = await self.response_processor.process_response(
             response=final_state.accumulated_text,
             message=message,
             client_ip=client_ip,
@@ -430,7 +475,8 @@ class PipelineChatService:
             user_id=user_id,
             api_key=api_key,
             backend=backend,
-            processing_time=context.processing_time
+            processing_time=context.processing_time,
+            retrieved_docs=context.retrieved_docs
         )
 
         # Check if warning was added and send as additional chunk
@@ -466,21 +512,40 @@ class PipelineChatService:
                 try:
                     if self.verbose:
                         logger.info(f"Calling audio_handler.generate_audio for adapter: {adapter_name}, voice: {tts_voice}")
-                    audio_data, audio_format_str = await self.audio_handler.generate_audio(
+                    result = await self.audio_handler.generate_audio(
                         text=final_response,
                         adapter_name=adapter_name,
                         tts_voice=tts_voice,
                         language=language
                     )
+                    # Properly handle None or tuple return
+                    if result is not None:
+                        audio_data, audio_format_str = result
                     if self.verbose:
                         logger.info(f"Audio generation result: audio_data={audio_data is not None}, format={audio_format_str}")
                 except Exception as e:
                     logger.warning(f"Failed to generate audio: {str(e)}", exc_info=True)
 
+        # Check if adapter supports threading and add metadata
+        threading_metadata = None
+        if assistant_message_id and session_id and adapter_name:
+            supports_threading = self.response_processor._adapter_supports_threading(adapter_name)
+            if supports_threading:
+                threading_metadata = {
+                    "supports_threading": True,
+                    "message_id": assistant_message_id,
+                    "session_id": session_id
+                }
+                if self.verbose:
+                    logger.info(f"Adding threading metadata to done chunk: adapter={adapter_name}, message_id={assistant_message_id}, session_id={session_id}")
+            elif self.verbose:
+                logger.debug(f"Adapter {adapter_name} does not support threading")
+        
         # Send final done chunk
         done_chunk = self.streaming_handler.build_done_chunk(
             state=final_state,
             audio_data=audio_data,
-            audio_format_str=audio_format_str
+            audio_format_str=audio_format_str,
+            threading_metadata=threading_metadata
         )
         yield done_chunk

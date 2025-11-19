@@ -3,14 +3,17 @@ import { Message } from './Message';
 import { Message as MessageType } from '../types';
 import { useSettings } from '../contexts/SettingsContext';
 import { playSoundEffect } from '../utils/soundEffects';
+import './MessageList.css';
 
 interface MessageListProps {
   messages: MessageType[];
   onRegenerate?: (messageId: string) => void;
+  onStartThread?: (messageId: string, sessionId: string) => void;
+  sessionId?: string;
   isLoading?: boolean;
 }
 
-export function MessageList({ messages, onRegenerate, isLoading }: MessageListProps) {
+export function MessageList({ messages, onRegenerate, onStartThread, sessionId, isLoading }: MessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const prevMessageCountRef = useRef(messages.length);
@@ -120,6 +123,8 @@ export function MessageList({ messages, onRegenerate, isLoading }: MessageListPr
             key={message.id}
             message={message}
             onRegenerate={onRegenerate}
+            onStartThread={onStartThread}
+            sessionId={sessionId}
           />
         ))}
 

@@ -22,7 +22,8 @@ class TestResponseProcessor:
         """Mock conversation history handler."""
         handler = AsyncMock(spec=ConversationHistoryHandler)
         handler.check_limit_warning = AsyncMock(return_value=None)
-        handler.store_turn = AsyncMock()
+        # store_turn now returns (user_msg_id, assistant_msg_id)
+        handler.store_turn = AsyncMock(return_value=("user_msg_123", "assistant_msg_456"))
         return handler
 
     def test_initialization(self, base_config, mock_conversation_handler, mock_logger_service):
@@ -197,7 +198,8 @@ class TestResponseProcessor:
             logger_service=mock_logger_service
         )
 
-        result = await processor.process_response(
+        # process_response now returns (processed_response, assistant_message_id)
+        processed_response, assistant_message_id = await processor.process_response(
             response="This is the response",
             message="User message",
             client_ip="127.0.0.1",
@@ -210,7 +212,9 @@ class TestResponseProcessor:
         )
 
         # Check that response is formatted
-        assert "This is the response" in result
+        assert "This is the response" in processed_response
+        # Check that assistant_message_id is returned
+        assert assistant_message_id == "assistant_msg_456"
 
         # Check that conversation was stored
         mock_conversation_handler.store_turn.assert_called_once()
@@ -235,7 +239,7 @@ class TestResponseProcessor:
             logger_service=mock_logger_service
         )
 
-        result = await processor.process_response(
+        processed_response, assistant_message_id = await processor.process_response(
             response="Original response",
             message="User message",
             client_ip="127.0.0.1",
@@ -247,8 +251,9 @@ class TestResponseProcessor:
             processing_time=1.0
         )
 
-        assert "Original response" in result
-        assert "Warning message" in result
+        assert "Original response" in processed_response
+        assert "Warning message" in processed_response
+        assert assistant_message_id == "assistant_msg_456"
 
     @pytest.mark.asyncio
     async def test_process_response_without_session(
@@ -261,7 +266,7 @@ class TestResponseProcessor:
             logger_service=mock_logger_service
         )
 
-        result = await processor.process_response(
+        processed_response, assistant_message_id = await processor.process_response(
             response="Response",
             message="Message",
             client_ip="127.0.0.1",
@@ -273,8 +278,11 @@ class TestResponseProcessor:
             processing_time=1.0
         )
 
-        # Should not store conversation turn
+        # Should not store conversation turn (no session)
         mock_conversation_handler.store_turn.assert_not_called()
+
+        # assistant_message_id should be None when no session
+        assert assistant_message_id is None
 
         # But should still log
         mock_logger_service.log_conversation.assert_called_once()

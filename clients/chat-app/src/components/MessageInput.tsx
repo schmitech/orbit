@@ -12,7 +12,7 @@ import { useSettings } from '../contexts/SettingsContext';
 import { playSoundEffect } from '../utils/soundEffects';
 
 interface MessageInputProps {
-  onSend: (message: string, fileIds?: string[]) => void;
+  onSend: (message: string, fileIds?: string[], threadId?: string) => void;
   disabled?: boolean;
   placeholder?: string;
   /**
@@ -125,6 +125,7 @@ export function MessageInput({
   const [voiceCompletionCount, setVoiceCompletionCount] = useState(0);
 
   const { createConversation, currentConversationId, removeFileFromConversation, conversations, isLoading, syncConversationFiles } = useChatStore();
+  const currentConversation = conversations.find(c => c.id === currentConversationId);
 
   const handleVoiceCompletion = useCallback(() => {
     setVoiceCompletionCount((count) => count + 1);
@@ -145,7 +146,6 @@ export function MessageInput({
   }, handleVoiceCompletion);
 
   // Check if any files are currently uploading or processing
-  const currentConversation = conversations.find(conv => conv.id === currentConversationId);
   const conversationFiles = currentConversation?.attachedFiles || [];
   
   // Check if adapter supports file processing
@@ -451,8 +451,11 @@ export function MessageInput({
       // (not just the newly attached ones in this message)
       const conversationFiles = currentConversation?.attachedFiles || [];
       const allFileIds = conversationFiles.map(f => f.file_id);
+      
+      // Pass threadId if we're in thread mode
+      const threadId = currentConversation?.currentThreadId;
 
-      onSend(message.trim(), allFileIds.length > 0 ? allFileIds : undefined);
+      onSend(message.trim(), allFileIds.length > 0 ? allFileIds : undefined, threadId);
       playSoundEffect('messageSent', settings.soundEnabled);
       setMessage('');
       voiceMessageRef.current = ''; // Clear voice message ref when manually submitting
@@ -703,8 +706,8 @@ export function MessageInput({
           setPasteSuccess(null);
         }, 6000);
       }
-    } catch (error: any) {
-      const errorMessage = error.message || 'Failed to paste file';
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to paste file';
       debugError('[MessageInput] Paste error:', error);
       playSoundEffect('error', settings.soundEnabled);
       setPasteError(errorMessage);
@@ -715,7 +718,7 @@ export function MessageInput({
     } finally {
       setConversationUploading(pasteConversationId, false);
     }
-  }, [attachedFiles, currentConversationId, isFocused, isFileSupported, isInputDisabled, setConversationUploading, syncFilesWithConversation]);
+  }, [attachedFiles, currentConversationId, isFocused, isFileSupported, isInputDisabled, setConversationUploading, settings.soundEnabled, syncFilesWithConversation]);
 
   const effectivePlaceholder = (hasProcessingFiles || isUploading)
     ? 'Files are uploading/processing, please wait...'

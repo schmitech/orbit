@@ -874,6 +874,37 @@ class ChatHistoryService:
                 {"session_id": session_id}
             )
 
+            # Delete any associated threads (cascade delete)
+            try:
+                # First, get all threads for this session to clean up their datasets
+                threads = await self.database_service.find_many(
+                    "conversation_threads",
+                    {"parent_session_id": session_id}
+                )
+
+                # Delete thread datasets (from thread_datasets collection)
+                if threads:
+                    for thread in threads:
+                        dataset_key = thread.get('dataset_key')
+                        if dataset_key:
+                            try:
+                                await self.database_service.delete_one(
+                                    "thread_datasets",
+                                    {"id": dataset_key}
+                                )
+                            except Exception:
+                                pass  # Dataset might not exist or already deleted
+
+                # Delete thread records
+                threads_deleted = await self.database_service.delete_many(
+                    "conversation_threads",
+                    {"parent_session_id": session_id}
+                )
+                if self.verbose and threads_deleted > 0:
+                    logger.info(f"Deleted {threads_deleted} associated threads for session {session_id}")
+            except Exception as thread_error:
+                logger.warning(f"Error deleting threads for session {session_id}: {str(thread_error)}")
+
             # Clear from tracking
             self._active_sessions.pop(session_id, None)
             self._session_token_counts.pop(session_id, None)
@@ -951,20 +982,57 @@ class ChatHistoryService:
                 {"session_id": session_id}
             )
 
+            # Delete any associated threads (cascade delete)
+            threads_deleted = 0
+            try:
+                # First, get all threads for this session to clean up their datasets
+                threads = await self.database_service.find_many(
+                    "conversation_threads",
+                    {"parent_session_id": session_id}
+                )
+
+                # Delete thread datasets (from thread_datasets collection)
+                datasets_deleted = 0
+                if threads:
+                    for thread in threads:
+                        dataset_key = thread.get('dataset_key')
+                        if dataset_key:
+                            try:
+                                result = await self.database_service.delete_one(
+                                    "thread_datasets",
+                                    {"id": dataset_key}
+                                )
+                                if result:
+                                    datasets_deleted += 1
+                            except Exception:
+                                pass  # Dataset might not exist or already deleted
+
+                # Delete thread records
+                threads_deleted = await self.database_service.delete_many(
+                    "conversation_threads",
+                    {"parent_session_id": session_id}
+                )
+                if self.verbose and threads_deleted > 0:
+                    logger.info(f"Deleted {threads_deleted} associated threads and {datasets_deleted} datasets for session {session_id}")
+            except Exception as thread_error:
+                logger.warning(f"Error deleting threads for session {session_id}: {str(thread_error)}")
+
             self._active_sessions.pop(session_id, None)
             self._session_token_counts.pop(session_id, None)
 
             if self.verbose:
                 logger.info(
-                    "Cleared conversation history for session %s: %s messages deleted",
+                    "Cleared conversation history for session %s: %s messages deleted, %s threads deleted",
                     session_id,
-                    deleted_count
+                    deleted_count,
+                    threads_deleted
                 )
 
             return {
                 "success": True,
                 "session_id": session_id,
                 "deleted_count": deleted_count,
+                "deleted_threads": threads_deleted,
                 "api_key_validated": True,
                 "adapter_name": adapter_name,
                 "timestamp": datetime.now(UTC).isoformat()

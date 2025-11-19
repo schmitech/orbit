@@ -125,12 +125,14 @@ source venv/bin/activate
 # Check the logs
 cat ./logs/orbit.log
 ```
-
 Browse to `http://localhost:3000/dashboard` to monitor the ORBIT server:
-<div align="left">
-  <img src="/docs/images/orbit-dashboard.png" alt="ORBIT Dashboard" width="800"/>
+
+<div align="center">
+  <video src="https://github.com/user-attachments/assets/d12135d9-b827-49df-8725-1350df175aed" controls>
+    Your browser does not support the video tag.
+  </video>
   <br/>
-  <i>ORBIT Dashboard: Monitor, search, and configure your environment.</i>
+  <i>ORBIT Dashboard running during unit tests. Some errors shown are expected and are part of negative test coverage.</i>
 </div>
 
 ### Talk to ORBIT from the CLI

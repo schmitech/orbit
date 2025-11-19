@@ -21,6 +21,10 @@
 #   2. Associates appropriate prompt files with each key
 #   3. Renames each key to an easier-to-remember name
 #
+# Note: Adapters are now defined in config/adapters/*.yaml files (split by category).
+#       This script uses a hardcoded list of adapters. If you add new adapters to the
+#       YAML files, you'll need to add them to the all_adapters array below.
+#
 # Adapter to Key Name Mappings:
 #   simple-chat -> default-key
 #   simple-chat-with-files -> multimodal
@@ -364,8 +368,8 @@ for entry in "${adapters[@]}"; do
     echo -e "${GREEN}[$adapter_index/${#adapters[@]}] Processing Adapter: $adapter${NC}"
     echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     
-    # Check if adapter is enabled in adapters.yaml (optional check)
-    # For now, we'll try to create all keys and handle errors
+    # Note: Adapters are now defined in config/adapters/*.yaml files (split by category)
+    # The script will attempt to create keys for all listed adapters and handle errors
     
     # Check if key exists first (before calling create function which also checks)
     if check_key_exists "$key_name"; then

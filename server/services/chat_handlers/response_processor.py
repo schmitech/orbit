@@ -147,8 +147,9 @@ class ResponseProcessor:
         user_id: Optional[str],
         api_key: Optional[str],
         backend: str,
-        processing_time: float
-    ) -> str:
+        processing_time: float,
+        retrieved_docs: Optional[list] = None
+    ) -> tuple[str, Optional[str]]:
         """
         Complete post-processing of a chat response.
 
@@ -170,7 +171,7 @@ class ResponseProcessor:
             processing_time: Pipeline processing time
 
         Returns:
-            Processed response text
+            Tuple of (processed_response_text, assistant_message_id)
         """
         # Clean response text
         processed_response = self.format_response(response)
@@ -179,20 +180,38 @@ class ResponseProcessor:
         warning = await self.conversation_handler.check_limit_warning(session_id, adapter_name)
         processed_response = self.inject_warning(processed_response, warning)
 
-        # Store conversation turn
+        # Store conversation turn with retrieved_docs in metadata
+        # Always store for threading support, even if chat history is disabled for context retrieval
+        assistant_message_id = None
         if session_id:
-            await self.conversation_handler.store_turn(
+            # Build metadata with retrieved_docs for thread creation
+            metadata = {
+                "adapter_name": adapter_name,
+                "client_ip": client_ip,
+                "pipeline_processing_time": processing_time,
+                "original_query": message
+            }
+            
+            # Include retrieved_docs if available (for thread creation)
+            if retrieved_docs:
+                metadata["retrieved_docs"] = retrieved_docs
+                # Extract template_id and parameters from first doc if available
+                if retrieved_docs and len(retrieved_docs) > 0:
+                    first_doc_meta = retrieved_docs[0].get('metadata', {})
+                    if first_doc_meta:
+                        metadata["template_id"] = first_doc_meta.get('template_id')
+                        metadata["parameters_used"] = first_doc_meta.get('parameters_used', {})
+            
+            # Store turn - this will store metadata even if chat history context is disabled
+            # The store_turn method checks should_enable for context retrieval, but we need metadata for threading
+            _, assistant_message_id = await self.conversation_handler.store_turn(
                 session_id=session_id,
                 user_message=message,
                 assistant_response=processed_response,
                 adapter_name=adapter_name,
                 user_id=user_id,
                 api_key=api_key,
-                metadata={
-                    "adapter_name": adapter_name,
-                    "client_ip": client_ip,
-                    "pipeline_processing_time": processing_time
-                }
+                metadata=metadata
             )
 
         # Log conversation
@@ -206,7 +225,7 @@ class ResponseProcessor:
             user_id=user_id
         )
 
-        return processed_response
+        return processed_response, assistant_message_id
 
     def build_result(
         self,
@@ -215,7 +234,10 @@ class ResponseProcessor:
         metadata: Dict[str, Any],
         processing_time: float,
         audio_data: Optional[bytes] = None,
-        audio_format: Optional[str] = None
+        audio_format: Optional[str] = None,
+        assistant_message_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+        adapter_name: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Build the final result dictionary.
@@ -227,6 +249,9 @@ class ResponseProcessor:
             processing_time: Pipeline processing time
             audio_data: Optional audio data
             audio_format: Optional audio format
+            assistant_message_id: Optional assistant message ID for threading
+            session_id: Optional session ID for threading
+            adapter_name: Optional adapter name for threading support detection
 
         Returns:
             Complete result dictionary
@@ -243,9 +268,47 @@ class ResponseProcessor:
             }
         }
 
+        # Add threading metadata if adapter supports it
+        if assistant_message_id and session_id and adapter_name:
+            # Check if adapter supports threading (intent or QA adapters)
+            supports_threading = self._adapter_supports_threading(adapter_name)
+            if supports_threading:
+                result["threading"] = {
+                    "supports_threading": True,
+                    "message_id": assistant_message_id,
+                    "session_id": session_id
+                }
+
         # Add audio if generated
         if audio_data:
             result["audio"] = base64.b64encode(audio_data).decode('utf-8')
             result["audio_format"] = audio_format or "mp3"
 
         return result
+    
+    def _adapter_supports_threading(self, adapter_name: str) -> bool:
+        """
+        Check if an adapter supports threading.
+        
+        Args:
+            adapter_name: Name of the adapter
+            
+        Returns:
+            True if adapter supports threading (intent or QA adapters)
+        """
+        if not adapter_name:
+            return False
+        
+        # Intent adapters support threading
+        if adapter_name.startswith('intent-'):
+            return True
+        
+        # QA adapters support threading
+        if adapter_name.startswith('qa-') or 'qa' in adapter_name.lower():
+            return True
+        
+        # Conversational and multimodal adapters do not support threading
+        if 'conversational' in adapter_name.lower() or 'multimodal' in adapter_name.lower():
+            return False
+        
+        return False

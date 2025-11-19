@@ -9,4 +9,16 @@
   -webkit-background-clip: text;
   background-clip: text;
   mix-blend-mode: screen;
-} 
+}
+
+.message-bubble.assistant-bubble {
+  background-color: transparent;
+  border: none;
+}
+
+.dark .message-bubble.assistant-bubble {
+  background-color: #202123;
+  border: 1px solid #4a4b54;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+}

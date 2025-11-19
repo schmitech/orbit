@@ -2,7 +2,7 @@ inference:
   ollama:
     enabled: true
     base_url: "http://localhost:11434"
-    model: "ranite4:micro"
+    model: "granite4:micro"
     stream: true
     think: false  # Enable/disable think mode (shows reasoning in <think> tags)
     # Generation parameters - Optimized for large SQL result sets
@@ -55,7 +55,7 @@ inference:
   ollama_cloud:
     enabled: true
     api_key: ${OLLAMA_CLOUD_API_KEY}
-    model: "gpt-oss:120b-cloud" # Supported models: https://docs.ollama.com/cloud
+    model: "qwen3-coder:480b-cloud" # Supported models: https://docs.ollama.com/cloud
     stream: true
     think: false  # Enable/disable think mode (shows reasoning in <think> tags)
     # Generation parameters - Optimized for large SQL result sets
@@ -95,20 +95,37 @@ inference:
     stream: true
   llama_cpp:
     enabled: true
+    # Mode: "direct" (load model locally with Python bindings) or "api" (connect to llama.cpp server)
+    mode: "direct"
+
+    # Direct mode configuration
     model_path: "models/granite-4.0-micro-Q4_0.gguf"
     chat_format: "chatml"  # Chat format to use (chatml, llama-2, gemma, etc.)
     verbose: false
+
+    # API mode configuration
+    base_url: "http://localhost:8080"  # llama.cpp server URL (OpenAI-compatible API)
+    model: "model"  # Model name to request from the server (for API mode)
+    api_key: null  # Optional API key for secured servers
+
+    # Generation parameters
     temperature: 1.0
     top_p: 0.95
     top_k: 64
     max_tokens: 1024
     repeat_penalty: 1.2
+
+    # Context and threading
     n_ctx: 4096
     n_threads: 8
     stream: true
+
+    # GPU settings (direct mode only)
     n_gpu_layers: 0  # For GPU/Metal support
     main_gpu: 0
     tensor_split: null
+
+    # Stop tokens
     stop_tokens: [
       "<start_of_turn>",
       "<end_of_turn>"
@@ -116,7 +133,7 @@ inference:
   gemini:
     enabled: true
     api_key: ${GOOGLE_API_KEY}
-    model: "gemini-2.5-flash"
+    model: "gemini-3-pro-preview"
     temperature: 0.1
     top_p: 0.8
     top_k: 20

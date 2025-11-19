@@ -15,6 +15,11 @@ export interface StreamResponse {
   audioFormat?: string;  // Audio format (mp3, wav, etc.)
   audio_chunk?: string;  // Optional streaming audio chunk (base64-encoded)
   chunk_index?: number;  // Index of the audio chunk for ordering
+  threading?: {  // Optional threading metadata
+    supports_threading: boolean;
+    message_id: string;
+    session_id: string;
+  };
 }
 
 export interface ApiClient {
@@ -22,6 +27,7 @@ export interface ApiClient {
     message: string, 
     stream?: boolean, 
     fileIds?: string[],
+    threadId?: string,
     audioInput?: string,
     audioFormat?: string,
     language?: string,
@@ -30,6 +36,25 @@ export interface ApiClient {
     sourceLanguage?: string,
     targetLanguage?: string
   ): AsyncGenerator<StreamResponse>;
+  createThread?(messageId: string, sessionId: string): Promise<{
+    thread_id: string;
+    thread_session_id: string;
+    parent_message_id: string;
+    parent_session_id: string;
+    adapter_name: string;
+    created_at: string;
+    expires_at: string;
+  }>;
+  getThreadInfo?(threadId: string): Promise<{
+    thread_id: string;
+    thread_session_id: string;
+    parent_message_id: string;
+    parent_session_id: string;
+    adapter_name: string;
+    created_at: string;
+    expires_at: string;
+  }>;
+  deleteThread?(threadId: string): Promise<{ status: string; message: string; thread_id: string }>;
   clearConversationHistory?(sessionId?: string): Promise<{
     status: string;
     message: string;
@@ -116,6 +141,7 @@ export interface ApiFunctions {
     message: string, 
     stream?: boolean, 
     fileIds?: string[],
+    threadId?: string,
     audioInput?: string,
     audioFormat?: string,
     language?: string,
@@ -212,10 +238,94 @@ export async function loadApi(): Promise<ApiFunctions> {
       debugLog('📦 Loading npm package API');
       // @ts-ignore - Dynamic import that may not be available at compile time
       const npmApi = await import('@schmitech/chatbot-api');
+      
+      // Create a wrapper for streamChat to match our interface signature
+      // The npm package may have a different parameter order (without threadId)
+      const streamChatWrapper = async function* (
+        message: string,
+        stream?: boolean,
+        fileIds?: string[],
+        _threadId?: string, // Unused if npm package doesn't support it
+        audioInput?: string,
+        audioFormat?: string,
+        language?: string,
+        returnAudio?: boolean,
+        ttsVoice?: string,
+        sourceLanguage?: string,
+        targetLanguage?: string
+      ): AsyncGenerator<StreamResponse> {
+        // Call npm package's streamChat with parameters in its expected order
+        // If npm package doesn't support threadId, it will be ignored
+        yield* npmApi.streamChat(
+          message,
+          stream,
+          fileIds,
+          audioInput,
+          audioFormat,
+          language,
+          returnAudio,
+          ttsVoice,
+          sourceLanguage,
+          targetLanguage
+        );
+      };
+      
+      // Create a wrapper class for ApiClient to fix streamChat signature
+      class ApiClientWrapper implements ApiClient {
+        private client: any;
+        
+        constructor(config: { apiUrl: string; apiKey?: string | null; sessionId?: string | null }) {
+          this.client = new npmApi.ApiClient(config);
+        }
+        
+        async *streamChat(
+          message: string,
+          stream?: boolean,
+          fileIds?: string[],
+          _threadId?: string, // Unused if npm package doesn't support it
+          audioInput?: string,
+          audioFormat?: string,
+          language?: string,
+          returnAudio?: boolean,
+          ttsVoice?: string,
+          sourceLanguage?: string,
+          targetLanguage?: string
+        ): AsyncGenerator<StreamResponse> {
+          // Call npm package's streamChat with parameters in its expected order
+          // threadId is ignored if npm package doesn't support it
+          yield* this.client.streamChat(
+            message,
+            stream,
+            fileIds,
+            audioInput,
+            audioFormat,
+            language,
+            returnAudio,
+            ttsVoice,
+            sourceLanguage,
+            targetLanguage
+          );
+        }
+        
+        get createThread() { return this.client.createThread?.bind(this.client); }
+        get getThreadInfo() { return this.client.getThreadInfo?.bind(this.client); }
+        get deleteThread() { return this.client.deleteThread?.bind(this.client); }
+        get clearConversationHistory() { return this.client.clearConversationHistory?.bind(this.client); }
+        get deleteConversationWithFiles() { return this.client.deleteConversationWithFiles?.bind(this.client); }
+        get getSessionId() { return this.client.getSessionId?.bind(this.client); }
+        get uploadFile() { return this.client.uploadFile?.bind(this.client); }
+        get listFiles() { return this.client.listFiles?.bind(this.client); }
+        get getFileInfo() { return this.client.getFileInfo?.bind(this.client); }
+        get queryFile() { return this.client.queryFile?.bind(this.client); }
+        get deleteFile() { return this.client.deleteFile?.bind(this.client); }
+        get validateApiKey() { return this.client.validateApiKey?.bind(this.client); }
+        get getAdapterInfo() { return this.client.getAdapterInfo?.bind(this.client); }
+      }
+      
       apiCache = {
         configureApi: npmApi.configureApi,
-        streamChat: npmApi.streamChat,
-        ApiClient: npmApi.ApiClient
+        streamChat: streamChatWrapper,
+        ApiClient: ApiClientWrapper
       };
       const apiVersion = await getApiPackageVersion();
       debugLog(`✅ NPM package API loaded successfully (v${apiVersion})`);
@@ -229,10 +339,92 @@ export async function loadApi(): Promise<ApiFunctions> {
       try {
         // @ts-ignore - Dynamic import that may not be available at compile time
         const npmApi = await import('@schmitech/chatbot-api');
+        
+        // Create a wrapper for streamChat to match our interface signature
+        const streamChatWrapper = async function* (
+          message: string,
+          stream?: boolean,
+          fileIds?: string[],
+          _threadId?: string, // Unused if npm package doesn't support it
+          audioInput?: string,
+          audioFormat?: string,
+          language?: string,
+          returnAudio?: boolean,
+          ttsVoice?: string,
+          sourceLanguage?: string,
+          targetLanguage?: string
+        ): AsyncGenerator<StreamResponse> {
+          // Call npm package's streamChat with parameters in its expected order
+          yield* npmApi.streamChat(
+            message,
+            stream,
+            fileIds,
+            audioInput,
+            audioFormat,
+            language,
+            returnAudio,
+            ttsVoice,
+            sourceLanguage,
+            targetLanguage
+          );
+        };
+        
+        // Create a wrapper class for ApiClient to fix streamChat signature
+        class ApiClientWrapper implements ApiClient {
+          private client: any;
+          
+          constructor(config: { apiUrl: string; apiKey?: string | null; sessionId?: string | null }) {
+            this.client = new npmApi.ApiClient(config);
+          }
+          
+          async *streamChat(
+            message: string,
+            stream?: boolean,
+            fileIds?: string[],
+            _threadId?: string, // Unused if npm package doesn't support it
+            audioInput?: string,
+            audioFormat?: string,
+            language?: string,
+            returnAudio?: boolean,
+            ttsVoice?: string,
+            sourceLanguage?: string,
+            targetLanguage?: string
+          ): AsyncGenerator<StreamResponse> {
+            // Call npm package's streamChat with parameters in its expected order
+            // threadId is ignored if npm package doesn't support it
+            yield* this.client.streamChat(
+              message,
+              stream,
+              fileIds,
+              audioInput,
+              audioFormat,
+              language,
+              returnAudio,
+              ttsVoice,
+              sourceLanguage,
+              targetLanguage
+            );
+          }
+          
+          get createThread() { return this.client.createThread?.bind(this.client); }
+          get getThreadInfo() { return this.client.getThreadInfo?.bind(this.client); }
+          get deleteThread() { return this.client.deleteThread?.bind(this.client); }
+          get clearConversationHistory() { return this.client.clearConversationHistory?.bind(this.client); }
+          get deleteConversationWithFiles() { return this.client.deleteConversationWithFiles?.bind(this.client); }
+          get getSessionId() { return this.client.getSessionId?.bind(this.client); }
+          get uploadFile() { return this.client.uploadFile?.bind(this.client); }
+          get listFiles() { return this.client.listFiles?.bind(this.client); }
+          get getFileInfo() { return this.client.getFileInfo?.bind(this.client); }
+          get queryFile() { return this.client.queryFile?.bind(this.client); }
+          get deleteFile() { return this.client.deleteFile?.bind(this.client); }
+          get validateApiKey() { return this.client.validateApiKey?.bind(this.client); }
+          get getAdapterInfo() { return this.client.getAdapterInfo?.bind(this.client); }
+        }
+        
         apiCache = {
           configureApi: npmApi.configureApi,
-          streamChat: npmApi.streamChat,
-          ApiClient: npmApi.ApiClient
+          streamChat: streamChatWrapper,
+          ApiClient: ApiClientWrapper
         };
         const apiVersion = await getApiPackageVersion();
         debugLog(`✅ Fallback to NPM package successful (v${apiVersion})`);

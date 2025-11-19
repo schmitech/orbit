@@ -33,6 +33,9 @@ from pathlib import Path
 import time
 from datetime import datetime
 
+# Mark all tests in this module as integration tests requiring a running server
+pytestmark = pytest.mark.integration
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,

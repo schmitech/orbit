@@ -21,6 +21,7 @@ interface RuntimeConfig {
   // Feature Flags
   enableUploadButton: boolean;
   enableFeedbackButtons: boolean;
+  enableConversationThreads: boolean;
   showGitHubStats: boolean;
   
   // GitHub Configuration
@@ -57,6 +58,7 @@ const envKeyMap: Record<keyof RuntimeConfig, string> = {
   consoleDebug: 'VITE_CONSOLE_DEBUG',
   enableUploadButton: 'VITE_ENABLE_UPLOAD_BUTTON',
   enableFeedbackButtons: 'VITE_ENABLE_FEEDBACK_BUTTONS',
+  enableConversationThreads: 'VITE_ENABLE_CONVERSATION_THREADS',
   showGitHubStats: 'VITE_SHOW_GITHUB_STATS',
   githubOwner: 'VITE_GITHUB_OWNER',
   githubRepo: 'VITE_GITHUB_REPO',
@@ -180,6 +182,7 @@ export const runtimeConfig: RuntimeConfig = {
   // Feature Flags
   enableUploadButton: getConfigValue('enableUploadButton', false, 'boolean'),
   enableFeedbackButtons: getConfigValue('enableFeedbackButtons', false, 'boolean'),
+  enableConversationThreads: getConfigValue('enableConversationThreads', true, 'boolean'),
   showGitHubStats: getConfigValue('showGitHubStats', true, 'boolean'),
   
   // GitHub Configuration
@@ -259,6 +262,10 @@ export function getEnableUploadButton(): boolean {
 
 export function getEnableFeedbackButtons(): boolean {
   return runtimeConfig.enableFeedbackButtons;
+}
+
+export function getEnableConversationThreads(): boolean {
+  return runtimeConfig.enableConversationThreads;
 }
 
 export function getShowGitHubStats(): boolean {

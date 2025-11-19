@@ -124,8 +124,8 @@ adapters:
       return_results: 100
 
       # Template loading settings
-      reload_templates_on_start: true  # Whether to reload templates on startup
-      force_reload_templates: true  # Force reload even if templates exist in storage
+      reload_templates_on_start: false  # Whether to reload templates on startup
+      force_reload_templates: false  # Force reload even if templates exist in storage
 
       # DuckDB-specific configuration
       # Database path is configured in datasources.yaml (defaults to examples/duckdb/analytics.duckdb)
