@@ -160,7 +160,8 @@ CREATE TABLE IF NOT EXISTS chat_history (
     user_id TEXT,
     api_key TEXT,
     metadata_json TEXT,
-    message_hash TEXT
+    message_hash TEXT,
+    token_count INTEGER
 )
 ```
 
@@ -174,6 +175,7 @@ CREATE TABLE IF NOT EXISTS chat_history (
 - `api_key` (TEXT): Optional API key used
 - `metadata_json` (TEXT): JSON-encoded metadata
 - `message_hash` (TEXT): Hash for deduplication
+- `token_count` (INTEGER): Token count for the message (used for conversation history management)
 
 **Indexes:**
 - `idx_chat_history_session` on `(session_id, timestamp)`
@@ -198,7 +200,8 @@ CREATE TABLE IF NOT EXISTS chat_history_archive (
     user_id TEXT,
     api_key TEXT,
     metadata_json TEXT,
-    message_hash TEXT
+    message_hash TEXT,
+    token_count INTEGER
 )
 ```
 
