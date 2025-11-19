@@ -82,6 +82,7 @@ dependencies = [
     "docling>=2.58.0",
     "sentence-transformers>=5.1.2",
     "pyarrow>=22.0.0",
+    "openai-whisper>=20250625",
     "snac>=1.2.1"  # SNAC codec for Orpheus TTS audio token decoding
 ]
 
@@ -93,8 +94,7 @@ dependencies = [
     "transformers>=4.52.4",
     "accelerate>=0.27.2",
     "sentencepiece>=0.2.0",
-    "protobuf>=5.27.2,<6.0.0",
-    "openai-whisper>=20250625"  # Local Whisper for offline STT (requires torch)
+    "protobuf>=5.27.2,<6.0.0"
 ]
 
 [profiles.bitnet]
