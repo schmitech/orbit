@@ -58,7 +58,7 @@ adapters:
     implementation: "implementations.passthrough.conversational.ConversationalImplementation"
     # Provider overrides (optional - use when you want different providers than global defaults)
     inference_provider: "ollama_cloud"  # Override default inference provider
-    model: "kimi-k2-thinking"     # Specific model for this adapter
+    model: "glm-4.6"     # Specific model for this adapter
 
     # Capabilities: Pure passthrough - no retrieval
     capabilities:
@@ -76,9 +76,9 @@ adapters:
     implementation: "implementations.passthrough.multimodal.MultimodalImplementation"
     # Provider overrides (optional - use when you want different providers than global defaults)
     inference_provider: "ollama_cloud"    # Override default inference provider
-    model: "gpt-oss:120b"            # Specific model for this adapter
+    model: "glm-4.6"            # Specific model for this adapter
     embedding_provider: "openai"          # Embedding provider for file chunk retrieval (matches uploaded files)
-    vision_provider: "gemini"             # Vision provider for image files: openai, gemini, anthropic (see vision.yaml)
+    vision_provider: "openai"             # Vision provider for image files: openai, gemini, anthropic (see vision.yaml)
 
     # Capabilities: Multimodal - conditional file retrieval
     capabilities:
@@ -231,6 +231,8 @@ adapters:
     datasource: "none"
     adapter: "file"
     implementation: "retrievers.implementations.file.file_retriever.FileVectorRetriever"
+    inference_provider: "ollama_cloud"
+    model: "gpt-oss:120b"
     
     # Provider overrides
     audio_provider: "openai"    # Use OpenAI Whisper for transcription
@@ -293,7 +295,7 @@ adapters:
     # Provider overrides
     inference_provider: "ollama_cloud"
     model: "gpt-oss:120b"
-    audio_provider: "google"  # Google supports many languages
+    audio_provider: "openai"  # Google supports many languages
     
     # Capabilities: Multilingual voice assistant
     capabilities:
@@ -333,7 +335,7 @@ adapters:
 
   # Premium voice chat with ElevenLabs (high-quality TTS)
   - name: "premium-voice-chat"
-    enabled: false
+    enabled: true
     type: "passthrough"
     datasource: "none"
     adapter: "conversational"
@@ -373,8 +375,92 @@ adapters:
       return_text: true
       return_audio: true
 
-  # Local offline voice chat with Whisper STT (no API costs!)
+  # Local audio file transcription with Whisper (no API costs!)
+  # Upload audio files → Get transcriptions and chat about the content
+  # Uses local Whisper for transcription - completely free and offline!
   - name: "local-voice-chat"
+    enabled: true
+    type: "passthrough"
+    datasource: "none"
+    adapter: "multimodal"
+    implementation: "implementations.passthrough.multimodal.MultimodalImplementation"
+
+    # Provider overrides
+    inference_provider: "ollama_cloud"
+    model: "gpt-oss:120b"
+    embedding_provider: "openai"
+    audio_provider: "whisper"  # Local Whisper for audio transcription (free, offline)
+
+    # Capabilities: Audio file transcription with chat
+    capabilities:
+      retrieval_behavior: "conditional"  # Only retrieves when audio files are uploaded
+      formatting_style: "clean"          # Clean format (no citations)
+      supports_file_ids: true            # Accepts audio file uploads
+      supports_session_tracking: true
+      requires_api_key_validation: true  # Validates file ownership
+      skip_when_no_files: true           # Skip retrieval when no files
+      optional_parameters:
+        - "file_ids"
+        - "api_key"
+        - "session_id"
+
+    config:
+      # Storage configuration
+      storage_backend: "filesystem"
+      storage_root: "./uploads"
+      max_file_size: 104857600  # 100MB for audio files
+
+      # Audio transcription settings
+      enable_audio_transcription: true
+      audio_transcription_language: null  # Auto-detect language
+
+      # Whisper-specific settings (nested under 'sounds' for WhisperAudioService)
+      sounds:
+        whisper:
+          enabled: true
+          model_size: "base"       # Whisper model: tiny, base, small, medium, large-v3
+          device: "cpu"            # Device: auto, cpu, cuda
+          language: null           # Auto-detect language (99 languages supported)
+          task: "transcribe"       # Task: transcribe or translate
+
+      # Processing configuration
+      chunking_strategy: "recursive"
+      chunk_size: 1000
+      chunk_overlap: 200
+
+      # Vector store integration
+      vector_store: "chroma"
+      collection_prefix: "audio_files_"
+
+      # Supported audio file types (transcribed with Whisper)
+      supported_types:
+        - "audio/wav"
+        - "audio/mpeg"
+        - "audio/mp3"
+        - "audio/mp4"
+        - "audio/ogg"
+        - "audio/flac"
+        - "audio/webm"
+        - "audio/x-m4a"
+        - "audio/aac"
+
+      # Q&A settings
+      confidence_threshold: 0.3
+      max_results: 5
+      return_results: 3
+
+      # Audio output: DISABLED (Whisper doesn't support TTS)
+      return_audio: false
+
+      # Performance notes:
+      # - tiny: ~32x faster, good for quick testing
+      # - base: ~16x faster, good balance (RECOMMENDED)
+      # - small: ~6x faster, better accuracy
+      # - medium: ~2x faster, high quality
+      # - large-v3: Best accuracy, slower
+
+  # Hybrid local voice chat - Whisper STT + vLLM TTS (fully local, no API costs!)
+  - name: "vllm-voice-chat-hybrid"
     enabled: false
     type: "passthrough"
     datasource: "none"
@@ -384,10 +470,11 @@ adapters:
     # Provider overrides
     inference_provider: "ollama_cloud"
     model: "gpt-oss:120b"
-    audio_provider: "whisper"  # Local Whisper for STT (free, offline)
-    # Note: Whisper is STT-only, for TTS use OpenAI or Google
+    audio_provider: "vllm"  # vLLM for TTS (Orpheus model) - local, free
+    # NOTE: For STT, client should send text or use separate Whisper processing
+    # This adapter focuses on TTS output using local vLLM server
 
-    # Capabilities: Local voice input
+    # Capabilities: Voice output with local TTS
     capabilities:
       retrieval_behavior: "none"
       formatting_style: "standard"
@@ -395,34 +482,27 @@ adapters:
       supports_session_tracking: true
       requires_api_key_validation: false
       optional_parameters:
-        - "audio_input"      # Base64-encoded audio data
-        - "audio_format"     # Input audio format (mp3, wav, etc.)
-        - "language"         # Language code for STT (auto-detect if not specified)
         - "session_id"
+        - "return_audio"
+        - "tts_voice"
 
     config:
-      # Whisper STT settings (local, no API key needed)
-      stt_model_size: "base"  # Options: tiny, base, small, medium, large-v3
-      stt_device: "auto"      # Options: auto, cpu, cuda
-      stt_language: null      # Auto-detect language
+      # vLLM TTS settings (local, no API key needed)
+      tts_model: "canopylabs/orpheus-3b-0.1-ft"
+      tts_voice: "tara"  # Options: tara, leah, jess, leo, dan, mia, zac, zoe
+      tts_format: "mp3"
 
-      # Audio input
-      audio_input_enabled: true
-      audio_output_enabled: false  # Whisper doesn't support TTS
+      # Audio output
+      audio_input_enabled: false  # Use Whisper separately for STT
+      audio_output_enabled: true
       return_text: true
-
-      # Performance notes:
-      # - tiny: ~32x faster, good for quick testing
-      # - base: ~16x faster, good balance (RECOMMENDED)
-      # - small: ~6x faster, better accuracy
-      # - medium: ~2x faster, high quality
-      # - large-v3: Best accuracy, slower
+      return_audio: true
   
   # This is an example of a QA adapter for a SQL database.
   # It is used as an example of how to create a QA adapter for a SQL database.
   # Run /examples/sample-db-setup.sh sqlite to create a sample database and api key before using this adapter.
   - name: "qa-sql"
-    enabled: false
+    enabled: true
     type: "retriever"
     datasource: "sqlite"
     adapter: "qa"
@@ -489,7 +569,7 @@ adapters:
   # This is an example of a QA adapter for a ChromaDB database. (Disabled by default)
   # It is used as an example of how to create a QA adapter for a ChromaDB database.
   - name: "qa-vector-chroma"
-    enabled: false
+    enabled: true
     type: "retriever"
     datasource: "chroma"
     adapter: "qa"
@@ -577,7 +657,7 @@ adapters:
       query_timeout: 5000  # 5 seconds
 
   - name: "intent-sql-sqlite-classified"
-    enabled: false
+    enabled: true
     type: "retriever"
     datasource: "sqlite"
     adapter: "intent"
@@ -629,8 +709,8 @@ adapters:
     implementation: "retrievers.implementations.intent.IntentDuckDBRetriever"
     database: "utils/duckdb-intent-template/examples/analytics/analytics.duckdb"
     inference_provider: "ollama_cloud"
-    model: "kimi-k2-thinking"
-    embedding_provider: "cohere"
+    model: "glm-4.6"
+    embedding_provider: "openai"
     config:
       # Path to the domain definition file
       domain_config_path: "utils/duckdb-intent-template/examples/analytics/analytics_domain.yaml"
@@ -823,12 +903,12 @@ adapters:
   # Supports both cloud API (api.firecrawl.dev) and self-hosted Firecrawl deployments
   # Features intelligent content chunking for large documents (e.g., Wikipedia articles)
   - name: "intent-firecrawl-webscrape"
-    enabled: false
+    enabled: true
     type: "retriever"
     datasource: "http"  # Reuse HTTP placeholder
     adapter: "intent"
     implementation: "retrievers.implementations.intent.IntentFirecrawlRetriever"
-    inference_provider: "ollama"
+    inference_provider: "ollama_cloud"
     model: "gpt-oss:20b"
     embedding_provider: "openai"  # Used for chunk ranking
     config:
@@ -911,7 +991,7 @@ adapters:
 
   # MongoDB Intent Retriever for Sample MFlix Database
   - name: "intent-mongodb-mflix"
-    enabled: false
+    enabled: true
     type: "retriever"
     datasource: "mongodb"
     adapter: "intent"

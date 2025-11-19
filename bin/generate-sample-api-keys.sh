@@ -306,7 +306,7 @@ declare -a all_adapters=(
     "audio-transcription|transcription|examples/prompts/audio/audio-transcription-prompt.txt|Audio Transcription Prompt"
     "multilingual-voice-assistant|multilingual-voice-chat|examples/prompts/audio/multilingual-voice-assistant-prompt.txt|Multilingual Voice Prompt"
     "premium-voice-chat|premium-voice-chat|examples/prompts/audio/premium-voice-chat-prompt.txt|Premium Voice Prompt"
-    "local-voice-chat|whisper|examples/prompts/audio/local-voice-chat-prompt.txt|Local Voice Prompt"
+    "local-voice-chat|whisper|examples/prompts/audio/local-audio-transcription-prompt.txt|Local Voice Prompt"
     "qa-sql|sql-key|examples/prompts/examples/city/city-assistant-normal-prompt.txt|SQL QA Prompt"
     "qa-vector-chroma|chroma-key|examples/prompts/examples/city/city-assistant-normal-prompt.txt|Chroma QA Prompt"
     # "qa-vector-qdrant-demo|demo-key|examples/prompts/examples/city/city-assistant-normal-prompt.txt|Qdrant Demo Prompt"  # Excluded: requires special Qdrant deployment
