@@ -311,10 +311,13 @@ def _merge_configs(main_config: Dict[str, Any], imported_config: Dict[str, Any])
         if key in result and isinstance(result[key], dict) and isinstance(value, dict):
             # Recursively merge nested dictionaries
             result[key] = _merge_configs(result[key], value)
+        elif key in result and isinstance(result[key], list) and isinstance(value, list):
+            # Concatenate lists (useful for merging adapters from multiple files)
+            result[key] = result[key] + value
         elif key not in result:
             # Add new keys from imported config
             result[key] = value
-        # If key exists in both, main config takes precedence (already handled by copy())
+        # If key exists in both and types don't match, main config takes precedence (already handled by copy())
     
     return result
 

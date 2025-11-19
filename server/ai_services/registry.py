@@ -287,6 +287,7 @@ def register_audio_services(config: Dict[str, Any] = None) -> None:
         ("elevenlabs", "ElevenLabsAudioService", "ElevenLabs"),
         ("whisper", "WhisperAudioService", "Whisper (Local)"),
         ("vllm", "VLLMAudioService", "vLLM"),
+        ("coqui", "CoquiAudioService", "Coqui TTS (Local)"),
     ]
 
     # Get sounds config if available (plural form, like 'visions')

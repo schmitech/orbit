@@ -1,0 +1,23 @@
+# Passthrough/Conversational Adapters
+# These adapters provide conversational capabilities without retrieval
+# Includes voice chat, multilingual assistants, and local TTS options
+
+adapters:
+  - name: "simple-chat"
+    enabled: true
+    type: "passthrough"
+    datasource: "none"
+    adapter: "conversational"
+    implementation: "implementations.passthrough.conversational.ConversationalImplementation"
+    # Provider overrides (optional - use when you want different providers than global defaults)
+    inference_provider: "ollama_cloud"  # Override default inference provider
+    model: "glm-4.6"     # Specific model for this adapter
+
+    # Capabilities: Pure passthrough - no retrieval
+    capabilities:
+      retrieval_behavior: "none"         # No context retrieval (pure conversational)
+      formatting_style: "standard"       # Standard formatting (not used since no retrieval)
+      supports_file_ids: false           # Does not support file filtering
+      supports_session_tracking: false   # Does not need session tracking
+      requires_api_key_validation: false # No API key validation needed
+

@@ -1,0 +1,126 @@
+# File Adapter
+# Supports uploading and querying files (PDF, DOCX, CSV, TXT, HTML, JSON, images, audio)
+# Uses dual-path strategy: vector stores for documents, DuckDB for structured data
+
+adapters:
+  # File Adapter - Document Q&A
+  # Supports uploading and querying files (PDF, DOCX, CSV, TXT, HTML, JSON)
+  # Uses dual-path strategy: vector stores for documents, DuckDB for structured data
+  - name: "file-document-qa"
+    enabled: true
+    type: "retriever"
+    datasource: "none"  # File adapter manages its own storage, no external datasource needed
+    adapter: "file"
+    implementation: "retrievers.implementations.file.file_retriever.FileVectorRetriever"
+
+    # Provider overrides
+    inference_provider: "ollama_cloud"
+    model: "minimax-m2:cloud"
+    embedding_provider: "openai"
+    vision_provider: "gemini"  # Vision provider for image files: openai, gemini, anthropic (see vision.yaml)
+    audio_provider: "openai"   # Audio provider for audio file transcription: openai, google, ollama (see sound.yaml)
+
+    # Capabilities: File retriever with clean formatting
+    capabilities:
+      retrieval_behavior: "always"       # Always retrieves from uploaded files
+      formatting_style: "clean"          # Clean format (no citations) to prevent LLM citation markers
+      supports_file_ids: true            # Accepts file_ids parameter to filter by specific files
+      supports_session_tracking: false   # Does not need session tracking
+      requires_api_key_validation: true  # Validates file ownership via API key
+      optional_parameters:
+        - "file_ids"
+        - "api_key"
+
+    config:
+      # Storage configuration
+      storage_backend: "filesystem"  # Future: "s3", "minio"
+      storage_root: "./uploads"
+      max_file_size: 104857600  # 100MB (increased for audio files)
+      
+      # Processing configuration
+      # Chunking strategy options: "fixed", "semantic", "token", "recursive"
+      # These settings override global defaults in config.yaml
+      chunking_strategy: "semantic"  # Options: "fixed", "semantic", "token", "recursive"
+      chunk_size: 1000  # Characters for fixed/semantic, tokens for token/recursive
+      chunk_overlap: 200  # Characters for fixed/semantic, tokens for token/recursive
+      
+      # Optional: Tokenizer configuration (inherits from global config if not specified)
+      # tokenizer: "gpt2"  # Options: "character" (default), "gpt2", "tiktoken", etc.
+      # use_tokens: false  # For fixed strategy: use token-based instead of character-based
+      
+      # Optional: Strategy-specific chunking options (inherits from global config if not specified)
+      # chunking_options:
+      #   model_name: "all-MiniLM-L6-v2"  # For semantic chunking
+      #   use_advanced: false  # Enable advanced semantic chunking
+      #   min_characters_per_chunk: 24  # For recursive chunking
+      
+      # Vector store integration
+      vector_store: "chroma"  # References stores.yaml
+      collection_prefix: "files_"
+      
+      # Supported file types
+      supported_types:
+        - "application/pdf"
+        - "text/plain"
+        - "text/markdown"
+        - "text/csv"
+        - "application/json"
+        - "text/html"
+        - "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        - "application/vnd.openxmlformats-officedocument.presentationml.presentation"  # PPTX (via Docling)
+        - "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"  # XLSX (via Docling)
+        # Code file types
+        - "text/x-python"
+        - "text/x-python-script"  # Alternative MIME type for Python files
+        - "text/x-java-source"
+        - "text/x-java"
+        - "text/x-sql"
+        - "text/javascript"
+        - "application/javascript"
+        - "text/typescript"
+        - "application/typescript"
+        - "text/x-c++src"
+        - "text/x-csrc"
+        - "text/x-c"
+        - "text/x-go"
+        - "text/x-rust"
+        - "text/x-ruby"
+        - "text/x-php"
+        - "text/x-shellscript"
+        - "text/x-sh"
+        - "text/yaml"
+        - "text/x-yaml"
+        - "text/xml"
+        - "application/xml"
+        - "text/css"
+        - "text/x-scss"
+        - "text/x-sass"
+        - "text/x-less"
+        - "image/png"
+        - "image/jpeg"
+        - "image/tiff"
+        # Audio file types (transcribed to text using audio_provider)
+        - "audio/wav"
+        - "audio/mpeg"
+        - "audio/mp3"
+        - "audio/mp4"
+        - "audio/ogg"
+        - "audio/flac"
+        - "audio/webm"
+        - "audio/x-m4a"
+        - "audio/aac"
+        - "text/vtt"
+      
+      # Audio processing settings
+      enable_audio_transcription: true  # Enable audio file transcription
+      audio_transcription_language: null  # Auto-detect language, or specify "en-US", "fr-FR", etc.
+      
+      # Q&A settings
+      confidence_threshold: 0.3
+      max_results: 5
+      return_results: 3
+      
+      # DuckDB integration for structured data (CSV, Parquet)
+      enable_duckdb_path: false
+      duckdb_store: "duckdb"
+

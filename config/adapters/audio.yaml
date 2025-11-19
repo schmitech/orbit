@@ -1,0 +1,384 @@
+# Audio Transcription Adapters
+# Specialized adapters for transcribing audio files
+
+adapters:
+  # Audio transcription adapter - specialized for transcribing audio files
+  - name: "audio-transcription"
+    enabled: true
+    type: "retriever"
+    datasource: "none"
+    adapter: "file"
+    implementation: "retrievers.implementations.file.file_retriever.FileVectorRetriever"
+    inference_provider: "ollama_cloud"
+    model: "gpt-oss:120b"
+    
+    # Provider overrides
+    audio_provider: "openai"    # Use OpenAI Whisper for transcription
+    embedding_provider: "openai"
+    
+    # Capabilities: Audio file transcription
+    capabilities:
+      retrieval_behavior: "conditional"
+      formatting_style: "clean"
+      supports_file_ids: true
+      supports_session_tracking: false
+      requires_api_key_validation: true
+      skip_when_no_files: true
+      optional_parameters:
+        - "file_ids"
+        - "api_key"
+        - "transcription_language"  # Optional: specify language
+    
+    config:
+      # Storage configuration
+      storage_backend: "filesystem"
+      storage_root: "./uploads"
+      max_file_size: 104857600  # 100MB for audio files
+      
+      # Audio-specific settings
+      enable_audio_transcription: true
+      transcription_language: null  # Auto-detect, or "en-US", "fr-FR", etc.
+      transcription_format: "text"   # Return format: "text", "json", "srt", "vtt"
+      
+      # Supported audio formats
+      supported_types:
+        - "audio/wav"
+        - "audio/mpeg"
+        - "audio/mp3"
+        - "audio/mp4"
+        - "audio/ogg"
+        - "audio/flac"
+        - "audio/webm"
+      
+      # Vector store for transcribed text
+      vector_store: "chroma"
+      collection_prefix: "audio_transcriptions_"
+      
+      chunking_strategy: "recursive"
+      chunk_size: 2000  # Larger chunks for transcriptions
+      chunk_overlap: 200
+      
+      confidence_threshold: 0.3
+      max_results: 10
+      return_results: 5
+
+# Voice chat adapter - accepts audio input and returns audio responses
+  - name: "voice-chat"
+    enabled: true
+    type: "passthrough"
+    datasource: "none"
+    adapter: "conversational"
+    implementation: "implementations.passthrough.conversational.ConversationalImplementation"
+    
+    # Provider overrides
+    inference_provider: "ollama_cloud"
+    model: "gpt-oss:120b"
+    audio_provider: "openai"  # For both STT and TTS
+    
+    # Capabilities: Voice-enabled chat
+    capabilities:
+      retrieval_behavior: "none"
+      formatting_style: "standard"
+      supports_file_ids: false
+      supports_session_tracking: true
+      requires_api_key_validation: false
+      optional_parameters:
+        - "audio_input"      # Base64-encoded audio data
+        - "audio_format"    # Input audio format (mp3, wav, etc.)
+        - "language"        # Language code for STT
+        - "session_id"
+        - "return_audio"     # Whether to return audio response
+        - "tts_voice"        # Voice for TTS (alloy, echo, fable, etc.)
+    
+    config:
+      # Audio processing settings
+      audio_input_enabled: true
+      audio_output_enabled: true
+      stt_language: "en-US"     # Default language for speech-to-text
+      tts_voice: "alloy"        # Default voice for text-to-speech
+      tts_format: "mp3"         # Default output format
+      return_text: true         # Also return text alongside audio
+      return_audio: true        # Return audio response
+
+  # Multilingual voice assistant - supports translation and voice I/O
+  - name: "multilingual-voice-assistant"
+    enabled: true
+    type: "passthrough"
+    datasource: "none"
+    adapter: "conversational"
+    implementation: "implementations.passthrough.conversational.ConversationalImplementation"
+    
+    # Provider overrides
+    inference_provider: "ollama_cloud"
+    model: "gpt-oss:120b"
+    audio_provider: "openai"  # Google supports many languages
+    
+    # Capabilities: Multilingual voice assistant
+    capabilities:
+      retrieval_behavior: "none"
+      formatting_style: "standard"
+      supports_file_ids: false
+      supports_session_tracking: true
+      requires_api_key_validation: false
+      optional_parameters:
+        - "audio_input"
+        - "source_language"    # Language of input audio
+        - "target_language"    # Language for output audio
+        - "session_id"
+    
+    config:
+      # Language settings
+      default_source_language: "auto"  # Auto-detect input language
+      default_target_language: "en-US" # Default output language
+      
+      # Google TTS settings (multilingual)
+      tts_model: "neural2"
+      tts_voice: "en-US-Neural2-A"
+      tts_language_code: "en-US"
+      tts_audio_encoding: "MP3"
+      
+      # Google STT settings
+      stt_model: "latest_long"
+      stt_language_code: "en-US"
+      stt_sample_rate: 16000
+      stt_encoding: "LINEAR16"
+      
+      # Audio I/O
+      audio_input_enabled: true
+      audio_output_enabled: true
+      return_text: true
+      return_audio: true
+
+  # Premium voice chat with ElevenLabs (high-quality TTS)
+  - name: "premium-voice-chat"
+    enabled: true
+    type: "passthrough"
+    datasource: "none"
+    adapter: "conversational"
+    implementation: "implementations.passthrough.conversational.ConversationalImplementation"
+
+    # Provider overrides
+    inference_provider: "ollama_cloud"
+    model: "gpt-oss:120b"
+    audio_provider: "elevenlabs"  # High-quality TTS
+    # Note: ElevenLabs is TTS-only, STT would need separate provider
+    # For now, this adapter expects text input (can be extended)
+
+    # Capabilities: Premium voice output
+    capabilities:
+      retrieval_behavior: "none"
+      formatting_style: "standard"
+      supports_file_ids: false
+      supports_session_tracking: true
+      requires_api_key_validation: false
+      optional_parameters:
+        - "voice_id"           # ElevenLabs voice ID
+        - "session_id"
+        - "return_audio"       # Return audio response
+
+    config:
+      # ElevenLabs TTS settings
+      tts_model: "eleven_multilingual_v2"
+      tts_voice: "EXAVITQu4vr4xnSDxMaL"  # Default voice (Sarah)
+      tts_format: "mp3_44100_128"
+      tts_stability: 0.5
+      tts_similarity_boost: 0.75
+      tts_style: 0.0
+      tts_use_speaker_boost: true
+
+      # Audio output
+      audio_output_enabled: true
+      return_text: true
+      return_audio: true
+
+  # Hybrid local voice chat - Whisper STT + vLLM TTS (fully local, no API costs!)
+  - name: "vllm-voice-chat-hybrid"
+    enabled: false
+    type: "passthrough"
+    datasource: "none"
+    adapter: "conversational"
+    implementation: "implementations.passthrough.conversational.ConversationalImplementation"
+
+    # Provider overrides
+    inference_provider: "ollama_cloud"
+    model: "gpt-oss:120b"
+    audio_provider: "vllm"  # vLLM for TTS (Orpheus model) - local, free
+    # NOTE: For STT, client should send text or use separate Whisper processing
+    # This adapter focuses on TTS output using local vLLM server
+
+    # Capabilities: Voice output with local TTS
+    capabilities:
+      retrieval_behavior: "none"
+      formatting_style: "standard"
+      supports_file_ids: false
+      supports_session_tracking: true
+      requires_api_key_validation: false
+      optional_parameters:
+        - "session_id"
+        - "return_audio"
+        - "tts_voice"
+
+    config:
+      # vLLM TTS settings (local, no API key needed)
+      tts_model: "canopylabs/orpheus-3b-0.1-ft"
+      tts_voice: "tara"  # Options: tara, leah, jess, leo, dan, mia, zac, zoe
+      tts_format: "mp3"
+
+      # Audio output
+      audio_input_enabled: false  # Use Whisper separately for STT
+      audio_output_enabled: true
+      return_text: true
+      return_audio: true
+
+  # Coqui TTS voice chat - Local, open-source text-to-speech (no API costs!)
+  # Text input → High-quality audio output using Coqui TTS models
+  # Runs completely locally - perfect for privacy-focused applications
+  - name: "coqui-voice-chat"
+    enabled: true
+    type: "passthrough"
+    datasource: "none"
+    adapter: "conversational"
+    implementation: "implementations.passthrough.conversational.ConversationalImplementation"
+
+    # Provider overrides
+    inference_provider: "ollama_cloud"
+    model: "gpt-oss:120b"
+    audio_provider: "coqui"  # Local Coqui TTS (free, offline)
+
+    # Capabilities: Voice output with local TTS
+    capabilities:
+      retrieval_behavior: "none"
+      formatting_style: "standard"
+      supports_file_ids: false
+      supports_session_tracking: true
+      requires_api_key_validation: false
+      optional_parameters:
+        - "session_id"
+        - "return_audio"
+        - "tts_voice"      # Speaker name for multi-speaker models
+        - "tts_language"   # Language for multilingual models
+
+    config:
+      # Coqui TTS settings (local, no API key needed)
+      tts_model: "tts_models/en/ljspeech/tacotron2-DDC"  # Default English model
+      vocoder_model: "vocoder_models/en/ljspeech/hifigan_v2"  # High-quality vocoder
+      tts_format: "wav"
+      tts_speed: 1.0  # Speech speed multiplier
+
+      # Popular model alternatives (uncomment to use):
+      # Multi-speaker English: "tts_models/en/vctk/vits"
+      # Multilingual with voice cloning: "tts_models/multilingual/multi-dataset/xtts_v2"
+      # Fast synthesis: "tts_models/en/ljspeech/glow-tts"
+
+      # Audio output
+      audio_input_enabled: false  # Text input only
+      audio_output_enabled: true
+      return_text: true
+      return_audio: true
+
+  # Fully local voice chat - Whisper STT + Coqui TTS (100% free, no API costs!)
+  # Complete voice-to-voice conversation using only open-source models
+  # Perfect for: privacy, offline use, cost optimization, self-hosted deployments
+  - name: "local-voice-chat-coqui-whisper"
+    enabled: true
+    type: "passthrough"
+    datasource: "none"
+    adapter: "conversational"
+    implementation: "implementations.passthrough.conversational.ConversationalImplementation"
+
+    # Provider overrides - ALL LOCAL
+    inference_provider: "ollama_cloud"
+    model: "gpt-oss:120b"
+    audio_provider: "coqui"  # Coqui TTS for speech synthesis (could be switched to whisper for STT if needed)
+    # Note: For STT, you would need to handle Whisper separately or use a multimodal approach
+    # This adapter focuses on TTS with Coqui. For full STT+TTS, consider using the multimodal adapter
+
+    # Capabilities: Fully local voice assistant
+    capabilities:
+      retrieval_behavior: "none"
+      formatting_style: "standard"
+      supports_file_ids: false
+      supports_session_tracking: true
+      requires_api_key_validation: false
+      optional_parameters:
+        - "session_id"
+        - "return_audio"
+        - "tts_voice"
+        - "tts_language"
+
+    config:
+      # Coqui TTS configuration
+      tts_model: "tts_models/en/vctk/vits"  # Multi-speaker model for variety
+      tts_speaker: null  # Can specify speaker for multi-speaker models
+      tts_language: "en"
+      tts_format: "wav"
+      tts_speed: 1.0
+
+      # Device selection (auto uses GPU if available)
+      device: "auto"  # Options: auto, cpu, cuda
+
+      # Audio I/O
+      audio_input_enabled: false  # Set to true if implementing Whisper STT
+      audio_output_enabled: true
+      return_text: true
+      return_audio: true
+
+      # Performance notes:
+      # - Tacotron2 + HiFiGAN: High quality, moderate speed
+      # - VITS: Fast synthesis, built-in vocoder, multi-speaker support
+      # - XTTS v2: Best for voice cloning and multilingual (99 languages)
+      # - GlowTTS: Fastest synthesis, good for real-time applications
+      #
+      # GPU acceleration:
+      # - CUDA-enabled GPU provides 5-10x faster synthesis
+      # - CPU mode works on any machine but slower
+      #
+      # Zero cost operation:
+      # - No API calls or subscriptions
+      # - Models downloaded once, cached locally
+      # - Perfect for high-volume applications
+
+  # Hybrid local-cloud voice chat - Whisper STT (local) + Coqui TTS (local) + Cloud LLM
+  # Best of both worlds: free audio processing + powerful cloud inference
+  - name: "hybrid-voice-chat-local-audio"
+    enabled: false  # Enable when you want local audio processing with cloud LLM
+    type: "passthrough"
+    datasource: "none"
+    adapter: "conversational"
+    implementation: "implementations.passthrough.conversational.ConversationalImplementation"
+
+    # Provider overrides
+    inference_provider: "ollama_cloud"  # Use cloud LLM for best quality
+    model: "gpt-oss:120b"
+    audio_provider: "coqui"  # Local Coqui TTS (free)
+    # For STT, could integrate Whisper in a preprocessing step
+
+    # Capabilities
+    capabilities:
+      retrieval_behavior: "none"
+      formatting_style: "standard"
+      supports_file_ids: false
+      supports_session_tracking: true
+      requires_api_key_validation: false
+      optional_parameters:
+        - "session_id"
+        - "return_audio"
+
+    config:
+      # Coqui TTS - optimized for quality
+      tts_model: "tts_models/multilingual/multi-dataset/xtts_v2"  # Best quality, multilingual
+      tts_language: "en"
+      tts_format: "wav"
+      tts_speed: 1.0
+      device: "cuda"  # Use GPU for best performance
+
+      # Audio output
+      audio_output_enabled: true
+      return_text: true
+      return_audio: true
+
+      # Cost optimization:
+      # - STT: Free (local Whisper)
+      # - TTS: Free (local Coqui)
+      # - LLM: Pay only for cloud inference
+      # - Typical savings: 70-90% vs full cloud pipeline

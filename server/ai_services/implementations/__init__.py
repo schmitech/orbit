@@ -71,6 +71,7 @@ Available Audio Services:
     - ElevenLabsAudioService: ElevenLabs audio (high-quality TTS)
     - WhisperAudioService: Direct Whisper integration (local, offline STT)
     - VLLMAudioService: vLLM audio (Orpheus TTS, local serving)
+    - CoquiAudioService: Coqui TTS (local, open-source TTS)
 
 More implementations will be added as migration progresses.
 """
@@ -150,6 +151,7 @@ _implementations = [
     ('elevenlabs_audio_service', 'ElevenLabsAudioService'),
     ('whisper_audio_service', 'WhisperAudioService'),
     ('vllm_audio_service', 'VLLMAudioService'),
+    ('coqui_audio_service', 'CoquiAudioService'),
 ]
 
 # Map service classes to their required SDK packages for commercial/cloud providers
@@ -203,6 +205,7 @@ _required_packages = {
     # Note: ElevenLabsAudioService uses aiohttp directly, no SDK package required
     # Note: WhisperAudioService uses openai-whisper package, checked separately in its implementation
     # Note: VLLMAudioService uses openai SDK (in default dependencies)
+    # Note: CoquiAudioService uses TTS package, checked separately in its implementation
 }
 
 # Try importing each implementation
