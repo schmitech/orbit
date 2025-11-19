@@ -97,6 +97,7 @@ export function MessageInput({
   const [isHoveringMic, setIsHoveringMic] = useState(false);
   const [pasteError, setPasteError] = useState<string | null>(null);
   const [pasteSuccess, setPasteSuccess] = useState<string | null>(null);
+  const [removeFileSuccess, setRemoveFileSuccess] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const processedFilesRef = useRef<Set<string>>(new Set());
   const voiceMessageRef = useRef('');
@@ -123,7 +124,7 @@ export function MessageInput({
   }, []);
   const [voiceCompletionCount, setVoiceCompletionCount] = useState(0);
 
-  const { createConversation, currentConversationId, removeFileFromConversation, conversations, isLoading } = useChatStore();
+  const { createConversation, currentConversationId, removeFileFromConversation, conversations, isLoading, syncConversationFiles } = useChatStore();
 
   const handleVoiceCompletion = useCallback(() => {
     setVoiceCompletionCount((count) => count + 1);
@@ -174,6 +175,7 @@ export function MessageInput({
   });
 
   const isUploading = currentConversationId ? !!conversationUploadingState[currentConversationId] : false;
+  const hasAnyUploadingConversations = Object.values(conversationUploadingState).some(Boolean);
 
   // Disable input if files are uploading, processing, or if already disabled
   const isInputDisabled = disabled || hasProcessingFiles || isUploading;
@@ -357,6 +359,71 @@ export function MessageInput({
     }
   }, [currentConversationId, currentConversation, conversations, attachedFiles.length]);
 
+  // Sync and poll file status when switching to a conversation
+  useEffect(() => {
+    if (!currentConversationId || !currentConversation || !currentConversation.apiKey) {
+      return;
+    }
+
+    const convFiles = currentConversation.attachedFiles || [];
+    const hasFiles = convFiles.length > 0;
+    const processingFiles = convFiles.filter(f => 
+      !f.processing_status || 
+      f.processing_status === 'processing' || 
+      f.processing_status === 'uploading'
+    );
+
+    // Always sync files when switching to a conversation (to get latest status)
+    if (hasFiles) {
+      debugLog(`[MessageInput] Syncing ${convFiles.length} files for conversation ${currentConversationId}...`);
+      syncConversationFiles(currentConversationId).catch(error => {
+        debugError('[MessageInput] Failed to sync conversation files:', error);
+      });
+    }
+
+    // Only poll if there are files still processing
+    if (processingFiles.length === 0) {
+      return;
+    }
+
+    debugLog(`[MessageInput] Found ${processingFiles.length} files still processing, starting poll...`);
+
+    // Poll for file status updates every 3 seconds for files that are still processing
+    const pollInterval = setInterval(async () => {
+      const currentState = useChatStore.getState();
+      const currentConv = currentState.conversations.find(conv => conv.id === currentConversationId);
+      
+      if (!currentConv) {
+        clearInterval(pollInterval);
+        return;
+      }
+
+      const currentFiles = currentConv.attachedFiles || [];
+      const stillProcessing = currentFiles.filter(f => 
+        !f.processing_status || 
+        f.processing_status === 'processing' || 
+        f.processing_status === 'uploading'
+      );
+
+      if (stillProcessing.length === 0) {
+        debugLog('[MessageInput] All files completed processing, stopping poll');
+        clearInterval(pollInterval);
+        return;
+      }
+
+      // Sync again to get updated statuses
+      try {
+        await syncConversationFiles(currentConversationId);
+      } catch (error) {
+        debugError('[MessageInput] Failed to poll file status:', error);
+      }
+    }, 3000);
+
+    return () => {
+      clearInterval(pollInterval);
+    };
+  }, [currentConversationId, currentConversation, syncConversationFiles]);
+
   useEffect(() => {
     setConversationUploadingState(prev => {
       const existingIds = new Set(conversations.map(conv => conv.id));
@@ -410,6 +477,10 @@ export function MessageInput({
   }, [currentConversationId, syncFilesWithConversation]);
 
   const handleRemoveFile = async (fileId: string) => {
+    // Get filename before removing for success message
+    const fileToRemove = attachedFiles.find(f => f.file_id === fileId);
+    const filename = fileToRemove?.filename || 'File';
+    
     // Remove from local attached files list
     setAttachedFiles(prev => prev.filter(f => f.file_id !== fileId));
     
@@ -423,9 +494,23 @@ export function MessageInput({
     if (currentConversationId) {
       try {
         await removeFileFromConversation(currentConversationId, fileId);
+        // Show success message
+        playSoundEffect('success', settings.soundEnabled);
+        setRemoveFileSuccess(`File "${filename}" removed successfully`);
+        setTimeout(() => {
+          setRemoveFileSuccess(null);
+        }, 3000);
       } catch (error) {
         debugError(`Failed to remove file ${fileId} from conversation:`, error);
+        playSoundEffect('error', settings.soundEnabled);
       }
+    } else {
+      // Even if no conversation, show success for local removal
+      playSoundEffect('success', settings.soundEnabled);
+      setRemoveFileSuccess(`File "${filename}" removed successfully`);
+      setTimeout(() => {
+        setRemoveFileSuccess(null);
+      }, 3000);
     }
   };
 
@@ -666,6 +751,12 @@ export function MessageInput({
           <span>{pasteSuccess}</span>
         </div>
       )}
+      {removeFileSuccess && (
+        <div className={`mx-auto mb-3 w-full ${contentMaxWidth} flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700 dark:border-green-600/40 dark:bg-green-900/30 dark:text-green-200`}>
+          <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
+          <span>{removeFileSuccess}</span>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className={`mx-auto flex w-full ${contentMaxWidth} flex-col gap-3`}>
         <div
@@ -820,30 +911,49 @@ export function MessageInput({
 
         {attachedFiles.length > 0 && (
           <div className="flex flex-wrap gap-2">
-            {attachedFiles.map((file) => (
-              <div
-                key={file.file_id}
-                className="flex items-center gap-2 rounded-md border border-gray-200 bg-white px-2 py-1 text-xs dark:border-[#4a4b54] dark:bg-[#2d2f39]"
-              >
-                <span className="truncate max-w-[150px] text-[#353740] dark:text-[#ececf1]">
-                  {file.filename}
-                </span>
-                {!disabled && (
-                  <button
-                    onClick={() => handleRemoveFile(file.file_id)}
-                    className="text-gray-500 hover:text-red-600 dark:text-[#bfc2cd] dark:hover:text-red-300"
-                    title="Remove file"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                )}
-              </div>
-            ))}
+            {attachedFiles.map((file) => {
+              const isProcessing = !file.processing_status || 
+                file.processing_status === 'processing' || 
+                file.processing_status === 'uploading';
+              return (
+                <div
+                  key={file.file_id}
+                  className="flex items-center gap-2 rounded-md border border-gray-200 bg-white px-2 py-1 text-xs dark:border-[#4a4b54] dark:bg-[#2d2f39]"
+                >
+                  {isProcessing && (
+                    <Loader2 className="h-3 w-3 animate-spin text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
+                  )}
+                  <span className="truncate max-w-[150px] text-[#353740] dark:text-[#ececf1]">
+                    {file.filename}
+                  </span>
+                  {isProcessing && (
+                    <span className="text-xs text-gray-500 dark:text-[#bfc2cd]">
+                      {file.processing_status === 'uploading' ? 'Uploading...' : 'Processing...'}
+                    </span>
+                  )}
+                  {!disabled && (
+                    <button
+                      onClick={() => handleRemoveFile(file.file_id)}
+                      className="text-gray-500 hover:text-red-600 dark:text-[#bfc2cd] dark:hover:text-red-300"
+                      title="Remove file"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
 
-        {isFileSupported && (showFileUpload || isUploading || pasteUploadingFiles.size > 0) && (
-          <div className="rounded-md border border-gray-200 bg-white p-3 dark:border-[#4a4b54] dark:bg-[#2d2f39]">
+        {(isFileSupported || hasAnyUploadingConversations) && (
+          <div
+            className={`rounded-md border border-gray-200 bg-white p-3 dark:border-[#4a4b54] dark:bg-[#2d2f39] ${
+              !showFileUpload && !isUploading && pasteUploadingFiles.size === 0 && !hasAnyUploadingConversations
+                ? 'hidden'
+                : ''
+            }`}
+          >
             {showFileUpload && (
               <div className="mb-2 flex items-center justify-between text-sm text-[#353740] dark:text-[#ececf1]">
                 <span>Upload files</span>

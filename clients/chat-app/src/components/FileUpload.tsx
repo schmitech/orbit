@@ -10,6 +10,11 @@ import { getDefaultKey, resolveApiUrl } from '../utils/runtimeConfig';
 // Default API key from runtime configuration
 const DEFAULT_API_KEY = getDefaultKey();
 
+// Persist upload state across component re-mounts and conversation switches
+const uploadingFilesStore = new Map<string, Map<string, FileUploadProgress>>();
+const uploadedFilesStore = new Map<string, FileAttachment[]>();
+const uploadedFileIdsStore = new Map<string, string>();
+
 interface FileUploadProps {
   conversationId: string | null;
   onFilesSelected: (conversationId: string | null, files: FileAttachment[]) => void;
@@ -30,33 +35,102 @@ export function FileUpload({
   disabled = false 
 }: FileUploadProps) {
   const [isDragging, setIsDragging] = useState(false);
-  const [uploadingFiles, setUploadingFiles] = useState<Map<string, FileUploadProgress>>(new Map());
-  const [uploadedFiles, setUploadedFiles] = useState<FileAttachment[]>([]);
   const [globalUploadRevision, setGlobalUploadRevision] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const uploadedFileIdsRef = useRef<Map<string, string>>(new Map());
+  const uploadedFileIdsRef = useRef<Map<string, string>>(uploadedFileIdsStore);
   const abortControllersRef = useRef<Map<string, AbortController>>(new Map());
   const isMountedRef = useRef<boolean>(true);
-  const uploadingFilesStoreRef = useRef<Map<string, Map<string, FileUploadProgress>>>(new Map());
-  const uploadedFilesStoreRef = useRef<Map<string, FileAttachment[]>>(new Map());
+  const uploadingFilesStoreRef = useRef<Map<string, Map<string, FileUploadProgress>>>(uploadingFilesStore);
+  const uploadedFilesStoreRef = useRef<Map<string, FileAttachment[]>>(uploadedFilesStore);
   const latestConversationIdRef = useRef<string | null>(conversationId);
+  const conversations = useChatStore(state => state.conversations);
+
+  const uploadingFiles = useMemo(() => {
+    if (!conversationId) {
+      return new Map<string, FileUploadProgress>();
+    }
+    const uploads = uploadingFilesStoreRef.current.get(conversationId);
+    return uploads ? new Map(uploads) : new Map<string, FileUploadProgress>();
+  }, [conversationId, globalUploadRevision]);
+
+  const uploadedFiles = useMemo(() => {
+    if (!conversationId) {
+      return [] as FileAttachment[];
+    }
+    const files = uploadedFilesStoreRef.current.get(conversationId);
+    return files ? [...files] : [];
+  }, [conversationId, globalUploadRevision]);
   
   const refreshVisibleUploads = useCallback((targetConversationId: string | null) => {
     if (!targetConversationId) {
-      setUploadingFiles(new Map());
-      setUploadedFiles([]);
+      onUploadingChange?.(null, false);
+      setGlobalUploadRevision(prev => prev + 1);
       return;
     }
-    const uploads = uploadingFilesStoreRef.current.get(targetConversationId);
-    setUploadingFiles(uploads ? new Map(uploads) : new Map());
-    const files = uploadedFilesStoreRef.current.get(targetConversationId) || [];
-    setUploadedFiles(files);
-  }, []);
+    const uploads = uploadingFilesStoreRef.current.get(targetConversationId) || new Map<string, FileUploadProgress>();
+    
+    // Also check if there are files in the conversation that are still processing
+    // This handles the case where user switched conversations during upload
+    const conversation = conversations.find(conv => conv.id === targetConversationId);
+    if (conversation && conversation.attachedFiles) {
+      const processingFiles = conversation.attachedFiles.filter(f => 
+        !f.processing_status || 
+        f.processing_status === 'processing' || 
+        f.processing_status === 'uploading'
+      );
+      
+      // Merge existing uploads with processing files from conversation
+      // This ensures we show progress even if upload progress was lost
+      const mergedUploads = new Map(uploads);
+      let hasNewUploads = false;
+      
+      processingFiles.forEach(file => {
+        // Check if we already have progress for this file
+        const existingProgress = Array.from(uploads.values()).find(p => p.fileId === file.file_id);
+        
+        if (!existingProgress) {
+          // Create progress entry for this processing file
+          const progressKey = `${targetConversationId}-${file.filename}-${file.file_id}`;
+          mergedUploads.set(progressKey, {
+            filename: file.filename,
+            progress: file.processing_status === 'uploading' ? 50 : 90, // Estimate progress
+            status: (file.processing_status as 'uploading' | 'processing') || 'processing',
+            fileId: file.file_id
+          });
+          hasNewUploads = true;
+        }
+      });
+      
+      if (hasNewUploads || mergedUploads.size > 0) {
+        uploadingFilesStoreRef.current.set(targetConversationId, mergedUploads);
+        onUploadingChange?.(targetConversationId, true);
+      } else {
+        uploadingFilesStoreRef.current.delete(targetConversationId);
+        onUploadingChange?.(targetConversationId, false);
+      }
+    } else {
+      // No conversation or no processing files - just use existing uploads
+      if (uploads.size > 0) {
+        uploadingFilesStoreRef.current.set(targetConversationId, uploads);
+      } else {
+        uploadingFilesStoreRef.current.delete(targetConversationId);
+      }
+      onUploadingChange?.(targetConversationId, uploads.size > 0);
+    }
+    setGlobalUploadRevision(prev => prev + 1);
+  }, [conversations, onUploadingChange]);
 
   useEffect(() => {
     latestConversationIdRef.current = conversationId;
     refreshVisibleUploads(conversationId);
   }, [conversationId, refreshVisibleUploads]);
+
+  // Also refresh when conversations update (in case files were added/updated)
+  useEffect(() => {
+    if (conversationId) {
+      refreshVisibleUploads(conversationId);
+    }
+  }, [conversations, conversationId, refreshVisibleUploads]);
 
   const updateUploadingStore = useCallback((targetConversationId: string, updater: (prev: Map<string, FileUploadProgress>) => Map<string, FileUploadProgress>) => {
     if (!targetConversationId) {
@@ -64,9 +138,10 @@ export function FileUpload({
     }
     const previous = uploadingFilesStoreRef.current.get(targetConversationId) || new Map<string, FileUploadProgress>();
     const next = updater(new Map(previous));
-    uploadingFilesStoreRef.current.set(targetConversationId, next);
-    if (latestConversationIdRef.current === targetConversationId && isMountedRef.current) {
-      setUploadingFiles(new Map(next));
+    if (next.size > 0) {
+      uploadingFilesStoreRef.current.set(targetConversationId, next);
+    } else {
+      uploadingFilesStoreRef.current.delete(targetConversationId);
     }
     onUploadingChange?.(targetConversationId, next.size > 0);
     setGlobalUploadRevision(prev => prev + 1);
@@ -79,14 +154,12 @@ export function FileUpload({
     const previous = uploadedFilesStoreRef.current.get(targetConversationId) || [];
     const next = updater([...(previous || [])]);
     uploadedFilesStoreRef.current.set(targetConversationId, next);
-    if (latestConversationIdRef.current === targetConversationId && isMountedRef.current) {
-      setUploadedFiles(next);
-    }
     onFilesSelected(targetConversationId, next);
+    setGlobalUploadRevision(prev => prev + 1);
   }, [onFilesSelected]);
   
   const removeFileFromConversation = useChatStore(state => state.removeFileFromConversation);
-  const conversations = useChatStore(state => state.conversations);
+  const addFileToConversation = useChatStore(state => state.addFileToConversation);
 
   // Track mount status
   useEffect(() => {
@@ -203,9 +276,24 @@ export function FileUpload({
               prev.set(progressKey, progress);
               return prev;
             });
-            if (progress.fileId) {
+            if (progress.fileId && !uploadedFileId) {
               uploadedFileId = progress.fileId;
               uploadedFileIdsRef.current.set(progress.fileId, activeConversationId);
+              
+              // Add file to conversation immediately when we get the fileId
+              // This ensures the file persists even if user switches conversations
+              const fileAttachment: FileAttachment = {
+                file_id: progress.fileId,
+                filename: file.name,
+                mime_type: file.type || 'application/octet-stream',
+                file_size: file.size,
+                processing_status: progress.status === 'uploading' ? 'uploading' : 
+                                 progress.status === 'processing' ? 'processing' : 
+                                 progress.status === 'completed' ? 'completed' : undefined
+              };
+              
+              debugLog(`[FileUpload] Adding file ${progress.fileId} to conversation ${activeConversationId} immediately (status: ${fileAttachment.processing_status})`);
+              addFileToConversation(activeConversationId, fileAttachment);
             }
           },
           conversationApiKey,
@@ -227,6 +315,34 @@ export function FileUpload({
 
         if (uploadedAttachment) {
           uploadedFileIdsRef.current.set(uploadedAttachment.file_id, activeConversationId);
+          
+          // Update the file in the conversation with final status
+          // The file was already added during upload progress, now update it with complete info
+          debugLog(`[FileUpload] Updating file ${uploadedAttachment.file_id} in conversation ${activeConversationId} with final status`);
+          addFileToConversation(activeConversationId, uploadedAttachment);
+          
+          // Only remove progress if file is completed, otherwise keep it for processing status
+          if (uploadedAttachment.processing_status === 'completed') {
+            updateUploadingStore(activeConversationId, (prev) => {
+              prev.delete(progressKey);
+              return prev;
+            });
+          } else {
+            // File is still processing - update progress to show processing status
+            updateUploadingStore(activeConversationId, (prev) => {
+              const existing = prev.get(progressKey);
+              if (existing) {
+                prev.set(progressKey, {
+                  ...existing,
+                  progress: 90,
+                  status: 'processing',
+                  fileId: uploadedAttachment.file_id
+                });
+              }
+              return prev;
+            });
+          }
+          
           updateUploadedStore(activeConversationId, (prev) => {
             const existingIds = new Set(prev.map(f => f.file_id));
             if (existingIds.has(uploadedAttachment.file_id)) {
@@ -238,6 +354,11 @@ export function FileUpload({
           });
         } else {
           debugWarn(`Upload completed for ${file.name} but uploadedAttachment is null`);
+          // Remove progress on error
+          updateUploadingStore(activeConversationId, (prev) => {
+            prev.delete(progressKey);
+            return prev;
+          });
         }
       } catch (error: any) {
         if (error.name === 'AbortError' || abortController.signal.aborted) {
@@ -270,10 +391,8 @@ export function FileUpload({
         }
       } finally {
         abortControllersRef.current.delete(file.name);
-        updateUploadingStore(activeConversationId, (prev) => {
-          prev.delete(progressKey);
-          return prev;
-        });
+        // Don't remove progress here - it's handled above based on file status
+        // Progress will be removed when file completes or on error
       }
     }
   }, [conversationId, maxFiles, onUploadError, updateUploadedStore, updateUploadingStore]);
