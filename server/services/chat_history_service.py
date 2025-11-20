@@ -925,15 +925,34 @@ class ChatHistoryService:
                     {"parent_session_id": session_id}
                 )
 
+                datasets_deleted = 0
+                thread_sessions_deleted = 0
                 # Delete thread datasets using ThreadDatasetService (handles Redis/database)
                 if threads:
                     for thread in threads:
                         dataset_key = thread.get('dataset_key')
                         if dataset_key:
                             try:
-                                await self.thread_dataset_service.delete_dataset(dataset_key)
+                                if await self.thread_dataset_service.delete_dataset(dataset_key):
+                                    datasets_deleted += 1
                             except Exception:
                                 pass  # Dataset might not exist or already deleted
+
+                        # Thread replies live under their own session_id, so delete them too
+                        thread_session_id = thread.get('thread_session_id')
+                        if thread_session_id:
+                            try:
+                                deleted = await self.database_service.delete_many(
+                                    self.collection_name,
+                                    {"session_id": thread_session_id}
+                                )
+                                thread_sessions_deleted += deleted
+                            except Exception as thread_session_error:
+                                logger.warning(
+                                    "Failed to delete thread session %s: %s",
+                                    thread_session_id,
+                                    thread_session_error
+                                )
 
                 # Delete thread records
                 threads_deleted = await self.database_service.delete_many(
@@ -942,8 +961,10 @@ class ChatHistoryService:
                 )
                 if threads_deleted > 0:
                     logger.debug(
-                        "Deleted %s associated threads for session %s",
+                        "Deleted %s associated threads (%s replies, %s datasets) for session %s",
                         threads_deleted,
+                        thread_sessions_deleted,
+                        datasets_deleted,
                         session_id,
                     )
             except Exception as thread_error:
@@ -1031,6 +1052,7 @@ class ChatHistoryService:
 
             # Delete any associated threads (cascade delete)
             threads_deleted = 0
+            thread_messages_deleted = 0
             try:
                 # First, get all threads for this session to clean up their datasets
                 threads = await self.database_service.find_many(
@@ -1051,6 +1073,22 @@ class ChatHistoryService:
                             except Exception:
                                 pass  # Dataset might not exist or already deleted
 
+                        # Remove chat history rows that belong to the thread session itself
+                        thread_session_id = thread.get('thread_session_id')
+                        if thread_session_id:
+                            try:
+                                deleted = await self.database_service.delete_many(
+                                    self.collection_name,
+                                    {"session_id": thread_session_id}
+                                )
+                                thread_messages_deleted += deleted
+                            except Exception as thread_session_error:
+                                logger.warning(
+                                    "Failed to delete thread session history %s: %s",
+                                    thread_session_id,
+                                    thread_session_error
+                                )
+
                 # Delete thread records
                 threads_deleted = await self.database_service.delete_many(
                     "conversation_threads",
@@ -1058,9 +1096,10 @@ class ChatHistoryService:
                 )
                 if threads_deleted > 0:
                     logger.debug(
-                        "Deleted %s associated threads and %s datasets for session %s",
+                        "Deleted %s associated threads, %s datasets, and %s thread messages for session %s",
                         threads_deleted,
                         datasets_deleted,
+                        thread_messages_deleted,
                         session_id,
                     )
             except Exception as thread_error:
@@ -1081,6 +1120,7 @@ class ChatHistoryService:
                 "session_id": session_id,
                 "deleted_count": deleted_count,
                 "deleted_threads": threads_deleted,
+                "deleted_thread_messages": thread_messages_deleted,
                 "api_key_validated": True,
                 "adapter_name": adapter_name,
                 "timestamp": datetime.now(UTC).isoformat()
