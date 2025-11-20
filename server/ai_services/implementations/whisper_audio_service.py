@@ -62,9 +62,6 @@ class WhisperAudioService(AudioService, ProviderAIService):
         # Initialize base service
         ProviderAIService.__init__(self, config, ServiceType.AUDIO, "whisper")
 
-        # Get verbose setting from config
-        self.verbose = config.get('general', {}).get('verbose', False)
-
         # Get Whisper-specific configuration
         provider_config = self._extract_provider_config()
         self.model_size = provider_config.get('model_size', 'base')  # tiny, base, small, medium, large-v3
@@ -77,8 +74,7 @@ class WhisperAudioService(AudioService, ProviderAIService):
         self.model = None
         self.model_loaded = False
 
-        if self.verbose:
-            self.logger.info(
+        self.logger.debug(
                 f"🎙️  WhisperAudioService initialized (LOCAL/OFFLINE transcription) "
                 f"- model={self.model_size}, device={self.device}, task={self.task}"
             )
@@ -105,18 +101,16 @@ class WhisperAudioService(AudioService, ProviderAIService):
             else:
                 device = self.device
 
-            if self.verbose:
-                self.logger.info(f"🔧 Loading LOCAL Whisper model '{self.model_size}' on device '{device}'...")
-                self.logger.info(f"   This is OpenAI's open-source Whisper running locally (NOT the API)")
+            self.logger.debug(f"🔧 Loading LOCAL Whisper model '{self.model_size}' on device '{device}'...")
+            self.logger.debug(f"   This is OpenAI's open-source Whisper running locally (NOT the API)")
 
             # Load the model
             # This downloads the model on first use (cached in ~/.cache/whisper/)
             self.model = whisper.load_model(self.model_size, device=device)
             self.model_loaded = True
 
-            if self.verbose:
-                self.logger.info(f"✅ LOCAL Whisper model '{self.model_size}' loaded successfully on {device}")
-                self.logger.info(f"   Ready for offline speech-to-text transcription!")
+            self.logger.debug(f"✅ LOCAL Whisper model '{self.model_size}' loaded successfully on {device}")
+            self.logger.debug(f"   Ready for offline speech-to-text transcription!")
             self.initialized = True
 
         except Exception as e:
@@ -157,8 +151,7 @@ class WhisperAudioService(AudioService, ProviderAIService):
             audio_size_mb = len(audio_data) / (1024 * 1024)
 
             # Log transcription start with Whisper details
-            if self.verbose:
-                self.logger.info(
+            self.logger.debug(
                     f"🎤 Starting LOCAL Whisper transcription "
                     f"(model: {self.model_size}, device: {self.device}, audio: {audio_size_mb:.2f}MB)"
                 )
@@ -183,8 +176,7 @@ class WhisperAudioService(AudioService, ProviderAIService):
                 # Remove None values
                 transcribe_options = {k: v for k, v in transcribe_options.items() if v is not None}
 
-                if self.verbose:
-                    self.logger.info(f"Whisper transcribe options: {transcribe_options}")
+                self.logger.debug(f"Whisper transcribe options: {transcribe_options}")
 
                 # Transcribe
                 result = self.model.transcribe(temp_path, **transcribe_options)
@@ -195,8 +187,7 @@ class WhisperAudioService(AudioService, ProviderAIService):
 
                 # Log detected language
                 detected_language = result.get('language', 'unknown')
-                if self.verbose:
-                    self.logger.info(
+                self.logger.debug(
                         f"✅ LOCAL Whisper transcription complete! "
                         f"Language: {detected_language}, Text length: {text_length} chars"
                     )
@@ -312,8 +303,7 @@ class WhisperAudioService(AudioService, ProviderAIService):
     async def cleanup(self) -> None:
         """Clean up resources."""
         if self.model is not None:
-            if self.verbose:
-                self.logger.info("🧹 Cleaning up LOCAL Whisper service...")
+            self.logger.debug("🧹 Cleaning up LOCAL Whisper service...")
 
             # Clear model from memory
             del self.model
@@ -325,5 +315,4 @@ class WhisperAudioService(AudioService, ProviderAIService):
                 torch.cuda.empty_cache()
 
         self.initialized = False
-        if self.verbose:
-            self.logger.info("✅ Whisper service cleaned up")
+        self.logger.debug("✅ Whisper service cleaned up")

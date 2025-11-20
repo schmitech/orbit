@@ -22,7 +22,6 @@ def mock_config():
     """Create a mock configuration for testing."""
     return {
         'general': {
-            'verbose': False
         },
         'internal_services': {
             'redis': {
@@ -41,7 +40,6 @@ def alternate_config():
     """Create an alternate configuration for testing."""
     return {
         'general': {
-            'verbose': False
         },
         'internal_services': {
             'redis': {
@@ -259,7 +257,7 @@ def test_redis_no_reinitialization():
     RedisService.clear_cache()
     
     config = {
-        'general': {'verbose': True},
+        'general': {},
         'internal_services': {
             'redis': {
                 'enabled': True,

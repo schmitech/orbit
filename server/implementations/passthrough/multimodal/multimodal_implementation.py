@@ -64,10 +64,10 @@ class MultimodalImplementation(BaseRetriever):
                     'files': files_config  # Include files config
                 }
 
-                if self.verbose:
-                    self.logger.info(f"MultimodalImplementation: Creating FileVectorRetriever")
-                    self.logger.info(f"  self.config.get('embedding') = {self.config.get('embedding', {})}")
-                    self.logger.info(f"  file_retriever_config.get('embedding') = {file_retriever_config.get('embedding', {})}")
+                
+                self.logger.debug(f"MultimodalImplementation: Creating FileVectorRetriever")
+                self.logger.debug(f"  self.config.get('embedding') = {self.config.get('embedding', {})}")
+                self.logger.debug(f"  file_retriever_config.get('embedding') = {file_retriever_config.get('embedding', {})}")
 
                 self._file_retriever = FileVectorRetriever(
                     config=file_retriever_config,
@@ -75,15 +75,13 @@ class MultimodalImplementation(BaseRetriever):
                 )
                 await self._file_retriever.initialize()
 
-                if self.verbose:
-                    self.logger.info("FileVectorRetriever initialized for multimodal adapter")
+                self.logger.debug("FileVectorRetriever initialized for multimodal adapter")
             except Exception as e:
                 self.logger.warning(f"Failed to initialize FileVectorRetriever: {e}. "
                                  f"Multimodal adapter will operate without file retrieval.")
                 self._file_retriever = None
 
-        if self.verbose:
-            self.logger.info("Multimodal conversational implementation ready")
+        self.logger.debug("Multimodal conversational implementation ready")
     
     async def close(self) -> None:
         """Close BaseRetriever resources and file retriever."""
@@ -98,8 +96,7 @@ class MultimodalImplementation(BaseRetriever):
     async def set_collection(self, collection_name: str) -> None:
         """Store the provided identifier for parity with retriever implementations."""
         self.collection = collection_name
-        if self.verbose:
-            self.logger.debug("Multimodal adapter set_collection called with %s", collection_name)
+        self.logger.debug("Multimodal adapter set_collection called with %s", collection_name)
     
     async def get_relevant_context(
         self,
@@ -134,21 +131,18 @@ class MultimodalImplementation(BaseRetriever):
 
         # If no file retriever available, return empty (conversation-only)
         if not self._file_retriever:
-            if self.verbose:
-                self.logger.debug("Multimodal adapter: No file retriever available, returning empty context")
+            self.logger.debug("Multimodal adapter: No file retriever available, returning empty context")
             return []
 
         # If no file_ids provided, return empty context (pure conversation mode)
         if not file_ids:
-            if self.verbose:
-                self.logger.info("Multimodal adapter: No file_ids provided, returning empty context (conversation-only mode)")
+            self.logger.debug("Multimodal adapter: No file_ids provided, returning empty context (conversation-only mode)")
             return []
 
         # Retrieve chunks from the provided files
         try:
-            if self.verbose:
-                self.logger.info(f"Multimodal adapter: Retrieving chunks from {len(file_ids)} files: {file_ids}")
-                self.logger.info(f"Query: {query[:100]}...")
+            self.logger.debug(f"Multimodal adapter: Retrieving chunks from {len(file_ids)} files: {file_ids}")
+            self.logger.debug(f"Query: {query[:100]}...")
 
             # Use FileVectorRetriever to get relevant chunks
             chunks = await self._file_retriever.get_relevant_context(
@@ -158,8 +152,7 @@ class MultimodalImplementation(BaseRetriever):
                 collection_name=None  # Let retriever find collections by file_id
             )
 
-            if self.verbose:
-                self.logger.info(f"Multimodal adapter: Retrieved {len(chunks)} chunks from {len(file_ids)} files")
+            self.logger.debug(f"Multimodal adapter: Retrieved {len(chunks)} chunks from {len(file_ids)} files")
             if chunks:
                 self.logger.debug(f"First chunk preview: {chunks[0].get('content', '')[:200]}...")
 

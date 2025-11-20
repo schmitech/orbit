@@ -281,7 +281,7 @@ async def get_api_key_status(
     
     # Log with masked API key
     masked_api_key = f"***{api_key[-4:]}" if api_key else "***"
-    logger.info(f"Checked status for API key: {masked_api_key}")
+    logger.debug(f"Checked status for API key: {masked_api_key}")
     
     return status
 
@@ -645,14 +645,11 @@ async def clear_chat_history(
             detail=f"Failed to clear conversation history: {result.get('error', 'Unknown error')}"
         )
 
-    # Only log this message if verbose logging is enabled
-    verbose = is_true_value(config.get('general', {}).get('verbose', False))
-    if verbose:
-        logger.info(
-            "Cleared conversation history for session %s: %s messages",
-            session_id,
-            result.get("deleted_count", 0)
-        )
+    logger.debug(
+        "Cleared conversation history for session %s: %s messages",
+        session_id,
+        result.get("deleted_count", 0)
+    )
 
     return ChatHistoryClearResponse(
         status="success",
@@ -793,7 +790,6 @@ async def delete_conversation_with_files(
         HTTPException: If deletion fails or services unavailable
     """
     config = getattr(request.app.state, 'config', {})
-    verbose = is_true_value(config.get('general', {}).get('verbose', False))
 
     # Validate session ID consistency
     if x_session_id and x_session_id != session_id:
@@ -822,8 +818,7 @@ async def delete_conversation_with_files(
 
     # Step 1: Delete provided files
     if file_ids_list and file_processing_service:
-        if verbose:
-            logger.info(f"Deleting {len(file_ids_list)} file(s) for session {session_id}")
+        logger.debug(f"Deleting {len(file_ids_list)} file(s) for session {session_id}")
 
         for file_id in file_ids_list:
             try:
@@ -831,8 +826,7 @@ async def delete_conversation_with_files(
                 success = await file_processing_service.delete_file(file_id, x_api_key)
                 if success:
                     deleted_files_count += 1
-                    if verbose:
-                        logger.debug(f"Deleted file {file_id}")
+                    logger.debug(f"Deleted file {file_id}")
                 else:
                     file_deletion_errors.append(file_id)
                     logger.warning(f"Failed to delete file {file_id}")
@@ -854,8 +848,7 @@ async def delete_conversation_with_files(
 
             if result.get("success"):
                 deleted_messages_count = result.get("deleted_count", 0)
-                if verbose:
-                    logger.info(f"Cleared {deleted_messages_count} messages for session {session_id}")
+                logger.debug(f"Cleared {deleted_messages_count} messages for session {session_id}")
             else:
                 logger.warning(f"Failed to clear conversation history: {result.get('error')}")
         except Exception as e:

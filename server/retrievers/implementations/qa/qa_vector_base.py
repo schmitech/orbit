@@ -101,18 +101,17 @@ class QAVectorRetrieverBase(AbstractVectorRetriever):
             datasource_name = self.get_datasource_name()
             datasource_config = self.config.get('datasources', {}).get(datasource_name, {})
             merged_config = datasource_config.copy()
+            debug_enabled = logger.isEnabledFor(logging.DEBUG)
+
+            if debug_enabled:
+                logger.debug(f"Merging configs for datasource: {datasource_name}")
+                logger.debug(f"  Datasource config: {datasource_config}")
+                logger.debug(f"  Adapter config: {self.adapter_config}")
             
-            if self.verbose or logger.isEnabledFor(logging.DEBUG):
-                logger.info(f"Merging configs for datasource: {datasource_name}")
-                logger.info(f"  Datasource config: {datasource_config}")
-                logger.info(f"  Adapter config: {self.adapter_config}")
-                
-                if self.adapter_config:
-                    merged_config.update(self.adapter_config)
-                    logger.info(f"  Merged config: {merged_config}")
-            elif self.adapter_config:
+            if self.adapter_config:
                 merged_config.update(self.adapter_config)
-                logger.debug(f"Merged {datasource_name} configs: datasource + adapter")
+                if debug_enabled:
+                    logger.debug(f"  Merged config: {merged_config}")
                 
             # Override max_results and return_results in main config
             if 'max_results' in merged_config:
@@ -134,14 +133,11 @@ class QAVectorRetrieverBase(AbstractVectorRetriever):
             'confidence_threshold', 0.3
         ) if self.adapter_config else 0.3
         
-        # Log initialization (only if verbose or debug level)
-        if self.verbose or logger.isEnabledFor(logging.DEBUG):
-            logger.info(f"{self.__class__.__name__} initialized with:")
-            logger.info(f"  confidence_threshold={self.confidence_threshold}")
-            logger.info(f"  max_results={self.max_results}")
-            logger.info(f"  return_results={self.return_results}")
-        else:
-            logger.debug(f"{self.__class__.__name__} initialized with confidence_threshold={self.confidence_threshold}")
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(f"{self.__class__.__name__} initialized with:")
+            logger.debug(f"  confidence_threshold={self.confidence_threshold}")
+            logger.debug(f"  max_results={self.max_results}")
+            logger.debug(f"  return_results={self.return_results}")
     
     async def initialize_domain_adapter(self):
         """Initialize domain adapter if not provided."""
@@ -272,21 +268,19 @@ class QAVectorRetrieverBase(AbstractVectorRetriever):
             # Ensure datasource is initialized
             await self._ensure_datasource_initialized()
 
-            if self.verbose:
-                logger.info(f"=== Starting QA {self.get_datasource_name()} retrieval ===")
-                logger.info(f"Query: '{query}'")
-                logger.info(f"API Key: {'Provided' if api_key else 'None'}")
-                logger.info(f"Collection: {collection_name or 'From config'}")
+            logger.debug(f"=== Starting QA {self.get_datasource_name()} retrieval ===")
+            logger.debug(f"Query: '{query}'")
+            logger.debug(f"API Key: {'Provided' if api_key else 'None'}")
+            logger.debug(f"Collection: {collection_name or 'From config'}")
             
             # Resolve collection name
             resolved_collection = collection_name or self.collection_name or self.datasource_config.get('collection')
             
-            if self.verbose:
-                logger.info(f"Collection name resolution:")
-                logger.info(f"  - Parameter collection_name: {collection_name}")
-                logger.info(f"  - Self.collection_name: {getattr(self, 'collection_name', 'Not set')}")
-                logger.info(f"  - Datasource config collection: {self.datasource_config.get('collection')}")
-                logger.info(f"  - Resolved collection: {resolved_collection}")
+            logger.debug("Collection name resolution:")
+            logger.debug(f"  - Parameter collection_name: {collection_name}")
+            logger.debug(f"  - Self.collection_name: {getattr(self, 'collection_name', 'Not set')}")
+            logger.debug(f"  - Datasource config collection: {self.datasource_config.get('collection')}")
+            logger.debug(f"  - Resolved collection: {resolved_collection}")
             
             if resolved_collection:
                 # Only set collection if it's not already set or if it has changed
@@ -306,9 +300,8 @@ class QAVectorRetrieverBase(AbstractVectorRetriever):
                 return []
             
             # Generate query embedding
-            if self.verbose:
-                logger.info("Generating embedding for query...")
-            
+            logger.debug("Generating embedding for query...")
+
             query_embedding = await self.embed_query(query)
             
             if not query_embedding or len(query_embedding) == 0:
@@ -316,8 +309,7 @@ class QAVectorRetrieverBase(AbstractVectorRetriever):
                 return []
             
             # Query vector database (delegated to subclass)
-            if self.verbose:
-                logger.info(f"Querying {self.get_datasource_name()} with {len(query_embedding)}-dimensional embedding")
+            logger.debug(f"Querying {self.get_datasource_name()} with {len(query_embedding)}-dimensional embedding")
             
             results = await self.query_vector_database(
                 query_embedding, 
@@ -362,10 +354,9 @@ class QAVectorRetrieverBase(AbstractVectorRetriever):
             # Apply final limit
             context_items = context_items[:self.return_results]
             
-            if self.verbose:
-                logger.info(f"Retrieved {len(context_items)} relevant context items")
-                if context_items:
-                    logger.info(f"Top confidence: {context_items[0].get('confidence', 0):.4f}")
+            logger.debug(f"Retrieved {len(context_items)} relevant context items")
+            if context_items:
+                logger.debug(f"Top confidence: {context_items[0].get('confidence', 0):.4f}")
             
             return context_items
             

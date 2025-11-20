@@ -44,9 +44,6 @@ class FileProcessingService:
         self.app_state = app_state
         self.logger = logging.getLogger(self.__class__.__name__)
 
-        # Get verbose setting from config
-        self.verbose = config.get('general', {}).get('verbose', False)
-
         # Get files configuration section
         files_config = config.get('files', {})
         processing_config = files_config.get('processing', {})
@@ -190,16 +187,7 @@ class FileProcessingService:
         chunking_options = self.config.get('chunking_options', {}) or files_config.get('chunking_options', {})
         
         # Log chunking strategy initialization
-        if self.verbose:
-            self.logger.info(f"Initializing chunking strategy: '{strategy}' (chunk_size={chunk_size}, overlap={overlap})")
-            if tokenizer:
-                self.logger.info(f"  Tokenizer: {tokenizer}")
-            if use_tokens:
-                self.logger.info(f"  Using token-based chunking: {use_tokens}")
-            if chunking_options:
-                self.logger.debug(f"  Chunking options: {chunking_options}")
-        else:
-            self.logger.debug(f"Initializing chunking strategy: '{strategy}' (chunk_size={chunk_size}, overlap={overlap})")
+        self.logger.debug(f"Initializing chunking strategy: '{strategy}' (chunk_size={chunk_size}, overlap={overlap})")
         
         if strategy == 'semantic':
             # Semantic chunking options
@@ -231,8 +219,7 @@ class FileProcessingService:
                 tokenizer=tokenizer,
                 chunk_size_tokens=chunk_size_tokens
             )
-            if self.verbose:
-                self.logger.info(f"  Semantic chunker configured: use_advanced={use_advanced}, model={model_name or 'none'}")
+            self.logger.debug(f"  Semantic chunker configured: use_advanced={use_advanced}, model={model_name or 'none'}")
             return chunker
         elif strategy == 'token':
             # Token-based chunking
@@ -241,8 +228,7 @@ class FileProcessingService:
                 overlap=overlap,
                 tokenizer=tokenizer or 'character'
             )
-            if self.verbose:
-                self.logger.info(f"  Token chunker configured: tokenizer={tokenizer or 'character'}")
+            self.logger.debug(f"  Token chunker configured: tokenizer={tokenizer or 'character'}")
             return chunker
         elif strategy == 'recursive':
             # Recursive chunking
@@ -252,8 +238,7 @@ class FileProcessingService:
                 min_characters_per_chunk=min_characters,
                 tokenizer=tokenizer
             )
-            if self.verbose:
-                self.logger.info(f"  Recursive chunker configured: min_characters_per_chunk={min_characters}")
+            self.logger.debug(f"  Recursive chunker configured: min_characters_per_chunk={min_characters}")
             return chunker
         else:
             # Fixed-size chunking (default)
@@ -263,9 +248,8 @@ class FileProcessingService:
                 use_tokens=use_tokens,
                 tokenizer=tokenizer
             )
-            if self.verbose:
-                mode = "token-based" if use_tokens else "character-based"
-                self.logger.info(f"  Fixed-size chunker configured: mode={mode}")
+            mode = "token-based" if use_tokens else "character-based"
+            self.logger.debug(f"  Fixed-size chunker configured: mode={mode}")
             return chunker
 
     async def _get_vision_provider_for_api_key(self, api_key: str) -> str:
@@ -473,8 +457,7 @@ class FileProcessingService:
                 embedding_dimensions=embedding_dimensions
             )
 
-            if self.verbose:
-                self.logger.info(f"File content processed successfully: {file_id} ({len(chunks)} chunks)")
+            self.logger.debug(f"File content processed successfully: {file_id} ({len(chunks)} chunks)")
             
         except Exception as e:
             error_message = str(e)
@@ -828,18 +811,16 @@ class FileProcessingService:
         Returns:
             List of Chunk objects
         """
-        if self.verbose:
-            strategy_name = self.chunker.__class__.__name__
-            self.logger.info(f"Chunking content for file {file_id} using strategy: {strategy_name}")
-            self.logger.debug(f"  Text length: {len(text)} characters")
-        
+        strategy_name = self.chunker.__class__.__name__
+        self.logger.debug(f"Chunking content for file {file_id} using strategy: {strategy_name}")
+        self.logger.debug(f"  Text length: {len(text)} characters")
+
         chunks = self.chunker.chunk_text(text, file_id, metadata)
-        
-        if self.verbose:
-            self.logger.info(f"  Created {len(chunks)} chunks from file {file_id}")
-            if chunks:
-                avg_chunk_size = sum(len(c.text) for c in chunks) / len(chunks)
-                self.logger.debug(f"  Average chunk size: {avg_chunk_size:.0f} characters")
+
+        self.logger.debug(f"  Created {len(chunks)} chunks from file {file_id}")
+        if chunks:
+            avg_chunk_size = sum(len(c.text) for c in chunks) / len(chunks)
+            self.logger.debug(f"  Average chunk size: {avg_chunk_size:.0f} characters")
         
         return chunks
     
@@ -950,8 +931,7 @@ class FileProcessingService:
             # Format: files_{provider}_{dimensions}_{apikey}_{timestamp}
             collection_name = f"{collection_prefix}{embedding_provider}_{embedding_dimensions}_{api_key}_{timestamp}"
 
-            if self.verbose:
-                self.logger.info(f"Creating collection with provider-aware naming: {collection_name}")
+            self.logger.debug(f"Creating collection with provider-aware naming: {collection_name}")
 
             # Index chunks
             success = await retriever.index_file_chunks(
@@ -961,8 +941,7 @@ class FileProcessingService:
             )
 
             if success:
-                if self.verbose:
-                    self.logger.info(f"Indexed {len(chunks)} chunks into collection {collection_name}")
+                self.logger.debug(f"Indexed {len(chunks)} chunks into collection {collection_name}")
                 return (collection_name, embedding_provider, embedding_dimensions)
             else:
                 self.logger.warning(f"Failed to index chunks for file {file_id}")
@@ -1021,8 +1000,7 @@ class FileProcessingService:
         try:
             storage_key = file_info['storage_key']
             await self.storage.delete_file(storage_key)
-            if self.verbose:
-                self.logger.info(f"Deleted file from storage: {storage_key}")
+            self.logger.debug(f"Deleted file from storage: {storage_key}")
         except Exception as e:
             self.logger.error(f"Error deleting file from storage {storage_key}: {e}")
             # Continue even if storage deletion fails
@@ -1031,8 +1009,7 @@ class FileProcessingService:
         metadata_deleted = await self.metadata_store.delete_file(file_id, skip_chunks=chunks_already_deleted)
 
         if metadata_deleted:
-            if self.verbose:
-                self.logger.info(f"Successfully deleted file {file_id} and all associated data")
+            self.logger.debug(f"Successfully deleted file {file_id} and all associated data")
         else:
             self.logger.error(f"Failed to delete file {file_id} from metadata store")
         

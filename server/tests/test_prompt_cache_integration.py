@@ -131,7 +131,6 @@ def prompt_service_config():
     """Fixture providing configuration for PromptService"""
     return {
         "general": {
-            "verbose": True  # Enable verbose logging for testing
         },
         "mongodb": {
             "prompts_collection": "system_prompts"

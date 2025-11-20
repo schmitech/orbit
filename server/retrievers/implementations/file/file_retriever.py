@@ -51,9 +51,6 @@ class FileVectorRetriever(AbstractVectorRetriever):
         self.collection_prefix = adapter_config.get('collection_prefix') or \
                                 files_config.get('default_collection_prefix', 'files_')
 
-        # Get verbose setting from config
-        self.verbose = self.config.get('general', {}).get('verbose', False)
-
         # Initialize store manager for vector operations
         self.store_manager = None
         self._default_store = None
@@ -126,26 +123,23 @@ class FileVectorRetriever(AbstractVectorRetriever):
         Returns:
             List of relevant context items
         """
-        if self.verbose:
-            logger.info("=" * 80)
-            logger.info(f"FileVectorRetriever.get_relevant_context called")
-            logger.info(f"  Query: {query[:100]}")
-            logger.info(f"  file_ids: {file_ids}")
-            logger.info(f"  api_key: {'provided' if api_key else 'None'}")
-            logger.info(f"  collection_name: {collection_name}")
-            logger.info("=" * 80)
+        logger.debug("=" * 80)
+        logger.debug(f"FileVectorRetriever.get_relevant_context called")
+        logger.debug(f"  Query: {query[:100]}")
+        logger.debug(f"  file_ids: {file_ids}")
+        logger.debug(f"  api_key: {'provided' if api_key else 'None'}")
+        logger.debug(f"  collection_name: {collection_name}")
+        logger.debug("=" * 80)
 
         await self.ensure_initialized()
 
         # Generate query embedding
         query_embedding = await self.embed_query(query)
-        if self.verbose:
-            logger.info(f"FileVectorRetriever: Generated query embedding with {len(query_embedding)} dimensions")
+        logger.debug(f"FileVectorRetriever: Generated query embedding with {len(query_embedding)} dimensions")
 
         # Determine collections to search
         collections = await self._get_collections_multiple(file_ids, api_key, collection_name)
-        if self.verbose:
-            logger.info(f"FileVectorRetriever: Collections to search: {collections}")
+        logger.debug(f"FileVectorRetriever: Collections to search: {collections}")
 
         if not collections:
             logger.warning("FileVectorRetriever: No collections found! Returning empty results.")
@@ -154,30 +148,25 @@ class FileVectorRetriever(AbstractVectorRetriever):
         # Search across collections
         results = []
         for collection in collections:
-            if self.verbose:
-                logger.info(f"FileVectorRetriever: Searching collection: {collection}")
+            logger.debug(f"FileVectorRetriever: Searching collection: {collection}")
             collection_results = await self._search_collection(
                 collection,
                 query_embedding,
                 file_ids=file_ids
             )
-            if self.verbose:
-                logger.info(f"FileVectorRetriever: Found {len(collection_results)} results in collection {collection}")
+            logger.debug(f"FileVectorRetriever: Found {len(collection_results)} results in collection {collection}")
             results.extend(collection_results)
 
-        if self.verbose:
-            logger.info(f"FileVectorRetriever: Total raw results: {len(results)}")
+        logger.debug(f"FileVectorRetriever: Total raw results: {len(results)}")
 
         # Apply domain filtering
         results = self.apply_domain_filtering(results, query)
-        if self.verbose:
-            logger.info(f"FileVectorRetriever: After domain filtering: {len(results)} results")
+        logger.debug(f"FileVectorRetriever: After domain filtering: {len(results)} results")
 
         # Group and format results
         formatted_results = self._format_results(results)
-        if self.verbose:
-            logger.info(f"FileVectorRetriever: Final formatted results: {len(formatted_results)} chunks")
-            logger.info("=" * 80)
+        logger.debug(f"FileVectorRetriever: Final formatted results: {len(formatted_results)} chunks")
+        logger.debug("=" * 80)
 
         return formatted_results
     
@@ -218,44 +207,37 @@ class FileVectorRetriever(AbstractVectorRetriever):
             # Get collections for all specified files
             collections = set()
             for file_id in file_ids:
-                if self.verbose:
-                    logger.info(f"FileVectorRetriever: Looking up metadata for file_id: {file_id}")
+                logger.debug(f"FileVectorRetriever: Looking up metadata for file_id: {file_id}")
                 file_info = await self.metadata_store.get_file_info(file_id)
 
                 if not file_info:
                     logger.warning(f"FileVectorRetriever: No metadata found for file_id: {file_id}")
                     continue
 
-                if self.verbose:
-                    logger.info(f"FileVectorRetriever: File info: {file_info}")
+                logger.debug(f"FileVectorRetriever: File info: {file_info}")
 
                 if file_info.get('collection_name'):
                     coll_name = file_info['collection_name']
-                    if self.verbose:
-                        logger.info(f"FileVectorRetriever: Found collection_name: {coll_name}")
+                    logger.debug(f"FileVectorRetriever: Found collection_name: {coll_name}")
 
                     # Filter by provider signature if available
                     if provider_signature:
-                        if self.verbose:
-                            logger.info(f"FileVectorRetriever: Checking provider signature: {provider_signature}")
+                        logger.debug(f"FileVectorRetriever: Checking provider signature: {provider_signature}")
                         # Check if collection name contains the provider signature
                         # Format: files_{provider}_{dimensions}_{apikey}_{timestamp}
                         if provider_signature in coll_name:
-                            if self.verbose:
-                                logger.info(f"FileVectorRetriever: ✓ Collection {coll_name} matches provider {provider_signature}")
+                            logger.debug(f"FileVectorRetriever: ✓ Collection {coll_name} matches provider {provider_signature}")
                             collections.add(coll_name)
                         else:
                             logger.warning(f"FileVectorRetriever: ✗ Skipping collection {coll_name} (provider signature '{provider_signature}' not found)")
                     else:
                         # If we can't determine provider, include all collections (backward compatibility)
-                        if self.verbose:
-                            logger.info(f"FileVectorRetriever: No provider signature - using collection {coll_name} (backward compatibility)")
+                        logger.debug(f"FileVectorRetriever: No provider signature - using collection {coll_name} (backward compatibility)")
                         collections.add(coll_name)
                 else:
                     logger.warning(f"FileVectorRetriever: File {file_id} has no collection_name in metadata")
 
-            if self.verbose:
-                logger.info(f"FileVectorRetriever: Final collections to search: {list(collections)}")
+            logger.debug(f"FileVectorRetriever: Final collections to search: {list(collections)}")
             return list(collections) if collections else []
 
         # Get all collections for API key
@@ -441,8 +423,7 @@ class FileVectorRetriever(AbstractVectorRetriever):
                 await self.ensure_initialized()
 
                 chunk_ids = [c['chunk_id'] for c in chunks]
-                if self.verbose:
-                    logger.info(f"Deleting {len(chunk_ids)} chunks from vector store for file {file_id}")
+                logger.debug(f"Deleting {len(chunk_ids)} chunks from vector store for file {file_id}")
 
                 # Delete each chunk from vector store
                 # Most vector stores support batch deletion, but we'll delete individually for compatibility
@@ -462,8 +443,7 @@ class FileVectorRetriever(AbstractVectorRetriever):
 
                 if deletion_errors:
                     logger.warning(f"Failed to delete {len(deletion_errors)} chunks from vector store for file {file_id}")
-                elif self.verbose:
-                    logger.info(f"Successfully deleted all {len(chunk_ids)} chunks from vector store for file {file_id}")
+                logger.debug(f"Successfully deleted all {len(chunk_ids)} chunks from vector store for file {file_id}")
             else:
                 logger.warning(f"No vector store available, skipping vector store deletion for file {file_id}")
             
@@ -471,8 +451,7 @@ class FileVectorRetriever(AbstractVectorRetriever):
             metadata_delete_success = await self.metadata_store.delete_file_chunks(file_id)
 
             if metadata_delete_success:
-                if self.verbose:
-                    logger.info(f"Deleted chunks from metadata store for file {file_id}")
+                logger.debug(f"Deleted chunks from metadata store for file {file_id}")
             else:
                 logger.error(f"Failed to delete chunks from metadata store for file {file_id}")
             

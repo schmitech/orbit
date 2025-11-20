@@ -20,8 +20,7 @@ class ConversationHistoryHandler:
         self,
         config: Dict[str, Any],
         chat_history_service=None,
-        adapter_manager=None,
-        verbose: bool = False
+        adapter_manager=None
     ):
         """
         Initialize the conversation history handler.
@@ -30,12 +29,10 @@ class ConversationHistoryHandler:
             config: Application configuration
             chat_history_service: Optional chat history service instance
             adapter_manager: Optional adapter manager for checking adapter types
-            verbose: Enable verbose logging
         """
         self.config = config
         self.chat_history_service = chat_history_service
         self.adapter_manager = adapter_manager
-        self.verbose = verbose
 
         # Chat history configuration
         self.chat_history_config = config.get('chat_history', {})
@@ -98,8 +95,8 @@ class ConversationHistoryHandler:
             # No need to check limits - rolling window query naturally enforces token budget
             context_messages = await self.chat_history_service.get_context_messages(session_id)
 
-            if self.verbose and context_messages:
-                logger.info(f"Retrieved {len(context_messages)} context messages for session {session_id}")
+            if context_messages:
+                logger.debug(f"Retrieved {len(context_messages)} context messages for session {session_id}")
 
             return context_messages
 
@@ -156,8 +153,7 @@ class ConversationHistoryHandler:
                 metadata=metadata
             )
 
-            if self.verbose:
-                logger.info(f"Stored conversation turn for session {session_id} (threading={has_retrieved_docs})")
+            logger.debug(f"Stored conversation turn for session {session_id} (threading={has_retrieved_docs})")
 
             return result
 

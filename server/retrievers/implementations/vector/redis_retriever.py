@@ -117,8 +117,7 @@ class RedisRetriever(AbstractVectorRetriever):
                 index_info = self.redis_client.ft(collection_name).info()
                 self.index_name = collection_name
                 
-                if self.verbose:
-                    logger.info(f"Switched to index: {collection_name}")
+                logger.debug(f"Switched to index: {collection_name}")
                     
             except Exception:
                 error_msg = f"Index '{collection_name}' does not exist in Redis"

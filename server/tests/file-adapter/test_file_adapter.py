@@ -24,7 +24,6 @@ def test_file_adapter_initialization_defaults():
     assert adapter.confidence_threshold == 0.5
     assert adapter.preserve_file_structure is True
     assert adapter.extract_metadata is True
-    assert adapter.verbose is False
     assert adapter.max_summary_length == 200
     assert adapter.enable_vision is True
     assert adapter.vision_provider == 'openai'
@@ -36,7 +35,6 @@ def test_file_adapter_initialization_custom_config():
         'confidence_threshold': 0.7,
         'preserve_file_structure': False,
         'extract_metadata': False,
-        'verbose': True,
         'max_summary_length': 300,
         'enable_vision': False,
         'vision_provider': 'custom_provider'
@@ -47,7 +45,6 @@ def test_file_adapter_initialization_custom_config():
     assert adapter.confidence_threshold == 0.7
     assert adapter.preserve_file_structure is False
     assert adapter.extract_metadata is False
-    assert adapter.verbose is True
     assert adapter.max_summary_length == 300
     assert adapter.enable_vision is False
     assert adapter.vision_provider == 'custom_provider'
@@ -61,7 +58,6 @@ def test_file_adapter_initialization_files_config():
                 'confidence_threshold': 0.6,
                 'preserve_file_structure': False,
                 'extract_metadata': True,
-                'verbose': True,
                 'max_summary_length': 250,
             },
             'processing': {
@@ -78,7 +74,6 @@ def test_file_adapter_initialization_files_config():
     assert adapter.confidence_threshold == 0.6
     assert adapter.preserve_file_structure is False
     assert adapter.extract_metadata is True
-    assert adapter.verbose is True
     assert adapter.max_summary_length == 250
     assert adapter.enable_vision is False
     assert adapter.vision_provider == 'anthropic'

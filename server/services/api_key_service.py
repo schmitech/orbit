@@ -117,7 +117,6 @@ class ApiKeyService:
             return
 
         self.config = config
-        self.verbose = config.get('general', {}).get('verbose', False)
 
         # Use provided database service or create a new one using factory
         if database_service is None:
@@ -155,8 +154,7 @@ class ApiKeyService:
         """Initialize the service"""
         # Check if already initialized to prevent duplicate initialization
         if self._initialized:
-            if self.verbose:
-                logger.debug("API Key Service already initialized, skipping")
+            logger.debug("API Key Service already initialized, skipping")
             return
 
         await self.database.initialize()
@@ -291,8 +289,7 @@ class ApiKeyService:
                 available_adapters = self.config.get('adapters', [])
                 enabled_adapters = [adapter for adapter in available_adapters if adapter.get('enabled', True)]
                 default_adapter = enabled_adapters[0].get('name', 'qa-vector-chroma') if enabled_adapters else 'qa-vector-chroma'
-                if self.verbose:
-                    logger.info(f"No API key provided, using default adapter: {default_adapter}")
+                logger.debug(f"No API key provided, using default adapter: {default_adapter}")
                 return True, default_adapter, None
             else:
                 logger.warning("API key required but not provided")
@@ -329,10 +326,9 @@ class ApiKeyService:
                 # Get the system prompt ID if it exists
                 system_prompt_id = key_doc.get("system_prompt_id")
                     
-                if self.verbose:
-                    logger.info(f"Valid API key ({masked_key}). Using adapter: {adapter_name}")
-                    if system_prompt_id:
-                        logger.info(f"API key {masked_key} has associated system prompt ID: {system_prompt_id}")
+                logger.debug(f"Valid API key ({masked_key}). Using adapter: {adapter_name}")
+                if system_prompt_id:
+                    logger.debug(f"API key {masked_key} has associated system prompt ID: {system_prompt_id}")
                         
                 return True, adapter_name, system_prompt_id
             
@@ -430,8 +426,9 @@ class ApiKeyService:
 
         # Get model - check adapter config first, then fall back to global inference config
         model = adapter_config.get('model')
+        debug_enabled = logger.isEnabledFor(logging.DEBUG)
 
-        if self.verbose:
+        if debug_enabled:
             masked_key = mask_api_key(api_key)
             logger.debug(f"get_adapter_info for {masked_key}: adapter_config.get('model') = {model}")
             logger.debug(f"get_adapter_info for {masked_key}: adapter_config.get('inference_provider') = {adapter_config.get('inference_provider')}")
@@ -443,7 +440,7 @@ class ApiKeyService:
             general_config = active_config.get('general', {})
             inference_provider = adapter_config.get('inference_provider', general_config.get('inference_provider', 'ollama'))
 
-            if self.verbose:
+            if debug_enabled:
                 logger.debug(f"get_adapter_info for {masked_key}: inference_provider = {inference_provider}")
 
             # Try to get model from global inference config
@@ -451,7 +448,7 @@ class ApiKeyService:
             inference_config = active_config.get('inference', {}).get(inference_provider, {})
             model = inference_config.get('model')
 
-            if self.verbose:
+            if debug_enabled:
                 logger.debug(f"get_adapter_info for {masked_key}: model from inference config = {model}")
 
         adapter_info['model'] = model
@@ -462,9 +459,12 @@ class ApiKeyService:
         supports_file_ids = capabilities.get('supports_file_ids', False)
         adapter_info['isFileSupported'] = bool(supports_file_ids)
 
-        if self.verbose:
-            masked_key = mask_api_key(api_key)
-            logger.info(f"Retrieved adapter info for API key {masked_key}: client={client_name}, adapter={adapter_name}, model={model}, isFileSupported={adapter_info['isFileSupported']}")
+        if debug_enabled:
+            logger.debug(
+                f"Retrieved adapter info for API key {masked_key}: "
+                f"client={client_name}, adapter={adapter_name}, model={model}, "
+                f"isFileSupported={adapter_info['isFileSupported']}"
+            )
 
         return adapter_info
     
@@ -522,10 +522,9 @@ class ApiKeyService:
             # Insert into database
             await self.database.insert_one(self.collection_name, key_doc)
             
-            if self.verbose:
-                logger.info(f"Created new API key for adapter: {adapter_name}")
-                if system_prompt_id:
-                    logger.info(f"Associated with system prompt ID: {system_prompt_id}")
+            logger.debug(f"Created new API key for adapter: {adapter_name}")
+            if system_prompt_id:
+                logger.debug(f"Associated with system prompt ID: {system_prompt_id}")
             
             # Return the API key and metadata
             result = {
@@ -581,8 +580,7 @@ class ApiKeyService:
                 {"$set": {"system_prompt_id": system_prompt_id_str}}
             )
 
-            if self.verbose:
-                logger.info(f"Updated system prompt for API key {mask_api_key(api_key)} to {system_prompt_id_str}")
+            logger.debug(f"Updated system prompt for API key {mask_api_key(api_key)} to {system_prompt_id_str}")
                 
             return result
             
@@ -626,10 +624,10 @@ class ApiKeyService:
                 {"$set": {"api_key": new_api_key}}
             )
 
-            if self.verbose and result:
+            if result:
                 masked_old_key = mask_api_key(old_api_key)
                 masked_new_key = mask_api_key(new_api_key)
-                logger.info(f"Renamed API key from {masked_old_key} to {masked_new_key}")
+                logger.debug(f"Renamed API key from {masked_old_key} to {masked_new_key}")
 
             return result
 

@@ -86,8 +86,8 @@ class IntentSQLiteRetriever(IntentSQLRetriever):
             cursor.execute("SELECT sqlite_version();")
             version = cursor.fetchone()
 
-            if version and self.verbose:
-                logger.info(f"SQLite connection successful: version {version[0]}")
+            if version:
+                logger.debug(f"SQLite connection successful: version {version[0]}")
 
             # Verify database has tables
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;")
@@ -203,8 +203,7 @@ class IntentSQLiteRetriever(IntentSQLRetriever):
         """Close SQLite connection."""
         if self.connection:
             self.connection.close()
-            if self.verbose:
-                logger.info("Closed SQLite connection")
+            logger.debug("Closed SQLite connection")
 
 
 # Register the intent SQLite retriever

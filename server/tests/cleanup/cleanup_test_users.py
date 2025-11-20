@@ -18,7 +18,6 @@ Usage:
 
 Options:
     --dry-run       Show what would be deleted without actually deleting
-    --verbose       Show detailed output
     --list          List all users in the database
     --users-only    Only clean up test users
     --keys-only     Only clean up test API keys
@@ -55,10 +54,9 @@ except ImportError:
 
 
 class DirectTestUserCleanup:
-    def __init__(self, dry_run: bool = False, verbose: bool = False, 
+    def __init__(self, dry_run: bool = False, 
                  mongodb_only: bool = False, sqlite_only: bool = False):
         self.dry_run = dry_run
-        self.verbose = verbose
         self.mongodb_only = mongodb_only
         self.sqlite_only = sqlite_only
         
@@ -72,9 +70,6 @@ class DirectTestUserCleanup:
         
         # Load configuration
         self.config = self._load_config()
-        
-        if verbose:
-            logging.getLogger().setLevel(logging.DEBUG)
     
     def _load_config(self) -> Dict[str, Any]:
         """Load configuration from config.yaml"""
@@ -89,8 +84,7 @@ class DirectTestUserCleanup:
                 try:
                     with open(config_path, 'r') as f:
                         config = yaml.safe_load(f)
-                        if self.verbose:
-                            logger.debug(f"Loaded config from: {config_path}")
+                        logger.debug(f"Loaded config from: {config_path}")
                         return config
                 except Exception as e:
                     logger.warning(f"Error loading config from {config_path}: {e}")
@@ -118,8 +112,7 @@ class DirectTestUserCleanup:
                 logger.warning(f"SQLite database file not found: {self.sqlite_path}")
                 return False
             
-            if self.verbose:
-                logger.debug(f"Connecting to SQLite: {self.sqlite_path}")
+            logger.debug(f"Connecting to SQLite: {self.sqlite_path}")
             
             # Connect to SQLite
             self.sqlite_conn = sqlite3.connect(self.sqlite_path)
@@ -160,12 +153,11 @@ class DirectTestUserCleanup:
                 # Local MongoDB without auth
                 uri = f'mongodb://{host}:{port}/{database}'
             
-            if self.verbose:
-                # Mask password in debug output
-                safe_uri = uri
-                if password:
-                    safe_uri = uri.replace(password, '***')
-                logger.debug(f"Connecting to MongoDB: {safe_uri}")
+            # Mask password in debug output
+            safe_uri = uri
+            if password:
+                safe_uri = uri.replace(password, '***')
+            logger.debug(f"Connecting to MongoDB: {safe_uri}")
             
             if not MONGO_AVAILABLE:
                 logger.error("pymongo not installed, cannot connect to MongoDB")
@@ -924,8 +916,6 @@ def main():
     parser = argparse.ArgumentParser(description="Direct database cleanup of test users, API keys, and system prompts")
     parser.add_argument("--dry-run", action="store_true", 
                        help="Show what would be deleted without actually deleting")
-    parser.add_argument("--verbose", "-v", action="store_true", 
-                       help="Show detailed output")
     parser.add_argument("--list", action="store_true", 
                        help="List all users without deleting anything")
     parser.add_argument("--users-only", action="store_true",
@@ -942,8 +932,7 @@ def main():
     args = parser.parse_args()
     
     cleanup = DirectTestUserCleanup(
-        dry_run=args.dry_run, 
-        verbose=args.verbose,
+        dry_run=args.dry_run,
         mongodb_only=args.mongodb_only,
         sqlite_only=args.sqlite_only
     )

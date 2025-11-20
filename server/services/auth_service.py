@@ -33,7 +33,6 @@ class AuthService:
     def __init__(self, config: Dict[str, Any], database_service: Optional[DatabaseService] = None):
         """Initialize the authentication service with configuration"""
         self.config = config
-        self.verbose = config.get('general', {}).get('verbose', False)
 
         # Use provided database service or create a new one using factory
         if database_service is None:
@@ -186,8 +185,7 @@ class AuthService:
                 logger.info(f"Created default admin user: {self.default_admin_username}")
                 logger.warning("Please change the default admin password immediately!")
             else:
-                if self.verbose:
-                    logger.info(f"Default admin user already exists: {self.default_admin_username}")
+                logger.debug(f"Default admin user already exists: {self.default_admin_username}")
 
         except (DatabaseConnectionError, DatabaseTimeoutError) as e:
             logger.error(f"Database connection error creating default admin user: {str(e)}")
@@ -290,8 +288,7 @@ class AuthService:
                 {"$set": {"last_login": datetime.now(UTC)}}
             )
             
-            if self.verbose:
-                logger.info(f"User {username} logged in successfully")
+            logger.debug(f"User {username} logged in successfully")
             
             # Return user info without password
             user_info = {
@@ -409,8 +406,8 @@ class AuthService:
                 {"token": token}
             )
             
-            if self.verbose and result:
-                logger.info("User logged out successfully")
+            if result:
+                logger.debug("User logged out successfully")
             
             return result
             
@@ -471,8 +468,7 @@ class AuthService:
                     {"user_id": user["_id"]}
                 )
                 
-                if self.verbose:
-                    logger.info(f"Password changed for user: {user['username']}")
+                logger.debug(f"Password changed for user: {user['username']}")
             
             return result
             
@@ -529,8 +525,7 @@ class AuthService:
             # Insert user
             user_id = await self.database.insert_one(self.users_collection_name, user_doc)
             
-            if self.verbose:
-                logger.info(f"Created new user: {username} with role: {role}")
+            logger.debug(f"Created new user: {username} with role: {role}")
             
             return str(user_id)
 
@@ -766,8 +761,7 @@ class AuthService:
                     {"user_id": user["_id"]}
                 )
                 
-                if self.verbose:
-                    logger.info(f"Password reset for user: {user['username']} (ID: {user_id})")
+                logger.debug(f"Password reset for user: {user['username']} (ID: {user_id})")
             
             return result
             
@@ -824,10 +818,10 @@ class AuthService:
                 self.users_collection_name,
                 {"_id": user_id_converted}
             )
-            
-            if result and self.verbose:
-                logger.info(f"Deleted user: {user['username']} (ID: {user_id})")
-            
+
+            if result:
+                logger.debug(f"Deleted user: {user['username']} (ID: {user_id})")
+
             return result
             
         except ValueError as e:

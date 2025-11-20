@@ -107,8 +107,7 @@ class MilvusRetriever(AbstractVectorRetriever):
             self.collection = Collection(collection_name)
             self.collection.load()
             
-            if self.verbose:
-                logger.info(f"Switched to collection: {collection_name}")
+            logger.debug(f"Switched to collection: {collection_name}")
                 
         except Exception as e:
             error_msg = f"Failed to switch collection: {str(e)}"

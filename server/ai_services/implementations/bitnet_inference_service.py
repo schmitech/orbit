@@ -53,7 +53,7 @@ class BitNetInferenceService(InferenceService, BitNetBaseService):
         # Model instance
         self.model = None
         
-        # Suppress verbose output
+        # Suppress output
         os.environ["BITNET_VERBOSE"] = "0"
 
     async def initialize(self) -> bool:

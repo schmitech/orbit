@@ -10,7 +10,7 @@ Comprehensive tests for adapter hot-reload functionality, including:
 - Edge cases and error handling
 
 Prerequisites:
-1. Server must be running with verbose logging enabled
+1. Server must be running with debug logging enabled (set logging level to DEBUG)
 2. Authentication must be configured (enabled or disabled)
 3. Config files must be writable
 4. At least one adapter (qa-sql) must be configured
@@ -96,6 +96,8 @@ class ConfigBackup:
 
     def modify_config(self, modifier_func):
         """Modify config using a function that takes and returns a dict"""
+        import os
+
         with open(self.config_path, 'r') as f:
             config = yaml.safe_load(f)
 
@@ -103,6 +105,8 @@ class ConfigBackup:
 
         with open(self.config_path, 'w') as f:
             yaml.dump(modified_config, f, default_flow_style=False, sort_keys=False)
+            f.flush()
+            os.fsync(f.fileno())
 
         logger.info(f"✓ Modified {self.config_path.name}")
         return modified_config
@@ -116,7 +120,7 @@ class AdapterReloadTester:
         self.token: Optional[str] = None
         self.session: Optional[aiohttp.ClientSession] = None
         self.project_root = Path(__file__).parent.parent.parent
-        self.adapters_config_path = self.project_root / "config" / "adapters.yaml"
+        self.adapters_config_path = self.project_root / "config" / "adapters" / "qa.yaml"
         self.server_log_path = self.project_root / "logs" / "orbit.log"
 
     async def __aenter__(self):
@@ -259,14 +263,14 @@ class AdapterReloadTester:
                 backup.modify_config(change_model)
 
                 # Wait a moment for file system
-                await asyncio.sleep(0.5)
+                await asyncio.sleep(1.0)
 
                 # Reload the adapter
                 result = await self.reload_adapter('qa-sql')
                 logger.info(f"  Reload response: {result.get('summary', {})}")
 
                 # Wait for logs to be written
-                await asyncio.sleep(1)
+                await asyncio.sleep(1.5)
 
                 # Check logs for change detection
                 change_logs = self.search_logs("config changes", since_time=before_time)
@@ -1481,7 +1485,7 @@ async def main():
         else:
             logger.error(f"❌ {failed} adapter reload test(s) failed")
             logger.info("\nTroubleshooting tips:")
-            logger.info("1. Ensure server is running with verbose logging enabled")
+            logger.info("1. Ensure server is running with debug logging enabled (set logging level to DEBUG)")
             logger.info("2. Check that config/adapters.yaml is writable")
             logger.info("3. Verify at least one adapter (qa-sql) is configured and enabled")
             logger.info("4. Review server logs for detailed error information")

@@ -55,7 +55,6 @@ async def dataset_service():
             }
         },
         'general': {
-            'verbose': False
         },
         'conversation_threading': {
             'enabled': True,

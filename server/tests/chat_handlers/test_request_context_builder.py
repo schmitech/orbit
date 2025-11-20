@@ -21,13 +21,11 @@ class TestRequestContextBuilder:
         """Test builder initialization."""
         builder = RequestContextBuilder(
             config=base_config,
-            adapter_manager=mock_adapter_manager,
-            verbose=True
+            adapter_manager=mock_adapter_manager
         )
 
         assert builder.config == base_config
         assert builder.adapter_manager == mock_adapter_manager
-        assert builder.verbose is True
 
     def test_get_adapter_config(self, base_config, mock_adapter_manager):
         """Test getting adapter configuration."""
@@ -66,8 +64,7 @@ class TestRequestContextBuilder:
         """Test getting inference provider from adapter."""
         builder = RequestContextBuilder(
             config=base_config,
-            adapter_manager=mock_adapter_manager,
-            verbose=True
+            adapter_manager=mock_adapter_manager
         )
 
         provider = builder.get_inference_provider('test_adapter')

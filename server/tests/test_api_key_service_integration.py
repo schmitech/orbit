@@ -22,7 +22,6 @@ def mock_config():
     """Create a mock configuration for testing."""
     return {
         'general': {
-            'verbose': False
         },
         'internal_services': {
             'mongodb': {
@@ -93,7 +92,7 @@ def test_api_key_service_mixed_initialization_patterns():
     MongoDBService.clear_cache()
 
     config = {
-        'general': {'verbose': False},
+        'general': {},
         'internal_services': {
             'mongodb': {
                 'host': 'localhost',
@@ -130,7 +129,7 @@ def test_api_key_service_preserves_configuration_integrity():
     MongoDBService.clear_cache()
     
     config = {
-        'general': {'verbose': True},
+        'general': {},
         'internal_services': {
             'mongodb': {
                 'host': 'localhost',
@@ -148,7 +147,6 @@ def test_api_key_service_preserves_configuration_integrity():
     
     # Verify configuration
     assert service1.collection_name == 'custom_api_keys'
-    assert service1.verbose is True
     
     # Create second instance with same config
     service2 = ApiKeyService(config)
@@ -158,7 +156,6 @@ def test_api_key_service_preserves_configuration_integrity():
     
     # Configuration should be preserved
     assert service2.collection_name == 'custom_api_keys'
-    assert service2.verbose is True
 
 
 def test_api_key_service_handles_initialization_state():
@@ -169,7 +166,7 @@ def test_api_key_service_handles_initialization_state():
     MongoDBService.clear_cache()
     
     config = {
-        'general': {'verbose': False},
+        'general': {},
         'internal_services': {
             'mongodb': {
                 'host': 'localhost',
@@ -208,7 +205,7 @@ def test_api_key_service_concurrent_access():
     MongoDBService.clear_cache()
     
     config = {
-        'general': {'verbose': False},
+        'general': {},
         'internal_services': {
             'mongodb': {
                 'host': 'localhost',

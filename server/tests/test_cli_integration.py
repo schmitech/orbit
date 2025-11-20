@@ -1223,10 +1223,6 @@ class CLITester:
         logger.info("Testing error handling...")
         test_results.append(("Error Handling", self.test_error_handling()))
         
-        # Test 3.5: Verbose logging and log file
-        logger.info("Testing verbose logging and log file...")
-        test_results.append(("Verbose Logging and Log File", self.test_verbose_logging_and_log_file()))
-        
         # Test 4: Authentication flow (if available)
         if auth_available:
             logger.info("Testing authentication flow...")
@@ -1281,7 +1277,6 @@ class CLITester:
         logger.info("✅ Basic CLI functionality (help, status)")
         logger.info("✅ Configuration management")
         logger.info("✅ Error handling and edge cases")
-        logger.info("✅ Verbose logging and log file functionality")
         
         if auth_available:
             logger.info("✅ Authentication flow (login, logout, token persistence)")
@@ -1299,52 +1294,6 @@ class CLITester:
             logger.info("⚠️  Admin services not available (server may be in inference-only mode)")
         
         return passed == total
-
-    def test_verbose_logging_and_log_file(self) -> bool:
-        """Test verbose logging and log file functionality"""
-        logger.info("\n=== Testing Verbose Logging and Log File ===")
-        
-        # Create a temporary log file
-        with tempfile.NamedTemporaryFile(suffix='.log', delete=False) as f:
-            log_file_path = f.name
-            self.temp_files.append(log_file_path)
-        
-        # Test verbose logging
-        verbose_tests = [
-            (["--verbose", "status"], "Verbose server status"),
-            (["--verbose", "auth-status"], "Verbose auth status"),
-            (["--verbose", "--log-file", log_file_path, "status"], "Verbose with log file"),
-            (["--verbose", "--no-color", "status"], "Verbose without color"),
-        ]
-        
-        passed = 0
-        for command, description in verbose_tests:
-            result = self.run_command(command)
-            # Special handling for auth-status which may return non-zero exit code but still work
-            if result["success"] or (description == "Verbose auth status" and ("authenticated" in result["stdout"] or "not authenticated" in result["stdout"])):
-                logger.info(f"✓ {description}: Successful")
-                passed += 1
-            else:
-                logger.error(f"✗ {description}: {result['stderr']}")
-        
-        # Check if log file was created and has content
-        if os.path.exists(log_file_path):
-            try:
-                with open(log_file_path, 'r') as f:
-                    log_content = f.read()
-                    if log_content.strip():
-                        logger.info("✓ Log file created and contains content")
-                        passed += 1
-                    else:
-                        logger.warning("⚠ Log file created but empty")
-                        passed += 1
-            except Exception as e:
-                logger.error(f"✗ Error reading log file: {e}")
-        else:
-            logger.warning("⚠ Log file was not created")
-            passed += 1
-        
-        return passed == len(verbose_tests) + 1  # +1 for log file check
 
     def test_server_side_user_lookup(self) -> bool:
         """Test the new server-side user lookup by username functionality"""
@@ -1813,7 +1762,6 @@ class CLITester:
         # Test different combinations of global options
         global_option_tests = [
             (["--server-url", "http://localhost:3000", "status"], "Custom server URL"),
-            (["--verbose", "--no-color", "status"], "Verbose without color"),
             (["--output", "json", "auth-status"], "JSON output format"),
             (["--output", "table", "auth-status"], "Table output format"),
             (["--no-color", "auth-status"], "No color output"),
@@ -2209,7 +2157,6 @@ def main():
         logger.info("✅ Configuration management and effective config")
         logger.info("✅ Error handling and edge cases")
         logger.info("✅ Centralized error handling decorator")
-        logger.info("✅ Verbose logging and log file functionality")
         logger.info("✅ Authentication flow (login, logout, token persistence)")
         logger.info("✅ User management with server-side filtering and pagination")
         logger.info("✅ Server-side user lookup by username")

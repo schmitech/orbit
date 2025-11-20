@@ -77,8 +77,7 @@ class QAChromaRetriever(QAVectorRetrieverBase, ChromaRetriever):
         # Mark as initialized
         self.initialized = True
         
-        if self.verbose:
-            logger.info(f"QAChromaRetriever initialized successfully")
+        logger.debug("QAChromaRetriever initialized successfully")
     
     def convert_score_to_confidence(self, score: float) -> float:
         """

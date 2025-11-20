@@ -34,22 +34,20 @@ class SQLConnectionMixin:
             Resolved configuration value
         """
         value = config.get(key, default)
-        
-        if hasattr(self, 'verbose') and self.verbose:
-            # Mask sensitive values
-            if key.lower() in ['password', 'pass', 'pwd', 'secret', 'token']:
-                masked_value = '*' * len(str(value)) if value else ''
-                logger.info(f"Config key '{key}': [MASKED]")
-            else:
-                logger.info(f"Config key '{key}': {value}")
-        
+
+        # Mask sensitive values
+        if key.lower() in ['password', 'pass', 'pwd', 'secret', 'token']:
+            masked_value = '*' * len(str(value)) if value else ''
+            logger.debug(f"Config key '{key}': [MASKED]")
+        else:
+            logger.debug(f"Config key '{key}': {value}")
+
         # Resolve environment variables
         if isinstance(value, str) and value.startswith('${') and value.endswith('}'):
             env_var_name = value[2:-1]
             env_value = os.environ.get(env_var_name)
             if env_value is not None:
-                if hasattr(self, 'verbose') and self.verbose:
-                    logger.info(f"Resolved env var '{env_var_name}'")
+                logger.debug(f"Resolved env var '{env_var_name}'")
                 return env_value
             else:
                 logger.warning(f"Environment variable {env_var_name} not found, using default: {default}")
@@ -152,11 +150,16 @@ class SQLQueryExecutionMixin:
     def dump_results_to_file(self, results: List[Dict[str, Any]], prefix: str = "query_results"):
         """
         Dump query results to a timestamped JSON file for debugging.
+        Only executes when log level is DEBUG.
         
         Args:
             results: Query results
             prefix: File prefix
         """
+        # Only dump to file if DEBUG logging is enabled
+        if not logger.isEnabledFor(logging.DEBUG):
+            return
+        
         try:
             log_dir = Path("logs")
             log_dir.mkdir(exist_ok=True)
@@ -166,7 +169,7 @@ class SQLQueryExecutionMixin:
             with open(file_path, 'w') as f:
                 json.dump(results, f, indent=2, default=str)
             
-            logger.info(f"Query results saved to {file_path}")
+            logger.debug(f"Query results saved to {file_path}")
         except Exception as e:
             logger.error(f"Failed to dump query results: {e}")
     
@@ -243,8 +246,7 @@ class BaseSQLDatabaseRetriever(AbstractSQLRetriever, SQLConnectionMixin, SQLType
             test_query = self.get_test_query()
             result = await self.execute_query(test_query)
 
-            if self.verbose:
-                logger.info(f"Database connection test successful: {self._get_datasource_name()}")
+            self.logger.debug(f"Database connection test successful: {self._get_datasource_name()}")
 
             return True
         except Exception as e:
@@ -278,10 +280,9 @@ class BaseSQLDatabaseRetriever(AbstractSQLRetriever, SQLConnectionMixin, SQLType
             raise ValueError(f"{self._get_datasource_name()} connection not initialized")
 
         try:
-            if self.verbose:
-                logger.info(f"Executing {self._get_datasource_name()} query: {query}")
-                if params:
-                    logger.info(f"Parameters: {params}")
+            self.logger.debug(f"Executing {self._get_datasource_name()} query: {query}")
+            if params:
+                self.logger.debug(f"Parameters: {params}")
 
             # Execute query (implementation specific)
             raw_results = await self._execute_raw_query(query, params)
@@ -289,10 +290,9 @@ class BaseSQLDatabaseRetriever(AbstractSQLRetriever, SQLConnectionMixin, SQLType
             # Convert types using mixin
             results = [self.convert_row_types(row) for row in raw_results]
 
-            if self.verbose:
-                logger.info(f"Query returned {len(results)} rows")
-                if len(results) > 0:
-                    self.dump_results_to_file(results)
+            self.logger.debug(f"Query returned {len(results)} rows")
+            if len(results) > 0:
+                self.dump_results_to_file(results)
 
             return results
 
@@ -314,8 +314,7 @@ class BaseSQLDatabaseRetriever(AbstractSQLRetriever, SQLConnectionMixin, SQLType
                     raw_results = await self._execute_raw_query(query, params)
                     results = [self.convert_row_types(row) for row in raw_results]
 
-                    if self.verbose:
-                        logger.info(f"Query retry successful, returned {len(results)} rows")
+                    self.logger.debug(f"Query retry successful, returned {len(results)} rows")
 
                     return results
 

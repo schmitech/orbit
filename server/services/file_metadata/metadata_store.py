@@ -46,17 +46,6 @@ class FileMetadataStore:
                 except Exception:
                     db_path = 'files.db'
 
-        # Get verbose setting from config
-        if config:
-            self.verbose = config.get('general', {}).get('verbose', False)
-        else:
-            try:
-                from config.config_manager import load_config
-                loaded_config = load_config()
-                self.verbose = loaded_config.get('general', {}).get('verbose', False)
-            except Exception:
-                self.verbose = False
-
         self.db_path = db_path
         self.connection = None
         self._init_schema()
@@ -121,8 +110,7 @@ class FileMetadataStore:
         self._run_migrations(cursor)
 
         self.connection.commit()
-        if self.verbose:
-            logger.info(f"Initialized FileMetadataStore at {self.db_path}")
+        logger.debug(f"Initialized FileMetadataStore at {self.db_path}")
 
     def _run_migrations(self, cursor):
         """Run database migrations to add new columns if they don't exist."""
@@ -147,8 +135,7 @@ class FileMetadataStore:
                     ADD COLUMN embedding_dimensions INTEGER
                 """)
 
-            if self.verbose:
-                logger.info("Database migrations completed successfully")
+            logger.debug("Database migrations completed successfully")
 
         except Exception as e:
             logger.error(f"Error running database migrations: {e}")
@@ -409,8 +396,7 @@ class FileMetadataStore:
             cursor.execute("DELETE FROM uploaded_files WHERE file_id = ?", (file_id,))
 
             self.connection.commit()
-            if self.verbose:
-                logger.info(f"Deleted file {file_id} and chunks")
+            logger.debug(f"Deleted file {file_id} and chunks")
             return True
         
         except Exception as e:

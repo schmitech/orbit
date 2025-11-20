@@ -67,7 +67,6 @@ def get_test_config(enabled=True, base_url="http://localhost:8000", include_scan
     """Get test configuration for LLM Guard service"""
     config = {
         'general': {
-            'verbose': True
         }
     }
     

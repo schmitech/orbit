@@ -102,8 +102,7 @@ class AbstractSQLRetriever(BaseRetriever):
             if not self._datasource.is_initialized:
                 await self._datasource.initialize()
             self._datasource_initialized = True
-            if self.verbose:
-                logger.info(f"Datasource initialized for {self._get_datasource_name()}")
+            logger.debug(f"Datasource initialized for {self._get_datasource_name()}")
     
 
         
@@ -183,8 +182,7 @@ class AbstractSQLRetriever(BaseRetriever):
             await self._datasource.close()
             self._datasource_initialized = False
             self._connection = None
-            if self.verbose:
-                logger.info(f"Datasource closed for {self._get_datasource_name()}")
+            logger.debug(f"Datasource closed for {self._get_datasource_name()}")
     
 
     
@@ -262,8 +260,7 @@ class AbstractSQLRetriever(BaseRetriever):
             logger.warning(f"Large result set: {sql_query} ({row_count} rows)")
         
         # Log successful query with basic stats
-        if self.verbose:
-            logger.info(f"Query executed: {execution_time:.2f}s, {row_count} rows")
+        logger.debug(f"Query executed: {execution_time:.2f}s, {row_count} rows")
     
     def _get_search_query(self, query: str, collection_name: str) -> Dict[str, Any]:
         """
@@ -316,8 +313,6 @@ class AbstractSQLRetriever(BaseRetriever):
             # and handles common logging/error handling
             await super().get_relevant_context(query, api_key, collection_name, **kwargs)
 
-            debug_mode = self.verbose
-
             # Ensure datasource is initialized
             await self._ensure_datasource_initialized()
 
@@ -325,16 +320,15 @@ class AbstractSQLRetriever(BaseRetriever):
                 error_msg = "Database connection not initialized"
                 logger.error(error_msg)
                 raise ValueError(error_msg)
-            
+
             # 1. Get domain-specific search query
             search_config = self._get_search_query(query, self.collection)
             sql_query = search_config["sql"]
             params = search_config.get("params", [])
             fields = search_config.get("fields", self.default_search_fields)
-            
-            if debug_mode:
-                logger.info(f"Search query: {sql_query}")
-                logger.info(f"Search params: {params}")
+
+            logger.debug(f"Search query: {sql_query}")
+            logger.debug(f"Search params: {params}")
             
             # 2. Execute the query with timing and monitoring
             import time
@@ -344,9 +338,8 @@ class AbstractSQLRetriever(BaseRetriever):
             
             # Monitor query execution
             self._monitor_query_execution(sql_query, execution_time, len(rows))
-            
-            if debug_mode:
-                logger.info(f"Retrieved {len(rows)} initial rows from database")
+
+            logger.debug(f"Retrieved {len(rows)} initial rows from database")
             
             # 3. Process and filter results
             results = []
@@ -429,11 +422,10 @@ class AbstractSQLRetriever(BaseRetriever):
                 result["metadata"]["truncated"] = was_truncated
                 result["metadata"]["result_count"] = len(results)
 
-            if debug_mode:
-                logger.info(f"Retrieved {len(results)} relevant context items" +
-                          (f" (truncated from {original_count})" if was_truncated else ""))
-                if results:
-                    logger.info(f"Top confidence score: {results[0].get('confidence', 0)}")
+            logger.debug(f"Retrieved {len(results)} relevant context items" +
+                      (f" (truncated from {original_count})" if was_truncated else ""))
+            if results:
+                logger.debug(f"Top confidence score: {results[0].get('confidence', 0)}")
 
             return results
                 

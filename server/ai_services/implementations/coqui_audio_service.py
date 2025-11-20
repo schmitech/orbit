@@ -57,9 +57,6 @@ class CoquiAudioService(AudioService):
         # Initialize via AudioService base class
         AudioService.__init__(self, config, "coqui")
 
-        # Get verbose setting from global config
-        self.verbose = config.get('general', {}).get('verbose', False)
-
         # Get audio-specific configuration
         provider_config = self._extract_provider_config()
 
@@ -118,11 +115,10 @@ class CoquiAudioService(AudioService):
             enabled=retry_config['enabled']
         )
 
-        if self.verbose:
-            self.logger.info(
-                f"Configured Coqui TTS service with model: {self.tts_model}, "
-                f"device: {self.device}, language: {self.language}"
-            )
+        self.logger.debug(
+            f"Configured Coqui TTS service with model: {self.tts_model}, "
+            f"device: {self.device}, language: {self.language}"
+        )
 
     def _extract_provider_config(self) -> Dict[str, Any]:
         """
@@ -164,18 +160,16 @@ class CoquiAudioService(AudioService):
         if _global_tts_model is not None and _global_tts_config == current_config:
             self.tts = _global_tts_model
             self._tts_initialized = True
-            if self.verbose:
-                self.logger.info(f"Using cached Coqui TTS model on device: {self.device}")
+            self.logger.debug(f"Using cached Coqui TTS model on device: {self.device}")
             return True
 
         try:
-            if self.verbose:
-                self.logger.info(f"Loading Coqui TTS model: {self.tts_model} on device: {self.device}")
-                if self.device == 'cuda' and torch.cuda.is_available():
-                    self.logger.info(
-                        f"GPU: {torch.cuda.get_device_name(0)}, "
-                        f"Memory: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.2f} GB"
-                    )
+            self.logger.debug(f"Loading Coqui TTS model: {self.tts_model} on device: {self.device}")
+            if self.device == 'cuda' and torch.cuda.is_available():
+                self.logger.debug(
+                    f"GPU: {torch.cuda.get_device_name(0)}, "
+                    f"Memory: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.2f} GB"
+                )
 
             # Initialize TTS model
             # For models that need a separate vocoder, TTS will load it automatically
@@ -186,8 +180,7 @@ class CoquiAudioService(AudioService):
             )
 
             # Warm up the model with a short test (reduces first inference latency)
-            if self.verbose:
-                self.logger.info("Warming up Coqui TTS model...")
+            self.logger.debug("Warming up Coqui TTS model...")
 
             test_text = "Hello"
             try:
@@ -201,8 +194,7 @@ class CoquiAudioService(AudioService):
                     torch.cuda.synchronize()
                     torch.cuda.empty_cache()
 
-                if self.verbose:
-                    self.logger.info("Model warm-up completed")
+                self.logger.debug("Model warm-up completed")
             except Exception as warmup_error:
                 self.logger.warning(f"Model warm-up failed (non-critical): {str(warmup_error)}")
 
@@ -212,12 +204,11 @@ class CoquiAudioService(AudioService):
             _global_tts_model = self.tts
             _global_tts_config = current_config
 
-            if self.verbose:
-                self.logger.info("Coqui TTS model loaded successfully")
-                if self.device == 'cuda' and torch.cuda.is_available():
-                    allocated = torch.cuda.memory_allocated(0) / 1024**2
-                    reserved = torch.cuda.memory_reserved(0) / 1024**2
-                    self.logger.info(f"GPU memory - Allocated: {allocated:.2f} MB, Reserved: {reserved:.2f} MB")
+            self.logger.debug("Coqui TTS model loaded successfully")
+            if self.device == 'cuda' and torch.cuda.is_available():
+                allocated = torch.cuda.memory_allocated(0) / 1024**2
+                reserved = torch.cuda.memory_reserved(0) / 1024**2
+                self.logger.debug(f"GPU memory - Allocated: {allocated:.2f} MB, Reserved: {reserved:.2f} MB")
 
             return True
 
@@ -261,7 +252,7 @@ class CoquiAudioService(AudioService):
             self.initialized = True
             self.connection_verified = True  # Local service, no remote connection needed
 
-            self.logger.info(
+            self.logger.debug(
                 f"Initialized Coqui TTS service with model {self.tts_model} on {self.device}"
             )
             return True
@@ -299,8 +290,7 @@ class CoquiAudioService(AudioService):
                 # Only clear the local reference
                 self.tts = None
                 torch.cuda.empty_cache()
-                if self.verbose:
-                    self.logger.debug("GPU memory cleared (model remains cached)")
+                self.logger.debug("GPU memory cleared (model remains cached)")
 
         self.initialized = False
         self._verification_attempted = False
@@ -399,15 +389,13 @@ class CoquiAudioService(AudioService):
                 tts_kwargs['speed'] = speed
 
             # Generate audio
-            if self.verbose:
-                self.logger.debug(f"Synthesizing: '{text[:50]}...' with Coqui TTS")
+            self.logger.debug(f"Synthesizing: '{text[:50]}...' with Coqui TTS")
 
             # TTS returns a numpy array
             audio_array = self.tts.tts(**tts_kwargs)
 
-            if self.verbose:
-                duration = len(audio_array) / self.tts.synthesizer.output_sample_rate if hasattr(self.tts, 'synthesizer') else len(audio_array) / 22050
-                self.logger.debug(f"Generated {len(audio_array)} samples ({duration:.2f}s)")
+            duration = len(audio_array) / self.tts.synthesizer.output_sample_rate if hasattr(self.tts, 'synthesizer') else len(audio_array) / 22050
+            self.logger.debug(f"Generated {len(audio_array)} samples ({duration:.2f}s)")
 
             return audio_array
 

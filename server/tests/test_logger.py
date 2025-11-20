@@ -20,7 +20,6 @@ from services.logger_service import LoggerService
 async def logger_service():
     """Fixture to create and initialize a logger service for testing."""
     config = load_config()
-    config['general']['verbose'] = 'true'  # Enable verbose mode for testing
     
     service = LoggerService(config)
     await service.initialize_elasticsearch()

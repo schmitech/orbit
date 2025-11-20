@@ -46,8 +46,7 @@ def register_adapters():
             implementation='adapters.qa.base.QADocumentAdapter',
             config={
                 'confidence_threshold': 0.7,
-                'boost_exact_matches': False,
-                'verbose': False
+                'boost_exact_matches': False
             }
         )
         logger.debug(f"Registered QA adapter for {datasource}")
@@ -59,8 +58,7 @@ def register_adapters():
             adapter_name="generic",
             implementation='adapters.generic.adapter.GenericDocumentAdapter',
             config={
-                'confidence_threshold': 0.3,
-                'verbose': False
+                'confidence_threshold': 0.3
             }
         )
         logger.debug(f"Registered Generic adapter for {datasource}")

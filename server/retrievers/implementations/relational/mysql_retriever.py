@@ -80,11 +80,11 @@ class MySQLRetriever(BaseSQLDatabaseRetriever):
             cursor.execute("SELECT VERSION()")
             version = cursor.fetchone()
             cursor.close()
-            
-            if version and self.verbose:
+
+            if version:
                 version_str = version.get('VERSION()') if isinstance(version, dict) else version[0]
-                logger.info(f"MySQL connection successful: {version_str}")
-            
+                logger.debug(f"MySQL connection successful: {version_str}")
+
             return connection
             
         except Exception as e:
@@ -187,8 +187,7 @@ class MySQLRetriever(BaseSQLDatabaseRetriever):
                     "fields": self.default_search_fields + ['relevance_score']
                 }
                 
-                if self.verbose:
-                    logger.info("Using MySQL FULLTEXT search")
+                logger.debug("Using MySQL FULLTEXT search")
                 
                 return search_config
         

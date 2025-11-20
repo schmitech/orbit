@@ -26,8 +26,7 @@ class AudioHandler:
     def __init__(
         self,
         config: Dict[str, Any],
-        adapter_manager=None,
-        verbose: bool = False
+        adapter_manager=None
     ):
         """
         Initialize the audio handler.
@@ -35,11 +34,9 @@ class AudioHandler:
         Args:
             config: Application configuration
             adapter_manager: Optional adapter manager for getting provider settings
-            verbose: Enable verbose logging
         """
         self.config = config
         self.adapter_manager = adapter_manager
-        self.verbose = verbose
 
         # Extract TTS limits from config
         sound_config = config.get('sound', {})
@@ -54,9 +51,9 @@ class AudioHandler:
 
         # Cache for audio services to avoid repeated creation
         self._audio_services = {}
-        
+
         # GPU-related configuration
-        self.enable_gpu_monitoring = verbose and CUDA_AVAILABLE
+        self.enable_gpu_monitoring = CUDA_AVAILABLE
         self.gpu_error_retry_count = 2  # Retry GPU errors up to 2 times
 
     def _truncate_text(self, text: str) -> Optional[str]:
@@ -300,8 +297,7 @@ class AudioHandler:
                 # Get audio format
                 audio_format = self._get_audio_format(provider)
 
-                if self.verbose:
-                    logger.info(f"Generated audio: {len(audio_data)} bytes, format: {audio_format}")
+                logger.debug(f"Generated audio: {len(audio_data)} bytes, format: {audio_format}")
 
                 return audio_data, audio_format
 
@@ -346,16 +342,14 @@ class AudioHandler:
         This should be called when the handler is no longer needed
         to properly release GPU memory and connections.
         """
-        if self.verbose:
-            logger.debug("Cleaning up audio handler resources")
+        logger.debug("Cleaning up audio handler resources")
 
         # Close all cached audio services
         for provider, service in self._audio_services.items():
             try:
                 if hasattr(service, 'close'):
                     await service.close()
-                    if self.verbose:
-                        logger.debug(f"Closed audio service: {provider}")
+                    logger.debug(f"Closed audio service: {provider}")
             except Exception as e:
                 logger.warning(f"Error closing audio service {provider}: {str(e)}")
 
@@ -366,10 +360,8 @@ class AudioHandler:
         if CUDA_AVAILABLE:
             try:
                 torch.cuda.empty_cache()
-                if self.verbose:
-                    self._log_gpu_memory("after cleanup")
+                self._log_gpu_memory("after cleanup")
             except Exception:
                 pass
 
-        if self.verbose:
-            logger.debug("Audio handler cleanup completed")
+        logger.debug("Audio handler cleanup completed")

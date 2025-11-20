@@ -64,7 +64,6 @@ def test_config():
             "enabled": False  # Disable embeddings for testing
         },
         "general": {
-            "verbose": True
         }
     }
 
@@ -256,7 +255,6 @@ async def test_custom_return_results_limit(mock_datasource, mock_embeddings):
             "enabled": False
         },
         "general": {
-            "verbose": True
         }
     }
 

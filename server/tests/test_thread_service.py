@@ -57,7 +57,6 @@ async def test_services():
             }
         },
         'general': {
-            'verbose': False
         },
         'conversation_threading': {
             'enabled': True,

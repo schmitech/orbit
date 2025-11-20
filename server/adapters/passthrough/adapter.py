@@ -16,12 +16,10 @@ class ConversationalAdapter(DocumentAdapter):
     def __init__(self, config: Optional[Dict[str, Any]] = None, **kwargs: Any) -> None:
         super().__init__(config=config or {}, **kwargs)
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
-        self.verbose = bool(self.config.get("verbose", False))
 
     def format_document(self, raw_doc: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
         """Return a minimal payload preserving any metadata provided."""
-        if self.verbose:
-            self.logger.debug("format_document called on conversational adapter; returning metadata only")
+        self.logger.debug("format_document called on conversational adapter; returning metadata only")
         return {
             "content": raw_doc or "",
             "metadata": metadata.copy() if metadata else {},
@@ -46,7 +44,6 @@ class MultimodalAdapter(DocumentAdapter):
     def __init__(self, config: Optional[Dict[str, Any]] = None, **kwargs: Any) -> None:
         super().__init__(config=config or {}, **kwargs)
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
-        self.verbose = bool(self.config.get("verbose", False))
 
     def format_document(self, raw_doc: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -54,8 +51,7 @@ class MultimodalAdapter(DocumentAdapter):
         
         Preserves file metadata (file_id, chunk_index, filename) for context.
         """
-        if self.verbose:
-            self.logger.debug("format_document called on multimodal adapter; preserving file metadata")
+        self.logger.debug("format_document called on multimodal adapter; preserving file metadata")
         return {
             "content": raw_doc or "",
             "metadata": metadata.copy() if metadata else {},

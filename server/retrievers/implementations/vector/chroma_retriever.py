@@ -55,12 +55,11 @@ class ChromaRetriever(AbstractVectorRetriever):
             self.collection_name = self.datasource_config['collection']
             logger.debug(f"ChromaRetriever using collection from datasource config: {self.collection_name}")
 
-        # Configure ChromaDB and related HTTP client logging based on verbose setting
-        if not self.verbose:
-            # Only show warnings and errors when not in verbose mode
-            for logger_name in ["httpx", "chromadb"]:
-                client_logger = logging.getLogger(logger_name)
-                client_logger.setLevel(logging.WARNING)
+        # Configure ChromaDB and related HTTP client logging to reduce noise
+        # Suppress verbose ChromaDB/httpx logs - use WARNING level
+        for logger_name in ["httpx", "chromadb"]:
+            client_logger = logging.getLogger(logger_name)
+            client_logger.setLevel(logging.WARNING)
 
     @property
     def chroma_client(self):

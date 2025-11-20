@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 # Complete test configuration
 INTEGRATION_TEST_CONFIG = {
-    'general': {'verbose': True},
+    'general': {},
     'fault_tolerance': {
         'enabled': True,
         'circuit_breaker': {

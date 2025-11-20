@@ -64,7 +64,6 @@ async def mock_config():
     """Fixture providing mock configuration"""
     return {
         'general': {
-            'verbose': False,
             'inference_provider': 'ollama'
         },
         'chat_history': {

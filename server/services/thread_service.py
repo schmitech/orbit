@@ -31,7 +31,6 @@ class ThreadService:
             dataset_service: Optional thread dataset service instance
         """
         self.config = config
-        self.verbose = config.get('general', {}).get('verbose', False)
         
         # Threading configuration
         threading_config = config.get('conversation_threading', {})
@@ -55,8 +54,7 @@ class ThreadService:
         
         self._initialized = False
         
-        if self.verbose:
-            logger.info(f"ThreadService initialized (enabled={self.enabled})")
+        logger.debug(f"ThreadService initialized (enabled={self.enabled})")
 
     async def initialize(self) -> None:
         """Initialize the service and its dependencies."""
@@ -131,8 +129,7 @@ class ThreadService:
             )
             
             # Log dataset storage confirmation
-            if self.verbose:
-                logger.info(f"Dataset stored with key: {dataset_key} for thread {thread_id} ({len(raw_results)} results)")
+            logger.debug(f"Dataset stored with key: {dataset_key} for thread {thread_id} ({len(raw_results)} results)")
 
             # Create thread document
             thread_doc = {
@@ -151,8 +148,7 @@ class ThreadService:
             # Store thread metadata
             await self.database_service.insert_one(self.collection_name, thread_doc)
 
-            if self.verbose:
-                logger.info(f"Created thread {thread_id} for message {parent_message_id} (session: {thread_session_id})")
+            logger.debug(f"Created thread {thread_id} for message {parent_message_id} (session: {thread_session_id})")
 
             return {
                 'thread_id': thread_id,
@@ -192,8 +188,7 @@ class ThreadService:
             )
 
             if not thread_doc:
-                if self.verbose:
-                    logger.debug(f"Thread {thread_id} not found")
+                logger.debug(f"Thread {thread_id} not found")
                 return None
 
             # Note: We don't auto-delete expired threads here - that's handled by cleanup_expired_threads()
@@ -290,9 +285,6 @@ class ThreadService:
                 {'id': thread_id}
             )
 
-            if self.verbose and result:
-                logger.info(f"Deleted thread {thread_id}")
-
             if result:
                 return {'status': 'success', 'thread_id': thread_id}
             else:
@@ -334,8 +326,8 @@ class ThreadService:
                     if result.get('status') == 'success':
                         deleted_count += 1
             
-            if self.verbose and deleted_count > 0:
-                logger.info(f"Cleaned up {deleted_count} expired threads")
+            if deleted_count > 0:
+                logger.debug(f"Cleaned up {deleted_count} expired threads")
             
             return deleted_count
 
@@ -349,4 +341,3 @@ class ThreadService:
             await self.dataset_service.close()
         
         # Database service cleanup is handled by the service itself
-

@@ -56,7 +56,6 @@ async def redis_service():
             }
         },
         'general': {
-            'verbose': False  # Turn off verbose logging for tests
         }
     }
 

@@ -25,11 +25,7 @@ class DocumentRerankingStep(PipelineStep):
     def __init__(self, container):
         """Initialize the reranking step."""
         super().__init__(container)
-        # Log when step is created
-        config = container.get_or_none('config') or {}
-        verbose = config.get('general', {}).get('verbose', False)
-        if verbose:
-            self.logger.info("DocumentRerankingStep initialized and added to pipeline")
+        self.logger.debug("DocumentRerankingStep initialized and added to pipeline")
 
     def should_execute(self, context: ProcessingContext) -> bool:
         """
@@ -42,35 +38,37 @@ class DocumentRerankingStep(PipelineStep):
             3. Not blocked
             4. Not in inference-only mode (or adapter has retrieval)
         """
-        # Get verbose setting
         config = self.container.get_or_none('config') or {}
-        verbose = config.get('general', {}).get('verbose', False)
+        debug_enabled = self.logger.isEnabledFor(logging.DEBUG)
 
-        if verbose:
-            self.logger.info("DocumentRerankingStep.should_execute() - Starting evaluation")
+        if debug_enabled:
+            self.logger.debug("DocumentRerankingStep.should_execute() - Starting evaluation")
 
         if context.is_blocked:
-            if verbose:
-                self.logger.info("DocumentRerankingStep.should_execute() - Context is blocked, skipping")
+            if debug_enabled:
+                self.logger.debug("DocumentRerankingStep.should_execute() - Context is blocked, skipping")
             return False
 
         # Check if we have documents to rerank
         if not context.retrieved_docs or len(context.retrieved_docs) == 0:
-            if verbose:
-                self.logger.info("DocumentRerankingStep.should_execute() - No documents to rerank")
-            else:
-                self.logger.debug("No documents to rerank - skipping reranking step")
+            self.logger.debug("DocumentRerankingStep.should_execute() - No documents to rerank")
             return False
 
-        if verbose:
-            self.logger.info(f"DocumentRerankingStep.should_execute() - Found {len(context.retrieved_docs)} documents to potentially rerank")
+        if debug_enabled:
+            self.logger.debug(
+                "DocumentRerankingStep.should_execute() - Found %s documents to potentially rerank",
+                len(context.retrieved_docs),
+            )
 
         # Check if reranking is globally enabled
         reranker_config = config.get('reranker', {})
         global_reranker_enabled = reranker_config.get('enabled', False)
 
-        if verbose:
-            self.logger.info(f"DocumentRerankingStep.should_execute() - Global reranker enabled: {global_reranker_enabled}")
+        if debug_enabled:
+            self.logger.debug(
+                "DocumentRerankingStep.should_execute() - Global reranker enabled: %s",
+                global_reranker_enabled,
+            )
 
         # Check if adapter has reranker override
         adapter_has_reranker = False
@@ -81,18 +79,26 @@ class DocumentRerankingStep(PipelineStep):
             reranker_provider = adapter_config.get('reranker_provider')
             adapter_has_reranker = bool(reranker_provider)
 
-            if verbose:
-                self.logger.info(f"DocumentRerankingStep.should_execute() - Adapter '{context.adapter_name}' reranker_provider: {reranker_provider or 'None'}")
+            if debug_enabled:
+                self.logger.debug(
+                    "DocumentRerankingStep.should_execute() - Adapter '%s' reranker_provider: %s",
+                    context.adapter_name,
+                    reranker_provider or 'None',
+                )
 
         # Execute if global reranker is enabled OR adapter specifies a reranker
         should_rerank = global_reranker_enabled or adapter_has_reranker
 
-        if verbose:
-            self.logger.info(f"DocumentRerankingStep.should_execute() - Decision: {should_rerank} (global={global_reranker_enabled}, adapter={adapter_has_reranker})")
+        if debug_enabled:
+            self.logger.debug(
+                "DocumentRerankingStep.should_execute() - Decision: %s (global=%s, adapter=%s)",
+                should_rerank,
+                global_reranker_enabled,
+                adapter_has_reranker,
+            )
 
         if not should_rerank:
-            if not verbose:
-                self.logger.debug("Reranking disabled - skipping reranking step")
+            self.logger.debug("Reranking disabled - skipping reranking step")
             return False
 
         return True
@@ -107,49 +113,45 @@ class DocumentRerankingStep(PipelineStep):
         Returns:
             The modified context with reranked documents
         """
-        # Get verbose setting
-        config = self.container.get_or_none('config') or {}
-        verbose = config.get('general', {}).get('verbose', False)
-
         if context.is_blocked:
             return context
 
-        if verbose:
-            self.logger.info(f"DocumentRerankingStep.process() - Starting reranking of {len(context.retrieved_docs)} documents")
-        else:
-            self.logger.debug(f"Reranking {len(context.retrieved_docs)} documents")
+        self.logger.debug(
+            "DocumentRerankingStep.process() - Starting reranking of %s documents",
+            len(context.retrieved_docs),
+        )
 
         try:
             # Get reranker service
             reranker_service = await self._get_reranker_service(context)
 
             if not reranker_service:
-                if verbose:
-                    self.logger.info("DocumentRerankingStep.process() - No reranker service available, skipping")
-                else:
-                    self.logger.warning("No reranker service available - skipping reranking")
+                self.logger.warning("No reranker service available - skipping reranking")
                 return context
 
-            if verbose:
-                provider = getattr(reranker_service, 'provider_name', 'unknown')
-                model = getattr(reranker_service, 'model', 'unknown')
-                self.logger.info(f"DocumentRerankingStep.process() - Using reranker: {provider}/{model}")
+            provider = getattr(reranker_service, 'provider_name', 'unknown')
+            model = getattr(reranker_service, 'model', 'unknown')
+            self.logger.debug(
+                "DocumentRerankingStep.process() - Using reranker: %s/%s",
+                provider,
+                model,
+            )
 
             # Extract document texts for reranking
             documents = self._extract_document_texts(context.retrieved_docs)
 
             if not documents:
-                if verbose:
-                    self.logger.info("DocumentRerankingStep.process() - No document texts extracted, skipping")
-                else:
-                    self.logger.warning("No document texts to rerank - skipping reranking")
+                self.logger.warning("No document texts to rerank - skipping reranking")
                 return context
 
             # Get top_n configuration
             top_n = self._get_top_n_config(context)
 
-            if verbose:
-                self.logger.info(f"DocumentRerankingStep.process() - Reranking {len(documents)} docs with top_n={top_n}")
+            self.logger.debug(
+                "DocumentRerankingStep.process() - Reranking %s docs with top_n=%s",
+                len(documents),
+                top_n,
+            )
 
             # Perform reranking
             reranked_results = await reranker_service.rerank(
@@ -159,15 +161,16 @@ class DocumentRerankingStep(PipelineStep):
             )
 
             if not reranked_results:
-                if verbose:
-                    self.logger.info("DocumentRerankingStep.process() - Reranking returned no results, keeping original order")
-                else:
-                    self.logger.warning("Reranking returned no results - keeping original order")
+                self.logger.warning("Reranking returned no results - keeping original order")
                 return context
 
-            if verbose:
-                top_scores = [r.get('score', 0.0) for r in reranked_results[:3]]
-                self.logger.info(f"DocumentRerankingStep.process() - Reranked {len(documents)} → {len(reranked_results)} docs, top scores: {top_scores}")
+            top_scores = [r.get('score', 0.0) for r in reranked_results[:3]]
+            self.logger.debug(
+                "DocumentRerankingStep.process() - Reranked %s → %s docs, top scores: %s",
+                len(documents),
+                len(reranked_results),
+                top_scores,
+            )
 
             # Update context with reranked documents
             context.retrieved_docs = self._apply_reranking_results(
@@ -190,19 +193,19 @@ class DocumentRerankingStep(PipelineStep):
                 'top_scores': [r.get('score', 0.0) for r in reranked_results[:3]]
             }
 
-            if verbose:
-                self.logger.info(f"DocumentRerankingStep.process() - Successfully completed reranking")
-            else:
-                self.logger.debug(
-                    f"Successfully reranked documents: {len(documents)} -> {len(reranked_results)}"
-                )
+            self.logger.debug(
+                "Successfully reranked documents: %s -> %s",
+                len(documents),
+                len(reranked_results),
+            )
 
         except Exception as e:
             # Log error but don't fail the pipeline - reranking is optional enhancement
-            self.logger.error(f"Error during document reranking: {str(e)}")
-            if verbose:
-                import traceback
-                self.logger.error(f"DocumentRerankingStep.process() - Traceback:\n{traceback.format_exc()}")
+            self.logger.error(
+                "Error during document reranking: %s",
+                str(e),
+                exc_info=self.logger.isEnabledFor(logging.DEBUG),
+            )
             self.logger.warning("Continuing with original document order")
 
         return context

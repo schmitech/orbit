@@ -27,8 +27,7 @@ class DependencyCacheCleaner:
         embedding_cache,
         reranker_cache,
         vision_cache=None,
-        audio_cache=None,
-        verbose: bool = False
+        audio_cache=None
     ):
         """
         Initialize the dependency cache cleaner.
@@ -40,7 +39,6 @@ class DependencyCacheCleaner:
             reranker_cache: Reranker cache manager
             vision_cache: Vision cache manager (optional for backward compatibility)
             audio_cache: Audio cache manager (optional for backward compatibility)
-            verbose: Enable verbose logging
         """
         self.config = config
         self.provider_cache = provider_cache
@@ -48,7 +46,6 @@ class DependencyCacheCleaner:
         self.reranker_cache = reranker_cache
         self.vision_cache = vision_cache
         self.audio_cache = audio_cache
-        self.verbose = verbose
 
     async def clear_adapter_dependencies(
         self,
@@ -66,8 +63,7 @@ class DependencyCacheCleaner:
             List of cleared cache descriptions
         """
         if not adapter_config:
-            if self.verbose:
-                logger.debug(f"No config found for adapter '{adapter_name}', skipping dependency cache clearing")
+            logger.debug(f"No config found for adapter '{adapter_name}', skipping dependency cache clearing")
             return []
 
         cleared_caches = []
@@ -94,19 +90,23 @@ class DependencyCacheCleaner:
 
         if cleared_caches:
             logger.info(f"Cleared dependency caches for adapter '{adapter_name}': {', '.join(cleared_caches)}")
-        elif self.verbose:
-            logger.debug(f"No dependency caches to clear for adapter '{adapter_name}'")
-
-        # Log summary
-        if self.verbose and cleared_caches:
             provider_count = sum(1 for c in cleared_caches if c.startswith("provider:"))
             embedding_count = sum(1 for c in cleared_caches if c.startswith("embedding:"))
             reranker_count = sum(1 for c in cleared_caches if c.startswith("reranker:"))
             vision_count = sum(1 for c in cleared_caches if c.startswith("vision:"))
             audio_count = sum(1 for c in cleared_caches if c.startswith("audio:"))
-            logger.debug(f"Cache clearing summary for '{adapter_name}': "
-                        f"{provider_count} provider(s), {embedding_count} embedding(s), "
-                        f"{reranker_count} reranker(s), {vision_count} vision, {audio_count} audio")
+            logger.debug(
+                "Cache clearing summary for '%s': %s provider(s), %s embedding(s), "
+                "%s reranker(s), %s vision, %s audio",
+                adapter_name,
+                provider_count,
+                embedding_count,
+                reranker_count,
+                vision_count,
+                audio_count,
+            )
+        else:
+            logger.debug(f"No dependency caches to clear for adapter '{adapter_name}'")
 
         return cleared_caches
 
@@ -140,7 +140,7 @@ class DependencyCacheCleaner:
             for key in removed_keys:
                 cleared.append(f"provider:{key}")
 
-            if removed_keys and self.verbose:
+            if removed_keys:
                 logger.debug(f"Cleared provider cache variants for '{old_provider}': {removed_keys}")
 
         return cleared

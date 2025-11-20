@@ -25,7 +25,6 @@ def mock_sqlite_config():
     temp_dir = tempfile.mkdtemp()
     return {
         'general': {
-            'verbose': False
         },
         'internal_services': {
             'backend': {
@@ -69,7 +68,7 @@ def test_sqlite_service_singleton_different_configs():
     temp_dir2 = tempfile.mkdtemp()
 
     config1 = {
-        'general': {'verbose': False},
+        'general': {},
         'internal_services': {
             'backend': {
                 'type': 'sqlite',
@@ -81,7 +80,7 @@ def test_sqlite_service_singleton_different_configs():
     }
 
     config2 = {
-        'general': {'verbose': False},
+        'general': {},
         'internal_services': {
             'backend': {
                 'type': 'sqlite',
@@ -160,7 +159,7 @@ def test_sqlite_service_clear_cache():
 
     temp_dir = tempfile.mkdtemp()
     config = {
-        'general': {'verbose': False},
+        'general': {},
         'internal_services': {
             'backend': {
                 'type': 'sqlite',
@@ -204,7 +203,7 @@ def test_sqlite_service_initialization_once():
 
     temp_dir = tempfile.mkdtemp()
     config = {
-        'general': {'verbose': False},
+        'general': {},
         'internal_services': {
             'backend': {
                 'type': 'sqlite',
@@ -245,7 +244,7 @@ def test_sqlite_service_multiple_databases():
     configs = []
     for i in range(3):
         configs.append({
-            'general': {'verbose': False},
+            'general': {},
             'internal_services': {
                 'backend': {
                     'type': 'sqlite',
@@ -281,7 +280,7 @@ def test_sqlite_service_cache_reuse():
 
     temp_dir = tempfile.mkdtemp()
     config = {
-        'general': {'verbose': False},
+        'general': {},
         'internal_services': {
             'backend': {
                 'type': 'sqlite',

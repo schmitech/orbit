@@ -56,7 +56,6 @@ class AdapterLoader:
         self.vision_cache = vision_cache
         self.audio_cache = audio_cache
         self._thread_pool = thread_pool or ThreadPoolExecutor(max_workers=5)
-        self.verbose = config.get('general', {}).get('verbose', False)
 
     async def load_adapter(
         self,
@@ -174,8 +173,7 @@ class AdapterLoader:
         # Include adapter-level inference provider override
         if 'inference_provider' in adapter_config:
             config_with_adapter['inference_provider'] = adapter_config['inference_provider']
-            if self.verbose:
-                logger.info(f"Setting inference provider override: {adapter_config['inference_provider']} for adapter: {adapter_name}")
+            logger.debug(f"Setting inference provider override: {adapter_config['inference_provider']} for adapter: {adapter_name}")
 
         # Include adapter-level model override
         if adapter_config.get('model'):
@@ -197,8 +195,7 @@ class AdapterLoader:
             if 'embedding' not in config_with_adapter:
                 config_with_adapter['embedding'] = {}
             config_with_adapter['embedding']['provider'] = adapter_config['embedding_provider']
-            if self.verbose:
-                logger.info(f"Setting embedding provider override: {adapter_config['embedding_provider']} for adapter: {adapter_name}")
+            logger.debug(f"Setting embedding provider override: {adapter_config['embedding_provider']} for adapter: {adapter_name}")
 
         # Include adapter-level database override
         if adapter_config.get('database'):
@@ -210,10 +207,7 @@ class AdapterLoader:
             original_database = config_with_adapter['datasources'][datasource_name].get('database', 'default')
             config_with_adapter['datasources'][datasource_name]['database'] = adapter_config['database']
 
-            if self.verbose:
-                logger.info(
-                    f"Database override for adapter '{adapter_name}': '{original_database}' -> '{adapter_config['database']}' (datasource: {datasource_name})"
-                )
+            logger.debug(f"Database override for adapter '{adapter_name}': '{original_database}' -> '{adapter_config['database']}' (datasource: {datasource_name})")
 
         # Create datasource instance
         datasource_instance = None

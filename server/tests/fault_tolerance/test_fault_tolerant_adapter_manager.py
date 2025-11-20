@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 # Test configuration
 TEST_CONFIG = {
-    'general': {'verbose': True},
+    'general': {},
     'fault_tolerance': {
         'enabled': True,
         'circuit_breaker': {
@@ -195,7 +195,7 @@ class TestFaultTolerantAdapterManager:
     
     def test_initialization_no_fault_tolerance_config(self, mock_app_state):
         """Test initialization without fault tolerance config - still always enabled"""
-        config_no_ft = {'general': {'verbose': True}}
+        config_no_ft = {'general': {}}
         
         with patch('services.fault_tolerant_adapter_manager.DynamicAdapterManager') as mock_dam, \
              patch('services.fault_tolerant_adapter_manager.ParallelAdapterExecutor') as mock_pae:

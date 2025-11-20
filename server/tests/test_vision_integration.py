@@ -40,7 +40,6 @@ class TestVisionFileAdapterIntegration:
             'extract_metadata': True,
             'enable_vision': True,
             'vision_provider': 'openai',
-            'verbose': False,
             'max_summary_length': 200
         }
 

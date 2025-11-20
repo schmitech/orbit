@@ -57,7 +57,6 @@ def test_config():
             }
         },
         "general": {
-            "verbose": True
         }
     }
 
@@ -157,7 +156,6 @@ async def test_custom_return_results_limit(mock_datasource):
             }
         },
         "general": {
-            "verbose": True
         }
     }
 

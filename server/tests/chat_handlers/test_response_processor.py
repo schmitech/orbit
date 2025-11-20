@@ -31,14 +31,12 @@ class TestResponseProcessor:
         processor = ResponseProcessor(
             config=base_config,
             conversation_handler=mock_conversation_handler,
-            logger_service=mock_logger_service,
-            verbose=True
+            logger_service=mock_logger_service
         )
 
         assert processor.config == base_config
         assert processor.conversation_handler == mock_conversation_handler
         assert processor.logger_service == mock_logger_service
-        assert processor.verbose is True
 
     def test_format_response(self, base_config, mock_conversation_handler, mock_logger_service):
         """Test response formatting."""
@@ -89,15 +87,14 @@ class TestResponseProcessor:
         assert result == "Original response"
 
     @pytest.mark.asyncio
-    async def test_log_request_details_verbose(
+    async def test_log_request_details(
         self, base_config, mock_conversation_handler, mock_logger_service
     ):
-        """Test request details logging when verbose."""
+        """Test request details logging."""
         processor = ResponseProcessor(
             config=base_config,
             conversation_handler=mock_conversation_handler,
-            logger_service=mock_logger_service,
-            verbose=True
+            logger_service=mock_logger_service
         )
 
         # Should not raise any exceptions
@@ -109,29 +106,6 @@ class TestResponseProcessor:
             api_key="sk-1234567890abcdef",
             session_id="session123",
             user_id="user456"
-        )
-
-    @pytest.mark.asyncio
-    async def test_log_request_details_not_verbose(
-        self, base_config, mock_conversation_handler, mock_logger_service
-    ):
-        """Test request details not logged when not verbose."""
-        processor = ResponseProcessor(
-            config=base_config,
-            conversation_handler=mock_conversation_handler,
-            logger_service=mock_logger_service,
-            verbose=False
-        )
-
-        # Should complete without logging
-        await processor.log_request_details(
-            message="Test message",
-            client_ip="127.0.0.1",
-            adapter_name="test_adapter",
-            system_prompt_id=None,
-            api_key=None,
-            session_id=None,
-            user_id=None
         )
 
     @pytest.mark.asyncio

@@ -44,8 +44,7 @@ class StreamingHandler:
     def __init__(
         self,
         config: Dict[str, Any],
-        audio_handler: AudioHandler,
-        verbose: bool = False
+        audio_handler: AudioHandler
     ):
         """
         Initialize the streaming handler.
@@ -53,11 +52,9 @@ class StreamingHandler:
         Args:
             config: Application configuration
             audio_handler: Audio handler for TTS generation
-            verbose: Enable verbose logging
         """
         self.config = config
         self.audio_handler = audio_handler
-        self.verbose = verbose
 
         # Audio timeout settings
         # Increased for vLLM TTS which can take 5-10s per sentence with remote servers
@@ -185,16 +182,14 @@ class StreamingHandler:
                 state.audio_chunks_sent += 1
                 audio_chunk_json = json.dumps(chunk)
                 yield f"data: {audio_chunk_json}\n\n", state
-                
-                if self.verbose:
-                    logger.info(
-                        f"Sent streaming audio chunk {state.audio_chunks_sent} "
-                        f"({len(chunk.get('audio_chunk', ''))} chars base64)"
-                    )
+
+                logger.debug(
+                    f"Sent streaming audio chunk {state.audio_chunks_sent} "
+                    f"({len(chunk.get('audio_chunk', ''))} chars base64)"
+                )
             elif chunk is None:
                 # Log but don't yield - chunk generation failed
-                if self.verbose:
-                    logger.debug(f"Skipping None chunk at index {self._next_chunk_index}")
+                logger.debug(f"Skipping None chunk at index {self._next_chunk_index}")
             self._next_chunk_index += 1
 
     async def process_stream(
@@ -256,8 +251,7 @@ class StreamingHandler:
                     # Debug: Log first chunk timing
                     if not state.first_chunk_yielded and "response" in chunk_data and chunk_data["response"]:
                         state.first_chunk_yielded = True
-                        if self.verbose:
-                            logger.info(f"Yielding first chunk to client: {repr(chunk_data['response'][:50])}")
+                        logger.debug(f"Yielding first chunk to client: {repr(chunk_data['response'][:50])}")
 
                     # Handle done marker - DON'T yield it yet
                     if chunk_data.get("done", False):
@@ -276,10 +270,9 @@ class StreamingHandler:
                                     if remaining_text.strip():
                                         remaining_audio_started = True
                                         chunk_index = state.audio_chunks_sent + len(running_audio_tasks)
-                                        
-                                        if self.verbose:
-                                            logger.info(f"Starting early remaining audio generation: {len(remaining_text)} chars (chunk {chunk_index})")
-                                        
+
+                                        logger.debug(f"Starting early remaining audio generation: {len(remaining_text)} chars (chunk {chunk_index})")
+
                                         # Start in background immediately
                                         remaining_audio_task = asyncio.create_task(
                                             self._generate_audio_background(
@@ -320,11 +313,10 @@ class StreamingHandler:
                                     if len(self._pending_sentences) >= self.sentence_batch_size:
                                         batched_text = " ".join(self._pending_sentences)
                                         self._pending_sentences = []
-                                        
+
                                         chunk_index = state.audio_chunks_sent + len(running_audio_tasks)
 
-                                        if self.verbose:
-                                            logger.info(f"Queueing TTS for batched sentences: {len(batched_text)} chars (chunk {chunk_index})")
+                                        logger.debug(f"Queueing TTS for batched sentences: {len(batched_text)} chars (chunk {chunk_index})")
 
                                         # Start audio generation in background (non-blocking)
                                         task = asyncio.create_task(
@@ -366,8 +358,7 @@ class StreamingHandler:
 
             # Wait for all pending audio tasks to complete (including early-started remaining audio)
             if running_audio_tasks:
-                if self.verbose:
-                    logger.info(f"Waiting for {len(running_audio_tasks)} pending audio tasks to complete")
+                logger.debug(f"Waiting for {len(running_audio_tasks)} pending audio tasks to complete")
                 await asyncio.gather(*running_audio_tasks, return_exceptions=True)
                 
                 # Yield all remaining ready chunks (including early-started remaining audio)
@@ -378,11 +369,10 @@ class StreamingHandler:
             if return_audio and self._pending_sentences:
                 batched_text = " ".join(self._pending_sentences)
                 self._pending_sentences = []
-                
+
                 chunk_index = state.audio_chunks_sent
 
-                if self.verbose:
-                    logger.info(f"Flushing remaining batched sentences: {len(batched_text)} chars")
+                logger.debug(f"Flushing remaining batched sentences: {len(batched_text)} chars")
 
                 # Generate final audio chunk
                 audio_chunk = await self._generate_sentence_audio(
@@ -398,11 +388,10 @@ class StreamingHandler:
                     audio_chunk_json = json.dumps(audio_chunk)
                     yield f"data: {audio_chunk_json}\n\n", state
 
-                    if self.verbose:
-                        logger.info(
-                            f"Sent final batched audio chunk {state.audio_chunks_sent} "
-                            f"({len(audio_chunk['audio_chunk'])} chars base64)"
-                        )
+                    logger.debug(
+                        f"Sent final batched audio chunk {state.audio_chunks_sent} "
+                        f"({len(audio_chunk['audio_chunk'])} chars base64)"
+                    )
 
         except Exception as e:
             logger.error(f"Error in streaming handler: {str(e)}", exc_info=True)
@@ -442,8 +431,7 @@ class StreamingHandler:
             return None
 
         try:
-            if self.verbose:
-                logger.info(f"Generating audio for remaining text (fallback): {len(remaining_text)} chars")
+            logger.debug(f"Generating audio for remaining text (fallback): {len(remaining_text)} chars")
 
             result = await self.audio_handler.generate_audio(
                 text=remaining_text.strip(),
@@ -474,11 +462,10 @@ class StreamingHandler:
                 }
                 state.audio_chunks_sent += 1
 
-                if self.verbose:
-                    logger.info(
-                        f"Sent remaining audio chunk {state.audio_chunks_sent} "
-                        f"({len(audio_base64)} chars base64)"
-                    )
+                logger.debug(
+                    f"Sent remaining audio chunk {state.audio_chunks_sent} "
+                    f"({len(audio_base64)} chars base64)"
+                )
 
                 return f"data: {json.dumps(audio_chunk)}\n\n"
 
@@ -517,34 +504,30 @@ class StreamingHandler:
         # Include threading metadata if available
         if threading_metadata:
             done_chunk["threading"] = threading_metadata
-            if self.verbose:
-                logger.info(f"Including threading metadata in done chunk: {threading_metadata}")
+            logger.debug(f"Including threading metadata in done chunk: {threading_metadata}")
 
-        if self.verbose:
-            logger.info(
-                f"Preparing done chunk: audio_data={audio_data is not None}, "
-                f"audio_format_str={audio_format_str}, "
-                f"total_audio_chunks={state.audio_chunks_sent if state.sentence_detector else 0}"
-            )
+        logger.debug(
+            f"Preparing done chunk: audio_data={audio_data is not None}, "
+            f"audio_format_str={audio_format_str}, "
+            f"total_audio_chunks={state.audio_chunks_sent if state.sentence_detector else 0}"
+        )
 
         # Only include audio in done chunk for non-streaming mode
         if audio_data and not (state.sentence_detector and state.audio_chunks_sent > 0):
             audio_base64 = base64.b64encode(audio_data).decode('utf-8')
             done_chunk["audio"] = audio_base64
             done_chunk["audioFormat"] = audio_format_str or "mp3"
-            if self.verbose:
-                logger.info(f"Including audio in done chunk: {len(audio_base64)} chars (base64)")
+            logger.debug(f"Including audio in done chunk: {len(audio_base64)} chars (base64)")
 
         done_json = json.dumps(done_chunk)
 
-        if self.verbose:
-            logger.info(f"Yielding done chunk: {len(done_json)} bytes total")
-            logger.info(f"Done chunk keys: {list(done_chunk.keys())}, has audio: {'audio' in done_chunk}")
-            if 'audio' in done_chunk:
-                logger.info(
-                    f"Audio field present, length: {len(done_chunk['audio'])}, "
-                    f"format: {done_chunk.get('audioFormat')}"
-                )
-            logger.info(f"Done chunk JSON preview: {done_json[:200]}...")
+        logger.debug(f"Yielding done chunk: {len(done_json)} bytes total")
+        logger.debug(f"Done chunk keys: {list(done_chunk.keys())}, has audio: {'audio' in done_chunk}")
+        if 'audio' in done_chunk:
+            logger.debug(
+                f"Audio field present, length: {len(done_chunk['audio'])}, "
+                f"format: {done_chunk.get('audioFormat')}"
+            )
+        logger.debug(f"Done chunk JSON preview: {done_json[:200]}...")
 
         return f"data: {done_json}\n\n"

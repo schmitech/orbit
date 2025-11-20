@@ -34,14 +34,6 @@ class StoreManager:
         self._lock = asyncio.Lock()
         self._config = {}
 
-        # Get verbose setting from global config
-        try:
-            from config.config_manager import load_config
-            global_config = load_config()
-            self.verbose = global_config.get('general', {}).get('verbose', False)
-        except Exception:
-            self.verbose = False
-
         if config_path is None:
             config_path = "config/stores.yaml"
 
@@ -52,8 +44,7 @@ class StoreManager:
         # Register available store classes
         self._register_store_classes()
 
-        if self.verbose:
-            logger.info("StoreManager initialized")
+        logger.debug("StoreManager initialized")
     
     def _load_config(self, config_path: str):
         """Load configuration from YAML file."""
@@ -62,8 +53,7 @@ class StoreManager:
             if path.exists():
                 with open(path, 'r') as f:
                     self._config = yaml.safe_load(f)
-                if self.verbose:
-                    logger.info(f"Loaded configuration from {config_path}")
+                logger.debug(f"Loaded configuration from {config_path}")
         except Exception as e:
             logger.error(f"Error loading configuration: {e}")
     
@@ -75,8 +65,7 @@ class StoreManager:
             try:
                 from ..implementations.chroma_store import ChromaStore
                 self._store_classes['chroma'] = ChromaStore
-                if self.verbose:
-                    logger.info("Registered ChromaStore")
+                logger.debug("Registered ChromaStore")
             except ImportError:
                 logger.warning("ChromaStore not available")
 
@@ -209,8 +198,7 @@ class StoreManager:
             # Initialize connection
             if await store.connect():
                 self._stores[name] = store
-                if self.verbose:
-                    logger.info(f"Store {name} created and connected successfully")
+                logger.debug(f"Store {name} created and connected successfully")
                 return store
             else:
                 raise ConnectionError(f"Failed to connect to store {name}")
@@ -257,9 +245,7 @@ class StoreManager:
                 final_config['connection_params']
             )
 
-        # Add verbose setting to connection_params
         connection_params = final_config.get('connection_params', {})
-        connection_params['verbose'] = self.verbose
 
         return StoreConfig(
             name=name,

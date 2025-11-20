@@ -24,7 +24,6 @@ def mock_config():
     """Create a mock configuration for testing."""
     return {
         'general': {
-            'verbose': False
         },
         'internal_services': {
             'mongodb': {
@@ -92,7 +91,7 @@ def test_mongodb_singleton_with_different_databases():
     ApiKeyService.clear_cache()
     
     config1 = {
-        'general': {'verbose': False},
+        'general': {},
         'internal_services': {
             'mongodb': {
                 'host': 'localhost',
@@ -103,7 +102,7 @@ def test_mongodb_singleton_with_different_databases():
     }
     
     config2 = {
-        'general': {'verbose': False},
+        'general': {},
         'internal_services': {
             'mongodb': {
                 'host': 'localhost',

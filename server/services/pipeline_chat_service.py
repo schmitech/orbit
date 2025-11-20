@@ -56,7 +56,6 @@ class PipelineChatService:
             clock_service: Optional clock service
         """
         self.config = config
-        self.verbose = is_true_value(config.get('general', {}).get('verbose', False))
 
         # Store services for direct access
         self.logger_service = logger_service
@@ -91,8 +90,7 @@ class PipelineChatService:
         # Store pipeline reference for async initialization
         self._pipeline_initialized = False
 
-        if self.verbose:
-            logger.info("Pipeline-based chat service initialized with clean providers")
+        logger.debug("Pipeline-based chat service initialized with clean providers")
 
     def _init_handlers(self, adapter_manager) -> None:
         """
@@ -105,37 +103,32 @@ class PipelineChatService:
         self.conversation_handler = ConversationHistoryHandler(
             config=self.config,
             chat_history_service=self.chat_history_service,
-            adapter_manager=adapter_manager,
-            verbose=self.verbose
+            adapter_manager=adapter_manager
         )
 
         # Audio handler
         self.audio_handler = AudioHandler(
             config=self.config,
-            adapter_manager=adapter_manager,
-            verbose=self.verbose
+            adapter_manager=adapter_manager
         )
 
         # Request context builder
         self.context_builder = RequestContextBuilder(
             config=self.config,
-            adapter_manager=adapter_manager,
-            verbose=self.verbose
+            adapter_manager=adapter_manager
         )
 
         # Streaming handler (depends on audio handler)
         self.streaming_handler = StreamingHandler(
             config=self.config,
-            audio_handler=self.audio_handler,
-            verbose=self.verbose
+            audio_handler=self.audio_handler
         )
 
         # Response processor (depends on conversation handler)
         self.response_processor = ResponseProcessor(
             config=self.config,
             conversation_handler=self.conversation_handler,
-            logger_service=self.logger_service,
-            verbose=self.verbose
+            logger_service=self.logger_service
         )
 
     async def initialize(self):
@@ -510,8 +503,7 @@ class PipelineChatService:
         if return_audio and final_response:
             if not (final_state.sentence_detector and final_state.audio_chunks_sent > 0):
                 try:
-                    if self.verbose:
-                        logger.info(f"Calling audio_handler.generate_audio for adapter: {adapter_name}, voice: {tts_voice}")
+                    logger.debug(f"Calling audio_handler.generate_audio for adapter: {adapter_name}, voice: {tts_voice}")
                     result = await self.audio_handler.generate_audio(
                         text=final_response,
                         adapter_name=adapter_name,
@@ -521,8 +513,7 @@ class PipelineChatService:
                     # Properly handle None or tuple return
                     if result is not None:
                         audio_data, audio_format_str = result
-                    if self.verbose:
-                        logger.info(f"Audio generation result: audio_data={audio_data is not None}, format={audio_format_str}")
+                    logger.debug(f"Audio generation result: audio_data={audio_data is not None}, format={audio_format_str}")
                 except Exception as e:
                     logger.warning(f"Failed to generate audio: {str(e)}", exc_info=True)
 
@@ -534,12 +525,15 @@ class PipelineChatService:
                 threading_metadata = {
                     "supports_threading": True,
                     "message_id": assistant_message_id,
-                    "session_id": session_id
+                    "session_id": session_id,
                 }
-                if self.verbose:
-                    logger.info(f"Adding threading metadata to done chunk: adapter={adapter_name}, message_id={assistant_message_id}, session_id={session_id}")
-            elif self.verbose:
-                logger.debug(f"Adapter {adapter_name} does not support threading")
+                logger.debug(
+                    f"Adding threading metadata to done chunk: adapter={adapter_name}, message_id={assistant_message_id}, session_id={session_id}"
+                )
+            else:
+                logger.debug(
+                    f"Adapter {adapter_name} does not support threading"
+                )
         
         # Send final done chunk
         done_chunk = self.streaming_handler.build_done_chunk(

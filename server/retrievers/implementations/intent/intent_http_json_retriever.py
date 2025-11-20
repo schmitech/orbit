@@ -9,6 +9,7 @@ allowing natural language queries to be translated into HTTP requests for any JS
 import logging
 import traceback
 import json
+import re
 import httpx
 from typing import Dict, Any, List, Optional, Tuple
 from urllib.parse import urljoin
@@ -52,8 +53,7 @@ class IntentHTTPJSONRetriever(IntentHTTPRetriever):
         self.max_retries = self.intent_config.get('max_retries', 3)
         self.retry_delay = self.intent_config.get('retry_delay', 1.0)
 
-        if self.verbose:
-            logger.info(f"HTTP JSON Retriever initialized with base_url: {self.base_url}")
+        logger.debug(f"HTTP JSON Retriever initialized with base_url: {self.base_url}")
 
     def _get_datasource_name(self) -> str:
         """
@@ -97,12 +97,12 @@ class IntentHTTPJSONRetriever(IntentHTTPRetriever):
             if http_method in ['POST', 'PUT', 'PATCH']:
                 request_body = self._build_request_body(template, parameters)
 
-            if self.verbose:
-                logger.info(f"Executing REST {http_method} request to: {endpoint}")
-                logger.debug(f"Query params: {query_params}")
-                logger.debug(f"Headers: {headers}")
-                if request_body:
-                    logger.debug(f"Request body: {json.dumps(request_body, indent=2)}")
+            template_id = template.get('id', 'unknown')
+            logger.debug(f"[Template {template_id}] Executing REST {http_method} request to: {endpoint}")
+            logger.debug(f"[Template {template_id}] Query params: {query_params}")
+            logger.debug(f"[Template {template_id}] Headers: {headers}")
+            if request_body:
+                logger.debug(f"[Template {template_id}] Request body: {json.dumps(request_body, indent=2)}")
 
             # Execute the HTTP request
             response = await self._execute_rest_request(
@@ -120,12 +120,15 @@ class IntentHTTPJSONRetriever(IntentHTTPRetriever):
             return results, None
 
         except httpx.HTTPStatusError as e:
+            template_id = template.get('id', 'unknown')
+            endpoint = template.get('endpoint_template', template.get('endpoint', '/'))
             error_msg = f"HTTP {e.response.status_code}: {e.response.text}"
-            logger.error(f"REST API request failed: {error_msg}")
+            logger.error(f"[Template {template_id}] REST API request failed for endpoint '{endpoint}': {error_msg}")
             return [], error_msg
         except Exception as e:
+            template_id = template.get('id', 'unknown')
             error_msg = str(e)
-            logger.error(f"Error executing REST template: {error_msg}")
+            logger.error(f"[Template {template_id}] Error executing REST template: {error_msg}")
             logger.error(traceback.format_exc())
             return [], error_msg
 
@@ -143,25 +146,47 @@ class IntentHTTPJSONRetriever(IntentHTTPRetriever):
         try:
             # Support both {{param}} and {param} syntax
             endpoint = endpoint_template
+            logger.debug(f"Processing endpoint template: '{endpoint_template}' with parameters: {parameters}")
 
-            # Use template processor if available (supports Jinja2 syntax)
-            if self.template_processor:
+            # Check if template uses single braces {param} syntax (common in REST APIs)
+            # Template processor only handles {{param}} (Jinja2), so use fallback for {param}
+            uses_single_braces = bool(re.search(r'\{[^{]+\}', endpoint_template))
+            uses_double_braces = '{{' in endpoint_template
+
+            # Use template processor only if template uses {{param}} syntax and no {param} syntax
+            # Otherwise use fallback which handles both
+            if self.template_processor and uses_double_braces and not uses_single_braces:
+                logger.debug(f"Using template processor for endpoint substitution (Jinja2 syntax detected)")
                 endpoint = self.template_processor.render_sql(
                     endpoint_template,
                     parameters=parameters,
                     preserve_unknown=False
                 )
+                logger.debug(f"Template processor result: '{endpoint}'")
             else:
-                # Fallback: simple string substitution
+                # Fallback: simple string substitution (handles both {{param}} and {param})
+                if uses_single_braces:
+                    logger.debug(f"Using fallback string substitution (single braces {{param}} syntax detected)")
+                else:
+                    logger.debug(f"Using fallback string substitution (no template processor or mixed syntax)")
+                
                 for key, value in parameters.items():
                     # Handle both {{key}} and {key} placeholders
+                    old_endpoint = endpoint
                     endpoint = endpoint.replace(f"{{{{{key}}}}}", str(value))
                     endpoint = endpoint.replace(f"{{{key}}}", str(value))
+                    if old_endpoint != endpoint:
+                        logger.debug(f"Substituted {{{{{key}}}}} and {{{key}}} with '{value}' -> '{endpoint}'")
+                
+                if endpoint == endpoint_template:
+                    logger.warning(f"No substitutions were made! Template: '{endpoint_template}', Parameters: {parameters}")
 
+            logger.debug(f"Final processed endpoint: '{endpoint}'")
             return endpoint
 
         except Exception as e:
             logger.error(f"Error processing endpoint template: {e}")
+            logger.error(traceback.format_exc())
             return endpoint_template
 
     def _build_query_params(self, template: Dict[str, Any], parameters: Dict[str, Any]) -> Dict[str, Any]:

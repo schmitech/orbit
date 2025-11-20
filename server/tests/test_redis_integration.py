@@ -21,7 +21,6 @@ def mock_config():
     """Create a mock configuration for testing."""
     return {
         'general': {
-            'verbose': False
         },
         'internal_services': {
             'redis': {
@@ -62,7 +61,7 @@ def test_redis_singleton_with_different_databases():
     RedisService.clear_cache()
     
     config1 = {
-        'general': {'verbose': False},
+        'general': {},
         'internal_services': {
             'redis': {
                 'enabled': True,
@@ -74,7 +73,7 @@ def test_redis_singleton_with_different_databases():
     }
     
     config2 = {
-        'general': {'verbose': False},
+        'general': {},
         'internal_services': {
             'redis': {
                 'enabled': True,
@@ -104,7 +103,7 @@ def test_redis_singleton_with_different_hosts():
     RedisService.clear_cache()
     
     config1 = {
-        'general': {'verbose': False},
+        'general': {},
         'internal_services': {
             'redis': {
                 'enabled': True,
@@ -116,7 +115,7 @@ def test_redis_singleton_with_different_hosts():
     }
     
     config2 = {
-        'general': {'verbose': False},
+        'general': {},
         'internal_services': {
             'redis': {
                 'enabled': True,
@@ -146,7 +145,7 @@ def test_redis_singleton_preserves_configuration():
     RedisService.clear_cache()
     
     config = {
-        'general': {'verbose': True},
+        'general': {},
         'internal_services': {
             'redis': {
                 'enabled': True,
@@ -182,7 +181,7 @@ def test_redis_singleton_thread_safety():
     RedisService.clear_cache()
     
     config = {
-        'general': {'verbose': False},
+        'general': {},
         'internal_services': {
             'redis': {
                 'enabled': True,

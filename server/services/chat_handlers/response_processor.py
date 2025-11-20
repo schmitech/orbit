@@ -21,8 +21,7 @@ class ResponseProcessor:
         self,
         config: Dict[str, Any],
         conversation_handler: ConversationHistoryHandler,
-        logger_service,
-        verbose: bool = False
+        logger_service
     ):
         """
         Initialize the response processor.
@@ -31,12 +30,10 @@ class ResponseProcessor:
             config: Application configuration
             conversation_handler: Conversation history handler
             logger_service: Logger service for conversation logging
-            verbose: Enable verbose logging
         """
         self.config = config
         self.conversation_handler = conversation_handler
         self.logger_service = logger_service
-        self.verbose = verbose
 
     def format_response(self, text: str) -> str:
         """
@@ -87,19 +84,18 @@ class ResponseProcessor:
             session_id: Session identifier
             user_id: User identifier
         """
-        if self.verbose:
-            logger.info(f"Processing chat message from {client_ip}, adapter: {adapter_name}")
-            logger.info(f"Message: {message}")
+        logger.debug(f"Processing chat message from {client_ip}, adapter: {adapter_name}")
+        logger.debug(f"Message: {message}")
 
-            # Mask API key for logging
-            masked_api_key = "None"
-            if api_key:
-                masked_api_key = mask_api_key(api_key, show_last=True)
+        # Mask API key for logging
+        masked_api_key = "None"
+        if api_key:
+            masked_api_key = mask_api_key(api_key, show_last=True)
 
-            logger.info(f"System prompt ID: {system_prompt_id}")
-            logger.info(f"API key: {masked_api_key}")
-            logger.info(f"Session ID: {session_id}")
-            logger.info(f"User ID: {user_id}")
+        logger.debug(f"System prompt ID: {system_prompt_id}")
+        logger.debug(f"API key: {masked_api_key}")
+        logger.debug(f"Session ID: {session_id}")
+        logger.debug(f"User ID: {user_id}")
 
     async def log_conversation(
         self,

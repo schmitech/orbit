@@ -69,7 +69,6 @@ class BaseRetriever(ABC):
         
         # Common parameters across retrievers
         self.confidence_threshold = self.datasource_config.get('confidence_threshold', 0.7)
-        self.verbose = config.get('general', {}).get('verbose', False)
         self.max_results = self.datasource_config.get('max_results', 10)
         self.return_results = self.datasource_config.get('return_results', 3)
         self.collection = self.datasource_config.get('collection')
@@ -222,22 +221,17 @@ class BaseRetriever(ABC):
             # Check initialization status
             if not self.initialized:
                 await self.initialize()
-            
-            # Set debug mode if verbose
-            debug_mode = self.verbose
-            
-            if debug_mode:
-                logger.info(f"=== Starting retrieval for query: '{query}' ===")
-                logger.info(f"API Key: {'Provided' if api_key else 'None'}")
-                logger.info(f"Collection name: {collection_name or 'From config'}")
-                logger.info(f"Domain adapter: {type(self.domain_adapter).__name__}")
-            
+
+            logger.debug(f"=== Starting retrieval for query: '{query}' ===")
+            logger.debug(f"API Key: {'Provided' if api_key else 'None'}")
+            logger.debug(f"Collection name: {collection_name or 'From config'}")
+            logger.debug(f"Domain adapter: {type(self.domain_adapter).__name__}")
+
             # Resolve collection: use provided collection_name or fall back to config
             resolved_collection = collection_name or self.datasource_config.get('collection')
-            
-            if debug_mode:
-                logger.info(f"Resolved collection: {resolved_collection}")
-                
+
+            logger.debug(f"Resolved collection: {resolved_collection}")
+
             # Set the collection only if it's not already set or if it has changed
             if resolved_collection:
                 if not hasattr(self, 'collection_name') or self.collection_name != resolved_collection:
@@ -327,9 +321,8 @@ class VectorDBRetriever(BaseRetriever):
             )
             self.using_new_embedding_service = False
         
-        if self.verbose:
-            logger.info(f"Initialized embeddings: {type(self.embeddings).__name__}")
-            logger.info(f"Using new embedding service: {self.using_new_embedding_service}")
+        self.logger.debug(f"Initialized embeddings: {type(self.embeddings).__name__}")
+        self.logger.debug(f"Using new embedding service: {self.using_new_embedding_service}")
     
     async def close(self) -> None:
         """Close any open services including embedding service."""

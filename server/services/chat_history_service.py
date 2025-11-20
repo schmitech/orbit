@@ -98,9 +98,6 @@ class ChatHistoryService:
             thread_dataset_service = ThreadDatasetService(config)
         self.thread_dataset_service = thread_dataset_service
         
-        # Initialize verbose first since it's used in calculation methods
-        self.verbose = config.get('general', {}).get('verbose', False)
-        
         # Extract chat history configuration
         self.chat_history_config = config.get('chat_history', {})
         self.enabled = self.chat_history_config.get('enabled', True)
@@ -185,10 +182,15 @@ class ChatHistoryService:
             # Apply safety bounds: minimum 100 tokens, maximum 800,000 tokens (for very large models)
             max_tokens = max(100, min(800000, available_tokens))
             
-            if self.verbose:
-                logger.info(f"Token budget calculation: provider={inference_provider}, "
-                          f"context_window={context_window}, reserved={reserved_tokens}, "
-                          f"available={available_tokens}, max_budget={max_tokens}")
+            logger.debug(
+                "Token budget calculation: provider=%s, context_window=%s, "
+                "reserved=%s, available=%s, max_budget=%s",
+                inference_provider,
+                context_window,
+                reserved_tokens,
+                available_tokens,
+                max_tokens,
+            )
             
             return max_tokens
             
@@ -277,8 +279,12 @@ class ChatHistoryService:
         if param_name and param_name in provider_config:
             context_window = provider_config[param_name]
             if isinstance(context_window, int) and context_window > 0:
-                if self.verbose:
-                    logger.info(f"Using configured {param_name}={context_window} for provider {provider}")
+                logger.debug(
+                    "Using configured %s=%s for provider %s",
+                    param_name,
+                    context_window,
+                    provider,
+                )
                 return context_window
         
         # Second, try alternative parameter names
@@ -287,15 +293,22 @@ class ChatHistoryService:
             if alt_param in provider_config:
                 context_window = provider_config[alt_param]
                 if isinstance(context_window, int) and context_window > 0:
-                    if self.verbose:
-                        logger.info(f"Using configured {alt_param}={context_window} for provider {provider}")
+                    logger.debug(
+                        "Using configured %s=%s for provider %s",
+                        alt_param,
+                        context_window,
+                        provider,
+                    )
                     return context_window
         
         # Finally, fall back to provider-specific defaults
         default_window = default_context_windows.get(provider, 4096)
         
-        if self.verbose:
-            logger.info(f"No context window configured for {provider}, using default: {default_window} tokens")
+        logger.debug(
+            "No context window configured for %s, using default: %s tokens",
+            provider,
+            default_window,
+        )
             
         return default_window
         
@@ -381,8 +394,7 @@ class ChatHistoryService:
                 [("session_id", 1), ("timestamp", -1), ("token_count", 1)]
             )
             
-            if self.verbose:
-                logger.info("Created indexes for chat history collection")
+            logger.debug("Created indexes for chat history collection")
                 
         except Exception as e:
             logger.error(f"Error creating indexes: {str(e)}")
@@ -454,8 +466,11 @@ class ChatHistoryService:
                             adjustment = actual_token_count - old_token_count
                             self._session_token_counts[session_id] = current_cache + adjustment
                         
-                        if self.verbose:
-                            logger.debug(f"Updated token_count for message {message_id}: {actual_token_count}")
+                        logger.debug(
+                            "Updated token_count for message %s: %s",
+                            message_id,
+                            actual_token_count,
+                        )
                     else:
                         logger.warning(f"Message {message_id} not found for token count update")
                         
@@ -482,8 +497,7 @@ class ChatHistoryService:
             # Wait a bit before starting backfill to let service fully initialize
             await asyncio.sleep(5)
             
-            if self.verbose:
-                logger.info("Starting token count backfill for existing messages")
+            logger.debug("Starting token count backfill for existing messages")
             
             batch_size = 100
             processed = 0  # Count of messages actually updated
@@ -502,8 +516,11 @@ class ChatHistoryService:
                 
                 if not messages:
                     # No more messages to process
-                    if processed > 0 and self.verbose:
-                        logger.info(f"Token count backfill complete: processed {processed} messages")
+                    if processed > 0:
+                        logger.debug(
+                            "Token count backfill complete: processed %s messages",
+                            processed,
+                        )
                     break
                 
                 # Process batch - only update messages without token_count
@@ -541,8 +558,12 @@ class ChatHistoryService:
                 await asyncio.sleep(0.1)
                 
                 # Safety check: if we've processed a very large number, log and continue
-                if offset > 100000 and self.verbose:
-                    logger.info(f"Token count backfill: scanned {offset} messages, updated {processed}")
+                if offset > 100000:
+                    logger.debug(
+                        "Token count backfill: scanned %s messages, updated %s",
+                        offset,
+                        processed,
+                    )
                 
         except asyncio.CancelledError:
             logger.info("Token count backfill cancelled")
@@ -633,9 +654,14 @@ class ChatHistoryService:
                         logger.warning(f"Tokenization queue full, skipping token calculation for message {message_id}")
                 
                 # Add useful progress logging
-                if self.verbose:
-                    current_tokens = self._session_token_counts.get(session_id, 0)
-                    logger.info(f"Session {session_id}: {current_tokens}/{self.max_token_budget} tokens used ({role})")
+                current_tokens = self._session_token_counts.get(session_id, 0)
+                logger.debug(
+                    "Session %s: %s/%s tokens used (%s)",
+                    session_id,
+                    current_tokens,
+                    self.max_token_budget,
+                    role,
+                )
                 
                 # Check if we need to clean up inactive sessions
                 if len(self._active_sessions) > self.max_tracked_sessions:
@@ -741,8 +767,11 @@ class ChatHistoryService:
             effective_limit = limit or self.default_limit
             
             # Remove noisy fetch logging - only debug level
-            if self.verbose:
-                logger.debug(f"Fetching chat history for session {session_id} with limit {effective_limit}")
+            logger.debug(
+                "Fetching chat history for session %s with limit %s",
+                session_id,
+                effective_limit,
+            )
             
             # Fetch messages sorted by timestamp descending to get most recent first
             messages = await self.database_service.find_many(
@@ -755,9 +784,12 @@ class ChatHistoryService:
             # Reverse to get chronological order
             messages.reverse()
             
-            # Remove noisy retrieval logging - only debug level  
-            if self.verbose:
-                logger.debug(f"Retrieved {len(messages)} messages for session {session_id}")
+            # Remove noisy retrieval logging - only debug level
+            logger.debug(
+                "Retrieved %s messages for session %s",
+                len(messages),
+                session_id,
+            )
             
             # Process messages
             processed_messages = []
@@ -908,8 +940,12 @@ class ChatHistoryService:
                     "conversation_threads",
                     {"parent_session_id": session_id}
                 )
-                if self.verbose and threads_deleted > 0:
-                    logger.info(f"Deleted {threads_deleted} associated threads for session {session_id}")
+                if threads_deleted > 0:
+                    logger.debug(
+                        "Deleted %s associated threads for session %s",
+                        threads_deleted,
+                        session_id,
+                    )
             except Exception as thread_error:
                 logger.warning(f"Error deleting threads for session {session_id}: {str(thread_error)}")
 
@@ -917,8 +953,11 @@ class ChatHistoryService:
             self._active_sessions.pop(session_id, None)
             self._session_token_counts.pop(session_id, None)
 
-            if self.verbose:
-                logger.info(f"Cleared history for session {session_id}: {deleted_count} messages")
+            logger.debug(
+                "Cleared history for session %s: %s messages",
+                session_id,
+                deleted_count,
+            )
 
             return deleted_count > 0
 
@@ -1017,21 +1056,25 @@ class ChatHistoryService:
                     "conversation_threads",
                     {"parent_session_id": session_id}
                 )
-                if self.verbose and threads_deleted > 0:
-                    logger.info(f"Deleted {threads_deleted} associated threads and {datasets_deleted} datasets for session {session_id}")
+                if threads_deleted > 0:
+                    logger.debug(
+                        "Deleted %s associated threads and %s datasets for session %s",
+                        threads_deleted,
+                        datasets_deleted,
+                        session_id,
+                    )
             except Exception as thread_error:
                 logger.warning(f"Error deleting threads for session {session_id}: {str(thread_error)}")
 
             self._active_sessions.pop(session_id, None)
             self._session_token_counts.pop(session_id, None)
 
-            if self.verbose:
-                logger.info(
-                    "Cleared conversation history for session %s: %s messages deleted, %s threads deleted",
-                    session_id,
-                    deleted_count,
-                    threads_deleted
-                )
+            logger.debug(
+                "Cleared conversation history for session %s: %s messages deleted, %s threads deleted",
+                session_id,
+                deleted_count,
+                threads_deleted,
+            )
 
             return {
                 "success": True,
@@ -1241,8 +1284,11 @@ class ChatHistoryService:
             # Cap at reasonable maximum to prevent excessive memory usage
             fetch_limit = min(max(estimated_messages_needed, 20), 1000)
 
-            if self.verbose:
-                logger.debug(f"Fetching up to {fetch_limit} messages for token budget {token_budget}")
+            logger.debug(
+                "Fetching up to %s messages for token budget %s",
+                fetch_limit,
+                token_budget,
+            )
 
             # Fetch messages for session, ordered by timestamp DESC (newest first)
             all_messages = await self.database_service.find_many(
@@ -1276,9 +1322,13 @@ class ChatHistoryService:
             # Reverse to get chronological order (oldest to newest)
             selected_messages.reverse()
             
-            if self.verbose:
-                logger.debug(f"Session {session_id}: Selected {len(selected_messages)} messages "
-                           f"using {accumulated_tokens}/{token_budget} tokens")
+            logger.debug(
+                "Session %s: Selected %s messages using %s/%s tokens",
+                session_id,
+                len(selected_messages),
+                accumulated_tokens,
+                token_budget,
+            )
             
             # Format for LLM context
             context_messages = []
@@ -1377,8 +1427,11 @@ class ChatHistoryService:
                 self._active_sessions.pop(sid, None)
                 self._session_token_counts.pop(sid, None)
                 
-            if inactive and self.verbose:
-                logger.info(f"Cleaned up {len(inactive)} inactive sessions from memory tracking")
+            if inactive:
+                logger.debug(
+                    "Cleaned up %s inactive sessions from memory tracking",
+                    len(inactive),
+                )
                 
         except Exception as e:
             logger.error(f"Error cleaning up inactive sessions: {str(e)}")

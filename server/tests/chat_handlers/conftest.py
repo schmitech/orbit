@@ -19,7 +19,6 @@ def base_config():
     """Basic configuration for testing."""
     return {
         'general': {
-            'verbose': False,
             'inference_provider': 'openai'
         },
         'chat_history': {

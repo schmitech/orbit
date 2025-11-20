@@ -21,12 +21,10 @@ class TestConversationHistoryHandler:
         handler = ConversationHistoryHandler(
             config=base_config,
             chat_history_service=mock_chat_history_service,
-            adapter_manager=mock_adapter_manager,
-            verbose=True
+            adapter_manager=mock_adapter_manager
         )
 
         assert handler._base_enabled is True
-        assert handler.verbose is True
         assert handler.chat_history_service == mock_chat_history_service
         assert handler.adapter_manager == mock_adapter_manager
 
@@ -86,7 +84,6 @@ class TestConversationHistoryHandler:
             config=base_config,
             chat_history_service=mock_chat_history_service,
             adapter_manager=mock_adapter_manager,
-            verbose=True
         )
 
         context = await handler.get_context('session123', 'test_adapter')
@@ -140,7 +137,6 @@ class TestConversationHistoryHandler:
             config=base_config,
             chat_history_service=mock_chat_history_service,
             adapter_manager=mock_adapter_manager,
-            verbose=True
         )
 
         await handler.store_turn(

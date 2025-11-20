@@ -99,15 +99,12 @@ Retrievers and adapters are configured through the main configuration file (`con
 ```yaml
 general:
   datasource_provider: chroma  # or sqlite, or your new retriever
-  verbose: true
 
 datasources:
   chroma:
     domain_adapter: qa  # or generic, or your new adapter
     confidence_threshold: 0.85
     relevance_threshold: 0.7
-    adapter_params:
-      verbose: true
 ```
 
 ## Best Practices

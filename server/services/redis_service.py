@@ -89,7 +89,6 @@ class RedisService:
             return
             
         self.config = config
-        self.verbose = config.get('general', {}).get('verbose', False)
         
         # Redis configuration
         self.redis_config = config.get('internal_services', {}).get('redis', {})
@@ -168,9 +167,7 @@ class RedisService:
         # Create Redis client
         try:
             self.client = redis.Redis(**connection_kwargs)
-            
-            if self.verbose:
-                logger.info(f"Redis client initialized: {host}:{port}/db{db}, SSL: {'enabled' if use_ssl else 'disabled'}, Username: {'set' if username else 'not set'}")
+            logger.debug(f"Redis client initialized: {host}:{port}/db{db}, SSL: {'enabled' if use_ssl else 'disabled'}, Username: {'set' if username else 'not set'}")
         except Exception as e:
             logger.error(f"Error initializing Redis client: {str(e)}")
             self.enabled = False
@@ -212,11 +209,6 @@ class RedisService:
     async def _clear_prompt_cache_on_startup(self) -> None:
         """Clear all prompt cache keys on server startup"""
         try:
-            verbose = self.config.get('general', {}).get('verbose', False)
-
-            if verbose:
-                logger.info("Clearing prompt cache on server startup...")
-
             # Get all keys matching the prompt pattern
             prompt_keys = []
             cursor = 0
@@ -228,10 +220,9 @@ class RedisService:
 
             if prompt_keys:
                 deleted_count = await self.client.delete(*prompt_keys)
-                if verbose:
-                    logger.info(f"✓ Cleared {deleted_count} prompt cache entries from Redis")
-            elif verbose:
-                logger.info("No prompt cache entries found to clear")
+                logger.debug(f"Cleared {deleted_count} prompt cache entries from Redis")
+            else:
+                logger.debug("No prompt cache entries found to clear")
 
         except Exception as e:
             logger.warning(f"Failed to clear prompt cache on startup: {str(e)}")

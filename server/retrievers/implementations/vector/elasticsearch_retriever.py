@@ -121,8 +121,7 @@ class ElasticsearchRetriever(AbstractVectorRetriever):
             
             self.index_name = collection_name
             
-            if self.verbose:
-                logger.info(f"Switched to index: {collection_name}")
+            logger.debug(f"Switched to index: {collection_name}")
                 
         except Exception as e:
             error_msg = f"Failed to switch index: {str(e)}"
@@ -219,29 +218,25 @@ class ElasticsearchRetriever(AbstractVectorRetriever):
         try:
             # Call the parent's collection resolution logic
             await super().get_relevant_context(query, api_key, collection_name, **kwargs)
-            
-            debug_mode = self.verbose
-            
+
             # Check for embeddings
             if not self.embeddings:
                 logger.warning("Embeddings are disabled, no vector search can be performed")
                 return []
-            
+
             # 1. Generate embedding for query
             query_embedding = await self.embed_query(query)
-            
+
             if not query_embedding or len(query_embedding) == 0:
                 logger.error("Received empty embedding, cannot perform vector search")
                 return []
-            
-            if debug_mode:
-                logger.info(f"Generated {len(query_embedding)}-dimensional embedding for query")
-            
+
+            logger.debug(f"Generated {len(query_embedding)}-dimensional embedding for query")
+
             # 2. Perform vector search
             search_results = await self.vector_search(query_embedding, self.max_results)
-            
-            if debug_mode:
-                logger.info(f"Vector search returned {len(search_results)} results")
+
+            logger.debug(f"Vector search returned {len(search_results)} results")
             
             # 3. Process and filter results (Elasticsearch-specific)
             context_items = []
@@ -266,12 +261,10 @@ class ElasticsearchRetriever(AbstractVectorRetriever):
                     item["metadata"]["score"] = score
                     
                     context_items.append(item)
-                    
-                    if debug_mode:
-                        logger.info(f"Accepted result with confidence: {similarity:.4f}")
+
+                    logger.debug(f"Accepted result with confidence: {similarity:.4f}")
                 else:
-                    if debug_mode:
-                        logger.info(f"Rejected result with confidence: {similarity:.4f} (threshold: {self.confidence_threshold})")
+                    logger.debug(f"Rejected result with confidence: {similarity:.4f} (threshold: {self.confidence_threshold})")
             
             # 4. Sort by confidence (highest first)
             context_items = sorted(context_items, key=lambda x: x.get("confidence", 0), reverse=True)
@@ -281,10 +274,9 @@ class ElasticsearchRetriever(AbstractVectorRetriever):
             
             # 6. Apply final limit
             context_items = context_items[:self.return_results]
-            
-            if debug_mode:
-                logger.info(f"Retrieved {len(context_items)} relevant context items")
-                
+
+            logger.debug(f"Retrieved {len(context_items)} relevant context items")
+
             return context_items
                 
         except Exception as e:

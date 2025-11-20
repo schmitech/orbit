@@ -59,7 +59,6 @@ class OllamaConfig:
         
         # Additional parameters
         self.temperature = service_config.get('temperature', 0.1)
-        self.verbose = service_config.get('verbose', config.get('general', {}).get('verbose', False))
         self.dimensions = service_config.get('dimensions')
     
     def _get_default_model(self, service_type: str) -> str:

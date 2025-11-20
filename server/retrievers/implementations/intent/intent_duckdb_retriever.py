@@ -85,8 +85,7 @@ class IntentDuckDBRetriever(IntentSQLRetriever):
                 config_params['threads'] = self.threads
 
             # Log connection settings for debugging
-            if self.verbose:
-                logger.info(f"DuckDB connection settings: read_only={self.read_only}, access_mode={self.access_mode}, database={self.database_path}")
+            logger.debug(f"DuckDB connection settings: read_only={self.read_only}, access_mode={self.access_mode}, database={self.database_path}")
 
             # Create connection with read-only and access_mode settings
             if config_params:
@@ -101,8 +100,7 @@ class IntentDuckDBRetriever(IntentSQLRetriever):
                     read_only=self.read_only
                 )
             
-            if self.verbose:
-                logger.info(f"DuckDB connection created: read_only={self.read_only}, access_mode={self.access_mode if config_params else 'automatic'}")
+            logger.debug(f"DuckDB connection created: read_only={self.read_only}, access_mode={self.access_mode if config_params else 'automatic'}")
 
             # Load HTTP/S remote file support (for CSV/Parquet reads)
             # Note: INSTALL requires write access, so skip in read-only mode
@@ -110,26 +108,22 @@ class IntentDuckDBRetriever(IntentSQLRetriever):
                 try:
                     connection.execute("INSTALL httpfs;")
                     connection.execute("LOAD httpfs;")
-                    if self.verbose:
-                        logger.debug("DuckDB httpfs extension loaded for remote file support")
+                    logger.debug("DuckDB httpfs extension loaded for remote file support")
                 except Exception as extension_error:
                     logger.warning(f"Failed to load DuckDB httpfs extension: {extension_error}")
             else:
                 # In read-only mode, try to load without installing (if already installed)
                 try:
                     connection.execute("LOAD httpfs;")
-                    if self.verbose:
-                        logger.debug("DuckDB httpfs extension loaded (read-only mode)")
+                    logger.debug("DuckDB httpfs extension loaded (read-only mode)")
                 except Exception:
-                    # Extension not available - that's okay in read-only mode
-                    if self.verbose:
-                        logger.debug("DuckDB httpfs extension not available (read-only mode)")
+                    logger.error("DuckDB httpfs extension not available (read-only mode)")
 
             # Test connection
             result = connection.execute("SELECT version();").fetchone()
 
-            if result and self.verbose:
-                logger.info(f"DuckDB connection successful: version {result[0]}")
+            if result:
+                logger.debug(f"DuckDB connection successful: version {result[0]}")
 
             # Verify database has tables (if not in-memory)
             if self.database_path != ':memory:':
@@ -266,8 +260,7 @@ class IntentDuckDBRetriever(IntentSQLRetriever):
         if self.connection:
             try:
                 self.connection.close()
-                if self.verbose:
-                    logger.info("Closed DuckDB connection")
+                logger.debug("Closed DuckDB connection")
             except Exception as e:
                 logger.warning(f"Error closing DuckDB connection: {e}")
             finally:

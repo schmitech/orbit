@@ -56,7 +56,7 @@ def main():
     for test_file in test_files:
         print(f"  - {os.path.basename(test_file)}")
     
-    # Run the tests with verbose output and stop on first failure
+    # Run the tests with output and stop on first failure
     # Combine all exclusions into a single -k expression
     pytest.main([
         str(SCRIPT_DIR),

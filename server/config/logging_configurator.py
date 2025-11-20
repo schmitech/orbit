@@ -152,11 +152,6 @@ class LoggingConfigurator:
         logger.propagate = is_true_value(log_config.get('propagate', False))
         logger.info("Logging configuration completed")
         
-        # Handle verbose setting consistently
-        verbose_value = config.get('general', {}).get('verbose', False)
-        if is_true_value(verbose_value):
-            logger.debug("Verbose logging enabled")
-        
         return logger
     
     @staticmethod

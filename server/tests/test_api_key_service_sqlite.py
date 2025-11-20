@@ -61,7 +61,6 @@ def get_test_config():
     db_path = os.path.join(TEMP_DIR, f"test_{os.getpid()}.db")
     return {
         'general': {
-            'verbose': True
         },
         'adapters': [
             {

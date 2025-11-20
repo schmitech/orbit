@@ -40,7 +40,6 @@ def test_config(tmp_path):
             }
         },
         "general": {
-            "verbose": False
         },
         "inference": {
             "openai": {

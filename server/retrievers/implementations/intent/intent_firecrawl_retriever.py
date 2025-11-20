@@ -81,11 +81,13 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
         self.content_chunker: Optional[ContentChunker] = None
         self.chunk_manager: Optional[ChunkManager] = None
 
-        if self.verbose:
-            logger.info(f"Firecrawl retriever initialized with base_url: {self.base_url}")
-            if self.enable_chunking:
-                logger.info(f"Content chunking enabled: max_tokens={self.max_chunk_tokens}, "
-                          f"top_chunks={self.top_chunks_to_return}")
+        
+        logger.debug(f"Firecrawl retriever initialized with base_url: {self.base_url}")
+        if self.enable_chunking:
+            logger.debug(
+                f"Content chunking enabled: max_tokens={self.max_chunk_tokens}, "
+                f"top_chunks={self.top_chunks_to_return}"
+            )
 
     async def initialize(self) -> None:
         """Initialize the Firecrawl retriever and chunking components."""
@@ -166,8 +168,7 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
             List of context dictionaries with scraped and chunked content
         """
         try:
-            if self.verbose:
-                logger.info(f"Processing Firecrawl query with chunking: {query}")
+            logger.debug(f"Processing Firecrawl query with chunking: {query}")
 
             # Find best matching templates
             templates = await self._find_best_templates(query)
@@ -192,16 +193,14 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
                 if similarity < self.confidence_threshold:
                     continue
 
-                if self.verbose:
-                    logger.info(f"Trying template: {template.get('id')} (similarity: {similarity:.2%})")
+                logger.debug(f"Trying template: {template.get('id')} (similarity: {similarity:.2%})")
 
                 # Extract parameters
                 if self.parameter_extractor:
                     parameters = await self.parameter_extractor.extract_parameters(query, template)
                     validation_errors = self.parameter_extractor.validate_parameters(parameters)
                     if validation_errors:
-                        if self.verbose:
-                            logger.debug(f"Parameter validation failed: {validation_errors}")
+                        logger.debug(f"Parameter validation failed: {validation_errors}")
                         continue
                 else:
                     parameters = await self._extract_parameters(query, template)
@@ -210,8 +209,7 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
                 results, error = await self._execute_template(template, parameters)
 
                 if error:
-                    if self.verbose:
-                        logger.debug(f"Template execution failed: {error}")
+                    logger.debug(f"Template execution failed: {error}")
                     continue
 
                 # Format results with chunking support
@@ -223,8 +221,7 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
                     query=query  # Pass query for chunk ranking
                 )
 
-                if self.verbose:
-                    logger.info(f"Successfully processed Firecrawl query")
+                logger.debug(f"Successfully processed Firecrawl query")
 
                 return formatted_results
 
@@ -296,9 +293,8 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
             # Build Firecrawl scrape parameters
             scrape_params = self._build_scrape_params(url, formats, template)
 
-            if self.verbose:
-                logger.info(f"Scraping URL: {url} with formats: {formats}")
-                logger.debug(f"Scrape params: {json.dumps(scrape_params, indent=2)}")
+            logger.debug(f"Scraping URL: {url} with formats: {formats}")
+            logger.debug(f"Scrape params: {json.dumps(scrape_params, indent=2)}")
 
             # Execute the Firecrawl scrape request
             response = await self._execute_firecrawl_request(scrape_params)
@@ -419,8 +415,7 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
             response_data = response.json()
 
             # Debug logging to see actual response structure
-            if self.verbose:
-                logger.debug(f"Raw Firecrawl API response: {json.dumps(response_data, indent=2)[:1000]}")
+            logger.debug(f"Raw Firecrawl API response: {json.dumps(response_data, indent=2)[:1000]}")
 
             # Firecrawl v1 API nests content in 'data' field
             data = response_data.get('data', {})
@@ -436,9 +431,8 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
             for format_type in formats:
                 if format_type in data:
                     result[format_type] = data[format_type]
-                    if self.verbose:
-                        content_preview = str(data[format_type])[:200]
-                        logger.debug(f"Extracted {format_type} content: {content_preview}...")
+                    content_preview = str(data[format_type])[:200]
+                    logger.debug(f"Extracted {format_type} content: {content_preview}...")
 
             # Add screenshot if present
             if 'screenshot' in data:
@@ -448,9 +442,8 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
             if 'links' in data:
                 result['links'] = data['links']
 
-            if self.verbose:
-                logger.debug(f"Parsed result keys: {list(result.keys())}")
-                logger.debug(f"Has markdown: {'markdown' in result}, Has metadata: {bool(result.get('metadata'))}")
+            logger.debug(f"Parsed result keys: {list(result.keys())}")
+            logger.debug(f"Has markdown: {'markdown' in result}, Has metadata: {bool(result.get('metadata'))}")
 
             return [result]
 
@@ -633,20 +626,17 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
 
         # Check if we have cached chunks
         if await self.chunk_manager.has_cached_chunks(source_url):
-            if self.verbose:
-                logger.info(f"Using cached chunks for {source_url}")
+            logger.debug(f"Using cached chunks for {source_url}")
         else:
             # Chunk the content
-            if self.verbose:
-                logger.info(f"Chunking content ({len(markdown_content)} chars)")
+            logger.debug(f"Chunking content ({len(markdown_content)} chars)")
 
             chunks = self.content_chunker.chunk_markdown(markdown_content, chunk_metadata)
 
             # Store chunks in vector store
             await self.chunk_manager.store_chunks(chunks, source_url, chunk_metadata)
 
-            if self.verbose:
-                logger.info(f"Created and stored {len(chunks)} chunks")
+            logger.debug(f"Created and stored {len(chunks)} chunks")
 
         # Retrieve relevant chunks based on query
         relevant_chunks = await self.chunk_manager.retrieve_chunks(

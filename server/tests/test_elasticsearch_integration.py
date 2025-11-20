@@ -65,7 +65,6 @@ async def logger_service():
             }
         },
         'general': {
-            'verbose': False,  # Disable verbose for pytest
             'inference_provider': 'ollama'
         },
         'logging': {
@@ -252,7 +251,6 @@ async def standalone_test():
             }
         },
         'general': {
-            'verbose': True,
             'inference_provider': 'ollama'
         },
         'logging': {

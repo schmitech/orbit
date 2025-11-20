@@ -29,8 +29,7 @@ class AdapterReloader:
         config_manager,
         adapter_cache,
         adapter_loader,
-        dependency_cleaner,
-        verbose: bool = False
+        dependency_cleaner
     ):
         """
         Initialize the adapter reloader.
@@ -40,13 +39,11 @@ class AdapterReloader:
             adapter_cache: Adapter cache manager
             adapter_loader: Adapter loader
             dependency_cleaner: Dependency cache cleaner
-            verbose: Enable verbose logging
         """
         self.config_manager = config_manager
         self.adapter_cache = adapter_cache
         self.adapter_loader = adapter_loader
         self.dependency_cleaner = dependency_cleaner
-        self.verbose = verbose
 
     async def reload_single_adapter(
         self,
@@ -119,9 +116,9 @@ class AdapterReloader:
             if old_config and action in ["updated", "enabled"]:
                 changes = ConfigChangeDetector.detect_changes(old_config, adapter_config_full)
                 if changes:
-                    logger.info(f"Adapter '{adapter_name}' config changes: {', '.join(changes)}")
-                elif self.verbose:
-                    logger.debug(f"Adapter '{adapter_name}' reloaded but no config changes detected")
+                    logger.info(f"Adapter '{adapter_name}' config changes detected: {', '.join(changes)}")
+                else:
+                    logger.debug(f"Adapter '{adapter_name}' reloaded with no configuration changes detected")
 
             # Preload adapter
             try:
@@ -264,14 +261,12 @@ class AdapterReloader:
             action_desc: Description of the action for logging
         """
         try:
-            if self.verbose:
-                logger.info(f"Preloading {action_desc} adapter '{adapter_name}'...")
+            logger.debug(f"Preloading {action_desc} adapter '{adapter_name}'...")
 
             adapter = await self.adapter_loader.load_adapter(adapter_name, adapter_config)
             self.adapter_cache.put(adapter_name, adapter)
 
-            if self.verbose:
-                logger.info(f"Successfully preloaded {action_desc} adapter '{adapter_name}'")
+            logger.debug(f"Successfully preloaded {action_desc} adapter '{adapter_name}'")
         except ValueError as e:
             error_msg = str(e)
             logger.error(f"Failed to preload {action_desc} adapter '{adapter_name}': {error_msg}")

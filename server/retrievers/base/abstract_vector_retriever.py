@@ -85,8 +85,7 @@ class AbstractVectorRetriever(BaseRetriever):
             if not self._datasource.is_initialized:
                 await self._datasource.initialize()
             self._datasource_initialized = True
-            if self.verbose:
-                logger.info(f"Datasource initialized for {self._get_datasource_name()}")
+            self.logger.debug(f"Datasource initialized for {self._get_datasource_name()}")
 
     async def initialize(self) -> None:
         """Initialize required services including embeddings and datasource."""
@@ -112,7 +111,7 @@ class AbstractVectorRetriever(BaseRetriever):
         """Initialize the embedding service or model."""
         embedding_provider = self.config.get('embedding', {}).get('provider')
 
-        if self.verbose and embedding_provider:
+        if embedding_provider:
             logger.info("AbstractVectorRetriever._initialize_embeddings() called")
             logger.info(f"  embedding_provider from config: {embedding_provider}")
             logger.info(f"  config['embedding'] = {self.config.get('embedding', {})}")
@@ -157,8 +156,7 @@ class AbstractVectorRetriever(BaseRetriever):
             await self._datasource.close()
             self._datasource_initialized = False
             self._vector_client = None
-            if self.verbose:
-                logger.info(f"Datasource closed for {self._get_datasource_name()}")
+            self.logger.debug(f"Datasource closed for {self._get_datasource_name()}")
     
     async def embed_query(self, query: str) -> List[float]:
         """
@@ -303,8 +301,6 @@ class AbstractVectorRetriever(BaseRetriever):
             # and handles common logging/error handling
             await super().get_relevant_context(query, api_key, collection_name, **kwargs)
 
-            debug_mode = self.verbose
-
             # Ensure datasource is initialized
             await self._ensure_datasource_initialized()
 
@@ -312,25 +308,23 @@ class AbstractVectorRetriever(BaseRetriever):
             if not self.embeddings:
                 logger.warning("Embeddings are disabled, no vector search can be performed")
                 return []
-            
+
             # 1. Generate embedding for query
             query_embedding = await self.embed_query(query)
-            
+
             if not query_embedding or len(query_embedding) == 0:
                 logger.error("Received empty embedding, cannot perform vector search")
                 return []
-            
-            if debug_mode:
-                logger.info(f"Generated {len(query_embedding)}-dimensional embedding for query")
-            
+
+            logger.debug(f"Generated {len(query_embedding)}-dimensional embedding for query")
+
             # 2. Perform vector search
             search_results = await self.vector_search(query_embedding, self.max_results)
 
             # Track counts at each stage for transparency
             vector_search_count = len(search_results)
 
-            if debug_mode:
-                logger.info(f"Vector search returned {vector_search_count} results")
+            logger.debug(f"Vector search returned {vector_search_count} results")
 
             # 3. Process and filter results by confidence threshold
             context_items = []
@@ -364,17 +358,15 @@ class AbstractVectorRetriever(BaseRetriever):
 
                     context_items.append(item)
 
-                    if debug_mode:
-                        logger.info(f"Accepted result with confidence: {similarity:.4f}")
+                    logger.debug(f"Accepted result with confidence: {similarity:.4f}")
                 else:
-                    if debug_mode:
-                        logger.info(f"Rejected result with confidence: {similarity:.4f} (threshold: {self.confidence_threshold})")
+                    logger.debug(f"Rejected result with confidence: {similarity:.4f} (threshold: {self.confidence_threshold})")
 
             # Track count after confidence filtering
             after_confidence_filtering = len(context_items)
 
-            if debug_mode and after_confidence_filtering < vector_search_count:
-                logger.info(f"Confidence filtering: {vector_search_count} → {after_confidence_filtering} results (threshold: {self.confidence_threshold})")
+            if after_confidence_filtering < vector_search_count:
+                logger.debug(f"Confidence filtering: {vector_search_count} → {after_confidence_filtering} results (threshold: {self.confidence_threshold})")
 
             # 4. Sort by confidence
             context_items = sorted(context_items, key=lambda x: x.get("confidence", 0), reverse=True)
@@ -385,8 +377,8 @@ class AbstractVectorRetriever(BaseRetriever):
             # Track count after domain filtering
             after_domain_filtering = len(context_items)
 
-            if debug_mode and after_domain_filtering < after_confidence_filtering:
-                logger.info(f"Domain filtering: {after_confidence_filtering} → {after_domain_filtering} results")
+            if after_domain_filtering < after_confidence_filtering:
+                logger.debug(f"Domain filtering: {after_confidence_filtering} → {after_domain_filtering} results")
 
             # 6. Track original count before final truncation
             original_count = len(context_items)
@@ -409,11 +401,10 @@ class AbstractVectorRetriever(BaseRetriever):
                 item["metadata"]["after_confidence_filtering"] = after_confidence_filtering
                 item["metadata"]["after_domain_filtering"] = after_domain_filtering
 
-            if debug_mode:
-                logger.info(f"Retrieved {len(context_items)} relevant context items" +
-                          (f" (truncated from {original_count})" if was_truncated else ""))
-                if was_truncated:
-                    logger.info(f"Note: LLM will only see {len(context_items)} of {original_count} qualifying results")
+            logger.debug(f"Retrieved {len(context_items)} relevant context items" +
+                      (f" (truncated from {original_count})" if was_truncated else ""))
+            if was_truncated:
+                logger.debug(f"Note: LLM will only see {len(context_items)} of {original_count} qualifying results")
 
             return context_items
                 

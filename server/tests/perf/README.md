@@ -231,7 +231,7 @@ Adjust test parameters based on your server capacity:
 
 ### Debug Mode
 
-Enable verbose logging in Locust:
+Enable logging in Locust:
 
 ```bash
 locust -f locustfile.py --host=http://localhost:3000 --loglevel=DEBUG

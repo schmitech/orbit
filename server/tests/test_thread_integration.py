@@ -60,7 +60,6 @@ async def integrated_services():
             }
         },
         'general': {
-            'verbose': False
         },
         'conversation_threading': {
             'enabled': True,

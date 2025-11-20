@@ -41,8 +41,7 @@ class ConversationalImplementation(BaseRetriever):
     async def set_collection(self, collection_name: str) -> None:
         """Store the provided identifier for parity with retriever implementations."""
         self.collection = collection_name
-        if self.verbose:
-            self.logger.debug("Passthrough adapter set_collection called with %s", collection_name)
+        self.logger.debug("Passthrough adapter set_collection called with %s", collection_name)
 
     async def get_relevant_context(
         self,
@@ -53,6 +52,5 @@ class ConversationalImplementation(BaseRetriever):
     ) -> List[Dict[str, Any]]:
         """Return an empty context list to indicate no retrieval was performed."""
         await super().get_relevant_context(query, api_key, collection_name, **kwargs)
-        if self.verbose:
-            self.logger.debug("Passthrough adapter skipping retrieval for query: %s", query)
+        self.logger.debug("Passthrough adapter skipping retrieval for query: %s", query)
         return []

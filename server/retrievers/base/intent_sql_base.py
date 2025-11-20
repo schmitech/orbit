@@ -60,7 +60,6 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
                 domain_config_path=self.intent_config.get('domain_config_path'),
                 template_library_path=self.intent_config.get('template_library_path'),
                 confidence_threshold=self.intent_config.get('confidence_threshold', 0.75),
-                verbose=config.get('verbose', False),
                 config=self.intent_config
             )
         
@@ -71,10 +70,9 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
         self.confidence_threshold = self.intent_config.get('confidence_threshold', 0.1)
         self.max_templates = self.intent_config.get('max_templates', 5)
         
-        # Debug configuration values if verbose is enabled
-        if self.verbose:
-            logger.info(f"Intent config loaded - confidence_threshold: {self.confidence_threshold}, template_collection_name: {self.template_collection_name}, max_templates: {self.max_templates}")
-            logger.info(f"Intent config keys: {list(self.intent_config.keys())}")
+        # Debug configuration values
+        self.logger.debug(f"Intent config loaded - confidence_threshold: {self.confidence_threshold}, template_collection_name: {self.template_collection_name}, max_templates: {self.max_templates}")
+        self.logger.debug(f"Intent config keys: {list(self.intent_config.keys())}")
         
         # Initialize service clients
         self.embedding_client = None
@@ -161,8 +159,7 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
             self.template_reranker = TemplateReranker(domain_config, domain_strategy)
             self.template_processor = TemplateProcessor(domain_config)
             
-            if self.verbose:
-                logger.info(f"{self.__class__.__name__} initialization complete")
+            self.logger.debug(f"{self.__class__.__name__} initialization complete")
                 
         except Exception as e:
             logger.error(f"Failed to initialize {self.__class__.__name__}: {e}")
@@ -256,8 +253,8 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
             # Get store configuration from stores.yaml
             store_config = self._get_store_config()
             
-            if self.verbose:
-                logger.info(f"Using store '{self.store_name}' with type '{store_config.get('type', 'chroma')}'")
+            
+            logger.debug(f"Using store '{self.store_name}' with type '{store_config.get('type', 'chroma')}'")
             
             # Create template embedding store with store manager
             self.template_store = TemplateEmbeddingStore(
@@ -419,19 +416,17 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
             # Batch add templates to the store
             if templates_with_embeddings:
                 try:
-                    if self.verbose:
-                        logger.info(f"Adding {len(templates_with_embeddings)} templates with embeddings to store")
+                    logger.debug(f"Adding {len(templates_with_embeddings)} templates with embeddings to store")
                     results = await self.template_store.batch_add_templates(templates_with_embeddings)
                     loaded_count = sum(1 for success in results.values() if success)
                     logger.info(f"Successfully loaded {loaded_count} templates into vector store")
                     
                     # Verify the templates are actually in the store
-                    if self.verbose:
-                        try:
-                            post_stats = await self.template_store.get_statistics()
-                            logger.info(f"Vector store now contains {post_stats.get('total_templates', 0)} templates")
-                        except Exception as e:
-                            logger.debug(f"Could not get post-load stats: {e}")
+                    try:
+                        post_stats = await self.template_store.get_statistics()
+                        logger.debug(f"Vector store now contains {post_stats.get('total_templates', 0)} templates")
+                    except Exception as e:
+                        logger.debug(f"Could not get post-load stats: {e}")
                         
                 except Exception as e:
                     logger.error(f"Failed to add templates to store: {e}")
@@ -439,8 +434,8 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
             
             if loaded_count == 0:
                 logger.warning("No templates were loaded into vector store")
-                if self.verbose and templates:
-                    logger.info(f"Found {len(templates)} templates from adapter but none were loaded")
+                if templates:
+                    logger.debug(f"Found {len(templates)} templates from adapter but none were loaded")
             else:
                 logger.info(f"Template loading complete: {loaded_count} templates loaded")
             
@@ -500,8 +495,7 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
                                  collection_name: Optional[str] = None, **kwargs) -> List[Dict[str, Any]]:
         """Process a natural language query using intent-based SQL translation."""
         try:
-            if self.verbose:
-                logger.info(f"Processing intent query: {query}")
+            logger.debug(f"Processing intent query: {query}")
             
             # Find best matching template
             templates = await self._find_best_templates(query)
@@ -526,16 +520,14 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
                 if similarity < self.confidence_threshold:
                     continue
                 
-                if self.verbose:
-                    logger.info(f"Trying template: {template.get('id')} (similarity: {similarity:.2%})")
+                logger.debug(f"Trying template: {template.get('id')} (similarity: {similarity:.2%})")
                 
                 # Extract parameters
                 if self.parameter_extractor:
                     parameters = await self.parameter_extractor.extract_parameters(query, template)
                     validation_errors = self.parameter_extractor.validate_parameters(parameters)
                     if validation_errors:
-                        if self.verbose:
-                            logger.debug(f"Parameter validation failed for template {template.get('id')}: {validation_errors}")
+                        logger.debug(f"Parameter validation failed for template {template.get('id')}: {validation_errors}")
                         continue
                 else:
                     parameters = await self._extract_parameters(query, template)
@@ -544,16 +536,15 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
                 results, error = await self._execute_template(template, parameters)
 
                 if error:
-                    if self.verbose:
-                        logger.debug(f"Template {template.get('id')} execution failed: {error}")
+                    logger.debug(f"Template {template.get('id')} execution failed: {error}")
                     continue
 
                 # Track original count before any truncation
                 original_result_count = len(results) if results else 0
                 was_truncated = False
 
-                if self.verbose and results:
-                    logger.info(f"SQL query returned {original_result_count} rows from database")
+                if results:
+                    logger.debug(f"SQL query returned {original_result_count} rows from database")
 
                 # Apply truncation if needed
                 if results and self.return_results is not None and len(results) > self.return_results:
@@ -601,10 +592,9 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
 
                     content = "\n\n".join(content_parts)
 
-                    if self.verbose:
-                        logger.info(f"Generated content for LLM context (length: {len(content)}):\n{content}")
-                        if was_truncated:
-                            logger.info(f"Note: LLM will only see {len(results)} of {original_result_count} records")
+                    logger.debug(f"Generated content for LLM context (length: {len(content)}):\n{content}")
+                    if was_truncated:
+                        logger.debug(f"Note: LLM will only see {len(results)} of {original_result_count} records")
 
                     return [{
                         "content": content,
@@ -655,15 +645,14 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
                 return []
             
             # Check template store stats
-            if self.verbose:
-                try:
-                    stats = await self.template_store.get_statistics()
-                    total_templates = stats.get('total_templates', 0)
-                    cached_templates = stats.get('cached_templates', 0)
-                    collection_name = stats.get('collection_name', 'unknown')
-                    logger.info(f"Template store stats - total: {total_templates}, cached: {cached_templates}, collection: {collection_name}")
-                except Exception as e:
-                    logger.debug(f"Could not get template store stats: {e}")
+            try:
+                stats = await self.template_store.get_statistics()
+                total_templates = stats.get('total_templates', 0)
+                cached_templates = stats.get('cached_templates', 0)
+                collection_name = stats.get('collection_name', 'unknown')
+                logger.debug(f"Template store stats - total: {total_templates}, cached: {cached_templates}, collection: {collection_name}")
+            except Exception as e:
+                logger.debug(f"Could not get template store stats: {e}")
             
             # Get query embedding
             query_embedding = await self.embedding_client.embed_query(query)
@@ -671,8 +660,7 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
                 logger.error("Failed to get query embedding")
                 return []
             
-            if self.verbose:
-                logger.info(f"Query embedding generated with {len(query_embedding)} dimensions")
+            logger.debug(f"Query embedding generated with {len(query_embedding)} dimensions")
             
             # Check dimension compatibility
             try:
@@ -692,13 +680,12 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
                 threshold=self.confidence_threshold
             )
             
-            if self.verbose:
-                if search_results:
-                    scores = [f"{result.get('score', 0):.3f}" for result in search_results]
-                    scores_str = ", ".join(scores)
-                    logger.info(f"Similarity search with threshold {self.confidence_threshold} returned {len(search_results)} results with scores: [{scores_str}]")
-                else:
-                    logger.info(f"Similarity search with threshold {self.confidence_threshold} returned 0 results")
+            if search_results:
+                scores = [f"{result.get('score', 0):.3f}" for result in search_results]
+                scores_str = ", ".join(scores)
+                logger.debug(f"Similarity search with threshold {self.confidence_threshold} returned {len(search_results)} results with scores: [{scores_str}]")
+            else:
+                logger.debug(f"Similarity search with threshold {self.confidence_threshold} returned 0 results")
             
             if not search_results:
                 return []
@@ -715,11 +702,9 @@ class IntentSQLRetriever(BaseSQLDatabaseRetriever):
                         'embedding_text': result.get('description', '')
                     })
                 else:
-                    if self.verbose:
-                        logger.warning(f"Template {template_id} not found in adapter")
+                    logger.warning(f"Template {template_id} not found in adapter")
             
-            if self.verbose:
-                logger.info(f"Found {len(templates)} matching templates for query")
+            logger.debug(f"Found {len(templates)} matching templates for query")
             return templates
             
         except Exception as e:
@@ -769,8 +754,7 @@ JSON:"""
                 if (param['name'] not in parameters or parameters[param['name']] is None) and 'default' in param:
                     parameters[param['name']] = param['default']
             
-            if self.verbose:
-                logger.info(f"Extracted parameters: {parameters}")
+            logger.debug(f"Extracted parameters: {parameters}")
             
             return parameters
             
@@ -794,8 +778,7 @@ JSON:"""
 
             sql_query = self._process_sql_template(sql_template, formatted_parameters)
 
-            if self.verbose:
-                logger.info(f"Executing SQL: {sql_query}")
+            logger.debug(f"Executing SQL: {sql_query}")
 
             # Check for different parameter formats
             has_named_params = bool(re.search(r'%\((\w+)\)s', sql_query))
@@ -934,8 +917,7 @@ JSON:"""
             
         # Set the collection name (this affects SQL execution context)
         self.collection = collection_name
-        if self.verbose:
-            logger.info(f"{self.__class__.__name__} switched to collection (table): {collection_name}")
+        logger.debug(f"{self.__class__.__name__} switched to collection (table): {collection_name}")
 
     async def close(self) -> None:
         """

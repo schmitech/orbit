@@ -22,7 +22,6 @@ def mock_mongodb_config():
     """Create a mock MongoDB configuration for testing."""
     return {
         'general': {
-            'verbose': False
         },
         'internal_services': {
             'mongodb': {
@@ -61,7 +60,7 @@ def test_mongodb_service_singleton_different_configs():
     MongoDBService.clear_cache()
     
     config1 = {
-        'general': {'verbose': False},
+        'general': {},
         'internal_services': {
             'mongodb': {
                 'host': 'localhost',
@@ -72,7 +71,7 @@ def test_mongodb_service_singleton_different_configs():
     }
     
     config2 = {
-        'general': {'verbose': False},
+        'general': {},
         'internal_services': {
             'mongodb': {
                 'host': 'localhost',
@@ -136,7 +135,7 @@ def test_mongodb_service_clear_cache():
     MongoDBService.clear_cache()
     
     config = {
-        'general': {'verbose': False},
+        'general': {},
         'internal_services': {
             'mongodb': {
                 'host': 'localhost',
@@ -174,7 +173,7 @@ def test_mongodb_service_initialization_once():
     MongoDBService.clear_cache()
     
     config = {
-        'general': {'verbose': False},
+        'general': {},
         'internal_services': {
             'mongodb': {
                 'host': 'localhost',

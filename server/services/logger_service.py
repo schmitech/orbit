@@ -40,19 +40,13 @@ class LoggerService:
     def __init__(self, config: Dict[str, Any]):
         self.config = config
         self.es_client: Optional[AsyncElasticsearch] = None
-        verbose_value = config.get('general', {}).get('verbose', False)
-        self.verbose = is_true_value(verbose_value)
         self._has_logged_es_disabled = False  # Add flag to track if we've logged ES disabled message
         
         # Get the inference provider from config
         self.inference_provider = config.get('general', {}).get('inference_provider', 'ollama')
         
-        # Configure Elasticsearch-related and HTTP client loggers based on verbose setting
-        if not self.verbose:
-            # Only show warnings and errors for these loggers when not in verbose mode
-            for logger_name in ["elastic_transport", "elasticsearch", "httpx"]:
-                client_logger = logging.getLogger(logger_name)
-                client_logger.setLevel(logging.WARNING)
+        for logger_name in ["elastic_transport", "elasticsearch", "httpx"]:
+            logging.getLogger(logger_name).setLevel(logging.WARNING)
         
         # Extract logging configuration and set up log directory
         self.log_config = config.get('logging', {})
@@ -311,8 +305,8 @@ class LoggerService:
     ) -> None:
         """Index the log data into Elasticsearch if enabled."""
         if not (self.config.get("internal_services", {}).get("elasticsearch", {}).get("enabled", False) and self.es_client):
-            if self.verbose and not self._has_logged_es_disabled:
-                logger.info("Elasticsearch logging skipped; client not available or disabled.")
+            if logger.isEnabledFor(logging.DEBUG) and not self._has_logged_es_disabled:
+                logger.debug("Elasticsearch logging skipped; client not available or disabled.")
                 self._has_logged_es_disabled = True
             return
 
@@ -345,21 +339,19 @@ class LoggerService:
             
             if user_id:
                 document["user_id"] = user_id
-            if self.verbose:
-                logger.info(f"Indexing document to Elasticsearch: {json.dumps(document, indent=2)}")
+            logger.debug(f"Indexing document to Elasticsearch: {json.dumps(document, indent=2)}")
             index_result = await self.es_client.index(
                 index=self.config["internal_services"]["elasticsearch"]["index"],
                 document=document,
                 refresh="wait_for"  # Changed from True to "wait_for" for ES 9.0.2 compatibility
             )
-            if self.verbose:
-                logger.info(f"Elasticsearch indexing result: {index_result}")
-                # Optional verification step
-                verify_doc = await self.es_client.get(
-                    index=self.config["internal_services"]["elasticsearch"]["index"],
-                    id=index_result["_id"]
-                )
-                logger.info(f"Document verification: {verify_doc}")
+            logger.debug(f"Elasticsearch indexing result: {index_result}")
+            # Optional verification step
+            verify_doc = await self.es_client.get(
+                index=self.config["internal_services"]["elasticsearch"]["index"],
+                id=index_result["_id"]
+            )
+            logger.info(f"Document verification: {verify_doc}")
         except ApiError as e:
             # Handle specific Elasticsearch API errors
             logger.error(f"Elasticsearch API error: {e.info if hasattr(e, 'info') else e}", exc_info=True)

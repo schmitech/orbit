@@ -38,7 +38,6 @@ class ServiceFactory:
         self.config = config
         self.logger = logger
         self.chat_history_enabled = is_true_value(config.get('chat_history', {}).get('enabled', False))
-        self.verbose = is_true_value(config.get('general', {}).get('verbose', False))
 
         # Fault tolerance is always enabled as core functionality
         self.fault_tolerance_enabled = True
@@ -46,30 +45,26 @@ class ServiceFactory:
         # Register AI services with config to enable selective loading
         register_all_services(config)
 
-        # Log the mode detection for debugging (only when verbose)
-        if self.verbose:
-            self.logger.info(f"ServiceFactory initialized - chat_history_enabled={self.chat_history_enabled}")
+        # Log the mode detection for debugging
+        self.logger.debug(f"ServiceFactory initialized - chat_history_enabled={self.chat_history_enabled}")
     
     async def initialize_all_services(self, app: FastAPI) -> None:
         """Initialize all services required by the application."""
         try:
-            if self.verbose:
-                self.logger.info(f"Starting service initialization - chat_history_enabled={self.chat_history_enabled}")
+            self.logger.debug(f"Starting service initialization - chat_history_enabled={self.chat_history_enabled}")
 
             # Initialize core services (MongoDB, Redis)
             await self._initialize_core_services(app)
 
             # Initialize full mode services
-            if self.verbose:
-                self.logger.info("Initializing full RAG mode services")
+            self.logger.debug("Initializing full RAG mode services")
             await self._initialize_full_mode_services(app)
             
             # Initialize shared services (Logger, LLM Guard, Reranker)
             await self._initialize_shared_services(app)
             
             # Initialize fault tolerance services (always enabled)
-            if self.verbose:
-                self.logger.info("Initializing fault tolerance services")
+            self.logger.debug("Initializing fault tolerance services")
             # Fault tolerance is now handled by FaultTolerantAdapterManager directly
             
             # Initialize LLM client (after LLM Guard service)
@@ -333,8 +328,7 @@ class ServiceFactory:
     
     async def _initialize_chat_history_service(self, app: FastAPI) -> None:
         """Initialize Chat History Service."""
-        if self.verbose:
-            self.logger.info("Creating Chat History Service instance...")
+        self.logger.debug("Creating Chat History Service instance...")
         from services.chat_history_service import ChatHistoryService
         app.state.chat_history_service = ChatHistoryService(
             self.config,
@@ -346,15 +340,13 @@ class ServiceFactory:
             self.logger.info("Chat History Service initialized successfully")
 
             # Verify chat history service is working
-            if self.verbose:
-                self.logger.info("Performing Chat History Service health check...")
+            self.logger.debug("Performing Chat History Service health check...")
             health = await app.state.chat_history_service.health_check()
             if health["status"] != "healthy":
                 self.logger.error(f"Chat History Service health check failed: {health}")
                 app.state.chat_history_service = None
             else:
-                if self.verbose:
-                    self.logger.info(f"Chat History Service health check passed: {health}")
+                self.logger.debug(f"Chat History Service health check passed: {health}")
         except Exception as e:
             self.logger.error(f"Failed to initialize Chat History Service: {str(e)}")
             # Don't raise - chat history is optional
@@ -363,8 +355,7 @@ class ServiceFactory:
     async def _configure_chat_history_service(self, app: FastAPI) -> None:
         """Enable or disable chat history service based on configuration."""
         if self.chat_history_enabled:
-            if self.verbose:
-                self.logger.info("Chat history is enabled - initializing Chat History Service")
+            self.logger.debug("Chat history is enabled - initializing Chat History Service")
             await self._initialize_chat_history_service(app)
         else:
             app.state.chat_history_service = None

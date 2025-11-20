@@ -78,10 +78,7 @@ class MongoDBService(DatabaseService):
         mongodb_config = self.config.get('internal_services', {}).get('mongodb', {})
         try:
             # Log MongoDB configuration (without sensitive data)
-            if self.verbose:
-                logger.info(f"Initializing MongoDB connection with config: host={mongodb_config.get('host')}, port={mongodb_config.get('port')}, database={mongodb_config.get('database')}")
-            else:
-                logger.debug(f"Initializing MongoDB connection to {mongodb_config.get('host')}")
+            logger.debug(f"Initializing MongoDB connection with config: host={mongodb_config.get('host')}, port={mongodb_config.get('port')}, database={mongodb_config.get('database')}")
 
             host = mongodb_config.get('host', '')
             port = mongodb_config.get('port', '')
@@ -110,17 +107,11 @@ class MongoDBService(DatabaseService):
 
             # Test the connection
             await self.client.admin.command('ping')
-            if self.verbose:
-                logger.info("MongoDB connection test successful")
-            else:
-                logger.debug("MongoDB connection test successful")
+            logger.debug("MongoDB connection test successful")
 
             self.database = self.client[database]
-            if self.verbose:
-                logger.info(f"Using database '{database}'")
-                logger.info("MongoDB Service initialized successfully")
-            else:
-                logger.debug(f"MongoDB Service initialized successfully for database '{database}'")
+            logger.debug(f"Using database '{database}'")
+            logger.debug("MongoDB Service initialized successfully")
             self._initialized = True
         except Exception as e:
             logger.error(f"Failed to initialize MongoDB Service: {str(e)}")
@@ -181,17 +172,16 @@ class MongoDBService(DatabaseService):
         else:
             index_name = await collection.create_index(field_name, **index_options)
             
-        if self.verbose:
-            index_type_desc = []
-            if unique:
-                index_type_desc.append('unique')
-            if sparse:
-                index_type_desc.append('sparse')
-            if ttl_seconds is not None:
-                index_type_desc.append(f'TTL ({ttl_seconds}s)')
-            
-            desc = ' '.join(index_type_desc) + ' ' if index_type_desc else ''
-            logger.info(f"Created {desc}index on {collection_name}.{field_name}")
+        index_type_desc = []
+        if unique:
+            index_type_desc.append('unique')
+        if sparse:
+            index_type_desc.append('sparse')
+        if ttl_seconds is not None:
+            index_type_desc.append(f'TTL ({ttl_seconds}s)')
+
+        desc = ' '.join(index_type_desc) + ' ' if index_type_desc else ''
+        logger.debug(f"Created {desc}index on {collection_name}.{field_name}")
         return index_name
     
     def _convert_string_ids_to_objectid(self, query: Dict[str, Any]) -> Dict[str, Any]:

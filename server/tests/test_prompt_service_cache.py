@@ -59,7 +59,7 @@ async def test_prompt_service_caches_prompts_by_id():
             "prompt_service": {"cache": {"ttl_seconds": 60}},
             "internal_services": {"redis": {"enabled": True}},
             "mongodb": {"prompts_collection": "system_prompts"},
-            "general": {"verbose": False},
+            "general": {},
         },
         database_service=fake_mongo,
         redis_service=fake_redis,

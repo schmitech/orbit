@@ -46,9 +46,6 @@ class OpenAIEmbeddingService(EmbeddingService, OpenAIBaseService):
         # Get embedding-specific configuration
         self.dimensions = self._get_dimensions_config() or 1536
         self.batch_size = self._get_batch_size(default=10)
-        
-        # Get verbose setting from general config for diagnostic logging
-        self.verbose = config.get('general', {}).get('verbose', False)
 
     async def embed_query(self, text: str) -> List[float]:
         """
@@ -66,13 +63,12 @@ class OpenAIEmbeddingService(EmbeddingService, OpenAIBaseService):
                 raise ValueError("Failed to initialize OpenAI embedding service")
 
         try:
-            # Debug logging (only when verbose is enabled)
-            if self.verbose:
-                self.logger.debug(f"OpenAIEmbeddingService.embed_query called")
-                self.logger.debug(f"  self.client = {self.client}")
-                self.logger.debug(f"  self.client is None: {self.client is None}")
-                if self.client:
-                    self.logger.debug(f"  hasattr(self.client, 'embeddings'): {hasattr(self.client, 'embeddings')}")
+            # Debug logging
+            self.logger.debug(f"OpenAIEmbeddingService.embed_query called")
+            self.logger.debug(f"  self.client = {self.client}")
+            self.logger.debug(f"  self.client is None: {self.client is None}")
+            if self.client:
+                self.logger.debug(f"  hasattr(self.client, 'embeddings'): {hasattr(self.client, 'embeddings')}")
 
             # Use the AsyncOpenAI client provided by OpenAIBaseService
             response = await self.client.embeddings.create(

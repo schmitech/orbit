@@ -25,7 +25,7 @@ class TestDependencyCacheCleaner:
     def setup_method(self):
         """Setup test fixtures"""
         self.config = {
-            'general': {'verbose': False},
+            'general': {},
             'embeddings': {
                 'openai': {'model': 'text-embedding-3-small'},
                 'ollama': {'model': 'nomic-embed-text'}
@@ -66,7 +66,6 @@ class TestDependencyCacheCleaner:
             self.provider_cache,
             self.embedding_cache,
             self.reranker_cache,
-            verbose=False
         )
 
     @pytest.mark.asyncio
@@ -186,7 +185,7 @@ class TestDependencyCacheCleaner:
 
     def test_update_config(self):
         """Test updating config reference"""
-        new_config = {'general': {'verbose': True}}
+        new_config = {'general': {}}
         self.cleaner.update_config(new_config)
         assert self.cleaner.config == new_config
 
@@ -213,7 +212,6 @@ class TestAdapterReloader:
             self.adapter_cache,
             self.adapter_loader,
             self.dependency_cleaner,
-            verbose=False
         )
 
     @pytest.mark.asyncio

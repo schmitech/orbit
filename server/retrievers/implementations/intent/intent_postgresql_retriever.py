@@ -75,8 +75,7 @@ class IntentPostgreSQLRetriever(IntentSQLRetriever):
                     cursor_factory=RealDictCursor
                 )
                 
-                if self.verbose:
-                    logger.info(f"Created PostgreSQL connection pool with size {self.pool_size}")
+                logger.debug(f"Created PostgreSQL connection pool with size {self.pool_size}")
                 
                 # Get a connection from the pool
                 connection = self.connection_pool.getconn()
@@ -102,8 +101,8 @@ class IntentPostgreSQLRetriever(IntentSQLRetriever):
             version = cursor.fetchone()
             cursor.close()
             
-            if version and self.verbose:
-                logger.info(f"PostgreSQL connection successful: {version['version']}")
+            if version:
+                logger.debug(f"PostgreSQL connection successful: {version['version']}")
             
             return connection
             
@@ -165,8 +164,7 @@ class IntentPostgreSQLRetriever(IntentSQLRetriever):
             if self.use_connection_pool and self.connection_pool:
                 # Return connection to pool
                 self.connection_pool.putconn(self.connection)
-                if self.verbose:
-                    logger.info("Returned connection to pool")
+                logger.debug("Returned connection to pool")
             else:
                 # Close single connection
                 self.connection.close()
@@ -175,8 +173,7 @@ class IntentPostgreSQLRetriever(IntentSQLRetriever):
         if self.connection_pool:
             self.connection_pool.closeall()
             self.connection_pool = None
-            if self.verbose:
-                logger.info("Closed PostgreSQL connection pool")
+            logger.debug("Closed PostgreSQL connection pool")
 
 
 # Register the new intent PostgreSQL retriever

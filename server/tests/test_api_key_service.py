@@ -45,7 +45,6 @@ except ImportError as e:
 # Test configuration
 TEST_CONFIG = {
     'general': {
-        'verbose': True
     },
     'adapters': [
         {

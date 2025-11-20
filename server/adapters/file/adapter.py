@@ -41,7 +41,6 @@ class FileAdapter(DocumentAdapter):
         self.confidence_threshold = get_config_value('confidence_threshold', 0.5, adapter_config, self.config)
         self.preserve_file_structure = get_config_value('preserve_file_structure', True, adapter_config, self.config)
         self.extract_metadata = get_config_value('extract_metadata', True, adapter_config, self.config)
-        self.verbose = get_config_value('verbose', False, adapter_config, self.config)
         self.max_summary_length = get_config_value('max_summary_length', 200, adapter_config, self.config)
         
         # Vision settings - check files.processing.vision first, then adapter_config, then root config
@@ -63,8 +62,7 @@ class FileAdapter(DocumentAdapter):
         else:
             self.vision_provider = 'openai'
         
-        if self.verbose:
-            logger.info(f"Initialized File Adapter with confidence_threshold: {self.confidence_threshold}")
+        logger.debug(f"Initialized File Adapter with confidence_threshold: {self.confidence_threshold}")
     
     def format_document(self, raw_doc: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
         """Format uploaded file documents with enhanced metadata"""
@@ -367,7 +365,6 @@ def register_file_adapter():
                 'confidence_threshold': 0.5,
                 'preserve_file_structure': True,
                 'extract_metadata': True,
-                'verbose': False,
                 'max_summary_length': 200,
                 'enable_vision': True,
                 'vision_provider': 'openai'

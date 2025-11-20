@@ -42,7 +42,6 @@ class LLMGuardService:
             return
 
         self.config = config
-        self.verbose = config.get('general', {}).get('verbose', False)
         
         # Get LLM Guard configuration
         self.llm_guard_config = config.get('llm_guard', {})
@@ -142,17 +141,16 @@ class LLMGuardService:
             logger.info("🚫 LLM Guard service is disabled")
         else:
             logger.info(f"✅ LLM Guard service initialized - Base URL: {self.base_url}")
-            if self.verbose:
-                logger.info(f"✅ LLM Guard Configuration:")
-                logger.info(f"  Base URL: {self.base_url}")
-                logger.info(f"  API Version: {self.api_version}")
-                logger.info(f"  Timeout: {self.timeout}s")
-                logger.info(f"  Default Risk Threshold: {self.default_risk_threshold}")
-                logger.info(f"  Fallback Behavior: {self.fallback_behavior}")
-                logger.info(f"  Configured Prompt Scanners: {self.configured_prompt_scanners}")
-                logger.info(f"  Configured Response Scanners: {self.configured_response_scanners}")
-                logger.info(f"  Available Input Scanners: {len(self.available_input_scanners)}")
-                logger.info(f"  Available Output Scanners: {len(self.available_output_scanners)}")
+            logger.debug(f"✅ LLM Guard Configuration:")
+            logger.debug(f"  Base URL: {self.base_url}")
+            logger.debug(f"  API Version: {self.api_version}")
+            logger.debug(f"  Timeout: {self.timeout}s")
+            logger.debug(f"  Default Risk Threshold: {self.default_risk_threshold}")
+            logger.debug(f"  Fallback Behavior: {self.fallback_behavior}")
+            logger.debug(f"  Configured Prompt Scanners: {self.configured_prompt_scanners}")
+            logger.debug(f"  Configured Response Scanners: {self.configured_response_scanners}")
+            logger.debug(f"  Available Input Scanners: {len(self.available_input_scanners)}")
+            logger.debug(f"  Available Output Scanners: {len(self.available_output_scanners)}")
     
     async def initialize(self) -> None:
         """Initialize the service"""
@@ -230,8 +228,7 @@ class LLMGuardService:
         try:
             url = f"{self.base_url}{self.health_endpoint}"
             
-            if self.verbose:
-                logger.info(f"🏥 LLM Guard health check: {url}")
+            logger.debug(f"🏥 LLM Guard health check: {url}")
             
             async with self._session.get(url, timeout=self.health_timeout) as response:
                 if response.status == 200:
@@ -239,10 +236,7 @@ class LLMGuardService:
                     self._service_healthy = True
                     self._last_health_check = current_time
                     
-                    if self.verbose:
-                        logger.info(f"✅ LLM Guard service health check passed: {health_data}")
-                    else:
-                        logger.info(f"✅ LLM Guard service health check passed")
+                    logger.debug(f"✅ LLM Guard service health check passed: {health_data}")
                     
                     return True
                 else:
@@ -319,8 +313,8 @@ class LLMGuardService:
                 scanners = []
             
             # Log which scanners are being used
-            if self.verbose and scanners:
-                logger.info(f"🔧 Using configured {content_type} scanners: {scanners}")
+            if scanners:
+                logger.debug(f"🔧 Using configured {content_type} scanners: {scanners}")
         
         # Build metadata
         request_metadata = self.metadata.copy()
@@ -350,47 +344,45 @@ class LLMGuardService:
         start_time = time.time()
         
         try:
-            if self.verbose:
-                logger.info(f"🔍 Performing LLM Guard security check for {content_type}: '{content[:50]}...'")
-                logger.info(f"📊 Risk threshold: {risk_threshold}")
-                if scanners:
-                    logger.info(f"🔧 Using scanners: {scanners}")
-                if user_id:
-                    logger.info(f"👤 User ID: {user_id}")
+            logger.debug(f"🔍 Performing LLM Guard security check for {content_type}: '{content[:50]}...'")
+            logger.debug(f"📊 Risk threshold: {risk_threshold}")
+            if scanners:
+                logger.debug(f"🔧 Using scanners: {scanners}")
+            if user_id:
+                logger.debug(f"👤 User ID: {user_id}")
             
             result = await self._make_request_with_retry("POST", url, payload)
 
-            if self.verbose:
-                elapsed = (time.time() - start_time) * 1000
-                logger.info(f"⏱️ LLM Guard security check completed in {elapsed:.2f}ms")
-                
-                # Log detailed results with emojis
-                risk_score = result.get('risk_score', 0.0)
-                is_safe = result.get('is_safe', True)
-                flagged_scanners = result.get('flagged_scanners', [])
-                recommendations = result.get('recommendations', [])
-                
-                if is_safe:
-                    logger.info(f"✅ LLM GUARD PASSED: Content was deemed SAFE")
-                    if risk_score > 0.0:
-                        logger.info(f"⚠️ Low risk detected: {risk_score:.3f}")
-                else:
-                    logger.info(f"🛑 LLM GUARD BLOCKED: Content was flagged as UNSAFE")
-                    logger.info(f"🚨 Risk score: {risk_score:.3f}")
-                    if flagged_scanners:
-                        logger.info(f"🚩 Flagged by scanners: {flagged_scanners}")
-                    if recommendations:
-                        logger.info(f"💡 Recommendations: {'; '.join(recommendations)}")
-                
-                # Log content preview (first 100 chars)
-                content_preview = content[:100] + "..." if len(content) > 100 else content
-                logger.debug(f"📝 Content preview: {content_preview}")
-                
-                # Log if content was sanitized
-                sanitized_content = result.get('sanitized_content')
-                if sanitized_content and sanitized_content != content:
-                    sanitized_preview = sanitized_content[:100] + "..." if len(sanitized_content) > 100 else sanitized_content
-                    logger.info(f"🧹 Content was sanitized: {sanitized_preview}")
+            elapsed = (time.time() - start_time) * 1000
+            logger.debug(f"⏱️ LLM Guard security check completed in {elapsed:.2f}ms")
+            
+            # Log detailed results with emojis
+            risk_score = result.get('risk_score', 0.0)
+            is_safe = result.get('is_safe', True)
+            flagged_scanners = result.get('flagged_scanners', [])
+            recommendations = result.get('recommendations', [])
+            
+            if is_safe:
+                logger.info(f"✅ LLM GUARD PASSED: Content was deemed SAFE")
+                if risk_score > 0.0:
+                    logger.info(f"⚠️ Low risk detected: {risk_score:.3f}")
+            else:
+                logger.info(f"🛑 LLM GUARD BLOCKED: Content was flagged as UNSAFE")
+                logger.info(f"🚨 Risk score: {risk_score:.3f}")
+                if flagged_scanners:
+                    logger.info(f"🚩 Flagged by scanners: {flagged_scanners}")
+                if recommendations:
+                    logger.info(f"💡 Recommendations: {'; '.join(recommendations)}")
+            
+            # Log content preview (first 100 chars)
+            content_preview = content[:100] + "..." if len(content) > 100 else content
+            logger.debug(f"📝 Content preview: {content_preview}")
+            
+            # Log if content was sanitized
+            sanitized_content = result.get('sanitized_content')
+            if sanitized_content and sanitized_content != content:
+                sanitized_preview = sanitized_content[:100] + "..." if len(sanitized_content) > 100 else sanitized_content
+                logger.info(f"🧹 Content was sanitized: {sanitized_preview}")
             
             return result
             
@@ -436,31 +428,29 @@ class LLMGuardService:
         start_time = time.time()
         
         try:
-            if self.verbose:
-                logger.info(f"🧹 Performing content sanitization")
-                content_preview = content[:100] + "..." if len(content) > 100 else content
-                logger.debug(f"📝 Content preview: {content_preview}")
+            logger.debug(f"🧹 Performing content sanitization")
+            content_preview = content[:100] + "..." if len(content) > 100 else content
+            logger.debug(f"📝 Content preview: {content_preview}")
             
             result = await self._make_request_with_retry("POST", url, payload)
             
-            if self.verbose:
-                elapsed = (time.time() - start_time) * 1000
-                logger.info(f"⏱️ Content sanitization completed in {elapsed:.2f}ms")
-                
-                # Log sanitization results with emojis
-                changes_made = result.get('changes_made', False)
-                removed_items = result.get('removed_items', [])
-                sanitized_content = result.get('sanitized_content', content)
-                
-                if changes_made:
-                    logger.info(f"✅ Content sanitized successfully")
-                    if removed_items:
-                        logger.info(f"🗑️ Removed items: {removed_items}")
-                    if sanitized_content != content:
-                        sanitized_preview = sanitized_content[:100] + "..." if len(sanitized_content) > 100 else sanitized_content
-                        logger.info(f"🧹 Sanitized content: {sanitized_preview}")
-                else:
-                    logger.info(f"✅ Content unchanged - no sanitization needed")
+            elapsed = (time.time() - start_time) * 1000
+            logger.debug(f"⏱️ Content sanitization completed in {elapsed:.2f}ms")
+            
+            # Log sanitization results with emojis
+            changes_made = result.get('changes_made', False)
+            removed_items = result.get('removed_items', [])
+            sanitized_content = result.get('sanitized_content', content)
+            
+            if changes_made:
+                logger.info(f"✅ Content sanitized successfully")
+                if removed_items:
+                    logger.info(f"🗑️ Removed items: {removed_items}")
+                if sanitized_content != content:
+                    sanitized_preview = sanitized_content[:100] + "..." if len(sanitized_content) > 100 else sanitized_content
+                    logger.info(f"🧹 Sanitized content: {sanitized_preview}")
+            else:
+                logger.info(f"✅ Content unchanged - no sanitization needed")
             
             return result
             
@@ -543,7 +533,7 @@ class LLMGuardService:
                         try:
                             error_detail = await response.text()
                             logger.error(f"422 Unprocessable Entity - Request payload validation failed: {error_detail}")
-                            if data and self.verbose:
+                            if data:
                                 logger.error(f"Request payload that failed: {data}")
                         except:
                             pass
@@ -621,10 +611,9 @@ class LLMGuardService:
                 if scanner in self.available_output_scanners
             ]
         
-        if self.verbose:
-            logger.info(f"Scanner validation complete:")
-            logger.info(f"  Valid prompt scanners: {self.configured_prompt_scanners}")
-            logger.info(f"  Valid response scanners: {self.configured_response_scanners}")
+        logger.debug(f"Scanner validation complete:")
+        logger.debug(f"  Valid prompt scanners: {self.configured_prompt_scanners}")
+        logger.debug(f"  Valid response scanners: {self.configured_response_scanners}")
 
     def _map_content_type_for_server(self, content_type: str) -> str:
         """Map client content types to server-expected content types"""
@@ -635,7 +624,7 @@ class LLMGuardService:
         
         mapped_type = content_type_mapping.get(content_type, content_type)
         
-        if self.verbose and mapped_type != content_type:
+        if mapped_type != content_type:
             logger.info(f"Mapped content_type '{content_type}' to '{mapped_type}' for server")
         
         return mapped_type

@@ -32,7 +32,6 @@ class ThreadDatasetService:
             config: Application configuration
         """
         self.config = config
-        self.verbose = config.get('general', {}).get('verbose', False)
         
         # Threading configuration
         threading_config = config.get('conversation_threading', {})
@@ -145,11 +144,10 @@ class ThreadDatasetService:
                 encoded = base64.b64encode(compressed).decode('utf-8')
                 await self.redis_service.set(dataset_key, encoded, ttl=ttl_seconds)
                 
-                # Always log Redis storage for verification (not just verbose)
+                # Always log Redis storage for verification
                 logger.info(f"✓ Stored dataset for thread {thread_id} in Redis (key: {dataset_key}, TTL: {ttl_seconds}s, results: {len(raw_results)} items)")
                 
-                if self.verbose:
-                    logger.debug(f"Dataset structure: query_context keys={list(query_context.keys())}, raw_results count={len(raw_results)}")
+                logger.debug(f"Dataset structure: query_context keys={list(query_context.keys())}, raw_results count={len(raw_results)}")
             else:
                 # Store in database
                 if not self.database_service:
@@ -167,8 +165,7 @@ class ThreadDatasetService:
                 
                 await self.database_service.insert_one(collection_name, document)
                 
-                if self.verbose:
-                    logger.info(f"Stored dataset for thread {thread_id} in database (expires: {expires_at})")
+                logger.debug(f"Stored dataset for thread {thread_id} in database (expires: {expires_at})")
             
             return dataset_key
 
@@ -194,8 +191,7 @@ class ThreadDatasetService:
                 # Retrieve from Redis
                 encoded = await self.redis_service.get(dataset_key)
                 if not encoded:
-                    if self.verbose:
-                        logger.debug(f"Dataset {dataset_key} not found in Redis (may have expired)")
+                    logger.debug(f"Dataset {dataset_key} not found in Redis (may have expired)")
                     return None
                 
                 # Decode and decompress
@@ -204,8 +200,7 @@ class ThreadDatasetService:
                 dataset = self._decompress_data(compressed)
                 
                 # Log successful retrieval for verification
-                if self.verbose:
-                    logger.debug(f"✓ Retrieved dataset {dataset_key} from Redis (results: {len(dataset.get('raw_results', []))} items)")
+                logger.debug(f"✓ Retrieved dataset {dataset_key} from Redis (results: {len(dataset.get('raw_results', []))} items)")
                 
             else:
                 # Retrieve from database
@@ -219,8 +214,7 @@ class ThreadDatasetService:
                 )
                 
                 if not document:
-                    if self.verbose:
-                        logger.debug(f"Dataset {dataset_key} not found in database")
+                    logger.debug(f"Dataset {dataset_key} not found in database")
                     return None
                 
                 # Check expiration
@@ -228,8 +222,7 @@ class ThreadDatasetService:
                 if expires_at_str:
                     expires_at = datetime.fromisoformat(expires_at_str)
                     if datetime.utcnow() > expires_at:
-                        if self.verbose:
-                            logger.debug(f"Dataset {dataset_key} has expired")
+                        logger.debug(f"Dataset {dataset_key} has expired")
                         # Delete expired dataset
                         await self.delete_dataset(dataset_key)
                         return None
@@ -244,8 +237,7 @@ class ThreadDatasetService:
             query_context = dataset.get('query_context', {})
             raw_results = dataset.get('raw_results', [])
             
-            if self.verbose:
-                logger.debug(f"Retrieved dataset {dataset_key} with {len(raw_results)} results")
+            logger.debug(f"Retrieved dataset {dataset_key} with {len(raw_results)} results")
             
             return (query_context, raw_results)
 
@@ -295,7 +287,7 @@ class ThreadDatasetService:
                     {'id': dataset_key}
                 )
 
-                if self.verbose and result:
+                if result:
                     logger.debug(f"Deleted dataset {dataset_key} from database")
 
                 return result
@@ -339,8 +331,8 @@ class ThreadDatasetService:
                 if result:
                     deleted_count += 1
             
-            if self.verbose and deleted_count > 0:
-                logger.info(f"Cleaned up {deleted_count} expired thread datasets")
+            if deleted_count > 0:
+                logger.debug(f"Cleaned up {deleted_count} expired thread datasets")
             
             return deleted_count
 
@@ -354,4 +346,3 @@ class ThreadDatasetService:
             await self.redis_service.close()
         
         # Database service cleanup is handled by the service itself
-

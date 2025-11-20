@@ -35,7 +35,6 @@ class ElasticsearchAdapter(HttpAdapter):
                  base_url: Optional[str] = None,
                  auth_config: Optional[Dict[str, Any]] = None,
                  confidence_threshold: float = 0.1,
-                 verbose: bool = False,
                  config: Dict[str, Any] = None,
                  **kwargs):
         """
@@ -47,7 +46,6 @@ class ElasticsearchAdapter(HttpAdapter):
             base_url: Elasticsearch cluster URL
             auth_config: Elasticsearch authentication configuration
             confidence_threshold: Minimum confidence score for template matching
-            verbose: Whether to enable verbose logging
             config: Optional configuration dictionary
             **kwargs: Additional keyword arguments
         """
@@ -57,7 +55,6 @@ class ElasticsearchAdapter(HttpAdapter):
             base_url=base_url,
             auth_config=auth_config,
             confidence_threshold=confidence_threshold,
-            verbose=verbose,
             config=config,
             **kwargs
         )
@@ -79,8 +76,8 @@ class ElasticsearchAdapter(HttpAdapter):
         Returns:
             A formatted context item
         """
-        if self.verbose:
-            logger.info(f"ElasticsearchAdapter.format_document called with metadata keys: {list(metadata.keys())}")
+        
+        logger.debug(f"ElasticsearchAdapter.format_document called with metadata keys: {list(metadata.keys())}")
 
         # Create the base item
         item = {
@@ -206,7 +203,6 @@ def register_elasticsearch_adapter():
             implementation='adapters.elasticsearch.adapter.ElasticsearchAdapter',
             config={
                 'confidence_threshold': 0.1,
-                'verbose': False,
                 'use_query_dsl': True
             }
         )
@@ -220,7 +216,6 @@ def register_elasticsearch_adapter():
             implementation='adapters.elasticsearch.adapter.ElasticsearchAdapter',
             config={
                 'confidence_threshold': 0.1,
-                'verbose': False,
                 'use_query_dsl': True
             }
         )

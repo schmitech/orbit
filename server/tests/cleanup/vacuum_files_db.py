@@ -11,7 +11,6 @@ Usage:
 
 Options:
     --dry-run       Show what would be vacuumed without actually vacuuming
-    --verbose       Show detailed output
     --stats-only    Only show database statistics without vacuuming
 """
 
@@ -36,17 +35,13 @@ logger = logging.getLogger(__name__)
 class FilesDatabaseVacuum:
     """Vacuum the files.db SQLite database to reclaim space."""
     
-    def __init__(self, dry_run: bool = False, verbose: bool = False):
+    def __init__(self, dry_run: bool = False):
         self.dry_run = dry_run
-        self.verbose = verbose
         self.db_path = None
         self.conn = None
         
         # Load configuration
         self.config = self._load_config()
-        
-        if verbose:
-            logging.getLogger().setLevel(logging.DEBUG)
     
     def _load_config(self) -> Dict[str, Any]:
         """Load configuration from config.yaml"""
@@ -61,8 +56,7 @@ class FilesDatabaseVacuum:
                 try:
                     with open(config_path, 'r') as f:
                         config = yaml.safe_load(f)
-                        if self.verbose:
-                            logger.debug(f"Loaded config from: {config_path}")
+                        logger.debug(f"Loaded config from: {config_path}")
                         return config
                 except Exception as e:
                     logger.warning(f"Error loading config from {config_path}: {e}")
@@ -118,8 +112,7 @@ class FilesDatabaseVacuum:
             self.conn = sqlite3.connect(self.db_path)
             self.conn.row_factory = sqlite3.Row
             
-            if self.verbose:
-                logger.debug(f"Successfully connected to database")
+            logger.debug("Successfully connected to database")
             
             return True
         except Exception as e:
@@ -213,8 +206,7 @@ class FilesDatabaseVacuum:
         except Exception as e:
             logger.error(f"Error getting database stats: {e}")
             import traceback
-            if self.verbose:
-                logger.debug(traceback.format_exc())
+            logger.debug(traceback.format_exc())
             return {}
     
     def vacuum(self) -> bool:
@@ -333,8 +325,6 @@ Examples:
   # Vacuum database (default)
   python vacuum_files_db.py
 
-  # Verbose output
-  python vacuum_files_db.py --verbose
         """
     )
     
@@ -342,12 +332,6 @@ Examples:
         '--dry-run',
         action='store_true',
         help='Show what would be vacuumed without actually vacuuming'
-    )
-    
-    parser.add_argument(
-        '--verbose',
-        action='store_true',
-        help='Show detailed output'
     )
     
     parser.add_argument(
@@ -359,7 +343,7 @@ Examples:
     args = parser.parse_args()
     
     # Create vacuum instance
-    vacuum = FilesDatabaseVacuum(dry_run=args.dry_run, verbose=args.verbose)
+    vacuum = FilesDatabaseVacuum(dry_run=args.dry_run)
     
     # Run vacuum
     success = vacuum.run(stats_only=args.stats_only)

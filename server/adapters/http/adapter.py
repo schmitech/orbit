@@ -35,7 +35,6 @@ class HttpAdapter(DocumentAdapter):
                  base_url: Optional[str] = None,
                  auth_config: Optional[Dict[str, Any]] = None,
                  confidence_threshold: float = 0.1,
-                 verbose: bool = False,
                  config: Dict[str, Any] = None,
                  **kwargs):
         """
@@ -47,12 +46,10 @@ class HttpAdapter(DocumentAdapter):
             base_url: Base URL for HTTP requests
             auth_config: Authentication configuration
             confidence_threshold: Minimum confidence score for template matching
-            verbose: Whether to enable verbose logging
             config: Optional configuration dictionary
             **kwargs: Additional keyword arguments
         """
         self.confidence_threshold = confidence_threshold
-        self.verbose = verbose
         self.config = config or {}
         self.base_url = base_url
         self.auth_config = auth_config or {}
@@ -111,8 +108,7 @@ class HttpAdapter(DocumentAdapter):
             with open(full_path, 'r') as f:
                 config = yaml.safe_load(f)
 
-            if self.verbose:
-                logger.info(f"Loaded {config_type} from: {full_path}")
+            logger.debug(f"Loaded {config_type} from: {full_path}")
 
             return config
 
@@ -223,8 +219,7 @@ class HttpAdapter(DocumentAdapter):
         Returns:
             A formatted context item
         """
-        if self.verbose:
-            logger.info(f"HttpAdapter.format_document called with metadata keys: {list(metadata.keys())}")
+        logger.debug(f"HttpAdapter.format_document called with metadata keys: {list(metadata.keys())}")
 
         # Create the base item
         item = {
@@ -372,8 +367,7 @@ def register_http_adapter():
             adapter_name="http",
             implementation='adapters.http.adapter.HttpAdapter',
             config={
-                'confidence_threshold': 0.1,
-                'verbose': False
+                'confidence_threshold': 0.1
             }
         )
         logger.info("Registered HTTP adapter for http datasource")

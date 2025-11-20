@@ -35,7 +35,6 @@ class PromptService:
     ):
         """Initialize the prompt service with configuration"""
         self.config = config
-        self.verbose = config.get('general', {}).get('verbose', False)
 
         # Use provided database service or create a new one using factory
         if database_service is None:
@@ -75,17 +74,15 @@ class PromptService:
             if redis_config.get('enabled'):
                 try:
                     self.redis_service = RedisService(config)
-                    if self.verbose:
-                        logger.info("Redis service instance created for prompt caching")
+                    logger.debug("Redis service instance created for prompt caching")
                 except Exception as exc:  # pragma: no cover - defensive guard if Redis unavailable
                     logger.warning(f"Failed to initialize RedisService for prompt caching: {exc}")
                     self.redis_service = None
-                    if self.verbose:
-                        logger.info("  → Continuing without Redis cache support")
-            elif self.verbose:
-                logger.info("Redis caching disabled in configuration (internal_services.redis.enabled=false)")
-        elif self.redis_service is None and self.verbose:
-            logger.info("Redis caching unavailable (Redis module not installed)")
+                    logger.debug("  → Continuing without Redis cache support")
+            else:
+                logger.debug("Redis caching disabled in configuration (internal_services.redis.enabled=false)")
+        elif self.redis_service is None:
+            logger.debug("Redis caching unavailable (Redis module not installed)")
         
     async def initialize(self) -> None:
         """Initialize the service"""
@@ -100,18 +97,16 @@ class PromptService:
         if self.redis_service:
             try:
                 await self.redis_service.initialize()
-                if self.verbose:
-                    logger.info("✓ Prompt caching via Redis ENABLED")
-                    if self.prompt_cache_ttl:
-                        logger.info(f"  → Cache TTL: {self.prompt_cache_ttl} seconds ({self.prompt_cache_ttl/60:.1f} minutes)")
-                    else:
-                        logger.info(f"  → Cache TTL: No expiration (persistent cache)")
-                    logger.info(f"  → Cache keys format: prompt:<ObjectId>")
+                logger.debug("✓ Prompt caching via Redis ENABLED")
+                if self.prompt_cache_ttl:
+                    logger.debug(f"  → Cache TTL: {self.prompt_cache_ttl} seconds ({self.prompt_cache_ttl/60:.1f} minutes)")
+                else:
+                    logger.debug(f"  → Cache TTL: No expiration (persistent cache)")
+                logger.debug(f"  → Cache keys format: prompt:<ObjectId>")
             except Exception as exc:
                 logger.warning(f"✗ Disabling prompt caching due to Redis initialization error: {exc}")
                 self.redis_service = None
-                if self.verbose:
-                    logger.info("  → Prompts will be fetched from MongoDB on every request")
+                logger.debug("  → Prompts will be fetched from MongoDB on every request")
 
     def _get_cache_key(self, prompt_id: Union[ObjectId, str]) -> str:
         """Build a cache key for the given prompt identifier."""
@@ -152,14 +147,12 @@ class PromptService:
                         "updated_at": now
                     }}
                 )
-                if self.verbose:
-                    logger.info(f"Updated existing prompt '{name}' to version {version}")
+                logger.debug(f"Updated existing prompt '{name}' to version {version}")
                 return existing["_id"]
             
             # Create a new prompt
             prompt_id = await self.database.insert_one(self.collection_name, prompt_doc)
-            if self.verbose:
-                logger.info(f"Created new prompt '{name}' with ID: {prompt_id}")
+            logger.debug(f"Created new prompt '{name}' with ID: {prompt_id}")
             return prompt_id
         except Exception as e:
             logger.error(f"Error creating prompt: {str(e)}")
@@ -187,8 +180,7 @@ class PromptService:
 
             # Redis cache lookup
             if self.redis_service:
-                if self.verbose:
-                    logger.info(f"Checking Redis cache for prompt {cache_key} (ID: {prompt_id_str})")
+                logger.debug(f"Checking Redis cache for prompt {cache_key} (ID: {prompt_id_str})")
                 cached_value = await self.redis_service.get(cache_key)
                 if cached_value:
                     try:
@@ -205,33 +197,28 @@ class PromptService:
                                 except (ValueError, TypeError):
                                     # Keep as string if parsing fails
                                     pass
-                        if self.verbose:
-                            logger.info(f"✓ Cache HIT for prompt {cache_key} - returning cached prompt '{cached_prompt.get('name')}' version {cached_prompt.get('version')}")
-                            # Calculate and log cache savings
-                            prompt_size = len(cached_value)
-                            logger.info(f"  → Saved MongoDB query, returned {prompt_size} bytes from cache")
+                        logger.debug(f"✓ Cache HIT for prompt {cache_key} - returning cached prompt '{cached_prompt.get('name')}' version {cached_prompt.get('version')}")
+                        # Calculate and log cache savings
+                        prompt_size = len(cached_value)
+                        logger.debug(f"  → Saved MongoDB query, returned {prompt_size} bytes from cache")
                         return cached_prompt
                     except Exception as exc:
                         logger.warning(f"Failed to parse cached prompt for key {cache_key}: {exc}")
-                        if self.verbose:
-                            logger.info(f"  → Cache entry corrupted, will fetch from MongoDB")
+                        logger.debug(f"  → Cache entry corrupted, will fetch from MongoDB")
                 else:
-                    if self.verbose:
-                        logger.info(f"✗ Cache MISS for prompt {cache_key} - fetching from MongoDB")
+                    logger.debug(f"✗ Cache MISS for prompt {cache_key} - fetching from MongoDB")
 
-            if self.verbose:
-                logger.info(f"Looking up prompt with ID: {prompt_id_str}")
+            logger.debug(f"Looking up prompt with ID: {prompt_id_str}")
 
             # Query with original ID (database service handles backend-specific format)
             prompt = await self.database.find_one(self.collection_name, {"_id": prompt_id})
 
             if prompt:
-                if self.verbose:
-                    logger.info(f"Found prompt: {prompt.get('name')} (version {prompt.get('version')})")
-                    # Log a preview of the prompt content
-                    prompt_text = prompt.get('prompt', '')
-                    preview = prompt_text[:100] + '...' if len(prompt_text) > 100 else prompt_text
-                    logger.info(f"Prompt content preview: {preview}")
+                logger.debug(f"Found prompt: {prompt.get('name')} (version {prompt.get('version')})")
+                # Log a preview of the prompt content
+                prompt_text = prompt.get('prompt', '')
+                preview = prompt_text[:100] + '...' if len(prompt_text) > 100 else prompt_text
+                logger.debug(f"Prompt content preview: {preview}")
 
                 if self.redis_service and prompt:
                     try:
@@ -249,17 +236,15 @@ class PromptService:
                             cache_data,
                             ttl=self.prompt_cache_ttl,
                         )
-                        if self.verbose:
-                            if cache_result:
-                                ttl_msg = f"TTL: {self.prompt_cache_ttl}s" if self.prompt_cache_ttl else "no expiry"
-                                logger.info(f"✓ Cached prompt {cache_key} to Redis ({len(cache_data)} bytes, {ttl_msg})")
-                                logger.info(f"  → Prompt '{prompt.get('name')}' v{prompt.get('version')} now available in cache")
-                            else:
-                                logger.warning(f"✗ Failed to cache prompt {cache_key} - Redis set returned False")
+                        if cache_result:
+                            ttl_msg = f"TTL: {self.prompt_cache_ttl}s" if self.prompt_cache_ttl else "no expiry"
+                            logger.debug(f"✓ Cached prompt {cache_key} to Redis ({len(cache_data)} bytes, {ttl_msg})")
+                            logger.debug(f"  → Prompt '{prompt.get('name')}' v{prompt.get('version')} now available in cache")
+                        else:
+                            logger.warning(f"✗ Failed to cache prompt {cache_key} - Redis set returned False")
                     except Exception as exc:
                         logger.warning(f"Failed to cache prompt {cache_key}: {exc}")
-                        if self.verbose:
-                            logger.info(f"  → Cache write failed, but prompt still returned from MongoDB")
+                        logger.debug(f"  → Cache write failed, but prompt still returned from MongoDB")
             else:
                 logger.warning(f"No prompt found for ID: {prompt_id}")
 
@@ -340,11 +325,10 @@ class PromptService:
             if self.redis_service:
                 cache_key = self._get_cache_key(prompt_id_str)
                 cache_deleted = await self.redis_service.delete(cache_key)
-                if self.verbose:
-                    if cache_deleted:
-                        logger.info(f"✓ Invalidated cache for prompt {cache_key} due to update")
-                    else:
-                        logger.info(f"  → Prompt {cache_key} was not cached")
+                if cache_deleted:
+                    logger.debug(f"✓ Invalidated cache for prompt {cache_key} due to update")
+                else:
+                    logger.debug(f"  → Prompt {cache_key} was not cached")
 
             # Get the current prompt to determine version update
             current_prompt = await self.database.find_one(self.collection_name, {"_id": prompt_id})
@@ -413,8 +397,8 @@ class PromptService:
             if self.redis_service:
                 cache_key = self._get_cache_key(prompt_id_str)
                 cache_deleted = await self.redis_service.delete(cache_key)
-                if self.verbose and cache_deleted:
-                    logger.info(f"✓ Cleared prompt {cache_key} from Redis cache")
+                if cache_deleted:
+                    logger.debug(f"✓ Cleared prompt {cache_key} from Redis cache")
 
             # Use original prompt_id (database service handles backend-specific format)
             return await self.database.delete_one(self.collection_name, {"_id": prompt_id})
@@ -467,24 +451,21 @@ class PromptService:
             True if successful, False otherwise
         """
         if not self.redis_service:
-            if self.verbose:
-                logger.info("Redis cache not available - nothing to clear")
+            logger.debug("Redis cache not available - nothing to clear")
             return False
 
         try:
             if prompt_id:
                 cache_key = self._get_cache_key(prompt_id)
                 deleted = await self.redis_service.delete(cache_key)
-                if self.verbose:
-                    if deleted:
-                        logger.info(f"✓ Cleared prompt {cache_key} from cache")
-                    else:
-                        logger.info(f"Prompt {cache_key} was not in cache")
+                if deleted:
+                    logger.debug(f"✓ Cleared prompt {cache_key} from cache")
+                else:
+                    logger.debug(f"Prompt {cache_key} was not in cache")
                 return deleted > 0
             else:
                 # Clear all prompt caches (would need to track keys or use pattern matching)
-                if self.verbose:
-                    logger.info("Bulk cache clear not implemented - clear specific prompts instead")
+                logger.debug("Bulk cache clear not implemented - clear specific prompts instead")
                 return False
         except Exception as e:
             logger.error(f"Error clearing prompt cache: {str(e)}")

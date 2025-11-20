@@ -23,7 +23,6 @@ def mock_config():
     """Create a mock configuration for testing."""
     return {
         'general': {
-            'verbose': False
         },
         'internal_services': {
             'mongodb': {
@@ -43,7 +42,6 @@ def alternate_config():
     """Create an alternate configuration for testing."""
     return {
         'general': {
-            'verbose': False
         },
         'internal_services': {
             'mongodb': {
@@ -312,7 +310,7 @@ def test_api_key_service_no_reinitialization():
     MongoDBService.clear_cache()
     
     config = {
-        'general': {'verbose': True},
+        'general': {},
         'internal_services': {
             'mongodb': {
                 'host': 'localhost',
@@ -353,7 +351,7 @@ def test_api_key_service_thread_safety():
     MongoDBService.clear_cache()
     
     config = {
-        'general': {'verbose': False},
+        'general': {},
         'internal_services': {
             'mongodb': {
                 'host': 'localhost',
@@ -405,7 +403,6 @@ def mock_sqlite_config():
     """Create a mock SQLite configuration for testing."""
     return {
         'general': {
-            'verbose': False
         },
         'internal_services': {
             'backend': {
@@ -423,7 +420,6 @@ def alternate_sqlite_config():
     """Create an alternate SQLite configuration for testing."""
     return {
         'general': {
-            'verbose': False
         },
         'internal_services': {
             'backend': {

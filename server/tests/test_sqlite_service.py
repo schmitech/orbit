@@ -57,7 +57,6 @@ async def sqlite_service():
             }
         },
         'general': {
-            'verbose': False
         }
     }
 

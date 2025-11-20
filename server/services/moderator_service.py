@@ -94,10 +94,6 @@ class ModeratorService:
         
         # Initialize session as None (lazy initialization)
         self.session = None
-        # Handle both string and boolean values for verbose setting
-        verbose_value = config.get('general', {}).get('verbose', False)
-        self.verbose = is_true_value(verbose_value)
-        
         # Model parameters (used only when not using a dedicated moderator)
         if not self.use_moderator:
             self.temperature = safety_config.get('temperature', 0.0)
@@ -110,13 +106,12 @@ class ModeratorService:
             # Load safety prompt for LLM-based approach
             self.safety_prompt = self._load_safety_prompt(safety_config)
         
-        if self.verbose:
-            if self.use_moderator:
-                logger.info(f"ModeratorService initialized with moderator {self.moderator_name}, enabled={self.enabled}, mode={self.safety_mode}")
-            else:
-                provider = getattr(self, 'provider', 'unknown')
-                model = getattr(self, 'model', 'unknown')
-                logger.info(f"ModeratorService initialized with provider {provider}, model {model}, enabled={self.enabled}, mode={self.safety_mode}")
+        if self.use_moderator:
+            logger.debug(f"ModeratorService initialized with moderator {self.moderator_name}, enabled={self.enabled}, mode={self.safety_mode}")
+        else:
+            provider = getattr(self, 'provider', 'unknown')
+            model = getattr(self, 'model', 'unknown')
+            logger.debug(f"ModeratorService initialized with provider {provider}, model {model}, enabled={self.enabled}, mode={self.safety_mode}")
 
     def _fallback_to_alternative_moderator(self, config: Dict[str, Any], safety_config: Dict[str, Any]):
         """
@@ -210,8 +205,7 @@ class ModeratorService:
             if os.path.exists(prompt_path):
                 with open(prompt_path, 'r', encoding='utf-8') as f:
                     prompt = f.read().strip()
-                if self.verbose:
-                    logger.info(f"Loaded safety prompt from: {prompt_path}")
+                logger.debug(f"Loaded safety prompt from: {prompt_path}")
                 return prompt
             else:
                 logger.warning(f"Safety prompt file not found at: {prompt_path}")
@@ -238,9 +232,8 @@ A query is considered UNSAFE if it:
 Respond with exactly "SAFE: true" if the query is safe, or "SAFE: false" if it's unsafe.
 
 Query: """
-        
-        if self.verbose:
-            logger.info("Using default safety prompt")
+
+        logger.debug("Using default safety prompt")
         return default_prompt
 
     async def initialize(self):
@@ -292,14 +285,12 @@ Query: """
         """
         # If safety service is disabled, always return safe
         if not self.enabled:
-            if self.verbose:
-                logger.info(f"Skipping guardrail check - safety service is disabled for query: '{query}'")
+            logger.debug(f"Skipping guardrail check - safety service is disabled for query: '{query}'")
             return True, None
             
         # If safety checks are disabled, always return safe
         if self.safety_mode == 'disabled':
-            if self.verbose:
-                logger.info("Safety checks disabled by configuration, skipping check")
+            logger.debug("Safety checks disabled by configuration, skipping check")
             return True, None
         
         # If using a dedicated moderator, use it for content moderation
@@ -321,38 +312,35 @@ Query: """
         """
         # If moderator doesn't exist, fall back to LLM-based approach
         if not hasattr(self, 'moderator') or self.moderator is None:
-            if self.verbose:
-                logger.warning("Moderator not available, falling back to LLM-based safety check")
+            logger.warning("Moderator not available, falling back to LLM-based safety check")
             return await self._check_safety_with_llm(query)
         
         for attempt in range(self.max_retries):
             try:
-                if self.verbose:
-                    logger.info(f"🔍 Performing moderator safety check for query: '{query[:50]}...' (attempt {attempt+1}/{self.max_retries})")
-                
+                logger.debug(f"🔍 Performing moderator safety check for query: '{query[:50]}...' (attempt {attempt+1}/{self.max_retries})")
+
                 # Use the moderator to check content
                 result = await self.moderator.moderate_content(query)
                 
                 # The content is safe if it's not flagged
                 is_safe = not result.is_flagged
-                
+
                 # Add detailed logging with emojis
-                if self.verbose:
-                    if is_safe:
-                        logger.info(f"✅ MODERATION PASSED: Query was deemed SAFE by {self.moderator_name} moderator")
-                        # Show all category scores for debugging
+                if is_safe:
+                    logger.debug(f"✅ MODERATION PASSED: Query was deemed SAFE by {self.moderator_name} moderator")
+                    # Show all category scores for debugging
+                    logger.debug(f"All category scores: {result.categories}")
+                else:
+                    # Get flagged categories with scores > 0.5
+                    try:
+                        flagged_categories = {k: v for k, v in result.categories.items() if v > 0.5}
+                        logger.info(f"🛑 MODERATION BLOCKED: Query was flagged as UNSAFE by {self.moderator_name} moderator")
+                        logger.info(f"⚠️ Flagged categories: {flagged_categories}")
                         logger.debug(f"All category scores: {result.categories}")
-                    else:
-                        # Get flagged categories with scores > 0.5
-                        try:
-                            flagged_categories = {k: v for k, v in result.categories.items() if v > 0.5}
-                            logger.info(f"🛑 MODERATION BLOCKED: Query was flagged as UNSAFE by {self.moderator_name} moderator")
-                            logger.info(f"⚠️ Flagged categories: {flagged_categories}")
-                            logger.debug(f"All category scores: {result.categories}")
-                        except Exception as category_error:
-                            logger.error(f"Error processing moderation categories: {str(category_error)}")
-                            logger.info(f"🛑 MODERATION BLOCKED: Query was flagged as UNSAFE (categories unavailable)")
-                
+                    except Exception as category_error:
+                        logger.error(f"Error processing moderation categories: {str(category_error)}")
+                        logger.info(f"🛑 MODERATION BLOCKED: Query was flagged as UNSAFE (categories unavailable)")
+
                 # Return appropriate response
                 refusal_message = None if is_safe else "I cannot assist with that type of request."
                 return is_safe, refusal_message
@@ -360,8 +348,7 @@ Query: """
             except Exception as e:
                 logger.error(f"❌ Error in moderator safety check: {str(e)}", exc_info=True)
                 if attempt < self.max_retries - 1:
-                    if self.verbose:
-                        logger.info(f"🔄 Retrying in {self.retry_delay} seconds... (Attempt {attempt+1} of {self.max_retries})")
+                    logger.debug(f"🔄 Retrying in {self.retry_delay} seconds... (Attempt {attempt+1} of {self.max_retries})")
                     await asyncio.sleep(self.retry_delay)
                 else:
                     # If all retries fail and we're configured to allow on timeout
@@ -387,12 +374,11 @@ Query: """
 
                 # Combine the loaded safety prompt with the query
                 prompt = self.safety_prompt + " Query: " + query
-                
+
                 # Log the query being checked
-                if self.verbose:
-                    logger.info(f"🔍 Performing LLM safety check for query: '{query[:50]}...' (attempt {attempt+1}/{self.max_retries})")
-                    logger.debug(f"📝 Using full safety prompt: '{prompt[:100]}...'")
-                    logger.info(f"🤖 Sending safety check request to {self.provider} model: {self.model}")
+                logger.debug(f"🔍 Performing LLM safety check for query: '{query[:50]}...' (attempt {attempt+1}/{self.max_retries})")
+                logger.debug(f"📝 Using full safety prompt: '{prompt[:100]}...'")
+                logger.debug(f"🤖 Sending safety check request to {self.provider} model: {self.model}")
 
                 # Create payload for the API
                 payload = {
@@ -424,29 +410,26 @@ Query: """
                     model_response = ' '.join(model_response.split())
                     
                     end_time = asyncio.get_event_loop().time()
-                    
-                    # Log timing and response only in verbose mode
-                    if self.verbose:
-                        logger.info(f"⏱️ Safety check completed in {end_time - start_time:.3f}s")
-                        logger.info(f"🔄 Safety check raw response: '{model_response}'")
-                    
+
+                    # Log timing and response
+                    logger.debug(f"⏱️ Safety check completed in {end_time - start_time:.3f}s")
+                    logger.debug(f"🔄 Safety check raw response: '{model_response}'")
+
                     # Process the response to determine safety
                     is_safe, refusal_message = await self._process_safety_response(model_response)
-                    
+
                     # Add more visible logging with emojis
-                    if self.verbose:
-                        if is_safe:
-                            logger.info(f"✅ LLM SAFETY CHECK PASSED: Query was deemed SAFE")
-                        else:
-                            logger.info(f"🛑 LLM SAFETY CHECK BLOCKED: Query was deemed UNSAFE")
-                    
+                    if is_safe:
+                        logger.debug(f"✅ LLM SAFETY CHECK PASSED: Query was deemed SAFE")
+                    else:
+                        logger.debug(f"🛑 LLM SAFETY CHECK BLOCKED: Query was deemed UNSAFE")
+
                     return is_safe, refusal_message
 
             except asyncio.TimeoutError:
                 logger.warning(f"⏱️ Safety check timed out (attempt {attempt+1}/{self.max_retries})")
                 if attempt < self.max_retries - 1:
-                    if self.verbose:
-                        logger.info(f"🔄 Retrying in {self.retry_delay} seconds...")
+                    logger.debug(f"🔄 Retrying in {self.retry_delay} seconds...")
                     await asyncio.sleep(self.retry_delay)
                 else:
                     logger.error("❌ Safety check failed after all retry attempts")
@@ -459,8 +442,7 @@ Query: """
             except Exception as e:
                 logger.error(f"❌ Error in safety check: {str(e)}", exc_info=True)
                 if attempt < self.max_retries - 1:
-                    if self.verbose:
-                        logger.info(f"🔄 Retrying in {self.retry_delay} seconds...")
+                    logger.debug(f"🔄 Retrying in {self.retry_delay} seconds...")
                     await asyncio.sleep(self.retry_delay)
                 else:
                     # If all retries fail, fallback to default response
@@ -492,8 +474,7 @@ Query: """
             
             # If we detect refusal phrases in the response, consider it unsafe
             if any(phrase in model_response.lower() for phrase in direct_refusal_phrases):
-                if self.verbose:
-                    logger.warning(f"Model directly responded with refusal message: '{model_response}'")
+                logger.warning(f"Model directly responded with refusal message: '{model_response}'")
                 # Since the model directly refused, treat this as unsafe
                 return False, model_response
             
@@ -508,15 +489,14 @@ Query: """
             # If no exact match and fuzzy mode is enabled, check for fuzzy matches
             if not is_safe_exact and self.safety_mode == 'fuzzy':
                 is_safe_fuzzy = self._is_likely_safe_response(model_response)
-                if is_safe_fuzzy and self.verbose:
+                if is_safe_fuzzy:
                     logger.warning(f"Safety check used fuzzy matching. Expected '{expected_exact}' but got '{model_response}'")
             
             # Use either exact or fuzzy match result based on safety mode
             is_safe = is_safe_exact or (self.safety_mode == 'fuzzy' and is_safe_fuzzy)
-            
-            if self.verbose:
-                logger.info(f"Safety check result: mode={self.safety_mode}, exact={is_safe_exact}, fuzzy={is_safe_fuzzy}, final={is_safe}")
-            
+
+            logger.debug(f"Safety check result: mode={self.safety_mode}, exact={is_safe_exact}, fuzzy={is_safe_fuzzy}, final={is_safe}")
+
             # Log any variations that might be causing issues
             if not is_safe and "safe" in model_response.lower():
                 # Check for common "unsafe" response formats
@@ -529,12 +509,10 @@ Query: """
                 
                 if any(pattern in model_response.lower() for pattern in unsafe_patterns):
                     # This is a proper unsafe response, no warning needed
-                    if self.verbose:
-                        logger.info("Query correctly identified as unsafe")
+                    logger.debug("Query correctly identified as unsafe")
                 else:
                     # This is an unrecognized format
-                    if self.verbose:
-                        logger.warning(f"Safety format mismatch. Response contains 'safe' but not recognized: '{model_response}'")
+                    logger.warning(f"Safety format mismatch. Response contains 'safe' but not recognized: '{model_response}'")
             
             refusal_message = None if is_safe else "I cannot assist with that type of request."
             return is_safe, refusal_message

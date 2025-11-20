@@ -60,8 +60,7 @@ class IntentElasticsearchRetriever(IntentHTTPRetriever):
         self.es_datasource = datasource
         self.es_client: Optional[AsyncElasticsearch] = None
 
-        if self.verbose:
-            logger.info(f"ElasticsearchRetriever initialized with index_pattern: {self.index_pattern}")
+        logger.debug(f"ElasticsearchRetriever initialized with index_pattern: {self.index_pattern}")
 
     def _get_datasource_name(self) -> str:
         """Return the datasource name."""
@@ -91,8 +90,7 @@ class IntentElasticsearchRetriever(IntentHTTPRetriever):
         # Get the Elasticsearch client
         self.es_client = self.es_datasource.client
 
-        if self.verbose:
-            logger.info("Elasticsearch retriever initialized with datasource from registry")
+        logger.debug("Elasticsearch retriever initialized with datasource from registry")
 
     async def _execute_template(self, template: Dict[str, Any],
                                 parameters: Dict[str, Any]) -> Tuple[Any, Optional[str]]:
@@ -123,9 +121,8 @@ class IntentElasticsearchRetriever(IntentHTTPRetriever):
             index = template.get('index', self.index_pattern)
             endpoint_type = template.get('endpoint_type', '_search')
 
-            if self.verbose:
-                logger.info(f"Executing Elasticsearch {endpoint_type} on index: {index}")
-                logger.debug(f"Query DSL: {json.dumps(query_dsl, indent=2)}")
+            logger.debug(f"Executing Elasticsearch {endpoint_type} on index: {index}")
+            logger.debug(f"Query DSL: {json.dumps(query_dsl, indent=2)}")
 
             # Execute using the Elasticsearch client
             if endpoint_type == '_search':

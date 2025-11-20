@@ -211,10 +211,9 @@ class QdrantRetriever(AbstractVectorRetriever):
                 collection_info = self.qdrant_client.get_collection(collection_name)
                 self.collection_name = collection_name
                 
-                if self.verbose:
-                    logger.info(f"Switched to collection: {collection_name}")
-                    logger.info(f"Collection has {collection_info.points_count} vectors")
-                    logger.info(f"Collection config: {collection_info.config}")
+                logger.debug(f"Switched to collection: {collection_name}")
+                logger.debug(f"Collection has {collection_info.points_count} vectors")
+                logger.debug(f"Collection config: {collection_info.config}")
                     
             except Exception as e:
                 if "Not found" in str(e) or "doesn't exist" in str(e):
@@ -288,10 +287,9 @@ class QdrantRetriever(AbstractVectorRetriever):
                     'distance': 1.0 - score if self.distance_metric == 'cosine' else None
                 })
             
-            if self.verbose:
-                logger.info(f"Qdrant search returned {len(formatted_results)} results")
-                if formatted_results:
-                    logger.info(f"Top result score: {formatted_results[0]['score']:.4f}")
+            logger.debug(f"Qdrant search returned {len(formatted_results)} results")
+            if formatted_results:
+                logger.debug(f"Top result score: {formatted_results[0]['score']:.4f}")
             
             return formatted_results
             

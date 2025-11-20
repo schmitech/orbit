@@ -177,10 +177,8 @@ class RouteConfigurator:
                     if not session_id or not session_id.strip():
                         # Check if auto-generate is enabled
                         if chat_history_config.get('session', {}).get('auto_generate', True):
-                            # Generate a session ID
                             session_id = str(uuid.uuid4())
-                            if request.app.state.config.get('general', {}).get('verbose', False):
-                                self.logger.info(f"Auto-generated session ID: {session_id}")
+                            self.logger.debug("Auto-generated session ID: %s", session_id)
                         else:
                             raise HTTPException(
                                 status_code=400,

@@ -53,12 +53,10 @@ class TestStreamingHandler:
         """Test handler initialization."""
         handler = StreamingHandler(
             config=base_config,
-            audio_handler=mock_audio_handler,
-            verbose=True
+            audio_handler=mock_audio_handler
         )
 
         assert handler.audio_handler == mock_audio_handler
-        assert handler.verbose is True
         assert handler.audio_timeout == 45.0
 
     @pytest.mark.asyncio

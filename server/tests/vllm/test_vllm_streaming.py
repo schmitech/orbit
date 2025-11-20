@@ -27,7 +27,6 @@ async def test_streaming():
             }
         },
         "general": {
-            "verbose": True
         }
     }
     
@@ -75,7 +74,6 @@ async def test_non_streaming():
             }
         },
         "general": {
-            "verbose": True
         }
     }
     

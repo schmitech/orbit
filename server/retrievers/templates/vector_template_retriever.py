@@ -103,8 +103,7 @@ class VectorTemplateRetriever(AbstractVectorRetriever):
             
             self.collection = collection_name
             
-            if self.verbose:
-                logger.info(f"Switched to collection: {collection_name}")
+            logger.debug(f"Switched to collection: {collection_name}")
         except Exception as e:
             error_msg = f"Failed to switch collection: {str(e)}"
             logger.error(error_msg)

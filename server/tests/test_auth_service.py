@@ -105,7 +105,7 @@ else:
     BACKEND_TYPE = os.getenv("TEST_BACKEND_TYPE", "sqlite")
 
     TEST_CONFIG = {
-        'general': {'verbose': True},
+        'general': {},
         'internal_services': {
             'backend': {
                 'type': BACKEND_TYPE,

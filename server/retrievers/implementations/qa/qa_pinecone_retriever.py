@@ -78,8 +78,7 @@ class QAPineconeRetriever(QAVectorRetrieverBase, PineconeRetriever):
         # Mark as initialized
         self.initialized = True
 
-        if self.verbose:
-            logger.info(f"QAPineconeRetriever initialized successfully")
+        logger.debug("QAPineconeRetriever initialized successfully")
 
     def convert_score_to_confidence(self, score: float) -> float:
         """
@@ -122,10 +121,9 @@ class QAPineconeRetriever(QAVectorRetrieverBase, PineconeRetriever):
                 logger.error(f"Failed to set Pinecone index '{collection_name}'")
                 return []
 
-            if self.verbose:
-                logger.info(f"Querying Pinecone index: {collection_name}")
-                logger.info(f"Namespace: {self.namespace}")
-                logger.info(f"Max results: {max_results}")
+            logger.debug(f"Querying Pinecone index: {collection_name}")
+            logger.debug(f"Namespace: {self.namespace}")
+            logger.debug(f"Max results: {max_results}")
 
             # Perform the query
             results = self.index.query(
@@ -136,15 +134,14 @@ class QAPineconeRetriever(QAVectorRetrieverBase, PineconeRetriever):
                 include_values=False
             )
 
-            if self.verbose:
-                logger.info(f"Pinecone query results type: {type(results)}")
-                logger.info(f"Pinecone query results: {results}")
-                if hasattr(results, 'matches'):
-                    logger.info(f"Number of matches: {len(results.matches)}")
-                    logger.info(f"Matches: {results.matches}")
-                elif isinstance(results, dict):
-                    logger.info(f"Results dict keys: {results.keys()}")
-                    logger.info(f"Number of matches in dict: {len(results.get('matches', []))}")
+            logger.debug(f"Pinecone query results type: {type(results)}")
+            logger.debug(f"Pinecone query results: {results}")
+            if hasattr(results, 'matches'):
+                logger.debug(f"Number of matches: {len(results.matches)}")
+                logger.debug(f"Matches: {results.matches}")
+            elif isinstance(results, dict):
+                logger.debug(f"Results dict keys: {results.keys()}")
+                logger.debug(f"Number of matches in dict: {len(results.get('matches', []))}")
 
             # Return matches list from results
             # Pinecone v3+ returns an object with .matches attribute
@@ -158,8 +155,7 @@ class QAPineconeRetriever(QAVectorRetrieverBase, PineconeRetriever):
 
         except Exception as e:
             logger.error(f"Error querying Pinecone: {str(e)}")
-            if self.verbose:
-                logger.error(traceback.format_exc())
+            logger.debug(traceback.format_exc())
             return []
 
     def extract_document_data(self, result: Any) -> Tuple[str, Dict[str, Any], float]:
@@ -169,11 +165,10 @@ class QAPineconeRetriever(QAVectorRetrieverBase, PineconeRetriever):
         metadata = getattr(result, 'metadata', {}) or {}
 
         # Debug logging
-        if self.verbose:
-            logger.info(f"Pinecone result type: {type(result)}")
-            logger.info(f"Pinecone result dir: {dir(result)}")
-            logger.info(f"Pinecone result metadata: {metadata}")
-            logger.info(f"Pinecone result score: {getattr(result, 'score', 'NO SCORE ATTR')}")
+        logger.debug(f"Pinecone result type: {type(result)}")
+        logger.debug(f"Pinecone result dir: {dir(result)}")
+        logger.debug(f"Pinecone result metadata: {metadata}")
+        logger.debug(f"Pinecone result score: {getattr(result, 'score', 'NO SCORE ATTR')}")
 
         # Get document content from metadata
         # Common field names: 'content', 'text', 'document', 'answer'
@@ -185,9 +180,8 @@ class QAPineconeRetriever(QAVectorRetrieverBase, PineconeRetriever):
 
         score = float(getattr(result, 'score', 0.0))
 
-        if self.verbose:
-            logger.info(f"Extracted doc: {doc[:100] if doc else 'EMPTY'}")
-            logger.info(f"Extracted score: {score}")
+        logger.debug(f"Extracted doc: {doc[:100] if doc else 'EMPTY'}")
+        logger.debug(f"Extracted score: {score}")
 
         return str(doc), metadata, score
 
@@ -233,8 +227,7 @@ class QAPineconeRetriever(QAVectorRetrieverBase, PineconeRetriever):
         # Also update collection_name for base class compatibility
         self.collection_name = collection_name
 
-        if self.verbose:
-            logger.info(f"[QAPineconeRetriever] Set index name to: {collection_name}")
+        logger.debug(f"[QAPineconeRetriever] Set index name to: {collection_name}")
 
     def _create_fallback_adapter(self):
         """Create a fallback adapter specifically for Pinecone."""

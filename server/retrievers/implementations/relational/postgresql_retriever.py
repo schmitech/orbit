@@ -63,10 +63,10 @@ class PostgreSQLRetriever(BaseSQLDatabaseRetriever):
             cursor.execute("SELECT version();")
             version = cursor.fetchone()
             cursor.close()
-            
-            if version and self.verbose:
-                logger.info(f"PostgreSQL connection successful: {version['version']}")
-            
+
+            if version:
+                logger.debug(f"PostgreSQL connection successful: {version['version']}")
+
             return connection
             
         except ImportError:
@@ -179,8 +179,7 @@ class PostgreSQLRetriever(BaseSQLDatabaseRetriever):
                     "fields": self.default_search_fields + ['rank']
                 }
                 
-                if self.verbose:
-                    logger.info("Using PostgreSQL full-text search")
+                logger.debug("Using PostgreSQL full-text search")
                 
                 return search_config
         

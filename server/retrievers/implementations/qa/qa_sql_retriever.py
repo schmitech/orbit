@@ -59,8 +59,7 @@ class QASSQLRetriever(SQLiteRetriever):
         # Set the table/collection name from adapter config
         if adapter_config and adapter_config.get('table'):
             self.collection = adapter_config.get('table')
-            if self.verbose:
-                logger.info(f"QASSQLRetriever using table from adapter config: {self.collection}")
+            logger.debug(f"QASSQLRetriever using table from adapter config: {self.collection}")
         
         # Flag to track if search_tokens table exists (QA-specific optimization)
         self.has_token_table = False
@@ -85,12 +84,10 @@ class QASSQLRetriever(SQLiteRetriever):
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='search_tokens'")
             if cursor.fetchone():
                 self.has_token_table = True
-                if self.verbose:
-                    logger.info("Found 'search_tokens' table - will use for QA token-based search")
+                logger.debug("Found 'search_tokens' table - will use for QA token-based search")
             else:
                 self.has_token_table = False
-                if self.verbose:
-                    logger.info("'search_tokens' table not found - using QA string similarity only")
+                logger.debug("'search_tokens' table not found - using QA string similarity only")
         except Exception as e:
             logger.warning(f"Error checking for search_tokens table: {str(e)}")
             self.has_token_table = False
@@ -107,8 +104,7 @@ class QASSQLRetriever(SQLiteRetriever):
             
         # Set the collection name
         self.collection = collection_name
-        if self.verbose:
-            logger.info(f"Switched to QA collection (table): {collection_name}")
+        logger.debug(f"Switched to QA collection (table): {collection_name}")
             
         # Verify the table exists using parent method
         if self.connection:
@@ -134,8 +130,7 @@ class QASSQLRetriever(SQLiteRetriever):
                     if field not in self.default_search_fields:
                         self.default_search_fields.append(field)
             
-            if self.verbose:
-                logger.info(f"Using QA search fields: {self.default_search_fields}")
+            logger.debug(f"Using QA search fields: {self.default_search_fields}")
 
     def _get_search_query(self, query: str, collection_name: str) -> Dict[str, Any]:
         """
@@ -151,15 +146,13 @@ class QASSQLRetriever(SQLiteRetriever):
         # Tokenize the query using parent method
         query_tokens = self._tokenize_text(query)
         
-        if self.verbose:
-            logger.info(f"Generating QA search query for: '{query}'")
-            logger.info(f"Tokenized query: {query_tokens}")
-            logger.info(f"Using collection: {collection_name}")
+        logger.debug(f"Generating QA search query for: '{query}'")
+        logger.debug(f"Tokenized query: {query_tokens}")
+        logger.debug(f"Using collection: {collection_name}")
         
         if not query_tokens:
             # Fallback to basic query
-            if self.verbose:
-                logger.info("No valid tokens found, using basic query")
+            logger.debug("No valid tokens found, using basic query")
             return super()._get_search_query(query, collection_name)
         
         # QA-specific: For QA collections, search primarily in the question field
@@ -195,8 +188,7 @@ class QASSQLRetriever(SQLiteRetriever):
                 """
                 params.append(self.max_results)
                 
-                if self.verbose:
-                    logger.info("Generated QA-specific search query")
+                logger.debug("Generated QA-specific search query")
                 
                 return {
                     "sql": sql,
@@ -314,25 +306,20 @@ class QASSQLRetriever(SQLiteRetriever):
                 await self.set_collection(collection_name)
             elif self.collection:
                 # Use table from adapter config (new adapter system)
-                if self.verbose:
-                    logger.info(f"Using table from adapter config: {self.collection}")
+                logger.debug(f"Using table from adapter config: {self.collection}")
                 # No need to call set_collection since it's already set from config
             else:
                 # No collection available - this should not happen in properly configured adapters
                 raise ValueError("No collection specified and no table configured in adapter")
             
-            debug_mode = self.verbose
-            
             # Tokenize the query
             query_tokens = self._tokenize_text(query)
-            if debug_mode:
-                logger.info(f"QA tokenized query: {query_tokens}")
+            logger.debug(f"QA tokenized query: {query_tokens}")
             
             # Try QA-specific token-based search first if available
             token_results = await self._search_by_tokens(query_tokens) if self.has_token_table else []
             
-            if debug_mode:
-                logger.info(f"QA token search found {len(token_results)} candidate documents")
+            logger.debug(f"QA token search found {len(token_results)} candidate documents")
             
             # If token search yielded results, use those, otherwise use regular SQL search
             if token_results:
@@ -382,8 +369,7 @@ class QASSQLRetriever(SQLiteRetriever):
                 else:
                     combined_score = similarity
                 
-                if self.verbose:
-                    logger.info(f"QA Document similarity: {similarity:.4f}, token ratio: {token_match_ratio:.4f}, combined: {combined_score:.4f}")
+                logger.debug(f"QA Document similarity: {similarity:.4f}, token ratio: {token_match_ratio:.4f}, combined: {combined_score:.4f}")
                 
                 # Process if score exceeds QA-specific threshold
                 if combined_score >= self.confidence_threshold:
@@ -423,10 +409,9 @@ class QASSQLRetriever(SQLiteRetriever):
             results.sort(key=lambda x: x.get("confidence", 0), reverse=True)
             results = results[:self.return_results]
             
-            if debug_mode:
-                logger.info(f"Retrieved {len(results)} QA-relevant context items")
-                if results:
-                    logger.info(f"Top QA confidence score: {results[0].get('confidence', 0)}")
+            logger.debug(f"Retrieved {len(results)} QA-relevant context items")
+            if results:
+                logger.debug(f"Top QA confidence score: {results[0].get('confidence', 0)}")
             
             return results
                 
@@ -444,8 +429,7 @@ class QASSQLRetriever(SQLiteRetriever):
         try:
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?", (self.collection,))
             if not cursor.fetchone():
-                if self.verbose:
-                    logger.info(f"Creating QA default table '{self.collection}'")
+                logger.debug(f"Creating QA default table '{self.collection}'")
                 
                 # Create QA-specific table structure
                 cursor.execute(f'''
@@ -479,8 +463,7 @@ class QASSQLRetriever(SQLiteRetriever):
                 
                 self.connection.commit()
                 
-                if self.verbose:
-                    logger.info(f"Created QA default table '{self.collection}' with sample data")
+                logger.debug(f"Created QA default table '{self.collection}' with sample data")
         except Exception as e:
             logger.warning(f"Could not create QA default table: {str(e)}")
 

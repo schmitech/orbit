@@ -391,15 +391,7 @@ def create_health_router() -> APIRouter:
     
     @router.get("/thread-pools")
     async def get_thread_pool_stats(request: Request):
-        """Get thread pool statistics when verbose mode is enabled"""
-        # Check if verbose mode is enabled
-        verbose = is_true_value(request.app.state.config.get('general', {}).get('verbose', False))
-        if not verbose:
-            raise HTTPException(
-                status_code=404, 
-                detail="Thread pool stats only available when verbose mode is enabled"
-            )
-        
+        """Get thread pool statistics"""
         # Get thread pool manager from application state
         thread_pool_manager = getattr(request.app.state, 'thread_pool_manager', None)
         if not thread_pool_manager:
@@ -435,14 +427,6 @@ def create_health_router() -> APIRouter:
     @router.post("/thread-pools/log-status")
     async def log_thread_pool_status(request: Request):
         """Trigger logging of current thread pool status"""
-        # Check if verbose mode is enabled
-        verbose = is_true_value(request.app.state.config.get('general', {}).get('verbose', False))
-        if not verbose:
-            raise HTTPException(
-                status_code=404, 
-                detail="Thread pool logging only available when verbose mode is enabled"
-            )
-        
         # Get thread pool manager from application state
         thread_pool_manager = getattr(request.app.state, 'thread_pool_manager', None)
         if not thread_pool_manager:

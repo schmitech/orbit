@@ -115,7 +115,6 @@ class LlamaCppBaseService(ProviderAIService):
         self.n_gpu_layers = llama_config.get('n_gpu_layers', -1)  # -1 means use all layers on GPU
         self.main_gpu = llama_config.get('main_gpu', 0)
         self.tensor_split = llama_config.get('tensor_split', None)
-        self.verbose = llama_config.get('verbose', False)
         self.embed_type = llama_config.get('embed_type', 'llama_embedding')  # Type of embedding to use
 
         # Initialize model

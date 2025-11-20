@@ -12,7 +12,6 @@ import:
 
 general:
   port: 3000
-  verbose: false
   https:
     enabled: false
     port: 3443

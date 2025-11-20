@@ -257,10 +257,7 @@ class SQLiteService(DatabaseService):
 
         try:
             # Log SQLite configuration
-            if self.verbose:
-                logger.info(f"Initializing SQLite connection to: {self.database_path}")
-            else:
-                logger.debug(f"Initializing SQLite connection to: {self.database_path}")
+            logger.debug(f"Initializing SQLite connection to: {self.database_path}")
 
             # Ensure parent directory exists
             db_path = Path(self.database_path)
@@ -277,10 +274,7 @@ class SQLiteService(DatabaseService):
             await self._create_tables()
             await self._create_indexes()
 
-            if self.verbose:
-                logger.info("SQLite Service initialized successfully")
-            else:
-                logger.debug("SQLite Service initialized successfully")
+            logger.debug("SQLite Service initialized successfully")
 
             self._initialized = True
 
@@ -306,8 +300,7 @@ class SQLiteService(DatabaseService):
                 schema,
                 ()
             )
-            if self.verbose:
-                logger.info(f"Created table: {table_name}")
+            logger.debug(f"Created table: {table_name}")
 
     async def _create_indexes(self) -> None:
         """Create database indexes"""
@@ -397,8 +390,7 @@ class SQLiteService(DatabaseService):
             cursor.execute(sql)
             self.connection.commit()
 
-        if self.verbose:
-            logger.info(f"Auto-created table: {table_name}")
+        logger.debug(f"Auto-created table: {table_name}")
 
     async def _ensure_table_exists(self, table_name: str, document: Dict[str, Any]) -> None:
         """Ensure a table exists, create it if not"""
@@ -441,8 +433,7 @@ class SQLiteService(DatabaseService):
                         ()
                     )
 
-                    if self.verbose:
-                        logger.info(f"Applied pending index {index_def['name']} on table {table_name}")
+                    logger.debug(f"Applied pending index {index_def['name']} on table {table_name}")
 
                 # Clear pending indexes for this table
                 del self._pending_indexes[table_name]
@@ -514,8 +505,7 @@ class SQLiteService(DatabaseService):
                 'unique': unique
             })
 
-            if self.verbose:
-                logger.info(f"Queued index {index_name} for table {collection_name} (will be created when table is created)")
+            logger.debug(f"Queued index {index_name} for table {collection_name} (will be created when table is created)")
 
             return index_name
 
@@ -544,8 +534,7 @@ class SQLiteService(DatabaseService):
             ()
         )
 
-        if self.verbose:
-            logger.info(f"Created index on {collection_name}.{field_name}")
+        logger.debug(f"Created index on {collection_name}.{field_name}")
 
         return index_name
 

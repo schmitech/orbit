@@ -26,26 +26,23 @@ class IntentAdapter(DocumentAdapter):
     for text-to-SQL translation.
     """
     
-    def __init__(self, 
+    def __init__(self,
                  domain_config_path: Optional[str] = None,
                  template_library_path: Optional[Union[str, List[str]]] = None,
                  confidence_threshold: float = 0.1,
-                 verbose: bool = False,
                  config: Dict[str, Any] = None,
                  **kwargs):
         """
         Initialize the intent adapter.
-        
+
         Args:
             domain_config_path: Path to domain configuration YAML file
             template_library_path: Path to SQL template library YAML file
             confidence_threshold: Minimum confidence score for template matching
-            verbose: Whether to enable verbose logging
             config: Optional configuration dictionary
             **kwargs: Additional keyword arguments
         """
         self.confidence_threshold = confidence_threshold
-        self.verbose = verbose
         self.config = config or {}
         
         # Load domain configuration
@@ -104,8 +101,7 @@ class IntentAdapter(DocumentAdapter):
             with open(full_path, 'r') as f:
                 config = yaml.safe_load(f)
                 
-            if self.verbose:
-                logger.info(f"Loaded {config_type} from: {full_path}")
+            logger.debug(f"Loaded {config_type} from: {full_path}")
                 
             return config
             
@@ -216,8 +212,7 @@ class IntentAdapter(DocumentAdapter):
         Returns:
             A formatted context item
         """
-        if self.verbose:
-            logger.info(f"IntentAdapter.format_document called with metadata keys: {list(metadata.keys())}")
+        logger.debug(f"IntentAdapter.format_document called with metadata keys: {list(metadata.keys())}")
             
         # Create the base item
         item = {
@@ -424,8 +419,7 @@ def register_intent_adapter():
             adapter_name="intent",
             implementation='adapters.intent.adapter.IntentAdapter',
             config={
-                'confidence_threshold': 0.1,
-                'verbose': False
+                'confidence_threshold': 0.1
             }
         )
         logger.info("Registered intent adapter for postgres")
@@ -438,8 +432,7 @@ def register_intent_adapter():
                 adapter_name="intent",
                 implementation='adapters.intent.adapter.IntentAdapter',
                 config={
-                    'confidence_threshold': 0.1,
-                    'verbose': False
+                    'confidence_threshold': 0.1
                 }
             )
             logger.info(f"Registered intent adapter for {datasource}")
@@ -451,8 +444,7 @@ def register_intent_adapter():
             adapter_name="intent",
             implementation='adapters.intent.adapter.IntentAdapter',
             config={
-                'confidence_threshold': 0.1,
-                'verbose': False
+                'confidence_threshold': 0.1
             }
         )
         logger.info("Registered intent adapter for mongodb")
@@ -464,8 +456,7 @@ def register_intent_adapter():
             adapter_name="intent",
             implementation='adapters.intent.adapter.IntentAdapter',
             config={
-                'confidence_threshold': 0.1,
-                'verbose': False
+                'confidence_threshold': 0.1
             }
         )
         logger.info("Registered intent adapter for http")

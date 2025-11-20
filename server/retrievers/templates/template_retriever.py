@@ -96,8 +96,7 @@ class TemplateRetriever(BaseRetriever):
         #     raise HTTPException(status_code=404, detail=f"Collection not found: {str(e)}")
         
         self.collection = collection_name
-        if self.verbose:
-            logger.info(f"Switched to collection: {collection_name}")
+        logger.debug(f"Switched to collection: {collection_name}")
 
     async def get_relevant_context(self, 
                            query: str, 

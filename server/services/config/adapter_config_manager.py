@@ -32,7 +32,6 @@ class AdapterConfigManager:
         """
         self.config = config
         self._adapter_configs: Dict[str, Dict[str, Any]] = {}
-        self.verbose = config.get('general', {}).get('verbose', False)
         self._load_configs()
 
     def _load_configs(self) -> None:
@@ -50,16 +49,14 @@ class AdapterConfigManager:
                 if is_enabled:
                     self._adapter_configs[adapter_name] = adapter_config
                     enabled_count += 1
-                    if self.verbose:
-                        inference_provider = adapter_config.get('inference_provider')
-                        log_message = f"Loaded adapter config: {adapter_name} (enabled)"
-                        if inference_provider:
-                            log_message += f" with inference provider override: {inference_provider}"
-                        logger.info(log_message)
+                    inference_provider = adapter_config.get('inference_provider')
+                    log_message = f"Loaded adapter config: {adapter_name} (enabled)"
+                    if inference_provider:
+                        log_message += f" with inference provider override: {inference_provider}"
+                    logger.debug(log_message)
                 else:
                     disabled_count += 1
-                    if self.verbose:
-                        logger.info(f"Skipping disabled adapter: {adapter_name}")
+                    logger.debug(f"Skipping disabled adapter: {adapter_name}")
 
         logger.info(f"Loaded {enabled_count} enabled adapter configurations ({disabled_count} disabled)")
 

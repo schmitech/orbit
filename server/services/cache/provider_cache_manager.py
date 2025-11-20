@@ -38,7 +38,6 @@ class ProviderCacheManager:
         self._cache_lock = threading.Lock()
         self._initializing: Set[str] = set()
         self._thread_pool = thread_pool or ThreadPoolExecutor(max_workers=3)
-        self.verbose = config.get('general', {}).get('verbose', False)
 
     def build_cache_key(self, provider_name: str, model_override: Optional[str] = None) -> str:
         """
@@ -115,8 +114,7 @@ class ProviderCacheManager:
                 else:
                     provider.close()
         except (AttributeError, TypeError) as e:
-            if self.verbose:
-                logger.debug(f"Provider {cache_key} close method not available: {str(e)}")
+            logger.debug(f"Provider {cache_key} close method not available: {str(e)}")
         except Exception as e:
             logger.warning(f"Error closing provider {cache_key}: {str(e)}")
 
@@ -166,8 +164,7 @@ class ProviderCacheManager:
 
         # Check if already cached
         if cache_key in self._cache:
-            if self.verbose:
-                logger.debug(f"Using cached provider: {cache_key}")
+            logger.debug(f"Using cached provider: {cache_key}")
             return self._cache[cache_key]
 
         # Try to claim initialization ownership

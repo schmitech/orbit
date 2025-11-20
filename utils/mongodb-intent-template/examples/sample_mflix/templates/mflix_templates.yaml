@@ -395,16 +395,23 @@ templates:
     mongodb_query: |
       {
         "filter": {
-          "imdb.rating": {
+          {% if rating_min or min_votes %}
+          {% set comma = joiner(",") %}
+          {% if rating_min %}
+          {{comma()}}"imdb.rating": {
             "$gte": {{rating_min}}
             {% if rating_max %}
             , "$lte": {{rating_max}}
             {% endif %}
           }
+          {% endif %}
           {% if min_votes %}
-          , "imdb.votes": {
+          {{comma()}}"imdb.votes": {
             "$gte": {{min_votes}}
           }
+          {% endif %}
+          {% else %}
+          "imdb.rating": { "$exists": true }
           {% endif %}
         },
         "projection": {
@@ -425,8 +432,9 @@ templates:
     parameters:
       - name: rating_min
         type: number
-        required: true
-        description: "Minimum IMDB rating"
+        required: false
+        default: 7.0
+        description: "Minimum IMDB rating (defaults to 7.0 for 'highly rated' queries)"
         example: 8.0
 
       - name: rating_max

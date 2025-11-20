@@ -176,7 +176,7 @@ class TestProviderCacheManager:
     def setup_method(self):
         """Setup test fixtures"""
         self.config = {
-            'general': {'verbose': False},
+            'general': {},
             'inference': {
                 'openai': {'model': 'gpt-4'}
             }
@@ -289,7 +289,7 @@ class TestEmbeddingCacheManager:
     def setup_method(self):
         """Setup test fixtures"""
         self.config = {
-            'general': {'verbose': False},
+            'general': {},
             'embeddings': {
                 'openai': {'model': 'text-embedding-3-small'},
                 'ollama': {'model': 'nomic-embed-text'}
@@ -361,7 +361,7 @@ class TestRerankerCacheManager:
     def setup_method(self):
         """Setup test fixtures"""
         self.config = {
-            'general': {'verbose': False},
+            'general': {},
             'rerankers': {
                 'cohere': {'model': 'rerank-english-v3.0'},
                 'flashrank': {'model': 'ms-marco-MiniLM-L-12-v2'}
@@ -433,7 +433,7 @@ class TestVisionCacheManager:
     def setup_method(self):
         """Setup test fixtures"""
         self.config = {
-            'general': {'verbose': False},
+            'general': {},
             'vision': {
                 'openai': {'model': 'gpt-4-vision-preview'},
                 'gemini': {'model': 'gemini-pro-vision'}
@@ -512,7 +512,7 @@ class TestAudioCacheManager:
     def setup_method(self):
         """Setup test fixtures"""
         self.config = {
-            'general': {'verbose': False},
+            'general': {},
             'sound': {
                 'openai': {'tts_model': 'tts-1', 'stt_model': 'whisper-1'},
                 'elevenlabs': {'tts_model': 'eleven_monolingual_v1'},

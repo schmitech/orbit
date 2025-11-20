@@ -59,7 +59,6 @@ class DatabaseService(ABC):
             config: Application configuration dictionary
         """
         self.config = config
-        self.verbose = config.get('general', {}).get('verbose', False)
         self._initialized = False
 
     @abstractmethod

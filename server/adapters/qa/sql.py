@@ -18,20 +18,18 @@ logger.info(f"Registered QASQLAdapter as 'sql_qa'")
 class QASQLAdapter(DocumentAdapter):
     """Generic adapter for question-answer pairs in SQL databases"""
     
-    def __init__(self, confidence_threshold: float = 0.5, verbose: bool = False, config: Dict[str, Any] = None, **kwargs):
+    def __init__(self, confidence_threshold: float = 0.5, config: Dict[str, Any] = None, **kwargs):
         """
         Initialize the adapter with configurable confidence threshold.
-        
+
         Args:
             confidence_threshold: Minimum confidence score to consider a match (default: 0.5)
-            verbose: Whether to enable verbose logging
             config: Optional configuration dictionary
             **kwargs: Additional keyword arguments
         """
         self.confidence_threshold = confidence_threshold
-        self.verbose = verbose
         self.config = config or {}
-        logger.info(f"QASQLAdapter INITIALIZED with confidence_threshold={confidence_threshold}, verbose={verbose}")
+        logger.info(f"QASQLAdapter INITIALIZED with confidence_threshold={confidence_threshold}")
     
     def format_document(self, raw_doc: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -44,8 +42,7 @@ class QASQLAdapter(DocumentAdapter):
         Returns:
             A formatted context item
         """
-        if self.verbose:
-            logger.info(f"QASQLAdapter.format_document called with metadata keys: {list(metadata.keys())}")
+        logger.debug(f"QASQLAdapter.format_document called with metadata keys: {list(metadata.keys())}")
             
         # Create the base item
         item = {

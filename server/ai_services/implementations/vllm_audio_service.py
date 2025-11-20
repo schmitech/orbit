@@ -57,9 +57,6 @@ class VLLMAudioService(AudioService):
         # Initialize via AudioService base class
         AudioService.__init__(self, config, "vllm")
 
-        # Get verbose setting from global config
-        self.verbose = config.get('general', {}).get('verbose', False)
-
         # Get audio-specific configuration
         provider_config = self._extract_provider_config()
 
@@ -140,8 +137,7 @@ class VLLMAudioService(AudioService):
         # Auto-detect CUDA if available, otherwise use CPU
         if SNAC_AVAILABLE and torch is not None and torch.cuda.is_available():
             default_device = 'cuda'
-            if self.verbose:
-                self.logger.info(f"CUDA available: {torch.cuda.get_device_name(0)}")
+            self.logger.debug(f"CUDA available: {torch.cuda.get_device_name(0)}")
         else:
             default_device = 'cpu'
         self.snac_device = provider_config.get('snac_device', default_device)
@@ -167,8 +163,7 @@ class VLLMAudioService(AudioService):
         #   With FP8 quantization, you can typically run 8-12 concurrent sequences
         # - --gpu-memory-utilization: Increase from 0.7 to 0.85-0.9 for better throughput
         # - FP8 quantization reduces memory by ~50%, allowing more concurrent requests
-        if self.verbose:
-            self.logger.info(
+        self.logger.debug(
                 f"vLLM optimization: Add --max-num-seqs {self.max_concurrent_requests}+ to your vLLM server command "
                 f"to enable parallel audio generation (currently missing, causing sequential processing)"
             )
@@ -207,15 +202,13 @@ class VLLMAudioService(AudioService):
         if _global_snac_model is not None and _global_snac_device == self.snac_device:
             self.snac_model = _global_snac_model
             self._snac_initialized = True
-            if self.verbose:
-                self.logger.info(f"Using cached SNAC model on device: {self.snac_device}")
+            self.logger.debug(f"Using cached SNAC model on device: {self.snac_device}")
             return True
 
         try:
-            if self.verbose:
-                self.logger.info(f"Loading SNAC model on device: {self.snac_device}")
-                if self.snac_device.startswith('cuda') and torch.cuda.is_available():
-                    self.logger.info(f"GPU: {torch.cuda.get_device_name(0)}, "
+            self.logger.debug(f"Loading SNAC model on device: {self.snac_device}")
+            if self.snac_device.startswith('cuda') and torch.cuda.is_available():
+                self.logger.debug(f"GPU: {torch.cuda.get_device_name(0)}, "
                                    f"Memory: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.2f} GB")
             
             self.snac_model = SNAC.from_pretrained("hubertsiuzdak/snac_24khz").eval()
@@ -235,8 +228,7 @@ class VLLMAudioService(AudioService):
                     _ = self.snac_model.decode(dummy_codes)
                     torch.cuda.synchronize()
                     torch.cuda.empty_cache()
-                if self.verbose:
-                    self.logger.debug("GPU warm-up completed")
+                self.logger.debug("GPU warm-up completed")
             
             self._snac_initialized = True
 
@@ -244,12 +236,11 @@ class VLLMAudioService(AudioService):
             _global_snac_model = self.snac_model
             _global_snac_device = self.snac_device
 
-            if self.verbose:
-                self.logger.info("SNAC model loaded and cached successfully")
-                if self.snac_device.startswith('cuda'):
-                    allocated = torch.cuda.memory_allocated(0) / 1024**2
-                    reserved = torch.cuda.memory_reserved(0) / 1024**2
-                    self.logger.info(f"GPU memory - Allocated: {allocated:.2f} MB, Reserved: {reserved:.2f} MB")
+            self.logger.debug("SNAC model loaded and cached successfully")
+            if self.snac_device.startswith('cuda'):
+                allocated = torch.cuda.memory_allocated(0) / 1024**2
+                reserved = torch.cuda.memory_reserved(0) / 1024**2
+                self.logger.debug(f"GPU memory - Allocated: {allocated:.2f} MB, Reserved: {reserved:.2f} MB")
             return True
         except Exception as e:
             self.logger.error(f"Failed to initialize SNAC model: {str(e)}")
@@ -523,8 +514,7 @@ class VLLMAudioService(AudioService):
                     del self.snac_model
                     self.snac_model = None
                 torch.cuda.empty_cache()
-                if self.verbose:
-                    self.logger.debug("GPU memory cleared")
+                self.logger.debug("GPU memory cleared")
 
         self.initialized = False
         self._verification_attempted = False
@@ -707,8 +697,7 @@ class VLLMAudioService(AudioService):
         tokens = self._extract_audio_tokens(response_text)
 
         if tokens:
-            if self.verbose:
-                self.logger.info(f"Extracted {len(tokens)} audio tokens from model response")
+            self.logger.debug(f"Extracted {len(tokens)} audio tokens from model response")
 
             if not SNAC_AVAILABLE:
                 raise RuntimeError(
@@ -719,8 +708,7 @@ class VLLMAudioService(AudioService):
             try:
                 # Decode tokens to raw PCM audio
                 pcm_audio = self._convert_tokens_to_audio(tokens)
-                if self.verbose:
-                    self.logger.info(f"Decoded {len(pcm_audio)} bytes of PCM audio")
+                self.logger.debug(f"Decoded {len(pcm_audio)} bytes of PCM audio")
 
                 # Wrap in WAV format if requested
                 if audio_format.lower() in ['wav', 'wave']:

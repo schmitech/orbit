@@ -21,8 +21,7 @@ class RequestContextBuilder:
     def __init__(
         self,
         config: Dict[str, Any],
-        adapter_manager=None,
-        verbose: bool = False
+        adapter_manager=None
     ):
         """
         Initialize the request context builder.
@@ -30,11 +29,9 @@ class RequestContextBuilder:
         Args:
             config: Application configuration
             adapter_manager: Optional adapter manager for getting adapter settings
-            verbose: Enable verbose logging
         """
         self.config = config
         self.adapter_manager = adapter_manager
-        self.verbose = verbose
 
     def get_adapter_config(self, adapter_name: str) -> Dict[str, Any]:
         """
@@ -65,8 +62,8 @@ class RequestContextBuilder:
         adapter_config = self.get_adapter_config(adapter_name)
         provider = adapter_config.get('inference_provider')
 
-        if provider and self.verbose:
-            logger.info(
+        if provider:
+            logger.debug(
                 f"Using adapter-specific inference provider: {provider} for adapter: {adapter_name}"
             )
 

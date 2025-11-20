@@ -73,10 +73,10 @@ class IntentMySQLRetriever(IntentSQLRetriever):
             cursor.execute("SELECT VERSION() as version")
             version = cursor.fetchone()
             cursor.close()
-            
-            if version and self.verbose:
-                logger.info(f"MySQL connection successful: {version['version']}")
-            
+
+            if version:
+                logger.debug(f"MySQL connection successful: {version['version']}")
+
             return connection
             
         except Exception as e:

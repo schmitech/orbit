@@ -62,8 +62,7 @@ class IntentMongoDBRetriever(IntentHTTPRetriever):
         self.mongo_datasource = datasource
         self.mongo_client: Optional[AsyncIOMotorClient] = None
 
-        if self.verbose:
-            logger.info(f"MongoDBRetriever initialized with database: {self.database_name}, default_collection: {self.default_collection}")
+        logger.debug(f"MongoDBRetriever initialized with database: {self.database_name}, default_collection: {self.default_collection}")
 
     def _get_datasource_name(self) -> str:
         """Return the datasource name."""
@@ -93,8 +92,7 @@ class IntentMongoDBRetriever(IntentHTTPRetriever):
         # Get the MongoDB client
         self.mongo_client = self.mongo_datasource.client
 
-        if self.verbose:
-            logger.info("MongoDB retriever initialized with datasource from registry")
+        logger.debug("MongoDB retriever initialized with datasource from registry")
 
     async def _execute_template(self, template: Dict[str, Any],
                                 parameters: Dict[str, Any]) -> Tuple[Any, Optional[str]]:
@@ -122,8 +120,7 @@ class IntentMongoDBRetriever(IntentHTTPRetriever):
             template_params = template.get('parameters', [])
             if template_params:
                 parameters = self._normalize_parameters(parameters, template_params)
-                if self.verbose:
-                    logger.debug(f"Normalized parameters: {parameters}")
+                logger.debug(f"Normalized parameters: {parameters}")
 
             # Process the MongoDB query template with parameters
             mongo_query = self._process_mongodb_query_template(mongo_query_template, parameters)
@@ -132,9 +129,8 @@ class IntentMongoDBRetriever(IntentHTTPRetriever):
             collection_name = template.get('collection', self.default_collection)
             query_type = template.get('query_type', 'find')
 
-            if self.verbose:
-                logger.info(f"Executing MongoDB {query_type} on collection: {collection_name}")
-                logger.debug(f"MongoDB Query: {json.dumps(mongo_query, indent=2)}")
+            logger.debug(f"Executing MongoDB {query_type} on collection: {collection_name}")
+            logger.debug(f"MongoDB Query: {json.dumps(mongo_query, indent=2)}")
 
             # Get collection reference
             database = self.mongo_client[template.get('database', self.database_name)]
@@ -227,8 +223,7 @@ class IntentMongoDBRetriever(IntentHTTPRetriever):
                     parameters=parameters,
                     preserve_unknown=False
                 )
-                if self.verbose:
-                    logger.debug(f"Rendered MongoDB query template:\n{rendered}")
+                logger.debug(f"Rendered MongoDB query template:\n{rendered}")
                 return json.loads(rendered)
             else:
                 # Fallback: simple parameter substitution
@@ -243,8 +238,7 @@ class IntentMongoDBRetriever(IntentHTTPRetriever):
                         rendered = rendered.replace(placeholder, json.dumps(value))
                     else:
                         rendered = rendered.replace(placeholder, str(value))
-                if self.verbose:
-                    logger.debug(f"Rendered MongoDB query template (fallback):\n{rendered}")
+                logger.debug(f"Rendered MongoDB query template (fallback):\n{rendered}")
                 return json.loads(rendered)
 
         except Exception as e:

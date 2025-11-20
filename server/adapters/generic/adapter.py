@@ -28,7 +28,6 @@ class GenericDocumentAdapter(DocumentAdapter):
 
         # Extract configuration values with sensible defaults
         self.confidence_threshold = self.config.get('confidence_threshold', 0.3)
-        self.verbose = self.config.get('verbose', False)
 
     def format_document(self, raw_doc: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
         """Format document for general retrieval"""

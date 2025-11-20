@@ -56,7 +56,6 @@ class DynamicAdapterManager:
         self.config = config
         self.app_state = app_state
         self.logger = logger
-        self.verbose = config.get('general', {}).get('verbose', False)
 
         # Thread pool for adapter initialization
         self._thread_pool = ThreadPoolExecutor(max_workers=5)
@@ -103,15 +102,13 @@ class DynamicAdapterManager:
             self.embedding_cache,
             self.reranker_cache,
             self.vision_cache,
-            self.audio_cache,
-            self.verbose
+            self.audio_cache
         )
         self.reloader = AdapterReloader(
             self.config_manager,
             self.adapter_cache,
             self.adapter_loader,
-            self.dependency_cleaner,
-            self.verbose
+            self.dependency_cleaner
         )
 
     async def get_adapter(self, adapter_name: str) -> Any:
@@ -139,8 +136,7 @@ class DynamicAdapterManager:
         # Check if adapter is already cached
         cached_adapter = self.adapter_cache.get(adapter_name)
         if cached_adapter:
-            if self.verbose:
-                self.logger.debug(f"Using cached adapter: {adapter_name}")
+            logger.debug(f"Using cached adapter: {adapter_name}")
             return cached_adapter
 
         # Try to claim initialization ownership
@@ -285,8 +281,7 @@ class DynamicAdapterManager:
             adapter_config = self.config_manager.get(adapter_name)
             if adapter_config and adapter_config.get('model'):
                 model_override = adapter_config['model']
-                if self.verbose:
-                    self.logger.info(f"Found model override '{model_override}' for adapter '{adapter_name}'")
+                logger.debug(f"Found model override '{model_override}' for adapter '{adapter_name}'")
 
         return await self.provider_cache.create_provider(provider_name, model_override, adapter_name)
 
@@ -602,8 +597,7 @@ class DynamicAdapterManager:
         """
         # Update global config
         self.config = config
-        if self.verbose:
-            self.logger.debug("Updated global config for adapter reload")
+        logger.debug("Updated global config for adapter reload")
 
         # Update config references in all components
         self.adapter_loader.update_config(config)

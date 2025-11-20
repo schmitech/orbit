@@ -47,7 +47,6 @@ async def mongodb_service():
             }
         },
         'general': {
-            'verbose': False
         }
     }
 

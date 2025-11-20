@@ -27,9 +27,8 @@ class ThreadPoolManager:
         self.logger = logger or logging.getLogger(__name__)
         self._pools: Dict[str, ThreadPoolExecutor] = {}
         self._default_pool_size = 10
-        self.verbose = config.get('general', {}).get('verbose', False)
-        
-        # Task tracking for verbose logging
+
+        # Task tracking for debugging
         self._task_counter = 0
         self._active_tasks: Dict[int, Dict[str, Any]] = {}
         
@@ -56,9 +55,7 @@ class ThreadPoolManager:
                     max_workers=worker_count,
                     thread_name_prefix=f"orbit-{pool_name}-"
                 )
-                self.logger.info(f"Initialized {pool_name} thread pool with {worker_count} workers")
-                if self.verbose:
-                    self.logger.debug(f"ThreadPoolManager: Created {pool_name} pool (workers={worker_count})")
+                self.logger.debug(f"ThreadPoolManager: Initialized {pool_name} pool with {worker_count} workers")
             except Exception as e:
                 self.logger.error(f"Failed to initialize {pool_name} thread pool: {str(e)}")
                 # Fallback to default pool size
@@ -87,42 +84,38 @@ class ThreadPoolManager:
     async def run_in_pool(self, pool_type: str, func: Callable, *args, **kwargs) -> Any:
         """
         Run a function in a specific thread pool.
-        
+
         Args:
             pool_type: Type of thread pool to use
             func: Function to execute
             *args: Positional arguments for the function
             **kwargs: Keyword arguments for the function
-            
+
         Returns:
             Result of the function execution
         """
         pool = self.get_pool(pool_type)
         loop = asyncio.get_event_loop()
-        
-        # Track task for verbose logging
-        task_id = None
-        start_time = None
-        if self.verbose:
-            self._task_counter += 1
-            task_id = self._task_counter
-            start_time = time.time()
-            func_name = getattr(func, '__name__', str(func))
-            self._active_tasks[task_id] = {
-                'pool': pool_type,
-                'func': func_name,
-                'start_time': start_time,
-                'args': str(args)[:100],  # Truncate for logging
-                'kwargs': str(kwargs)[:100] if kwargs else '{}'
-            }
-            
-            # Log task submission
-            pool_stats = self._get_pool_info(pool)
-            self.logger.info(
-                f"ThreadPool[{pool_type}] Task #{task_id}: Submitting '{func_name}' "
-                f"(active_threads={pool_stats['active']}, queued={pool_stats['queued']})"
-            )
-        
+
+        # Track task for debugging
+        self._task_counter += 1
+        task_id = self._task_counter
+        start_time = time.time()
+        func_name = getattr(func, '__name__', str(func))
+        self._active_tasks[task_id] = {
+            'pool': pool_type,
+            'func': func_name,
+            'start_time': start_time,
+            'args': str(args)[:100],  # Truncate for logging
+            'kwargs': str(kwargs)[:100] if kwargs else '{}'
+        }
+
+        pool_stats = self._get_pool_info(pool)
+        self.logger.debug(
+            f"ThreadPool[{pool_type}] Task #{task_id}: Submitting '{func_name}' "
+            f"(active_threads={pool_stats['active']}, queued={pool_stats['queued']})"
+        )
+
         try:
             # If there are kwargs, use functools.partial to bind them
             if kwargs:
@@ -130,25 +123,23 @@ class ThreadPoolManager:
                 result = await loop.run_in_executor(pool, func_with_kwargs)
             else:
                 result = await loop.run_in_executor(pool, func, *args)
-            
+
             # Log completion
-            if self.verbose and task_id:
-                elapsed = time.time() - start_time
-                del self._active_tasks[task_id]
-                self.logger.info(
-                    f"ThreadPool[{pool_type}] Task #{task_id}: Completed in {elapsed:.3f}s"
-                )
-            
+            elapsed = time.time() - start_time
+            del self._active_tasks[task_id]
+            self.logger.debug(
+                f"ThreadPool[{pool_type}] Task #{task_id}: Completed in {elapsed:.3f}s"
+            )
+
             return result
-            
+
         except Exception as e:
             # Log error
-            if self.verbose and task_id:
-                elapsed = time.time() - start_time
-                del self._active_tasks[task_id]
-                self.logger.error(
-                    f"ThreadPool[{pool_type}] Task #{task_id}: Failed after {elapsed:.3f}s - {str(e)}"
-                )
+            elapsed = time.time() - start_time
+            del self._active_tasks[task_id]
+            self.logger.error(
+                f"ThreadPool[{pool_type}] Task #{task_id}: Failed after {elapsed:.3f}s - {str(e)}"
+            )
             raise
     
     def submit_to_pool(self, pool_type: str, func: Callable, *args, **kwargs) -> Future:
@@ -218,23 +209,6 @@ class ThreadPoolManager:
                 'queued_tasks': pool._work_queue.qsize() if hasattr(pool._work_queue, 'qsize') else 'N/A'
             }
         
-        # Add active task info if verbose
-        if self.verbose and self._active_tasks:
-            active_by_pool = {}
-            for task_id, task_info in self._active_tasks.items():
-                pool_name = task_info['pool']
-                if pool_name not in active_by_pool:
-                    active_by_pool[pool_name] = []
-                active_by_pool[pool_name].append({
-                    'task_id': task_id,
-                    'function': task_info['func'],
-                    'duration': time.time() - task_info['start_time']
-                })
-            
-            for pool_name, tasks in active_by_pool.items():
-                if pool_name in stats:
-                    stats[pool_name]['active_tasks'] = tasks
-        
         return stats
     
     def shutdown(self, wait: bool = True) -> None:
@@ -245,17 +219,14 @@ class ThreadPoolManager:
             wait: Whether to wait for pending tasks to complete
         """
         self.logger.info("Shutting down thread pools...")
-        
-        # Log final stats if verbose
-        if self.verbose:
-            final_stats = self.get_pool_stats()
-            self.logger.info("ThreadPoolManager final statistics:")
-            for pool_name, stats in final_stats.items():
-                self.logger.info(
-                    f"  {pool_name}: max_workers={stats['max_workers']}, "
-                    f"active_threads={stats['active_threads']}, "
-                    f"queued_tasks={stats['queued_tasks']}"
-                )
+        final_stats = self.get_pool_stats()
+        self.logger.debug("ThreadPoolManager final statistics:")
+        for pool_name, stats in final_stats.items():
+            self.logger.debug(
+                f"  {pool_name}: max_workers={stats['max_workers']}, "
+                f"active_threads={stats['active_threads']}, "
+                f"queued_tasks={stats['queued_tasks']}"
+            )
             
             if self._active_tasks:
                 self.logger.warning(
@@ -280,12 +251,9 @@ class ThreadPoolManager:
     
     def log_current_status(self):
         """Log current thread pool status - useful for monitoring."""
-        if not self.verbose:
-            return
-            
         stats = self.get_pool_stats()
-        self.logger.info("ThreadPoolManager Current Status:")
-        self.logger.info("=" * 60)
+        self.logger.debug("ThreadPoolManager Current Status:")
+        self.logger.debug("=" * 60)
         
         total_active = 0
         total_queued = 0

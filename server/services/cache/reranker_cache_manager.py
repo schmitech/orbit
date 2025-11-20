@@ -37,7 +37,6 @@ class RerankerCacheManager:
         self._cache_lock = threading.Lock()
         self._initializing: Set[str] = set()
         self._thread_pool = thread_pool or ThreadPoolExecutor(max_workers=3)
-        self.verbose = config.get('general', {}).get('verbose', False)
 
     def build_cache_key(self, provider_name: str) -> str:
         """
@@ -113,8 +112,7 @@ class RerankerCacheManager:
                 else:
                     service.close()
         except (AttributeError, TypeError) as e:
-            if self.verbose:
-                logger.debug(f"Reranker service {cache_key} close method not available: {str(e)}")
+            logger.debug(f"Reranker service {cache_key} close method not available: {str(e)}")
         except Exception as e:
             logger.warning(f"Error closing reranker service {cache_key}: {str(e)}")
 
@@ -139,8 +137,7 @@ class RerankerCacheManager:
 
         # Check if already cached
         if cache_key in self._cache:
-            if self.verbose:
-                logger.debug(f"Using cached reranker service: {cache_key}")
+            logger.debug(f"Using cached reranker service: {cache_key}")
             return self._cache[cache_key]
 
         # Try to claim initialization ownership

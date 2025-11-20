@@ -18,7 +18,6 @@ def test_adapter_config_loading():
     # Test configuration with adapters having different inference providers
     config = {
         'general': {
-            'verbose': True,
             'inference_provider': 'llama_cpp'  # Default provider
         },
         'adapters': [

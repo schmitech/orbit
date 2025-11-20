@@ -80,8 +80,7 @@ class QAQdrantRetriever(QAVectorRetrieverBase, QdrantRetriever):
         # Mark as initialized
         self.initialized = True
         
-        if self.verbose:
-            logger.info(f"QAQdrantRetriever initialized successfully")
+        logger.debug("QAQdrantRetriever initialized successfully")
     
     def convert_score_to_confidence(self, score: float) -> float:
         """
@@ -121,8 +120,7 @@ class QAQdrantRetriever(QAVectorRetrieverBase, QdrantRetriever):
                 logger.warning(f"Qdrant collection '{collection_name}' does not exist. Returning empty results.")
                 return []
                 
-            if self.verbose:
-                logger.info(f"Querying Qdrant collection: {collection_name}")
+            logger.debug(f"Querying Qdrant collection: {collection_name}")
                 
             return self.qdrant_client.search(
                 collection_name=collection_name,
@@ -140,8 +138,7 @@ class QAQdrantRetriever(QAVectorRetrieverBase, QdrantRetriever):
                 return []
         except Exception as e:
             logger.error(f"Error querying Qdrant: {str(e)}")
-            if self.verbose:
-                logger.error(traceback.format_exc())
+            logger.debug(traceback.format_exc())
             return []
     
     def extract_document_data(self, result: Any) -> Tuple[str, Dict[str, Any], float]:
@@ -192,8 +189,7 @@ class QAQdrantRetriever(QAVectorRetrieverBase, QdrantRetriever):
         
         self.collection_name = collection_name
         
-        if self.verbose:
-            logger.info(f"[QAQdrantRetriever] Set collection name to: {collection_name}")
+        logger.debug(f"[QAQdrantRetriever] Set collection name to: {collection_name}")
     
     def _create_fallback_adapter(self):
         """Create a fallback adapter specifically for Qdrant."""

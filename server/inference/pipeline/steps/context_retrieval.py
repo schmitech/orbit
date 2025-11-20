@@ -31,9 +31,7 @@ class ContextRetrievalStep(PipelineStep):
         super().__init__(container)
         self._capability_registry = get_capability_registry()
 
-        # Get verbose setting from config if available
         config = container.get('config') if container.has('config') else {}
-        self.verbose = config.get('general', {}).get('verbose', False) if isinstance(config, dict) else False
 
         self._initialize_capabilities()
 
@@ -226,8 +224,7 @@ class ContextRetrievalStep(PipelineStep):
                     
                     context.retrieved_docs = docs
                     
-                    if self.verbose:
-                        self.logger.info(f"Loaded {len(docs)} documents from thread {context.thread_id}")
+                    self.logger.debug(f"Loaded {len(docs)} documents from thread {context.thread_id}")
                     
                     # Format context for LLM
                     capabilities = self._get_capabilities(context.adapter_name)

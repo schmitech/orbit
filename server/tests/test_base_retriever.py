@@ -93,7 +93,6 @@ def test_config():
             }
         },
         "general": {
-            "verbose": False
         }
     }
 

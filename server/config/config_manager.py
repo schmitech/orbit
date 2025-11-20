@@ -119,15 +119,10 @@ def _log_config_summary(config: Dict[str, Any], source_path: str):
     else:
         logger.info(f"Inference: {inference_provider}")
     
-    # Log general configuration flags
-    general_config = config.get('general', {})
-    verbose = general_config.get('verbose', False)
-    
     # Get language detection from new configuration structure
     lang_detect_config = config.get('language_detection', {})
     language_detection = lang_detect_config.get('enabled', False)
-    
-    logger.info(f"General: verbose={verbose}")
+
     logger.info(f"Language Detection: enabled={language_detection}")
     
     # Log fault tolerance configuration (always enabled)

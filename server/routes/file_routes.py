@@ -245,12 +245,9 @@ def create_file_router() -> APIRouter:
                     mime_type=mime_type,
                     api_key=x_api_key
                 )
-                
-                # Log only when verbose is enabled
-                verbose = is_true_value(request.app.state.config.get('general', {}).get('verbose', False))
-                if verbose:
-                    logger.info(f"File uploaded successfully: {result['file_id']}")
-                
+
+                logger.debug(f"File uploaded successfully: {result['file_id']}")
+
                 return UploadResponse(
                     file_id=result['file_id'],
                     filename=result['filename'],
@@ -420,12 +417,9 @@ def create_file_router() -> APIRouter:
                 except Exception as e:
                     logger.error(f"Error deleting file {file['file_id']}: {e}")
                     errors.append(file['file_id'])
-            
-            config = getattr(request.app.state, 'config', {})
-            verbose = is_true_value(config.get('general', {}).get('verbose', False))
-            if verbose:
-                logger.info(f"Deleted {deleted_count} files for API key {x_api_key}")
-            
+
+            logger.debug(f"Deleted {deleted_count} files for API key {x_api_key}")
+
             return JSONResponse(
                 content={
                     "message": f"Deleted {deleted_count} file(s)",
@@ -479,11 +473,9 @@ def create_file_router() -> APIRouter:
             
             if not success:
                 raise HTTPException(status_code=500, detail="Failed to delete file")
-            
-            verbose = is_true_value(request.app.state.config.get('general', {}).get('verbose', False))
-            if verbose:
-                logger.info(f"File deleted: {file_id}")
-            
+
+            logger.debug(f"File deleted: {file_id}")
+
             return JSONResponse(
                 content={"message": "File deleted successfully", "file_id": file_id}
             )

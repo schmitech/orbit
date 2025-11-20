@@ -136,8 +136,7 @@ class SQLiteRetriever(BaseSQLDatabaseRetriever):
                     "fields": self.default_search_fields
                 }
                 
-                if self.verbose:
-                    logger.info("Using SQLite FTS search")
+                logger.debug("Using SQLite FTS search")
                 
                 return search_config
         

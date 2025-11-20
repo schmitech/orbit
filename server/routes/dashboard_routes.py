@@ -19,14 +19,6 @@ from utils import is_true_value
 logger = logging.getLogger(__name__)
 
 
-def _is_verbose(app) -> bool:
-    try:
-        config = getattr(app.state, 'config', {})
-        return is_true_value(config.get('general', {}).get('verbose', False))
-    except Exception:
-        return False
-
-
 def get_metrics_service(request: Request):
     """Get metrics service from app state"""
     metrics_service = getattr(request.app.state, 'metrics_service', None)
@@ -337,8 +329,7 @@ def create_dashboard_router() -> APIRouter:
                     from datasources.registry import get_registry as get_datasource_registry
                     datasource_registry = get_datasource_registry()
                     pool_stats = datasource_registry.get_pool_stats()
-                    if _is_verbose(websocket.app):
-                        logger.debug(f"Datasource pool stats: {pool_stats}")
+                    logger.debug(f"Datasource pool stats: {pool_stats}")
                     if pool_stats and pool_stats.get('total_cached_datasources', 0) > 0:
                         data['datasource_pool'] = pool_stats
                 except Exception as e:
@@ -362,8 +353,7 @@ def create_dashboard_router() -> APIRouter:
                 
         except WebSocketDisconnect:
             active_connections.remove(websocket)
-            if _is_verbose(websocket.app):
-                logger.info("WebSocket client disconnected")
+            logger.debug("WebSocket client disconnected")
         except Exception as e:
             logger.error(f"WebSocket error: {e}")
             if websocket in active_connections:

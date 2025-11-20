@@ -48,7 +48,8 @@ class LLMInferenceStep(PipelineStep):
             return context
         
         self.logger.debug("Generating LLM response")
-        
+        debug_enabled = self.logger.isEnabledFor(logging.DEBUG)
+
         try:
             llm_provider = None
             if context.inference_provider:
@@ -64,11 +65,9 @@ class LLMInferenceStep(PipelineStep):
             # Build the full prompt
             full_prompt = await self._build_prompt(context)
             context.full_prompt = full_prompt
-            
-            # Debug: Log the prompt being sent
-            config = self.container.get_or_none('config') or {}
-            if config.get('general', {}).get('verbose', False):
-                self.logger.info(f"DEBUG: Sending prompt to LLM: {repr(full_prompt)}")
+
+            if debug_enabled:
+                self.logger.debug("Sending prompt to LLM: %r", full_prompt)
             
             # Generate response with message format support
             kwargs = {}
@@ -77,13 +76,11 @@ class LLMInferenceStep(PipelineStep):
 
             response = await llm_provider.generate(full_prompt, **kwargs)
             context.response = response
-            
-            # Debug: Log the full response if verbose
-            config = self.container.get_or_none('config') or {}
-            if config.get('general', {}).get('verbose', False):
-                self.logger.info(f"DEBUG: Full LLM response: {repr(response)}")
+
+            if debug_enabled:
+                self.logger.debug("Full LLM response: %r", response)
             else:
-                self.logger.debug(f"Generated response: {response[:100]}...")
+                self.logger.debug("Generated response preview: %s...", response[:100])
             
         except Exception as e:
             self.logger.error(f"Error during LLM inference: {str(e)}")
@@ -105,7 +102,8 @@ class LLMInferenceStep(PipelineStep):
             return
         
         self.logger.debug("Generating streaming LLM response")
-        
+        debug_enabled = self.logger.isEnabledFor(logging.DEBUG)
+
         try:
             llm_provider = None
             if context.inference_provider:
@@ -121,11 +119,9 @@ class LLMInferenceStep(PipelineStep):
             # Build the full prompt
             full_prompt = await self._build_prompt(context)
             context.full_prompt = full_prompt
-            
-            # Debug: Log the prompt being sent
-            config = self.container.get_or_none('config') or {}
-            if config.get('general', {}).get('verbose', False):
-                self.logger.info(f"DEBUG: Sending streaming prompt to LLM: {repr(full_prompt)}")
+
+            if debug_enabled:
+                self.logger.debug("Sending streaming prompt to LLM: %r", full_prompt)
             
             # Generate streaming response with message format support
             kwargs = {}
@@ -139,12 +135,10 @@ class LLMInferenceStep(PipelineStep):
             
             context.response = accumulated_response
             
-            # Debug: Log the full streaming response if verbose
-            config = self.container.get_or_none('config') or {}
-            if config.get('general', {}).get('verbose', False):
-                self.logger.info(f"DEBUG: Full streaming LLM response: {repr(accumulated_response)}")
+            if debug_enabled:
+                self.logger.debug("Full streaming LLM response: %r", accumulated_response)
             else:
-                self.logger.debug(f"Generated streaming response: {accumulated_response[:100]}...")
+                self.logger.debug("Generated streaming response preview: %s...", accumulated_response[:100])
             
         except Exception as e:
             self.logger.error(f"Error during streaming LLM inference: {str(e)}")
@@ -424,9 +418,8 @@ class LLMInferenceStep(PipelineStep):
         language_detection_enabled = lang_detect_config.get('enabled', False)
         
         if not language_detection_enabled:
-            # No language instruction if language detection is disabled
-            if config.get('general', {}).get('verbose', False):
-                self.logger.info("DEBUG: Language detection disabled - no language instruction added")
+            if self.logger.isEnabledFor(logging.DEBUG):
+                self.logger.debug("Language detection disabled - no instruction added")
             return ""
         
         detected_language = getattr(context, 'detected_language', None)
@@ -490,8 +483,8 @@ class LLMInferenceStep(PipelineStep):
             # For low confidence non-English detection, let the model decide based on actual content
             instruction = "\nIMPORTANT: Match the language of the user's message. If the user is writing in English, respond in English. If they're writing in another language, respond in that same language."
         
-        if config.get('general', {}).get('verbose', False):
-            self.logger.info(f"DEBUG: Using language instruction for {language_name} ({detected_language})")
+        if self.logger.isEnabledFor(logging.DEBUG):
+            self.logger.debug("Using language instruction for %s (%s)", language_name, detected_language)
         
         return instruction
     

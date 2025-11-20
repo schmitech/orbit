@@ -203,7 +203,7 @@ class TestAdapterConfigManager:
     def setup_method(self):
         """Setup test fixtures"""
         self.config = {
-            'general': {'verbose': False},
+            'general': {},
             'adapters': [
                 {
                     'name': 'qa-sql',

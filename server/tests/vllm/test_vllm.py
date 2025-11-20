@@ -225,7 +225,6 @@ def test_vllm_provider_integration(vllm_config: Dict[str, Any], test_query: str)
                 'vllm': vllm_config
             },
             'general': {
-                'verbose': True
             }
         }
         
@@ -268,7 +267,6 @@ def test_vllm_provider_streaming(vllm_config: Dict[str, Any], test_query: str):
                 'vllm': vllm_config
             },
             'general': {
-                'verbose': True
             }
         }
         

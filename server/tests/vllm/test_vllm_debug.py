@@ -53,7 +53,6 @@ async def test_provider():
             }
         },
         "general": {
-            "verbose": True
         }
     }
     

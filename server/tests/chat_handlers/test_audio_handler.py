@@ -20,8 +20,7 @@ class TestAudioHandler:
         """Test handler initialization with valid config."""
         handler = AudioHandler(
             config=base_config,
-            adapter_manager=mock_adapter_manager,
-            verbose=True
+            adapter_manager=mock_adapter_manager
         )
 
         assert handler.max_text_length == 4096
@@ -29,7 +28,6 @@ class TestAudioHandler:
         assert handler.truncate_text is True
         assert handler.warn_on_truncate is True
         assert handler.default_provider == 'openai'
-        assert handler.verbose is True
 
     def test_initialization_with_defaults(self):
         """Test handler uses defaults when config is minimal."""
@@ -129,8 +127,7 @@ class TestAudioHandler:
         """Test successful audio generation."""
         handler = AudioHandler(
             config=base_config,
-            adapter_manager=mock_adapter_manager,
-            verbose=True
+            adapter_manager=mock_adapter_manager
         )
 
         with patch('ai_services.registry.register_all_services'), \

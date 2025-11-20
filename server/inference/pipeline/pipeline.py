@@ -33,10 +33,6 @@ class InferencePipeline:
         self.container = container
         self.monitor = PipelineMonitor()
         self.logger = logging.getLogger(__name__)
-        
-        # Cache verbose setting for efficiency
-        config = self.container.get_or_none('config') or {}
-        self.verbose = config.get('general', {}).get('verbose', False)
     
     async def process(self, context: ProcessingContext) -> ProcessingContext:
         """
@@ -51,8 +47,7 @@ class InferencePipeline:
         start_time = asyncio.get_event_loop().time()
         
         try:
-            if self.verbose:
-                self.logger.info(f"Starting pipeline processing for message: {context.message[:50]}...")
+            self.logger.debug(f"Starting pipeline processing for message: {context.message[:50]}...")
             
             # Process through each step
             for step in self.steps:
@@ -119,8 +114,7 @@ class InferencePipeline:
         start_time = asyncio.get_event_loop().time()
         
         try:
-            if self.verbose:
-                self.logger.info(f"Starting streaming pipeline processing for message: {context.message[:50]}...")
+            self.logger.debug(f"Starting streaming pipeline processing for message: {context.message[:50]}...")
             
             # Process through each step except the last one (LLM step)
             for step in self.steps[:-1]:
@@ -175,8 +169,7 @@ class InferencePipeline:
                 yield error_json
                 return
             
-            if self.verbose:
-                self.logger.info(f"DEBUG: LLM step found: {llm_step.get_name()}, should_execute={llm_step.should_execute(context)}, supports_streaming={llm_step.supports_streaming()}")
+            self.logger.debug(f"DEBUG: LLM step found: {llm_step.get_name()}, should_execute={llm_step.should_execute(context)}, supports_streaming={llm_step.supports_streaming()}")
             
             if llm_step.should_execute(context) and llm_step.supports_streaming():
                 # If response is already generated, just stream it

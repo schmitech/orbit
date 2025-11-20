@@ -29,10 +29,8 @@ class QADocumentAdapter(DocumentAdapter):
         # Extract configuration values with sensible defaults
         self.confidence_threshold = self.config.get('confidence_threshold', 0.7)
         self.boost_exact_matches = self.config.get('boost_exact_matches', False)
-        self.verbose = self.config.get('verbose', False)
 
-        if self.verbose:
-            logger.info(f"Initialized QA Document Adapter with confidence threshold: {self.confidence_threshold}")
+        logger.debug(f"Initialized QA Document Adapter with confidence threshold: {self.confidence_threshold}")
 
     def format_document(self, raw_doc: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
         """Format document for QA domain"""

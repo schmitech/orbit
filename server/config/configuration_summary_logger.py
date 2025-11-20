@@ -456,13 +456,13 @@ class ConfigurationSummaryLogger:
     def _log_system_settings(self) -> None:
         """Log system-level settings."""
         try:
-            verbose_enabled = is_true_value(self.config.get('general', {}).get('verbose', False))
+            logging_level = logging.getLevelName(self.logger.getEffectiveLevel())
             
             # Check new language_detection configuration structure
             lang_detect_config = self.config.get('language_detection', {})
             language_detection_enabled = is_true_value(lang_detect_config.get('enabled', False))
             
-            self._log_message(f"Verbose mode: {verbose_enabled}")
+            self._log_message(f"Logging level: {logging_level}")
             self._log_message(f"🌍 Language detection: {'enabled' if language_detection_enabled else 'disabled'}")
             
             if language_detection_enabled:
@@ -510,7 +510,7 @@ class ConfigurationSummaryLogger:
                     'api_key_enabled': is_true_value(self.config.get('api_keys', {}).get('enabled', True))
                 },
                 'system': {
-                    'verbose': is_true_value(self.config.get('general', {}).get('verbose', False)),
+                    'logging_level': logging.getLevelName(self.logger.getEffectiveLevel()),
                     'language_detection': is_true_value(self.config.get('language_detection', {}).get('enabled', False))
                 }
             }
