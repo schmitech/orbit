@@ -30,6 +30,9 @@ export interface Message {
   threadInfo?: ThreadInfo;
   supportsThreading?: boolean;
   databaseMessageId?: string;  // Database message ID from server (used for thread creation)
+  threadId?: string; // Thread identifier when message belongs to a thread
+  parentMessageId?: string; // Parent message ID when message belongs to a thread
+  isThreadMessage?: boolean; // Marks messages that should be rendered as thread replies
 }
 
 export interface AdapterInfo {

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Message } from './Message';
 import { Message as MessageType } from '../types';
 import { useSettings } from '../contexts/SettingsContext';
@@ -9,11 +9,19 @@ interface MessageListProps {
   messages: MessageType[];
   onRegenerate?: (messageId: string) => void;
   onStartThread?: (messageId: string, sessionId: string) => void;
+  onSendThreadMessage?: (threadId: string, parentMessageId: string, content: string) => Promise<void> | void;
   sessionId?: string;
   isLoading?: boolean;
 }
 
-export function MessageList({ messages, onRegenerate, onStartThread, sessionId, isLoading }: MessageListProps) {
+export function MessageList({
+  messages,
+  onRegenerate,
+  onStartThread,
+  onSendThreadMessage,
+  sessionId,
+  isLoading
+}: MessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const prevMessageCountRef = useRef(messages.length);
@@ -21,6 +29,22 @@ export function MessageList({ messages, onRegenerate, onStartThread, sessionId, 
   const prevIsLoadingRef = useRef(isLoading);
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
   const { settings } = useSettings();
+
+  const { topLevelMessages, threadLookup } = useMemo(() => {
+    const lookup = new Map<string, MessageType[]>();
+    const roots: MessageType[] = [];
+
+    messages.forEach(msg => {
+      if (msg.isThreadMessage && msg.parentMessageId) {
+        const existing = lookup.get(msg.parentMessageId) || [];
+        lookup.set(msg.parentMessageId, [...existing, msg]);
+      } else {
+        roots.push(msg);
+      }
+    });
+
+    return { topLevelMessages: roots, threadLookup: lookup };
+  }, [messages]);
 
   // Check if user has scrolled up manually
   const handleScroll = () => {
@@ -100,7 +124,7 @@ export function MessageList({ messages, onRegenerate, onStartThread, sessionId, 
     prevIsLoadingRef.current = isLoading;
   }, [isLoading, messages, settings.soundEnabled]);
 
-  if (messages.length === 0) {
+  if (topLevelMessages.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center px-4 sm:px-6">
         <div className="text-center text-lg text-gray-500 dark:text-[#bfc2cd]">
@@ -118,13 +142,16 @@ export function MessageList({ messages, onRegenerate, onStartThread, sessionId, 
       onScroll={handleScroll}
     >
       <div className="space-y-6 px-3 sm:px-4">
-        {messages.map((message) => (
+        {topLevelMessages.map((message) => (
           <Message
             key={message.id}
             message={message}
             onRegenerate={onRegenerate}
             onStartThread={onStartThread}
+            onSendThreadMessage={onSendThreadMessage}
+            threadMessages={threadLookup.get(message.id)}
             sessionId={sessionId}
+            isThreadSendDisabled={isLoading}
           />
         ))}
 

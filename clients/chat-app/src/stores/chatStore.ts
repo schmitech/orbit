@@ -771,6 +771,9 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
 
       // Get file attachments for the message from conversation's attachedFiles
       const conversation = get().conversations.find(conv => conv.id === conversationId);
+      if (!conversation) {
+        throw new Error('Conversation not found');
+      }
       const fileAttachments: FileAttachment[] = fileIds
         ? fileIds
             .map(fileId => {
@@ -797,6 +800,26 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         });
       }
 
+      // Resolve thread context if a threadId was provided
+      const activeThreadId = threadId || null;
+      let threadParentMessage: Message | undefined;
+      let threadSessionId: string | null = null;
+
+      if (activeThreadId) {
+        threadParentMessage = conversation.messages.find(
+          msg => msg.threadInfo?.thread_id === activeThreadId
+        );
+
+        if (!threadParentMessage) {
+          throw new Error('Thread metadata not found. Please recreate the thread from this message.');
+        }
+
+        threadSessionId = threadParentMessage.threadInfo?.thread_session_id || null;
+        if (!threadSessionId) {
+          throw new Error('Thread session is missing. Please recreate the thread from this message.');
+        }
+      }
+
       // Check message limits before adding messages
       // We'll handle cleanup in the set() call below to ensure atomic updates
 
@@ -818,6 +841,17 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
         timestamp: new Date(),
         isStreaming: true
       };
+
+      if (activeThreadId && threadParentMessage) {
+        userMessage.isThreadMessage = true;
+        userMessage.threadId = activeThreadId;
+        userMessage.parentMessageId = threadParentMessage.id;
+
+        assistantMessage.isThreadMessage = true;
+        assistantMessage.threadId = activeThreadId;
+        assistantMessage.parentMessageId = threadParentMessage.id;
+      }
+
       let trimmedPerConversation = false;
       let trimmedTotalMessages = false;
 
@@ -973,8 +1007,8 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
       const conversationApiKey = currentConversation.apiKey;
       
       // Determine if we're in thread mode and use appropriate session ID
-      const activeThreadId = threadId || currentConversation?.currentThreadId;
-      const activeSessionId = currentConversation?.currentThreadSessionId || currentConversation.sessionId;
+      const activeThreadId = threadId || null;
+      const activeSessionId = threadSessionId || currentConversation.sessionId;
       
       const api = await getApi();
       // Reconfigure API with the active session ID (thread session if in thread mode)
@@ -1036,7 +1070,7 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
           content,
           true,
           fileIds,
-          activeThreadId, // threadId for follow-up questions
+          activeThreadId || undefined, // threadId for follow-up questions
           undefined, // audioInput - for STT (to be implemented)
           undefined, // audioFormat for input
           language,
@@ -1261,8 +1295,8 @@ export const useChatStore = create<ExtendedChatState>((set, get) => ({
               }
               return msg;
             }),
-            currentThreadId: threadInfo.thread_id,
-            currentThreadSessionId: threadInfo.thread_session_id
+            currentThreadId: undefined,
+            currentThreadSessionId: undefined
           };
         })
       }));
@@ -1825,6 +1859,8 @@ const initializeStore = async () => {
         apiUrl: resolveApiUrl(conv.apiUrl),
         // Preserve adapterInfo if it exists
         adapterInfo: conv.adapterInfo || undefined,
+        currentThreadId: undefined,
+        currentThreadSessionId: undefined,
         messages: conv.messages
           .filter((msg: any) => !(msg.role === 'assistant' && msg.isStreaming)) // Remove any streaming messages
           .map((msg: any) => ({

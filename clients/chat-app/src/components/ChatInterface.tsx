@@ -112,6 +112,10 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
     sendMessage(content, fileIds, threadId);
   };
 
+  const handleSendThreadMessage = async (threadId: string, _parentMessageId: string, content: string) => {
+    await sendMessage(content, undefined, threadId);
+  };
+
   const handleRefreshAdapterInfo = async () => {
     if (!currentConversation || !currentConversation.apiKey) {
       debugWarn('Cannot refresh adapter info: no conversation or API key');
@@ -426,13 +430,14 @@ export function ChatInterface({ onOpenSettings, onOpenSidebar }: ChatInterfacePr
                     debugError('Failed to create thread:', error);
                   }
                 }}
+                onSendThreadMessage={handleSendThreadMessage}
                 sessionId={currentConversation.sessionId}
                 isLoading={isLoading}
               />
               <MessageInput
                 onSend={handleSendMessage}
                 disabled={isLoading || !currentConversation || !currentConversation.apiKey}
-                placeholder={currentConversation?.currentThreadId ? "Ask a follow-up question in this thread..." : "Message ORBIT..."}
+                placeholder="Message ORBIT..."
               />
             </>
           )}

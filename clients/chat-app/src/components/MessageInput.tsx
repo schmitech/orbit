@@ -452,10 +452,7 @@ export function MessageInput({
       const conversationFiles = currentConversation?.attachedFiles || [];
       const allFileIds = conversationFiles.map(f => f.file_id);
       
-      // Pass threadId if we're in thread mode
-      const threadId = currentConversation?.currentThreadId;
-
-      onSend(message.trim(), allFileIds.length > 0 ? allFileIds : undefined, threadId);
+      onSend(message.trim(), allFileIds.length > 0 ? allFileIds : undefined);
       playSoundEffect('messageSent', settings.soundEnabled);
       setMessage('');
       voiceMessageRef.current = ''; // Clear voice message ref when manually submitting
