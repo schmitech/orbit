@@ -45,8 +45,8 @@ class ThreadDatasetService:
         self.redis_service = None
         self.database_service = None
         
-        # Initialize Redis service (if enabled)
-        if self.storage_backend == 'redis':
+        # Initialize Redis service (if threading is enabled and storage backend is redis)
+        if self.enabled and self.storage_backend == 'redis':
             try:
                 self.redis_service = RedisService(config)
                 if self.redis_service.enabled:
