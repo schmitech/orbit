@@ -124,7 +124,8 @@ logging:
       level: "WARNING"
     httpcore:
       level: "WARNING"
-    # Suppress docling library verbose output (document processing)
+    hpack:
+      level: "WARNING"
     docling:
       level: "WARNING"
     docling.datamodel.document:
