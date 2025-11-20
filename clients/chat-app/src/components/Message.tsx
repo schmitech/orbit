@@ -299,12 +299,6 @@ export function Message({
             {isThreadOpen && (
               <>
                 <div className="mt-3 space-y-3">
-                  {threadReplyCount === 0 && (
-                    <p className="text-xs text-gray-500 dark:text-[#bfc2cd]">
-                      Start a follow-up conversation with this result set.
-                    </p>
-                  )}
-
                   {threadReplies.map(reply => {
                     const replyIsAssistant = reply.role === 'assistant';
                     return (
@@ -341,7 +335,6 @@ export function Message({
                 </div>
 
                 <div className="mt-3 rounded-lg border border-gray-200 bg-white/80 p-2 dark:border-[#3c3f4a] dark:bg-[#181920]">
-                  <div className="mb-2 text-xs font-medium text-gray-500 dark:text-[#bfc2cd]">Ask a follow-up question in this thread</div>
                   <div className="flex items-end gap-2">
                     <textarea
                       className="min-h-[46px] flex-1 resize-none rounded-md border border-gray-300 bg-transparent px-3 py-2 text-sm text-[#353740] outline-none transition focus:border-gray-500 focus:ring-1 focus:ring-gray-400 disabled:opacity-60 dark:border-[#3c3f4a] dark:bg-[#1f2027] dark:text-[#ececf1] dark:focus:border-[#8e8ea0] dark:focus:ring-[#8e8ea0]"
